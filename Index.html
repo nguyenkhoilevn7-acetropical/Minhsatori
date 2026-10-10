@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Quản Lý Bán Nước & Hóa Đơn Tự Động - HKD Minh Satori</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Print Styles for Perfect A4 / A5 PDF */
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            #invoicePreview {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 10px !important;
+                margin: 0 auto !important;
+                max-width: 100% !important;
+                background: white !important;
+                color: black !important;
+            }
+            #invoicePreview * {
+                color: black !important;
+                border-color: #64748b !important;
+                background-color: transparent !important;
+            }
+            #invoicePreview .bg-slate-900,
+            #invoicePreview .bg-slate-950 {
+                background-color: #f1f5f9 !important;
+                color: black !important;
+            }
+            #invoicePreview .text-amber-300,
+            #invoicePreview .text-amber-400,
+            #invoicePreview .text-emerald-400,
+            #invoicePreview .text-blue-400 {
+                color: black !important;
+                font-weight: bold !important;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 10mm;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-blue-600 selection:text-white">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 py-3 shadow-lg no-print">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-tr from-blue-600 to-cyan-500 text-white p-2.5 rounded-xl shadow-md flex items-center justify-center">
+                    <i class="fa-solid fa-droplet text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-bold text-base md:text-lg text-white">Hộ Kinh Doanh Minh Satori</h1>
+                        <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Google Drive Connected (84 Hóa Đơn)
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400">Hệ Thống Tự Động Lên Hóa Đơn & Sổ Kế Toán Đồng Bộ 100%</p>
+                </div>
+            </div>
+
+            <!-- Tab Buttons & Actions -->
+            <div class="flex items-center gap-2">
+                <button onclick="syncLiveFromGoogleDrive()" id="btnSyncDrive" class="bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow" title="Tải dữ liệu mới nhất từ Google Sheets">
+                    <i class="fa-solid fa-arrows-rotate" id="syncIcon"></i>
+                    <span>Đồng Bộ Google Drive</span>
+                </button>
+
+                <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs sm:text-sm">
+                    <button onclick="switchTab('input')" id="btn-tab-input" class="px-3.5 py-1.5 font-medium rounded-lg transition text-white bg-blue-600 shadow flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-invoice"></i> Tạo Đơn & Hóa Đơn
+                    </button>
+                    <button onclick="switchTab('sheet')" id="btn-tab-sheet" class="px-3.5 py-1.5 font-medium rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-chart-line"></i> Sổ Kế Toán (<span id="tabOrderCount">84</span>)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-6">
+
+        <!-- ========================================== -->
+        <!-- TAB 1: TẠO ĐƠN & BẢN XEM TRƯỚC HÓA ĐƠN     -->
+        <!-- ========================================== -->
+        <section id="tab-input" class="space-y-6">
+            
+            <!-- AI Zalo Message Smart Parser Box -->
+            <div class="bg-gradient-to-r from-slate-900 to-indigo-950 border border-blue-500/40 rounded-2xl p-4 shadow-xl no-print space-y-3">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-blue-600/30 text-blue-400 p-1.5 rounded-lg text-sm border border-blue-500/40">
+                            <i class="fa-solid fa-brain"></i>
+                        </span>
+                        <div>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-blue-300">
+                                Trợ Lý AI Bóc Tách Tin Nhắn Zalo & Tự Định Giá Theo Mặt Hàng
+                            </h3>
+                            <p class="text-[11px] text-slate-400">Dán tin nhắn Zalo tự do từ khách, AI sẽ tự động phân loại mặt hàng, áp dụng giá niêm yết & % chiết khấu riêng cho từng loại.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="loadSampleZalo(1)" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-blue-300 px-2.5 py-1 rounded-lg border border-slate-700 transition">
+                            Mẫu 1: Traky 350ml
+                        </button>
+                        <button onclick="loadSampleZalo(2)" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2.5 py-1 rounded-lg border border-slate-700 transition">
+                            Mẫu 2: Thạnh Phú 500ml
+                        </button>
+                        <button onclick="loadSampleZalo(3)" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 px-2.5 py-1 rounded-lg border border-slate-700 transition">
+                            Mẫu 3: Trái Cây Satori
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <textarea id="zaloRawText" rows="2" placeholder="Dán nội dung tin nhắn Zalo tại đây... Ví dụ: Giao giúp e qua 52 bình phú tam bình thủ đức 10 thùng 500ml cho quán Thạnh Phú nha sdt Hằng 0784723916, đã ck" class="flex-1 bg-slate-950/80 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 placeholder-slate-500"></textarea>
+                    <button onclick="parseZaloMessageAI()" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>AI Bóc Tách & Tính Giá</span>
+                    </button>
+                </div>
+
+                <!-- AI Extracted Preview Tags -->
+                <div id="aiParsedPreview" class="hidden bg-slate-950/90 border border-emerald-500/30 rounded-xl p-3 space-y-2">
+                    <div class="flex items-center justify-between text-[11px]">
+                        <span class="font-bold text-emerald-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-circle-check"></i> Kết Quả AI Đã Bóc Tách:
+                        </span>
+                        <span class="text-slate-400 italic">Đã phân loại mặt hàng, áp dụng giá niêm yết và chiết khấu tương ứng!</span>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 text-[11px]" id="aiBadgeContainer">
+                        <!-- Badges dynamically injected -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Two-Column Layout: Form (Left) & Live Invoice (Right) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                <!-- FORM INPUT WITH REAL-TIME PRICING & DISCOUNT CALCULATOR -->
+                <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 no-print">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                        <h2 class="font-semibold text-sm text-white flex items-center gap-2">
+                            <i class="fa-solid fa-pen-to-square text-cyan-400"></i> Thông Tin Hóa Đơn & Đơn Hàng
+                        </h2>
+                        <span class="text-[11px] text-slate-400">Gõ tên khách để tự điền SĐT & Địa chỉ</span>
+                    </div>
+
+                    <form id="orderForm" onsubmit="event.preventDefault(); handleSaveAndGenerate();" class="space-y-3.5">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-300 mb-1">Ngày lập hóa đơn</label>
+                                <input type="date" id="orderDate" onchange="calculateTotals()" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-300 mb-1">
+                                    Số Invoice (Tự Động)
+                                </label>
+                                <div class="flex items-center gap-1.5">
+                                    <input type="number" id="invoiceNo" min="1" oninput="calculateTotals()" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none focus:border-amber-500">
+                                    <button type="button" onclick="resetInvoiceCounter()" title="Cài đặt số hóa đơn tiếp theo" class="text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800 border border-slate-700 text-xs">
+                                        <i class="fa-solid fa-gear"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-300 mb-1">Tên Khách Hàng / Đơn Vị (Gõ để chọn khách quen)</label>
+                            <input type="text" id="busName" list="customerDatalist" onchange="handleCustomerSelect(this.value)" oninput="calculateTotals()" placeholder="VD: Traky Sài Gòn, Edric Salon..." required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-300 mb-1">Số điện thoại liên hệ</label>
+                                <input type="text" id="busPhone" placeholder="SĐT khách hàng..." oninput="calculateTotals()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-300 mb-1">Mã số thuế (nếu có)</label>
+                                <input type="text" id="taxCode" placeholder="MST nếu xuất VAT..." oninput="calculateTotals()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-300 mb-1">Địa chỉ giao hàng (Location)</label>
+                            <input type="text" id="busLocation" placeholder="Địa chỉ giao hàng..." oninput="calculateTotals()" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                        </div>
+
+                        <!-- PRODUCT SELECTION & DETAILED PRICING ENGINE -->
+                        <div class="border-t border-slate-800 pt-3 space-y-3 bg-slate-950/40 p-3 rounded-xl border border-slate-800">
+                            <div class="flex justify-between items-center">
+                                <h3 class="text-[11px] font-bold uppercase tracking-wider text-cyan-400">
+                                    <i class="fa-solid fa-calculator mr-1"></i> Tính Toán Giá Bán & Chiết Khấu (%)
+                                </h3>
+                                <span class="text-[10px] text-amber-400 italic">Nhập % hoặc số tiền CK, hệ thống tự tính</span>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-300 mb-1">Phân loại mặt hàng</label>
+                                <select id="productSelect" onchange="handleProductSelectChange(this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-cyan-300 font-semibold focus:outline-none focus:border-blue-500 mb-1.5">
+                                    <option value="Suối Satori 350ml">Suối Satori 350ml (Thùng 24 chai) - Giá 88k, CK 26.14%</option>
+                                    <option value="Suối Satori 500ml">Suối Satori 500ml (Thùng 24 chai) - Giá 88k, CK 20.45%</option>
+                                    <option value="Suối Satori 1.5L">Suối Satori 1.5L (Thùng 12 chai) - Giá 88k, CK 27.61%</option>
+                                    <option value="Suối Satori 5L">Suối Satori 5L (Thùng 4 bình) - Giá 88k, CK 27.61%</option>
+                                    <option value="Bình Satori 19L">Bình Satori 19L (Bình vòi/úp) - Giá 65k, CK 15.38%</option>
+                                    <option value="Nước Trái Cây & Suối Satori">Nước Trái Cây Satori (Ổi, Mãng Cầu, Me) - Giá 250k, CK 13.33%</option>
+                                    <option value="custom">Sản phẩm tùy chỉnh khác...</option>
+                                </select>
+                                <input type="text" id="productName" value="Suối Satori 350ml" oninput="calculateTotals()" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2.5">
+                                <div>
+                                    <label class="block text-[11px] font-medium text-slate-300 mb-1">Số lượng (Thùng / Bình)</label>
+                                    <input type="number" id="quantity" value="15" min="1" oninput="calculateTotals()" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-medium text-slate-300 mb-1">Giá niêm yết (đ/thùng)</label>
+                                    <input type="number" id="listPrice" value="88000" min="0" oninput="onListPriceChange(this.value)" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-2">
+                                <div>
+                                    <label class="block text-[11px] font-medium text-amber-300 mb-1">Chiết khấu (%)</label>
+                                    <input type="number" id="discountPercent" value="26.14" step="0.01" min="0" max="100" oninput="onDiscountPercentChange(this.value)" class="w-full bg-slate-950 border border-amber-500/50 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-medium text-slate-300 mb-1">Tiền CK (đ/thùng)</label>
+                                    <input type="number" id="discount" value="23000" min="0" oninput="onDiscountAmountChange(this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-medium text-emerald-400 mb-1">Đơn giá sau CK (đ)</label>
+                                    <input type="number" id="unitPriceInput" value="65000" min="0" oninput="onUnitPriceChange(this.value)" class="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-3 py-2 text-xs text-emerald-400 font-bold focus:outline-none focus:border-emerald-400">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3 pt-1">
+                                <div>
+                                    <label class="block text-[11px] font-medium text-slate-300 mb-1">Thuế VAT 8%?</label>
+                                    <select id="vatOption" onchange="calculateTotals()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                                        <option value="no">Không áp dụng (0%)</option>
+                                        <option value="yes">Áp dụng thuế VAT (8%)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-medium text-slate-300 mb-1">Trạng thái thanh toán</label>
+                                    <select id="paymentStatus" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-400 font-semibold focus:outline-none focus:border-blue-500">
+                                        <option value="Chưa thanh toán" selected>Chưa thanh toán (Công nợ)</option>
+                                        <option value="Đã thanh toán">Đã thanh toán</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-2 flex gap-2">
+                            <button type="submit" class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold py-2.5 px-4 rounded-xl shadow-lg transition flex items-center justify-center gap-2 text-xs">
+                                <i class="fa-solid fa-floppy-disk"></i> Lưu Đơn & Tự Động Kế Toán
+                            </button>
+                            <button type="button" onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-4 rounded-xl shadow transition text-xs flex items-center gap-1.5" title="In hoặc Tải file PDF">
+                                <i class="fa-solid fa-file-pdf"></i> Tải PDF / In Hóa Đơn
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Customer Datalist Autocomplete -->
+                    <datalist id="customerDatalist">
+<option value="18+">
+<option value="CÔNG TY CỔ PHẦN THƯƠNG MẠI DỊCH VỤ VINAHASA (Ốc Q)">
+<option value="CÔNG TY TNHH TM DV THỂ THAO BANGER PICKLEBALL">
+<option value="Cô Hoa">
+<option value="Công Ty CP ACE Clubhouse">
+<option value="Edric Salon">
+<option value="Hà Minh Nguyệt">
+<option value="HỘ KINH DOANH DỊCH VỤ TÀI LỘC">
+<option value="Mr Ốc Ngon">
+<option value="Nguyễn Bảo Châu Diamon">
+<option value="Nhà Hàng Thạnh Phú">
+<option value="Nhà hàng Thạnh Phú">
+<option value="PWC">
+<option value="Traky Biên Hòa">
+<option value="Traky Bình Dương">
+<option value="Traky Bạc Liêu">
+<option value="Traky Bến Tre">
+<option value="Traky Cà Mau">
+<option value="Traky Cần Thơ">
+<option value="Traky Hair">
+<option value="Traky Long Xuyên">
+<option value="Traky Mỹ Tho">
+<option value="Traky Rạch Giá">
+<option value="Traky Sài Gòn">
+<option value="Traky Sóc Trăng">
+<option value="Traky Đà Nẵng 2">
+<option value="nguyên">
+<option value="Ốc Lá">
+<option value="Ốc Ngon">
+<option value="Ốc Q">
+                    </datalist>
+                </div>
+
+                <!-- LIVE INVOICE PREVIEW (Matches original Satori black template) -->
+                <div class="lg:col-span-7 flex flex-col space-y-3">
+                    <div class="flex justify-between items-center no-print">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <h2 class="font-semibold text-xs text-slate-300 uppercase tracking-wider">Bản Xem Trước Hóa Đơn Trực Tiếp</h2>
+                        </div>
+                        <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow font-semibold">
+                            <i class="fa-solid fa-download"></i> Tải Hóa Đơn PDF
+                        </button>
+                    </div>
+
+                    <!-- INVOICE SHEET (Black Theme matching user's exact format) -->
+                    <div id="invoicePreview" class="bg-black text-slate-100 p-6 rounded-2xl border border-slate-800 font-sans text-xs space-y-4 shadow-2xl flex-1">
+                        
+                        <!-- Header Title -->
+                        <div class="text-center space-y-1 pb-1">
+                            <h2 class="text-base sm:text-lg font-bold tracking-wide uppercase text-white">PHIẾU THÔNG TIN XUẤT HÓA ĐƠN</h2>
+                            <p class="text-xs sm:text-sm font-semibold text-slate-300">Hộ Kinh Doanh Minh Satori</p>
+                        </div>
+
+                        <!-- Seller & Buyer Section -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 border border-slate-700 divide-y sm:divide-y-0 sm:divide-x divide-slate-700 text-[11px]">
+                            <!-- Seller -->
+                            <div class="p-3 space-y-1 bg-slate-950/80">
+                                <p class="font-bold text-slate-200 border-b border-slate-800 pb-1 flex items-center justify-between">
+                                    <span>NGƯỜI BÁN</span>
+                                    <span class="text-[9px] bg-blue-900/60 text-blue-300 px-1.5 py-0.5 rounded">Bên A</span>
+                                </p>
+                                <p><span class="text-slate-400">Tên đơn vị:</span> Hộ Kinh Doanh Minh Satori</p>
+                                <p><span class="text-slate-400">Mã số thuế:</span> <span class="font-semibold text-slate-200">075087004222</span></p>
+                                <p><span class="text-slate-400">Địa chỉ:</span> Số 96/41 Tôn Đản, Phường Khánh Hội, TP. Hồ Chí Minh</p>
+                                <p><span class="text-slate-400">Số điện thoại:</span> 0903772980</p>
+                                <p><span class="text-slate-400">Email:</span> Minhsatoriambassador@gmail.com</p>
+                                <div class="mt-2 pt-1 border-t border-slate-800/80 flex items-center justify-between">
+                                    <div>
+                                        <p class="text-[10px] text-slate-400">Ngân hàng VPBank:</p>
+                                        <p class="font-bold text-amber-300 tracking-wider text-xs">658489418</p>
+                                        <p class="text-[10px] text-slate-300">HKD MINH SATORI</p>
+                                    </div>
+                                    <!-- Dynamic VietQR Code -->
+                                    <div class="text-center">
+                                        <img id="vietQrImg" src="" alt="VietQR" class="w-16 h-16 bg-white p-0.5 rounded border border-slate-600 shadow inline-block">
+                                        <span class="block text-[8px] text-slate-400 mt-0.5">Quét để trả</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Buyer -->
+                            <div class="p-3 space-y-1 bg-slate-950/80">
+                                <p class="font-bold text-slate-200 border-b border-slate-800 pb-1 flex items-center justify-between">
+                                    <span>THÔNG TIN KHÁCH HÀNG</span>
+                                    <span class="text-[9px] bg-emerald-900/60 text-emerald-300 px-1.5 py-0.5 rounded">Bên B</span>
+                                </p>
+                                <p><span class="text-slate-400">Tên đơn vị/cá nhân:</span> <span id="prevBuyer" class="font-bold text-white">Traky Sài Gòn</span></p>
+                                <p><span class="text-slate-400">Mã số thuế:</span> <span id="prevTax" class="text-slate-300">...</span></p>
+                                <p><span class="text-slate-400">Địa chỉ giao:</span> <span id="prevAddress" class="text-slate-200">377 Nguyễn Duy Trinh, P.Bình Trưng Tây, Q.2, TP.HCM</span></p>
+                                <p><span class="text-slate-400">Số điện thoại:</span> <span id="prevPhone" class="font-medium text-slate-200">0379034849 (Trọng)</span></p>
+                                <p><span class="text-slate-400">Email:</span> <span id="prevEmail" class="text-slate-400">...</span></p>
+                            </div>
+                        </div>
+
+                        <!-- Invoice Meta -->
+                        <div class="border border-slate-700 divide-y divide-slate-700 text-xs">
+                            <div class="bg-slate-900 font-bold px-3 py-1 text-center text-slate-300 text-[11px]">THÔNG TIN HÓA ĐƠN</div>
+                            <div class="grid grid-cols-6 divide-x divide-slate-700 text-center">
+                                <div class="p-1 col-span-2">
+                                    <span class="text-slate-400 block text-[10px]">Ký hiệu mẫu</span>
+                                    <span class="font-medium text-slate-200">1/001</span>
+                                </div>
+                                <div class="p-1 col-span-2">
+                                    <span class="text-slate-400 block text-[10px]">Số hóa đơn (Invoice #)</span>
+                                    <span id="prevInvNo" class="font-bold text-amber-400 text-sm">85</span>
+                                </div>
+                                <div class="p-1 col-span-2">
+                                    <span class="text-slate-400 block text-[10px]">Loại hóa đơn</span>
+                                    <span class="font-medium text-slate-200">Hóa đơn điện tử</span>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 divide-x divide-slate-700 text-center">
+                                <div class="p-1.5">
+                                    <span class="text-slate-400">Ngày lập: </span>
+                                    <span id="prevDate" class="font-medium text-white">10 / 10 / 2026</span>
+                                </div>
+                                <div class="p-1.5">
+                                    <span class="text-slate-400">Hình thức thanh toán: </span>
+                                    <span class="font-medium text-white">Tiền mặt / Chuyển khoản</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Items Table -->
+                        <div class="border border-slate-700 overflow-x-auto">
+                            <div class="bg-slate-900 font-bold px-3 py-1 text-center text-slate-300 border-b border-slate-700 text-[11px]">CHI TIẾT HÀNG HÓA, DỊCH VỤ</div>
+                            <table class="w-full text-left border-collapse text-[11px]">
+                                <thead>
+                                    <tr class="border-b border-slate-700 bg-slate-950 text-[10px] text-slate-400 text-center">
+                                        <th class="p-1.5 border-r border-slate-700 w-8">STT</th>
+                                        <th class="p-1.5 border-r border-slate-700">Tên hàng hóa</th>
+                                        <th class="p-1.5 border-r border-slate-700 w-14">ĐVT</th>
+                                        <th class="p-1.5 border-r border-slate-700 w-14">SL</th>
+                                        <th class="p-1.5 border-r border-slate-700 w-20">Giá niêm yết</th>
+                                        <th class="p-1.5 border-r border-slate-700 w-24">Chiết khấu</th>
+                                        <th class="p-1.5 border-r border-slate-700 w-20">Đơn giá</th>
+                                        <th class="p-1.5 w-24">Thành tiền</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="invoiceItemsTable" class="text-center">
+                                    <tr class="border-b border-slate-800">
+                                        <td class="p-1.5 border-r border-slate-800">1</td>
+                                        <td id="tdProduct" class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">Suối Satori 350ml</td>
+                                        <td class="p-1.5 border-r border-slate-800">Thùng</td>
+                                        <td id="tdQty" class="p-1.5 border-r border-slate-800 font-bold">15</td>
+                                        <td id="tdList" class="p-1.5 border-r border-slate-800">88,000</td>
+                                        <td id="tdDiscount" class="p-1.5 border-r border-slate-800">23,000 (26.1%)</td>
+                                        <td id="tdUnitPrice" class="p-1.5 border-r border-slate-800 font-semibold text-slate-200">65,000</td>
+                                        <td id="tdSubTotal" class="p-1.5 font-bold text-white">975,000</td>
+                                    </tr>
+                                    <tr class="border-b border-slate-900 text-slate-700"><td class="p-1 border-r border-slate-900">2</td><td class="p-1 border-r border-slate-900"></td><td class="p-1 border-r border-slate-900"></td><td class="p-1 border-r border-slate-900"></td><td class="p-1 border-r border-slate-900"></td><td class="p-1 border-r border-slate-900"></td><td class="p-1 border-r border-slate-900"></td><td class="p-1"></td></tr>
+                                    <tr class="border-b border-slate-900 text-slate-700"><td class="p-1 border-r border-slate-900">3</td><td class="p-1 border-r border-slate-900"></td><td class="p-1 border-r border-slate-900"></td><td class="p-1 border-r border-slate-900"></td><td class="p-1 border-r border-slate-900"></td><td class="p-1 border-r border-slate-900"></td><td class="p-1 border-r border-slate-900"></td><td class="p-1"></td></tr>
+                                </tbody>
+                            </table>
+
+                            <!-- Totals Section -->
+                            <div class="border-t border-slate-700 text-right text-[11px] p-2 space-y-1 bg-slate-950">
+                                <div class="flex justify-between px-4">
+                                    <span class="text-slate-400">Cộng tiền hàng:</span>
+                                    <span id="sumGoods" class="font-medium text-white">975,000 VND</span>
+                                </div>
+                                <div class="flex justify-between px-4">
+                                    <span class="text-slate-400">Tiền thuế VAT 8%:</span>
+                                    <span id="sumVat" class="font-medium text-white">0 VND</span>
+                                </div>
+                                <div class="flex justify-between px-4 text-xs font-bold border-t border-slate-800 pt-1 text-emerald-400">
+                                    <span>TỔNG CỘNG TIỀN THANH TOÁN:</span>
+                                    <span id="sumTotal" class="text-sm">975,000 VND</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer note & Terms -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center text-[10px] text-slate-400 pt-1 border-t border-slate-800 gap-1">
+                            <div>
+                                <span class="font-bold text-slate-300">Ghi Chú:</span> Thời Gian Thanh Toán Là 24h Kể Từ Khi Nhận Hàng
+                            </div>
+                            <div class="text-slate-500 italic">
+                                Chân thành cảm ơn Quý khách hàng!
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: SỔ KẾ TOÁN AI & BÁO CÁO CÔNG NỢ   -->
+        <!-- ========================================== -->
+        <section id="tab-sheet" class="hidden space-y-5">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="font-semibold text-base text-white flex items-center gap-2">
+                                <i class="fa-solid fa-calculator text-emerald-400"></i> Sổ Kế Toán Bán Hàng & Báo Cáo Công Nợ Tự Động
+                            </h2>
+                            <span class="bg-blue-600/30 text-blue-300 border border-blue-500/40 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                Đồng Bộ Google Drive 100%
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">Dữ liệu được nạp đầy đủ từ bảng tính Google Drive của bạn (84 hóa đơn gốc).</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="syncLiveFromGoogleDrive()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> Tải Lại Từ Google Drive
+                        </button>
+                        <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-file-excel"></i> Xuất File Excel (.xlsx / CSV)
+                        </button>
+                        <button onclick="resetToInitialData()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium px-3 py-2 rounded-xl transition border border-slate-700">
+                            <i class="fa-solid fa-rotate-left"></i> Khôi Phục 84 Đơn Gốc
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Financial Summary KPI Cards -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 shadow">
+                        <p class="text-[11px] text-slate-400">Tổng Số Hóa Đơn</p>
+                        <p id="statTotalOrders" class="text-xl font-bold text-white mt-1">84</p>
+                        <span class="text-[10px] text-slate-500">Đơn hàng đã xuất</span>
+                    </div>
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 shadow">
+                        <p class="text-[11px] text-slate-400">Tổng Doanh Thu</p>
+                        <p id="statTotalRevenue" class="text-xl font-bold text-cyan-400 mt-1">0 đ</p>
+                        <span class="text-[10px] text-slate-500">Doanh số gộp</span>
+                    </div>
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 shadow">
+                        <p class="text-[11px] text-slate-400">Đã Thu Tiền</p>
+                        <p id="statPaid" class="text-xl font-bold text-emerald-400 mt-1">0 đ</p>
+                        <span class="text-[10px] text-slate-500">Dòng tiền thực thu</span>
+                    </div>
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 shadow">
+                        <p class="text-[11px] text-slate-400">Công Nợ Cần Thu</p>
+                        <p id="statUnpaid" class="text-xl font-bold text-rose-400 mt-1">0 đ</p>
+                        <span class="text-[10px] text-rose-400/80 font-medium">Hạn thanh toán 24h</span>
+                    </div>
+                </div>
+
+                <!-- Search and Filters -->
+                <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                        <input type="text" id="searchInput" oninput="renderTable()" placeholder="Tìm theo tên khách hàng, số điện thoại, địa chỉ..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <select id="filterStatus" onchange="renderTable()" class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                            <option value="all">Tất cả trạng thái</option>
+                            <option value="Đã thanh toán">Đã thanh toán</option>
+                            <option value="Chưa thanh toán">Chưa thanh toán (Công nợ)</option>
+                            <option value="Đã hủy">Đã hủy</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Accounting Table -->
+                <div class="overflow-x-auto rounded-xl border border-slate-800 max-h-[550px] overflow-y-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="sticky top-0 z-10">
+                            <tr class="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800 text-[11px]">
+                                <th class="p-3">Ngày</th>
+                                <th class="p-3 text-center">Số HĐ</th>
+                                <th class="p-3">Khách Hàng</th>
+                                <th class="p-3">Điện Thoại</th>
+                                <th class="p-3">Địa Chỉ Giao</th>
+                                <th class="p-3">Sản Phẩm</th>
+                                <th class="p-3 text-center">SL</th>
+                                <th class="p-3 text-right">Đơn Giá Sau CK</th>
+                                <th class="p-3 text-center">VAT</th>
+                                <th class="p-3 text-right font-bold text-white">Tổng Tiền</th>
+                                <th class="p-3 text-center">Thanh Toán</th>
+                                <th class="p-3 text-center">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sheetsTableBody" class="divide-y divide-slate-800/80 text-slate-300">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Custom Modal -->
+    <div id="customModal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4 no-print backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-center">
+            <div id="modalIcon" class="text-3xl text-emerald-400">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <h3 id="modalTitle" class="font-bold text-base text-white">Thành Công</h3>
+            <p id="modalMessage" class="text-xs text-slate-300">Thông báo từ hệ thống!</p>
+            <button onclick="closeModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 rounded-xl text-xs transition">Đóng</button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // EMBEDDED REAL DATABASE FROM GOOGLE DRIVE (85 ORDERS)
+        const INITIAL_ORDERS = [{"id": 1, "date": "19/08/2026", "name": "Edric Salon", "phone": "964367032", "location": "189 Chùa Láng, Hà Nội", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 1, "status": "Chưa thanh toán"}, {"id": 2, "date": "19/08/2026", "name": "Edric Salon", "phone": "772996043", "location": "96 Lê Thị Hồng Gấm, Quận", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 2, "status": "Chưa thanh toán"}, {"id": 3, "date": "19/08/2026", "name": "Edric Salon", "phone": "932190544", "location": "220/114 Lê Văn Sỹ, Quận 3", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 3, "status": "Chưa thanh toán"}, {"id": 4, "date": "19/08/2026", "name": "Edric Salon", "phone": "835970941", "location": "F23 đường 3A KDC Him Lam, Quận 7", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 4, "status": "Chưa thanh toán"}, {"id": 5, "date": "19/08/2026", "name": "Công Ty CP ACE Clubhouse", "phone": "775550723", "location": "90 Song Hành , Xa Lộ Hà Nội , Quận 2", "product": "30 Thùng Suối 550ml, 2 Thùng Ổi Hồng, 2 Thùng Mãng Cầu, 1 Thùng Me", "qty": 35, "listPrice": 88000, "discount": 0, "unitPrice": 98714, "vat": "yes", "total": 3731394.0, "invoiceNo": 5, "status": "Chưa thanh toán"}, {"id": 6, "date": "19/08/2026", "name": "CÔNG TY TNHH TM DV THỂ THAO BANGER PICKLEBALL", "phone": "775550723 (Long)", "location": "Số 90 đường Song Hành, P. Bình Trưng, TP. Hồ Chí Minh", "product": "2 Thùng Ổi Hồng, 2 Thùng Mãng Cầu, 1 Thùng Me", "qty": 5, "listPrice": 88000, "discount": 0, "unitPrice": 249999, "vat": "yes", "total": 1349994.6, "invoiceNo": 6, "status": "Chưa thanh toán"}, {"id": 7, "date": "19/08/2026", "name": "Mr Ốc Ngon", "phone": "0777399999 (Long)", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 19944, "unitPrice": 68056, "vat": "yes", "total": 735000.0, "invoiceNo": 7, "status": "Chưa thanh toán"}, {"id": 8, "date": "19/08/2026", "name": "Nhà Hàng Thạnh Phú", "phone": "0777399999 (Long)", "location": "52 Bình Phú, p. Tam Bình - hcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 19944, "unitPrice": 68056, "vat": "yes", "total": 735000.0, "invoiceNo": 8, "status": "Chưa thanh toán"}, {"id": 9, "date": "22/0802026", "name": "Edric Salon", "phone": "0978154773 (Thảo)", "location": "752 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 9, "status": "Chưa thanh toán"}, {"id": 10, "date": "22/08/2026", "name": "Edric Salon", "phone": "0366892266 (Cường)", "location": "173 Võ Văn Ngân, Phường Linh Chiểu, Thủ Đức", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 10, "status": "Chưa thanh toán"}, {"id": 11, "date": "22/08/2026", "name": "Edric Salon", "phone": "0931325049 (Trúc)", "location": "159 Calmette, P. Nguyễn Thái Bình, Q1. Tphcm", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 11, "status": "Chưa thanh toán"}, {"id": 12, "date": "22/8/2026", "name": "Edric Salon", "phone": "0947894349 (Sơn)", "location": "111 Võ Oanh, P.25, Q.Bình Thạnh, HCM", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 12, "status": "Chưa thanh toán"}, {"id": 13, "date": "22/08/2026", "name": "Edric Salon", "phone": "0392590245 (Phương)", "location": "272 Huỳnh Văn Bánh, P.11, Q. Phú Nhuận, HCM", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 13, "status": "Chưa thanh toán"}, {"id": 14, "date": "22/08/2026", "name": "Edric Salon", "phone": "0379034849 (Trọng)", "location": "377 Nguyễn Duy Trinh, P. Bình Trưng Tây, Q2, HCM", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 14, "status": "Chưa thanh toán"}, {"id": 15, "date": "24/08/2026", "name": "Nhà Hàng Thạnh Phú", "phone": "777399999 (Long)", "location": "52 Bình Phú, P Tam Bình, HCM", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 15, "status": "Chưa thanh toán"}, {"id": 16, "date": "21/08/2026", "name": "PWC", "phone": "0933493229 Trân", "location": "1137 Huỳnh Tấn Phát, q7", "product": "Suối 500ml", "qty": 30, "listPrice": 88000, "discount": 22000, "unitPrice": 66000, "vat": "no", "total": 1980000.0, "invoiceNo": 16, "status": "Chưa thanh toán"}, {"id": 17, "date": "28/08/2026", "name": "Traky Cần Thơ", "phone": "975681220", "location": "133D Trần Hưng Đạo , phường an phú . Quận Ninh Kiều , TP Cần Thơ", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 17, "status": "Chưa thanh toán"}, {"id": 18, "date": "28/08/2026", "name": "Traky Rạch Giá", "phone": "968924979", "location": "150 nguyễn trung trực, vĩnh bảo, tp rạch giá", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 18, "status": "Chưa thanh toán"}, {"id": 19, "date": "28/08/2026", "name": "Traky Long Xuyên", "phone": "989362401", "location": "245 lý thái tổ mỹ long , long xuyên, An Giang", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 19, "status": "Chưa thanh toán"}, {"id": 20, "date": "28/08/2026", "name": "Traky Mỹ Tho", "phone": "355660715", "location": "361 ấp bắc phường đạo thạnh. Tỉnh đồng tháp", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 20, "status": "Chưa thanh toán"}, {"id": 21, "date": "28/08/2026", "name": "Traky Sóc Trăng", "phone": "868233425", "location": "79 đường 30/4 - TP. Sóc Trăng", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 21, "status": "Chưa thanh toán"}, {"id": 22, "date": "28/08/2026", "name": "Traky Bến Tre", "phone": "946051098", "location": "65 Nguyễn đình chiểu p an hội bến tre", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 22, "status": "Chưa thanh toán"}, {"id": 23, "date": "28/08/2026", "name": "Traky Bạc Liêu", "phone": "386309611", "location": "367 Trần Phú - P Bạc Liêu - Tỉnh Cà Mau", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 23, "status": "Chưa thanh toán"}, {"id": 24, "date": "28/08/2026", "name": "Traky Cà Mau", "phone": "799252974", "location": "173 Bùi Thị Trường P5 Tp Cà Mau", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 24, "status": "Chưa thanh toán"}, {"id": 25, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "978154773", "location": "752 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 25, "status": "Chưa thanh toán"}, {"id": 26, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "366892266", "location": "173 Võ Văn Ngân, Phường Linh Chiểu, Thủ Đức, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 26, "status": "Chưa thanh toán"}, {"id": 27, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "Trúc - 0931325049", "location": "159 Calmette, P.Nguyễn Thái Bình, Q.1, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 27, "status": "Chưa thanh toán"}, {"id": 28, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "Sơn - 0947894349", "location": "111 Võ Oanh, Phường 25, Quận Bình Thạnh, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 28, "status": "Chưa thanh toán"}, {"id": 29, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "Phương - 0392590245", "location": "272 Huỳnh Văn Bánh, Phường 11, Quận Phú Nhuận, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 29, "status": "Chưa thanh toán"}, {"id": 30, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "Trọng - 0379034849", "location": "377 Nguyễn Duy Trinh, P.Bình Trưng Tây, Q.2, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 30, "status": "Chưa thanh toán"}, {"id": 31, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "772996043", "location": "96 Lê Thị Hồng Gấm, Quận 1", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 31, "status": "Chưa thanh toán"}, {"id": 32, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "932190544", "location": "220/114 Lê Văn Sỹ, Quận 3", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 32, "status": "Chưa thanh toán"}, {"id": 33, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "835970941", "location": "F23 đường 3A KDC Him Lam, Quận 7", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 33, "status": "Chưa thanh toán"}, {"id": 34, "date": "28/08/2026", "name": "Nhà Hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 34, "status": "Chưa thanh toán"}, {"id": 35, "date": "31/08/2026", "name": "Ốc Ngon", "phone": "869898107", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 35, "status": "Chưa thanh toán"}, {"id": 36, "date": "03/09/2026", "name": "Nhà Hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 36, "status": "Chưa thanh toán"}, {"id": 37, "date": "04/09/2026", "name": "HỘ KINH DOANH DỊCH VỤ TÀI LỘC", "phone": "0763122658 0705232917", "location": "234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 1400000.0, "invoiceNo": 37, "status": "Đã thanh toán"}, {"id": 38, "date": "07/09/2026", "name": "Ốc Lá", "phone": "Duy - 0768629630", "location": "13 Trần Quý Kiên , Q2 , Cát Lái", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 13000, "unitPrice": 75000, "vat": "no", "total": 750000.0, "invoiceNo": 38, "status": "Chưa thanh toán"}, {"id": 39, "date": "10/10/2026", "name": "18+", "phone": "Nam - 0932720893", "location": "11 Trần Quý Kiên , Q2 , Cát Lái", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 20000, "unitPrice": 68000, "vat": "no", "total": 680000.0, "invoiceNo": 39, "status": "Chưa thanh toán"}, {"id": 40, "date": "06/09/2026", "name": "Nhà hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 40, "status": "Chưa thanh toán"}, {"id": 41, "date": "09/09/2026", "name": "Ốc Ngon", "phone": "869898107", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 41, "status": "Chưa thanh toán"}, {"id": 42, "date": "10/09/2026", "name": "Traky Hair", "phone": "964367032", "location": "75 Quang Trung, p.10, Gò Vấp", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 42, "status": "Chưa thanh toán"}, {"id": 43, "date": "11/09/2026", "name": "Traky Sài Gòn", "phone": "772996043", "location": "96 Lê Thị Hồng Gấm, Quận 1", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 43, "status": "Chưa thanh toán"}, {"id": 44, "date": "14/09/2026", "name": "Cô Hoa", "phone": "903507433", "location": "17 Mai Chí Thọ, Phường An Khánh, Quận 2, HCM (Bali 1)", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 13000, "unitPrice": 75000, "vat": "no", "total": 750000.0, "invoiceNo": 44, "status": "Chưa thanh toán"}, {"id": 45, "date": "14/09/2026", "name": "Nhà hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 45, "status": "Chưa thanh toán"}, {"id": 46, "date": "15/09/2026", "name": "Traky Hair", "phone": "389888689", "location": "48 ba cu phường vũng tàu tphcm", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 46, "status": "Chưa thanh toán"}, {"id": 47, "date": "15/09/2026", "name": "Traky Bình Dương", "phone": "0971918125 (Thành Phong)", "location": "126 yersin hiệp thành thủ dầu một bình dương", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 47, "status": "Chưa thanh toán"}, {"id": 48, "date": "15/09/2026", "name": "Traky Biên Hòa", "phone": "353540001 (Tấn Dũng)", "location": "76 đường 30 tháng 4 phường trung Dũng tp biên hòa", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 48, "status": "Chưa thanh toán"}, {"id": 49, "date": "15/09/2026", "name": "Traky Đà Nẵng 2", "phone": "0945993872 (Minh Khang)", "location": "09 Phan Đăng Lưu, Hoà Cường Nam,Hải Châu, Đà Nẵng", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 49, "status": "Chưa thanh toán"}, {"id": 50, "date": "20/09/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "712 Đ. Vĩnh Khánh, Khánh Hội, Hồ Chí Minh 72800", "product": "8 Suối 500ml, 4 Ổi, 4 Mãn Cầu, 4 Me", "qty": 20, "listPrice": 88000, "discount": 0, "unitPrice": 155480, "vat": "yes", "total": 3358359.0, "invoiceNo": 50, "status": "Chưa thanh toán"}, {"id": 51, "date": "18/09/2026", "name": "Ốc Q", "phone": "0901866833 (Tâm)", "location": "260 Trần Não, Khu phố 1, An Khánh, Hồ Chí Minh", "product": "Suối 450ml Premium", "qty": 15, "listPrice": 88000, "discount": 77352, "unitPrice": 10648, "vat": "yes", "total": 172500.0, "invoiceNo": 51, "status": "Chưa thanh toán"}, {"id": 52, "date": "19/09/2026", "name": "Nhà hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 52, "status": "Chưa thanh toán"}, {"id": 53, "date": "19/09/2026", "name": "Traky Sài Gòn", "phone": "772996043", "location": "96 Lê Thị Hồng Gấm, Quận 1", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 27815, "unitPrice": 60185, "vat": "yes", "total": 650000.0, "invoiceNo": 53, "status": "Đã hủy"}, {"id": 54, "date": "20/19/2026", "name": "Traky Sài Gòn", "phone": "909606933", "location": "F23 Đ. 3A, Khu đô thị Him Lam, Tân Hưng, Hồ Chí Minh", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 702000.0, "invoiceNo": 54, "status": "Chưa thanh toán"}, {"id": 55, "date": "21/09/2026", "name": "HỘ KINH DOANH DỊCH VỤ TÀI LỘC", "phone": "0763122658 0705232917", "location": "234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 23185, "unitPrice": 64815, "vat": "yes", "total": 1400000.0, "invoiceNo": 55, "status": "Chưa thanh toán"}, {"id": 56, "date": "23/09/2026", "name": "Nguyễn Bảo Châu Diamon", "phone": "0934123669 (Bảo Kim)", "location": "214 Nguyễn Trãi, phường cầu ông lãnh ( Nguyễn Bảo Châu Diamon)", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 17970, "unitPrice": 70030, "vat": "yes", "total": 1512640.0, "invoiceNo": 56, "status": "Chưa thanh toán"}, {"id": 57, "date": "23/09/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "1000 Kha Vạn Cân, Phường Thủ Đức", "product": "3 Suối 500ml, 3 Suối 1500ml, 2 Ổi Hồng, 1 Me, 1 Mãn Cầu", "qty": 10, "listPrice": 88000, "discount": 0, "unitPrice": 124886, "vat": "yes", "total": 1348773.0, "invoiceNo": 57, "status": "Chưa thanh toán"}, {"id": 58, "date": "23/09/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "Đảo Kim Cương, Toà Canary", "product": "6 Suối 500ml, 2 Ổi, 2 Mãn Cầu", "qty": 10, "listPrice": 88000, "discount": 0, "unitPrice": 124886, "vat": "yes", "total": 1348773.0, "invoiceNo": 58, "status": "Chưa thanh toán"}, {"id": 59, "date": "23/09/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "178 Nguyễn Hữu Thọ , phường Tân Hưng , Quận 7", "product": "6 Suối 500ml, 2 Ổi, 2 Mãn Cầu", "qty": 10, "listPrice": 88000, "discount": 0, "unitPrice": 198813, "vat": "yes", "total": 2147178.0, "invoiceNo": 59, "status": "Chưa thanh toán"}, {"id": 60, "date": "27/09/2026", "name": "Ốc Ngon", "phone": "869898107", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 60, "status": "Chưa thanh toán"}, {"id": 61, "date": "27/09/2026", "name": "Traky Sài Gòn", "phone": "96 Lê Thị Hồng Gấm, Quận", "location": "772996043", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 61, "status": "Chưa thanh toán"}, {"id": 62, "date": "28/09/2026", "name": "Hà Minh Nguyệt", "phone": "919989887", "location": "KUAI JIE ZHAO HOTPOT - 40 Võ Văn Tần, Xuân Hòa, Hồ Chí Minh 700000", "product": "2 Suối, 2 Mãn Cầu, 2 ổi", "qty": 6, "listPrice": 88000, "discount": 0, "unitPrice": 153405, "vat": "yes", "total": 994064.0, "invoiceNo": 62, "status": "Chưa thanh toán"}, {"id": 63, "date": "10/10/2026", "name": "Hà Minh Nguyệt", "phone": "919989887", "location": "KUAI JIE ZHAO HOTPOT chi nhánh 2 - 24 Bùi Bằng Đoàn, Khu đô thị Phú Mỹ Hưng, Tân Hưng, Hồ Chí Minh", "product": "2 Suối, 2 Mãn Cầu, 2 ổi", "qty": 6, "listPrice": 88000, "discount": 0, "unitPrice": 153405, "vat": "yes", "total": 994064.0, "invoiceNo": 63, "status": "Chưa thanh toán"}, {"id": 64, "date": "10/10/2026", "name": "Hà Minh Nguyệt", "phone": "919989887", "location": "Yến Hoả Quán - Đ. Vĩnh Khánh/402 HCMC, QUẬN 4, Hồ Chí Minh 70000", "product": "2 Suối, 2 Mãn Cầu, 2 ổi", "qty": 6, "listPrice": 88000, "discount": 0, "unitPrice": 153405, "vat": "yes", "total": 994064.0, "invoiceNo": 64, "status": "Chưa thanh toán"}, {"id": 65, "date": "28/09/2026", "name": "Traky Sài Gòn", "phone": "964367032", "location": "75 Quang Trung, p.10, Gò Vấp", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 14500, "unitPrice": 73500, "vat": "yes", "total": 793800.0, "invoiceNo": 65, "status": "Chưa thanh toán"}, {"id": 66, "date": "29/09/2026", "name": "Traky Sài Gòn", "phone": "865474559", "location": "220/114 Lê Văn Sỹ, Quận 3", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 702000.0, "invoiceNo": 66, "status": "Chưa thanh toán"}, {"id": 67, "date": "1/10/2026", "name": "Traky Sài Gòn", "phone": "392590245", "location": "272 Huỳnh Văn Bánh, Phường 11, Quận Phú Nhuận, TP.HCM Phương", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 702000.0, "invoiceNo": 67, "status": "Chưa thanh toán"}, {"id": 68, "date": "2/10/2026", "name": "Hà Minh Nguyệt", "phone": "389457076 (Wayson)", "location": "Chung Cư Kingdom Block B", "product": "8 Suối 500ml, 1 Mãn Cầu, 1 Ổi", "qty": 10, "listPrice": 88000, "discount": 0, "unitPrice": 100960, "vat": "yes", "total": 1090368.0, "invoiceNo": 68, "status": "Chưa thanh toán"}, {"id": 68, "date": "2/10/2026", "name": "CÔNG TY CỔ PHẦN THƯƠNG MẠI DỊCH VỤ VINAHASA (Ốc Q)", "phone": "0901866833 (Tâm)", "location": "260 Trần Não, Khu phố 1, An Khánh, Hồ Chí Minh", "product": "Suối Premium 400ml", "qty": 10, "listPrice": 88000, "discount": 0, "unitPrice": 115000, "vat": "yes", "total": 1242000.0, "invoiceNo": 68, "status": "Chưa thanh toán"}, {"id": 69, "date": "3/10/2026", "name": "Traky Sài Gòn", "phone": "909606933", "location": "F23 Đ. 3A, Khu đô thị Him Lam, Tân Hưng, Hồ Chí Minh", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 702000.0, "invoiceNo": 69, "status": "Chưa thanh toán"}, {"id": 70, "date": "03/10/2026", "name": "18+", "phone": "Nam - 0932720893", "location": "11 Trần Quý Kiên , Q2 , Cát Lái", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 20000, "unitPrice": 68000, "vat": "no", "total": 680000.0, "invoiceNo": 70, "status": "Chưa thanh toán"}, {"id": 71, "date": "04/10/2026", "name": "Nguyễn Bảo Châu Diamon", "phone": "0934123669 (Bảo Kim)", "location": "214 Nguyễn Trãi, phường cầu ông lãnh ( Nguyễn Bảo Châu Diamon)", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 17970, "unitPrice": 70030, "vat": "yes", "total": 1512640.0, "invoiceNo": 71, "status": "Chưa thanh toán"}, {"id": 72, "date": "04/10/2026", "name": "Traky Sài Gòn", "phone": "Trúc - 0931325049", "location": "159 Calmette, P.Nguyễn Thái Bình, Q.1, TP.HCM", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 1404000.0, "invoiceNo": 72, "status": "Chưa thanh toán"}, {"id": 73, "date": "5/10/2026", "name": "Nhà hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 73, "status": "Chưa thanh toán"}, {"id": 74, "date": "05/10/2026", "name": "Hà Minh Nguyệt", "phone": "338915675", "location": "R4-26 Đường số 6, Tân Phong, Tân Hưng, Hồ Chí Minh", "product": "Sưới 500ml, Ổi, Mãn Cầu", "qty": 5, "listPrice": 88000, "discount": 0, "unitPrice": 115645, "vat": "yes", "total": 624481.0, "invoiceNo": 74, "status": "Chưa thanh toán"}, {"id": 75, "date": "05/10/2026", "name": "Hà Minh Nguyệt", "phone": "969264175", "location": "385 Điện Biên Phủ, phường Thạnh Mỹ Tây, TP.HCM", "product": "Sưới 500ml, Ổi, Mãn Cầu", "qty": 5, "listPrice": 88000, "discount": 0, "unitPrice": 115645, "vat": "yes", "total": 624481.0, "invoiceNo": 75, "status": "Chưa thanh toán"}, {"id": 76, "date": "05/10/2026", "name": "Hà Minh Nguyệt", "phone": "932673103", "location": "964 TRẦN HƯNG ĐẠO ,P.7,Q.5", "product": "Sưới 500ml, Ổi, Mãn Cầu", "qty": 5, "listPrice": 88000, "discount": 0, "unitPrice": 115645, "vat": "yes", "total": 624481.0, "invoiceNo": 76, "status": "Chưa thanh toán"}, {"id": 77, "date": "05/10/2026", "name": "Hà Minh Nguyệt", "phone": "356154675", "location": "86A Cống Quỳnh, phường Bến Thành, Hồ Chí Minh", "product": "Sưới 500ml, Ổi, Mãn Cầu", "qty": 5, "listPrice": 88000, "discount": 0, "unitPrice": 115645, "vat": "yes", "total": 624481.0, "invoiceNo": 77, "status": "Chưa thanh toán"}, {"id": 78, "date": "10/10/2026", "name": "HỘ KINH DOANH DỊCH VỤ TÀI LỘC", "phone": "0763122658 0705232917", "location": "234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 23185, "unitPrice": 64815, "vat": "yes", "total": 1400000.0, "invoiceNo": 78, "status": "Chưa thanh toán"}, {"id": 79, "date": "07/10/2026", "name": "Traky Sài Gòn", "phone": "772996043", "location": "96 Lê Thị Hồng Gấm, Quận 1", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 702000.0, "invoiceNo": 79, "status": "Chưa thanh toán"}, {"id": 80, "date": "07/10/2026", "name": "Traky Sài Gòn", "phone": "978154773", "location": "752 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 44667, "unitPrice": 43333, "vat": "yes", "total": 702000.0, "invoiceNo": 80, "status": "Chưa thanh toán"}, {"id": 81, "date": "09/10/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "712 Đ. Vĩnh Khánh, Khánh Hội, Hồ Chí Minh 72800", "product": "Suối 500ml", "qty": 20, "listPrice": 88000, "discount": 24300, "unitPrice": 63700, "vat": "yes", "total": 1375920.0, "invoiceNo": 81, "status": "Chưa thanh toán"}, {"id": 82, "date": "09/10/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "750 Lã Xuân Oai, Long Trường, Thủ Đức.", "product": "Suối 500ml, Suối 1.5L", "qty": 20, "listPrice": 88000, "discount": 24300, "unitPrice": 63700, "vat": "yes", "total": 1375920.0, "invoiceNo": 82, "status": "Chưa thanh toán"}, {"id": 83, "date": "10/10/2026", "name": "nguyên", "phone": "", "location": "", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 0.0, "invoiceNo": 83, "status": "Chưa thanh toán"}, {"id": 84, "date": "10/10/2026", "name": "Traky Sài Gòn", "phone": "", "location": "", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 0.0, "invoiceNo": 84, "status": "Chưa thanh toán"}];
+        const CUSTOMER_DIR = {"Edric Salon": {"phone": "964367032", "location": "189 Chùa Láng, Hà Nội"}, "Công Ty CP ACE Clubhouse": {"phone": "775550723", "location": "90 Song Hành , Xa Lộ Hà Nội , Quận 2"}, "CÔNG TY TNHH TM DV THỂ THAO BANGER PICKLEBALL": {"phone": "775550723 (Long)", "location": "Số 90 đường Song Hành, P. Bình Trưng, TP. Hồ Chí Minh"}, "Mr Ốc Ngon": {"phone": "0777399999 (Long)", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm"}, "Nhà Hàng Thạnh Phú": {"phone": "0777399999 (Long)", "location": "52 Bình Phú, p. Tam Bình - hcm"}, "PWC": {"phone": "0933493229 Trân", "location": "1137 Huỳnh Tấn Phát, q7"}, "Traky Cần Thơ": {"phone": "975681220", "location": "133D Trần Hưng Đạo , phường an phú . Quận Ninh Kiều , TP Cần Thơ"}, "Traky Rạch Giá": {"phone": "968924979", "location": "150 nguyễn trung trực, vĩnh bảo, tp rạch giá"}, "Traky Long Xuyên": {"phone": "989362401", "location": "245 lý thái tổ mỹ long , long xuyên, An Giang"}, "Traky Mỹ Tho": {"phone": "355660715", "location": "361 ấp bắc phường đạo thạnh. Tỉnh đồng tháp"}, "Traky Sóc Trăng": {"phone": "868233425", "location": "79 đường 30/4 - TP. Sóc Trăng"}, "Traky Bến Tre": {"phone": "946051098", "location": "65 Nguyễn đình chiểu p an hội bến tre"}, "Traky Bạc Liêu": {"phone": "386309611", "location": "367 Trần Phú - P Bạc Liêu - Tỉnh Cà Mau"}, "Traky Cà Mau": {"phone": "799252974", "location": "173 Bùi Thị Trường P5 Tp Cà Mau"}, "Traky Sài Gòn": {"phone": "978154773", "location": "752 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM"}, "Ốc Ngon": {"phone": "869898107", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm"}, "HỘ KINH DOANH DỊCH VỤ TÀI LỘC": {"phone": "0763122658 0705232917", "location": "234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam"}, "Ốc Lá": {"phone": "Duy - 0768629630", "location": "13 Trần Quý Kiên , Q2 , Cát Lái"}, "18+": {"phone": "Nam - 0932720893", "location": "11 Trần Quý Kiên , Q2 , Cát Lái"}, "Nhà hàng Thạnh Phú": {"phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm"}, "Traky Hair": {"phone": "964367032", "location": "75 Quang Trung, p.10, Gò Vấp"}, "Cô Hoa": {"phone": "903507433", "location": "17 Mai Chí Thọ, Phường An Khánh, Quận 2, HCM (Bali 1)"}, "Traky Bình Dương": {"phone": "0971918125 (Thành Phong)", "location": "126 yersin hiệp thành thủ dầu một bình dương"}, "Traky Biên Hòa": {"phone": "353540001 (Tấn Dũng)", "location": "76 đường 30 tháng 4 phường trung Dũng tp biên hòa"}, "Traky Đà Nẵng 2": {"phone": "0945993872 (Minh Khang)", "location": "09 Phan Đăng Lưu, Hoà Cường Nam,Hải Châu, Đà Nẵng"}, "Hà Minh Nguyệt": {"phone": "358707777", "location": "712 Đ. Vĩnh Khánh, Khánh Hội, Hồ Chí Minh 72800"}, "Ốc Q": {"phone": "0901866833 (Tâm)", "location": "260 Trần Não, Khu phố 1, An Khánh, Hồ Chí Minh"}, "Nguyễn Bảo Châu Diamon": {"phone": "0934123669 (Bảo Kim)", "location": "214 Nguyễn Trãi, phường cầu ông lãnh ( Nguyễn Bảo Châu Diamon)"}, "CÔNG TY CỔ PHẦN THƯƠNG MẠI DỊCH VỤ VINAHASA (Ốc Q)": {"phone": "0901866833 (Tâm)", "location": "260 Trần Não, Khu phố 1, An Khánh, Hồ Chí Minh"}, "nguyên": {"phone": "", "location": ""}};
+
+        // Product Pricing Catalogue & Default Discount %
+        const PRODUCT_CATALOGUE = {
+            "Suối Satori 350ml": { listPrice: 88000, discountPercent: 26.14, discountAmount: 23000, unitPrice: 65000 },
+            "Suối Satori 500ml": { listPrice: 88000, discountPercent: 20.45, discountAmount: 18000, unitPrice: 70000 },
+            "Suối Satori 1.5L": { listPrice: 88000, discountPercent: 27.61, discountAmount: 24300, unitPrice: 63700 },
+            "Suối Satori 5L": { listPrice: 88000, discountPercent: 27.61, discountAmount: 24300, unitPrice: 63700 },
+            "Bình Satori 19L": { listPrice: 65000, discountPercent: 15.38, discountAmount: 10000, unitPrice: 55000 },
+            "Nước Trái Cây & Suối Satori": { listPrice: 250000, discountPercent: 13.33, discountAmount: 33334, unitPrice: 216666 }
+        };
+
+        // Storage Key v10 to force fresh sync across all browsers
+        const STORAGE_KEY = 'satori_orders_v10';
+        let orders = JSON.parse(localStorage.getItem(STORAGE_KEY));
+
+        if (!orders || orders.length < 50) {
+            orders = INITIAL_ORDERS;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+        }
+
+        // Next Invoice #
+        let nextInvoiceNumber = orders.length > 0 ? (Math.max(...orders.map(o => o.invoiceNo || 0)) + 1) : 85;
+
+        // Init Form
+        document.getElementById('orderDate').valueAsDate = new Date();
+        document.getElementById('invoiceNo').value = nextInvoiceNumber;
+
+        // Tab Switching
+        function switchTab(tabId) {
+            const tabs = ['input', 'sheet'];
+            tabs.forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                const btn = document.getElementById(`btn-tab-${t}`);
+                if (t === tabId) {
+                    el.classList.remove('hidden');
+                    btn.className = "px-3.5 py-1.5 font-medium rounded-lg transition text-white bg-blue-600 shadow flex items-center gap-1.5";
+                } else {
+                    el.classList.add('hidden');
+                    btn.className = "px-3.5 py-1.5 font-medium rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5";
+                }
+            });
+            if (tabId === 'sheet') renderTable();
+        }
+
+        // Customer Quick Select Handler
+        function handleCustomerSelect(val) {
+            if (CUSTOMER_DIR[val]) {
+                if (CUSTOMER_DIR[val].phone) document.getElementById('busPhone').value = CUSTOMER_DIR[val].phone;
+                if (CUSTOMER_DIR[val].location) document.getElementById('busLocation').value = CUSTOMER_DIR[val].location;
+                calculateTotals();
+            }
+        }
+
+        // Product Select Change -> Auto populate List Price & Discount %
+        function handleProductSelectChange(val) {
+            if (val !== 'custom' && PRODUCT_CATALOGUE[val]) {
+                const item = PRODUCT_CATALOGUE[val];
+                document.getElementById('productName').value = val;
+                document.getElementById('listPrice').value = item.listPrice;
+                document.getElementById('discountPercent').value = item.discountPercent;
+                document.getElementById('discount').value = item.discountAmount;
+                document.getElementById('unitPriceInput').value = item.unitPrice;
+            } else if (val === 'custom') {
+                document.getElementById('productName').value = "Sản phẩm khác";
+            }
+            calculateTotals();
+        }
+
+        // TWO-WAY DYNAMIC PRICING CALCULATOR
+        function onListPriceChange(val) {
+            const listP = parseFloat(val) || 0;
+            const discPct = parseFloat(document.getElementById('discountPercent').value) || 0;
+            const discAmt = Math.round(listP * (discPct / 100));
+            const unitP = Math.max(0, listP - discAmt);
+            document.getElementById('discount').value = discAmt;
+            document.getElementById('unitPriceInput').value = unitP;
+            calculateTotals();
+        }
+
+        function onDiscountPercentChange(val) {
+            const discPct = parseFloat(val) || 0;
+            const listP = parseFloat(document.getElementById('listPrice').value) || 0;
+            const discAmt = Math.round(listP * (discPct / 100));
+            const unitP = Math.max(0, listP - discAmt);
+            document.getElementById('discount').value = discAmt;
+            document.getElementById('unitPriceInput').value = unitP;
+            calculateTotals();
+        }
+
+        function onDiscountAmountChange(val) {
+            const discAmt = parseFloat(val) || 0;
+            const listP = parseFloat(document.getElementById('listPrice').value) || 0;
+            const discPct = listP > 0 ? parseFloat(((discAmt / listP) * 100).toFixed(2)) : 0;
+            const unitP = Math.max(0, listP - discAmt);
+            document.getElementById('discountPercent').value = discPct;
+            document.getElementById('unitPriceInput').value = unitP;
+            calculateTotals();
+        }
+
+        function onUnitPriceChange(val) {
+            const unitP = parseFloat(val) || 0;
+            const listP = parseFloat(document.getElementById('listPrice').value) || 0;
+            const discAmt = Math.max(0, listP - unitP);
+            const discPct = listP > 0 ? parseFloat(((discAmt / listP) * 100).toFixed(2)) : 0;
+            document.getElementById('discount').value = discAmt;
+            document.getElementById('discountPercent').value = discPct;
+            calculateTotals();
+        }
+
+        // Sample Zalo Messages for Testing
+        function loadSampleZalo(idx) {
+            if (idx === 1) {
+                document.getElementById('zaloRawText').value = "Traky Sài Gòn, 377 Nguyễn Duy Trinh Q.2, 15 thùng 350ml, 0379034849 (Trọng)";
+            } else if (idx === 2) {
+                document.getElementById('zaloRawText').value = "Giao giúp e qua 52 bình phú tam bình thủ đức 10 thùng 500ml cho quán Thạnh Phú nha sdt Hằng 0784723916, đã ck";
+            } else if (idx === 3) {
+                document.getElementById('zaloRawText').value = "Giao cho c Nguyệt 750 Lã Xuân Oai Thủ Đức 4 thùng ổi 4 thùng mãng cầu sdt 0358707777 xuất vat 8% nha";
+            }
+            parseZaloMessageAI();
+        }
+
+        // ADVANCED AI ZALO MESSAGE PARSER V2
+        function parseZaloMessageAI() {
+            const raw = document.getElementById('zaloRawText').value.trim();
+            if (!raw) {
+                showModal("Thông Báo", "Vui lòng nhập hoặc dán tin nhắn Zalo vào ô văn bản.", "info");
+                return;
+            }
+
+            const tLower = raw.toLowerCase();
+
+            // 1. MATCH PRODUCT FIRST (Classify product to determine default price & discount)
+            let detectedProductKey = "Suối Satori 350ml";
+            if (tLower.includes("500ml") || tLower.includes("550ml") || tLower.includes("500")) {
+                detectedProductKey = "Suối Satori 500ml";
+            } else if (tLower.includes("1.5l") || tLower.includes("1500ml")) {
+                detectedProductKey = "Suối Satori 1.5L";
+            } else if (tLower.includes("5l")) {
+                detectedProductKey = "Suối Satori 5L";
+            } else if (tLower.includes("19l") || tLower.includes("20l") || tLower.includes("bình lớn") || tLower.includes("bình")) {
+                detectedProductKey = "Bình Satori 19L";
+            } else if (tLower.includes("ổi") || tLower.includes("mãng cầu") || tLower.includes("trái cây") || tLower.includes("me")) {
+                detectedProductKey = "Nước Trái Cây & Suối Satori";
+            }
+
+            // Apply Product pricing automatically
+            document.getElementById('productSelect').value = detectedProductKey;
+            handleProductSelectChange(detectedProductKey);
+
+            // 2. MATCH CUSTOMER (Prioritize exact business names before branches)
+            let matchedCustomer = "";
+            const customerKeywords = [
+                ["HỘ KINH DOANH DỊCH VỤ TÀI LỘC", ["tài lộc", "tai loc"]],
+                ["Công Ty CP ACE Clubhouse", ["ace clubhouse", "ace"]],
+                ["CÔNG TY TNHH TM DV THỂ THAO BANGER PICKLEBALL", ["banger pickleball", "pickleball", "banger"]],
+                ["Nguyễn Bảo Châu Diamon", ["bảo châu", "bao chau", "nguyễn bảo châu"]],
+                ["CÔNG TY CP THƯƠNG MẠI DV VINAHASA (Ốc Q)", ["vinahasa", "ốc q", "oc q"]],
+                ["PWC", ["pwc"]],
+                ["Mr Ốc Ngon", ["mr ốc ngon", "ốc ngon", "oc ngon"]],
+                ["Ốc Lá", ["ốc lá", "oc la"]],
+                ["18+", ["18+"]],
+                ["Cô Hoa", ["cô hoa", "co hoa"]],
+                ["Barber Shop Vũ Trí", ["vũ trí", "vu tri"]],
+                ["Nha Khoa Peace", ["peace", "nha khoa peace"]],
+                ["Nhà Hàng Thạnh Phú", ["nhà hàng thạnh phú", "thạnh phú", "thanh phu"]],
+                ["Hà Minh Nguyệt", ["hà minh nguyệt", "ha minh nguyet", "nguyệt"]],
+                ["Edric Salon", ["edric salon", "edric"]],
+                ["Traky Cần Thơ", ["cần thơ", "can tho"]],
+                ["Traky Rạch Giá", ["rạch giá", "rach gia"]],
+                ["Traky Long Xuyên", ["long xuyên", "long xuyen"]],
+                ["Traky Mỹ Tho", ["mỹ tho", "my tho"]],
+                ["Traky Sóc Trăng", ["sóc trăng", "soc trang"]],
+                ["Traky Bến Tre", ["bến tre", "ben tre"]],
+                ["Traky Bạc Liêu", ["bạc liêu", "bac lieu"]],
+                ["Traky Cà Mau", ["cà mau", "ca mau"]],
+                ["Traky Bình Dương", ["bình dương", "binh duong"]],
+                ["Traky Biên Hòa", ["biên hòa", "bien hoa"]],
+                ["Traky Đà Nẵng 2", ["đà nẵng", "da nang"]],
+                ["Traky Sài Gòn", ["traky sài gòn", "traky sai gon", "traky hair", "traky"]]
+            ];
+
+            for (const [fullName, aliases] of customerKeywords) {
+                for (const a of aliases) {
+                    if (tLower.includes(a)) {
+                        matchedCustomer = fullName;
+                        break;
+                    }
+                }
+                if (matchedCustomer) break;
+            }
+
+            // 3. MATCH PHONE NUMBER & CONTACT PERSON
+            let phoneVal = "";
+            const phoneMatch = raw.match(/(0\d{9,10}|\+84\d{9,10})/);
+            if (phoneMatch) {
+                phoneVal = phoneMatch[0];
+                const stopWords = ['sdt', 'sđt', 'gọi', 'gặp', 'alo', 'thùng', 'nha', 'nhé', 'cho', 'qua'];
+                const aroundRegex = new RegExp(phoneVal + '\\s*\\(?\\s*([A-ZÀ-Ỹa-zà-ỹ]+)\\s*\\)?', 'i');
+                const aroundMatch = raw.match(aroundRegex);
+                if (aroundMatch && aroundMatch[1] && !stopWords.includes(aroundMatch[1].toLowerCase())) {
+                    phoneVal += ` (${aroundMatch[1]})`;
+                } else {
+                    const beforeRegex = new RegExp('(?:gọi|gặp|anh|chị|a|c)?\\s*([A-ZÀ-Ỹa-zà-ỹ]+)\\s*[-:]?\\s*' + phoneVal, 'i');
+                    const beforeMatch = raw.match(beforeRegex);
+                    if (beforeMatch && beforeMatch[1] && !stopWords.includes(beforeMatch[1].toLowerCase())) {
+                        phoneVal += ` (${beforeMatch[1]})`;
+                    }
+                }
+            }
+
+            // 4. MATCH QUANTITY
+            let qty = 10;
+            const qtyMatch = raw.match(/(\d+)\s*(?:thùng|thung|két|ket|bình|binh|chai|lốc|loc)/i) || 
+                             raw.match(/(?:lấy|giao|đặt|cho)\s*(\d+)/i);
+            if (qtyMatch) {
+                qty = parseInt(qtyMatch[1]);
+            }
+
+            // 5. EXTRACT ADDRESS
+            let locationVal = "";
+            if (matchedCustomer && CUSTOMER_DIR[matchedCustomer] && CUSTOMER_DIR[matchedCustomer].location) {
+                locationVal = CUSTOMER_DIR[matchedCustomer].location;
+            }
+            const addrRegex = /(?:qua|tại|địa chỉ|đc:?)\s*([0-9A-ZÀ-Ỹa-zà-ỹ\s,.-]+?)(?:(?:\b(?:sđt|sdt|gọi|lấy|thùng|đã ck|nha|nhé)\b)|$)/i;
+            const addrMatch = raw.match(addrRegex);
+            if (addrMatch && addrMatch[1].trim().length > 8) {
+                locationVal = addrMatch[1].trim().replace(/^[,.-]+|[,.-]+$/g, '');
+            } else if (!locationVal) {
+                const parts = raw.split(/[,;\r\n]+/).map(p => p.trim());
+                for (const p of parts) {
+                    if (/\d+/.test(p) && /đường|phố|nguyễn|lê|trần|quận|q\.|p\.|hcm|hà nội|thủ đức|bình phú|bạch đằng|chùa láng/i.test(p)) {
+                        locationVal = p;
+                        break;
+                    }
+                }
+            }
+
+            // 6. PAYMENT STATUS & VAT
+            const isPaid = /đã ck|ck rồi|đã chuyển|đã thanh toán|paid|đã trả/i.test(raw);
+            const hasVat = /vat|hóa đơn đỏ|8%/i.test(raw);
+
+            // Populate Form Fields
+            if (matchedCustomer) document.getElementById('busName').value = matchedCustomer;
+            else if (!document.getElementById('busName').value) {
+                const firstPart = raw.split(/[,;\r\n]+/)[0].trim();
+                if (firstPart.length < 35) document.getElementById('busName').value = firstPart;
+            }
+
+            if (phoneVal) document.getElementById('busPhone').value = phoneVal;
+            else if (matchedCustomer && CUSTOMER_DIR[matchedCustomer] && CUSTOMER_DIR[matchedCustomer].phone) {
+                document.getElementById('busPhone').value = CUSTOMER_DIR[matchedCustomer].phone;
+            }
+
+            if (locationVal) document.getElementById('busLocation').value = locationVal;
+            document.getElementById('quantity').value = qty;
+            document.getElementById('vatOption').value = hasVat ? 'yes' : 'no';
+            document.getElementById('paymentStatus').value = isPaid ? 'Đã thanh toán' : 'Chưa thanh toán';
+
+            calculateTotals();
+
+            // Display Visual AI Badge Preview
+            const previewBox = document.getElementById('aiParsedPreview');
+            const badgeContainer = document.getElementById('aiBadgeContainer');
+            const discPctShow = document.getElementById('discountPercent').value;
+            const unitPriceShow = document.getElementById('unitPriceInput').value;
+
+            badgeContainer.innerHTML = `
+                <span class="bg-blue-900/60 text-blue-300 border border-blue-700/60 px-2 py-0.5 rounded-lg font-medium">👤 ${document.getElementById('busName').value || 'Khách mới'}</span>
+                <span class="bg-emerald-900/60 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded-lg font-medium">📞 ${document.getElementById('busPhone').value || 'Chưa có SĐT'}</span>
+                <span class="bg-indigo-900/60 text-indigo-300 border border-indigo-700/60 px-2 py-0.5 rounded-lg font-medium">📍 ${document.getElementById('busLocation').value || 'Chưa có địa chỉ'}</span>
+                <span class="bg-amber-900/60 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded-lg font-medium">📦 ${qty} ${detectedProductKey}</span>
+                <span class="bg-cyan-900/60 text-cyan-300 border border-cyan-700/60 px-2 py-0.5 rounded-lg font-medium">💰 Giá: ${parseInt(unitPriceShow).toLocaleString('vi-VN')} đ (CK ${discPctShow}%)</span>
+                <span class="bg-${isPaid ? 'emerald' : 'rose'}-900/60 text-${isPaid ? 'emerald' : 'rose'}-300 border border-${isPaid ? 'emerald' : 'rose'}-700/60 px-2 py-0.5 rounded-lg font-medium">💳 ${isPaid ? 'Đã thanh toán' : 'Chưa thanh toán (Công nợ)'}</span>
+            `;
+            previewBox.classList.remove('hidden');
+
+            showModal("AI Bóc Tách Thành Công!", `Đã nhận diện: ${document.getElementById('busName').value} (${qty} ${detectedProductKey} - CK ${discPctShow}%). Hóa đơn đã sẵn sàng!`, "success");
+        }
+
+        // LIVE SYNC FROM GOOGLE DRIVE VIA GVIZ / CSV
+        async function syncLiveFromGoogleDrive() {
+            const btn = document.getElementById('btnSyncDrive');
+            const icon = document.getElementById('syncIcon');
+            icon.classList.add('fa-spin');
+
+            const gsheetId = "1QdNBWMVtxYgEaYPNaCCrG5Hbauz38z7K70tL8qKhRj4";
+            const gvizUrl = `https://docs.google.com/spreadsheets/d/${gsheetId}/gviz/tq?tqx=out:csv`;
+            const exportUrl = `https://docs.google.com/spreadsheets/d/${gsheetId}/export?format=csv`;
+
+            try {
+                let response = null;
+                try {
+                    response = await fetch(gvizUrl);
+                } catch (e) {
+                    response = await fetch(exportUrl);
+                }
+
+                if (!response.ok) throw new Error("Không thể tải file từ Google Drive");
+                const csvText = await response.text();
+
+                // Robust CSV parse
+                const lines = csvText.split(/[\r\n]+/);
+                const fetchedOrders = [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    // Parse quoted CSV
+                    const cols = [];
+                    let inQuotes = false;
+                    let cur = "";
+                    for (let j = 0; j < line.length; j++) {
+                        const char = line[j];
+                        if (char === '"' || char === "'") inQuotes = !inQuotes;
+                        else if (char === ',' && !inQuotes) {
+                            cols.push(cur.trim().replace(/^["']|["']$/g, ''));
+                            cur = "";
+                        } else cur += char;
+                    }
+                    cols.push(cur.trim().replace(/^["']|["']$/g, ''));
+
+                    if (cols.length >= 2 && cols[1]) {
+                        const invNo = parseInt(cols[9]) || (fetchedOrders.length + 1);
+                        const rawTotal = parseFloat((cols[8] || "0").replace(/[,\s₫]/g, '')) || 0;
+                        const qty = parseInt(cols[5]) || 10;
+                        const hasVat = (cols[7] && cols[7].toLowerCase().includes('yes')) ? 'yes' : 'no';
+                        const unitP = Math.round(rawTotal / (hasVat === 'yes' ? 1.08 : 1.0) / qty) || 65000;
+
+                        let stat = "Chưa thanh toán";
+                        if (cols[10] && (cols[10].toLowerCase().includes('paid') || cols[10].toLowerCase().includes('thanh toán'))) stat = "Đã thanh toán";
+                        else if (cols[10] && cols[10].toLowerCase().includes('cancel')) stat = "Đã hủy";
+
+                        fetchedOrders.push({
+                            id: invNo,
+                            date: cols[0] || '10/10/2026',
+                            name: cols[1],
+                            phone: cols[2] || '',
+                            location: cols[3] || '',
+                            product: cols[4] || 'Suối Satori 350ml',
+                            qty: qty,
+                            listPrice: 88000,
+                            discount: Math.max(0, 88000 - unitP),
+                            unitPrice: unitP,
+                            vat: hasVat,
+                            total: rawTotal,
+                            invoiceNo: invNo,
+                            status: stat
+                        });
+                    }
+                }
+
+                if (fetchedOrders.length > 0) {
+                    orders = fetchedOrders;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+                    nextInvoiceNumber = Math.max(...orders.map(o => o.invoiceNo || 0)) + 1;
+                    document.getElementById('invoiceNo').value = nextInvoiceNumber;
+                    renderTable();
+                    calculateTotals();
+                    showModal("Đồng Bộ Thành Công!", `Đã đồng bộ trực tiếp ${orders.length} đơn hàng mới nhất từ Google Drive của bạn!`, "success");
+                }
+            } catch (err) {
+                console.warn("Lỗi đồng bộ trực tiếp, dùng dữ liệu đã nạp:", err);
+                renderTable();
+            } finally {
+                icon.classList.remove('fa-spin');
+            }
+        }
+
+        // Reset to full 85 initial orders
+        function resetToInitialData() {
+            if (confirm("Khôi phục toàn bộ 84 đơn hàng chuẩn từ Google Drive?")) {
+                orders = INITIAL_ORDERS;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+                nextInvoiceNumber = 85;
+                document.getElementById('invoiceNo').value = nextInvoiceNumber;
+                renderTable();
+                showModal("Đã Khôi Phục", "Đã nạp lại toàn bộ 84 đơn hàng gốc từ Google Drive!", "success");
+            }
+        }
+
+        // Calculate Totals and Live Update Preview & VietQR
+        function calculateTotals() {
+            const qty = parseFloat(document.getElementById('quantity').value) || 0;
+            const listPrice = parseFloat(document.getElementById('listPrice').value) || 0;
+            const discount = parseFloat(document.getElementById('discount').value) || 0;
+            const discPct = parseFloat(document.getElementById('discountPercent').value) || 0;
+            const unitPrice = parseFloat(document.getElementById('unitPriceInput').value) || Math.max(0, listPrice - discount);
+            const vatOpt = document.getElementById('vatOption').value;
+
+            const goodsTotal = qty * unitPrice;
+            const vatAmount = vatOpt === 'yes' ? goodsTotal * 0.08 : 0;
+            const grandTotal = goodsTotal + vatAmount;
+
+            const busName = document.getElementById('busName').value || '...';
+            const invNo = document.getElementById('invoiceNo').value || nextInvoiceNumber;
+
+            // Live update Preview
+            document.getElementById('prevBuyer').innerText = busName;
+            document.getElementById('prevTax').innerText = document.getElementById('taxCode').value || '...';
+            document.getElementById('prevAddress').innerText = document.getElementById('busLocation').value || '...';
+            document.getElementById('prevPhone').innerText = document.getElementById('busPhone').value || '...';
+            document.getElementById('prevInvNo').innerText = invNo;
+            
+            const dateVal = document.getElementById('orderDate').value;
+            if (dateVal) {
+                const parts = dateVal.split('-');
+                document.getElementById('prevDate').innerText = `${parts[2]} / ${parts[1]} / ${parts[0]}`;
+            }
+
+            document.getElementById('tdProduct').innerText = document.getElementById('productName').value;
+            document.getElementById('tdQty').innerText = qty;
+            document.getElementById('tdList').innerText = listPrice.toLocaleString('vi-VN');
+            document.getElementById('tdDiscount').innerText = `${discount.toLocaleString('vi-VN')} (${discPct}%)`;
+            document.getElementById('tdUnitPrice').innerText = unitPrice.toLocaleString('vi-VN');
+            document.getElementById('tdSubTotal').innerText = goodsTotal.toLocaleString('vi-VN');
+
+            document.getElementById('sumGoods').innerText = goodsTotal.toLocaleString('vi-VN') + ' VND';
+            document.getElementById('sumVat').innerText = vatAmount.toLocaleString('vi-VN') + ' VND';
+            document.getElementById('sumTotal').innerText = grandTotal.toLocaleString('vi-VN') + ' VND';
+
+            // Generate VietQR for VPBank 658489418
+            const cleanMemo = `HD${invNo} ${busName.replace(/[^a-zA-Z0-9 ]/g, '')}`.substring(0, 25);
+            const qrUrl = `https://img.vietqr.io/image/vpbank-658489418-compact2.png?amount=${grandTotal}&addInfo=${encodeURIComponent(cleanMemo)}&accountName=HKD%20MINH%20SATORI`;
+            document.getElementById('vietQrImg').src = qrUrl;
+
+            return { unitPrice, goodsTotal, vatAmount, grandTotal };
+        }
+
+        // Save Order & Generate Invoice
+        function handleSaveAndGenerate() {
+            const totals = calculateTotals();
+            const invNum = parseInt(document.getElementById('invoiceNo').value) || nextInvoiceNumber;
+            
+            const newOrder = {
+                id: Date.now(),
+                date: document.getElementById('orderDate').value,
+                name: document.getElementById('busName').value,
+                phone: document.getElementById('busPhone').value,
+                location: document.getElementById('busLocation').value,
+                product: document.getElementById('productName').value,
+                qty: parseInt(document.getElementById('quantity').value),
+                listPrice: parseFloat(document.getElementById('listPrice').value),
+                discount: parseFloat(document.getElementById('discount').value),
+                unitPrice: totals.unitPrice,
+                vat: document.getElementById('vatOption').value,
+                total: totals.grandTotal,
+                invoiceNo: invNum,
+                status: document.getElementById('paymentStatus').value
+            };
+
+            orders.unshift(newOrder);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+
+            // Increment Invoice number automatically
+            nextInvoiceNumber = invNum + 1;
+            document.getElementById('invoiceNo').value = nextInvoiceNumber;
+
+            showModal("Thành Công!", `Hóa đơn #${newOrder.invoiceNo} đã được lưu và cập nhật tự động vào Sổ Kế Toán!`, "success");
+            renderTable();
+        }
+
+        function resetInvoiceCounter() {
+            const current = prompt("Nhập số hóa đơn tiếp theo bạn muốn bắt đầu:", nextInvoiceNumber);
+            if (current && !isNaN(parseInt(current))) {
+                nextInvoiceNumber = parseInt(current);
+                document.getElementById('invoiceNo').value = nextInvoiceNumber;
+                calculateTotals();
+            }
+        }
+
+        // Render Accounting Ledger Table & Financial Analytics
+        function renderTable() {
+            const tbody = document.getElementById('sheetsTableBody');
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const filterStat = document.getElementById('filterStatus').value;
+
+            const filtered = orders.filter(o => {
+                const matchSearch = (o.name && o.name.toLowerCase().includes(search)) || 
+                                    (o.phone && o.phone.toLowerCase().includes(search)) || 
+                                    (o.location && o.location.toLowerCase().includes(search));
+                const matchStat = filterStat === 'all' || o.status === filterStat;
+                return matchSearch && matchStat;
+            });
+
+            tbody.innerHTML = '';
+
+            let totalRev = 0;
+            let paidRev = 0;
+            let unpaidRev = 0;
+
+            orders.forEach(o => {
+                totalRev += (o.total || 0);
+                if (o.status === 'Đã thanh toán') paidRev += (o.total || 0);
+                else if (o.status !== 'Đã hủy') unpaidRev += (o.total || 0);
+            });
+
+            document.getElementById('statTotalOrders').innerText = orders.length;
+            document.getElementById('tabOrderCount').innerText = orders.length;
+            document.getElementById('statTotalRevenue').innerText = totalRev.toLocaleString('vi-VN') + ' đ';
+            document.getElementById('statPaid').innerText = paidRev.toLocaleString('vi-VN') + ' đ';
+            document.getElementById('statUnpaid').innerText = unpaidRev.toLocaleString('vi-VN') + ' đ';
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="12" class="text-center py-8 text-slate-500">Không tìm thấy đơn hàng nào.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(o => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-850 transition";
+                tr.innerHTML = `
+                    <td class="p-3 text-slate-300 font-mono text-[11px]">${o.date}</td>
+                    <td class="p-3 text-center font-bold text-amber-400">#${o.invoiceNo}</td>
+                    <td class="p-3 font-semibold text-white">${o.name}</td>
+                    <td class="p-3 text-slate-300">${o.phone}</td>
+                    <td class="p-3 text-slate-400 text-[11px] max-w-xs truncate" title="${o.location}">${o.location}</td>
+                    <td class="p-3 text-slate-300">${o.product}</td>
+                    <td class="p-3 text-center font-medium">${o.qty}</td>
+                    <td class="p-3 text-right font-mono">${(o.unitPrice || 0).toLocaleString('vi-VN')}</td>
+                    <td class="p-3 text-center">${o.vat === 'yes' ? '<span class="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px]">8%</span>' : '0%'}</td>
+                    <td class="p-3 text-right font-bold text-emerald-400 font-mono">${(o.total || 0).toLocaleString('vi-VN')}</td>
+                    <td class="p-3 text-center">
+                        <select onchange="updateStatus(${o.id}, this.value)" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] ${o.status === 'Đã thanh toán' ? 'text-emerald-400 font-semibold' : (o.status === 'Đã hủy' ? 'text-slate-500' : 'text-rose-400 font-semibold')}">
+                            <option value="Chưa thanh toán" ${o.status === 'Chưa thanh toán' ? 'selected' : ''}>Chưa thanh toán</option>
+                            <option value="Đã thanh toán" ${o.status === 'Đã thanh toán' ? 'selected' : ''}>Đã thanh toán</option>
+                            <option value="Đã hủy" ${o.status === 'Đã hủy' ? 'selected' : ''}>Đã hủy</option>
+                        </select>
+                    </td>
+                    <td class="p-3 text-center space-x-1">
+                        <button onclick="viewInvoice(${o.id})" class="text-blue-400 hover:text-blue-300 p-1 transition" title="Xem & In Hóa Đơn">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                        <button onclick="deleteOrder(${o.id})" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Xóa">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateStatus(id, newStatus) {
+            const order = orders.find(o => o.id === id);
+            if (order) {
+                order.status = newStatus;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+                renderTable();
+            }
+        }
+
+        function viewInvoice(id) {
+            const o = orders.find(x => x.id === id);
+            if (o) {
+                document.getElementById('orderDate').value = o.date;
+                document.getElementById('invoiceNo').value = o.invoiceNo;
+                document.getElementById('busName').value = o.name;
+                document.getElementById('busPhone').value = o.phone;
+                document.getElementById('busLocation').value = o.location;
+                document.getElementById('productName').value = o.product;
+                document.getElementById('quantity').value = o.qty;
+                document.getElementById('listPrice').value = o.listPrice || 88000;
+                document.getElementById('discount').value = o.discount || 0;
+                const discAmt = o.discount || 0;
+                const listP = o.listPrice || 88000;
+                document.getElementById('discountPercent').value = listP > 0 ? ((discAmt / listP) * 100).toFixed(2) : 0;
+                document.getElementById('unitPriceInput').value = o.unitPrice || 65000;
+                document.getElementById('vatOption').value = o.vat || 'no';
+                document.getElementById('paymentStatus').value = o.status;
+                calculateTotals();
+                switchTab('input');
+            }
+        }
+
+        function deleteOrder(id) {
+            if (confirm("Bạn có chắc chắn muốn xóa đơn hàng này khỏi sổ kế toán?")) {
+                orders = orders.filter(o => o.id !== id);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+                renderTable();
+            }
+        }
+
+        // Export CSV / Excel
+        function exportToExcel() {
+            let csvContent = "\\uFEFFNgày,Số Hóa Đơn,Khách Hàng,Điện Thoại,Địa Chỉ,Sản Phẩm,Số Lượng,Đơn Giá Sau CK,VAT,Tổng Tiền,Trạng Thái\\n";
+            orders.forEach(o => {
+                const vatStr = o.vat === 'yes' ? '8%' : '0%';
+                csvContent += `"${o.date}",${o.invoiceNo},"${o.name}","${o.phone}","${o.location}","${o.product}",${o.qty},${o.unitPrice},"${vatStr}",${o.total},"${o.status}"\\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `SoKeToan_MinhSatori_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function showModal(title, message, type) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+            const icon = document.getElementById('modalIcon');
+            if (type === 'success') {
+                icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+            } else {
+                icon.innerHTML = '<i class="fa-solid fa-circle-info text-blue-400"></i>';
+            }
+            document.getElementById('customModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('customModal').classList.add('hidden');
+        }
+
+        // On Load
+        window.onload = function() {
+            handleCustomerSelect("Traky Sài Gòn");
+            handleProductSelectChange("Suối Satori 350ml");
+            renderTable();
+            syncLiveFromGoogleDrive();
+        };
+    </script>
+</body>
+</html>
