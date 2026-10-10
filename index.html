@@ -326,9 +326,10 @@
                             </div>
                             <div>
                                 <label class="block text-[11px] text-slate-400 font-medium mb-1">Trạng thái thanh toán</label>
-                                <select id="paymentStatus" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+                                <select id="paymentStatus" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium">
                                     <option value="Chưa thanh toán">Chưa thanh toán (Công nợ)</option>
                                     <option value="Đã thanh toán">Đã thanh toán</option>
+                                    <option value="Không Tính">Không Tính (0đ Doanh thu)</option>
                                 </select>
                             </div>
                         </div>
@@ -828,6 +829,7 @@
                                 <option value="all">Tất cả trạng thái thanh toán</option>
                                 <option value="Đã thanh toán">Đã thanh toán</option>
                                 <option value="Chưa thanh toán">Chưa thanh toán (Công nợ)</option>
+                                <option value="Không Tính">Không Tính (0đ Doanh thu)</option>
                                 <option value="Đã hủy">Đã hủy</option>
                             </select>
                         </div>
@@ -2650,7 +2652,11 @@
             }
 
             let totalAmount = 0;
-            filtered.forEach(o => totalAmount += (o.total || 0));
+            filtered.forEach(o => {
+                if (o.status !== 'Đã hủy' && o.status !== 'Không Tính') {
+                    totalAmount += (o.total || 0);
+                }
+            });
 
             document.getElementById('archiveFilterCount').innerText = filtered.length;
             document.getElementById('archiveFilterTotal').innerText = totalAmount.toLocaleString('vi-VN') + ' đ';
@@ -2675,6 +2681,8 @@
                     let statusBadge = `<span class="bg-rose-950/70 text-rose-300 border border-rose-800/80 text-[10px] px-2 py-0.5 rounded-full font-bold">Chưa thanh toán</span>`;
                     if (o.status === 'Đã thanh toán') {
                         statusBadge = `<span class="bg-emerald-950/70 text-emerald-300 border border-emerald-800/80 text-[10px] px-2 py-0.5 rounded-full font-bold">Đã thanh toán</span>`;
+                    } else if (o.status === 'Không Tính') {
+                        statusBadge = `<span class="bg-indigo-950/70 text-indigo-300 border border-indigo-800/80 text-[10px] px-2 py-0.5 rounded-full font-bold">Không Tính (0đ DT)</span>`;
                     } else if (o.status === 'Đã hủy') {
                         statusBadge = `<span class="bg-slate-800 text-slate-400 border border-slate-700 text-[10px] px-2 py-0.5 rounded-full font-bold">Đã hủy</span>`;
                     }
@@ -2767,11 +2775,15 @@
                         <td class="p-3 text-slate-400 text-[11px] max-w-xs truncate" title="${o.location}">${o.location}</td>
                         <td class="p-3 text-slate-300 max-w-xs truncate" title="${o.product}">${o.product}</td>
                         <td class="p-3 text-center font-medium">${o.qty}</td>
-                        <td class="p-3 text-right font-bold text-emerald-400 font-mono">${(o.total || 0).toLocaleString('vi-VN')}</td>
+                        <td class="p-3 text-right font-bold font-mono ${o.status === 'Không Tính' ? 'text-indigo-300' : 'text-emerald-400'}">
+                        ${(o.total || 0).toLocaleString('vi-VN')}
+                        ${o.status === 'Không Tính' ? '<span class="block text-[9px] text-indigo-400 font-normal">0đ vào DT</span>' : ''}
+                    </td>
                         <td class="p-3 text-center">
-                            <select onchange="updateStatus(${o.id}, this.value)" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] ${o.status === 'Đã thanh toán' ? 'text-emerald-400 font-semibold' : (o.status === 'Đã hủy' ? 'text-slate-500' : 'text-rose-400 font-semibold')}">
+                            <select onchange="updateStatus(${o.id}, this.value)" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] ${o.status === 'Đã thanh toán' ? 'text-emerald-400 font-semibold' : (o.status === 'Không Tính' ? 'text-indigo-400 font-semibold' : (o.status === 'Đã hủy' ? 'text-slate-500' : 'text-rose-400 font-semibold'))}">
                                 <option value="Chưa thanh toán" ${o.status === 'Chưa thanh toán' ? 'selected' : ''}>Chưa thanh toán</option>
                                 <option value="Đã thanh toán" ${o.status === 'Đã thanh toán' ? 'selected' : ''}>Đã thanh toán</option>
+                                <option value="Không Tính" ${o.status === 'Không Tính' ? 'selected' : ''}>Không Tính</option>
                                 <option value="Đã hủy" ${o.status === 'Đã hủy' ? 'selected' : ''}>Đã hủy</option>
                             </select>
                         </td>
@@ -3963,14 +3975,16 @@
                 return 0;
             });
 
-            // 3. STATS TOÀN BỘ SỔ SÁCH
+            // 3. STATS TOÀN BỘ SỔ SÁCH (Đơn 'Không Tính' và 'Đã hủy' không cộng vào doanh thu)
             let globalTotalRev = 0;
             let globalPaidRev = 0;
             let globalUnpaidRev = 0;
             orders.forEach(o => {
-                globalTotalRev += (o.total || 0);
-                if (o.status === 'Đã thanh toán') globalPaidRev += (o.total || 0);
-                else if (o.status !== 'Đã hủy') globalUnpaidRev += (o.total || 0);
+                if (o.status !== 'Đã hủy' && o.status !== 'Không Tính') {
+                    globalTotalRev += (o.total || 0);
+                    if (o.status === 'Đã thanh toán') globalPaidRev += (o.total || 0);
+                    else globalUnpaidRev += (o.total || 0);
+                }
             });
 
             const statTotalOrders = document.getElementById('statTotalOrders');
@@ -3987,11 +4001,11 @@
             const statUnpaid = document.getElementById('statUnpaid');
             if (statUnpaid) statUnpaid.innerText = globalUnpaidRev.toLocaleString('vi-VN') + ' đ';
 
-            // 4. SUB-SUMMARY KPI FOR CURRENT FILTER VIEW
+            // 4. SUB-SUMMARY KPI FOR CURRENT FILTER VIEW (Đơn 'Không Tính' và 'Đã hủy' tính 0đ vào DT)
             const subCount = filtered.length;
-            const subRevenue = filtered.reduce((s, o) => s + (o.total || 0), 0);
+            const subRevenue = filtered.filter(o => o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + (o.total || 0), 0);
             const subPaid = filtered.filter(o => o.status === 'Đã thanh toán').reduce((s, o) => s + (o.total || 0), 0);
-            const subUnpaid = filtered.filter(o => o.status !== 'Đã thanh toán' && o.status !== 'Đã hủy').reduce((s, o) => s + (o.total || 0), 0);
+            const subUnpaid = filtered.filter(o => o.status !== 'Đã thanh toán' && o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + (o.total || 0), 0);
 
             const badgeEl = document.getElementById('excelFilterCountBadge');
             if (badgeEl) badgeEl.innerText = `${subCount} đơn`;
@@ -4058,9 +4072,10 @@
                     <td class="p-3 text-center">${o.vat === 'yes' ? '<span class="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px]">8%</span>' : '0%'}</td>
                     <td class="p-3 text-right font-bold text-emerald-400 font-mono">${(o.total || 0).toLocaleString('vi-VN')}</td>
                     <td class="p-3 text-center">
-                        <select onchange="updateStatus(${o.id}, this.value)" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] ${o.status === 'Đã thanh toán' ? 'text-emerald-400 font-semibold' : (o.status === 'Đã hủy' ? 'text-rose-400' : 'text-amber-400')}">
+                        <select onchange="updateStatus(${o.id}, this.value)" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] ${o.status === 'Đã thanh toán' ? 'text-emerald-400 font-semibold' : (o.status === 'Không Tính' ? 'text-indigo-400 font-semibold' : (o.status === 'Đã hủy' ? 'text-rose-400' : 'text-amber-400'))}">
                             <option value="Chưa thanh toán" ${o.status === 'Chưa thanh toán' ? 'selected' : ''}>Chưa TT</option>
                             <option value="Đã thanh toán" ${o.status === 'Đã thanh toán' ? 'selected' : ''}>Đã TT</option>
+                            <option value="Không Tính" ${o.status === 'Không Tính' ? 'selected' : ''}>Không Tính</option>
                             <option value="Đã hủy" ${o.status === 'Đã hủy' ? 'selected' : ''}>Đã hủy</option>
                         </select>
                     </td>
@@ -4398,6 +4413,7 @@
                     let stat = "Chưa thanh toán";
                     const statStr = getCol(colMap.status).toLowerCase();
                     if (statStr.includes('paid') || statStr.includes('đã thanh toán') || statStr.includes('hoàn tất')) stat = "Đã thanh toán";
+                    else if (statStr.includes('không tính') || statStr.includes('khong tinh') || statStr.includes('no rev')) stat = "Không Tính";
                     else if (statStr.includes('cancel') || statStr.includes('hủy')) stat = "Đã hủy";
 
                     fetchedOrders.push({
@@ -4544,7 +4560,9 @@
                 const statClean = `"${(o.status || '').replace(/"/g, '""')}"`;
 
                 totalQty += qtyVal;
-                totalRev += totVal;
+                if (o.status !== 'Không Tính' && o.status !== 'Đã hủy') {
+                    totalRev += totVal;
+                }
 
                 csvContent += `${dateClean},${invClean},${nameClean},${phoneClean},${locClean},${prodClean},${qtyVal},${unitP},${vatClean},${totVal},${statClean}\n`;
             });
