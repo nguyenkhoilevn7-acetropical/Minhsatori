@@ -144,7 +144,7 @@
                     <button onclick="switchTab('aimemory')" id="btn-tab-aimemory" class="px-3.5 py-1.5 font-medium rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5">
                         <i class="fa-solid fa-brain text-purple-400"></i> Trí Nhớ AI (<span id="tabMemoryCount">22</span>)
                     </button>
-                    <button onclick="switchTab('catalogue')" id="btn-tab-catalogue" class="px-3.5 py-1.5 font-medium rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5">
+                    <button onclick="switchTab('catalogue') id="btn-tab-catalogue" class="px-3.5 py-1.5 font-medium rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5">
                         <i class="fa-solid fa-tags"></i> Bảng Giá (20 SP)
                     </button>
                 </div>
@@ -702,31 +702,64 @@
                     </div>
                 </div>
 
-                <!-- Search and Filters -->
-                <!-- DEDICATED MONTH/YEAR FILTER & SORTING TOOLBAR FOR EXCEL / ACCOUNTING -->
-                <div class="bg-gradient-to-r from-slate-900 via-slate-900/90 to-blue-950/60 border border-blue-500/30 rounded-2xl p-4 shadow-lg space-y-3">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-2.5">
-                        <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2">
-                            <i class="fa-solid fa-arrow-down-wide-short text-blue-400"></i>
-                            BỘ LỌC & SẮP XẾP SỔ BÁN HÀNG THEO THÁNG & NĂM (MỤC EXCEL)
-                        </span>
-                        <!-- Quick Month Buttons -->
-                        <div class="flex flex-wrap items-center gap-1.5 text-xs">
-                            <span class="text-slate-400 text-[11px] mr-1">Xem nhanh:</span>
-                            <button onclick="setExcelMonthYear('10', '2026')" class="px-2.5 py-1 rounded-lg bg-blue-950 border border-blue-600/40 text-blue-300 hover:bg-blue-900 text-[11px] font-medium transition">Tháng 10/2026</button>
-                            <button onclick="setExcelMonthYear('9', '2026')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-[11px] font-medium transition">Tháng 09/2026</button>
-                            <button onclick="setExcelMonthYear('8', '2026')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-[11px] font-medium transition">Tháng 08/2026</button>
-                            <button onclick="setExcelMonthYear('all', 'all')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-[11px] font-medium transition">Tất Cả</button>
+                <!-- BỘ LỌC ĐA NĂNG TOÀN DIỆN: KHÁCH HÀNG, NGÀY, THÁNG, NĂM & SẮP XẾP SỔ BÁN HÀNG -->
+                <div class="bg-gradient-to-r from-slate-900 via-slate-900/90 to-blue-950/60 border border-blue-500/30 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="p-2 bg-blue-600/20 text-cyan-400 border border-blue-500/30 rounded-xl text-sm">
+                                <i class="fa-solid fa-filter"></i>
+                            </span>
+                            <div>
+                                <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-cyan-300">
+                                    BỘ LỌC ĐA NĂNG: TÊN KHÁCH HÀNG, NGÀY, THÁNG & NĂM (MỤC EXCEL)
+                                </h3>
+                                <p class="text-[11px] text-slate-400">Lọc chính xác theo từng khách hàng, ngày cụ thể, hoặc theo cả tháng và năm</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <div class="flex items-center gap-1 text-xs">
+                                <span class="text-slate-400 text-[11px] mr-1 hidden md:inline">Xem nhanh:</span>
+                                <button onclick="setExcelMonthYear('10', '2026')" class="px-2.5 py-1 rounded-lg bg-blue-950 border border-blue-600/40 text-blue-300 hover:bg-blue-900 text-[11px] font-medium transition">T10/2026</button>
+                                <button onclick="setExcelMonthYear('9', '2026')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-[11px] font-medium transition">T09/2026</button>
+                                <button onclick="setExcelMonthYear('8', '2026')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-[11px] font-medium transition">T08/2026</button>
+                            </div>
+                            <button onclick="resetAllExcelFilters()" class="text-xs text-rose-400 hover:text-rose-300 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 transition flex items-center gap-1">
+                                <i class="fa-solid fa-rotate-left"></i> Xóa Bộ Lọc
+                            </button>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                        <!-- Month selector -->
+                    <!-- 5 FILTER COLUMNS -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+                        
+                        <!-- 1. CHỌN TÊN KHÁCH HÀNG -->
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 mb-1 flex items-center gap-1">
-                                <i class="fa-regular fa-calendar text-cyan-400"></i> 1. Chọn Tháng:
+                            <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center gap-1">
+                                <i class="fa-solid fa-user-check text-cyan-400"></i> 1. Tên Khách Hàng:
                             </label>
-                            <select id="excelFilterMonth" onchange="renderTable()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                            <select id="excelFilterCustomer" onchange="renderTable()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-medium">
+                                <option value="all">-- Tất cả khách hàng --</option>
+                            </select>
+                        </div>
+
+                        <!-- 2. LỌC THEO NGÀY CỤ THỂ -->
+                        <div>
+                            <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center justify-between">
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-calendar-day text-emerald-400"></i> 2. Lọc Theo Ngày:</span>
+                                <span id="excelSpecificDateClearBtn" onclick="clearExcelDateFilter()" class="text-[10px] text-rose-400 hover:underline cursor-pointer hidden">Xóa ngày</span>
+                            </label>
+                            <div class="relative">
+                                <input type="date" id="excelFilterSpecificDate" onchange="onExcelSpecificDateChange()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+
+                        <!-- 3. CHỌN THÁNG -->
+                        <div>
+                            <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center gap-1">
+                                <i class="fa-regular fa-calendar text-cyan-400"></i> 3. Chọn Tháng:
+                            </label>
+                            <select id="excelFilterMonth" onchange="onExcelMonthChange()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
                                 <option value="all">Tất cả các tháng (Cả năm)</option>
                                 <option value="1">Tháng 01</option>
                                 <option value="2">Tháng 02</option>
@@ -743,10 +776,10 @@
                             </select>
                         </div>
 
-                        <!-- Year selector -->
+                        <!-- 4. CHỌN NĂM -->
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 mb-1 flex items-center gap-1">
-                                <i class="fa-regular fa-calendar-days text-indigo-400"></i> 2. Chọn Năm:
+                            <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center gap-1">
+                                <i class="fa-regular fa-calendar-days text-indigo-400"></i> 4. Chọn Năm:
                             </label>
                             <select id="excelFilterYear" onchange="renderTable()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
                                 <option value="all">Tất cả các năm</option>
@@ -756,14 +789,14 @@
                             </select>
                         </div>
 
-                        <!-- Sort order -->
+                        <!-- 5. TIÊU CHÍ SẮP XẾP -->
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 mb-1 flex items-center gap-1">
-                                <i class="fa-solid fa-arrow-up-z-a text-amber-400"></i> 3. Tiêu Chí Sắp Xếp:
+                            <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-up-z-a text-amber-400"></i> 5. Sắp Xếp:
                             </label>
                             <select id="excelSortOrder" onchange="renderTable()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-medium">
-                                <option value="date_desc">Ngày: Mới nhất trước (Tháng/Năm giảm dần)</option>
-                                <option value="date_asc">Ngày: Cũ nhất trước (Tháng/Năm tăng dần)</option>
+                                <option value="date_desc">Ngày: Mới nhất trước (Giảm dần)</option>
+                                <option value="date_asc">Ngày: Cũ nhất trước (Tăng dần)</option>
                                 <option value="revenue_desc">Doanh thu: Cao nhất trước</option>
                                 <option value="revenue_asc">Doanh thu: Thấp nhất trước</option>
                                 <option value="invoice_desc">Số HĐ: Giảm dần (#85 -> #1)</option>
@@ -771,43 +804,45 @@
                             </select>
                         </div>
 
-                        <!-- Export Button with count badge -->
-                        <div class="flex items-end">
-                            <button onclick="exportToExcel()" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40">
+                    </div>
+
+                    <!-- SEARCH AND STATUS FILTER ROW -->
+                    <div class="flex flex-col sm:flex-row gap-3 pt-1 border-t border-slate-800/80">
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                            <input type="text" id="searchInput" oninput="renderTable()" placeholder="Tìm nhanh theo từ khóa, số điện thoại, địa chỉ..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <select id="filterStatus" onchange="renderTable()" class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-medium">
+                                <option value="all">Tất cả trạng thái thanh toán</option>
+                                <option value="Đã thanh toán">Đã thanh toán</option>
+                                <option value="Chưa thanh toán">Chưa thanh toán (Công nợ)</option>
+                                <option value="Đã hủy">Đã hủy</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- SUB-SUMMARY KPI BAR & EXPORT BUTTON -->
+                    <div id="excelSubSummary" class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-xs">
+                        <div class="flex items-center gap-2 text-slate-300">
+                            <span class="text-cyan-400 font-semibold flex items-center gap-1.5"><i class="fa-solid fa-magnifying-glass-chart"></i> Phạm vi lọc:</span>
+                            <span id="excelViewingScope" class="font-bold text-white bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">Toàn bộ sổ sách</span>
+                        </div>
+                        
+                        <div class="flex flex-wrap items-center justify-between lg:justify-end gap-3 text-[11px]">
+                            <div class="flex items-center gap-3">
+                                <span class="text-slate-400">Số đơn: <b id="subStatCount" class="text-white">85</b></span>
+                                <span class="text-slate-400">Doanh thu: <b id="subStatRevenue" class="text-cyan-300">0 đ</b></span>
+                                <span class="text-slate-400">Đã thu: <b id="subStatPaid" class="text-emerald-400">0 đ</b></span>
+                                <span class="text-slate-400">Công nợ: <b id="subStatUnpaid" class="text-rose-400">0 đ</b></span>
+                            </div>
+
+                            <button onclick="exportToExcel()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-950/40">
                                 <i class="fa-solid fa-file-excel text-emerald-200"></i>
                                 <span>Xuất Excel Đơn Lọc</span>
                                 <span id="excelFilterCountBadge" class="bg-emerald-900/80 px-2 py-0.5 rounded-full text-[10px] text-emerald-200">85 đơn</span>
                             </button>
                         </div>
-                    </div>
-
-                    <!-- Sub-summary KPI Pill -->
-                    <div id="excelSubSummary" class="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs">
-                        <div class="flex items-center gap-2 text-slate-300">
-                            <span class="text-cyan-400 font-semibold flex items-center gap-1"><i class="fa-solid fa-calculator"></i> Phạm vi lọc:</span>
-                            <span id="excelViewingScope" class="font-bold text-white">Toàn bộ sổ sách</span>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-4 text-[11px]">
-                            <span class="text-slate-400">Số đơn: <b id="subStatCount" class="text-white">85</b></span>
-                            <span class="text-slate-400">Doanh thu: <b id="subStatRevenue" class="text-cyan-300">0 đ</b></span>
-                            <span class="text-slate-400">Đã thu: <b id="subStatPaid" class="text-emerald-400">0 đ</b></span>
-                            <span class="text-slate-400">Công nợ: <b id="subStatUnpaid" class="text-rose-400">0 đ</b></span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="flex flex-col sm:flex-row gap-3 pt-2">
-                    <div class="relative flex-1">
-                        <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-500 text-xs"></i>
-                        <input type="text" id="searchInput" oninput="renderTable()" placeholder="Tìm theo tên khách hàng, số điện thoại, địa chỉ..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <select id="filterStatus" onchange="renderTable()" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
-                            <option value="all">Tất cả trạng thái</option>
-                            <option value="Đã thanh toán">Đã thanh toán</option>
-                            <option value="Chưa thanh toán">Chưa thanh toán (Công nợ)</option>
-                            <option value="Đã hủy">Đã hủy</option>
-                        </select>
                     </div>
                 </div>
 
@@ -1483,7 +1518,6 @@
 
             </div>
         </div>
-
     </main>
 
     <!-- GOOGLE SHEETS LIVE SYNC SETTINGS MODAL -->
@@ -1678,9 +1712,13 @@
                 }
             });
             if (tabId === 'archive') renderArchiveInvoices();
-            if (tabId === 'sheet') renderTable();
+            if (tabId === 'sheet') populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
             if (tabId === 'aimemory') renderAIMemoryTable();
-            if (tabId === 'sheet') renderTable();
+            if (tabId === 'sheet') populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
             if (tabId === 'catalogue') renderCatalogueTable();
         }
 
@@ -1993,17 +2031,14 @@
             const tLower = raw.toLowerCase();
             const memory = getAIMemory();
 
-            // --- 0. TRA CỨU BỘ NHỚ KHÁCH HÀNG AI (AI CUSTOMER MEMORY LOOKUP) ---
             let matchedCust = null;
             let matchedReceiver = null;
 
             for (const cust of memory) {
-                // Check aliases
                 if (cust.aliases && cust.aliases.some(a => tLower.includes(a))) {
                     matchedCust = cust;
                     break;
                 }
-                // Check receivers (Trọng, Phương, Hằng, Long, Duy, Nam, Sơn, Trúc, Thảo, Cường...)
                 if (cust.receivers) {
                     for (const rec of cust.receivers) {
                         if (rec.name && rec.name.length >= 2) {
@@ -2397,8 +2432,6 @@
 
             // 1. SAVE TO LOCAL ORDERS (ALWAYS KEEP AT TOP)
             orders.unshift(newOrder);
-
-            // 1.1 TỰ ĐỘNG HUẤN LUYỆN BỘ NHỚ AI TỪ ĐƠN HÀNG MỚI NÀY
             trainAIMemoryFromOrder(newOrder);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
 
@@ -2433,8 +2466,9 @@
             document.getElementById('invoiceBadge').innerText = `#${nextInvoiceNumber}`;
 
             // 5. UPDATE COUNTERS & RENDER ALL VIEWS
-            initAIMemory();
             updateCounters();
+            populateCustomerDatalist();
+            populateExcelCustomerFilter();
             renderTable();
             renderArchiveInvoices();
 
@@ -2708,7 +2742,9 @@
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
                 updateCounters();
                 renderArchiveInvoices();
-                renderTable();
+                populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
             }
         }
 
@@ -2940,7 +2976,6 @@
         // ==========================================
         const AI_MEMORY_KEY = 'satori_ai_customer_memory';
 
-        // Cơ sở dữ liệu huấn luyện sẵn (Pre-trained Knowledge Base) từ 85 đơn hàng lịch sử
         const PRE_TRAINED_AI_MEMORY = [
             {
                 id: 'cust_traky_sg',
@@ -3018,9 +3053,7 @@
                 id: 'cust_oc_la',
                 name: 'Ốc Lá',
                 aliases: ['ốc lá', 'oc la'],
-                receivers: [
-                    { name: 'Duy', phone: '0768629630', location: '13 Trần Quý Kiên , Q2 , Cát Lái' }
-                ],
+                receivers: [{ name: 'Duy', phone: '0768629630', location: '13 Trần Quý Kiên , Q2 , Cát Lái' }],
                 defaultPhone: 'Duy - 0768629630',
                 defaultLocation: '13 Trần Quý Kiên , Q2 , Cát Lái',
                 discountPercent: 23.47,
@@ -3033,9 +3066,7 @@
                 id: 'cust_18_plus',
                 name: '18+',
                 aliases: ['18+'],
-                receivers: [
-                    { name: 'Nam', phone: '0932720893', location: '11 Trần Quý Kiên , Q2 , Cát Lái' }
-                ],
+                receivers: [{ name: 'Nam', phone: '0932720893', location: '11 Trần Quý Kiên , Q2 , Cát Lái' }],
                 defaultPhone: 'Nam - 0932720893',
                 defaultLocation: '11 Trần Quý Kiên , Q2 , Cát Lái',
                 discountPercent: 23.47,
@@ -3048,9 +3079,7 @@
                 id: 'cust_ace_clubhouse',
                 name: 'Công Ty CP ACE Clubhouse',
                 aliases: ['ace clubhouse', 'ace'],
-                receivers: [
-                    { name: 'Kho', phone: '0775550723', location: '90 Song Hành , Xa Lộ Hà Nội , Quận 2' }
-                ],
+                receivers: [{ name: 'Kho', phone: '0775550723', location: '90 Song Hành , Xa Lộ Hà Nội , Quận 2' }],
                 defaultPhone: '775550723',
                 defaultLocation: '90 Song Hành , Xa Lộ Hà Nội , Quận 2',
                 discountPercent: 25.0,
@@ -3063,9 +3092,7 @@
                 id: 'cust_banger_pickleball',
                 name: 'CÔNG TY TNHH TM DV THỂ THAO BANGER PICKLEBALL',
                 aliases: ['banger pickleball', 'banger'],
-                receivers: [
-                    { name: 'Long', phone: '0775550723', location: 'Số 90 đường Song Hành, P. Bình Trưng, TP. Hồ Chí Minh' }
-                ],
+                receivers: [{ name: 'Long', phone: '0775550723', location: 'Số 90 đường Song Hành, P. Bình Trưng, TP. Hồ Chí Minh' }],
                 defaultPhone: '775550723 (Long)',
                 defaultLocation: 'Số 90 đường Song Hành, P. Bình Trưng, TP. Hồ Chí Minh',
                 discountPercent: 25.0,
@@ -3078,9 +3105,7 @@
                 id: 'cust_tai_loc',
                 name: 'HỘ KINH DOANH DỊCH VỤ TÀI LỘC',
                 aliases: ['tài lộc', 'tai loc'],
-                receivers: [
-                    { name: 'Quản lý', phone: '0763122658 0705232917', location: '234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam' }
-                ],
+                receivers: [{ name: 'Quản lý', phone: '0763122658 0705232917', location: '234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam' }],
                 defaultPhone: '0763122658 0705232917',
                 defaultLocation: '234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam',
                 discountPercent: 20.45,
@@ -3093,9 +3118,7 @@
                 id: 'cust_pwc',
                 name: 'PWC',
                 aliases: ['pwc'],
-                receivers: [
-                    { name: 'Trân', phone: '0933493229', location: '1137 Huỳnh Tấn Phát, q7' }
-                ],
+                receivers: [{ name: 'Trân', phone: '0933493229', location: '1137 Huỳnh Tấn Phát, q7' }],
                 defaultPhone: '0933493229 Trân',
                 defaultLocation: '1137 Huỳnh Tấn Phát, q7',
                 discountPercent: 25.0,
@@ -3108,9 +3131,7 @@
                 id: 'cust_bao_chau',
                 name: 'Nguyễn Bảo Châu Diamon',
                 aliases: ['bảo châu', 'bảo kim', 'diamon'],
-                receivers: [
-                    { name: 'Bảo Kim', phone: '0934123669', location: '214 Nguyễn Trãi, phường cầu ông lãnh ( Nguyễn Bảo Châu Diamon)' }
-                ],
+                receivers: [{ name: 'Bảo Kim', phone: '0934123669', location: '214 Nguyễn Trãi, phường cầu ông lãnh ( Nguyễn Bảo Châu Diamon)' }],
                 defaultPhone: '0934123669 (Bảo Kim)',
                 defaultLocation: '214 Nguyễn Trãi, phường cầu ông lãnh ( Nguyễn Bảo Châu Diamon)',
                 discountPercent: 20.45,
@@ -3120,27 +3141,10 @@
                 lastUpdated: '10/10/2026'
             },
             {
-                id: 'cust_vinahasa',
-                name: 'CÔNG TY CP THƯƠNG MẠI DV VINAHASA (Ốc Q)',
-                aliases: ['vinahasa', 'ốc q', 'oc q'],
-                receivers: [
-                    { name: 'Quản lý', phone: '0938888888', location: 'Quận 2, TP.HCM' }
-                ],
-                defaultPhone: '0938888888',
-                defaultLocation: 'Quận 2, TP.HCM',
-                discountPercent: 25.0,
-                preferredProduct: 'Suối Satori 500ml',
-                defaultVat: 'yes',
-                orderCount: 1,
-                lastUpdated: '10/10/2026'
-            },
-            {
                 id: 'cust_ha_minh_nguyet',
                 name: 'Hà Minh Nguyệt',
                 aliases: ['hà minh nguyệt', 'c nguyệt', 'chị nguyệt', 'nguyệt'],
-                receivers: [
-                    { name: 'Nguyệt', phone: '0358707777', location: 'R4-26 Đường số 6, Tân Phong, Tân Hưng, Hồ Chí Minh' }
-                ],
+                receivers: [{ name: 'Nguyệt', phone: '0358707777', location: 'R4-26 Đường số 6, Tân Phong, Tân Hưng, Hồ Chí Minh' }],
                 defaultPhone: '358707777',
                 defaultLocation: 'R4-26 Đường số 6, Tân Phong, Tân Hưng, Hồ Chí Minh',
                 discountPercent: 25.0,
@@ -3161,110 +3165,6 @@
                 defaultVat: 'no',
                 orderCount: 1,
                 lastUpdated: '10/10/2026'
-            },
-            {
-                id: 'cust_traky_rach_gia',
-                name: 'Traky Rạch Giá',
-                aliases: ['traky rạch giá', 'traky rach gia'],
-                receivers: [{ name: 'Chi nhánh', phone: '0968924979', location: '150 nguyễn trung trực, vĩnh bảo, tp rạch giá' }],
-                defaultPhone: '968924979',
-                defaultLocation: '150 nguyễn trung trực, vĩnh bảo, tp rạch giá',
-                discountPercent: 26.14,
-                preferredProduct: 'Suối Satori 350ml',
-                defaultVat: 'no',
-                orderCount: 1,
-                lastUpdated: '10/10/2026'
-            },
-            {
-                id: 'cust_traky_long_xuyen',
-                name: 'Traky Long Xuyên',
-                aliases: ['traky long xuyên', 'traky long xuyen'],
-                receivers: [{ name: 'Chi nhánh', phone: '0989362401', location: '245 lý thái tổ mỹ long , long xuyên, An Giang' }],
-                defaultPhone: '989362401',
-                defaultLocation: '245 lý thái tổ mỹ long , long xuyên, An Giang',
-                discountPercent: 26.14,
-                preferredProduct: 'Suối Satori 350ml',
-                defaultVat: 'no',
-                orderCount: 1,
-                lastUpdated: '10/10/2026'
-            },
-            {
-                id: 'cust_traky_my_tho',
-                name: 'Traky Mỹ Tho',
-                aliases: ['traky mỹ tho', 'traky my tho'],
-                receivers: [{ name: 'Chi nhánh', phone: '0355660715', location: '361 ấp bắc phường đạo thạnh. Tỉnh đồng tháp' }],
-                defaultPhone: '355660715',
-                defaultLocation: '361 ấp bắc phường đạo thạnh. Tỉnh đồng tháp',
-                discountPercent: 26.14,
-                preferredProduct: 'Suối Satori 350ml',
-                defaultVat: 'no',
-                orderCount: 1,
-                lastUpdated: '10/10/2026'
-            },
-            {
-                id: 'cust_traky_soc_trang',
-                name: 'Traky Sóc Trăng',
-                aliases: ['traky sóc trăng', 'traky soc trang'],
-                receivers: [{ name: 'Chi nhánh', phone: '0868233425', location: '79 đường 30/4 - TP. Sóc Trăng' }],
-                defaultPhone: '868233425',
-                defaultLocation: '79 đường 30/4 - TP. Sóc Trăng',
-                discountPercent: 26.14,
-                preferredProduct: 'Suối Satori 350ml',
-                defaultVat: 'no',
-                orderCount: 1,
-                lastUpdated: '10/10/2026'
-            },
-            {
-                id: 'cust_traky_ben_tre',
-                name: 'Traky Bến Tre',
-                aliases: ['traky bến tre', 'traky ben tre'],
-                receivers: [{ name: 'Chi nhánh', phone: '0946051098', location: '65 Nguyễn đình chiểu p an hội bến tre' }],
-                defaultPhone: '946051098',
-                defaultLocation: '65 Nguyễn đình chiểu p an hội bến tre',
-                discountPercent: 26.14,
-                preferredProduct: 'Suối Satori 350ml',
-                defaultVat: 'no',
-                orderCount: 1,
-                lastUpdated: '10/10/2026'
-            },
-            {
-                id: 'cust_traky_bac_lieu',
-                name: 'Traky Bạc Liêu',
-                aliases: ['traky bạc liêu', 'traky bac lieu'],
-                receivers: [{ name: 'Chi nhánh', phone: '0386309611', location: '367 Trần Phú - P Bạc Liêu - Tỉnh Cà Mau' }],
-                defaultPhone: '386309611',
-                defaultLocation: '367 Trần Phú - P Bạc Liêu - Tỉnh Cà Mau',
-                discountPercent: 26.14,
-                preferredProduct: 'Suối Satori 350ml',
-                defaultVat: 'no',
-                orderCount: 1,
-                lastUpdated: '10/10/2026'
-            },
-            {
-                id: 'cust_traky_ca_mau',
-                name: 'Traky Cà Mau',
-                aliases: ['traky cà mau', 'traky ca mau'],
-                receivers: [{ name: 'Chi nhánh', phone: '0799252974', location: '173 Bùi Thị Trường P5 Tp Cà Mau' }],
-                defaultPhone: '799252974',
-                defaultLocation: '173 Bùi Thị Trường P5 Tp Cà Mau',
-                discountPercent: 26.14,
-                preferredProduct: 'Suối Satori 350ml',
-                defaultVat: 'no',
-                orderCount: 1,
-                lastUpdated: '10/10/2026'
-            },
-            {
-                id: 'cust_co_hoa',
-                name: 'Cô Hoa',
-                aliases: ['cô hoa', 'co hoa'],
-                receivers: [{ name: 'Cô Hoa', phone: '0903123456', location: 'Quận 4, TP.HCM' }],
-                defaultPhone: '0903123456',
-                defaultLocation: 'Quận 4, TP.HCM',
-                discountPercent: 25.0,
-                preferredProduct: 'Bình Satori 19L',
-                defaultVat: 'no',
-                orderCount: 1,
-                lastUpdated: '10/10/2026'
             }
         ];
 
@@ -3282,26 +3182,26 @@
         function saveAIMemory(memory) {
             localStorage.setItem(AI_MEMORY_KEY, JSON.stringify(memory));
             populateCustomerDatalist();
+            populateExcelCustomerFilter();
             renderAIMemoryTable();
         }
 
         function resetAIMemoryToDefault() {
-            if (confirm("Khôi phục toàn bộ bộ nhớ AI về dữ liệu huấn luyện gốc chuẩn?")) {
+            if (confirm("Khôi phục toàn bộ bộ nhớ AI về dữ liệu gốc chuẩn?")) {
                 localStorage.setItem(AI_MEMORY_KEY, JSON.stringify(PRE_TRAINED_AI_MEMORY));
                 populateCustomerDatalist();
+                populateExcelCustomerFilter();
                 renderAIMemoryTable();
                 showModal("Thành Công", "Đã khôi phục bộ nhớ khách hàng AI về dữ liệu gốc!", "success");
             }
         }
 
-        // TỰ ĐỘNG HỌC HỎI TỪ MỌI ĐƠN HÀNG MỚI ĐƯỢC TẠO
         function trainAIMemoryFromOrder(order) {
             const custName = (order.name || '').trim();
             if (!custName || custName === 'Khách vãng lai' || custName === 'Khách Zalo') return;
 
             let memory = getAIMemory();
 
-            // 1. Phân tích người nhận và SĐT
             let contactPerson = "";
             let cleanPhone = (order.phone || '').trim();
             const parenMatch = cleanPhone.match(/\(([^)]+)\)/);
@@ -3315,7 +3215,6 @@
                 }
             }
 
-            // 2. Tính mức chiết khấu % thực tế của đơn hàng
             let discPct = 25.0;
             if (order.items && order.items.length > 0) {
                 const totalList = order.items.reduce((s, it) => s + (it.listPrice * it.qty), 0);
@@ -3327,7 +3226,6 @@
                 discPct = Math.round((order.listPrice - order.unitPrice) / order.listPrice * 100 * 100) / 100;
             }
 
-            // 3. Tìm hoặc tạo mới hồ sơ khách trong bộ nhớ AI
             let cust = memory.find(c => c.name.toLowerCase() === custName.toLowerCase() || (c.aliases && c.aliases.some(a => a === custName.toLowerCase())));
             
             if (!cust) {
@@ -3348,13 +3246,12 @@
             } else {
                 cust.orderCount = (cust.orderCount || 0) + 1;
                 cust.lastUpdated = order.date || '10/10/2026';
-                if (discPct > 0) cust.discountPercent = discPct; // Ghi nhớ mức chiết khấu mới nhất!
+                if (discPct > 0) cust.discountPercent = discPct;
                 if (order.location) cust.defaultLocation = order.location;
                 if (order.phone) cust.defaultPhone = order.phone;
                 if (order.product) cust.preferredProduct = order.product;
             }
 
-            // 4. Cập nhật danh sách người nhận / phụ trách
             if (contactPerson || cleanPhone || order.location) {
                 if (!cust.receivers) cust.receivers = [];
                 let rec = cust.receivers.find(r => (contactPerson && r.name.toLowerCase() === contactPerson.toLowerCase()) || (cleanPhone && r.phone.includes(cleanPhone)));
@@ -3373,11 +3270,11 @@
             saveAIMemory(memory);
         }
 
-        // Huấn luyện lại AI từ toàn bộ 85+ đơn hàng trong hệ thống
         function retrainAIMemoryFromAllOrders() {
             orders.forEach(o => trainAIMemoryFromOrder(o));
             renderAIMemoryTable();
-            showModal("Huấn Luyện AI Thành Công!", `AI đã quét qua ${orders.length} đơn hàng và ghi nhớ ${getAIMemory().length} hồ sơ khách hàng cùng mức chiết khấu tương ứng!`, "success");
+            populateExcelCustomerFilter();
+            showModal("Huấn Luyện AI Thành Công!", `AI đã quét qua ${orders.length} đơn hàng và ghi nhớ ${getAIMemory().length} hồ sơ khách hàng cùng mức chiết khấu!`, "success");
         }
 
         function populateCustomerDatalist() {
@@ -3410,7 +3307,6 @@
             if (locToUse) document.getElementById('busLocation').value = locToUse;
             if (cust.defaultVat) document.getElementById('vatOption').value = cust.defaultVat;
 
-            // Áp dụng mức chiết khấu AI đã học cho các dòng sản phẩm hiện có
             if (cust.discountPercent > 0 && currentItems && currentItems.length > 0) {
                 currentItems.forEach(it => {
                     it.discountPercent = cust.discountPercent;
@@ -3437,7 +3333,6 @@
                 return matchName || matchPhone || matchLoc || matchRec;
             });
 
-            // Summary stats
             const totalCust = memory.length;
             const totalRec = memory.reduce((acc, cur) => acc + (cur.receivers ? cur.receivers.length : 1), 0);
             const avgDisc = memory.length > 0 ? (memory.reduce((acc, cur) => acc + (cur.discountPercent || 25), 0) / memory.length).toFixed(1) : "25.0";
@@ -3500,7 +3395,6 @@
             }).join('');
         }
 
-        // Modal Sửa / Thêm Khách Hàng Trong Bộ Nhớ AI
         function openAddCustomerMemoryModal() {
             document.getElementById('aiMemoryModalTitle').innerText = "Thêm Khách Hàng Mới Cho AI Ghi Nhớ";
             document.getElementById('editCustMemoryId').value = "";
@@ -3555,7 +3449,6 @@
             let memory = getAIMemory();
 
             if (id) {
-                // Update
                 const cust = memory.find(c => c.id === id);
                 if (cust) {
                     cust.name = name;
@@ -3576,7 +3469,6 @@
                     }
                 }
             } else {
-                // Add new
                 const newProfile = {
                     id: 'cust_' + Date.now(),
                     name: name,
@@ -3606,6 +3498,104 @@
             }
         }
 
+
+        // ==========================================
+        // BỘ LỌC ĐA NĂNG & SẮP XẾP SỔ KẾ TOÁN
+        // ==========================================
+        function populateExcelCustomerFilter() {
+            const selectEl = document.getElementById('excelFilterCustomer');
+            if (!selectEl) return;
+            
+            const customerCounts = {};
+            orders.forEach(o => {
+                const name = (o.name || '').trim();
+                if (name && name !== 'Khách vãng lai' && name !== 'Khách Zalo') {
+                    customerCounts[name] = (customerCounts[name] || 0) + 1;
+                }
+            });
+
+            const memory = getAIMemory();
+            memory.forEach(m => {
+                if (m.name && !customerCounts[m.name]) {
+                    customerCounts[m.name] = m.orderCount || 0;
+                }
+            });
+
+            const sortedCusts = Object.keys(customerCounts).sort((a, b) => customerCounts[b] - customerCounts[a]);
+
+            const currentVal = selectEl.value || 'all';
+            let htmlOptions = '<option value="all">-- Tất cả khách hàng (Toàn bộ) --</option>';
+            sortedCusts.forEach(name => {
+                htmlOptions += `<option value="${name}" ${name === currentVal ? 'selected' : ''}>${name} (${customerCounts[name]} đơn)</option>`;
+            });
+
+            selectEl.innerHTML = htmlOptions;
+        }
+
+        function onExcelSpecificDateChange() {
+            const dVal = document.getElementById('excelFilterSpecificDate')?.value;
+            const clearBtn = document.getElementById('excelSpecificDateClearBtn');
+            if (clearBtn) {
+                if (dVal) clearBtn.classList.remove('hidden');
+                else clearBtn.classList.add('hidden');
+            }
+            populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
+        }
+
+        function clearExcelDateFilter() {
+            const dEl = document.getElementById('excelFilterSpecificDate');
+            if (dEl) dEl.value = '';
+            const clearBtn = document.getElementById('excelSpecificDateClearBtn');
+            if (clearBtn) clearBtn.classList.add('hidden');
+            populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
+        }
+
+        function onExcelMonthChange() {
+            populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
+        }
+
+        function setExcelMonthYear(m, y) {
+            const mEl = document.getElementById('excelFilterMonth');
+            const yEl = document.getElementById('excelFilterYear');
+            const dEl = document.getElementById('excelFilterSpecificDate');
+            if (dEl) dEl.value = '';
+            const clearBtn = document.getElementById('excelSpecificDateClearBtn');
+            if (clearBtn) clearBtn.classList.add('hidden');
+            if (mEl) mEl.value = m;
+            if (yEl) yEl.value = y;
+            populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
+        }
+
+        function resetAllExcelFilters() {
+            const custEl = document.getElementById('excelFilterCustomer');
+            if (custEl) custEl.value = 'all';
+            const dateEl = document.getElementById('excelFilterSpecificDate');
+            if (dateEl) dateEl.value = '';
+            const clearBtn = document.getElementById('excelSpecificDateClearBtn');
+            if (clearBtn) clearBtn.classList.add('hidden');
+            const mEl = document.getElementById('excelFilterMonth');
+            if (mEl) mEl.value = 'all';
+            const yEl = document.getElementById('excelFilterYear');
+            if (yEl) yEl.value = 'all';
+            const sortEl = document.getElementById('excelSortOrder');
+            if (sortEl) sortEl.value = 'date_desc';
+            const searchEl = document.getElementById('searchInput');
+            if (searchEl) searchEl.value = '';
+            const statEl = document.getElementById('filterStatus');
+            if (statEl) statEl.value = 'all';
+            populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
+        }
+
         function parseOrderDateParts(dateStr) {
             if (!dateStr) return { day: 1, month: 1, year: 2026, timestamp: 0 };
             const parts = dateStr.split(/[\/\-]/);
@@ -3618,38 +3608,36 @@
             return { day: 1, month: 1, year: 2026, timestamp: 0 };
         }
 
-        function setExcelMonthYear(m, y) {
-            const mEl = document.getElementById('excelFilterMonth');
-            const yEl = document.getElementById('excelFilterYear');
-            if (mEl) mEl.value = m;
-            if (yEl) yEl.value = y;
-            renderTable();
-        }
-
         function renderTable() {
             const tbody = document.getElementById('sheetsTableBody');
             if (!tbody) return;
             const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
             const filterStat = document.getElementById('filterStatus')?.value || 'all';
 
+            const filterCustomer = document.getElementById('excelFilterCustomer')?.value || 'all';
+            const filterDate = document.getElementById('excelFilterSpecificDate')?.value || '';
             const filterMonth = document.getElementById('excelFilterMonth')?.value || 'all';
             const filterYear = document.getElementById('excelFilterYear')?.value || 'all';
             const sortOrder = document.getElementById('excelSortOrder')?.value || 'date_desc';
 
             // 1. FILTER ORDERS
             let filtered = orders.filter(o => {
-                const matchSearch = (o.name && o.name.toLowerCase().includes(search)) || 
+                const matchSearch = !search || 
+                                    (o.name && o.name.toLowerCase().includes(search)) || 
                                     (o.phone && o.phone.toLowerCase().includes(search)) || 
                                     (o.location && o.location.toLowerCase().includes(search)) ||
                                     (o.product && o.product.toLowerCase().includes(search)) ||
                                     (String(o.invoiceNo).includes(search));
                 const matchStatus = filterStat === 'all' || o.status === filterStat;
 
+                const matchCust = (filterCustomer === 'all') || (o.name && o.name.toLowerCase() === filterCustomer.toLowerCase());
+                const matchSpecificDate = !filterDate || matchOrderDate(o.date, filterDate);
+
                 const dp = parseOrderDateParts(o.date);
                 const matchM = (filterMonth === 'all') || (dp.month === parseInt(filterMonth));
                 const matchY = (filterYear === 'all') || (dp.year === parseInt(filterYear));
 
-                return matchSearch && matchStatus && matchM && matchY;
+                return matchSearch && matchStatus && matchCust && matchSpecificDate && matchM && matchY;
             });
 
             // 2. SORT ORDERS
@@ -3665,22 +3653,14 @@
                     if (da.timestamp !== db.timestamp) return da.timestamp - db.timestamp;
                     return (a.invoiceNo || 0) - (b.invoiceNo || 0);
                 }
-                if (sortOrder === 'revenue_desc') {
-                    return (b.total || 0) - (a.total || 0);
-                }
-                if (sortOrder === 'revenue_asc') {
-                    return (a.total || 0) - (b.total || 0);
-                }
-                if (sortOrder === 'invoice_desc') {
-                    return (b.invoiceNo || 0) - (a.invoiceNo || 0);
-                }
-                if (sortOrder === 'invoice_asc') {
-                    return (a.invoiceNo || 0) - (b.invoiceNo || 0);
-                }
+                if (sortOrder === 'revenue_desc') return (b.total || 0) - (a.total || 0);
+                if (sortOrder === 'revenue_asc') return (a.total || 0) - (b.total || 0);
+                if (sortOrder === 'invoice_desc') return (b.invoiceNo || 0) - (a.invoiceNo || 0);
+                if (sortOrder === 'invoice_asc') return (a.invoiceNo || 0) - (b.invoiceNo || 0);
                 return 0;
             });
 
-            // 3. STATS
+            // 3. STATS TOÀN BỘ SỔ SÁCH
             let globalTotalRev = 0;
             let globalPaidRev = 0;
             let globalUnpaidRev = 0;
@@ -3704,7 +3684,7 @@
             const statUnpaid = document.getElementById('statUnpaid');
             if (statUnpaid) statUnpaid.innerText = globalUnpaidRev.toLocaleString('vi-VN') + ' đ';
 
-            // 4. SUB-SUMMARY KPI FOR CURRENTLY FILTERED VIEW
+            // 4. SUB-SUMMARY KPI FOR CURRENT FILTER VIEW
             const subCount = filtered.length;
             const subRevenue = filtered.reduce((s, o) => s + (o.total || 0), 0);
             const subPaid = filtered.filter(o => o.status === 'Đã thanh toán').reduce((s, o) => s + (o.total || 0), 0);
@@ -3715,11 +3695,21 @@
 
             const scopeEl = document.getElementById('excelViewingScope');
             if (scopeEl) {
-                let scopeTxt = "Toàn bộ sổ sách";
-                if (filterMonth !== 'all' && filterYear !== 'all') scopeTxt = `Tháng ${String(filterMonth).padStart(2, '0')}/${filterYear}`;
-                else if (filterMonth !== 'all') scopeTxt = `Tháng ${String(filterMonth).padStart(2, '0')} (Tất cả các năm)`;
-                else if (filterYear !== 'all') scopeTxt = `Năm ${filterYear} (Cả 12 tháng)`;
-                scopeEl.innerText = scopeTxt;
+                const scopeParts = [];
+                if (filterCustomer !== 'all') scopeParts.push(`Khách: ${filterCustomer}`);
+                if (filterDate) {
+                    const [fy, fm, fd] = filterDate.split('-');
+                    scopeParts.push(`Ngày: ${fd}/${fm}/${fy}`);
+                } else if (filterMonth !== 'all' && filterYear !== 'all') {
+                    scopeParts.push(`Tháng ${String(filterMonth).padStart(2, '0')}/${filterYear}`);
+                } else if (filterMonth !== 'all') {
+                    scopeParts.push(`Tháng ${String(filterMonth).padStart(2, '0')}`);
+                } else if (filterYear !== 'all') {
+                    scopeParts.push(`Năm ${filterYear}`);
+                }
+
+                if (scopeParts.length === 0) scopeEl.innerText = "Toàn bộ sổ sách (85 đơn)";
+                else scopeEl.innerText = scopeParts.join(' • ');
             }
 
             const elCount = document.getElementById('subStatCount');
@@ -3734,7 +3724,7 @@
             // 5. RENDER ROWS
             tbody.innerHTML = '';
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="12" class="text-center py-8 text-slate-500">Không tìm thấy đơn hàng nào phù hợp với bộ lọc tháng/năm đã chọn.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="12" class="text-center py-8 text-slate-500">Không tìm thấy đơn hàng nào phù hợp với bộ lọc (Khách hàng / Ngày / Tháng / Năm).</td></tr>`;
                 return;
             }
 
@@ -3779,7 +3769,9 @@
             if (order) {
                 order.status = newStatus;
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-                renderTable();
+                populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
                 renderArchiveInvoices();
             }
         }
@@ -3824,7 +3816,9 @@
                 orders = orders.filter(o => o.id !== id);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
                 updateCounters();
-                renderTable();
+                populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
                 renderArchiveInvoices();
             }
         }
@@ -4043,14 +4037,18 @@
                     document.getElementById('invoiceNo').value = nextInvoiceNumber;
                     document.getElementById('invoiceBadge').innerText = `#${nextInvoiceNumber}`;
                     updateCounters();
-                    renderTable();
+                    populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
                     renderArchiveInvoices();
                     calculateTotals();
                     console.log(`Đã đồng bộ an toàn ${orders.length} đơn hàng từ Drive`);
                 }
             } catch (err) {
                 console.warn("Lỗi đồng bộ trực tiếp, dùng dữ liệu đã nạp:", err);
-                renderTable();
+                populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
                 renderArchiveInvoices();
             } finally {
                 icon.classList.remove('fa-spin');
@@ -4065,35 +4063,41 @@
                 document.getElementById('invoiceNo').value = nextInvoiceNumber;
                 document.getElementById('invoiceBadge').innerText = `#${nextInvoiceNumber}`;
                 updateCounters();
-                renderTable();
+                populateCustomerDatalist();
+            populateExcelCustomerFilter();
+            renderTable();
                 renderArchiveInvoices();
                 showModal("Đã Khôi Phục", "Đã nạp lại toàn bộ 84 đơn hàng gốc từ Google Drive!", "success");
             }
         }
 
         // Export CSV / Excel
+        
         function exportToExcel() {
+            const filterCustomer = document.getElementById('excelFilterCustomer')?.value || 'all';
+            const filterDate = document.getElementById('excelFilterSpecificDate')?.value || '';
             const filterMonth = document.getElementById('excelFilterMonth')?.value || 'all';
             const filterYear = document.getElementById('excelFilterYear')?.value || 'all';
             const sortOrder = document.getElementById('excelSortOrder')?.value || 'date_desc';
             const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
             const filterStat = document.getElementById('filterStatus')?.value || 'all';
 
-            // 1. FILTER
             let filtered = orders.filter(o => {
-                const matchSearch = (o.name && o.name.toLowerCase().includes(search)) || 
+                const matchSearch = !search || 
+                                    (o.name && o.name.toLowerCase().includes(search)) || 
                                     (o.phone && o.phone.toLowerCase().includes(search)) || 
                                     (o.location && o.location.toLowerCase().includes(search)) ||
                                     (o.product && o.product.toLowerCase().includes(search)) ||
                                     (String(o.invoiceNo).includes(search));
                 const matchStatus = filterStat === 'all' || o.status === filterStat;
+                const matchCust = (filterCustomer === 'all') || (o.name && o.name.toLowerCase() === filterCustomer.toLowerCase());
+                const matchSpecificDate = !filterDate || matchOrderDate(o.date, filterDate);
                 const dp = parseOrderDateParts(o.date);
                 const matchM = (filterMonth === 'all') || (dp.month === parseInt(filterMonth));
                 const matchY = (filterYear === 'all') || (dp.year === parseInt(filterYear));
-                return matchSearch && matchStatus && matchM && matchY;
+                return matchSearch && matchStatus && matchCust && matchSpecificDate && matchM && matchY;
             });
 
-            // 2. SORT
             filtered.sort((a, b) => {
                 const da = parseOrderDateParts(a.date);
                 const db = parseOrderDateParts(b.date);
@@ -4106,7 +4110,6 @@
                 return 0;
             });
 
-            // 3. GENERATE CSV
             let csvContent = "\uFEFFNgày,Số Hóa Đơn,Khách Hàng,Điện Thoại,Địa Chỉ,Sản Phẩm,Số Lượng,Đơn Giá Sau CK,VAT,Tổng Tiền,Trạng Thái\n";
             let totalQty = 0;
             let totalRev = 0;
@@ -4118,7 +4121,6 @@
                 totalRev += (o.total || 0);
             });
 
-            // Summary row at the bottom
             csvContent += `\n"TỔNG CỘNG (${filtered.length} đơn)","","","","","","${totalQty}","","","${totalRev}",""\n`;
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -4127,14 +4129,18 @@
             a.setAttribute('href', url);
 
             let filename = "So_Ke_Toan_Minh_Satori";
-            if (filterMonth !== 'all' && filterYear !== 'all') {
+            if (filterCustomer !== 'all') {
+                const safeName = filterCustomer.replace(/[^a-zA-Z0-9à-ỹÀ-Ỹ]/g, '_');
+                filename += `_${safeName}`;
+            }
+            if (filterDate) {
+                filename += `_${filterDate}`;
+            } else if (filterMonth !== 'all' && filterYear !== 'all') {
                 filename += `_Thang_${String(filterMonth).padStart(2, '0')}_${filterYear}`;
             } else if (filterYear !== 'all') {
                 filename += `_Nam_${filterYear}`;
             } else if (filterMonth !== 'all') {
                 filename += `_Thang_${String(filterMonth).padStart(2, '0')}`;
-            } else {
-                filename += `_Toan_Bo`;
             }
             filename += ".csv";
 
@@ -4187,77 +4193,18 @@
         }
 
         // On Load
-        
-        function initAIMemory() {
-            getAIMemory();
-            populateCustomerDatalist();
-        }
-
         window.onload = function() {
             renderItemsForm();
             calculateTotals();
-            initAIMemory();
             updateCounters();
+            populateCustomerDatalist();
+            populateExcelCustomerFilter();
             renderTable();
             renderArchiveInvoices();
             renderCatalogueTable();
             syncLiveFromGoogleDrive();
         };
     </script>
-<script>
-        // --- PWA SERVICE WORKER & ANDROID INSTALLATION ---
-        let deferredPrompt = null;
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            const banner = document.getElementById('pwaMobileBanner');
-            if (banner) banner.classList.remove('hidden');
-        });
-
-        function triggerPwaInstall() {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        showModal("Cài Đặt Thành Công", "Ứng dụng Minh Satori đã được cài đặt vào điện thoại của bạn. Bạn có thể mở trực tiếp từ màn hình chính!", "success");
-                    }
-                    deferredPrompt = null;
-                    const banner = document.getElementById('pwaMobileBanner');
-                    if (banner) banner.classList.add('hidden');
-                });
-            } else {
-                const instructions = "<div class='text-left space-y-3 text-sm text-slate-300'>" +
-                    "<div class='flex items-center gap-3 p-2.5 bg-slate-800 rounded-lg border border-slate-700'>" +
-                        "<div class='text-emerald-400 text-2xl'><i class='fa-brands fa-android'></i></div>" +
-                        "<div>" +
-                            "<div class='font-bold text-white text-sm'>Cài đặt trực tiếp từ Chrome Android</div>" +
-                            "<div class='text-xs text-slate-400'>Không cần qua CH Play, không tốn bộ nhớ máy</div>" +
-                        "</div>" +
-                    "</div>" +
-                    "<p class='font-semibold text-slate-200'>3 Bước đơn giản để cài đặt:</p>" +
-                    "<ol class='list-decimal pl-5 space-y-2 text-slate-300'>" +
-                        "<li>Bấm vào biểu tượng <b>3 dấu chấm (⋮)</b> ở góc trên cùng bên phải trình duyệt Chrome điện thoại.</li>" +
-                        "<li>Tìm và chọn dòng <b>\"Cài đặt ứng dụng\"</b> (hoặc <b>\"Thêm vào Màn hình chính\" / \"Install App\"</b>).</li>" +
-                        "<li>Bấm nút <b>\"Cài đặt\"</b>. Biểu tượng ứng dụng <b>Minh Satori</b> sẽ xuất hiện ngay ngoài màn hình chính của điện thoại!</li>" +
-                    "</ol>" +
-                    "<div class='p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-300 text-xs flex items-center gap-2'>" +
-                        "<i class='fa-solid fa-circle-check text-base'></i>" +
-                        "<span>Sau khi cài, ứng dụng chạy toàn màn hình độc lập, lưu trữ đơn hàng offline và tự động đồng bộ Google Sheets!</span>" +
-                    "</div>" +
-                "</div>";
-                showModal("Cài Đặt Ứng Dụng Android", instructions, "info");
-            }
-        }
-
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('ServiceWorker registered with scope:', reg.scope))
-                    .catch(err => console.warn('ServiceWorker registration error:', err));
-            });
-        }
-</script>
     <!-- Modal Edit / Add AI Customer Memory -->
     <div id="aiMemoryModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden no-print">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
@@ -4324,6 +4271,58 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // --- PWA SERVICE WORKER & ANDROID INSTALLATION ---
+        let deferredPrompt = null;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const btn = document.getElementById('btnInstallApp');
+            if (btn) btn.classList.remove('hidden');
+        });
+
+        function triggerPwaInstall() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        showModal("Cài Đặt Thành Công", "Ứng dụng Minh Satori đã được cài đặt vào điện thoại của bạn!", "success");
+                    }
+                    deferredPrompt = null;
+                });
+            } else {
+                showModal(
+                    "Cài Đặt Ứng Dụng Android", 
+                    `<div class='text-left space-y-3 text-sm text-slate-300'>
+                        <div class='flex items-center gap-3 p-2.5 bg-slate-800 rounded-lg border border-slate-700'>
+                            <div class='text-emerald-400 text-2xl'><i class='fa-brands fa-android'></i></div>
+                            <div>
+                                <div class='font-bold text-white text-sm'>Cài đặt trực tiếp từ Chrome Android</div>
+                                <div class='text-xs text-slate-400'>Không cần qua CH Play, mở toàn màn hình độc lập</div>
+                            </div>
+                        </div>
+                        <p class='font-semibold text-slate-200'>3 Bước đơn giản để cài đặt:</p>
+                        <ol class='list-decimal pl-5 space-y-2 text-slate-300'>
+                            <li>Bấm vào biểu tượng <b>3 dấu chấm (⋮)</b> ở góc trên bên phải trình duyệt Chrome điện thoại.</li>
+                            <li>Tìm và chọn dòng <b>"Cài đặt ứng dụng"</b> (hoặc <b>"Thêm vào Màn hình chính"</b>).</li>
+                            <li>Bấm nút <b>"Cài đặt"</b>. Biểu tượng ứng dụng sẽ xuất hiện ngay trên màn hình chính!</li>
+                        </ol>
+                    </div>`,
+                    "info"
+                );
+            }
+        }
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW Registered:', reg.scope))
+                    .catch(err => console.warn('SW Error:', err));
+            });
+        }
+    </script>
 
 </body>
 </html>
