@@ -702,7 +702,7 @@
                     </div>
                 </div>
 
-                <!-- BỘ LỌC ĐA NĂNG TOÀN DIỆN: KHÁCH HÀNG, NGÀY, THÁNG, NĂM & SẮP XẾP SỔ BÁN HÀNG -->
+                <!-- BỘ LỌC ĐA NĂNG TOÀN DIỆN: TÌM THEO TÊN KHÁCH HÀNG & KHOẢNG NGÀY (TỪ NGÀY ... ĐẾN NGÀY ...) -->
                 <div class="bg-gradient-to-r from-slate-900 via-slate-900/90 to-blue-950/60 border border-blue-500/30 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
                         <div class="flex items-center gap-2">
@@ -711,20 +711,21 @@
                             </span>
                             <div>
                                 <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-cyan-300">
-                                    BỘ LỌC ĐA NĂNG: TÊN KHÁCH HÀNG, NGÀY, THÁNG & NĂM (MỤC EXCEL)
+                                    BỘ LỌC ĐA NĂNG: TÌM THEO TÊN KHÁCH HÀNG & KHOẢNG NGÀY (FROM - TO)
                                 </h3>
-                                <p class="text-[11px] text-slate-400">Lọc chính xác theo từng khách hàng, ngày cụ thể, hoặc theo cả tháng và năm</p>
+                                <p class="text-[11px] text-slate-400">Tìm kiếm chính xác theo tên khách hàng, kết hợp lọc từ ngày nào tới ngày nào, hoặc xem nhanh theo tháng/năm</p>
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-2">
-                            <div class="flex items-center gap-1 text-xs">
-                                <span class="text-slate-400 text-[11px] mr-1 hidden md:inline">Xem nhanh:</span>
-                                <button onclick="setExcelMonthYear('10', '2026')" class="px-2.5 py-1 rounded-lg bg-blue-950 border border-blue-600/40 text-blue-300 hover:bg-blue-900 text-[11px] font-medium transition">T10/2026</button>
-                                <button onclick="setExcelMonthYear('9', '2026')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-[11px] font-medium transition">T09/2026</button>
-                                <button onclick="setExcelMonthYear('8', '2026')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-[11px] font-medium transition">T08/2026</button>
-                            </div>
-                            <button onclick="resetAllExcelFilters()" class="text-xs text-rose-400 hover:text-rose-300 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 transition flex items-center gap-1">
+                        <!-- Quick Date Presets & Reset -->
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="text-slate-400 text-[11px] mr-1 hidden md:inline">Chọn nhanh:</span>
+                            <button type="button" onclick="setExcelDatePreset('today')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white text-[11px] font-medium transition">Hôm nay</button>
+                            <button type="button" onclick="setExcelDatePreset('last7days')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white text-[11px] font-medium transition">7 ngày qua</button>
+                            <button type="button" onclick="setExcelDatePreset('this_month')" class="px-2.5 py-1 rounded-lg bg-blue-950 border border-blue-600/40 text-blue-300 hover:bg-blue-900 text-[11px] font-medium transition">Tháng 10</button>
+                            <button type="button" onclick="setExcelDatePreset('prev_month')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white text-[11px] font-medium transition">Tháng 9</button>
+                            <button type="button" onclick="setExcelDatePreset('month_8')" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white text-[11px] font-medium transition">Tháng 8</button>
+                            <button type="button" onclick="resetAllExcelFilters()" class="text-xs text-rose-400 hover:text-rose-300 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 transition flex items-center gap-1 ml-1 font-semibold">
                                 <i class="fa-solid fa-rotate-left"></i> Xóa Bộ Lọc
                             </button>
                         </div>
@@ -733,60 +734,70 @@
                     <!-- 5 FILTER COLUMNS -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
                         
-                        <!-- 1. CHỌN TÊN KHÁCH HÀNG -->
-                        <div>
-                            <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center gap-1">
-                                <i class="fa-solid fa-user-check text-cyan-400"></i> 1. Tên Khách Hàng:
-                            </label>
-                            <select id="excelFilterCustomer" onchange="renderTable()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-medium">
-                                <option value="all">-- Tất cả khách hàng --</option>
-                            </select>
-                        </div>
-
-                        <!-- 2. LỌC THEO NGÀY CỤ THỂ -->
+                        <!-- 1. TÌM KIẾM / CHỌN TÊN KHÁCH HÀNG -->
                         <div>
                             <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center justify-between">
-                                <span class="flex items-center gap-1"><i class="fa-solid fa-calendar-day text-emerald-400"></i> 2. Lọc Theo Ngày:</span>
-                                <span id="excelSpecificDateClearBtn" onclick="clearExcelDateFilter()" class="text-[10px] text-rose-400 hover:underline cursor-pointer hidden">Xóa ngày</span>
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-user-check text-cyan-400"></i> 1. Tên Khách Hàng:</span>
+                                <span id="excelCustomerClearBtn" onclick="clearExcelCustomerFilter()" class="text-[10px] text-rose-400 hover:underline cursor-pointer hidden">Xóa tên</span>
                             </label>
-                            <div class="relative">
-                                <input type="date" id="excelFilterSpecificDate" onchange="onExcelSpecificDateChange()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                            <div class="space-y-1">
+                                <input type="text" id="excelFilterCustomerName" oninput="onCustomerFilterChange()" placeholder="Gõ tên khách (VD: Traky, Edric...)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-medium">
+                                <select id="excelFilterCustomer" onchange="onCustomerSelectChange()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500 font-medium">
+                                    <option value="all">-- Danh sách khách hàng (Tất cả) --</option>
+                                </select>
                             </div>
                         </div>
 
-                        <!-- 3. CHỌN THÁNG -->
+                        <!-- 2. TỪ NGÀY (FROM DATE) -->
                         <div>
-                            <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center gap-1">
-                                <i class="fa-regular fa-calendar text-cyan-400"></i> 3. Chọn Tháng:
+                            <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center justify-between">
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-calendar-minus text-emerald-400"></i> 2. Từ Ngày (From):</span>
+                                <span id="excelFromDateClearBtn" onclick="clearExcelFromDate()" class="text-[10px] text-rose-400 hover:underline cursor-pointer hidden">Xóa</span>
                             </label>
-                            <select id="excelFilterMonth" onchange="onExcelMonthChange()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
-                                <option value="all">Tất cả các tháng (Cả năm)</option>
-                                <option value="1">Tháng 01</option>
-                                <option value="2">Tháng 02</option>
-                                <option value="3">Tháng 03</option>
-                                <option value="4">Tháng 04</option>
-                                <option value="5">Tháng 05</option>
-                                <option value="6">Tháng 06</option>
-                                <option value="7">Tháng 07</option>
-                                <option value="8">Tháng 08</option>
-                                <option value="9">Tháng 09</option>
-                                <option value="10">Tháng 10</option>
-                                <option value="11">Tháng 11</option>
-                                <option value="12">Tháng 12</option>
-                            </select>
+                            <div class="relative">
+                                <input type="date" id="excelFilterFromDate" onchange="onDateRangeChange()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium">
+                            </div>
                         </div>
 
-                        <!-- 4. CHỌN NĂM -->
+                        <!-- 3. ĐẾN NGÀY (TO DATE) -->
+                        <div>
+                            <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center justify-between">
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-calendar-plus text-rose-400"></i> 3. Đến Ngày (To):</span>
+                                <span id="excelToDateClearBtn" onclick="clearExcelToDate()" class="text-[10px] text-rose-400 hover:underline cursor-pointer hidden">Xóa</span>
+                            </label>
+                            <div class="relative">
+                                <input type="date" id="excelFilterToDate" onchange="onDateRangeChange()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500 font-medium">
+                            </div>
+                        </div>
+
+                        <!-- 4. CHỌN NHANH THEO THÁNG / NĂM -->
                         <div>
                             <label class="block text-[11px] font-semibold text-blue-300 mb-1 flex items-center gap-1">
-                                <i class="fa-regular fa-calendar-days text-indigo-400"></i> 4. Chọn Năm:
+                                <i class="fa-regular fa-calendar text-cyan-400"></i> 4. Chọn Tháng / Năm:
                             </label>
-                            <select id="excelFilterYear" onchange="renderTable()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
-                                <option value="all">Tất cả các năm</option>
-                                <option value="2026">Năm 2026</option>
-                                <option value="2025">Năm 2025</option>
-                                <option value="2024">Năm 2024</option>
-                            </select>
+                            <div class="grid grid-cols-2 gap-1.5">
+                                <select id="excelFilterMonth" onchange="onExcelMonthChange()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                                    <option value="all">Cả năm</option>
+                                    <option value="1">Tháng 01</option>
+                                    <option value="2">Tháng 02</option>
+                                    <option value="3">Tháng 03</option>
+                                    <option value="4">Tháng 04</option>
+                                    <option value="5">Tháng 05</option>
+                                    <option value="6">Tháng 06</option>
+                                    <option value="7">Tháng 07</option>
+                                    <option value="8">Tháng 08</option>
+                                    <option value="9">Tháng 09</option>
+                                    <option value="10">Tháng 10</option>
+                                    <option value="11">Tháng 11</option>
+                                    <option value="12">Tháng 12</option>
+                                </select>
+                                <select id="excelFilterYear" onchange="onExcelYearChange()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                                    <option value="all">Tất cả năm</option>
+                                    <option value="2026" selected>Năm 2026</option>
+                                    <option value="2025">Năm 2025</option>
+                                    <option value="2024">Năm 2024</option>
+                                </select>
+                            </div>
                         </div>
 
                         <!-- 5. TIÊU CHÍ SẮP XẾP -->
@@ -810,7 +821,7 @@
                     <div class="flex flex-col sm:flex-row gap-3 pt-1 border-t border-slate-800/80">
                         <div class="relative flex-1">
                             <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-500 text-xs"></i>
-                            <input type="text" id="searchInput" oninput="renderTable()" placeholder="Tìm nhanh theo từ khóa, số điện thoại, địa chỉ..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                            <input type="text" id="searchInput" oninput="renderTable()" placeholder="Tìm nhanh theo từ khóa, số điện thoại, địa chỉ, số hóa đơn..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
                         </div>
                         <div>
                             <select id="filterStatus" onchange="renderTable()" class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-medium">
@@ -1655,8 +1666,34 @@
 
         let orders = JSON.parse(localStorage.getItem(STORAGE_KEY));
         if (!orders || orders.length < 50) {
-            orders = INITIAL_ORDERS;
+            orders = JSON.parse(JSON.stringify(INITIAL_ORDERS));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+        } else {
+            // AUTO-HEALING: Tự động sửa chữa các hóa đơn bị lỗi giá tiền = 0 hoặc thông tin trống do lần đồng bộ cũ
+            let repaired = false;
+            orders.forEach(o => {
+                if (!o.total || o.total <= 0 || !o.name || o.name === String(o.invoiceNo)) {
+                    const orig = INITIAL_ORDERS.find(io => io.invoiceNo === o.invoiceNo);
+                    if (orig && orig.total > 0) {
+                        o.total = orig.total;
+                        o.unitPrice = orig.unitPrice;
+                        o.qty = orig.qty;
+                        o.vat = orig.vat;
+                        o.name = (orig.name);
+                        o.phone = orig.phone || o.phone;
+                        o.location = orig.location || o.location;
+                        o.product = orig.product || o.product;
+                        repaired = true;
+                    } else if (o.qty && o.unitPrice) {
+                        o.total = Math.round(o.qty * o.unitPrice * (o.vat === 'yes' ? 1.08 : 1.0));
+                        repaired = true;
+                    }
+                }
+            });
+            if (repaired) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+                console.log("Hệ thống đã tự động khôi phục dữ liệu hợp lệ cho các hóa đơn bị lỗi giá tiền = 0.");
+            }
         }
 
         // Next Invoice #
@@ -2430,8 +2467,18 @@
                 timestamp: Date.now()
             };
 
-            // 1. SAVE TO LOCAL ORDERS (ALWAYS KEEP AT TOP)
+            // 1. SAVE TO LOCAL ORDERS (ALWAYS KEEP AT TOP & REPLACE DUPLICATE INVOICE NO)
+            // If user recreated a deleted bill or re-issued bill with same number, replace any old instance cleanly:
+            orders = orders.filter(o => o.invoiceNo !== invNum);
             orders.unshift(newOrder);
+            
+            // Remove invNum from deleted tracking since user explicitly created/recreated it:
+            const deletedSet = new Set(JSON.parse(localStorage.getItem('satori_deleted_invoice_nos') || '[]'));
+            if (deletedSet.has(invNum)) {
+                deletedSet.delete(invNum);
+                localStorage.setItem('satori_deleted_invoice_nos', JSON.stringify(Array.from(deletedSet)));
+            }
+
             trainAIMemoryFromOrder(newOrder);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
 
@@ -3524,7 +3571,7 @@
             const sortedCusts = Object.keys(customerCounts).sort((a, b) => customerCounts[b] - customerCounts[a]);
 
             const currentVal = selectEl.value || 'all';
-            let htmlOptions = '<option value="all">-- Tất cả khách hàng (Toàn bộ) --</option>';
+            let htmlOptions = '<option value="all">-- Danh sách khách hàng (Tất cả) --</option>';
             sortedCusts.forEach(name => {
                 htmlOptions += `<option value="${name}" ${name === currentVal ? 'selected' : ''}>${name} (${customerCounts[name]} đơn)</option>`;
             });
@@ -3532,112 +3579,292 @@
             selectEl.innerHTML = htmlOptions;
         }
 
-        function onExcelSpecificDateChange() {
-            const dVal = document.getElementById('excelFilterSpecificDate')?.value;
-            const clearBtn = document.getElementById('excelSpecificDateClearBtn');
+        // TÌM KIẾM THEO TÊN KHÁCH HÀNG
+        function onCustomerFilterChange() {
+            const text = (document.getElementById('excelFilterCustomerName')?.value || '').trim().toLowerCase();
+            const clearBtn = document.getElementById('excelCustomerClearBtn');
             if (clearBtn) {
-                if (dVal) clearBtn.classList.remove('hidden');
+                if (text) clearBtn.classList.remove('hidden');
                 else clearBtn.classList.add('hidden');
             }
-            populateCustomerDatalist();
-            populateExcelCustomerFilter();
             renderTable();
+        }
+
+        function onCustomerSelectChange() {
+            const selectVal = document.getElementById('excelFilterCustomer')?.value || 'all';
+            const nameInput = document.getElementById('excelFilterCustomerName');
+            const clearBtn = document.getElementById('excelCustomerClearBtn');
+            if (nameInput) {
+                if (selectVal !== 'all') {
+                    nameInput.value = selectVal;
+                    if (clearBtn) clearBtn.classList.remove('hidden');
+                } else {
+                    nameInput.value = '';
+                    if (clearBtn) clearBtn.classList.add('hidden');
+                }
+            }
+            renderTable();
+        }
+
+        function clearExcelCustomerFilter() {
+            const nameInput = document.getElementById('excelFilterCustomerName');
+            const selectEl = document.getElementById('excelFilterCustomer');
+            const clearBtn = document.getElementById('excelCustomerClearBtn');
+            if (nameInput) nameInput.value = '';
+            if (selectEl) selectEl.value = 'all';
+            if (clearBtn) clearBtn.classList.add('hidden');
+            renderTable();
+        }
+
+        // LỌC THEO KHOẢNG NGÀY (FROM DATE - TO DATE)
+        function onDateRangeChange() {
+            const fFrom = document.getElementById('excelFilterFromDate')?.value || '';
+            const fTo = document.getElementById('excelFilterToDate')?.value || '';
+            
+            const btnFrom = document.getElementById('excelFromDateClearBtn');
+            if (btnFrom) {
+                if (fFrom) btnFrom.classList.remove('hidden');
+                else btnFrom.classList.add('hidden');
+            }
+            const btnTo = document.getElementById('excelToDateClearBtn');
+            if (btnTo) {
+                if (fTo) btnTo.classList.remove('hidden');
+                else btnTo.classList.add('hidden');
+            }
+
+            // Sync with Month/Year dropdown if matched
+            syncMonthYearFromDateRange(fFrom, fTo);
+            renderTable();
+        }
+
+        function clearExcelFromDate() {
+            const el = document.getElementById('excelFilterFromDate');
+            if (el) el.value = '';
+            const btn = document.getElementById('excelFromDateClearBtn');
+            if (btn) btn.classList.add('hidden');
+            onDateRangeChange();
+        }
+
+        function clearExcelToDate() {
+            const el = document.getElementById('excelFilterToDate');
+            if (el) el.value = '';
+            const btn = document.getElementById('excelToDateClearBtn');
+            if (btn) btn.classList.add('hidden');
+            onDateRangeChange();
         }
 
         function clearExcelDateFilter() {
-            const dEl = document.getElementById('excelFilterSpecificDate');
-            if (dEl) dEl.value = '';
-            const clearBtn = document.getElementById('excelSpecificDateClearBtn');
-            if (clearBtn) clearBtn.classList.add('hidden');
-            populateCustomerDatalist();
-            populateExcelCustomerFilter();
+            const elFrom = document.getElementById('excelFilterFromDate');
+            const elTo = document.getElementById('excelFilterToDate');
+            if (elFrom) elFrom.value = '';
+            if (elTo) elTo.value = '';
+            document.getElementById('excelFromDateClearBtn')?.classList.add('hidden');
+            document.getElementById('excelToDateClearBtn')?.classList.add('hidden');
+            
+            const elM = document.getElementById('excelFilterMonth');
+            if (elM) elM.value = 'all';
             renderTable();
+        }
+
+        // PHÍM TẮT CHỌN NHANH KHOẢNG NGÀY (PRESETS)
+        function setExcelDatePreset(preset) {
+            const elFrom = document.getElementById('excelFilterFromDate');
+            const elTo = document.getElementById('excelFilterToDate');
+            if (!elFrom || !elTo) return;
+
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = now.getMonth() + 1;
+            const d = now.getDate();
+
+            const pad = (n) => String(n).padStart(2, '0');
+            const todayStr = `${y}-${pad(m)}-${pad(d)}`;
+
+            if (preset === 'today') {
+                elFrom.value = todayStr;
+                elTo.value = todayStr;
+            } else if (preset === 'last7days') {
+                const past7 = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+                elFrom.value = `${past7.getFullYear()}-${pad(past7.getMonth() + 1)}-${pad(past7.getDate())}`;
+                elTo.value = todayStr;
+            } else if (preset === 'this_month') {
+                elFrom.value = '2026-10-01';
+                elTo.value = '2026-10-31';
+                document.getElementById('excelFilterMonth').value = '10';
+                document.getElementById('excelFilterYear').value = '2026';
+            } else if (preset === 'prev_month') {
+                elFrom.value = '2026-09-01';
+                elTo.value = '2026-09-30';
+                document.getElementById('excelFilterMonth').value = '9';
+                document.getElementById('excelFilterYear').value = '2026';
+            } else if (preset === 'month_8') {
+                elFrom.value = '2026-08-01';
+                elTo.value = '2026-08-31';
+                document.getElementById('excelFilterMonth').value = '8';
+                document.getElementById('excelFilterYear').value = '2026';
+            }
+
+            onDateRangeChange();
         }
 
         function onExcelMonthChange() {
-            populateCustomerDatalist();
-            populateExcelCustomerFilter();
-            renderTable();
+            const mVal = document.getElementById('excelFilterMonth')?.value || 'all';
+            const yVal = document.getElementById('excelFilterYear')?.value || '2026';
+            const targetY = yVal === 'all' ? 2026 : parseInt(yVal);
+
+            const elFrom = document.getElementById('excelFilterFromDate');
+            const elTo = document.getElementById('excelFilterToDate');
+
+            if (mVal === 'all') {
+                if (yVal === 'all') {
+                    clearExcelDateFilter();
+                } else {
+                    if (elFrom) elFrom.value = `${targetY}-01-01`;
+                    if (elTo) elTo.value = `${targetY}-12-31`;
+                    onDateRangeChange();
+                }
+            } else {
+                const mNum = parseInt(mVal);
+                const pad = (n) => String(n).padStart(2, '0');
+                const lastDay = new Date(targetY, mNum, 0).getDate();
+                if (elFrom) elFrom.value = `${targetY}-${pad(mNum)}-01`;
+                if (elTo) elTo.value = `${targetY}-${pad(mNum)}-${pad(lastDay)}`;
+                onDateRangeChange();
+            }
         }
 
-        function setExcelMonthYear(m, y) {
-            const mEl = document.getElementById('excelFilterMonth');
-            const yEl = document.getElementById('excelFilterYear');
-            const dEl = document.getElementById('excelFilterSpecificDate');
-            if (dEl) dEl.value = '';
-            const clearBtn = document.getElementById('excelSpecificDateClearBtn');
-            if (clearBtn) clearBtn.classList.add('hidden');
-            if (mEl) mEl.value = m;
-            if (yEl) yEl.value = y;
-            populateCustomerDatalist();
-            populateExcelCustomerFilter();
-            renderTable();
+        function onExcelYearChange() {
+            onExcelMonthChange();
+        }
+
+        function syncMonthYearFromDateRange(fFrom, fTo) {
+            const elM = document.getElementById('excelFilterMonth');
+            const elY = document.getElementById('excelFilterYear');
+            if (!elM || !elY) return;
+
+            if (!fFrom && !fTo) {
+                elM.value = 'all';
+                return;
+            }
+
+            if (fFrom && fTo && fFrom.substring(0, 7) === fTo.substring(0, 7)) {
+                const parts = fFrom.split('-');
+                const y = parts[0];
+                const m = parseInt(parts[1], 10);
+                if (elY.querySelector(`option[value="${y}"]`)) elY.value = y;
+                if (elM.querySelector(`option[value="${m}"]`)) elM.value = String(m);
+            } else {
+                elM.value = 'all';
+            }
         }
 
         function resetAllExcelFilters() {
-            const custEl = document.getElementById('excelFilterCustomer');
-            if (custEl) custEl.value = 'all';
-            const dateEl = document.getElementById('excelFilterSpecificDate');
-            if (dateEl) dateEl.value = '';
-            const clearBtn = document.getElementById('excelSpecificDateClearBtn');
-            if (clearBtn) clearBtn.classList.add('hidden');
-            const mEl = document.getElementById('excelFilterMonth');
-            if (mEl) mEl.value = 'all';
-            const yEl = document.getElementById('excelFilterYear');
-            if (yEl) yEl.value = 'all';
-            const sortEl = document.getElementById('excelSortOrder');
-            if (sortEl) sortEl.value = 'date_desc';
-            const searchEl = document.getElementById('searchInput');
-            if (searchEl) searchEl.value = '';
-            const statEl = document.getElementById('filterStatus');
-            if (statEl) statEl.value = 'all';
-            populateCustomerDatalist();
-            populateExcelCustomerFilter();
+            const nameInput = document.getElementById('excelFilterCustomerName');
+            const custSelect = document.getElementById('excelFilterCustomer');
+            const fromInput = document.getElementById('excelFilterFromDate');
+            const toInput = document.getElementById('excelFilterToDate');
+            const monthSelect = document.getElementById('excelFilterMonth');
+            const yearSelect = document.getElementById('excelFilterYear');
+            const searchInput = document.getElementById('searchInput');
+            const statusSelect = document.getElementById('filterStatus');
+            const sortSelect = document.getElementById('excelSortOrder');
+
+            if (nameInput) nameInput.value = '';
+            if (custSelect) custSelect.value = 'all';
+            if (fromInput) fromInput.value = '';
+            if (toInput) toInput.value = '';
+            if (monthSelect) monthSelect.value = 'all';
+            if (yearSelect) yearSelect.value = 'all';
+            if (searchInput) searchInput.value = '';
+            if (statusSelect) statusSelect.value = 'all';
+            if (sortSelect) sortSelect.value = 'date_desc';
+
+            document.getElementById('excelCustomerClearBtn')?.classList.add('hidden');
+            document.getElementById('excelFromDateClearBtn')?.classList.add('hidden');
+            document.getElementById('excelToDateClearBtn')?.classList.add('hidden');
+
             renderTable();
         }
 
+        // DATE PARSING ROBUST HELPER
         function parseOrderDateParts(dateStr) {
-            if (!dateStr) return { day: 1, month: 1, year: 2026, timestamp: 0 };
-            const parts = dateStr.split(/[\/\-]/);
-            if (parts.length >= 3) {
-                const d = parseInt(parts[0]) || 1;
-                const m = parseInt(parts[1]) || 1;
-                const y = parseInt(parts[2]) || 2026;
-                return { day: d, month: m, year: y, timestamp: new Date(y, m - 1, d).getTime() };
+            if (!dateStr) return { day: 1, month: 1, year: 2026, timestamp: 0, iso: '2026-01-01' };
+            const str = String(dateStr).trim();
+            let d = 1, m = 1, y = 2026;
+
+            if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(str)) {
+                const parts = str.split(/[\/\-]/);
+                y = parseInt(parts[0], 10);
+                m = parseInt(parts[1], 10);
+                d = parseInt(parts[2], 10);
+            } else {
+                const parts = str.split(/[\/\-]/);
+                if (parts.length >= 3) {
+                    d = parseInt(parts[0], 10) || 1;
+                    m = parseInt(parts[1], 10) || 1;
+                    y = parseInt(parts[2], 10) || 2026;
+                    if (y < 100) y += 2000;
+                }
             }
-            return { day: 1, month: 1, year: 2026, timestamp: 0 };
+
+            const dt = new Date(y, m - 1, d);
+            const pad = (n) => String(n).padStart(2, '0');
+            const iso = `${y}-${pad(m)}-${pad(d)}`;
+            return { day: d, month: m, year: y, timestamp: dt.getTime(), iso: iso };
         }
 
+        function isOrderInDateRange(orderDate, fromDate, toDate) {
+            if (!fromDate && !toDate) return true;
+            const dp = parseOrderDateParts(orderDate);
+            const iso = dp.iso;
+            if (fromDate && iso < fromDate) return false;
+            if (toDate && iso > toDate) return false;
+            return true;
+        }
+
+        // ==========================================
+        // RENDER SỔ KẾ TOÁN (RENDER TABLE)
+        // ==========================================
         function renderTable() {
             const tbody = document.getElementById('sheetsTableBody');
             if (!tbody) return;
-            const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+
+            const search = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
             const filterStat = document.getElementById('filterStatus')?.value || 'all';
 
-            const filterCustomer = document.getElementById('excelFilterCustomer')?.value || 'all';
-            const filterDate = document.getElementById('excelFilterSpecificDate')?.value || '';
-            const filterMonth = document.getElementById('excelFilterMonth')?.value || 'all';
-            const filterYear = document.getElementById('excelFilterYear')?.value || 'all';
+            const filterCustSel = document.getElementById('excelFilterCustomer')?.value || 'all';
+            const filterCustText = (document.getElementById('excelFilterCustomerName')?.value || '').toLowerCase().trim();
+            
+            const filterFromDate = document.getElementById('excelFilterFromDate')?.value || '';
+            const filterToDate = document.getElementById('excelFilterToDate')?.value || '';
             const sortOrder = document.getElementById('excelSortOrder')?.value || 'date_desc';
 
             // 1. FILTER ORDERS
             let filtered = orders.filter(o => {
+                // Search input matches any text field
                 const matchSearch = !search || 
                                     (o.name && o.name.toLowerCase().includes(search)) || 
                                     (o.phone && o.phone.toLowerCase().includes(search)) || 
                                     (o.location && o.location.toLowerCase().includes(search)) ||
                                     (o.product && o.product.toLowerCase().includes(search)) ||
                                     (String(o.invoiceNo).includes(search));
+
+                // Payment Status
                 const matchStatus = filterStat === 'all' || o.status === filterStat;
 
-                const matchCust = (filterCustomer === 'all') || (o.name && o.name.toLowerCase() === filterCustomer.toLowerCase());
-                const matchSpecificDate = !filterDate || matchOrderDate(o.date, filterDate);
+                // Customer Name: match dropdown AND typed name
+                let matchCust = true;
+                if (filterCustSel !== 'all') {
+                    matchCust = o.name && o.name.toLowerCase() === filterCustSel.toLowerCase();
+                }
+                if (matchCust && filterCustText) {
+                    matchCust = o.name && o.name.toLowerCase().includes(filterCustText);
+                }
 
-                const dp = parseOrderDateParts(o.date);
-                const matchM = (filterMonth === 'all') || (dp.month === parseInt(filterMonth));
-                const matchY = (filterYear === 'all') || (dp.year === parseInt(filterYear));
+                // Date Range: From Date to To Date
+                const matchDate = isOrderInDateRange(o.date, filterFromDate, filterToDate);
 
-                return matchSearch && matchStatus && matchCust && matchSpecificDate && matchM && matchY;
+                return matchSearch && matchStatus && matchCust && matchDate;
             });
 
             // 2. SORT ORDERS
@@ -3696,20 +3923,32 @@
             const scopeEl = document.getElementById('excelViewingScope');
             if (scopeEl) {
                 const scopeParts = [];
-                if (filterCustomer !== 'all') scopeParts.push(`Khách: ${filterCustomer}`);
-                if (filterDate) {
-                    const [fy, fm, fd] = filterDate.split('-');
-                    scopeParts.push(`Ngày: ${fd}/${fm}/${fy}`);
-                } else if (filterMonth !== 'all' && filterYear !== 'all') {
-                    scopeParts.push(`Tháng ${String(filterMonth).padStart(2, '0')}/${filterYear}`);
-                } else if (filterMonth !== 'all') {
-                    scopeParts.push(`Tháng ${String(filterMonth).padStart(2, '0')}`);
-                } else if (filterYear !== 'all') {
-                    scopeParts.push(`Năm ${filterYear}`);
+                const activeCust = filterCustText || (filterCustSel !== 'all' ? filterCustSel : '');
+                if (activeCust) scopeParts.push(`Khách: "${activeCust}"`);
+
+                const formatVnDate = (isoStr) => {
+                    if (!isoStr) return '';
+                    const [y, m, d] = isoStr.split('-');
+                    return `${d}/${m}/${y}`;
+                };
+
+                if (filterFromDate && filterToDate) {
+                    scopeParts.push(`Từ ${formatVnDate(filterFromDate)} đến ${formatVnDate(filterToDate)}`);
+                } else if (filterFromDate) {
+                    scopeParts.push(`Từ ${formatVnDate(filterFromDate)} trở đi`);
+                } else if (filterToDate) {
+                    scopeParts.push(`Đến ngày ${formatVnDate(filterToDate)}`);
                 }
 
-                if (scopeParts.length === 0) scopeEl.innerText = "Toàn bộ sổ sách (85 đơn)";
-                else scopeEl.innerText = scopeParts.join(' • ');
+                if (filterStat !== 'all') {
+                    scopeParts.push(`Trạng thái: ${filterStat}`);
+                }
+
+                if (scopeParts.length === 0) {
+                    scopeEl.innerText = `Toàn bộ sổ sách (${orders.length} đơn)`;
+                } else {
+                    scopeEl.innerText = scopeParts.join(' • ');
+                }
             }
 
             const elCount = document.getElementById('subStatCount');
@@ -3724,7 +3963,7 @@
             // 5. RENDER ROWS
             tbody.innerHTML = '';
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="12" class="text-center py-8 text-slate-500">Không tìm thấy đơn hàng nào phù hợp với bộ lọc (Khách hàng / Ngày / Tháng / Năm).</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="12" class="text-center py-8 text-slate-500">Không tìm thấy đơn hàng nào phù hợp với bộ lọc (Tên khách hàng: "${filterCustText || filterCustSel}" • Khoảng ngày).</td></tr>`;
                 return;
             }
 
@@ -3765,43 +4004,40 @@
         }
 
         function updateStatus(id, newStatus) {
-            const order = orders.find(o => o.id === id);
-            if (order) {
-                order.status = newStatus;
+            const idx = orders.findIndex(o => o.id === id);
+            if (idx !== -1) {
+                orders[idx].status = newStatus;
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
                 populateCustomerDatalist();
-            populateExcelCustomerFilter();
-            renderTable();
+                populateExcelCustomerFilter();
+                renderTable();
                 renderArchiveInvoices();
             }
         }
 
         function viewInvoice(id) {
-            const o = orders.find(x => x.id === id);
+            const o = orders.find(ord => ord.id === id);
             if (o) {
-                document.getElementById('orderDate').value = o.date;
-                document.getElementById('invoiceNo').value = o.invoiceNo;
-                document.getElementById('busName').value = o.name;
-                document.getElementById('busPhone').value = o.phone;
-                document.getElementById('busLocation').value = o.location;
+                document.getElementById('busName').value = o.name || '';
+                document.getElementById('busPhone').value = o.phone || '';
+                document.getElementById('busLocation').value = o.location || '';
                 document.getElementById('taxCode').value = o.taxCode || '';
                 document.getElementById('vatOption').value = o.vat || 'no';
-                document.getElementById('paymentStatus').value = o.status;
+                document.getElementById('paymentStatus').value = o.status || 'Chưa thanh toán';
 
-                if (o.items && Array.isArray(o.items) && o.items.length > 0) {
+                if (o.items && o.items.length > 0) {
                     currentItems = JSON.parse(JSON.stringify(o.items));
                 } else {
                     currentItems = [{
-                        id: 1,
-                        code: "TP-00001",
-                        product: o.product || "Suối Satori 350ml",
-                        unit: "Thùng",
+                        code: 'SATORI_350',
+                        brand: 'SATORI',
+                        product: o.product || 'Suối Satori 350ml',
                         qty: o.qty || 10,
                         listPrice: o.listPrice || 88000,
-                        discountPercent: o.discount ? parseFloat(((o.discount / (o.listPrice || 88000)) * 100).toFixed(2)) : 25.0,
-                        discountAmount: o.discount || 22000,
-                        unitPrice: o.unitPrice || 66000,
-                        subtotal: (o.qty || 10) * (o.unitPrice || 66000)
+                        discountPercent: Math.round(((o.discount || 0) / (o.listPrice || 88000)) * 100),
+                        discountAmount: o.discount || 23000,
+                        unitPrice: o.unitPrice || 65000,
+                        lineTotal: (o.unitPrice || 65000) * (o.qty || 10)
                     }];
                 }
 
@@ -3811,14 +4047,29 @@
             }
         }
 
+        // ==========================================
+        // SAFE DELETE ORDER WITH ANTI-RESURRECTION
+        // ==========================================
         function deleteOrder(id) {
-            if (confirm("Bạn có chắc chắn muốn xóa đơn hàng này khỏi hệ thống?")) {
+            const orderToDelete = orders.find(o => o.id === id);
+            const invNoToDelete = orderToDelete ? orderToDelete.invoiceNo : null;
+            const invLabel = invNoToDelete ? `Hóa đơn #${invNoToDelete}` : `Đơn hàng #${id}`;
+            const custName = orderToDelete ? orderToDelete.name : '';
+
+            if (confirm(`Bạn có chắc chắn muốn xóa ${invLabel} (${custName}) khỏi hệ thống?`)) {
+                // Record deleted invoiceNo in satori_deleted_invoice_nos
+                if (invNoToDelete) {
+                    const deletedSet = new Set(JSON.parse(localStorage.getItem('satori_deleted_invoice_nos') || '[]'));
+                    deletedSet.add(invNoToDelete);
+                    localStorage.setItem('satori_deleted_invoice_nos', JSON.stringify(Array.from(deletedSet)));
+                }
+
                 orders = orders.filter(o => o.id !== id);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
                 updateCounters();
                 populateCustomerDatalist();
-            populateExcelCustomerFilter();
-            renderTable();
+                populateExcelCustomerFilter();
+                renderTable();
                 renderArchiveInvoices();
             }
         }
@@ -3843,6 +4094,7 @@
 
         function renderCatalogueTable() {
             const tbody = document.getElementById('catalogueTableBody');
+            if (!tbody) return;
             const search = (document.getElementById('catalogueSearch')?.value || '').toLowerCase();
 
             const filtered = catalogue.filter(p => {
@@ -3868,24 +4120,21 @@
                 }
 
                 tr.innerHTML = `
-                    <td class="p-3 text-center text-slate-400 font-mono">${p.tt}</td>
+                    <td class="p-3 text-center text-slate-500 font-mono text-[11px]">${index + 1}</td>
                     <td class="p-3 text-center">${brandBadge}</td>
-                    <td class="p-3 font-mono text-cyan-400 font-bold">${p.code}</td>
-                    <td class="p-3 font-medium text-white">${p.name}</td>
-                    <td class="p-3 text-slate-400">${p.spec}</td>
-                    <td class="p-3 text-center text-slate-300 font-semibold">${p.unit}</td>
+                    <td class="p-3 font-semibold text-white">${p.name}</td>
+                    <td class="p-3 text-slate-400 text-xs">${p.spec}</td>
+                    <td class="p-3 text-center font-mono text-xs text-slate-300">${p.code}</td>
                     <td class="p-3 text-right">
-                        <input type="number" value="${p.listPrice}" min="0" onchange="editCatalogueItemPrice('${p.code}', this.value)" class="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-right text-xs text-cyan-300 font-mono font-bold focus:outline-none focus:border-blue-500">
+                        <input type="number" min="0" step="1000" value="${p.listPrice}" onchange="editCatalogueItemPrice('${p.code}', this.value)" class="w-24 bg-slate-950 border border-slate-700 focus:border-blue-500 rounded px-2 py-1 text-right text-xs font-mono text-cyan-300">
                     </td>
+                    <td class="p-3 text-right">
+                        <input type="number" min="0" step="1000" value="${p.standardDiscount}" onchange="editCatalogueItemDisc('${p.code}', this.value)" class="w-24 bg-slate-950 border border-slate-700 focus:border-blue-500 rounded px-2 py-1 text-right text-xs font-mono text-amber-300">
+                    </td>
+                    <td class="p-3 text-right font-bold font-mono text-emerald-400 text-xs">${(p.defaultUnitPrice || (p.listPrice - p.standardDiscount)).toLocaleString('vi-VN')} đ</td>
                     <td class="p-3 text-center">
-                        <input type="number" value="${p.discountPercent}" step="0.1" min="0" max="100" onchange="editCatalogueItemDisc('${p.code}', this.value)" class="w-16 bg-slate-900 border border-amber-500/50 rounded-lg px-2 py-1 text-center text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400">
-                    </td>
-                    <td class="p-3 text-right font-mono font-bold text-emerald-400">
-                        ${(p.unitPrice || 0).toLocaleString('vi-VN')} đ
-                    </td>
-                    <td class="p-3 text-center">
-                        <button onclick="orderThisCatalogueProduct('${p.code}')" class="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg transition shadow flex items-center gap-1 mx-auto" title="Tạo đơn ngay với sản phẩm này">
-                            <i class="fa-solid fa-plus"></i> Lên Đơn
+                        <button onclick="orderThisCatalogueProduct('${p.code}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1 mx-auto">
+                            <i class="fa-solid fa-cart-plus"></i> Lên Đơn
                         </button>
                     </td>
                 `;
@@ -3894,23 +4143,19 @@
         }
 
         function editCatalogueItemPrice(code, newPrice) {
-            const item = catalogue.find(p => p.code === code);
-            if (item) {
-                item.listPrice = Math.max(0, parseFloat(newPrice) || 0);
-                const discAmt = Math.round(item.listPrice * (item.discountPercent / 100));
-                item.unitPrice = item.listPrice - discAmt;
-                refreshCatalogueMap();
+            const p = catalogue.find(item => item.code === code);
+            if (p) {
+                p.listPrice = parseInt(newPrice) || 0;
+                p.defaultUnitPrice = Math.max(0, p.listPrice - p.standardDiscount);
                 renderCatalogueTable();
             }
         }
 
-        function editCatalogueItemDisc(code, newDiscPct) {
-            const item = catalogue.find(p => p.code === code);
-            if (item) {
-                item.discountPercent = Math.max(0, Math.min(100, parseFloat(newDiscPct) || 0));
-                const discAmt = Math.round(item.listPrice * (item.discountPercent / 100));
-                item.unitPrice = item.listPrice - discAmt;
-                refreshCatalogueMap();
+        function editCatalogueItemDisc(code, newDisc) {
+            const p = catalogue.find(item => item.code === code);
+            if (p) {
+                p.standardDiscount = parseInt(newDisc) || 0;
+                p.defaultUnitPrice = Math.max(0, p.listPrice - p.standardDiscount);
                 renderCatalogueTable();
             }
         }
@@ -3920,46 +4165,62 @@
             refreshCatalogueMap();
             renderItemsForm();
             calculateTotals();
-            showModal("Đã Lưu Bảng Giá!", "Bảng giá 20 sản phẩm đã được lưu trữ thành công vào hệ thống. Các đơn hàng và AI sau này sẽ áp dụng giá mới này!", "success");
+            showModal("Đã Lưu Bảng Giá!", "Bảng giá 20 sản phẩm đã được cập nhật thành công.");
         }
 
         function resetCatalogueToDefault() {
-            catalogue = JSON.parse(JSON.stringify(DEFAULT_CATALOGUE));
-            localStorage.setItem(CATALOGUE_STORAGE_KEY, JSON.stringify(catalogue));
-            refreshCatalogueMap();
-            renderCatalogueTable();
-            renderItemsForm();
-            calculateTotals();
-            showModal("Đã Khôi Phục", "Đã nạp lại bảng giá chuẩn 20 sản phẩm theo hình 2438.jpg (Giảm 25%)!", "success");
+            if (confirm("Khôi phục bảng giá 20 sản phẩm về mặc định của nhà máy Minh Satori?")) {
+                catalogue = JSON.parse(JSON.stringify(DEFAULT_CATALOGUE));
+                localStorage.setItem(CATALOGUE_STORAGE_KEY, JSON.stringify(catalogue));
+                refreshCatalogueMap();
+                renderCatalogueTable();
+                renderItemsForm();
+                calculateTotals();
+                showModal("Đã Khôi Phục!", "Bảng giá đã được đặt lại chuẩn gốc.");
+            }
         }
 
         function orderThisCatalogueProduct(code) {
-            addNewProductItem(code);
-            switchTab('input');
-            showModal("Đã Thêm Vào Đơn!", `Đã thêm sản phẩm [${code}] vào danh sách tạo đơn hàng với giá niêm yết chuẩn!`, "success");
+            const p = catalogue.find(item => item.code === code);
+            if (p) {
+                currentItems = [{
+                    code: p.code,
+                    brand: p.brand,
+                    product: p.name,
+                    qty: 10,
+                    listPrice: p.listPrice,
+                    discountPercent: Math.round((p.standardDiscount / p.listPrice) * 100) || 0,
+                    discountAmount: p.standardDiscount,
+                    unitPrice: p.defaultUnitPrice,
+                    lineTotal: p.defaultUnitPrice * 10
+                }];
+                renderItemsForm();
+                calculateTotals();
+                switchTab('input');
+            }
         }
 
         function exportCatalogueCSV() {
-            let csv = "\uFEFFTT,Thương Hiệu,Mã Sản Phẩm,Tên Sản Phẩm,Quy Cách,ĐVT,Đơn Giá Niêm Yết Chưa VAT (VND),Chiết Khấu (%),Đơn Giá Sau Giảm (VND)\n";
+            let csv = "﻿Mã Sản Phẩm,Thương Hiệu,Tên Sản Phẩm,Quy Cách,Giá Niêm Yết,Chiết Khấu Mặc Định,Đơn Giá Bán\n";
             catalogue.forEach(p => {
-                csv += `${p.tt},"${p.brand}","${p.code}","${p.name}","${p.spec}","${p.unit}",${p.listPrice},${p.discountPercent},${p.unitPrice}\n`;
+                csv += `"${p.code}","${p.brand}","${p.name}","${p.spec}",${p.listPrice},${p.standardDiscount},${p.defaultUnitPrice}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.setAttribute('href', url);
-            a.setAttribute('download', `Bang_Gia_Minh_Satori_20SP_${new Date().toISOString().slice(0,10)}.csv`);
+            a.href = url;
+            a.download = `Bang_Gia_Minh_Satori_20_San_Pham.csv`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
         }
 
-        // =====================================================================================
-        // SMART MERGE GOOGLE DRIVE SYNC (NEVER OVERWRITES LOCALLY CREATED ORDERS!)
-        // =====================================================================================
+        // ========================================================
+        // TAB 5: ĐỒNG BỘ GOOGLE SHEETS & LIVE CSV (FIXED & SAFE)
+        // ========================================================
         async function syncLiveFromGoogleDrive() {
             const icon = document.getElementById('syncIcon');
-            icon.classList.add('fa-spin');
+            if (icon) icon.classList.add('fa-spin');
 
             const gsheetId = "1QdNBWMVtxYgEaYPNaCCrG5Hbauz38z7K70tL8qKhRj4";
             const gvizUrl = `https://docs.google.com/spreadsheets/d/${gsheetId}/gviz/tq?tqx=out:csv`;
@@ -3976,13 +4237,11 @@
                 if (!response.ok) throw new Error("Không thể tải file từ Google Drive");
                 const csvText = await response.text();
 
-                const lines = csvText.split(new RegExp('[\\r\\n]+'));
-                const fetchedOrders = [];
+                const lines = csvText.split(/\r?\n/);
+                if (lines.length <= 1) return;
 
-                for (let i = 1; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (!line) continue;
-
+                // DYNAMIC HEADER DETECTION: Find exact columns regardless of layout
+                const parseCsvLine = (line) => {
                     const cols = [];
                     let inQuotes = false;
                     let cur = "";
@@ -3995,92 +4254,168 @@
                         } else cur += char;
                     }
                     cols.push(cur.trim().replace(/^["']|["']$/g, ''));
+                    return cols;
+                };
 
-                    if (cols.length >= 2 && cols[1]) {
-                        const invNo = parseInt(cols[9]) || (fetchedOrders.length + 1);
-                        const rawTotal = parseFloat((cols[8] || "0").replace(/[,\s₫]/g, '')) || 0;
-                        const qty = parseInt(cols[5]) || 10;
-                        const hasVat = (cols[7] && cols[7].toLowerCase().includes('yes')) ? 'yes' : 'no';
-                        const unitP = Math.round(rawTotal / (hasVat === 'yes' ? 1.08 : 1.0) / qty) || 65000;
+                const headerCols = parseCsvLine(lines[0]).map(h => h.toLowerCase().trim());
+                let colMap = { date: -1, invoiceNo: -1, name: -1, phone: -1, location: -1, product: -1, qty: -1, total: -1, vat: -1, status: -1, unitPrice: -1 };
 
-                        let stat = "Chưa thanh toán";
-                        if (cols[10] && (cols[10].toLowerCase().includes('paid') || cols[10].toLowerCase().includes('thanh toán'))) stat = "Đã thanh toán";
-                        else if (cols[10] && cols[10].toLowerCase().includes('cancel')) stat = "Đã hủy";
+                headerCols.forEach((h, idx) => {
+                    if (h.includes('invoice') || h.includes('số hđ') || h.includes('hóa đơn') || h.includes('so hd') || h === 'hđ' || h === 'hd') colMap.invoiceNo = idx;
+                    else if (h.includes('business name') || h.includes('khách hàng') || h.includes('tên khách') || h.includes('khach hang')) colMap.name = idx;
+                    else if (h.includes('phone') || h.includes('điện thoại') || h.includes('sđt') || h.includes('dien thoai')) colMap.phone = idx;
+                    else if (h.includes('location') || h.includes('địa chỉ') || h.includes('address') || h.includes('dia chi')) colMap.location = idx;
+                    else if (h.includes('product') || h.includes('sản phẩm') || h.includes('san pham') || h.includes('mặt hàng')) colMap.product = idx;
+                    else if (h.includes('quantity') || h.includes('số lượng') || h.includes('so luong') || h === 'qty' || h === 'sl') colMap.qty = idx;
+                    else if (h.includes('total') || h.includes('tổng tiền') || h.includes('tong tien') || h.includes('thành tiền') || h.includes('thanh tien')) colMap.total = idx;
+                    else if (h.includes('vat') || h.includes('thuế')) colMap.vat = idx;
+                    else if (h.includes('status') || h.includes('trạng thái') || h.includes('trang thai') || h.includes('giao hàng')) colMap.status = idx;
+                    else if (h.includes('price') || h.includes('đơn giá') || h.includes('don gia')) colMap.unitPrice = idx;
+                    else if (h.includes('date') || h.includes('ngày') || h.includes('ngay')) colMap.date = idx;
+                });
 
-                        fetchedOrders.push({
-                            id: invNo,
-                            date: cols[0] || '10/10/2026',
-                            name: cols[1],
-                            phone: cols[2] || '',
-                            location: cols[3] || '',
-                            product: cols[4] || 'Suối Satori 350ml',
-                            qty: qty,
-                            listPrice: 88000,
-                            discount: Math.max(0, 88000 - unitP),
-                            unitPrice: unitP,
-                            vat: hasVat,
-                            total: rawTotal,
-                            invoiceNo: invNo,
-                            status: stat
-                        });
+                if (colMap.name === -1 && headerCols.length >= 10) {
+                    if (headerCols.length >= 11) {
+                        colMap = { date: 0, name: 1, phone: 2, location: 3, product: 4, qty: 5, unitPrice: 6, vat: 7, total: 8, invoiceNo: 9, status: 10 };
+                    } else {
+                        colMap = { date: 0, invoiceNo: 1, name: 2, phone: 3, location: 4, product: 5, qty: 6, total: 7, vat: 8, status: 9 };
                     }
                 }
 
-                if (fetchedOrders.length > 0) {
-                    // SMART MERGE: KEEP ALL NEW ORDERS CREATED ON THIS DEVICE!
-                    const remoteInvNos = new Set(fetchedOrders.map(o => o.invoiceNo));
-                    const localOnlyOrders = orders.filter(o => !remoteInvNos.has(o.invoiceNo));
-                    orders = [...localOnlyOrders, ...fetchedOrders];
+                const fetchedOrders = [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    const cols = parseCsvLine(line);
+                    if (cols.length < 3) continue;
+
+                    const getCol = (idx, fallback = '') => (idx >= 0 && idx < cols.length) ? cols[idx].trim() : fallback;
+
+                    const invRaw = getCol(colMap.invoiceNo);
+                    const invNo = parseInt(invRaw.replace(/[^\d]/g, ''), 10);
+                    if (!invNo) continue;
+
+                    const name = getCol(colMap.name) || 'Khách vãng lai';
+                    const dateStr = getCol(colMap.date) || '10/10/2026';
+                    const phone = getCol(colMap.phone);
+                    const loc = getCol(colMap.location);
+                    const prod = getCol(colMap.product) || 'Suối Satori 350ml';
+                    const qty = parseInt(getCol(colMap.qty).replace(/[^\d]/g, ''), 10) || 10;
                     
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+                    const totalRaw = getCol(colMap.total);
+                    let rawTotal = parseFloat(totalRaw.replace(/[,\s₫]/g, '')) || 0;
+
+                    const vatStr = getCol(colMap.vat).toLowerCase();
+                    const hasVat = (vatStr.includes('yes') || vatStr.includes('có') || vatStr === '8%' || vatStr === '0.08') ? 'yes' : 'no';
+
+                    let unitP = parseFloat(getCol(colMap.unitPrice).replace(/[,\s₫]/g, '')) || 0;
+                    if (rawTotal <= 0 && unitP > 0) {
+                        rawTotal = Math.round(unitP * qty * (hasVat === 'yes' ? 1.08 : 1.0));
+                    } else if (rawTotal > 0 && unitP <= 0) {
+                        unitP = Math.round(rawTotal / (hasVat === 'yes' ? 1.08 : 1.0) / qty) || 65000;
+                    }
+
+                    // Strict protection: do not import corrupted 0 VND orders from remote
+                    if (rawTotal <= 0) continue;
+
+                    let stat = "Chưa thanh toán";
+                    const statStr = getCol(colMap.status).toLowerCase();
+                    if (statStr.includes('paid') || statStr.includes('đã thanh toán') || statStr.includes('hoàn tất')) stat = "Đã thanh toán";
+                    else if (statStr.includes('cancel') || statStr.includes('hủy')) stat = "Đã hủy";
+
+                    fetchedOrders.push({
+                        id: invNo,
+                        date: dateStr,
+                        name: name,
+                        phone: phone,
+                        location: loc,
+                        product: prod,
+                        qty: qty,
+                        listPrice: 88000,
+                        discount: Math.max(0, 88000 - unitP),
+                        unitPrice: unitP || 65000,
+                        vat: hasVat,
+                        total: rawTotal,
+                        invoiceNo: invNo,
+                        status: stat
+                    });
+                }
+
+                if (fetchedOrders.length > 0) {
+                    // SAFE MERGE: LOCAL ORDERS TAKE 100% PRECEDENCE OVER REMOTE ROWS!
+                    // Local bills are NEVER overwritten, and deleted bills are NEVER resurrected!
+                    const localInvNos = new Set(orders.map(o => o.invoiceNo).filter(Boolean));
+                    const deletedInvNos = new Set(JSON.parse(localStorage.getItem('satori_deleted_invoice_nos') || '[]'));
+
+                    const safeNewRemoteOrders = fetchedOrders.filter(ro => 
+                        ro.invoiceNo && 
+                        !localInvNos.has(ro.invoiceNo) && 
+                        !deletedInvNos.has(ro.invoiceNo) && 
+                        ro.total > 0
+                    );
+
+                    if (safeNewRemoteOrders.length > 0) {
+                        orders = [...orders, ...safeNewRemoteOrders];
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+                    }
+
                     nextInvoiceNumber = Math.max(...orders.map(o => o.invoiceNo || 0)) + 1;
-                    document.getElementById('invoiceNo').value = nextInvoiceNumber;
-                    document.getElementById('invoiceBadge').innerText = `#${nextInvoiceNumber}`;
+                    const invInput = document.getElementById('invoiceNo');
+                    if (invInput) invInput.value = nextInvoiceNumber;
+                    const invBadge = document.getElementById('invoiceBadge');
+                    if (invBadge) invBadge.innerText = `#${nextInvoiceNumber}`;
+
                     updateCounters();
                     populateCustomerDatalist();
-            populateExcelCustomerFilter();
-            renderTable();
+                    populateExcelCustomerFilter();
+                    renderTable();
                     renderArchiveInvoices();
                     calculateTotals();
-                    console.log(`Đã đồng bộ an toàn ${orders.length} đơn hàng từ Drive`);
+                    console.log(`Đồng bộ an toàn: Giữ nguyên toàn bộ hóa đơn trên máy, bổ sung ${safeNewRemoteOrders.length} hóa đơn mới từ Drive.`);
                 }
             } catch (err) {
-                console.warn("Lỗi đồng bộ trực tiếp, dùng dữ liệu đã nạp:", err);
+                console.warn("Lỗi đồng bộ trực tiếp từ Drive:", err);
                 populateCustomerDatalist();
-            populateExcelCustomerFilter();
-            renderTable();
+                populateExcelCustomerFilter();
+                renderTable();
                 renderArchiveInvoices();
             } finally {
-                icon.classList.remove('fa-spin');
+                if (icon) icon.classList.remove('fa-spin');
             }
         }
 
         function resetToInitialData() {
-            if (confirm("Khôi phục toàn bộ 84 đơn hàng chuẩn từ Google Drive?")) {
-                orders = INITIAL_ORDERS;
+            if (confirm("Khôi phục toàn bộ 85 đơn hàng chuẩn ban đầu? Mọi đơn hàng đã xóa hoặc thay đổi trên máy này sẽ được đặt lại theo dữ liệu gốc.")) {
+                localStorage.removeItem('satori_deleted_invoice_nos');
+                orders = JSON.parse(JSON.stringify(INITIAL_ORDERS));
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-                nextInvoiceNumber = 85;
+                nextInvoiceNumber = Math.max(...orders.map(o => o.invoiceNo || 0)) + 1;
                 document.getElementById('invoiceNo').value = nextInvoiceNumber;
                 document.getElementById('invoiceBadge').innerText = `#${nextInvoiceNumber}`;
                 updateCounters();
                 populateCustomerDatalist();
-            populateExcelCustomerFilter();
-            renderTable();
+                populateExcelCustomerFilter();
+                renderTable();
                 renderArchiveInvoices();
-                showModal("Đã Khôi Phục", "Đã nạp lại toàn bộ 84 đơn hàng gốc từ Google Drive!", "success");
+                calculateTotals();
+                showModal("Đã Khôi Phục Dữ Liệu Gốc", "Đã nạp lại toàn bộ 85 đơn hàng chuẩn và xóa danh sách hóa đơn đã hủy.");
             }
         }
 
-        // Export CSV / Excel
-        
+        // ==========================================
+        // EXPORT TO EXCEL / CSV (FILTERED DATA)
+        // ==========================================
         function exportToExcel() {
-            const filterCustomer = document.getElementById('excelFilterCustomer')?.value || 'all';
-            const filterDate = document.getElementById('excelFilterSpecificDate')?.value || '';
-            const filterMonth = document.getElementById('excelFilterMonth')?.value || 'all';
-            const filterYear = document.getElementById('excelFilterYear')?.value || 'all';
-            const sortOrder = document.getElementById('excelSortOrder')?.value || 'date_desc';
-            const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+            const search = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
             const filterStat = document.getElementById('filterStatus')?.value || 'all';
+
+            const filterCustSel = document.getElementById('excelFilterCustomer')?.value || 'all';
+            const filterCustText = (document.getElementById('excelFilterCustomerName')?.value || '').toLowerCase().trim();
+            
+            const filterFromDate = document.getElementById('excelFilterFromDate')?.value || '';
+            const filterToDate = document.getElementById('excelFilterToDate')?.value || '';
+            const sortOrder = document.getElementById('excelSortOrder')?.value || 'date_desc';
 
             let filtered = orders.filter(o => {
                 const matchSearch = !search || 
@@ -4090,12 +4425,17 @@
                                     (o.product && o.product.toLowerCase().includes(search)) ||
                                     (String(o.invoiceNo).includes(search));
                 const matchStatus = filterStat === 'all' || o.status === filterStat;
-                const matchCust = (filterCustomer === 'all') || (o.name && o.name.toLowerCase() === filterCustomer.toLowerCase());
-                const matchSpecificDate = !filterDate || matchOrderDate(o.date, filterDate);
-                const dp = parseOrderDateParts(o.date);
-                const matchM = (filterMonth === 'all') || (dp.month === parseInt(filterMonth));
-                const matchY = (filterYear === 'all') || (dp.year === parseInt(filterYear));
-                return matchSearch && matchStatus && matchCust && matchSpecificDate && matchM && matchY;
+
+                let matchCust = true;
+                if (filterCustSel !== 'all') {
+                    matchCust = o.name && o.name.toLowerCase() === filterCustSel.toLowerCase();
+                }
+                if (matchCust && filterCustText) {
+                    matchCust = o.name && o.name.toLowerCase().includes(filterCustText);
+                }
+
+                const matchDate = isOrderInDateRange(o.date, filterFromDate, filterToDate);
+                return matchSearch && matchStatus && matchCust && matchDate;
             });
 
             filtered.sort((a, b) => {
@@ -4115,85 +4455,52 @@
             let totalRev = 0;
 
             filtered.forEach(o => {
-                const vatStr = o.vat === 'yes' ? '8%' : '0%';
-                csvContent += `"${o.date}",${o.invoiceNo},"${o.name}","${o.phone}","${o.location}","${o.product}",${o.qty},${o.unitPrice},"${vatStr}",${o.total},"${o.status}"\n`;
-                totalQty += (o.qty || 0);
-                totalRev += (o.total || 0);
+                const dateClean = `"${(o.date || '').replace(/"/g, '""')}"`;
+                const invClean = o.invoiceNo || '';
+                const nameClean = `"${(o.name || '').replace(/"/g, '""')}"`;
+                const phoneClean = `"${(o.phone || '').replace(/"/g, '""')}"`;
+                const locClean = `"${(o.location || '').replace(/"/g, '""')}"`;
+                const prodClean = `"${(o.product || '').replace(/"/g, '""')}"`;
+                const qtyVal = o.qty || 0;
+                const unitP = o.unitPrice || 0;
+                const vatClean = `"${(o.vat === 'yes' ? '8%' : '0%')}"`;
+                const totVal = o.total || 0;
+                const statClean = `"${(o.status || '').replace(/"/g, '""')}"`;
+
+                totalQty += qtyVal;
+                totalRev += totVal;
+
+                csvContent += `${dateClean},${invClean},${nameClean},${phoneClean},${locClean},${prodClean},${qtyVal},${unitP},${vatClean},${totVal},${statClean}\n`;
             });
 
-            csvContent += `\n"TỔNG CỘNG (${filtered.length} đơn)","","","","","","${totalQty}","","","${totalRev}",""\n`;
+            // Summary row at bottom
+            csvContent += `"TỔNG CỘNG (${filtered.length} ĐƠN)","","","","","",${totalQty},"","",${totalRev},""\n`;
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.setAttribute('href', url);
+            a.href = url;
 
-            let filename = "So_Ke_Toan_Minh_Satori";
-            if (filterCustomer !== 'all') {
-                const safeName = filterCustomer.replace(/[^a-zA-Z0-9à-ỹÀ-Ỹ]/g, '_');
-                filename += `_${safeName}`;
+            let fileNameParts = ["So_Ke_Toan_Minh_Satori"];
+            const activeCust = filterCustText || (filterCustSel !== 'all' ? filterCustSel : '');
+            if (activeCust) {
+                const safeCust = activeCust.replace(/[^a-zA-Z0-9]/g, '_');
+                fileNameParts.push(safeCust);
             }
-            if (filterDate) {
-                filename += `_${filterDate}`;
-            } else if (filterMonth !== 'all' && filterYear !== 'all') {
-                filename += `_Thang_${String(filterMonth).padStart(2, '0')}_${filterYear}`;
-            } else if (filterYear !== 'all') {
-                filename += `_Nam_${filterYear}`;
-            } else if (filterMonth !== 'all') {
-                filename += `_Thang_${String(filterMonth).padStart(2, '0')}`;
+            if (filterFromDate && filterToDate) {
+                fileNameParts.push(`Tu_${filterFromDate}_Den_${filterToDate}`);
+            } else if (filterFromDate) {
+                fileNameParts.push(`Tu_${filterFromDate}`);
+            } else if (filterToDate) {
+                fileNameParts.push(`Den_${filterToDate}`);
             }
-            filename += ".csv";
 
-            a.setAttribute('download', filename);
+            a.download = `${fileNameParts.join('_')}.csv`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            URL.revokeObjectURL(url);
         }
-
-        function showModal(title, message, type) {
-            document.getElementById('modalTitle').innerText = title;
-            document.getElementById('modalMessage').innerText = message;
-            const icon = document.getElementById('modalIcon');
-            if (type === 'success') {
-                icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
-            } else {
-                icon.innerHTML = '<i class="fa-solid fa-circle-info text-blue-400"></i>';
-            }
-            const actionsDiv = document.getElementById('modalActions');
-            actionsDiv.innerHTML = `<button onclick="closeModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 rounded-xl text-xs transition">Đóng</button>`;
-            document.getElementById('customModal').classList.remove('hidden');
-        }
-
-        function showModalWithActions(title, message, type, buttons) {
-            document.getElementById('modalTitle').innerText = title;
-            document.getElementById('modalMessage').innerText = message;
-            const icon = document.getElementById('modalIcon');
-            if (type === 'success') {
-                icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
-            } else {
-                icon.innerHTML = '<i class="fa-solid fa-circle-info text-blue-400"></i>';
-            }
-            const actionsDiv = document.getElementById('modalActions');
-            actionsDiv.innerHTML = '';
-            buttons.forEach((b, idx) => {
-                const btn = document.createElement('button');
-                btn.className = idx === 0 
-                    ? "flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 rounded-xl text-xs transition shadow"
-                    : "flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 rounded-xl text-xs transition";
-                btn.innerText = b.text;
-                btn.onclick = b.action;
-                actionsDiv.appendChild(btn);
-            });
-            document.getElementById('customModal').classList.remove('hidden');
-        }
-
-        function closeModal() {
-            document.getElementById('customModal').classList.add('hidden');
-        }
-
-        // On Load
-        window.onload = function() {
+window.onload = function() {
             renderItemsForm();
             calculateTotals();
             updateCounters();
