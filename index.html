@@ -80,12 +80,17 @@
     <!-- Active Update Notification Banner -->
     <div class="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-blue-500/40 px-3 py-2 text-center text-xs text-blue-200 flex flex-col sm:flex-row items-center justify-between gap-2 no-print shadow">
         <div class="flex items-center gap-2 mx-auto">
-            <span class="bg-emerald-500 text-slate-950 font-bold px-2 py-0.5 rounded text-[10px] tracking-wide uppercase">BẢN MỚI V5.0</span>
-            <span>Tự động <b>lưu trữ hóa đơn</b> khi submit order • Bộ lọc tìm kiếm theo <b>Tên khách hàng, Ngày order và Địa chỉ</b> • Đã lưu 20 SP Satori, Hikari, Juice.</span>
+            <span class="bg-emerald-500 text-slate-950 font-bold px-2 py-0.5 rounded text-[10px] tracking-wide uppercase">BẢN NÂNG CẤP V6.0</span>
+            <span>AI bóc tách chính xác từ tin nhắn (không lấy địa chỉ cũ) • Gõ số lượng / giá mượt mà không nhảy phím • Hóa đơn lưu trữ vĩnh viễn không biến mất • Tự động đồng bộ Google Sheets & Excel.</span>
         </div>
-        <button onclick="resetCatalogueToDefault()" class="bg-blue-700 hover:bg-blue-600 text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-blue-400 transition flex items-center gap-1 shadow whitespace-nowrap" title="Bấm để tải lại giá gốc nếu bạn thấy giá chưa đổi">
-            <i class="fa-solid fa-arrows-rotate"></i> Làm Mới Bảng Giá
-        </button>
+        <div class="flex items-center gap-2">
+            <button onclick="openGoogleSyncModal()" class="bg-indigo-700 hover:bg-indigo-600 text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-indigo-400 transition flex items-center gap-1 shadow whitespace-nowrap">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Cấu Hình Google Sheets
+            </button>
+            <button onclick="resetCatalogueToDefault()" class="bg-blue-700 hover:bg-blue-600 text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-blue-400 transition flex items-center gap-1 shadow whitespace-nowrap" title="Bấm để tải lại giá gốc nếu bạn thấy giá chưa đổi">
+                <i class="fa-solid fa-arrows-rotate"></i> Làm Mới Bảng Giá
+            </button>
+        </div>
     </div>
 
     <!-- Top Navigation Header -->
@@ -100,7 +105,7 @@
                         <h1 class="font-bold text-base sm:text-lg tracking-tight text-white">HKD MINH SATORI</h1>
                         <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            Bản V5.0 (Kho Lưu Trữ Hóa Đơn & Bộ Lọc Đa Năng)
+                            Bản V6.0 Chuẩn (Đồng Bộ 100% Google Drive & Sổ Sách)
                         </span>
                     </div>
                     <p class="text-xs text-slate-400">Hệ Thống Tự Động Lên Hóa Đơn & Sổ Kế Toán Đồng Bộ 100%</p>
@@ -111,7 +116,7 @@
             <div class="flex flex-wrap items-center gap-2">
                 <button onclick="syncLiveFromGoogleDrive()" id="btnSyncDrive" class="bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow" title="Tải dữ liệu mới nhất từ Google Sheets">
                     <i class="fa-solid fa-arrows-rotate" id="syncIcon"></i>
-                    <span>Đồng Bộ Drive</span>
+                    <span>Tải Từ Drive</span>
                 </button>
 
                 <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs sm:text-sm">
@@ -149,29 +154,29 @@
                         </span>
                         <div>
                             <h3 class="text-xs font-bold uppercase tracking-wider text-blue-300">
-                                Trợ Lý AI Bóc Tách Tin Nhắn Zalo & Tự Động Điền Giá Niêm Yết
+                                Trợ Lý AI Bóc Tách Tin Nhắn Zalo Chuẩn Xác (Không Lấy Địa Chỉ Cũ)
                             </h3>
-                            <p class="text-[11px] text-slate-400">Hệ thống đã lưu trữ sẵn toàn bộ 20 sản phẩm Satori - Hikari - Juice. Dán tin nhắn Zalo bất kỳ, AI sẽ tự động phân loại, ghi đúng Mã SP, Tên SP, Giá niêm yết và áp chiết khấu 25%!</p>
+                            <p class="text-[11px] text-slate-400">AI chỉ bóc tách địa chỉ, số điện thoại và tên từ chính tin nhắn hiện tại. Tuyệt đối không chèn địa chỉ cũ từ danh bạ vào đơn hàng mới của khách!</p>
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-1.5">
                         <button onclick="loadSampleZalo(1)" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-blue-300 px-2.5 py-1 rounded-lg border border-slate-700 transition">
-                            Mẫu 1: Traky 350ml
+                            Mẫu 1: Traky 350ml (Đ/C Mới Q.2)
                         </button>
                         <button onclick="loadSampleZalo(2)" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2.5 py-1 rounded-lg border border-slate-700 transition">
-                            Mẫu 2: Hikari 500ml + Bình 19L
+                            Mẫu 2: Quán Thạnh Phú (Đ/C Bình Phú)
                         </button>
                         <button onclick="loadSampleZalo(3)" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 px-2.5 py-1 rounded-lg border border-slate-700 transition">
-                            Mẫu 3: Satori 350ml + Ổi Hồng + Me
+                            Mẫu 3: C Nguyệt (Đ/C Lã Xuân Oai)
                         </button>
                         <button onclick="loadSampleZalo(4)" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2.5 py-1 rounded-lg border border-slate-700 transition">
-                            Mẫu 4: Satori 20L + Lốc Hikari 250ml
+                            Mẫu 4: Anh Hoàng (Đ/C Hai Bà Trưng Q.1)
                         </button>
                     </div>
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-2">
-                    <textarea id="zaloRawText" rows="2" placeholder="Ví dụ: Traky Sài Gòn, 377 Nguyễn Duy Trinh Q.2, 15 thùng 350ml, 0379034849 (Trọng) hoặc Giao 10 thùng Hikari 500ml và 5 bình Satori 19L có vòi qua 52 Bình Phú Tam Bình..." class="w-full bg-slate-950/80 border border-slate-700 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
+                    <textarea id="zaloRawText" rows="2" placeholder="Ví dụ: Traky Sài Gòn, 377 Nguyễn Duy Trinh Q.2, 15 thùng 350ml, 0379034849 (Trọng) hoặc Giao giúp e qua 52 bình phú tam bình thủ đức quán Thạnh Phú: 10 thùng Hikari 500ml và 5 bình Satori 19L có vòi nha sdt Hằng 0784723916, đã ck..." class="w-full bg-slate-950/80 border border-slate-700 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
                     <button onclick="parseZaloMessageAI()" class="sm:w-44 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl px-4 py-2 text-xs transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2">
                         <i class="fa-solid fa-wand-magic-sparkles"></i>
                         <span>AI Bóc Tách Đơn</span>
@@ -181,7 +186,7 @@
                 <!-- AI Parsed Result Preview Card -->
                 <div id="aiParsedPreview" class="hidden bg-slate-950/90 border border-indigo-500/30 rounded-xl p-2.5 text-xs text-slate-300 flex flex-wrap gap-2 items-center">
                     <span class="text-indigo-400 font-bold text-[11px] flex items-center gap-1">
-                        <i class="fa-solid fa-circle-check text-emerald-400"></i> AI Nhận Diện:
+                        <i class="fa-solid fa-circle-check text-emerald-400"></i> AI Nhận Diện Từ Tin Nhắn:
                     </span>
                     <div id="aiBadgeContainer" class="flex flex-wrap gap-1.5 text-[11px]"></div>
                 </div>
@@ -224,9 +229,9 @@
                         <div>
                             <div class="flex justify-between items-center mb-1">
                                 <label class="block text-[11px] text-slate-400 font-medium">Khách hàng (Tên đơn vị/cá nhân)</label>
-                                <span class="text-[10px] text-cyan-400">Gợi ý từ 30 khách quen</span>
+                                <span class="text-[10px] text-cyan-400">Gợi ý từ danh bạ</span>
                             </div>
-                            <input list="customerList" id="busName" oninput="calculateTotals()" onchange="handleCustomerSelect(this.value)" placeholder="Ví dụ: Traky Sài Gòn..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-blue-500">
+                            <input list="customerList" id="busName" oninput="calculateTotals()" placeholder="Ví dụ: Traky Sài Gòn..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-blue-500">
                             <datalist id="customerList">
                                 <option value="Traky Sài Gòn">
                                 <option value="Traky Cần Thơ">
@@ -271,184 +276,27 @@
                         </div>
 
                         <div>
-                            <label class="block text-[11px] text-slate-400 font-medium mb-1">Địa chỉ giao hàng</label>
+                            <label class="block text-[11px] text-slate-400 font-medium mb-1">Địa chỉ giao hàng (Địa chỉ thực tế của đơn này)</label>
                             <input type="text" id="busLocation" oninput="calculateTotals()" placeholder="Địa chỉ giao..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
                         </div>
 
-                        <!-- MULTI-PRODUCT ITEMS SECTION -->
+                        <!-- MULTI-PRODUCT ITEMS SECTION (SMOOTH EDITING NO JUMPING) -->
                         <div class="border-t border-slate-800 pt-3 space-y-3">
                             <div class="flex justify-between items-center">
                                 <div>
                                     <h3 class="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
                                         <i class="fa-solid fa-boxes-stacked"></i> Danh Sách Sản Phẩm & Giá Niêm Yết
                                     </h3>
-                                    <p class="text-[10px] text-slate-500">AI tự động áp giá niêm yết và chiết khấu 25%</p>
+                                    <p class="text-[10px] text-slate-500">Chỉnh sửa số lượng, giá mượt mà không bị nhảy phím</p>
                                 </div>
                                 <button type="button" onclick="addNewProductItem()" class="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1 shadow">
                                     <i class="fa-solid fa-plus-circle"></i> Thêm Sản Phẩm
                                 </button>
                             </div>
 
-                            <!-- DYNAMIC ITEMS CONTAINER WITH PRE-RENDERED 2 PRODUCTS -->
+                            <!-- DYNAMIC ITEMS CONTAINER -->
                             <div id="itemsContainer" class="space-y-3">
-                                <!-- Item 1 Pre-rendered -->
-                                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5 relative">
-                                    <div class="flex justify-between items-center border-b border-slate-800 pb-1.5">
-                                        <span class="text-[11px] font-bold text-cyan-400 flex items-center gap-1">
-                                            <span class="bg-blue-600/30 text-blue-300 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold">1</span>
-                                            Sản phẩm #1 <span class="bg-slate-800 text-slate-300 px-1 rounded text-[9px] font-mono">TP-00001</span>
-                                        </span>
-                                    </div>
-                                    <div class="grid grid-cols-1 gap-1.5">
-                                        <label class="block text-[10px] text-slate-400">Chọn sản phẩm từ Bảng Giá Niêm Yết (20 SP):</label>
-                                        <select onchange="updateItemType(0, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-cyan-300 font-semibold focus:outline-none focus:border-blue-500">
-                                                <optgroup label="1. THƯƠNG HIỆU SATORI (11 SẢN PHẨM)">
-        <option value="TP-00001">[TP-00001] Nước tinh khiết Satori 350ml (24 chai/thùng) - Giá NY: 88.000đ (-25% ➔ 66.000đ)</option>
-        <option value="TP-00003">[TP-00003] Nước tinh khiết Satori 500ml (24 chai/thùng) - Giá NY: 98.000đ (-25% ➔ 73.500đ)</option>
-        <option value="TP-00004">[TP-00004] Nước tinh khiết Satori 1500ml (12 chai/thùng) - Giá NY: 98.000đ (-25% ➔ 73.500đ)</option>
-        <option value="TP-00051">[TP-00051] Nước tinh khiết Satori Premium 450ml (20 chai/thùng) - Giá NY: 137.963đ (-25% ➔ 103.472đ)</option>
-        <option value="TP-00005">[TP-00005] Nước tinh khiết Satori bình 20L, có tay cầm, không vòi (01 bình) - Giá NY: 49.142đ (-25% ➔ 36.857đ)</option>
-        <option value="TP-00033">[TP-00033] Nước tinh khiết Satori bình 19L có vòi (01 bình) - Giá NY: 49.142đ (-25% ➔ 36.857đ)</option>
-        <option value="TP-00096">[TP-00096] Nước tinh khiết Satori bình 19L không vòi (01 bình) - Giá NY: 49.142đ (-25% ➔ 36.857đ)</option>
-        <option value="TP-00135">[TP-00135] Nước tinh khiết Satori 5L không vòi (04 bình/thùng) - Giá NY: 102.500đ (-25% ➔ 76.875đ)</option>
-        <option value="TP-00136">[TP-00136] Nước tinh khiết Satori 5L có vòi (04 bình/thùng) - Giá NY: 110.000đ (-25% ➔ 82.500đ)</option>
-        <option value="TP-00143">[TP-00143] Nước tinh khiết Satori 5L không vòi, bình (01 bình) - Giá NY: 25.625đ (-25% ➔ 19.219đ)</option>
-        <option value="TP-00142">[TP-00142] Nước tinh khiết Satori 5L có vòi, bình (01 bình) - Giá NY: 27.500đ (-25% ➔ 20.625đ)</option>
-    </optgroup>
-    <optgroup label="2. THƯƠNG HIỆU HIKARI (6 SẢN PHẨM)">
-        <option value="TP-00081">[TP-00081] Nước đóng chai Hikari 500ml (24 chai/thùng) - Giá NY: 83.000đ (-25% ➔ 62.250đ)</option>
-        <option value="TP-00130">[TP-00130] Nước tinh khiết Hikari bình 19L có vòi (01 bình) - Giá NY: 38.889đ (-25% ➔ 29.167đ)</option>
-        <option value="TP-00137">[TP-00137] Nước đóng chai Hikari 250ml, thùng (24 chai/thùng) - Giá NY: 62.500đ (-25% ➔ 46.875đ)</option>
-        <option value="TP-00140">[TP-00140] Nước đóng chai Hikari 250ml (24 chai/lốc) (24 chai/lốc) - Giá NY: 62.500đ (-25% ➔ 46.875đ)</option>
-        <option value="TP-00139">[TP-00139] Nước đóng chai Hikari 250ml (12 chai/lốc) (12 chai/lốc) - Giá NY: 31.250đ (-25% ➔ 23.438đ)</option>
-        <option value="TP-00138">[TP-00138] Nước đóng chai Hikari 250ml (6 chai/lốc) (6 chai/lốc) - Giá NY: 15.625đ (-25% ➔ 11.719đ)</option>
-    </optgroup>
-    <optgroup label="3. THƯƠNG HIỆU JUICE (3 SẢN PHẨM)">
-        <option value="TP-00055">[TP-00055] Nước ép me Satori Juice 24 lon/thùng (24 lon/thùng) - Giá NY: 333.333đ (-25% ➔ 250.000đ)</option>
-        <option value="TP-00056">[TP-00056] Nước ép mãng cầu Satori Juice 24 lon/thùng (24 lon/thùng) - Giá NY: 333.333đ (-25% ➔ 250.000đ)</option>
-        <option value="TP-00058">[TP-00058] Nước ép ổi hồng Satori Juice 24 lon/thùng (24 lon/thùng) - Giá NY: 333.333đ (-25% ➔ 250.000đ)</option>
-    </optgroup>
-    <optgroup label="4. MẶT HÀNG TÙY CHỌN">
-        <option value="custom">Sản phẩm khác (Tự nhập tên và giá)...</option>
-    </optgroup>
-
-                                        </select>
-                                        <input type="text" value="Nước tinh khiết Satori 350ml" oninput="updateItemName(0, this.value)" placeholder="Tên sản phẩm..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-                                    </div>
-                                    <div class="grid grid-cols-3 gap-2">
-                                        <div>
-                                            <label class="block text-[10px] text-slate-400 mb-0.5">Số lượng</label>
-                                            <input type="number" value="10" min="1" oninput="updateItemQty(0, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-blue-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[10px] text-slate-400 mb-0.5">Đơn vị tính</label>
-                                            <input type="text" value="Thùng" oninput="updateItemUnit(0, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[10px] text-cyan-300 font-bold mb-0.5">Giá niêm yết (đ)</label>
-                                            <input type="number" value="88000" min="0" oninput="updateItemListPrice(0, this.value)" class="w-full bg-slate-950 border border-cyan-500/50 rounded-lg px-2 py-1.5 text-xs text-cyan-300 font-bold focus:outline-none focus:border-blue-500">
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-3 gap-2">
-                                        <div>
-                                            <label class="block text-[10px] text-amber-300 font-semibold mb-0.5">Chiết khấu (%)</label>
-                                            <input type="number" value="25" step="0.01" min="0" max="100" oninput="updateItemDiscPct(0, this.value)" class="w-full bg-slate-950 border border-amber-500/50 rounded-lg px-2 py-1.5 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[10px] text-slate-400 mb-0.5">Tiền CK (đ)</label>
-                                            <input type="number" value="22000" min="0" oninput="updateItemDiscAmt(0, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[10px] text-emerald-400 font-semibold mb-0.5">Đơn giá sau CK</label>
-                                            <input type="number" value="66000" min="0" oninput="updateItemUnitPrice(0, this.value)" class="w-full bg-slate-950 border border-emerald-500/50 rounded-lg px-2 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-emerald-400">
-                                        </div>
-                                    </div>
-                                    <div class="text-right text-[11px] pt-1 border-t border-slate-800 flex justify-between items-center">
-                                        <span class="text-slate-500 text-[10px]">Thành tiền mặt hàng #1:</span>
-                                        <span class="font-bold text-cyan-300">660.000 đ</span>
-                                    </div>
-                                </div>
-
-                                <!-- Item 2 Pre-rendered -->
-                                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5 relative">
-                                    <div class="flex justify-between items-center border-b border-slate-800 pb-1.5">
-                                        <span class="text-[11px] font-bold text-cyan-400 flex items-center gap-1">
-                                            <span class="bg-blue-600/30 text-blue-300 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold">2</span>
-                                            Sản phẩm #2 <span class="bg-slate-800 text-slate-300 px-1 rounded text-[9px] font-mono">TP-00003</span>
-                                        </span>
-                                        <button type="button" onclick="removeProductItem(1)" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-0.5 rounded hover:bg-rose-950/30 transition flex items-center gap-1" title="Xóa mặt hàng này">
-                                            <i class="fa-solid fa-trash-can"></i> Xóa
-                                        </button>
-                                    </div>
-                                    <div class="grid grid-cols-1 gap-1.5">
-                                        <label class="block text-[10px] text-slate-400">Chọn sản phẩm từ Bảng Giá Niêm Yết (20 SP):</label>
-                                        <select onchange="updateItemType(1, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-cyan-300 font-semibold focus:outline-none focus:border-blue-500">
-                                                <optgroup label="1. THƯƠNG HIỆU SATORI (11 SẢN PHẨM)">
-        <option value="TP-00001">[TP-00001] Nước tinh khiết Satori 350ml (24 chai/thùng) - Giá NY: 88.000đ (-25% ➔ 66.000đ)</option>
-        <option value="TP-00003">[TP-00003] Nước tinh khiết Satori 500ml (24 chai/thùng) - Giá NY: 98.000đ (-25% ➔ 73.500đ)</option>
-        <option value="TP-00004">[TP-00004] Nước tinh khiết Satori 1500ml (12 chai/thùng) - Giá NY: 98.000đ (-25% ➔ 73.500đ)</option>
-        <option value="TP-00051">[TP-00051] Nước tinh khiết Satori Premium 450ml (20 chai/thùng) - Giá NY: 137.963đ (-25% ➔ 103.472đ)</option>
-        <option value="TP-00005">[TP-00005] Nước tinh khiết Satori bình 20L, có tay cầm, không vòi (01 bình) - Giá NY: 49.142đ (-25% ➔ 36.857đ)</option>
-        <option value="TP-00033">[TP-00033] Nước tinh khiết Satori bình 19L có vòi (01 bình) - Giá NY: 49.142đ (-25% ➔ 36.857đ)</option>
-        <option value="TP-00096">[TP-00096] Nước tinh khiết Satori bình 19L không vòi (01 bình) - Giá NY: 49.142đ (-25% ➔ 36.857đ)</option>
-        <option value="TP-00135">[TP-00135] Nước tinh khiết Satori 5L không vòi (04 bình/thùng) - Giá NY: 102.500đ (-25% ➔ 76.875đ)</option>
-        <option value="TP-00136">[TP-00136] Nước tinh khiết Satori 5L có vòi (04 bình/thùng) - Giá NY: 110.000đ (-25% ➔ 82.500đ)</option>
-        <option value="TP-00143">[TP-00143] Nước tinh khiết Satori 5L không vòi, bình (01 bình) - Giá NY: 25.625đ (-25% ➔ 19.219đ)</option>
-        <option value="TP-00142">[TP-00142] Nước tinh khiết Satori 5L có vòi, bình (01 bình) - Giá NY: 27.500đ (-25% ➔ 20.625đ)</option>
-    </optgroup>
-    <optgroup label="2. THƯƠNG HIỆU HIKARI (6 SẢN PHẨM)">
-        <option value="TP-00081">[TP-00081] Nước đóng chai Hikari 500ml (24 chai/thùng) - Giá NY: 83.000đ (-25% ➔ 62.250đ)</option>
-        <option value="TP-00130">[TP-00130] Nước tinh khiết Hikari bình 19L có vòi (01 bình) - Giá NY: 38.889đ (-25% ➔ 29.167đ)</option>
-        <option value="TP-00137">[TP-00137] Nước đóng chai Hikari 250ml, thùng (24 chai/thùng) - Giá NY: 62.500đ (-25% ➔ 46.875đ)</option>
-        <option value="TP-00140">[TP-00140] Nước đóng chai Hikari 250ml (24 chai/lốc) (24 chai/lốc) - Giá NY: 62.500đ (-25% ➔ 46.875đ)</option>
-        <option value="TP-00139">[TP-00139] Nước đóng chai Hikari 250ml (12 chai/lốc) (12 chai/lốc) - Giá NY: 31.250đ (-25% ➔ 23.438đ)</option>
-        <option value="TP-00138">[TP-00138] Nước đóng chai Hikari 250ml (6 chai/lốc) (6 chai/lốc) - Giá NY: 15.625đ (-25% ➔ 11.719đ)</option>
-    </optgroup>
-    <optgroup label="3. THƯƠNG HIỆU JUICE (3 SẢN PHẨM)">
-        <option value="TP-00055">[TP-00055] Nước ép me Satori Juice 24 lon/thùng (24 lon/thùng) - Giá NY: 333.333đ (-25% ➔ 250.000đ)</option>
-        <option value="TP-00056">[TP-00056] Nước ép mãng cầu Satori Juice 24 lon/thùng (24 lon/thùng) - Giá NY: 333.333đ (-25% ➔ 250.000đ)</option>
-        <option value="TP-00058">[TP-00058] Nước ép ổi hồng Satori Juice 24 lon/thùng (24 lon/thùng) - Giá NY: 333.333đ (-25% ➔ 250.000đ)</option>
-    </optgroup>
-    <optgroup label="4. MẶT HÀNG TÙY CHỌN">
-        <option value="custom">Sản phẩm khác (Tự nhập tên và giá)...</option>
-    </optgroup>
-
-                                        </select>
-                                        <input type="text" value="Nước tinh khiết Satori 500ml" oninput="updateItemName(1, this.value)" placeholder="Tên sản phẩm..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-                                    </div>
-                                    <div class="grid grid-cols-3 gap-2">
-                                        <div>
-                                            <label class="block text-[10px] text-slate-400 mb-0.5">Số lượng</label>
-                                            <input type="number" value="5" min="1" oninput="updateItemQty(1, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-blue-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[10px] text-slate-400 mb-0.5">Đơn vị tính</label>
-                                            <input type="text" value="Thùng" oninput="updateItemUnit(1, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[10px] text-cyan-300 font-bold mb-0.5">Giá niêm yết (đ)</label>
-                                            <input type="number" value="98000" min="0" oninput="updateItemListPrice(1, this.value)" class="w-full bg-slate-950 border border-cyan-500/50 rounded-lg px-2 py-1.5 text-xs text-cyan-300 font-bold focus:outline-none focus:border-blue-500">
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-3 gap-2">
-                                        <div>
-                                            <label class="block text-[10px] text-amber-300 font-semibold mb-0.5">Chiết khấu (%)</label>
-                                            <input type="number" value="25" step="0.01" min="0" max="100" oninput="updateItemDiscPct(1, this.value)" class="w-full bg-slate-950 border border-amber-500/50 rounded-lg px-2 py-1.5 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[10px] text-slate-400 mb-0.5">Tiền CK (đ)</label>
-                                            <input type="number" value="24500" min="0" oninput="updateItemDiscAmt(1, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[10px] text-emerald-400 font-semibold mb-0.5">Đơn giá sau CK</label>
-                                            <input type="number" value="73500" min="0" oninput="updateItemUnitPrice(1, this.value)" class="w-full bg-slate-950 border border-emerald-500/50 rounded-lg px-2 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-emerald-400">
-                                        </div>
-                                    </div>
-                                    <div class="text-right text-[11px] pt-1 border-t border-slate-800 flex justify-between items-center">
-                                        <span class="text-slate-500 text-[10px]">Thành tiền mặt hàng #2:</span>
-                                        <span class="font-bold text-cyan-300">367.500 đ</span>
-                                    </div>
-                                </div>
+                                <!-- Populated dynamically by JS with stable IDs -->
                             </div>
                         </div>
 
@@ -492,6 +340,17 @@
                         </button>
                     </div>
 
+                    <!-- Submitted Banner if active -->
+                    <div id="submitSuccessBanner" class="hidden bg-emerald-950/80 border border-emerald-500/60 rounded-xl p-3 text-xs text-emerald-300 flex items-center justify-between no-print shadow">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+                            <span id="submitSuccessText">ĐÃ LƯU TRỮ HÓA ĐƠN THÀNH CÔNG VÀO HỆ THỐNG!</span>
+                        </div>
+                        <button onclick="switchTab('archive')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg transition">
+                            Mở Kho HĐ
+                        </button>
+                    </div>
+
                     <!-- INVOICE SHEET (Black Theme matching user's exact format) -->
                     <div id="invoicePreview" class="bg-black text-slate-100 p-6 rounded-2xl border border-slate-800 font-sans text-xs space-y-4 shadow-2xl flex-1">
                         
@@ -522,7 +381,7 @@
                                     </div>
                                     <!-- Dynamic VietQR Code -->
                                     <div class="text-center">
-                                        <img id="vietQrImg" src="https://img.vietqr.io/image/vpbank-658489418-compact2.png?amount=1027500&addInfo=HD85%20TrakySaiGon&accountName=HKD%20MINH%20SATORI" alt="VietQR" class="w-16 h-16 bg-white p-0.5 rounded border border-slate-600 shadow inline-block">
+                                        <img id="vietQrImg" src="" alt="VietQR" class="w-16 h-16 bg-white p-0.5 rounded border border-slate-600 shadow inline-block">
                                         <span class="block text-[8px] text-slate-400 mt-0.5">Quét để trả</span>
                                     </div>
                                 </div>
@@ -534,10 +393,10 @@
                                     <span>THÔNG TIN KHÁCH HÀNG</span>
                                     <span class="text-[9px] bg-emerald-900/60 text-emerald-300 px-1.5 py-0.5 rounded">Bên B</span>
                                 </p>
-                                <p><span class="text-slate-400">Tên đơn vị/cá nhân:</span> <span id="prevBuyer" class="font-bold text-white">Traky Sài Gòn</span></p>
+                                <p><span class="text-slate-400">Tên đơn vị/cá nhân:</span> <span id="prevBuyer" class="font-bold text-white">...</span></p>
                                 <p><span class="text-slate-400">Mã số thuế:</span> <span id="prevTax" class="text-slate-300">...</span></p>
-                                <p><span class="text-slate-400">Địa chỉ giao:</span> <span id="prevAddress" class="text-slate-200">377 Nguyễn Duy Trinh, P.Bình Trưng Tây, Q.2, TP.HCM</span></p>
-                                <p><span class="text-slate-400">Số điện thoại:</span> <span id="prevPhone" class="font-medium text-slate-200">0379034849 (Trọng)</span></p>
+                                <p><span class="text-slate-400">Địa chỉ giao:</span> <span id="prevAddress" class="text-slate-200">...</span></p>
+                                <p><span class="text-slate-400">Số điện thoại:</span> <span id="prevPhone" class="font-medium text-slate-200">...</span></p>
                                 <p><span class="text-slate-400">Email:</span> <span id="prevEmail" class="text-slate-400">...</span></p>
                             </div>
                         </div>
@@ -551,7 +410,7 @@
                                     <span class="font-medium text-slate-200">1/001</span>
                                 </div>
                                 <div class="p-1 col-span-2">
-                                    <span class="text-slate-400 block text-[10px]">Số hóa đơn (Invoice #)</span>
+                                    <span class="text-slate-400 block text-[10px]">Số hóa đơn</span>
                                     <span id="prevInvNo" class="font-bold text-amber-400 text-sm">85</span>
                                 </div>
                                 <div class="p-1 col-span-2">
@@ -589,36 +448,6 @@
                                 </thead>
                                 <tbody id="invoiceItemsTable" class="text-center">
                                     <!-- Pre-rendered rows -->
-                                    <tr class="border-b border-slate-800">
-                                        <td class="p-1.5 border-r border-slate-800">1</td>
-                                        <td class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">Nước tinh khiết Satori 350ml</td>
-                                        <td class="p-1.5 border-r border-slate-800">Thùng</td>
-                                        <td class="p-1.5 border-r border-slate-800 font-bold">10</td>
-                                        <td class="p-1.5 border-r border-slate-800 font-mono text-cyan-300 font-semibold">88.000</td>
-                                        <td class="p-1.5 border-r border-slate-800 text-amber-300 font-semibold">22.000 (25%)</td>
-                                        <td class="p-1.5 border-r border-slate-800 font-semibold text-slate-200">66.000</td>
-                                        <td class="p-1.5 font-bold text-white">660.000</td>
-                                    </tr>
-                                    <tr class="border-b border-slate-800">
-                                        <td class="p-1.5 border-r border-slate-800">2</td>
-                                        <td class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">Nước tinh khiết Satori 500ml</td>
-                                        <td class="p-1.5 border-r border-slate-800">Thùng</td>
-                                        <td class="p-1.5 border-r border-slate-800 font-bold">5</td>
-                                        <td class="p-1.5 border-r border-slate-800 font-mono text-cyan-300 font-semibold">98.000</td>
-                                        <td class="p-1.5 border-r border-slate-800 text-amber-300 font-semibold">24.500 (25%)</td>
-                                        <td class="p-1.5 border-r border-slate-800 font-semibold text-slate-200">73.500</td>
-                                        <td class="p-1.5 font-bold text-white">367.500</td>
-                                    </tr>
-                                    <tr class="border-b border-slate-900 text-slate-700">
-                                        <td class="p-1 border-r border-slate-900">3</td>
-                                        <td class="p-1 border-r border-slate-900"></td>
-                                        <td class="p-1 border-r border-slate-900"></td>
-                                        <td class="p-1 border-r border-slate-900"></td>
-                                        <td class="p-1 border-r border-slate-900"></td>
-                                        <td class="p-1 border-r border-slate-900"></td>
-                                        <td class="p-1 border-r border-slate-900"></td>
-                                        <td class="p-1"></td>
-                                    </tr>
                                 </tbody>
                             </table>
 
@@ -626,7 +455,7 @@
                             <div class="border-t border-slate-700 text-right text-[11px] p-2 space-y-1 bg-slate-950">
                                 <div class="flex justify-between px-4">
                                     <span class="text-slate-400">Cộng tiền hàng:</span>
-                                    <span id="sumGoods" class="font-medium text-white">1.027.500 VND</span>
+                                    <span id="sumGoods" class="font-medium text-white">0 VND</span>
                                 </div>
                                 <div class="flex justify-between px-4">
                                     <span class="text-slate-400">Thuế GTGT (VAT 8%):</span>
@@ -634,7 +463,7 @@
                                 </div>
                                 <div class="flex justify-between px-4 text-xs sm:text-sm font-bold border-t border-slate-800 pt-1">
                                     <span class="text-amber-400">Tổng cộng tiền thanh toán:</span>
-                                    <span id="sumTotal" class="text-amber-400 font-mono">1.027.500 VND</span>
+                                    <span id="sumTotal" class="text-amber-400 font-mono">0 VND</span>
                                 </div>
                             </div>
                         </div>
@@ -755,7 +584,7 @@
                             <label class="block text-[11px] font-semibold text-emerald-300 mb-1 flex items-center gap-1">
                                 <i class="fa-solid fa-location-dot text-[10px]"></i> 3. Địa Chỉ Giao Hàng:
                             </label>
-                            <input type="text" id="archiveFilterLocation" oninput="renderArchiveInvoices()" placeholder="Gõ địa chỉ (vd: Quận 2, Bình Phú, Huỳnh Văn Bánh...)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition">
+                            <input type="text" id="archiveFilterLocation" oninput="renderArchiveInvoices()" placeholder="Gõ địa chỉ (vd: 377 Nguyễn Duy Trinh, Bình Phú, Quận 2...)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition">
                         </div>
                     </div>
 
@@ -926,7 +755,7 @@
                         <button onclick="saveCatalogueChanges()" class="bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow">
                             <i class="fa-solid fa-floppy-disk"></i> Lưu Thay Đổi Bảng Giá
                         </button>
-                        <button onclick="resetCatalogueToDefault()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3.5 py-1.5 rounded-xl text-xs transition flex items-center gap-1">
+                        <button onclick="resetCatalogueToDefault()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl text-xs transition flex items-center gap-1">
                             <i class="fa-solid fa-rotate-left"></i> Khôi Phục Bảng Giá Chuẩn (2438.jpg)
                         </button>
                         <button onclick="exportCatalogueCSV()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow">
@@ -1461,6 +1290,53 @@
 
     </main>
 
+    <!-- GOOGLE SHEETS LIVE SYNC SETTINGS MODAL -->
+    <div id="googleSyncModal" class="fixed inset-0 bg-black/85 z-50 hidden flex items-center justify-center p-3 sm:p-4 no-print backdrop-blur-md">
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <div class="flex items-center gap-2">
+                    <span class="bg-emerald-600/30 text-emerald-400 p-2 rounded-xl text-base">
+                        <i class="fa-solid fa-file-excel"></i>
+                    </span>
+                    <div>
+                        <h3 class="font-bold text-sm text-white">Đồng Bộ Trực Tiếp Vào Google Sheets / Excel</h3>
+                        <p class="text-[11px] text-slate-400">Tự động thêm đơn hàng mới vào Google Sheet khi submit</p>
+                    </div>
+                </div>
+                <button onclick="closeGoogleSyncModal()" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-1.5">
+                    <p class="font-semibold text-cyan-300">File Google Sheet đang kết nối:</p>
+                    <p class="text-slate-300 font-mono text-[11px] truncate">Customer Order (ID: 1QdNBWMVtxYgEaYPNaCCrG5Hbauz38z7K70tL8qKhRj4)</p>
+                    <a href="https://docs.google.com/spreadsheets/d/1QdNBWMVtxYgEaYPNaCCrG5Hbauz38z7K70tL8qKhRj4/edit" target="_blank" class="text-blue-400 hover:underline text-[11px] inline-flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở Google Sheet trực tiếp trên trình duyệt
+                    </a>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="block text-[11px] font-semibold text-amber-300">
+                        Đường dẫn Web App Apps Script (Tùy chọn kết nối 2 chiều tự động):
+                    </label>
+                    <input type="url" id="inputAppsScriptUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                    <p class="text-[10px] text-slate-400">Nếu bạn đã triển khai Apps Script theo file <code>google_apps_script.js</code>, dán URL vào đây để mỗi lần tạo đơn, đơn hàng sẽ được gửi thẳng vào Google Sheet!</p>
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-2 border-t border-slate-800">
+                <button onclick="saveGoogleSyncConfig()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 rounded-xl text-xs transition shadow">
+                    Lưu Cấu Hình
+                </button>
+                <button onclick="closeGoogleSyncModal()" class="px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl text-xs transition">
+                    Đóng
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- FULLSCREEN INVOICE DETAIL VIEW MODAL -->
     <div id="invoiceDetailModal" class="fixed inset-0 bg-black/85 z-50 hidden flex items-center justify-center p-2 sm:p-4 no-print backdrop-blur-md overflow-y-auto">
         <div class="max-w-4xl w-full my-auto bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
@@ -1506,10 +1382,11 @@
         // 1. OFFICIAL CATALOGUE OF 20 PRODUCTS (FROM IMAGE 2438.JPG)
         const DEFAULT_CATALOGUE = [{"tt": 1, "brand": "SATORI", "code": "TP-00001", "name": "Nước tinh khiết Satori 350ml", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 88000, "discountPercent": 25.0, "unitPrice": 66000, "keywords": ["350ml", "350", "satori 350"]}, {"tt": 2, "brand": "SATORI", "code": "TP-00003", "name": "Nước tinh khiết Satori 500ml", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 98000, "discountPercent": 25.0, "unitPrice": 73500, "keywords": ["satori 500ml", "satori 500", "500ml", "500"]}, {"tt": 3, "brand": "SATORI", "code": "TP-00004", "name": "Nước tinh khiết Satori 1500ml", "spec": "12 chai/thùng", "unit": "Thùng", "listPrice": 98000, "discountPercent": 25.0, "unitPrice": 73500, "keywords": ["1500ml", "1.5l", "1,5l", "satori 1.5", "satori 1500"]}, {"tt": 4, "brand": "SATORI", "code": "TP-00051", "name": "Nước tinh khiết Satori Premium 450ml", "spec": "20 chai/thùng", "unit": "Thùng", "listPrice": 137963, "discountPercent": 25.0, "unitPrice": 103472, "keywords": ["premium", "450ml", "satori 450", "satori premium", "400ml"]}, {"tt": 5, "brand": "SATORI", "code": "TP-00005", "name": "Nước tinh khiết Satori bình 20L, có tay cầm, không vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 49142, "discountPercent": 25.0, "unitPrice": 36857, "keywords": ["20l", "bình 20l", "tay cầm", "satori 20l", "không vòi 20l"]}, {"tt": 6, "brand": "SATORI", "code": "TP-00033", "name": "Nước tinh khiết Satori bình 19L có vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 49142, "discountPercent": 25.0, "unitPrice": 36857, "keywords": ["19l có vòi", "19l vòi", "bình 19l có vòi", "satori có vòi", "bình satori có vòi", "satori 19l có vòi"]}, {"tt": 7, "brand": "SATORI", "code": "TP-00096", "name": "Nước tinh khiết Satori bình 19L không vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 49142, "discountPercent": 25.0, "unitPrice": 36857, "keywords": ["19l không vòi", "19l up", "bình úp", "satori úp", "satori không vòi", "bình satori không vòi", "bình 19l không vòi", "bình satori", "19l"]}, {"tt": 8, "brand": "SATORI", "code": "TP-00135", "name": "Nước tinh khiết Satori 5L không vòi", "spec": "04 bình/thùng", "unit": "Thùng", "listPrice": 102500, "discountPercent": 25.0, "unitPrice": 76875, "keywords": ["thùng 5l không vòi", "5l không vòi", "thùng 5l", "satori 5l không vòi", "satori 5l"]}, {"tt": 9, "brand": "SATORI", "code": "TP-00136", "name": "Nước tinh khiết Satori 5L có vòi", "spec": "04 bình/thùng", "unit": "Thùng", "listPrice": 110000, "discountPercent": 25.0, "unitPrice": 82500, "keywords": ["thùng 5l có vòi", "5l có vòi", "satori 5l có vòi"]}, {"tt": 10, "brand": "SATORI", "code": "TP-00143", "name": "Nước tinh khiết Satori 5L không vòi, bình", "spec": "01 bình", "unit": "Bình", "listPrice": 25625, "discountPercent": 25.0, "unitPrice": 19219, "keywords": ["bình 5l không vòi", "bình lẻ 5l không vòi", "bình 5l lẻ", "1 bình 5l không vòi"]}, {"tt": 11, "brand": "SATORI", "code": "TP-00142", "name": "Nước tinh khiết Satori 5L có vòi, bình", "spec": "01 bình", "unit": "Bình", "listPrice": 27500, "discountPercent": 25.0, "unitPrice": 20625, "keywords": ["bình 5l có vòi", "bình lẻ 5l có vòi", "1 bình 5l có vòi"]}, {"tt": 12, "brand": "HIKARI", "code": "TP-00081", "name": "Nước đóng chai Hikari 500ml", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 83000, "discountPercent": 25.0, "unitPrice": 62250, "keywords": ["hikari 500ml", "hikari 500", "chai hikari 500", "nước hikari 500"]}, {"tt": 13, "brand": "HIKARI", "code": "TP-00130", "name": "Nước tinh khiết Hikari bình 19L có vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 38889, "discountPercent": 25.0, "unitPrice": 29167, "keywords": ["hikari 19l", "bình hikari 19l", "hikari bình", "hikari có vòi", "bình hikari"]}, {"tt": 14, "brand": "HIKARI", "code": "TP-00137", "name": "Nước đóng chai Hikari 250ml, thùng", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 62500, "discountPercent": 25.0, "unitPrice": 46875, "keywords": ["hikari 250ml thùng", "thùng hikari 250ml", "thùng hikari 250", "hikari 250ml", "hikari 250"]}, {"tt": 15, "brand": "HIKARI", "code": "TP-00140", "name": "Nước đóng chai Hikari 250ml (24 chai/lốc)", "spec": "24 chai/lốc", "unit": "Lốc", "listPrice": 62500, "discountPercent": 25.0, "unitPrice": 46875, "keywords": ["hikari 250ml 24 chai/lốc", "lốc 24 chai hikari", "hikari 250 lốc 24", "lốc 24 chai"]}, {"tt": 16, "brand": "HIKARI", "code": "TP-00139", "name": "Nước đóng chai Hikari 250ml (12 chai/lốc)", "spec": "12 chai/lốc", "unit": "Lốc", "listPrice": 31250, "discountPercent": 25.0, "unitPrice": 23438, "keywords": ["hikari 250ml 12 chai/lốc", "lốc 12 chai hikari", "hikari 250 lốc 12", "lốc 12 chai", "hikari 12 chai"]}, {"tt": 17, "brand": "HIKARI", "code": "TP-00138", "name": "Nước đóng chai Hikari 250ml (6 chai/lốc)", "spec": "6 chai/lốc", "unit": "Lốc", "listPrice": 15625, "discountPercent": 25.0, "unitPrice": 11719, "keywords": ["hikari 250ml 6 chai/lốc", "lốc 6 chai hikari", "hikari 250 lốc 6", "lốc 6 chai", "hikari 6 chai"]}, {"tt": 18, "brand": "JUICE", "code": "TP-00055", "name": "Nước ép me Satori Juice 24 lon/thùng", "spec": "24 lon/thùng", "unit": "Thùng", "listPrice": 333333, "discountPercent": 25.0, "unitPrice": 250000, "keywords": ["ép me", "me satori", "satori juice me", "nước me", "me lon", "thùng me", "lon me", "me"]}, {"tt": 19, "brand": "JUICE", "code": "TP-00056", "name": "Nước ép mãng cầu Satori Juice 24 lon/thùng", "spec": "24 lon/thùng", "unit": "Thùng", "listPrice": 333333, "discountPercent": 25.0, "unitPrice": 250000, "keywords": ["ép mãng cầu", "mãng cầu", "mãn cầu", "satori juice mãng cầu", "thùng mãng cầu", "thùng mãn cầu", "mang cau"]}, {"tt": 20, "brand": "JUICE", "code": "TP-00058", "name": "Nước ép ổi hồng Satori Juice 24 lon/thùng", "spec": "24 lon/thùng", "unit": "Thùng", "listPrice": 333333, "discountPercent": 25.0, "unitPrice": 250000, "keywords": ["ép ổi", "ổi hồng", "satori juice ổi hồng", "thùng ổi", "thùng ổi hồng", "oi hong", "ổi", "oi"]}];
 
-        // Storage Key for Catalogue & Orders
-        const APP_VERSION = 'v5.0_archive_upgrade';
+        // Storage Key for Catalogue, Orders & Settings
+        const APP_VERSION = 'v6.0_stable_pro';
         const CATALOGUE_STORAGE_KEY = 'satori_catalogue_v15';
         const STORAGE_KEY = 'satori_orders_v15';
+        const SYNC_URL_KEY = 'satori_apps_script_url';
 
         // Auto-migration & reset cache if old version detected
         if (localStorage.getItem('satori_app_version') !== APP_VERSION) {
@@ -1609,18 +1486,9 @@
             if (tabId === 'catalogue') renderCatalogueTable();
         }
 
-        // Customer Quick Select Handler
-        function handleCustomerSelect(val) {
-            if (CUSTOMER_DIR[val]) {
-                if (CUSTOMER_DIR[val].phone) document.getElementById('busPhone').value = CUSTOMER_DIR[val].phone;
-                if (CUSTOMER_DIR[val].location) document.getElementById('busLocation').value = CUSTOMER_DIR[val].location;
-                calculateTotals();
-            }
-        }
-
-        // ==========================================
-        // DYNAMIC MULTI-ITEM MANAGER & TWO-WAY MATH
-        // ==========================================
+        // =========================================================================
+        // DYNAMIC MULTI-ITEM MANAGER & TWO-WAY MATH (SMOOTH INLINE EDITING - NO BLUR)
+        // =========================================================================
         function getProductSelectOptionsHTML(selectedCode) {
             let html = '';
             const brands = ["SATORI", "HIKARI", "JUICE"];
@@ -1649,6 +1517,7 @@
             return html;
         }
 
+        // Render entire form items ONLY when adding/deleting rows or changing product dropdown
         function renderItemsForm() {
             const container = document.getElementById('itemsContainer');
             container.innerHTML = '';
@@ -1678,22 +1547,22 @@
                         <select onchange="updateItemType(${index}, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-cyan-300 font-semibold focus:outline-none focus:border-blue-500">
                             ${getProductSelectOptionsHTML(matchedCode)}
                         </select>
-                        <input type="text" value="${item.product}" oninput="updateItemName(${index}, this.value)" placeholder="Tên sản phẩm..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+                        <input type="text" id="item_name_${index}" value="${item.product}" oninput="onItemNameInput(${index}, this.value)" placeholder="Tên sản phẩm..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
                     </div>
 
                     <!-- Quantity, Unit & Official List Price -->
                     <div class="grid grid-cols-3 gap-2">
                         <div>
                             <label class="block text-[10px] text-slate-400 mb-0.5">Số lượng</label>
-                            <input type="number" value="${item.qty}" min="1" oninput="updateItemQty(${index}, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-blue-500">
+                            <input type="number" id="item_qty_${index}" value="${item.qty}" min="0" oninput="onQtyInput(${index}, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-blue-500">
                         </div>
                         <div>
                             <label class="block text-[10px] text-slate-400 mb-0.5">Đơn vị tính</label>
-                            <input type="text" value="${item.unit || 'Thùng'}" oninput="updateItemUnit(${index}, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
+                            <input type="text" id="item_unit_${index}" value="${item.unit || 'Thùng'}" oninput="onItemUnitInput(${index}, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
                         </div>
                         <div>
                             <label class="block text-[10px] text-cyan-300 font-bold mb-0.5">Giá niêm yết (đ)</label>
-                            <input type="number" value="${item.listPrice}" min="0" oninput="updateItemListPrice(${index}, this.value)" class="w-full bg-slate-950 border border-cyan-500/50 rounded-lg px-2 py-1.5 text-xs text-cyan-300 font-bold focus:outline-none focus:border-blue-500">
+                            <input type="number" id="item_listp_${index}" value="${item.listPrice}" min="0" oninput="onListPriceInput(${index}, this.value)" class="w-full bg-slate-950 border border-cyan-500/50 rounded-lg px-2 py-1.5 text-xs text-cyan-300 font-bold focus:outline-none focus:border-blue-500">
                         </div>
                     </div>
 
@@ -1701,26 +1570,149 @@
                     <div class="grid grid-cols-3 gap-2">
                         <div>
                             <label class="block text-[10px] text-amber-300 font-semibold mb-0.5">Chiết khấu (%)</label>
-                            <input type="number" value="${item.discountPercent}" step="0.01" min="0" max="100" oninput="updateItemDiscPct(${index}, this.value)" class="w-full bg-slate-950 border border-amber-500/50 rounded-lg px-2 py-1.5 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400">
+                            <input type="number" id="item_disc_${index}" value="${item.discountPercent}" step="0.01" min="0" max="100" oninput="onDiscPctInput(${index}, this.value)" class="w-full bg-slate-950 border border-amber-500/50 rounded-lg px-2 py-1.5 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400">
                         </div>
                         <div>
                             <label class="block text-[10px] text-slate-400 mb-0.5">Tiền CK (đ)</label>
-                            <input type="number" value="${item.discountAmount}" min="0" oninput="updateItemDiscAmt(${index}, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
+                            <input type="number" id="item_discamt_${index}" value="${item.discountAmount}" min="0" oninput="onDiscAmtInput(${index}, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
                         </div>
                         <div>
                             <label class="block text-[10px] text-emerald-400 font-semibold mb-0.5">Đơn giá sau CK</label>
-                            <input type="number" value="${item.unitPrice}" min="0" oninput="updateItemUnitPrice(${index}, this.value)" class="w-full bg-slate-950 border border-emerald-500/50 rounded-lg px-2 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-emerald-400">
+                            <input type="number" id="item_unitp_${index}" value="${item.unitPrice}" min="0" oninput="onUnitPriceInput(${index}, this.value)" class="w-full bg-slate-950 border border-emerald-500/50 rounded-lg px-2 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-emerald-400">
                         </div>
                     </div>
 
                     <!-- Item Subtotal display -->
                     <div class="text-right text-[11px] pt-1 border-t border-slate-800 flex justify-between items-center">
                         <span class="text-slate-500 text-[10px]">Thành tiền mặt hàng #${index + 1}:</span>
-                        <span class="font-bold text-cyan-300">${(item.subtotal || 0).toLocaleString('vi-VN')} đ</span>
+                        <span id="item_subtotal_${index}" class="font-bold text-cyan-300">${(item.subtotal || 0).toLocaleString('vi-VN')} đ</span>
                     </div>
                 `;
                 container.appendChild(itemDiv);
             });
+        }
+
+        // INLINE EVENT HANDLERS (NEVER RE-RENDER DOM WHILE TYPING!)
+        function onQtyInput(index, val) {
+            const rawVal = val.trim();
+            const qty = rawVal === '' ? 0 : (parseInt(rawVal) || 0);
+            currentItems[index].qty = qty;
+            const unitP = currentItems[index].unitPrice || 0;
+            currentItems[index].subtotal = qty * unitP;
+            
+            const subtotalEl = document.getElementById(`item_subtotal_${index}`);
+            if (subtotalEl) subtotalEl.innerText = (qty * unitP).toLocaleString('vi-VN') + ' đ';
+            calculateTotals();
+        }
+
+        function onListPriceInput(index, val) {
+            const rawVal = val.trim();
+            const listP = rawVal === '' ? 0 : (parseFloat(rawVal) || 0);
+            currentItems[index].listPrice = listP;
+            
+            const discPct = currentItems[index].discountPercent || 0;
+            const discAmt = Math.round(listP * (discPct / 100));
+            currentItems[index].discountAmount = discAmt;
+            
+            const unitP = Math.max(0, listP - discAmt);
+            currentItems[index].unitPrice = unitP;
+            currentItems[index].subtotal = (currentItems[index].qty || 0) * unitP;
+            
+            const discAmtInput = document.getElementById(`item_discamt_${index}`);
+            if (discAmtInput) discAmtInput.value = discAmt;
+            
+            const unitPInput = document.getElementById(`item_unitp_${index}`);
+            if (unitPInput) unitPInput.value = unitP;
+            
+            const subtotalEl = document.getElementById(`item_subtotal_${index}`);
+            if (subtotalEl) subtotalEl.innerText = (currentItems[index].subtotal).toLocaleString('vi-VN') + ' đ';
+            
+            calculateTotals();
+        }
+
+        function onDiscPctInput(index, val) {
+            const rawVal = val.trim();
+            const discPct = rawVal === '' ? 0 : Math.max(0, Math.min(100, parseFloat(rawVal) || 0));
+            currentItems[index].discountPercent = discPct;
+            
+            const listP = currentItems[index].listPrice || 0;
+            const discAmt = Math.round(listP * (discPct / 100));
+            currentItems[index].discountAmount = discAmt;
+            
+            const unitP = Math.max(0, listP - discAmt);
+            currentItems[index].unitPrice = unitP;
+            currentItems[index].subtotal = (currentItems[index].qty || 0) * unitP;
+            
+            const discAmtInput = document.getElementById(`item_discamt_${index}`);
+            if (discAmtInput) discAmtInput.value = discAmt;
+            
+            const unitPInput = document.getElementById(`item_unitp_${index}`);
+            if (unitPInput) unitPInput.value = unitP;
+            
+            const subtotalEl = document.getElementById(`item_subtotal_${index}`);
+            if (subtotalEl) subtotalEl.innerText = (currentItems[index].subtotal).toLocaleString('vi-VN') + ' đ';
+            
+            calculateTotals();
+        }
+
+        function onDiscAmtInput(index, val) {
+            const rawVal = val.trim();
+            const discAmt = rawVal === '' ? 0 : Math.max(0, parseFloat(rawVal) || 0);
+            currentItems[index].discountAmount = discAmt;
+            
+            const listP = currentItems[index].listPrice || 0;
+            const discPct = listP > 0 ? parseFloat(((discAmt / listP) * 100).toFixed(2)) : 0;
+            currentItems[index].discountPercent = discPct;
+            
+            const unitP = Math.max(0, listP - discAmt);
+            currentItems[index].unitPrice = unitP;
+            currentItems[index].subtotal = (currentItems[index].qty || 0) * unitP;
+            
+            const discPctInput = document.getElementById(`item_disc_${index}`);
+            if (discPctInput) discPctInput.value = discPct;
+            
+            const unitPInput = document.getElementById(`item_unitp_${index}`);
+            if (unitPInput) unitPInput.value = unitP;
+            
+            const subtotalEl = document.getElementById(`item_subtotal_${index}`);
+            if (subtotalEl) subtotalEl.innerText = (currentItems[index].subtotal).toLocaleString('vi-VN') + ' đ';
+            
+            calculateTotals();
+        }
+
+        function onUnitPriceInput(index, val) {
+            const rawVal = val.trim();
+            const unitP = rawVal === '' ? 0 : Math.max(0, parseFloat(rawVal) || 0);
+            currentItems[index].unitPrice = unitP;
+            
+            const listP = currentItems[index].listPrice || 0;
+            const discAmt = Math.max(0, listP - unitP);
+            currentItems[index].discountAmount = discAmt;
+            
+            const discPct = listP > 0 ? parseFloat(((discAmt / listP) * 100).toFixed(2)) : 0;
+            currentItems[index].discountPercent = discPct;
+            currentItems[index].subtotal = (currentItems[index].qty || 0) * unitP;
+            
+            const discPctInput = document.getElementById(`item_disc_${index}`);
+            if (discPctInput) discPctInput.value = discPct;
+            
+            const discAmtInput = document.getElementById(`item_discamt_${index}`);
+            if (discAmtInput) discAmtInput.value = discAmt;
+            
+            const subtotalEl = document.getElementById(`item_subtotal_${index}`);
+            if (subtotalEl) subtotalEl.innerText = (currentItems[index].subtotal).toLocaleString('vi-VN') + ' đ';
+            
+            calculateTotals();
+        }
+
+        function onItemNameInput(index, val) {
+            currentItems[index].product = val;
+            calculateTotals();
+        }
+
+        function onItemUnitInput(index, val) {
+            currentItems[index].unit = val;
+            calculateTotals();
         }
 
         function addNewProductItem(prefillCode) {
@@ -1776,68 +1768,6 @@
             calculateTotals();
         }
 
-        function updateItemName(index, val) {
-            currentItems[index].product = val;
-            calculateTotals();
-        }
-
-        function updateItemUnit(index, val) {
-            currentItems[index].unit = val;
-            calculateTotals();
-        }
-
-        function updateItemQty(index, val) {
-            currentItems[index].qty = Math.max(1, parseInt(val) || 1);
-            currentItems[index].subtotal = currentItems[index].qty * currentItems[index].unitPrice;
-            renderItemsForm();
-            calculateTotals();
-        }
-
-        function updateItemListPrice(index, val) {
-            const listP = Math.max(0, parseFloat(val) || 0);
-            currentItems[index].listPrice = listP;
-            const discAmt = Math.round(listP * (currentItems[index].discountPercent / 100));
-            currentItems[index].discountAmount = discAmt;
-            currentItems[index].unitPrice = Math.max(0, listP - discAmt);
-            currentItems[index].subtotal = currentItems[index].qty * currentItems[index].unitPrice;
-            renderItemsForm();
-            calculateTotals();
-        }
-
-        function updateItemDiscPct(index, val) {
-            const discPct = Math.max(0, Math.min(100, parseFloat(val) || 0));
-            currentItems[index].discountPercent = discPct;
-            const discAmt = Math.round(currentItems[index].listPrice * (discPct / 100));
-            currentItems[index].discountAmount = discAmt;
-            currentItems[index].unitPrice = Math.max(0, currentItems[index].listPrice - discAmt);
-            currentItems[index].subtotal = currentItems[index].qty * currentItems[index].unitPrice;
-            renderItemsForm();
-            calculateTotals();
-        }
-
-        function updateItemDiscAmt(index, val) {
-            const discAmt = Math.max(0, parseFloat(val) || 0);
-            currentItems[index].discountAmount = discAmt;
-            const listP = currentItems[index].listPrice;
-            currentItems[index].discountPercent = listP > 0 ? parseFloat(((discAmt / listP) * 100).toFixed(2)) : 0;
-            currentItems[index].unitPrice = Math.max(0, listP - discAmt);
-            currentItems[index].subtotal = currentItems[index].qty * currentItems[index].unitPrice;
-            renderItemsForm();
-            calculateTotals();
-        }
-
-        function updateItemUnitPrice(index, val) {
-            const unitP = Math.max(0, parseFloat(val) || 0);
-            currentItems[index].unitPrice = unitP;
-            const listP = currentItems[index].listPrice;
-            const discAmt = Math.max(0, listP - unitP);
-            currentItems[index].discountAmount = discAmt;
-            currentItems[index].discountPercent = listP > 0 ? parseFloat(((discAmt / listP) * 100).toFixed(2)) : 0;
-            currentItems[index].subtotal = currentItems[index].qty * unitP;
-            renderItemsForm();
-            calculateTotals();
-        }
-
         // Sample Zalo Messages for Testing Multi-Items
         function loadSampleZalo(idx) {
             if (idx === 1) {
@@ -1847,14 +1777,14 @@
             } else if (idx === 3) {
                 document.getElementById('zaloRawText').value = "Giao qua 750 Lã Xuân Oai Thủ Đức c Nguyệt 0358707777: 10 thùng 350ml, 4 thùng ổi hồng và 2 thùng me xuất vat 8% nha";
             } else if (idx === 4) {
-                document.getElementById('zaloRawText').value = "Công Ty CP ACE Clubhouse 90 Song Hành Quận 2: 10 bình satori 20l không vòi và 5 lốc hikari 250ml 24 chai gọi 0775550723";
+                document.getElementById('zaloRawText').value = "Anh Hoàng 0908123456 giao về 120 Hai Bà Trưng, P. Đa Kao, Quận 1: 5 thùng Satori 500ml";
             }
             parseZaloMessageAI();
         }
 
-        // ==============================================================
-        // ADVANCED AI ZALO MESSAGE PARSER V4 (20-PRODUCT CATALOGUE MATCH)
-        // ==============================================================
+        // =====================================================================================
+        // AI ZALO PARSER V6.0: TRÍCH XUẤT CHUẨN XÁC TỪ TIN NHẮN (TUYỆT ĐỐI KHÔNG CHÈN ĐỊA CHỈ CŨ)
+        // =====================================================================================
         function parseZaloMessageAI() {
             const raw = document.getElementById('zaloRawText').value.trim();
             if (!raw) {
@@ -1874,12 +1804,10 @@
             function matchProductFromText(textSegment) {
                 const s = textSegment.toLowerCase();
 
-                // Specific code direct match
                 for (const p of catalogue) {
                     if (s.includes(p.code.toLowerCase())) return p;
                 }
 
-                // Brand checks
                 const isHikari = s.includes('hikari');
                 const isJuice = s.includes('juice') || s.includes('nước ép') || s.includes('ép');
 
@@ -1986,79 +1914,98 @@
 
             renderItemsForm();
 
-            // 2. MATCH CUSTOMER
-            let matchedCustomer = "";
-            const customerKeywords = [
-                ["HỘ KINH DOANH DỊCH VỤ TÀI LỘC", ["tài lộc", "tai loc"]],
+            // 2. EXTRACT PHONE NUMBER & CONTACT PERSON (STRICTLY FROM MESSAGE)
+            let phoneVal = "";
+            let contactPerson = "";
+            const phoneMatch = raw.match(/(0\d{9,10}|\+84\d{9,10})/);
+            if (phoneMatch) {
+                phoneVal = phoneMatch[0];
+                const stopWords = ['sdt', 'sđt', 'gọi', 'gặp', 'alo', 'thùng', 'nha', 'nhé', 'cho', 'qua', 'đã', 'ck', 'e', 'em'];
+                const parenMatch = raw.match(new RegExp(phoneVal + '\\s*\\(([^)]+)\\)', 'i'));
+                if (parenMatch && parenMatch[1]) {
+                    contactPerson = parenMatch[1].trim();
+                } else {
+                    const beforeMatch = raw.match(new RegExp('(?:sdt|sđt|gọi|gặp|anh|chị|a|c)?\\s*([A-ZÀ-Ỹa-zà-ỹ]+)\\s*[-:]?\\s*' + phoneVal, 'i'));
+                    if (beforeMatch && beforeMatch[1] && !stopWords.includes(beforeMatch[1].toLowerCase())) {
+                        contactPerson = beforeMatch[1].trim();
+                    }
+                }
+            }
+            const fullPhone = contactPerson ? `${phoneVal} (${contactPerson})` : phoneVal;
+
+            // 3. EXTRACT CUSTOMER NAME (STRICTLY FROM MESSAGE - NO OLD ADDRESS APPENDED)
+            let customerName = "";
+            const knownCustomers = [
                 ["Công Ty CP ACE Clubhouse", ["ace clubhouse", "ace"]],
-                ["CÔNG TY TNHH TM DV THỂ THAO BANGER PICKLEBALL", ["banger pickleball", "pickleball", "banger"]],
-                ["Nguyễn Bảo Châu Diamon", ["bảo châu", "bao chau", "nguyễn bảo châu"]],
+                ["CÔNG TY TNHH TM DV THỂ THAO BANGER PICKLEBALL", ["banger pickleball", "banger"]],
+                ["HỘ KINH DOANH DỊCH VỤ TÀI LỘC", ["tài lộc", "tai loc"]],
+                ["Nguyễn Bảo Châu Diamon", ["bảo châu", "nguyễn bảo châu"]],
                 ["CÔNG TY CP THƯƠNG MẠI DV VINAHASA (Ốc Q)", ["vinahasa", "ốc q", "oc q"]],
-                ["PWC", ["pwc"]],
+                ["Nhà Hàng Thạnh Phú", ["quán thạnh phú", "nhà hàng thạnh phú", "thạnh phú", "thanh phu"]],
+                ["Hà Minh Nguyệt", ["hà minh nguyệt", "c nguyệt", "chị nguyệt", "nguyệt"]],
+                ["Edric Salon", ["edric salon", "edric"]],
                 ["Mr Ốc Ngon", ["mr ốc ngon", "ốc ngon", "oc ngon"]],
                 ["Ốc Lá", ["ốc lá", "oc la"]],
                 ["18+", ["18+"]],
                 ["Cô Hoa", ["cô hoa", "co hoa"]],
-                ["Barber Shop Vũ Trí", ["vũ trí", "vu tri"]],
-                ["Nha Khoa Peace", ["peace", "nha khoa peace"]],
-                ["Nhà Hàng Thạnh Phú", ["nhà hàng thạnh phú", "thạnh phú", "thanh phu"]],
-                ["Hà Minh Nguyệt", ["hà minh nguyệt", "ha minh nguyet", "nguyệt"]],
-                ["Edric Salon", ["edric salon", "edric"]],
-                ["Traky Cần Thơ", ["cần thơ", "can tho"]],
-                ["Traky Rạch Giá", ["rạch giá", "rach gia"]],
-                ["Traky Long Xuyên", ["long xuyên", "long xuyen"]],
-                ["Traky Mỹ Tho", ["mỹ tho", "my tho"]],
-                ["Traky Sóc Trăng", ["sóc trăng", "soc trang"]],
-                ["Traky Bến Tre", ["bến tre", "ben tre"]],
-                ["Traky Bạc Liêu", ["bạc liêu", "bac lieu"]],
-                ["Traky Cà Mau", ["cà mau", "ca mau"]],
-                ["Traky Bình Dương", ["bình dương", "binh duong"]],
-                ["Traky Biên Hòa", ["biên hòa", "bien hoa"]],
-                ["Traky Đà Nẵng 2", ["đà nẵng", "da nang"]],
+                ["PWC", ["pwc"]],
+                ["Traky Cần Thơ", ["traky cần thơ", "traky can tho"]],
+                ["Traky Rạch Giá", ["traky rạch giá"]],
                 ["Traky Sài Gòn", ["traky sài gòn", "traky sai gon", "traky hair", "traky"]]
             ];
 
-            for (const [fullName, aliases] of customerKeywords) {
+            for (const [canonical, aliases] of knownCustomers) {
                 if (aliases.some(a => tLower.includes(a))) {
-                    matchedCustomer = fullName;
+                    customerName = canonical;
                     break;
                 }
             }
 
-            // 3. MATCH PHONE NUMBER
-            let phoneVal = "";
-            const phoneMatch = raw.match(/(0\d{9,10}|\+84\d{9,10})/);
-            if (phoneMatch) {
-                phoneVal = phoneMatch[0];
-                const stopWords = ['sdt', 'sđt', 'gọi', 'gặp', 'alo', 'thùng', 'nha', 'nhé', 'cho', 'qua'];
-                const aroundRegex = new RegExp(phoneVal + '\\s*\\(?\\s*([A-ZÀ-Ỹa-zà-ỹ]+)\\s*\\)?', 'i');
-                const aroundMatch = raw.match(aroundRegex);
-                if (aroundMatch && aroundMatch[1] && !stopWords.includes(aroundMatch[1].toLowerCase())) {
-                    phoneVal += ` (${aroundMatch[1]})`;
+            if (!customerName) {
+                const personMatch = raw.match(/^(?:anh|chị|a|c|em)\s+([A-ZÀ-Ỹa-zà-ỹ\s]+?)(?:,|\s+\d|:)/i);
+                if (personMatch) {
+                    customerName = personMatch[0].replace(/[,:]/g, '').trim();
                 } else {
-                    const beforeRegex = new RegExp('(?:gọi|gặp|anh|chị|a|c)?\\s*([A-ZÀ-Ỹa-zà-ỹ]+)\\s*[-:]?\\s*' + phoneVal, 'i');
-                    const beforeMatch = raw.match(beforeRegex);
-                    if (beforeMatch && beforeMatch[1] && !stopWords.includes(beforeMatch[1].toLowerCase())) {
-                        phoneVal += ` (${beforeMatch[1]})`;
+                    const firstPart = raw.split(new RegExp('[,;\\r\\n:]+'))[0].trim();
+                    if (firstPart.length < 30 && !/\d+/.test(firstPart)) {
+                        customerName = firstPart;
+                    } else if (contactPerson) {
+                        customerName = contactPerson;
+                    } else {
+                        customerName = "Khách Zalo";
                     }
                 }
             }
 
-            // 4. MATCH ADDRESS
+            // 4. EXTRACT DELIVERY ADDRESS (STRICTLY FROM MESSAGE - NO OLD DIRECTORY OVERRIDE!)
             let locationVal = "";
-            if (matchedCustomer && CUSTOMER_DIR[matchedCustomer] && CUSTOMER_DIR[matchedCustomer].location) {
-                locationVal = CUSTOMER_DIR[matchedCustomer].location;
-            }
-            const addrRegex = /(?:qua|tại|địa chỉ|đc:?)\\s*([0-9A-ZÀ-Ỹa-zà-ỹ\\s,.-]+?)(?:(?:\\b(?:sđt|sdt|gọi|lấy|thùng|đã ck|nha|nhé)\\b)|$)/i;
-            const addrMatch = raw.match(addrRegex);
-            if (addrMatch && addrMatch[1].trim().length > 8) {
-                locationVal = addrMatch[1].trim().replace(/^[,.-]+|[,.-]+$/g, '');
-            } else if (!locationVal) {
-                const parts = raw.split(new RegExp('[,;\\r\\n]+')).map(p => p.trim());
-                for (const p of parts) {
-                    if (/\d+/.test(p) && /đường|phố|nguyễn|lê|trần|quận|q\.|p\.|hcm|hà nội|thủ đức|bình phú|bạch đằng|chùa láng|lã xuân oai|song hành/i.test(p)) {
-                        locationVal = p;
+            const streetPatterns = [
+                /(?:(?:giao\s+(?:giúp\s+e\s+|giúp\s+|hộ\s+e\s+|hộ\s+)?(?:qua|tại|về|đến)|qua|tại|về|đến|đc:?|địa chỉ:?)\s*)([0-9a-zà-ỹ\s.,/-]+?)(?=(?:\s+(?:quán|sđt|sdt|c\s|chị\s|anh\s|gọi|lấy|\d+\s*thùng|\d+\s*bình|\d+\s*lốc|đã ck|nha|nhé|xuất))|[:;]|$)/i,
+                /(?:\d+[\/\d\w-]*\s+[a-zà-ỹ0-9\s.,-]+?(?:quận|huyện|thành phố|tp|thủ đức|hcm|hà nội|đà nẵng|cát lái|bình thạnh|gò vấp|phú nhuận|tân bình|tân phú|bình tân|bình chánh|nhà bè|hóc môn|q\.\s*\d+|q\d+))/i
+            ];
+
+            for (const pat of streetPatterns) {
+                const m = raw.match(pat);
+                if (m) {
+                    let candidate = (m[1] || m[0]).trim();
+                    candidate = candidate.replace(/^(?:giao\s+(?:giúp\s+e\s+|giúp\s+|hộ\s+e\s+|hộ\s+)?(?:qua|tại|về|đến)|qua|tại|về|đến|đc:?|địa chỉ:?)\s*/i, '');
+                    candidate = candidate.replace(/\s+(?:quán|sđt|sdt|c\s|chị\s|anh\s|gọi|lấy|alo).*$/i, '');
+                    candidate = candidate.replace(/^[,;.\s-]+|[,;.\s-]+$/g, '');
+                    if (candidate.length > 5 && !candidate.toLowerCase().includes('thùng') && !candidate.toLowerCase().includes('bình')) {
+                        locationVal = candidate;
                         break;
+                    }
+                }
+            }
+
+            if (!locationVal) {
+                const clausesArr = raw.split(new RegExp('[,;\\r\\n]+')).map(p => p.trim());
+                for (const c of clausesArr) {
+                    if (/\d+/.test(c) && !/^\d+\s*(?:thùng|bình|lốc|chai|lon)/i.test(c) && !c.includes(phoneVal)) {
+                        if (/đường|phố|nguyễn|lê|trần|quận|q\.|p\.|hcm|thủ đức|bình phú|bạch đằng|lã xuân oai|song hành|hai bà trưng|tôn đản/i.test(c)) {
+                            locationVal = c.replace(/[,;.\s-]+$/g, '').trim();
+                            break;
+                        }
                     }
                 }
             }
@@ -2068,18 +2015,9 @@
             const hasVat = /vat|hóa đơn đỏ|8%/i.test(raw);
 
             // Populate Form Fields
-            if (matchedCustomer) document.getElementById('busName').value = matchedCustomer;
-            else if (!document.getElementById('busName').value) {
-                const firstPart = raw.split(new RegExp('[,;\\r\\n]+'))[0].trim();
-                if (firstPart.length < 35) document.getElementById('busName').value = firstPart;
-            }
-
-            if (phoneVal) document.getElementById('busPhone').value = phoneVal;
-            else if (matchedCustomer && CUSTOMER_DIR[matchedCustomer] && CUSTOMER_DIR[matchedCustomer].phone) {
-                document.getElementById('busPhone').value = CUSTOMER_DIR[matchedCustomer].phone;
-            }
-
-            if (locationVal) document.getElementById('busLocation').value = locationVal;
+            document.getElementById('busName').value = customerName;
+            document.getElementById('busPhone').value = fullPhone;
+            document.getElementById('busLocation').value = locationVal;
             document.getElementById('vatOption').value = hasVat ? 'yes' : 'no';
             document.getElementById('paymentStatus').value = isPaid ? 'Đã thanh toán' : 'Chưa thanh toán';
 
@@ -2094,15 +2032,15 @@
             ).join(' ');
 
             badgeContainer.innerHTML = `
-                <span class="bg-blue-900/60 text-blue-300 border border-blue-700/60 px-2 py-0.5 rounded-lg font-medium">👤 ${document.getElementById('busName').value || 'Khách mới'}</span>
-                <span class="bg-emerald-900/60 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded-lg font-medium">📞 ${document.getElementById('busPhone').value || 'Chưa có SĐT'}</span>
-                <span class="bg-indigo-900/60 text-indigo-300 border border-indigo-700/60 px-2 py-0.5 rounded-lg font-medium">📍 ${document.getElementById('busLocation').value || 'Chưa có địa chỉ'}</span>
+                <span class="bg-blue-900/60 text-blue-300 border border-blue-700/60 px-2 py-0.5 rounded-lg font-medium">👤 ${customerName}</span>
+                <span class="bg-emerald-900/60 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded-lg font-medium">📞 ${fullPhone || 'Không có SĐT'}</span>
+                <span class="bg-indigo-900/60 text-indigo-300 border border-indigo-700/60 px-2 py-0.5 rounded-lg font-medium">📍 ${locationVal || 'Chưa nhận diện địa chỉ'}</span>
                 ${itemsBadges}
                 <span class="bg-${isPaid ? 'emerald' : 'rose'}-900/60 text-${isPaid ? 'emerald' : 'rose'}-300 border border-${isPaid ? 'emerald' : 'rose'}-700/60 px-2 py-0.5 rounded-lg font-medium">💳 ${isPaid ? 'Đã thanh toán' : 'Chưa thanh toán (Công nợ)'}</span>
             `;
             previewBox.classList.remove('hidden');
 
-            showModal("AI Bóc Tách Thành Công!", `Đã bóc tách ${currentItems.length} mặt hàng cho khách: ${document.getElementById('busName').value}. Giá niêm yết đã tự động được điền từ hệ thống!`, "success");
+            showModal("AI Bóc Tách Thành Công!", `Đã bóc tách chính xác từ tin nhắn: Khách: ${customerName}, Địa chỉ: ${locationVal || 'Theo tin nhắn'}. Giá niêm yết đã áp dụng!`, "success");
         }
 
         // Calculate Totals and Live Update Preview & VietQR across ALL Items
@@ -2172,8 +2110,10 @@
             return { goodsTotal, vatAmount, grandTotal };
         }
 
-        // Save Order & Generate Invoice (AUTOMATICALLY ARCHIVES TO INVOICE STORE)
-        function handleSaveAndGenerate() {
+        // =====================================================================================
+        // SAVE ORDER & GENERATE INVOICE (PERSISTENT STORAGE & AUTO GOOGLE SHEETS LIVE SYNC)
+        // =====================================================================================
+        async function handleSaveAndGenerate() {
             const totals = calculateTotals();
             const invNum = parseInt(document.getElementById('invoiceNo').value) || nextInvoiceNumber;
             
@@ -2210,29 +2150,54 @@
                 timestamp: Date.now()
             };
 
+            // 1. SAVE TO LOCAL ORDERS (ALWAYS KEEP AT TOP)
             orders.unshift(newOrder);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
 
-            // Increment Invoice number automatically
+            // 2. SHOW PERMANENT CONFIRMATION BANNER (INVOICE DOES NOT DISAPPEAR!)
+            const banner = document.getElementById('submitSuccessBanner');
+            const bannerText = document.getElementById('submitSuccessText');
+            if (banner && bannerText) {
+                bannerText.innerText = `ĐÃ LƯU TRỮ THÀNH CÔNG HÓA ĐƠN #${newOrder.invoiceNo} VÀO HỆ THỐNG! (${newOrder.name} - ${totals.grandTotal.toLocaleString('vi-VN')} đ)`;
+                banner.classList.remove('hidden');
+            }
+
+            // 3. AUTO SYNC TO GOOGLE SHEETS VIA WEBHOOK (IF CONFIGURED)
+            const appsScriptUrl = localStorage.getItem(SYNC_URL_KEY);
+            let syncNotice = "";
+            if (appsScriptUrl) {
+                try {
+                    fetch(appsScriptUrl, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newOrder)
+                    });
+                    syncNotice = " và đã tự động gửi dòng mới vào Google Sheets";
+                } catch (e) {
+                    console.warn("Lỗi auto post google sheet:", e);
+                }
+            }
+
+            // 4. INCREMENT INVOICE NUMBER FOR NEXT ORDER
             nextInvoiceNumber = invNum + 1;
             document.getElementById('invoiceNo').value = nextInvoiceNumber;
             document.getElementById('invoiceBadge').innerText = `#${nextInvoiceNumber}`;
 
-            // Update badge counts
+            // 5. UPDATE COUNTERS & RENDER ALL VIEWS
             updateCounters();
-
-            // Render tables
             renderTable();
             renderArchiveInvoices();
 
-            // Prompt user with choices
+            // 6. PROMPT USER WITH OPTIONS
             showModalWithActions(
                 "ĐÃ LƯU TRỮ HÓA ĐƠN THÀNH CÔNG!",
-                `Hóa đơn #${newOrder.invoiceNo} đã được lưu trữ vĩnh viễn trên hệ thống! Bạn có thể lọc tìm theo Tên khách, Ngày order và Địa chỉ tại Kho Hóa Đơn.`,
+                `Hóa đơn #${newOrder.invoiceNo} đã được lưu trữ an toàn trên hệ thống${syncNotice}! Hóa đơn vẫn được giữ trên màn hình xem trước để bạn in hoặc tải PDF.`,
                 "success",
                 [
                     { text: "Xem Trong Kho Hóa Đơn", action: () => { closeModal(); switchTab('archive'); } },
-                    { text: "Tiếp Tục Lên Đơn", action: () => { closeModal(); } }
+                    { text: "In / Tải PDF Ngay", action: () => { closeModal(); window.print(); } },
+                    { text: "Tiếp Tục Lên Đơn Mới", action: () => { closeModal(); } }
                 ]
             );
         }
@@ -2294,13 +2259,9 @@
             const fLoc = (document.getElementById('archiveFilterLocation')?.value || '').trim().toLowerCase();
 
             return orders.filter(o => {
-                // Criteria 1: Tên khách hàng
                 const matchName = !fName || (o.name && o.name.toLowerCase().includes(fName));
-                // Criteria 2: Ngày order
                 const matchDate = !fDate || matchOrderDate(o.date, fDate);
-                // Criteria 3: Địa chỉ giao hàng
                 const matchLoc = !fLoc || (o.location && o.location.toLowerCase().includes(fLoc));
-
                 return matchName && matchDate && matchLoc;
             });
         }
@@ -2349,7 +2310,6 @@
                 else clearDateBtn.classList.add('hidden');
             }
 
-            // Update stats
             let totalAmount = 0;
             filtered.forEach(o => totalAmount += (o.total || 0));
 
@@ -2373,7 +2333,6 @@
                     const card = document.createElement('div');
                     card.className = "bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 shadow-lg space-y-3 transition flex flex-col justify-between";
 
-                    // Payment status badge
                     let statusBadge = `<span class="bg-rose-950/70 text-rose-300 border border-rose-800/80 text-[10px] px-2 py-0.5 rounded-full font-bold">Chưa thanh toán</span>`;
                     if (o.status === 'Đã thanh toán') {
                         statusBadge = `<span class="bg-emerald-950/70 text-emerald-300 border border-emerald-800/80 text-[10px] px-2 py-0.5 rounded-full font-bold">Đã thanh toán</span>`;
@@ -2381,7 +2340,6 @@
                         statusBadge = `<span class="bg-slate-800 text-slate-400 border border-slate-700 text-[10px] px-2 py-0.5 rounded-full font-bold">Đã hủy</span>`;
                     }
 
-                    // Items snippet
                     let itemsHtml = '';
                     if (o.items && Array.isArray(o.items) && o.items.length > 0) {
                         itemsHtml = o.items.map(it => `
@@ -2401,7 +2359,6 @@
 
                     card.innerHTML = `
                         <div class="space-y-2">
-                            <!-- Card Header: Invoice #, Date, Status -->
                             <div class="flex justify-between items-start border-b border-slate-800 pb-2">
                                 <div>
                                     <span class="font-bold text-amber-400 text-sm tracking-wide">HÓA ĐƠN #${o.invoiceNo}</span>
@@ -2410,7 +2367,6 @@
                                 <div>${statusBadge}</div>
                             </div>
 
-                            <!-- Customer & Address -->
                             <div class="space-y-1 text-xs">
                                 <div class="font-semibold text-white flex items-center gap-1.5 truncate" title="${o.name}">
                                     <i class="fa-solid fa-user text-blue-400 text-[11px]"></i>
@@ -2428,14 +2384,12 @@
                                 </div>
                             </div>
 
-                            <!-- Product Items List -->
                             <div class="bg-slate-950/70 rounded-xl p-2.5 border border-slate-800/80 space-y-1">
                                 <span class="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">Mặt hàng xuất:</span>
                                 ${itemsHtml}
                             </div>
                         </div>
 
-                        <!-- Card Footer: Total & Actions -->
                         <div class="pt-2 border-t border-slate-800 space-y-2">
                             <div class="flex justify-between items-center">
                                 <span class="text-xs text-slate-400">Tổng thanh toán:</span>
@@ -2520,7 +2474,6 @@
 
             document.getElementById('modalInvTitle').innerText = `Hóa Đơn #${o.invoiceNo} - ${o.name}`;
 
-            // Prepare items table
             let itemsToDisplay = [];
             if (o.items && Array.isArray(o.items) && o.items.length > 0) {
                 itemsToDisplay = o.items;
@@ -2562,13 +2515,11 @@
             const contentDiv = document.getElementById('modalInvoiceContent');
             contentDiv.innerHTML = `
                 <div class="space-y-4 font-sans text-xs">
-                    <!-- Header -->
                     <div class="text-center space-y-1 pb-1">
                         <h2 class="text-base sm:text-lg font-bold tracking-wide uppercase text-white">PHIẾU THÔNG TIN XUẤT HÓA ĐƠN</h2>
                         <p class="text-xs sm:text-sm font-semibold text-slate-300">Hộ Kinh Doanh Minh Satori</p>
                     </div>
 
-                    <!-- Seller & Buyer -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 border border-slate-700 divide-y sm:divide-y-0 sm:divide-x divide-slate-700 text-[11px]">
                         <div class="p-3 space-y-1 bg-slate-950/80">
                             <p class="font-bold text-slate-200 border-b border-slate-800 pb-1 flex items-center justify-between">
@@ -2606,7 +2557,6 @@
                         </div>
                     </div>
 
-                    <!-- Invoice Meta -->
                     <div class="border border-slate-700 divide-y divide-slate-700 text-xs">
                         <div class="bg-slate-900 font-bold px-3 py-1 text-center text-slate-300 text-[11px]">THÔNG TIN HÓA ĐƠN</div>
                         <div class="grid grid-cols-6 divide-x divide-slate-700 text-center">
@@ -2635,7 +2585,6 @@
                         </div>
                     </div>
 
-                    <!-- Items Table -->
                     <div class="border border-slate-700 overflow-x-auto">
                         <div class="bg-slate-900 font-bold px-3 py-1 text-center text-slate-300 border-b border-slate-700 text-[11px]">CHI TIẾT HÀNG HÓA, DỊCH VỤ</div>
                         <table class="w-full text-left border-collapse text-[11px]">
@@ -2672,7 +2621,6 @@
                         </div>
                     </div>
 
-                    <!-- Signatures -->
                     <div class="grid grid-cols-2 text-center text-[11px] pt-2">
                         <div>
                             <p class="font-bold text-slate-300">NGƯỜI MUA HÀNG</p>
@@ -2714,6 +2662,26 @@
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+        }
+
+        // ==============================================================
+        // GOOGLE SHEETS LIVE SYNC CONFIGURATION
+        // ==============================================================
+        function openGoogleSyncModal() {
+            const saved = localStorage.getItem(SYNC_URL_KEY) || '';
+            document.getElementById('inputAppsScriptUrl').value = saved;
+            document.getElementById('googleSyncModal').classList.remove('hidden');
+        }
+
+        function closeGoogleSyncModal() {
+            document.getElementById('googleSyncModal').classList.add('hidden');
+        }
+
+        function saveGoogleSyncConfig() {
+            const url = document.getElementById('inputAppsScriptUrl').value.trim();
+            localStorage.setItem(SYNC_URL_KEY, url);
+            closeGoogleSyncModal();
+            showModal("Đã Lưu Cấu Hình!", "Đường dẫn Google Sheets Web App đã được lưu thành công. Các đơn mới tạo sẽ tự động được gửi vào Google Sheets của bạn!", "success");
         }
 
         // Render Accounting Ledger Table & Financial Analytics
@@ -2978,7 +2946,9 @@
             document.body.removeChild(a);
         }
 
-        // LIVE SYNC FROM GOOGLE DRIVE VIA GVIZ / CSV
+        // =====================================================================================
+        // SMART MERGE GOOGLE DRIVE SYNC (NEVER OVERWRITES LOCALLY CREATED ORDERS!)
+        // =====================================================================================
         async function syncLiveFromGoogleDrive() {
             const icon = document.getElementById('syncIcon');
             icon.classList.add('fa-spin');
@@ -3049,7 +3019,11 @@
                 }
 
                 if (fetchedOrders.length > 0) {
-                    orders = fetchedOrders;
+                    // SMART MERGE: KEEP ALL NEW ORDERS CREATED ON THIS DEVICE!
+                    const remoteInvNos = new Set(fetchedOrders.map(o => o.invoiceNo));
+                    const localOnlyOrders = orders.filter(o => !remoteInvNos.has(o.invoiceNo));
+                    orders = [...localOnlyOrders, ...fetchedOrders];
+                    
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
                     nextInvoiceNumber = Math.max(...orders.map(o => o.invoiceNo || 0)) + 1;
                     document.getElementById('invoiceNo').value = nextInvoiceNumber;
@@ -3058,7 +3032,7 @@
                     renderTable();
                     renderArchiveInvoices();
                     calculateTotals();
-                    showModal("Đồng Bộ Thành Công!", `Đã đồng bộ trực tiếp ${orders.length} đơn hàng mới nhất từ Google Drive của bạn!`, "success");
+                    showModal("Đồng Bộ Thành Công!", `Đã hợp nhất an toàn ${orders.length} đơn hàng (bao gồm đơn mới tạo và dữ liệu từ Drive)!`, "success");
                 }
             } catch (err) {
                 console.warn("Lỗi đồng bộ trực tiếp, dùng dữ liệu đã nạp:", err);
@@ -3144,7 +3118,6 @@
 
         // On Load
         window.onload = function() {
-            handleCustomerSelect("Traky Sài Gòn");
             renderItemsForm();
             calculateTotals();
             updateCounters();
