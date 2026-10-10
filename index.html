@@ -113,7 +113,7 @@
                         <h1 class="font-bold text-base sm:text-lg tracking-tight text-white">HKD MINH SATORI</h1>
                         <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            Bản V6.0 Chuẩn (Đồng Bộ 100% Google Drive & Sổ Sách)
+                            Bản V10.0 Pro (Trí Nhớ AI, Bảng Giá & Sổ Kế Toán)
                         </span>
                     </div>
                     <p class="text-xs text-slate-400">Hệ Thống Tự Động Lên Hóa Đơn & Sổ Kế Toán Đồng Bộ 100%</p>
@@ -131,7 +131,7 @@
                     <span>Tải Từ Drive</span>
                 </button>
 
-                <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs sm:text-sm">
+                <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs sm:text-sm overflow-x-auto max-w-full">
                     <button onclick="switchTab('input')" id="btn-tab-input" class="px-3.5 py-1.5 font-medium rounded-lg transition text-white bg-blue-600 shadow flex items-center gap-1.5">
                         <i class="fa-solid fa-file-invoice"></i> Lên Đơn Mới
                     </button>
@@ -144,7 +144,7 @@
                     <button onclick="switchTab('aimemory')" id="btn-tab-aimemory" class="px-3.5 py-1.5 font-medium rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5">
                         <i class="fa-solid fa-brain text-purple-400"></i> Trí Nhớ AI (<span id="tabMemoryCount">22</span>)
                     </button>
-                    <button onclick="switchTab('catalogue') id="btn-tab-catalogue" class="px-3.5 py-1.5 font-medium rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5">
+                    <button onclick="switchTab('catalogue')" id="btn-tab-catalogue" class="px-3.5 py-1.5 font-medium rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5">
                         <i class="fa-solid fa-tags"></i> Bảng Giá (20 SP)
                     </button>
                 </div>
@@ -246,7 +246,7 @@
                                 <label class="block text-[11px] text-slate-400 font-medium">Khách hàng (Tên đơn vị/cá nhân)</label>
                                 <span class="text-[10px] text-cyan-400">Gợi ý từ danh bạ</span>
                             </div>
-                            <input list="customerList" id="busName" list="customerDatalist" oninput="onCustomerNameTyped(this.value)" oninput="calculateTotals()" placeholder="Ví dụ: Traky Sài Gòn..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-blue-500">
+                            <input list="customerDatalist" id="busName" oninput="onCustomerNameTyped(this.value); calculateTotals();" placeholder="Ví dụ: Traky Sài Gòn..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-blue-500">
                             <datalist id="customerList">
                                 <option value="Traky Sài Gòn">
                                 <option value="Traky Cần Thơ">
@@ -1740,23 +1740,32 @@
             tabs.forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 const btn = document.getElementById(`btn-tab-${t}`);
-                if (t === tabId) {
-                    el.classList.remove('hidden');
-                    btn.className = "px-3.5 py-1.5 font-medium rounded-lg transition text-white bg-blue-600 shadow flex items-center gap-1.5";
-                } else {
-                    el.classList.add('hidden');
-                    btn.className = "px-3.5 py-1.5 font-medium rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5";
+                if (el) {
+                    if (t === tabId) el.classList.remove('hidden');
+                    else el.classList.add('hidden');
+                }
+                if (btn) {
+                    if (t === tabId) {
+                        btn.className = "px-3.5 py-1.5 font-medium rounded-lg transition text-white bg-blue-600 shadow flex items-center gap-1.5";
+                    } else {
+                        btn.className = "px-3.5 py-1.5 font-medium rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5";
+                    }
                 }
             });
-            if (tabId === 'archive') renderArchiveInvoices();
-            if (tabId === 'sheet') populateCustomerDatalist();
-            populateExcelCustomerFilter();
-            renderTable();
-            if (tabId === 'aimemory') renderAIMemoryTable();
-            if (tabId === 'sheet') populateCustomerDatalist();
-            populateExcelCustomerFilter();
-            renderTable();
-            if (tabId === 'catalogue') renderCatalogueTable();
+
+            if (tabId === 'input') {
+                populateCustomerDatalist();
+            } else if (tabId === 'archive') {
+                renderArchiveInvoices();
+            } else if (tabId === 'sheet') {
+                populateCustomerDatalist();
+                populateExcelCustomerFilter();
+                renderTable();
+            } else if (tabId === 'catalogue') {
+                renderCatalogueTable();
+            } else if (tabId === 'aimemory') {
+                renderAIMemoryTable();
+            }
         }
 
         // =========================================================================
@@ -2997,6 +3006,70 @@
         }
 
         // ==============================================================
+        // SYSTEM MODAL DIALOGS (NOTIFICATIONS & ACTIONS)
+        // ==============================================================
+        function closeModal() {
+            const m = document.getElementById('customModal');
+            if (m) m.classList.add('hidden');
+        }
+
+        function showModal(title, message, type = "success") {
+            const m = document.getElementById('customModal');
+            if (!m) return;
+            const t = document.getElementById('modalTitle');
+            const msg = document.getElementById('modalMessage');
+            const icon = document.getElementById('modalIcon');
+            const actions = document.getElementById('modalActions');
+
+            if (t) t.innerText = title;
+            if (msg) {
+                if (typeof message === 'string' && message.includes('<')) {
+                    msg.innerHTML = message;
+                } else {
+                    msg.innerText = message;
+                }
+            }
+            if (icon) {
+                if (type === "success") icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+                else if (type === "error") icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i>';
+                else icon.innerHTML = '<i class="fa-solid fa-circle-info text-cyan-400"></i>';
+            }
+            if (actions) {
+                actions.className = "flex gap-2 pt-1";
+                actions.innerHTML = '<button type="button" onclick="closeModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 rounded-xl text-xs transition">Đóng</button>';
+            }
+            m.classList.remove('hidden');
+        }
+
+        function showModalWithActions(title, message, actionList) {
+            const m = document.getElementById('customModal');
+            if (!m) return;
+            const t = document.getElementById('modalTitle');
+            const msg = document.getElementById('modalMessage');
+            const icon = document.getElementById('modalIcon');
+            const actions = document.getElementById('modalActions');
+
+            if (t) t.innerText = title;
+            if (msg) msg.innerText = message;
+            if (icon) icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+
+            if (actions && Array.isArray(actionList)) {
+                actions.innerHTML = '';
+                actions.className = "flex flex-col gap-2 pt-2";
+                actionList.forEach(act => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = "w-full py-2 px-3 rounded-xl text-xs font-semibold transition " + 
+                        (act.primary ? "bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-900/30" : "bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700");
+                    btn.innerText = act.text;
+                    btn.onclick = act.action;
+                    actions.appendChild(btn);
+                });
+            }
+            m.classList.remove('hidden');
+        }
+
+        // ==============================================================
         // GOOGLE SHEETS LIVE SYNC CONFIGURATION
         // ==============================================================
         function openGoogleSyncModal() {
@@ -3218,7 +3291,10 @@
         function getAIMemory() {
             try {
                 const raw = localStorage.getItem(AI_MEMORY_KEY);
-                if (raw) return JSON.parse(raw);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                }
             } catch (e) {
                 console.warn("Lỗi đọc AI Memory:", e);
             }
@@ -4509,6 +4585,7 @@ window.onload = function() {
             renderTable();
             renderArchiveInvoices();
             renderCatalogueTable();
+            renderAIMemoryTable();
             syncLiveFromGoogleDrive();
         };
     </script>
