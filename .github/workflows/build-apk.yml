@@ -1,0 +1,192 @@
+name: Tu Dong Build APK Android - Minh Satori
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 1. Kiem tra ma nguon (Checkout)
+      uses: actions/checkout@v4
+
+    - name: 2. Cai dat moi truong Java 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: 3. Cai dat Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: 4. Chuan bi ma nguon Android App (Tu dong nạp index.html)
+      run: |
+        python3 - << 'EOF'
+        import os, shutil
+
+        target_dir = "MinhSatori_Android_App"
+        os.makedirs(f"{target_dir}/app/src/main/assets", exist_ok=True)
+        os.makedirs(f"{target_dir}/app/src/main/java/com/minhsatori/app", exist_ok=True)
+        os.makedirs(f"{target_dir}/app/src/main/res/layout", exist_ok=True)
+        os.makedirs(f"{target_dir}/app/src/main/res/values", exist_ok=True)
+
+        # Sao chep file web vao assets
+        for fname in ["index.html", "manifest.json", "sw.js", "icon-192.png", "icon-512.png"]:
+            if os.path.exists(fname):
+                shutil.copy(fname, f"{target_dir}/app/src/main/assets/{fname}")
+        
+        # Tao root build.gradle neu chua co
+        if not os.path.exists(f"{target_dir}/build.gradle"):
+            with open(f"{target_dir}/build.gradle", "w") as f:
+                f.write("""buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath 'com.android.tools.build:gradle:8.2.2' }
+}
+allprojects {
+    repositories { google(); mavenCentral() }
+}
+""")
+
+        # Tao settings.gradle neu chua co
+        if not os.path.exists(f"{target_dir}/settings.gradle"):
+            with open(f"{target_dir}/settings.gradle", "w") as f:
+                f.write("""pluginManagement {
+    repositories { google(); mavenCentral(); gradlePluginPortal() }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories { google(); mavenCentral() }
+}
+rootProject.name = "MinhSatori"
+include ':app'
+""")
+
+        # Tao app/build.gradle neu chua co
+        if not os.path.exists(f"{target_dir}/app/build.gradle"):
+            with open(f"{target_dir}/app/build.gradle", "w") as f:
+                f.write("""plugins { id 'com.android.application' }
+android {
+    namespace 'com.minhsatori.app'
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.minhsatori.app"
+        minSdk 21
+        targetSdk 34
+        versionCode 6
+        versionName "6.0"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+}
+""")
+
+        # Tao AndroidManifest.xml neu chua co
+        if not os.path.exists(f"{target_dir}/app/src/main/AndroidManifest.xml"):
+            with open(f"{target_dir}/app/src/main/AndroidManifest.xml", "w") as f:
+                f.write("""<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.minhsatori.app">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <application
+        android:allowBackup="true"
+        android:label="Minh Satori"
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+        android:usesCleartextTraffic="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+""")
+
+        # Tao MainActivity.java neu chua co
+        if not os.path.exists(f"{target_dir}/app/src/main/java/com/minhsatori/app/MainActivity.java"):
+            with open(f"{target_dir}/app/src/main/java/com/minhsatori/app/MainActivity.java", "w") as f:
+                f.write("""package com.minhsatori.app;
+import android.annotation.SuppressLint;
+import android.os.Bundle;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity {
+    private WebView webView;
+    @SuppressLint("SetJavaScriptEnabled")
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        webView = new WebView(this);
+        setContentView(webView);
+        WebSettings s = webView.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setDatabaseEnabled(true);
+        s.setAllowFileAccess(true);
+        webView.setWebViewClient(new WebViewClient());
+        webView.loadUrl("file:///android_asset/index.html");
+    }
+    @Override
+    public void onBackPressed() {
+        if (webView.canGoBack()) webView.goBack();
+        else super.onBackPressed();
+    }
+}
+""")
+        EOF
+
+    - name: 5. Khoi tao Gradle Wrapper
+      run: |
+        cd MinhSatori_Android_App
+        gradle wrapper || true
+
+    - name: 6. Bien dich file APK bang Gradle
+      run: |
+        cd MinhSatori_Android_App
+        chmod +x gradlew || true
+        ./gradlew assembleDebug || gradle assembleDebug
+
+    - name: 7. Xuat file APK cho nguoi dung tai ve (Artifacts)
+      uses: actions/upload-artifact@v4
+      with:
+        name: MinhSatori_App_APK
+        path: |
+          MinhSatori_Android_App/app/build/outputs/apk/debug/*.apk
+          **/build/outputs/apk/debug/*.apk
+        retention-days: 60
+
+    - name: 8. Tao ban phat hanh Release kem file APK truc tiep
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+      with:
+        tag_name: v6.0-apk
+        name: "Minh Satori v6.0 APK (Android)"
+        body: "File cài đặt APK ứng dụng Quản Lý Bán Nước Minh Satori dành cho điện thoại Android."
+        files: "**/app/build/outputs/apk/debug/*.apk"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
