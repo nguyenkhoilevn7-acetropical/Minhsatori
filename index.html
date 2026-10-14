@@ -148,6 +148,9 @@
                     <button onclick="triggerPwaInstall()" class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold p-2 rounded-xl flex items-center shadow transition" title="Cài App">
                         <i class="fa-brands fa-android text-sm"></i>
                     </button>
+                    <button onclick="openBackupRestoreModal()" class="bg-indigo-950/80 text-indigo-300 border border-indigo-500/50 p-2 rounded-xl text-xs transition" title="Sao Lưu & Restore Dữ Liệu">
+                        <i class="fa-solid fa-database text-sm"></i>
+                    </button>
                     <button onclick="syncLiveFromGoogleDrive()" class="bg-slate-800 text-cyan-400 border border-cyan-500/30 p-2 rounded-xl text-xs transition" title="Tải Từ Drive">
                         <i class="fa-solid fa-arrows-rotate" id="syncIconMobile"></i>
                     </button>
@@ -166,6 +169,10 @@
                     <button onclick="triggerPwaInstall()" id="btnInstallApp" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-900/30 transition hover:scale-105 active:scale-95">
                         <i class="fa-brands fa-android text-sm text-emerald-200"></i>
                         <span>Cài App</span>
+                    </button>
+                    <button onclick="openBackupRestoreModal()" id="btnBackupRestoreTop" class="bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/50 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow hover:scale-105 active:scale-95" title="Sao lưu & Phục hồi dữ liệu (Backup / Restore / Google Drive)">
+                        <i class="fa-solid fa-database text-indigo-400"></i>
+                        <span>Sao Lưu & Restore</span>
                     </button>
                     <button onclick="syncLiveFromGoogleDrive()" id="btnSyncDrive" class="bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-cyan-500/40 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow hover:scale-105 active:scale-95" title="Đồng bộ Google Drive">
                         <i class="fa-solid fa-arrows-rotate" id="syncIcon"></i>
@@ -517,16 +524,4 @@
                         <!-- KHỐI QUẢN TRỊ NỘI BỘ: TÍNH TIỀN LỢI NHUẬN HÓA ĐƠN (CHỈ CHỦ THẤY - KHÔNG IN RA HÓA ĐƠN) -->
                         <div class="bg-gradient-to-r from-slate-950 via-purple-950/30 to-slate-950 border border-purple-500/40 rounded-xl p-3 space-y-2 shadow-inner">
                             <div class="flex items-center justify-between border-b border-purple-500/20 pb-1.5">
-                                <span class="text-[11px] font-bold text-purple-300 flex items-center gap-1.5">
-                                    <i class="fa-solid fa-sack-dollar text-emerald-400"></i>
-                                    <span>LỢI NHUẬN ĐƠN HÀNG (QUẢN TRỊ NỘI BỘ)</span>
-                                </span>
-                                <span class="text-[9px] text-purple-300/80 bg-purple-950 px-2 py-0.5 rounded-full border border-purple-500/30 font-medium">
-                                    🔒 Không in ra HĐ & Không gửi khách
-                                </span>
-                            </div>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
-                                <!-- Ô Nhập % Được Chiết Khấu Có Sẵn (Đại lý được chiết khấu đầu vào) -->
-                                <div>
-                    
+                                <span class="text-[11px] font-b
