@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+    <script>window.__SATORI_DRIVE_APP__ = location.hash.includes("satori-drive=1") && window.parent !== window;</script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
@@ -3784,7 +3785,7 @@
             }
             const totals = calculateTotals();
             const invNum = parseInt(document.getElementById('invoiceNo').value) || nextInvoiceNumber;
-            if(duplicateSourceInvoice!==null && orders.some(o=>Number(o.invoiceNo)===invNum)) {showModal('Số hóa đơn đã tồn tại','Chọn số hóa đơn mới để giữ nguyên bill gốc.','info');return;}
+            if(!currentEditingOrderId && orders.some(o=>Number(o.invoiceNo)===invNum)) {showModal('Số hóa đơn đã tồn tại','Chọn số hóa đơn mới để giữ nguyên bill gốc.','info');return;}
             
             // Format product description for ledger
             const prodSummary = currentItems.map(it => `${it.qty} ${it.product}`).join(', ');
@@ -5248,6 +5249,7 @@
 
         
         function syncToGoogleSheets(order) {
+            if (window.__SATORI_DRIVE_APP__) return;
             const scriptUrl = localStorage.getItem(SYNC_URL_KEY);
             if (!scriptUrl) return;
             try {
@@ -6522,6 +6524,7 @@
         // TAB 5: ĐỒNG BỘ GOOGLE SHEETS & LIVE CSV (FIXED & SAFE)
         // ========================================================
         async function syncLiveFromGoogleDrive() {
+            if (window.__SATORI_DRIVE_APP__) return;
             const icon = document.getElementById('syncIcon');
             if (icon) icon.classList.add('fa-spin');
 
@@ -6932,6 +6935,12 @@
                 try {
                     const parsed = JSON.parse(e.target.result);
 
+                    if (parsed.format === 'minhsatori-invoice-recovery-v1') {
+                        closeBackupRestoreModal();
+                        restoreRecoveredInvoices(parsed.recoveredInvoices);
+                        return;
+                    }
+
                     if (!parsed.data || !Array.isArray(parsed.data.orders)) {
                         showModal("File Không Hợp Lệ", "Tệp tin đã chọn không đúng định dạng sao lưu của hệ thống Minh Satori!", "error");
                         return;
@@ -6979,6 +6988,65 @@
         /**
          * Áp dụng dữ liệu phục hồi vào bộ nhớ hệ thống
          */
+        function recoveryInvoiceIdentity(o) {
+            const text = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().replace(/\s+/g, ' ').trim();
+            const date = String(o.date || '').split('/').map(Number).join('/');
+            return JSON.stringify([String(o.invoiceNo), date, text(o.name), text(o.location)]);
+        }
+
+        // Import only missing invoices; never replace the full ledger or settings.
+        // The saved snapshot remains available to the full backup exporter.
+        function mergeRecoveredInvoices(current, recovered) {
+            if (!Array.isArray(current) || !Array.isArray(recovered) || !recovered.length) throw Error('Danh sách hóa đơn không hợp lệ.');
+            const next = [...current];
+            let added = 0, skipped = 0;
+            for (const o of recovered) {
+                if (!o || !Number.isSafeInteger(o.id) || !Number.isSafeInteger(o.invoiceNo) || o.invoiceNo <= 0 || !o.name || !o.date || !Array.isArray(o.items) || !o.items.length) throw Error('Hóa đơn khôi phục thiếu dữ liệu.');
+                if (!['Chưa thanh toán', 'Đã thanh toán', 'Không Tính', 'Đã hủy'].includes(o.status)) throw Error('Trạng thái hóa đơn không hợp lệ.');
+                const goods = o.items.reduce((sum, it) => {
+                    if (!it.product || !Number.isFinite(it.qty) || it.qty <= 0 || !Number.isFinite(it.unitPrice) || it.unitPrice < 0) throw Error('Chi tiết sản phẩm không hợp lệ.');
+                    return sum + it.qty * it.unitPrice;
+                }, 0);
+                if (![o.total, o.goodsTotal, o.shippingAmount, o.vatAmount].every(v => Number.isFinite(v) && v >= 0) || goods !== o.goodsTotal || goods + o.shippingAmount + o.vatAmount !== o.total) throw Error('Tổng tiền hóa đơn không khớp.');
+                const existing = next.find(row => recoveryInvoiceIdentity(row) === recoveryInvoiceIdentity(o));
+                if (existing) {
+                    if (Number(existing.total) !== o.total || existing.status !== o.status) throw Error('Hóa đơn #' + o.invoiceNo + ' đã có dữ liệu khác. Đã giữ nguyên sổ hiện tại; chưa nhập file này.');
+                    skipped++;
+                    continue;
+                }
+                if (next.some(row => String(row.id) === String(o.id))) throw Error('Mã hóa đơn bị trùng. Đã giữ nguyên dữ liệu hiện tại.');
+                next.push(o);
+                added++;
+            }
+            return { orders: next, added, skipped };
+        }
+
+        function restoreRecoveredInvoices(recovered) {
+            let result;
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                const current = raw === null ? orders : JSON.parse(raw);
+                result = mergeRecoveredInvoices(current, recovered);
+                if (result.added) {
+                    localStorage.setItem('satori_orders_recovery_before_' + Date.now(), raw === null ? JSON.stringify(current) : raw);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(result.orders));
+                }
+                orders = result.orders;
+            } catch (e) {
+                showModal('Chưa nhập hóa đơn', aiEscape(e.message), 'error');
+                return;
+            }
+            nextInvoiceNumber = Math.max(0, ...orders.map(o => Number(o.invoiceNo) || 0)) + 1;
+            try {
+                for (const id of ['invoiceNo', 'invoiceBadge']) {
+                    const el = document.getElementById(id);
+                    if (el) { if (id === 'invoiceNo') el.value = nextInvoiceNumber; else el.textContent = '#' + nextInvoiceNumber; }
+                }
+                updateCounters(); populateCustomerDatalist(); populateExcelCustomerFilter(); renderTable(); renderArchiveInvoices();
+            } catch (e) { console.warn('Hóa đơn đã lưu; tải lại trang để cập nhật giao diện.', e); }
+            showModal('Đã bổ sung hóa đơn', 'Đã thêm <b>' + result.added + '</b> hóa đơn; bỏ qua <b>' + result.skipped + '</b> hóa đơn đã có. Tổng hiện tại: <b>' + orders.length + '</b> bản ghi. Dữ liệu đã lưu trên trình duyệt này; chưa xác nhận đồng bộ Google Drive.', 'success');
+        }
+
         function executeRestoreData(data) {
             try {
                 if (Array.isArray(data.orders) && data.orders.length > 0) {
@@ -8286,5 +8354,108 @@ window.SatoriRecon = (() => {
 })();
 
     </script>
+<script>
+(() => {
+    if (!location.hash.includes('satori-drive=1') || window.parent === window) return;
+    window.__SATORI_DRIVE_APP__ = true;
+    // Set only after the authorized deployment's actual sandbox origin is observed.
+    const cloudOrigin = 'PENDING_AUTHORIZED_GOOGLE_DEPLOYMENT_ORIGIN';
+    const channel = 'minhsatori-drive-v1';
+    const cacheKey = 'satori_drive_bridge_pending_v1';
+    const storage = window.localStorage;
+    const set = Storage.prototype.setItem, remove = Storage.prototype.removeItem;
+    const keys = ['satori_orders_v15','satori_catalogue_v15','satori_ai_customer_memory','satori_trash_bin_v15','satori_deleted_invoice_nos','satori_system_default_cost_discount','satori_app_version'];
+    let base=null, busy=null, initialized=false, timer=null, id=0;
+    const status=document.createElement('div');
+    status.id='driveConnectionStatus';status.setAttribute('role','status');
+    status.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:99999;padding:10px;background:#7c2d12;color:white;font:13px sans-serif;text-align:center';
+    status.textContent='Đang chờ kết nối Google Drive; chưa xác nhận đồng bộ.';
+    document.addEventListener('DOMContentLoaded',()=>document.body.appendChild(status));
+    const snapshot=()=>Object.fromEntries(keys.map(k=>[k,storage.getItem(k)]).filter(x=>x[1]!==null));
+    const equal=(a,b)=>keys.every(k=>a[k]===b[k]);
+    function persistPending() {
+        if(!base)return;
+        const local=snapshot();
+        if(equal(local,base)) remove.call(storage,cacheKey);
+        else set.call(storage,cacheKey,JSON.stringify({base:base,local:local}));
+    }
+    function schedule() {clearTimeout(timer);timer=setTimeout(tick,1000);}
+    Storage.prototype.setItem=function(k,v) {
+        if(this!==storage || !keys.includes(k)) return set.call(this,k,v);
+        const before=storage.getItem(k);
+        set.call(this,k,String(v));
+        try {persistPending();} catch(e) {
+            if(before===null)remove.call(this,k);else set.call(this,k,before);
+            throw e;
+        }
+        status.textContent='Đã lưu trên máy; đang chờ Google Drive xác nhận…';schedule();
+    };
+    Storage.prototype.removeItem=function(k) {
+        if(this!==storage || !keys.includes(k))return remove.call(this,k);
+        const before=storage.getItem(k);remove.call(this,k);
+        try {persistPending();}catch(e){if(before!==null)set.call(this,k,before);throw e;}
+        schedule();
+    };
+    function apply(values, sent) {
+        const current=snapshot();
+        for(const key of keys) {
+            if(sent && current[key]!==sent[key])continue;
+            if(values[key]===undefined)remove.call(storage,key);else set.call(storage,key,values[key]);
+        }
+        const safeRefresh=()=>{try{refresh();}catch(e){console.warn('Dữ liệu đã nhận; cần tải lại giao diện.',e);}};
+        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',safeRefresh,{once:true});else safeRefresh();
+    }
+    function refresh() {
+        if(typeof orders==='undefined')return;
+        orders=JSON.parse(storage.getItem('satori_orders_v15')||'[]');
+        catalogue=JSON.parse(storage.getItem('satori_catalogue_v15')||'[]');
+        refreshCatalogueMap();updateCounters();populateCustomerDatalist();populateExcelCustomerFilter();renderTable();renderArchiveInvoices();renderCatalogueTable();renderAIMemoryTable();updateTrashBadge();
+        nextInvoiceNumber=Math.max(0,...orders.map(o=>Number(o.invoiceNo)||0))+1;
+        if(!currentEditingOrderId) {
+            const field=document.getElementById('invoiceNo');if(field)field.value=nextInvoiceNumber;
+            const badge=document.getElementById('invoiceBadge');if(badge)badge.textContent='#'+nextInvoiceNumber;
+        }
+    }
+    function tick() {
+        if(busy || document.hidden)return;
+        if(!/^https:\/\/[a-z0-9-]+(?:\.script|-script)\.googleusercontent\.com$/.test(cloudOrigin)) {
+            status.textContent='Google Drive chưa được kích hoạt. Dữ liệu chưa được đồng bộ.';return;
+        }
+        const local=snapshot(),type=base&&!equal(local,base)?'commit':'read';
+        busy={id:++id,local:local};
+        window.parent.postMessage({channel:channel,type:type,id:id,request:type==='commit'?{base:base,local:local}:null},cloudOrigin);
+        const requestId=id;
+        setTimeout(()=>{if(busy?.id===requestId){busy=null;status.textContent='Chưa nhận được xác nhận từ Drive. Đang giữ dữ liệu trên máy để gửi lại.';schedule();}},30000);
+    }
+    window.addEventListener('message',event=>{
+        if(event.source!==window.parent || event.origin!==cloudOrigin || event.data?.channel!==channel || event.data.id!==busy?.id)return;
+        const m=event.data,sent=busy.local;busy=null;
+        if(m.type==='error'){status.textContent='Chưa đồng bộ: '+m.error;return;}
+        if(m.type!=='state'||!m.state?.values || !Number.isInteger(m.state.revision))return;
+        const remote=m.state.values;
+        if(!initialized) {
+            const pending=storage.getItem(cacheKey);
+            if(pending) {
+                const saved=JSON.parse(pending);base=saved.base;apply(saved.local);
+            } else {
+                const raw=storage.getItem('satori_orders_v15');
+                if(raw)set.call(storage,'satori_orders_recovery_before_cloud_'+Date.now(),raw);
+                apply(remote);base=remote;
+            }
+            initialized=true;
+        } else {apply(remote,sent);base=remote;}
+        persistPending();
+        const pending=!equal(snapshot(),base);
+        status.textContent=pending?'Dữ liệu trên máy đang chờ gửi lên Drive…':'Đã đồng bộ Google Drive · bản '+m.state.revision;
+        status.style.background=pending?'#7c2d12':'#065f46';
+        if(pending)schedule();
+    });
+    window.addEventListener('online',schedule);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule();});
+    window.addEventListener('beforeunload',event=>{if(base&&!equal(snapshot(),base)){event.preventDefault();event.returnValue='';}});
+    setInterval(tick,15000);setTimeout(tick,0);
+})();
+
+</script>
 </body>
 </html>
