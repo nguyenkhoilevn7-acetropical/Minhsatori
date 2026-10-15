@@ -1342,6 +1342,7 @@
                         <label>Dấu phân cách số<select id="rc-locale" class="rc-input" onchange="SatoriRecon.preview()"><option value="vi">Việt Nam: 1.234,50</option><option value="en">Quốc tế: 1,234.50</option></select></label>
                     </div>
                     <p class="text-xs text-slate-400">Chọn đúng cột tiền nhập (thành tiền sau chiết khấu), không chọn cột dư nợ lũy kế. Bắt buộc có tên khách, điện thoại, địa chỉ, sản phẩm, đơn vị tính, số lượng. Không tự quy đổi chai/thùng/bình. Bỏ chọn dòng tổng, thanh toán, trả hàng hoặc dòng ngoài phạm vi. Không tự điền ô trống.</p>
+                    <p id="rc-ledger-note" hidden class="text-sm text-amber-300"></p>
                     <div id="rc-mapping" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
                     <div class="grid sm:grid-cols-3 gap-3">
                         <label>Ghép hai bên theo<select id="rc-match" class="rc-input" onchange="SatoriRecon.invalidate()"><option value="delivery">Ngày + tên khách + điện thoại + địa chỉ</option><option value="ref">Mã đơn Satori (nhập ở bước 2)</option><option value="invoice">Số HĐ nội bộ (chỉ khi Excel dùng cùng số)</option></select></label>
@@ -7956,7 +7957,7 @@ window.SatoriRecon = (() => {
         phone:['so dien thoai','dien thoai','sdt','phone','so phone'], address:['dia chi','dia chi giao hang','dia chi giao','address'], product:['ma san pham','ma hang','ten hang','ten san pham','san pham','hang hoa','product'],
         unit:['dvt','don vi tinh','don vi','unit'], qty:['so luong','sl','quantity','qty'], amount:['thanh tien','tien hang','tong tien','tong cong','so tien','amount']
     };
-    const state = {stale:false,workbook:null, rows:[], map:{}, excluded:new Set(), omitted:new Set(), result:null, filename:'', generation:0};
+    const state = {stale:false,workbook:null, rows:[], map:{}, ledger:null, excluded:new Set(), omitted:new Set(), result:null, filename:'', generation:0};
     const $ = id => document.getElementById('rc-' + id);
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const norm = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
@@ -7995,6 +7996,63 @@ window.SatoriRecon = (() => {
         const items=o.items?.length ? o.items : [o];
         if (items.some(it=>!Number.isFinite(it.qty)||it.qty<=0||!Number.isFinite(it.listPrice)||it.listPrice<=0)) return null;
         return Math.round(items.reduce((sum,it)=>sum+it.qty*it.listPrice,0)*0.55);
+    }
+    // Accounting ledgers do not contain delivery identities. Never infer these from amounts or descriptions.
+    function parseLedger(rows) {
+        const h=rows.findIndex(r=>r.some(v=>norm(v)==='tk doi ung')&&r.some(v=>norm(v)==='phat sinh')&&r.some(v=>norm(v)==='so chung tu'));
+        if(h<0)return null;
+        const head=rows[h], col=label=>head.findIndex(v=>norm(v)===label);
+        const c={doc:col('so chung tu'),account:col('tk doi ung'),movement:col('phat sinh'),balance:col('so du'),ref:col('don dat hang'),date:col('ngay chung tu'),invoice:col('so hoa don'),customer:col('ten khach hang'),description:col('dien giai chung')};
+        if(Object.values(c).some(v=>v<0))throw Error('Mẫu sổ công nợ thiếu cột bắt buộc; không thể tự tính tiền.');
+        if(norm(rows[h+1]?.[c.movement])!=='no'||norm(rows[h+1]?.[c.movement+1])!=='co')throw Error('Không nhận diện được cột phát sinh Nợ/Có.');
+        const groups=new Map(),entries=[],issues=[];let debit=0,credit=0,goods=0,vat=0,payments=0,footer=null;
+        const seen=new Set();
+        for(let i=h+2;i<rows.length;i++) {
+            const a=rows[i],doc=ref(a[c.doc]);
+            if(norm(a[c.doc])==='tong cong'){footer={debit:number(a[c.movement]),credit:number(a[c.movement+1]),balance:number(a[c.balance])};continue;}
+            if(!doc)continue; // Account subtotals are not transactions.
+            const dr=number(a[c.movement]),cr=number(a[c.movement+1]),account=String(a[c.account]??'').trim(),orderRef=ref(a[c.ref]);
+            const e={row:i+1,ref:orderRef,doc,account,date:date(a[c.date]),invoice:ref(a[c.invoice]),customer:String(a[c.customer]??''),description:String(a[c.description]??''),debit:dr,credit:cr};entries.push(e);
+            if(dr===null||cr===null||dr<0||cr<0){issues.push('Dòng '+(i+1)+': phát sinh không hợp lệ.');continue;}
+            debit+=dr;credit+=cr;
+            const signature=JSON.stringify(a);
+            if(seen.has(signature))issues.push('Dòng '+(i+1)+': trùng bút toán; cần xác minh.');seen.add(signature);
+            if(/^511/.test(account)||/^3331/.test(account)) {
+                if(!orderRef){issues.push('Dòng '+(i+1)+': thiếu mã đơn đặt hàng.');continue;}
+                if(!groups.has(orderRef))groups.set(orderRef,{ref:orderRef,net:0,vat:0,entries:[],issues:[]});
+                const g=groups.get(orderRef);g.entries.push(e);
+                if(/^511/.test(account)){g.net+=dr-cr;goods+=dr-cr;}else{g.vat+=dr-cr;vat+=dr-cr;}
+                if(cr)g.issues.push('Có giảm trừ/trả hàng; cần kiểm tra riêng.');
+                if(!e.date)g.issues.push('Ngày chứng từ không hợp lệ.');
+            } else if(/^11[12]/.test(account)&&dr===0){payments+=cr;}
+            else issues.push('Dòng '+(i+1)+': tài khoản '+account+' cần kiểm tra riêng.');
+        }
+        if(!footer)issues.push('Không tìm thấy tổng cộng để kiểm tra đủ dòng.');
+        else if(footer.debit!==debit||footer.credit!==credit||footer.balance===null||Math.abs(footer.balance-(debit-credit))>0.01)issues.push('Tổng bút toán/dư nợ không khớp dòng tổng cộng; cần kiểm tra dư đầu kỳ hoặc dữ liệu thiếu.');
+        return {header:h+1,groups:[...groups.values()],entries,issues,debit,credit,goods,vat,payments,closing:footer?.balance??null};
+    }
+    function ledgerReconcile(ledger,local,opts) {
+        const results=[],byRef=new Map(),used=new Set();
+        for(const r of local){if(r.ref){if(!byRef.has(r.ref))byRef.set(r.ref,[]);byRef.get(r.ref).push(r);}}
+        for(const g of ledger.groups) {
+            if(!g.entries.some(e=>!e.date||e.date>=opts.from&&e.date<=opts.to))continue;
+            const b=byRef.get(g.ref)||[];used.add(g.ref);
+            const included=g.entries.filter(e=>!e.date||e.date>=opts.from&&e.date<=opts.to);
+            const partial=included.length!==g.entries.length;
+            const total=opts.tax===0?g.net:g.net+g.vat;
+            const amount=b.length&&b.every(r=>r.amount!==null)?b.reduce((s,r)=>s+r.amount,0):null;
+            const a=included.map((e,i)=>({...e,customer:norm(e.customer),phone:'',address:'',product:'',unit:'',qty:null,amount:i===0?total:0,error:''}));
+            const delta=amount===null?null:Math.round((total-amount)*100)/100;
+            let status=!b.length?'Chưa liên kết mã Satori':amount===null?'Cần giá nhập':Math.abs(delta)>opts.tolerance?'Chênh lệch tiền':'Khớp tiền — chưa đủ thông tin';
+            const problems=[...g.issues,...ledger.issues];
+            if(partial)problems.push('Mã đơn có bút toán nằm ngoài kỳ; mở rộng kỳ để đối chiếu đủ.');
+            if(opts.tax&&Math.abs(g.vat-Math.round(g.net*opts.tax/100))>Math.max(1,opts.tolerance))problems.push('VAT trong sổ khác mức thuế đang chọn; kiểm tra thuế theo từng chứng từ.');
+            if(problems.length)status='Dữ liệu cần kiểm tra';
+            results.push({company:a,local:b,companyAmount:partial?null:total,localAmount:amount,delta:partial?null:delta,status,detail:(problems.join(' ')+' '+(!b.length?'Nhập mã '+g.ref+' vào đơn tương ứng ở bước 2. ':'')+'Tiền hệ thống = tổng giá niêm yết × số lượng × 55%'+(opts.tax?' + VAT '+opts.tax+'%':'')+'. Excel không có tên người nhận, điện thoại, địa chỉ, sản phẩm hoặc số lượng giao; chưa thể xác nhận đơn khớp đầy đủ. Ngày trong sổ là ngày chứng từ, có thể khác ngày giao.').trim()});
+        }
+        const unmatched=local.filter(r=>!r.ref||!used.has(r.ref));
+        for(const r of unmatched)results.push({company:[],local:[r],companyAmount:null,localAmount:r.amount,delta:null,status:r.ref?'Chưa có mã trong kỳ Excel':'Đơn chưa có mã Satori',detail:'HĐ '+r.invoice+': '+(r.ref?'Không tìm thấy mã '+r.ref+' trong phạm vi.':'Cần nhập mã đơn DH… ở bước 2 để đối chiếu tiền với sổ công nợ.')+' Không tự ghép bằng số tiền hoặc suy đoán tên trong diễn giải.'});
+        return results;
     }
     function canonicalProduct(value, products) {
         const n=norm(value); if (!n) return '';
@@ -8127,7 +8185,7 @@ window.SatoriRecon = (() => {
         return libraryPromise;
     }
     async function upload(input) {
-        invalidate();state.workbook=null;state.rows=[];state.excluded.clear();$('import').hidden=true;
+        invalidate();state.workbook=null;state.rows=[];state.ledger=null;state.excluded.clear();$('import').hidden=true;
         const generation=++state.generation,file=input.files?.[0]; if(!file)return;
         if(file.size>20*1024*1024) {message('File quá lớn (tối đa 20 MB).',true);return;}
         if(!/\.(xlsx|xls|csv)$/i.test(file.name)) {message('Chọn file .xlsx, .xls hoặc .csv.',true);return;}
@@ -8149,10 +8207,24 @@ window.SatoriRecon = (() => {
         state.rows=X.utils.sheet_to_json(ws,{header:1,defval:'',raw:true,blankrows:true});state.excluded.clear();
         let best=0,score=-1;
         state.rows.slice(0,50).forEach((row,i)=>{const s=row.reduce((sum,c)=>sum+(Object.values(aliases).some(a=>a.includes(norm(c)))?1:0),0);if(s>score){score=s;best=i;}});
+        if(state.rows.some(r=>r.some(v=>norm(v)==='tk doi ung')&&r.some(v=>norm(v)==='phat sinh'))){
+            const title=state.rows.slice(0,5).flat().join(' '),p=title.match(/Từ ngày\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+đến ngày\s+(\d{1,2}\/\d{1,2}\/\d{4})/i);
+            if(p&&date(p[1])&&date(p[2])){$('from').value=date(p[1]);$('to').value=date(p[2]);baseline();}
+        }
         $('header').value=best+1;headers();
     }
     function headers() {
         invalidate();state.excluded.clear();
+        try {state.ledger=parseLedger(state.rows);}catch(e){state.ledger={issues:[e.message],groups:[],entries:[]};}
+        $('ledger-note').hidden=!state.ledger;
+        $('mapping').hidden=!!state.ledger;
+        $('mapping').style.display=state.ledger?'none':'';
+        for(const id of ['match','amount-mode','locale','header'])$(id).disabled=!!state.ledger;
+        if(state.ledger){
+            $('header').value=state.ledger.header||1;
+            $('ledger-note').textContent='Đã nhận diện sổ công nợ Satori. Không có tên người nhận, điện thoại, địa chỉ và số lượng giao. Chỉ đối chiếu tiền theo mã DH… đã nhập ở bước 2; không kết luận khớp đầy đủ. Chọn kỳ theo ngày chứng từ. Không lọc theo tên vì sổ chỉ ghi tên hộ kinh doanh.';
+            state.map={};preview();return;
+        }
         const idx=Number($('header').value)-1,head=state.rows[idx];
         if(!Number.isInteger(idx)||!head) {message('Dòng tiêu đề không hợp lệ.',true);state.map={};return;}
         state.map={};const used=new Set();
@@ -8169,6 +8241,13 @@ window.SatoriRecon = (() => {
     function cell(row,f) {const idx=state.map[f];return idx>=0?row[idx]??'':'';}
     function activeRows() {return state.rows.map((row,i)=>({row,i})).filter(x=>x.i>=Number($('header').value)&&x.row.some(v=>String(v??'').trim()));}
     function preview() {
+        if(state.ledger){
+            invalidate();const l=state.ledger;
+            $('preview-head').innerHTML='<tr><th>Mã đơn Satori</th><th>Chứng từ / ngày</th><th>Diễn giải</th><th>Tiền hàng trước VAT</th><th>VAT</th><th>Tổng sau VAT</th></tr>';
+            $('preview').innerHTML=l.groups.map(g=>'<tr><td>'+esc(g.ref)+'</td><td>'+esc([...new Set(g.entries.map(e=>e.doc+' / '+e.date))].join('; '))+'</td><td>'+esc([...new Set(g.entries.map(e=>e.description))].join('; '))+'</td><td>'+money(g.net)+'</td><td>'+money(g.vat)+'</td><td>'+money(g.net+g.vat)+'</td></tr>').join('');
+            $('preview-note').textContent='Toàn bộ file: '+l.groups.length+' mã đơn; tiền hàng '+money(l.goods)+' đ; VAT '+money(l.vat)+' đ; thanh toán '+money(l.payments)+' đ; dư cuối theo Excel '+money(l.closing)+' đ. Dòng cộng theo khách và tổng cộng không bị tính lặp. '+l.issues.join(' ');
+            return;
+        }
         invalidate();const head=Object.entries(fields).filter(([f])=>state.map[f]>=0);
         $('preview-head').innerHTML='<tr><th>Dùng</th><th>Dòng</th>'+head.map(([,label])=>'<th>'+esc(label)+'</th>').join('')+'</tr>';
         const rows=activeRows();
@@ -8217,10 +8296,19 @@ window.SatoriRecon = (() => {
     function run() {
         invalidate();message('');
         try {
-            if(state.stale)throw Error('Dữ liệu ở cửa sổ khác đã đổi. Tải lại trang trước khi đối chiếu.');
+            if(state.stale)throw Error("Dữ liệu ở cửa sổ khác đã đổi. Tải lại trang trước khi đối chiếu.");
             if(!state.workbook||!state.rows.length)throw Error('Nhập Excel và chọn trang tính trước.');
             const opts=options();
-            if(['date','customer','phone','address','product','unit','qty','amount'].some(f=>!Number.isInteger(state.map[f])||state.map[f]<0))throw Error('Cần chọn đủ cột ngày, tên khách, điện thoại, địa chỉ, sản phẩm, đơn vị tính, số lượng và thành tiền nhập.');
+            if(state.ledger){
+                if(opts.customerFilter)throw Error('Sổ công nợ không có tên người nhận. Xóa bộ lọc khách/điểm giao để đối chiếu theo mã DH.');
+                if(state.ledger.issues.length)throw Error(state.ledger.issues.join(' '));
+                const local=localRows(opts);
+                if(!local.length)throw Error('Không có đơn hệ thống trong kỳ. Chọn kỳ bao phủ cả ngày giao và ngày chứng từ.');
+                const rows=ledgerReconcile(state.ledger,local,opts);
+                state.result={rows,opts:{...opts,match:'ledger'},ledger:state.ledger,filename:state.filename,sheet:state.workbook.SheetNames[Number($('sheet').value)],outside:[],excluded:[],snapshot:JSON.stringify(orders)};
+                renderResult();$('export').disabled=false;return;
+            }
+            if(['date','customer','phone','address','product','unit','qty','amount'].some(f=>!Number.isInteger(state.map[f])||state.map[f]<0))throw Error('Cần chọn đủ cột ngày, tên khách, điện thoại, địa chỉ, sản phẩm, số lượng và thành tiền nhập.');
             if(opts.match==='delivery'&&state.map.customer<0)throw Error('Ghép theo giao hàng cần chọn cột khách/điểm giao.');
             if(opts.match==='ref'&&state.map.ref<0)throw Error('Chọn cột mã đơn Satori.');
             if(opts.match==='invoice'&&state.map.invoice<0)throw Error('Chọn cột số HĐ nội bộ.');
@@ -8234,12 +8322,13 @@ window.SatoriRecon = (() => {
         }catch(e){message(e.message,true);}
     }
     function renderResult() {
-        const {rows,opts,outside,excluded}=state.result;
+        const {rows,opts,outside,excluded,ledger}=state.result;
         const counts={};rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
         const a=rows.every(r=>r.companyAmount!=null||!r.company.length)?rows.reduce((s,r)=>s+(r.companyAmount||0),0):null;
         const b=rows.every(r=>r.localAmount!=null||!r.local.length)?rows.reduce((s,r)=>s+(r.localAmount||0),0):null;
         $('summary').innerHTML=`<p class="font-bold text-cyan-300">${esc(opts.from)} → ${esc(opts.to)} · ${Object.entries(counts).map(([s,n])=>esc(s)+': '+n).join(' · ')}</p><p>Tiền hàng Satori: ${money(a)} đ · Hệ thống: ${money(b)} đ · Lệch tổng: ${a!==null&&b!==null?money(a-b):'Chưa đủ dữ liệu'} đ</p><p>Chỉ tổng hợp các nhóm tính được. Nếu có dữ liệu lỗi hoặc thiếu giá, tổng tương ứng để trống. ${outside.length} dòng Excel ngoài phạm vi; ${excluded.length} dòng bỏ chọn. Ghép theo ${opts.match==='delivery'?'ngày + khách + điện thoại + địa chỉ':opts.match==='ref'?'mã đơn Satori':'số HĐ nội bộ'}. Sai số: ${money(opts.tolerance)} đ. ${opts.tax?'Đã cộng VAT nhập '+opts.tax+'% vào giá hệ thống.':'Tiền trước VAT.'}</p>`;
         $('results').innerHTML=rows.map(r=>`<tr><td class="${r.status==='Khớp'?'text-emerald-300':r.status.startsWith('Khớp')?'text-amber-300':'text-rose-300'} font-bold">${esc(r.status)}</td><td>${esc(r.company[0]?.ref||r.company[0]?.customer||r.local[0]?.ref||r.local[0]?.customer||'—')}<br>${esc(r.company[0]?.date||r.local[0]?.date||'')}<br>Dòng ${r.company.map(a=>a.row).join(', ')||'—'}</td><td>${esc([...new Set(r.local.map(a=>a.label||a.invoice))].join('; ')||'—')}</td><td>${money(r.companyAmount)}</td><td>${money(r.localAmount)}</td><td>${money(r.delta)}</td><td>${esc(r.detail)}</td></tr>`).join('');
+        if(ledger)$('summary').innerHTML='<p class="font-bold text-amber-300">Chỉ đối chiếu tiền theo mã đơn — chưa xác minh người nhận, điện thoại, địa chỉ hoặc hàng/SL.</p><p>'+esc(opts.from)+' → '+esc(opts.to)+' · '+esc(Object.entries(counts).map(([s,n])=>s+': '+n).join(' · '))+'</p><p>Tiền Satori trong các nhóm: '+money(a)+' đ · Tiền hệ thống trong các nhóm: '+money(b)+' đ. '+(opts.tax?'So sánh cả VAT '+opts.tax+'%.':'So sánh tiền hàng trước VAT; không cộng dòng VAT.')+' Giá hệ thống đã trừ CK 45%. Các đơn chưa liên kết chưa thể kết luận dư/thiếu.</p><p>Toàn file: tiền hàng '+money(ledger.goods)+' đ; VAT '+money(ledger.vat)+' đ; khoản thanh toán '+money(ledger.payments)+' đ; dư cuối theo Excel '+money(ledger.closing)+' đ. Khoản thanh toán và dư nợ không dùng làm tiền từng đơn.</p>';
     }
     async function exportReport() {
         const report=state.result;if(!report)return;
@@ -8248,14 +8337,15 @@ window.SatoriRecon = (() => {
             const X=await library();if(report!==state.result)return;
             const wb=X.utils.book_new();
             const summary=[['BÁO CÁO ĐỐI CHIẾU ĐƠN NHẬP SATORI'],['File',report.filename],['Trang tính',report.sheet],['Từ ngày',report.opts.from],['Đến ngày',report.opts.to],['Ngày xuất',new Date().toISOString()],['Ghép theo',report.opts.match],['Tiền Excel',report.opts.documentAmount?'Tổng chứng từ lặp':'Tiền từng dòng'],['VAT nhập %',report.opts.tax],['Sai số tiền',report.opts.tolerance],['Chiết khấu nhập cố định', '45% — giá nhập = giá niêm yết × 55%'],['Dòng ngoài phạm vi',report.outside.join(', ')],['Dòng bỏ chọn',report.excluded.join(', ')],['Lưu ý','Tổng tiền hàng không phải dư nợ cuối kỳ; chưa tính dư đầu kỳ và thanh toán cho Satori.']];
+            if(report.ledger)summary.push(['Giới hạn','Sổ công nợ thiếu tên người nhận, điện thoại, địa chỉ, sản phẩm và số lượng; chỉ đối chiếu tiền theo mã đơn đã liên kết.'],['Tiền hàng toàn file',report.ledger.goods],['VAT toàn file',report.ledger.vat],['Thanh toán toàn file',report.ledger.payments],['Dư cuối theo Excel',report.ledger.closing]);
             X.utils.book_append_sheet(wb,X.utils.aoa_to_sheet(summary),'Thong tin');
             const rows=[['Kết quả','Dòng Excel','Mã Satori','HĐ hệ thống','Ngày Satori','Khách Satori','Tiền Satori','Tiền hệ thống','Chênh lệch Satori - HT','Chi tiết']];
             report.rows.forEach(r=>rows.push([r.status,r.company.map(a=>a.row).join(', '),[...new Set(r.company.map(a=>a.ref))].join(', '),[...new Set(r.local.map(a=>a.invoice))].join(', '),[...new Set(r.company.map(a=>a.date))].join(', '),[...new Set(r.company.map(a=>a.customer))].join(', '),r.companyAmount??'',r.localAmount??'',r.delta??'',r.detail]));
             X.utils.book_append_sheet(wb,X.utils.aoa_to_sheet(rows),'Doi chieu');
             // Reproducible evidence: include parsed inputs, not only totals.
             for(const [side,title] of [['company','Dong Satori'],['local','Dong he thong']]) {
-                const evidence=[['Dòng Excel','HĐ nội bộ','Mã Satori','Ngày','Khách','Điện thoại','Địa chỉ','Sản phẩm','ĐVT','SL','Tiền','Ước tính','Lỗi']];
-                report.rows.forEach(r=>r[side].forEach(a=>evidence.push([a.row??'',a.invoice,a.ref,a.date,a.customer,a.phone,a.address,a.product,a.unit,a.qty??'',a.amount??'',a.estimated?'Có':'',a.error||''])));
+                const evidence=[['Dòng Excel','HĐ nội bộ / HĐ Satori','Mã Satori','Ngày','Khách','Điện thoại','Địa chỉ','Sản phẩm','ĐVT','SL','Tiền đối chiếu nhóm (chỉ ghi dòng đầu)','Ước tính','Lỗi','Chứng từ','TK đối ứng','Phát sinh Nợ','Phát sinh Có','Diễn giải']];
+                report.rows.forEach(r=>r[side].forEach(a=>evidence.push([a.row??'',a.invoice,a.ref,a.date,a.customer,a.phone,a.address,a.product,a.unit,a.qty??'',a.amount??'',a.estimated?'Có':'',a.error||'',a.doc||'',a.account||'',a.debit??'',a.credit??'',a.description||''])));
                 X.utils.book_append_sheet(wb,X.utils.aoa_to_sheet(evidence),title);
             }
             X.writeFile(wb,`Doi_chieu_Satori_${report.opts.from}_${report.opts.to}.xlsx`);
@@ -8266,7 +8356,7 @@ window.SatoriRecon = (() => {
         baseline();
     }
     window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){state.stale=true;invalidate();message('Đơn ở cửa sổ khác vừa đổi. Tải lại trang trước khi đối chiếu.',true);}});
-    return {open,baseline,omit,savePurchase,upload,sheet,headers,mapChanged,preview,exclude,invalidate,run,exportReport,engine:{norm,ref,phone,number,date,estimate,canonicalProduct,key,reconcile,fingerprint}};
+    return {open,baseline,omit,savePurchase,upload,sheet,headers,mapChanged,preview,exclude,invalidate,run,exportReport,engine:{norm,ref,phone,number,date,estimate,canonicalProduct,key,reconcile,fingerprint,parseLedger,ledgerReconcile}};
 })();
 
     </script>
