@@ -1325,15 +1325,16 @@
         <section id="tab-reconcile" class="hidden space-y-4 no-print">
             <div class="bg-slate-950 border border-cyan-700 rounded-2xl p-4 sm:p-6 space-y-4">
                 <h2 class="text-xl font-bold text-cyan-300">Đối chiếu đơn nhập từ Satori</h2>
-                <p class="text-sm text-slate-300">Tải Excel → xem kết quả → chọn đơn tương ứng nếu cần. Hệ thống tự nhận mẫu Satori và tính tiền sau chiết khấu 45%.</p>
+                <p class="text-sm text-slate-300">Tải Excel → xem kết quả → chọn đơn tương ứng nếu cần. Hệ thống tự nhận diện theo tên, điện thoại hoặc địa chỉ và tính tiền sau chiết khấu 45%.</p>
                 <p class="text-sm text-amber-300">Ví dụ: tiền niêm yết 1.000.000 đ → sau CK 45% còn 550.000 đ, trước VAT. Không trừ chiết khấu lần nữa trên tiền Satori.</p>
                 <div class="grid sm:grid-cols-3 gap-3">
-                    <label class="text-sm">Từ ngày<input id="rc-from" type="date" class="rc-input" onchange="SatoriRecon.invalidate(); SatoriRecon.baseline()"></label>
-                    <label class="text-sm">Đến ngày<input id="rc-to" type="date" class="rc-input" onchange="SatoriRecon.invalidate(); SatoriRecon.baseline()"></label>
-                    <label class="text-sm">Khách/điểm giao (tùy chọn)<input id="rc-customer" class="rc-input" placeholder="Lọc cùng tên trên cả hai bên" onchange="SatoriRecon.invalidate(); SatoriRecon.baseline()"></label>
+                    <label class="text-sm">Từ ngày<input id="rc-from" type="date" class="rc-input" onchange="SatoriRecon.baseline(); SatoriRecon.rerun()"></label>
+                    <label class="text-sm">Đến ngày<input id="rc-to" type="date" class="rc-input" onchange="SatoriRecon.baseline(); SatoriRecon.rerun()"></label>
+                    <label class="text-sm">Khách/điểm giao (tùy chọn)<input id="rc-customer" class="rc-input" placeholder="Lọc cùng tên trên cả hai bên" onchange="SatoriRecon.baseline(); SatoriRecon.rerun()"></label>
                 </div>
                 <h3 class="font-bold">Tải Excel của Satori</h3>
                 <input id="rc-file" type="file" accept=".xlsx,.xls,.csv" onchange="SatoriRecon.upload(this)" class="text-sm w-full">
+                <p class="text-xs text-slate-400">Phân tích Excel tự động trên máy này. Dữ liệu thiếu được ghi rõ trong kết quả.</p>
                 <p id="rc-message" role="status" aria-live="polite" class="text-sm text-cyan-200"></p>
                 <div id="rc-import" hidden class="space-y-3"><p id="rc-ledger-note" hidden class="text-sm text-amber-300"></p><details><summary class="cursor-pointer text-cyan-300">Xem file và điều chỉnh cách đọc</summary>
                     <div class="grid sm:grid-cols-3 gap-3">
@@ -1341,13 +1342,13 @@
                         <label>Dòng tiêu đề<input id="rc-header" type="number" min="1" value="1" class="rc-input" onchange="SatoriRecon.headers()"></label>
                         <label>Dấu phân cách số<select id="rc-locale" class="rc-input" onchange="SatoriRecon.preview()"><option value="vi">Việt Nam: 1.234,50</option><option value="en">Quốc tế: 1,234.50</option></select></label>
                     </div>
-                    <p class="text-xs text-slate-400">Chọn đúng cột tiền nhập (thành tiền sau chiết khấu), không chọn cột dư nợ lũy kế. Bắt buộc có tên khách, điện thoại, địa chỉ, sản phẩm, đơn vị tính, số lượng. Không tự quy đổi chai/thùng/bình. Bỏ chọn dòng tổng, thanh toán, trả hàng hoặc dòng ngoài phạm vi. Không tự điền ô trống.</p>
+                    <p class="text-xs text-slate-400">Chọn đúng cột tiền nhập (thành tiền sau chiết khấu), không chọn cột dư nợ lũy kế. Chế độ tự động chỉ cần một trong: tên, điện thoại, địa chỉ. Ngày, hàng, số lượng và tiền được so khi có ở cả hai bên. Không tự quy đổi chai/thùng/bình. Bỏ chọn dòng tổng, thanh toán, trả hàng hoặc dòng ngoài phạm vi. Không tự điền ô trống.</p>
                     
                     <div id="rc-mapping" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
                     <div class="grid sm:grid-cols-3 gap-3">
-                        <label>Ghép hai bên theo<select id="rc-match" class="rc-input" onchange="SatoriRecon.invalidate()"><option value="delivery">Ngày + tên khách + điện thoại + địa chỉ</option><option value="ref">Mã đơn Satori (nhập ở bước 2)</option><option value="invoice">Số HĐ nội bộ (chỉ khi Excel dùng cùng số)</option></select></label>
-                        <label>Cột tiền Excel chứa<select id="rc-amount-mode" class="rc-input" onchange="SatoriRecon.invalidate()"><option value="line">Tiền từng dòng (cộng các dòng cùng nhóm)</option><option value="document">Tổng chứng từ lặp trên nhiều dòng (chỉ tính 1 lần)</option></select></label>
-                        <label>Thuế nhập trên cả hai bên<select id="rc-tax" class="rc-input" onchange="SatoriRecon.invalidate(); SatoriRecon.baseline()"><option value="0">So sánh tiền trước VAT</option><option value="8">Excel đã gồm VAT 8%</option><option value="10">Excel đã gồm VAT 10%</option></select></label>
+                        <label>Ghép hai bên theo<select id="rc-match" class="rc-input" onchange="SatoriRecon.rerun()"><option value="auto" selected>Tự động: tên HOẶC điện thoại HOẶC địa chỉ</option><option value="delivery">Kiểm tra chặt: đủ thông tin giao hàng</option><option value="ref">Mã đơn Satori (nhập ở bước 2)</option><option value="invoice">Số HĐ nội bộ (chỉ khi Excel dùng cùng số)</option></select></label>
+                        <label>Cột tiền Excel chứa<select id="rc-amount-mode" class="rc-input" onchange="SatoriRecon.rerun()"><option value="line">Tiền từng dòng (cộng các dòng cùng nhóm)</option><option value="document">Tổng chứng từ lặp trên nhiều dòng (chỉ tính 1 lần)</option></select></label>
+                        <label>Thuế nhập trên cả hai bên<select id="rc-tax" class="rc-input" onchange="SatoriRecon.baseline(); SatoriRecon.rerun()"><option value="0">So sánh tiền trước VAT</option><option value="8">Excel đã gồm VAT 8%</option><option value="10">Excel đã gồm VAT 10%</option></select></label>
                     </div>
                     <div class="overflow-auto rc-scroll"><table class="rc-table"><thead id="rc-preview-head"></thead><tbody id="rc-preview"></tbody></table></div>
                     <p id="rc-preview-note" class="text-xs text-slate-400"></p></details>
@@ -1357,12 +1358,12 @@
                 <div class="overflow-auto rc-scroll"><table class="rc-table"><thead><tr><th>Dùng</th><th>HĐ / Ngày / Khách</th><th>Điện thoại / Hàng / SL</th><th>Mã đơn Satori</th><th>Chiết khấu nhập</th><th>Giá nhập trước VAT (CK 45%)</th></tr></thead><tbody id="rc-baseline"></tbody></table></div>
                 </details>
                 <div class="flex flex-wrap gap-3 items-end">
-                    <label class="text-sm">Sai số tiền cho mỗi nhóm (đ)<input id="rc-tolerance" type="number" value="0" min="0" max="1000000" class="rc-input" onchange="SatoriRecon.invalidate()"></label>
+                    <label class="text-sm">Sai số tiền cho mỗi nhóm (đ)<input id="rc-tolerance" type="number" value="5000" min="0" max="1000000" class="rc-input" onchange="SatoriRecon.rerun()"></label>
                     <button class="rc-button" onclick="SatoriRecon.run()">Đối chiếu lại</button>
                     <button id="rc-export" class="rc-button" disabled onclick="SatoriRecon.exportReport()">Tải báo cáo Excel</button>
                 </div>
                 <p id="rc-error" role="alert" class="text-sm text-rose-300"></p>
-                <div id="rc-summary" aria-live="polite" class="text-sm space-y-2"></div>
+                <div id="rc-summary" aria-live="polite" class="text-sm space-y-2"></div><label class="text-sm">Hiển thị<select id="rc-result-filter" class="rc-input" onchange="SatoriRecon.filterResults()"><option value="all">Tất cả kết quả</option><option value="matched">Khớp</option><option value="mismatch">Không khớp</option><option value="review">Dữ liệu cần kiểm tra</option><option value="unmatched">Chưa nhận diện / nhiều đơn trùng</option><option value="localOnly">Đơn hệ thống chưa ghép</option></select></label>
                 <div class="overflow-auto"><table class="rc-table"><thead><tr><th>Kết quả</th><th>Khách / Ngày giao Satori</th><th>Đơn của anh</th><th>Satori (đ)</th><th>Hệ thống (đ)</th><th>Lệch (Satori − hệ thống)</th><th>Chi tiết</th></tr></thead><tbody id="rc-results"></tbody></table></div>
             </div>
         </section>
@@ -7950,18 +7951,19 @@ window.onload = function() {
 /* Satori purchase reconciliation: deterministic joins; no amount-based guessing. */
 window.SatoriRecon = (() => {
     'use strict';
-    const fields = {date:'Ngày giao / chứng từ', ref:'Mã đơn / chứng từ Satori', invoice:'Số HĐ nội bộ', customer:'Khách / điểm giao', phone:'Số điện thoại', address:'Địa chỉ giao', product:'Mã hoặc tên sản phẩm', unit:'Đơn vị tính', qty:'Số lượng', amount:'Thành tiền nhập'};
+    const fields = {date:'Ngày giao / chứng từ', ref:'Mã đơn / chứng từ Satori', invoice:'Số HĐ nội bộ', customer:'Khách / điểm giao', phone:'Số điện thoại', address:'Địa chỉ giao', product:'Mã hoặc tên sản phẩm', unit:'Đơn vị tính', qty:'Số lượng', amount:'Thành tiền nhập',description:'Diễn giải / ghi chú'};
     const aliases = {
         date:['ngay','ngay giao','ngay giao hang','ngay chung tu','ngay hoa don','date'],
         ref:['so chung tu','ma don hang','so don hang','ma don','so phieu','so hoa don','chung tu'],
-        invoice:['so hd noi bo','so hoa don noi bo','invoice no'], customer:['khach hang','ten khach hang','ten khach','diem giao','noi giao','customer'],
-        phone:['so dien thoai','dien thoai','sdt','phone','so phone'], address:['dia chi','dia chi giao hang','dia chi giao','address'], product:['ma san pham','ma hang','ten hang','ten san pham','san pham','hang hoa','product'],
-        unit:['dvt','don vi tinh','don vi','unit'], qty:['so luong','sl','quantity','qty'], amount:['thanh tien','tien hang','tong tien','tong cong','so tien','amount']
+        invoice:['so hd noi bo','so hoa don noi bo','invoice no'], customer:['khach hang','ten khach hang','ten khach','ten khach mua hang','ho ten','ten nguoi nhan','nguoi nhan','diem giao','noi giao','customer','customer name'],
+        phone:['so dien thoai','dien thoai','sdt','phone','so phone','phone number'], address:['dia chi','dia chi giao hang','dia chi giao','dia chi nhan hang','address'], product:['ma san pham','ma hang','ten hang','ten san pham','san pham','hang hoa','product'],
+        unit:['dvt','don vi tinh','don vi','unit'], qty:['so luong','sl','quantity','qty'], amount:['thanh tien','tien hang','tong tien','tong cong','so tien','amount','thanh tien sau ck','thanh tien sau chiet khau','tien truoc thue','tien hang chua vat'],description:['dien giai','dien giai chung','ghi chu','noi dung','description']
     };
     const state = {stale:false,workbook:null, rows:[], map:{}, ledger:null, excluded:new Set(), omitted:new Set(), result:null, filename:'', generation:0};
     const $ = id => document.getElementById('rc-' + id);
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const norm = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+    const headerNorm = s => norm(String(s??'').replace(/\([^)]*\)/g,'')).replace(/\s+(?:vnd|dong)$/,'');
     // Keep leading zeros and punctuation in references: different IDs must not silently collide.
     const phone = s => { let n=String(s??'').replace(/\([^)]*\)/g,'').replace(/[^0-9]/g,''); if(n.startsWith('84')&&n.length===11)n='0'+n.slice(2);if(n.length===9)n='0'+n;return /^0\d{9}$/.test(n)?n:''; };
     const ref = s => String(s ?? '').trim().toUpperCase();
@@ -8010,6 +8012,122 @@ window.SatoriRecon = (() => {
         const hints=g.entries.map(e=>deliveryHint(e.description,e.date));
         const names=[...new Set(hints.map(h=>h.name).filter(Boolean))],dates=[...new Set(hints.map(h=>h.date).filter(Boolean))];
         return {name:names.length===1?names[0]:'',date:dates.length===1?dates[0]:''};
+    }
+    function phoneSet(value) {
+        const matches=String(value||'').match(/(?:\+?84|0)\s*(?:[.\- ]*\d){9}\b|\b\d{9}\b/g)||[];
+        return [...new Set(matches.map(v=>phone(v)).filter(Boolean))].sort();
+    }
+    function addressKey(value) {
+        return norm(value).replace(/\b(?:thanh pho|tp)\b/g,'tp').replace(/\b(?:quan|q)\s*(\d+)/g,'q $1').replace(/\b(?:phuong|p)\s*(\d+)/g,'p $1').replace(/\s+/g,' ').trim();
+    }
+    function extractText(value,documentDate) {
+        const text=String(value||''),hint=deliveryHint(text,documentDate);
+        const nameLabel=text.match(/(?:tên khách|khách hàng|người nhận)\s*[:：]\s*([^;\n|]+)/iu);
+        const address=text.match(/(?:địa chỉ(?: giao hàng)?|đ\/c)\s*[:：]\s*([^;\n|]+)/iu);
+        const quantities=[...text.matchAll(/\b(\d+(?:[.,]\d+)?)\s*(thùng|bình|lốc|chai)\b/giu)];
+        const units=[...new Set(quantities.map(m=>norm(m[2])))];
+        return {customer:nameLabel?nameLabel[1].trim():hint.name,date:hint.date,phone:phoneSet(text).join(' / '),address:address?.[1]?.trim()||'',qty:quantities.length&&units.length===1?quantities.reduce((s,m)=>s+Number(m[1].replace(',','.')),0):null,unit:units.length===1?units[0]:''};
+    }
+    function autoDocuments(remote,local,opts,ledger) {
+        const companies=[],locals=[],byLocal=new Map();
+        for(const r of local){
+            const id=String(r.orderIndex??r.invoice);
+            if(!byLocal.has(id))byLocal.set(id,[]);byLocal.get(id).push(r);
+        }
+        for(const [id,rows] of byLocal){
+            const r=rows[0];locals.push({id,rows,customer:r.customer,phone:r.phone,address:r.address,date:r.date,ref:r.ref,amount:rows.every(r=>r.amount!==null)?rows.reduce((s,r)=>s+r.amount,0):null,qty:rows.every(r=>r.qty!==null)?rows.reduce((s,r)=>s+r.qty,0):null,unit:[...new Set(rows.map(r=>r.unit).filter(Boolean))].length===1?r.unit:'',error:'',label:r.label});
+        }
+        if(ledger){
+            ledger.groups.forEach((g,groupIndex)=>{
+                const descriptions=[...new Set(g.entries.map(e=>e.description))];
+                const parsed=descriptions.map(t=>extractText(t,g.entries[0]?.date));
+                const unique=f=>{const v=[...new Set(parsed.map(p=>p[f]).filter(v=>v!==''&&v!==null))];return v.length===1?v[0]:f==='qty'?null:'';};
+                const d=unique('date');
+                const inPeriod=d?d>=opts.from&&d<=opts.to:g.entries.some(e=>!e.date||e.date>=opts.from&&e.date<=opts.to);
+                if(!inPeriod)return;
+                const customer=norm(unique('customer'));
+                if(opts.customerFilter&&!customer.includes(opts.customerFilter))return;
+                const amount=opts.tax?g.net+g.vat:g.net;
+                const rows=g.entries.map((e,i)=>({...e,customer,phone:unique('phone'),address:unique('address'),qty:unique('qty'),unit:unique('unit'),amount:i===0?amount:0,product:'',error:''}));
+                companies.push({id:g.ref,groupIndex,rows,customer,displayCustomer:unique('customer'),phone:unique('phone'),address:unique('address'),date:d,ref:g.ref,amount,qty:unique('qty'),unit:unique('unit'),description:descriptions.join('; '),error:[...g.issues,...ledger.issues].join(' ')});
+            });
+        }else{
+            const grouped=new Map();
+            for(const r of remote){const key=r.ref?'ref:'+r.ref:'row:'+r.row;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(r);}
+            for(const [id,rows] of grouped){
+                const first=rows[0],same=f=>[...new Set(rows.map(r=>r[f]).filter(v=>v!==''&&v!==null))];
+                const error=rows.map(r=>r.error).filter(Boolean);
+                const rowSignatures=rows.map(r=>JSON.stringify([r.ref,r.invoice,r.customer,r.phone,r.address,r.date,r.product,r.unit,r.qty,r.amount]));
+                if(new Set(rowSignatures).size<rowSignatures.length)error.push('Có dòng trùng trong cùng mã đơn; cần xác minh.');
+                for(const f of ['customer','phone','address','date'])if(same(f).length>1)error.push('Một mã đơn có nhiều '+fields[f]+'.');
+                let amount=rows.every(r=>r.amount!==null)?rows.reduce((s,r)=>s+r.amount,0):null;
+                if(opts.documentAmount){amount=first.amount;if(rows.some(r=>r.amount!==first.amount))error.push('Tổng chứng từ lặp không nhất quán.');}
+                companies.push({id,rows,customer:first.customer,displayCustomer:first.displayCustomer||first.customer,phone:first.phone,address:first.address,date:first.date,ref:first.ref,amount,qty:rows.every(r=>r.qty!==null)?rows.reduce((s,r)=>s+r.qty,0):null,unit:same('unit').length===1?same('unit')[0]:'',description:rows.map(r=>r.description).filter(Boolean).join('; '),error:error.join(' ')});
+            }
+            const seen=new Map();
+            for(const c of companies){const sig=JSON.stringify([c.ref,c.customer,c.phone,c.address,c.date,c.amount,c.rows.map(r=>[r.product,r.unit,r.qty])]);if(seen.has(sig)){c.error+=' Dòng Excel trùng; cần xác minh.';seen.get(sig).error+=' Dòng Excel trùng; cần xác minh.';}else seen.set(sig,c);}
+        }
+        return {companies,locals};
+    }
+    function identityEvidence(a,b) {
+        const names=!!a.customer&&!!b.customer&&norm(a.customer)===norm(b.customer);
+        const ap=phoneSet(a.phone),bp=phoneSet(b.phone),phones=ap.some(v=>bp.includes(v));
+        const addresses=!!a.address&&!!b.address&&addressKey(a.address)===addressKey(b.address);
+        return [names?'tên':'',phones?'điện thoại':'',addresses?'địa chỉ':''].filter(Boolean);
+    }
+    function automaticReconcile(companies,locals,opts) {
+        const edges=[],out=[];
+        companies.forEach((a,i)=>locals.forEach((b,j)=>{
+            if(a.error)return;
+            const evidence=identityEvidence(a,b),manual=!!a.ref&&!!b.ref&&ref(a.ref)===ref(b.ref);
+            if(b.ref&&a.ref&&!manual)return;
+            if(!evidence.length&&!manual)return;
+            let score=evidence.length*100+(manual?10000:0);
+            if(a.date&&b.date)score+=a.date===b.date?20:-10;
+            if(a.qty!==null&&b.qty!==null&&a.unit&&a.unit===b.unit)score+=a.qty===b.qty?10:0;
+            // Money only breaks display order; it cannot resolve an ambiguous identity match by itself.
+            if(a.amount!==null&&b.amount!==null&&Math.abs(a.amount-b.amount)<=opts.tolerance)score+=1;
+            edges.push({i,j,score,evidence,manual});
+        }));
+        const best=list=>{list.sort((a,b)=>b.score-a.score);return list.length&&(list.length===1||list[0].score-list[1].score>=10)?list[0]:null;};
+        const picked=new Map(),used=new Set();
+        companies.forEach((a,i)=>{
+            const e=best(edges.filter(e=>e.i===i));if(!e)return;
+            const reciprocal=best(edges.filter(v=>v.j===e.j));
+            if(reciprocal?.i===i&&!used.has(e.j)){picked.set(i,e);used.add(e.j);}
+        });
+        companies.forEach((a,i)=>{
+            const edge=picked.get(i),b=edge?locals[edge.j]:null;
+            const r={company:a.rows,local:b?.rows||[],groupIndex:a.groupIndex,hint:{name:a.displayCustomer||a.customer,date:a.date},companyAmount:a.amount,localAmount:b?.amount??null,delta:b&&a.amount!==null&&b.amount!==null?Math.round((a.amount-b.amount)*100)/100:null,status:'',category:'review',detail:'',basis:edge?.evidence||[],source:a};
+            if(a.error){r.status='Dữ liệu cần kiểm tra';r.detail=a.error;}
+            else if(!b){r.status=edges.some(e=>e.i===i)?'Nhiều đơn có thể trùng':'Chưa tìm thấy đơn';r.category='unmatched';r.detail=edges.some(e=>e.i===i)?'Chưa có cặp duy nhất ở cả hai bên; cần chọn đúng đơn.':'Chưa có tên, điện thoại hoặc địa chỉ trùng để nhận diện. Ngày và tiền riêng lẻ không đủ ghép.';}
+            else{
+                const issues=[],checked=[...edge.evidence],missing=[];
+                if(!edge.evidence.length)issues.push('Mã đã liên kết nhưng chưa có tên, điện thoại hoặc địa chỉ trùng để xác minh.');
+                for(const [f,label,compare] of [['customer','Tên khách',(x,y)=>norm(x)===norm(y)],['phone','Điện thoại',(x,y)=>phoneSet(x).some(v=>phoneSet(y).includes(v))],['address','Địa chỉ',(x,y)=>addressKey(x)===addressKey(y)]]){
+                    if(a[f]&&b[f]&&!compare(a[f],b[f]))issues.push(label+' khác nhau.');else if(!a[f]||!b[f])missing.push(label.toLowerCase());
+                }
+                if(a.date&&b.date){checked.push('ngày');if(a.date!==b.date)issues.push('Ngày giao khác nhau: '+a.date+' / '+b.date+'.');}else missing.push('ngày giao');
+                if(a.qty!==null&&b.qty!==null){
+                    if(!a.unit||!b.unit||a.unit===b.unit){checked.push('số lượng (không quy đổi đơn vị)');if(a.qty!==b.qty)issues.push('Lệch số lượng: Satori '+a.qty+' / hệ thống '+b.qty+'.');}
+                    else if(a.unit&&b.unit)issues.push('Khác đơn vị tính; chưa thể so số lượng.');else missing.push('đơn vị tính để kiểm tra số lượng');
+                }else missing.push('số lượng');
+                const ag=goods(a.rows),bg=goods(b.rows);
+                if(ag&&bg){checked.push('sản phẩm');for(const p of new Set([...ag.keys(),...bg.keys()]))if(Math.abs((ag.get(p)||0)-(bg.get(p)||0))>0.000001)issues.push('Lệch hàng/SL '+JSON.parse(p).join(' / ')+': Satori '+(ag.get(p)||0)+' / hệ thống '+(bg.get(p)||0)+'.');}
+                if(r.delta===null)issues.push('Thiếu tiền ở một bên; chưa thể kết luận khớp.');
+                else{checked.push('tiền');if(Math.abs(r.delta)>opts.tolerance)issues.push('Lệch tiền vượt sai số: '+money(r.delta)+' đ.');}
+                r.category=r.delta===null||!edge.evidence.length?'review':issues.length?'mismatch':'matched';
+                r.status=!edge.evidence.length?'Chưa xác minh thông tin khách':issues.length?(r.delta===null?'Thiếu tiền để đối chiếu':'Không khớp'):'Khớp';
+                r.detail='Nhận diện bằng '+(edge.evidence.join(' + ')||'mã liên kết thủ công')+'. '+issues.join(' ')+' Đã so: '+[...new Set(checked)].join(', ')+'.'+(missing.length?' Chưa có đủ hai bên: '+missing.join(', ')+'.':'')+(r.delta!==null&&Math.abs(r.delta)<=opts.tolerance?' Chênh thực tế '+money(r.delta)+' đ, trong sai số '+money(opts.tolerance)+' đ.':'');
+            }
+            out.push(r);
+        });
+        locals.forEach((b,j)=>{if(!used.has(j))out.push({company:[],local:b.rows,companyAmount:null,localAmount:b.amount,delta:null,status:'Đơn hệ thống chưa ghép',category:'localOnly',basis:[],detail:'Chưa tìm được cặp chắc chắn trong file. Không tính vào tiền chênh lệch của các cặp đã nhận diện.'});});
+        return out;
+    }
+    function autoSummary(rows) {
+        const company=rows.filter(r=>r.company.length),paired=company.filter(r=>r.local.length&&r.delta!==null&&r.basis?.length);
+        return {total:company.length,matched:company.filter(r=>r.category==='matched').length,mismatch:company.filter(r=>r.category==='mismatch').length,review:company.filter(r=>['review','unmatched'].includes(r.category)).length,localOnly:rows.filter(r=>r.category==='localOnly').length,paired:paired.length,net:paired.reduce((s,r)=>s+r.delta,0),absolute:paired.reduce((s,r)=>s+Math.abs(r.delta),0)};
     }
     function candidates(g,list) {
         const h=groupHint(g);
@@ -8242,7 +8360,7 @@ window.SatoriRecon = (() => {
             state.workbook=wb;state.filename=file.name;
             $('sheet').innerHTML=wb.SheetNames.map((n,i)=>`<option value="${i}">${esc(n)}</option>`).join('');
             $('import').hidden=false;sheet();message('Đã đọc '+file.name+'. Kiểm tra trang tính, tiêu đề, cột và dòng trước khi đối chiếu.');
-            if(state.ledger||['date','customer','phone','address','product','unit','qty','amount'].every(f=>state.map[f]>=0))run();
+            if(state.ledger||options().match==='auto'||['date','customer','phone','address','product','unit','qty','amount'].every(f=>state.map[f]>=0))run();
         }catch(e){message('Không đọc được Excel: '+e.message,true);}
     }
     function sheet() {
@@ -8251,7 +8369,7 @@ window.SatoriRecon = (() => {
         if(ws['!fullref'] && X.utils.decode_range(ws['!fullref']).e.r>10000) {state.rows=[];$('mapping').innerHTML='';$('preview').innerHTML='';message('Trang tính vượt 10.000 dòng; hãy tách theo kỳ trước khi nhập.',true);return;}
         state.rows=X.utils.sheet_to_json(ws,{header:1,defval:'',raw:true,blankrows:true});state.excluded.clear();
         let best=0,score=-1;
-        state.rows.slice(0,50).forEach((row,i)=>{const s=row.reduce((sum,c)=>sum+(Object.values(aliases).some(a=>a.includes(norm(c)))?1:0),0);if(s>score){score=s;best=i;}});
+        state.rows.slice(0,50).forEach((row,i)=>{const s=row.reduce((sum,c)=>sum+(Object.values(aliases).some(a=>a.includes(headerNorm(c)))?1:0),0);if(s>score){score=s;best=i;}});
         if(state.rows.some(r=>r.some(v=>norm(v)==='tk doi ung')&&r.some(v=>norm(v)==='phat sinh'))){
             const title=state.rows.slice(0,5).flat().join(' '),p=title.match(/Từ ngày\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+đến ngày\s+(\d{1,2}\/\d{1,2}\/\d{4})/i);
             if(p&&date(p[1])&&date(p[2])){$('from').value=date(p[1]);$('to').value=date(p[2]);baseline();}
@@ -8264,23 +8382,23 @@ window.SatoriRecon = (() => {
         $('ledger-note').hidden=!state.ledger;
         $('mapping').hidden=!!state.ledger;
         $('mapping').style.display=state.ledger?'none':'';
-        for(const id of ['match','amount-mode','locale','header'])$(id).disabled=!!state.ledger;
+        for(const id of ['amount-mode','locale','header'])$(id).disabled=!!state.ledger;
         if(state.ledger){
             $('header').value=state.ledger.header||1;
             const named=state.ledger.groups.filter(g=>groupHint(g).name).length;
-            $('ledger-note').textContent='Đã đọc '+state.ledger.groups.length+' đơn; '+named+' đơn có tên trong diễn giải. Tên và ngày giao được hiển thị bên dưới. File chưa có điện thoại, địa chỉ, sản phẩm và số lượng nước. Chọn đơn tương ứng ngay trong kết quả để kiểm tra tiền sau CK 45%.';
+            $('ledger-note').textContent='Đã đọc '+state.ledger.groups.length+' đơn; '+named+' đơn có tên trong diễn giải. Chế độ tự động dùng tên, điện thoại hoặc địa chỉ có sẵn để tìm cặp, rồi so ngày, số lượng và tiền nếu có. Không bắt buộc đủ mọi trường.';
             state.map={};preview();return;
         }
         const idx=Number($('header').value)-1,head=state.rows[idx];
         if(!Number.isInteger(idx)||!head) {message('Dòng tiêu đề không hợp lệ.',true);state.map={};return;}
         state.map={};const used=new Set();
         for(const f of Object.keys(fields)) {
-            const col=head.findIndex((h,i)=>!used.has(i)&&aliases[f].includes(norm(h)));
+            const col=head.findIndex((h,i)=>!used.has(i)&&aliases[f].includes(headerNorm(h)));
             state.map[f]=col;if(col>=0)used.add(col);
         }
         $('mapping').innerHTML=Object.entries(fields).map(([f,label])=>`<label class="text-xs">${esc(label)}<select id="rc-map-${f}" class="rc-input" onchange="SatoriRecon.mapChanged()"><option value="-1">Không chọn</option>${head.map((h,i)=>`<option value="${i}" ${state.map[f]===i?'selected':''}>${i+1}. ${esc(h||'(trống)')}</option>`).join('')}</select></label>`).join('');
         // Obvious total/footer rows are visible and explicitly unchecked, never silently imported.
-        state.rows.forEach((r,i)=>{if(i>idx && r.some(c=>/^(tong cong|cong|tong|du dau ky|du cuoi ky|thanh toan|cong no cuoi ky)(\s|$)/.test(norm(c))))state.excluded.add(i);});
+        state.rows.forEach((r,i)=>{if(i>idx && r.some(c=>/^(tong cong|cong|tong|du dau ky|du cuoi ky|thanh toan|cong no cuoi ky)$/.test(norm(c))))state.excluded.add(i);});
         preview();
     }
     function mapChanged() {for(const f of Object.keys(fields))state.map[f]=Number($('map-'+f).value);preview();}
@@ -8311,16 +8429,28 @@ window.SatoriRecon = (() => {
         for(const {row,i} of activeRows()) {
             if(state.excluded.has(i))continue;
             const r={row:i+1,date:date(cell(row,'date')),customer:norm(cell(row,'customer')),address:norm(cell(row,'address')),phone:phone(cell(row,'phone')),ref:ref(cell(row,'ref')),invoice:ref(cell(row,'invoice')),product:canonicalProduct(cell(row,'product'),catalogue),unit:norm(cell(row,'unit')),qty:number(cell(row,'qty'),opts.locale),amount:number(cell(row,'amount'),opts.locale)};
+            if(opts.match==='auto'){
+                const hint=extractText(cell(row,'description'),r.date||opts.from);
+                r.customer=norm(cell(row,'customer')||hint.customer);r.displayCustomer=String(cell(row,'customer')||hint.customer);
+                r.phone=phoneSet(cell(row,'phone')||hint.phone).join(' / ');r.address=String(cell(row,'address')||hint.address);
+                r.date=r.date||hint.date;r.description=String(cell(row,'description'));
+                if(r.qty===null&&state.map.qty<0){r.qty=hint.qty;r.unit=r.unit||hint.unit;}
+            }
             if(r.date && (r.date<opts.from||r.date>opts.to)||opts.customerFilter && !r.customer.includes(opts.customerFilter)){outside.push(i+1);continue;}
             const errors=[];
-            if(!r.customer)errors.push('Thiếu tên khách.');
-            if(!r.phone)errors.push('Điện thoại không hợp lệ hoặc có nhiều số; cần một số di động 10 chữ số.');
-            if(!r.address)errors.push('Thiếu địa chỉ.');
-            if(!r.date)errors.push('Ngày trống/không hợp lệ (cần ngày/tháng/năm).');
-            if(r.amount===null||r.amount<0)errors.push('Tiền trống/không hợp lệ hoặc âm (trả hàng phải đối chiếu riêng).');
-            if(state.map.qty>=0&&(r.qty===null||r.qty<0))errors.push('Số lượng không hợp lệ.');
-            if(state.map.product>=0&&!r.product)errors.push('Thiếu sản phẩm.');
-            if(state.map.unit>=0&&!r.unit)errors.push('Thiếu đơn vị tính.');
+            if(opts.match!=='auto'){
+                if(!r.customer)errors.push('Thiếu tên khách.');
+                if(!r.phone)errors.push('Điện thoại không hợp lệ hoặc có nhiều số; cần một số di động 10 chữ số.');
+                if(!r.address)errors.push('Thiếu địa chỉ.');
+                if(!r.date)errors.push('Ngày trống/không hợp lệ (cần ngày/tháng/năm).');
+                if(r.amount===null)errors.push('Tiền trống/không hợp lệ.');
+            }
+            if(r.amount!==null&&r.amount<0)errors.push('Tiền âm: trả hàng phải đối chiếu riêng.');
+            if(opts.match==='auto'&&state.map.amount>=0&&String(cell(row,'amount')).trim()&&r.amount===null)errors.push('Tiền không đọc được; kiểm tra dấu phân cách số.');
+            if(opts.match==='auto'&&state.map.date>=0&&String(cell(row,'date')).trim()&&!r.date)errors.push('Ngày không đọc được.');
+            if(state.map.qty>=0&&(opts.match!=='auto'||String(cell(row,'qty')).trim())&&(r.qty===null||r.qty<0))errors.push('Số lượng không hợp lệ.');
+            if(opts.match!=='auto'&&state.map.product>=0&&!r.product)errors.push('Thiếu sản phẩm.');
+            if(opts.match!=='auto'&&state.map.unit>=0&&!r.unit)errors.push('Thiếu đơn vị tính.');
             r.error=errors.join(' ');result.push(r);
         }
         return {result,outside};
@@ -8335,7 +8465,7 @@ window.SatoriRecon = (() => {
             let amount=estimate(o);
             if(amount!==null)amount=Math.round(amount*(1+opts.tax/100)*100)/100;
             const items=o.items?.length?o.items:[{product:o.product,qty:o.qty,unit:''}];
-            items.forEach((it,i)=>result.push({invoice:ref(o.invoiceNo),ref:ref(meta.ref),date:d,customer,phone:phone(o.phone),address:norm(o.location),product:canonicalProduct(it.code||it.product,catalogue),unit:norm(it.unit || catalogue.find(p=>p.code===canonicalProduct(it.code||it.product,catalogue))?.unit),qty:typeof it.qty==='number'&&it.qty>=0?it.qty:null,amount:i===0?amount:0,estimated:false,error:[!d?'Ngày không hợp lệ':'',!customer?'Thiếu tên khách':'',!phone(o.phone)?'Điện thoại không hợp lệ':'',!norm(o.location)?'Thiếu địa chỉ':'',!o.items?.length&&estimate(o)===null?'Đơn cũ gộp nhiều loại/thiếu giá niêm yết; cần bổ sung chi tiết hàng':''].filter(Boolean).join('; '),label:'#'+o.invoiceNo+' · '+o.name}));
+            items.forEach((it,i)=>result.push({orderIndex:orders.indexOf(o),invoice:ref(o.invoiceNo),ref:ref(meta.ref),date:d,customer,phone:opts.match==='auto'?phoneSet(o.phone).join(' / '):phone(o.phone),address:norm(o.location),product:canonicalProduct(it.code||it.product,catalogue),unit:norm(it.unit || catalogue.find(p=>p.code===canonicalProduct(it.code||it.product,catalogue))?.unit),qty:typeof it.qty==='number'&&it.qty>=0?it.qty:null,amount:i===0?amount:0,estimated:false,error:[!d?'Ngày không hợp lệ':'',!customer?'Thiếu tên khách':'',!phone(o.phone)?'Điện thoại không hợp lệ':'',!norm(o.location)?'Thiếu địa chỉ':'',!o.items?.length&&estimate(o)===null?'Đơn cũ gộp nhiều loại/thiếu giá niêm yết; cần bổ sung chi tiết hàng':''].filter(Boolean).join('; '),label:'#'+o.invoiceNo+' · '+o.name}));
         }
         return result;
     }
@@ -8345,6 +8475,16 @@ window.SatoriRecon = (() => {
             if(state.stale)throw Error("Dữ liệu ở cửa sổ khác đã đổi. Tải lại trang trước khi đối chiếu.");
             if(!state.workbook||!state.rows.length)throw Error('Nhập Excel và chọn trang tính trước.');
             const opts=options();
+            if(opts.match==='auto'){
+                if(state.ledger?.issues.length)throw Error(state.ledger.issues.join(' '));
+                const cols=Object.values(state.map).filter(v=>v>=0);if(new Set(cols).size!==cols.length)throw Error('Không dùng cùng một cột cho hai trường.');
+                const remote=state.ledger?{result:[],outside:[]}:imported(opts),local=localRows(opts);
+                const docs=autoDocuments(remote.result,local,opts,state.ledger);
+                if(!docs.companies.length)throw Error('Không còn đơn Satori trong phạm vi đã chọn.');
+                const rows=automaticReconcile(docs.companies,docs.locals,opts);
+                state.result={automatic:true,rows,opts,ledger:state.ledger,filename:state.filename,sheet:state.workbook.SheetNames[Number($('sheet').value)],outside:remote.outside,excluded:[...state.excluded].map(i=>i+1),snapshot:JSON.stringify(orders)};
+                renderAutomatic();$('export').disabled=false;return;
+            }
             if(state.ledger){
                 if(opts.customerFilter)throw Error('Sổ công nợ không có tên người nhận. Xóa bộ lọc khách/điểm giao để đối chiếu theo mã DH.');
                 if(state.ledger.issues.length)throw Error(state.ledger.issues.join(' '));
@@ -8366,6 +8506,25 @@ window.SatoriRecon = (() => {
             state.result={rows:result,opts,filename:state.filename,sheet:state.workbook.SheetNames[Number($('sheet').value)],outside:remote.outside,excluded:[...state.excluded].map(i=>i+1),snapshot:JSON.stringify(orders)};
             renderResult();$('export').disabled=false;
         }catch(e){message(e.message,true);}
+    }
+    function filterResults() {
+        const value=$('result-filter')?.value||'all';
+        for(const tr of $('results').querySelectorAll('tr[data-category]'))tr.hidden=value!=='all'&&tr.dataset.category!==value;
+    }
+    function rerun() {if(state.workbook)run();else invalidate();}
+    function renderAutomatic() {
+        const report=state.result,{rows,opts}=report,s=autoSummary(rows);
+        const cards=[['Đơn Satori',s.total],['Khớp',s.matched],['Không khớp',s.mismatch],['Chưa kết luận',s.review],['Đơn hệ thống chưa ghép',s.localOnly]];
+        $('summary').innerHTML='<div class="grid grid-cols-2 sm:grid-cols-5 gap-3">'+cards.map(([label,n])=>'<div class="bg-slate-900 rounded-xl p-3"><span class="text-xs text-slate-400">'+esc(label)+'</span><p class="text-2xl font-bold">'+n+'</p></div>').join('')+'</div><p class="font-bold text-cyan-200">'+s.paired+' cặp có đủ tiền · Chênh lệch ròng (Satori − hệ thống): '+money(s.net)+' đ · Tổng trị tuyệt đối chênh lệch: '+money(s.absolute)+' đ.</p><p>Sai số '+money(opts.tolerance)+' đ / cặp. Tiền hệ thống = tổng giá niêm yết × số lượng × 55%'+(opts.tax?' + VAT '+opts.tax+'%':' (trước VAT)')+'. Khớp theo những dữ liệu hai bên có; không bắt buộc đủ mọi trường. Các đơn chưa ghép hoặc thiếu tiền không nằm trong tổng chênh lệch.</p>';
+        if(!rows.some(r=>r.local.length))message('Chưa nhận diện được cặp đơn. Kiểm tra dữ liệu đơn trên trình duyệt này và mở rộng kỳ nếu cần.');
+        const rank={mismatch:0,review:1,unmatched:2,matched:3,localOnly:4};
+        $('results').innerHTML=[...rows].sort((a,b)=>rank[a.category]-rank[b.category]).map(r=>{
+            const src=r.source,c=r.company[0],local=[...new Set(r.local.map(v=>v.label||v.invoice))].join('; ');
+            const source=src?'<b>'+esc(src.displayCustomer||src.customer||'Chưa có tên')+'</b><br>'+esc([src.phone,src.address,src.date].filter(Boolean).join(' · '))+'<br><small>'+esc(src.ref||'Dòng '+r.company.map(v=>v.row).join(', '))+(src.qty!==null?' · SL '+esc(src.qty)+' '+esc(src.unit):'')+'</small>':'—';
+            const picker=report.ledger&&Number.isInteger(r.groupIndex)&&r.category!=='matched'?'<details><summary class="cursor-pointer text-cyan-300">Chọn / sửa đơn ghép</summary>'+orderPicker(r.groupIndex)+'</details>':'';
+            return '<tr data-category="'+r.category+'"><td class="font-bold '+(r.category==='matched'?'text-emerald-300':r.category==='mismatch'?'text-rose-300':'text-amber-300')+'">'+esc(r.status)+'</td><td>'+source+'</td><td>'+esc(local||'Chưa nhận diện được')+picker+'</td><td>'+money(r.companyAmount)+'</td><td>'+money(r.localAmount)+'</td><td>'+money(r.delta)+'</td><td>'+esc(r.detail)+(src?.description?'<details><summary>Diễn giải gốc</summary>'+esc(src.description)+'</details>':'')+'</td></tr>';
+        }).join('');
+        filterResults();
     }
     function renderResult() {
         const {rows,opts,outside,excluded,ledger}=state.result;
@@ -8394,6 +8553,7 @@ window.SatoriRecon = (() => {
             const wb=X.utils.book_new();
             const summary=[['BÁO CÁO ĐỐI CHIẾU ĐƠN NHẬP SATORI'],['File',report.filename],['Trang tính',report.sheet],['Từ ngày',report.opts.from],['Đến ngày',report.opts.to],['Ngày xuất',new Date().toISOString()],['Ghép theo',report.opts.match],['Tiền Excel',report.opts.documentAmount?'Tổng chứng từ lặp':'Tiền từng dòng'],['VAT nhập %',report.opts.tax],['Sai số tiền',report.opts.tolerance],['Chiết khấu nhập cố định', '45% — giá nhập = giá niêm yết × 55%'],['Dòng ngoài phạm vi',report.outside.join(', ')],['Dòng bỏ chọn',report.excluded.join(', ')],['Lưu ý','Tổng tiền hàng không phải dư nợ cuối kỳ; chưa tính dư đầu kỳ và thanh toán cho Satori.']];
             if(report.ledger)summary.push(['Giới hạn','Tên/nhãn và ngày giao được tách từ diễn giải khi có. Sổ thiếu điện thoại, địa chỉ, sản phẩm và số lượng; chưa đủ xác nhận khớp đơn đầy đủ.'],['Tiền hàng toàn file',report.ledger.goods],['VAT toàn file',report.ledger.vat],['Thanh toán toàn file',report.ledger.payments],['Dư cuối theo Excel',report.ledger.closing]);
+            if(report.automatic){const s=autoSummary(report.rows);summary.push(['Cách nhận diện','Tên hoặc điện thoại hoặc địa chỉ; ngày/số lượng dùng phân biệt. Không dùng riêng tiền/ngày để ghép.'],['Số đơn Satori',s.total],['Khớp',s.matched],['Không khớp',s.mismatch],['Chưa kết luận',s.review],['Đơn hệ thống chưa ghép',s.localOnly],['Số cặp đủ tiền',s.paired],['Chênh lệch ròng các cặp',s.net],['Tổng trị tuyệt đối chênh lệch',s.absolute],['Bộ phân tích','Nhận diện theo quy tắc ngay trong trình duyệt; chưa kết nối dịch vụ AI.']);}
             X.utils.book_append_sheet(wb,X.utils.aoa_to_sheet(summary),'Thong tin');
             const rows=[['Kết quả','Dòng Excel','Mã Satori','HĐ hệ thống','Ngày chứng từ Satori','Khách trên chứng từ','Tiền Satori','Tiền hệ thống','Chênh lệch Satori - HT','Chi tiết','Tên từ diễn giải','Ngày giao từ diễn giải']];
             report.rows.forEach(r=>rows.push([r.status,r.company.map(a=>a.row).join(', '),[...new Set(r.company.map(a=>a.ref))].join(', '),[...new Set(r.local.map(a=>a.invoice))].join(', '),[...new Set(r.company.map(a=>a.date))].join(', '),[...new Set(r.company.map(a=>a.customer))].join(', '),r.companyAmount??'',r.localAmount??'',r.delta??'',r.detail,r.hint?.name||'',r.hint?.date||'']));
@@ -8412,7 +8572,7 @@ window.SatoriRecon = (() => {
         baseline();
     }
     window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){state.stale=true;invalidate();message('Đơn ở cửa sổ khác vừa đổi. Tải lại trang trước khi đối chiếu.',true);}});
-    return {open,baseline,omit,savePurchase,chooseOrder,upload,sheet,headers,mapChanged,preview,exclude,invalidate,run,exportReport,engine:{norm,ref,phone,number,date,estimate,canonicalProduct,key,reconcile,fingerprint,parseLedger,ledgerReconcile,deliveryHint,groupHint,candidates}};
+    return {open,baseline,omit,savePurchase,chooseOrder,upload,sheet,headers,mapChanged,preview,exclude,invalidate,run,rerun,filterResults,exportReport,engine:{norm,ref,phone,number,date,estimate,canonicalProduct,key,reconcile,fingerprint,parseLedger,ledgerReconcile,deliveryHint,groupHint,candidates,extractText,identityEvidence,automaticReconcile,autoDocuments,autoSummary,phoneSet,addressKey}};
 })();
 
     </script>
