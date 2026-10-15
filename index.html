@@ -422,6 +422,7 @@
                         </div>
                     </div>
 
+                    <details class="text-xs text-slate-400"><summary class="cursor-pointer">Xem văn bản đã đọc từ PDF</summary><pre id="pdfParsedRawText" class="whitespace-pre-wrap max-h-64 overflow-auto mt-2"></pre></details>
                     <!-- 2 Nút hành động đưa vào hệ thống -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                         <button type="button" onclick="applyParsedPdfToOrderForm()" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 px-3 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-95 cursor-pointer">
@@ -3104,7 +3105,7 @@
         }
         function aiCatalogueProduct(text, unitHint = '', customer = null, allowMemory = true) {
             const raw = String(text || '');
-            let n = ' ' + aiNormalize(raw) + ' ';
+            let n = ' ' + aiNormalize(raw).replace(/(satori|hikari)(\d)/g,'$1 $2').replace(/\b(350|500|550|1500|450|400|250)\s*m(?:l|1|i)?\b/g,'$1ml') + ' ';
             const code = catalogue.find(p => n.includes(' ' + aiNormalize(p.code) + ' '));
             if (code) return code;
             let pool = catalogue.slice();
@@ -7352,6 +7353,7 @@
                 if(sequence!==pdfImportSequence)return;
                 const parsed = parsePdfInvoiceText(fullText, file.name);
                 currentParsedPdfData = parsed;
+                document.getElementById('pdfParsedRawText').textContent=fullText;
 
                 renderParsedPdfPreview(parsed);
                 if (spinner) spinner.classList.add('hidden');
@@ -7447,12 +7449,13 @@
                     if (text.replace(/\s/g,'').length<15) {
                         document.getElementById('pdfParsingMessage').textContent=`Đang đọc chữ từ ảnh trang ${num}/${pdfDoc.numPages}…`;
                         if (!window.Tesseract) await loadRuntimeScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
-                        if (!worker) worker=await window.Tesseract.createWorker(['vie','eng'],1);
+                        if (!worker) {worker=await window.Tesseract.createWorker(['vie','eng'],1);await worker.setParameters({tessedit_pageseg_mode:'11',preserve_interword_spaces:'1'});}
                         const viewport=page.getViewport({scale:Math.min(2,1800/page.getViewport({scale:1}).width)});
                         const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
                         try {
                             await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
-                            text=(await worker.recognize(canvas)).data.text;
+                            const recognized=(await worker.recognize(canvas)).data;
+                            text=recognized.words?.length ? pdfTextLines(recognized.words.map(w=>({str:w.text,width:w.bbox.x1-w.bbox.x0,transform:[1,0,0,w.bbox.y1-w.bbox.y0,w.bbox.x0,-w.bbox.y1]}))) : recognized.text;
                         } finally {canvas.width=0;canvas.height=0;}
                     }
                     pages.push(text);page.cleanup();
@@ -7475,17 +7478,23 @@
             const field=(labels,scope=text)=>{
                 const pattern=new RegExp(String.raw`(?:${labels})\s*[:：]\s*([^\n]+)`,'i');
                 const m=scope.match(pattern);
-                return m ? m[1].split(/\t{1,}|\s+(?:SĐT|Điện thoại|Địa chỉ|Mã số thuế)\s*[:：]/i)[0].trim() : '';
+                if(m)return m[1].split(/\t{1,}|\s+(?:SĐT|Điện thoại|Địa chỉ|Mã số thuế)\s*[:：]/i)[0].trim();
+                const wanted=labels.split('|').map(aiNormalize);
+                for(const row of scope.split(/[\n\t]/)) {
+                    const pair=row.match(/^([^:：]+)[:：]\s*(.*)$/);
+                    if(pair && wanted.some(label=>aiNormalize(pair[1]).endsWith(label)))return pair[2].trim();
+                }
+                return '';
             };
-            const buyerIndex=text.search(/THÔNG TIN KHÁCH HÀNG|KHÁCH HÀNG\s*\(BÊN MUA\)|THÔNG TIN BÊN MUA/i);
-            const buyerText=buyerIndex>=0?text.slice(buyerIndex):text;
+            const buyerIndex=lines.findIndex(line=>{const n=aiNormalize(line);return n.includes('thong tin khach hang') || n.includes('thong tin ben mua') || (n.includes('khach hang') && n.includes('ben mua'));});
+            const buyerText=buyerIndex>=0?lines.slice(buyerIndex).join('\n'):text;
             let name=field('Đơn vị/Cá nhân|Tên đơn vị/cá nhân|Tên người mua|Khách hàng|Người mua|Bên mua|Đơn vị mua hàng',buyerText);
             const memory=aiMemoryForParsing();
             const contact=aiExtractContact(text,memory);
             if(!name)name=contact.cust?.name || 'Khách vãng lai';
             const customer=memory.find(c=>aiNormalize(c.name)===aiNormalize(name)) || contact.cust;
-            const phone=aiPhone(field('Số điện thoại|SĐT|Điện thoại|Phone|Tel',buyerText)) || contact.phone;
-            const location=field('Địa chỉ giao hàng|Địa chỉ giao|Địa chỉ|Nơi giao|Giao tại',buyerText);
+            const phone=aiPhone(field('Số điện thoại|SĐT|Điện thoại|Phone|Tel',buyerText)) || (buyerIndex<0?contact.phone:'');
+            const location=field('Địa chỉ giao hàng|Địa chỉ giao|Nơi giao|Giao tại',text) || (buyerIndex>=0?field('Địa chỉ',buyerText):'');
             const date=text.match(/(?:Ngày lập|Ngày xuất|Ngày)\s*[:：]?\s*(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4})/i)?.[1]?.replace(/[.\-]/g,'/') || new Date().toLocaleDateString('vi-VN');
             const items=[];
             for(const line of lines) {
@@ -7494,10 +7503,10 @@
                 // Tab-separated table: product, unit, quantity, prices, amount.
                 let columns=line.split(/\t+|\s{2,}/).map(s=>s.trim()).filter(Boolean);
                 if(columns.length<3) {
-                    const plain=line.match(/(?:^|\s)(thùng|thung|bình|binh|lốc|loc)\s+(\d+\s+[\d.,%\s]+)$/i);
+                    const plain=line.match(/(?:^|\s)(thùng|thung|thing|bình|binh|lốc|loc)\s+(\d+\s+[\d.,%\s]+)$/i);
                     if(plain)columns=[line.slice(0,plain.index),plain[1],...plain[2].trim().split(/\s+/)];
                 }
-                const unitIndex=columns.findIndex(c=>/^(thùng|thung|bình|binh|lốc|loc)$/i.test(c));
+                const unitIndex=columns.findIndex(c=>/^(thùng|thung|thing|bình|binh|lốc|loc)$/i.test(c));
                 const numeric=unitIndex>=0?columns.slice(unitIndex+1).map(pdfNumber).filter(n=>n!==null):[];
                 if(numeric.length>=2 && numeric[0]>0 && numeric[0]<=5000) {
                     const qty=numeric[0];
@@ -7512,7 +7521,7 @@
             const vat=/vat\s*[:(]?\s*8\s*%|gtgt\s*\(?8\s*%/i.test(text)?'yes':'no';
             const goodsTotal=items.reduce((s,it)=>s+it.qty*it.unitPrice,0);
             const computedTotal=goodsTotal+Math.round(vat==='yes'?goodsTotal*.08:0);
-            const totalText=field('Tổng cộng tiền thanh toán|Tổng thanh toán|Tổng cộng|Tổng tiền');
+            const totalText=field('Tổng cộng tiền thanh toán|Tổng cộng thanh toán|Tổng thanh toán|Tổng cộng|Tổng tiền');
             const declaredTotal=pdfNumber(totalText);
             const warnings=[];
             if(!items.length)warnings.push('Chưa đọc được mặt hàng và số lượng; cần kiểm tra file.');
