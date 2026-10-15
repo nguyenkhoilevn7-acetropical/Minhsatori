@@ -6841,6 +6841,20 @@
         function downloadFullSystemBackup() {
             try {
                 const now = new Date();
+                // Preserve recovery sources verbatim, including legacy order stores.
+                // Reading these must not invoke trash cleanup or mutate any stored data.
+                const recoveryStorage = {};
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && /^satori_(?:orders(?:_|$)|trash_bin(?:_|$)|deleted_invoices_bin$|deleted_invoice_nos$)/.test(key)) {
+                        recoveryStorage[key] = localStorage.getItem(key);
+                    }
+                }
+                let recoveryTrash = [];
+                try {
+                    const rawTrash = JSON.parse(localStorage.getItem(TRASH_BIN_KEY) || '[]');
+                    if (Array.isArray(rawTrash)) recoveryTrash = rawTrash;
+                } catch (e) { /* Original bytes remain available in recoveryStorage. */ }
                 const backupPayload = {
                     appName: "HKD Minh Satori POS & Accounting",
                     appVersion: APP_VERSION || "V16.5 Pro",
@@ -6856,7 +6870,8 @@
                         orders: orders,
                         catalogue: catalogue,
                         aiMemory: JSON.parse(localStorage.getItem(AI_MEMORY_KEY) || '[]'),
-                        trashBin: JSON.parse(localStorage.getItem('satori_deleted_invoices_bin') || '[]'),
+                        trashBin: recoveryTrash,
+                        recoveryStorage: recoveryStorage,
                         deletedNos: JSON.parse(localStorage.getItem('satori_deleted_invoice_nos') || '[]'),
                         googleSyncUrl: localStorage.getItem(SYNC_URL_KEY) || ''
                     }
@@ -8273,7 +8288,3 @@ window.SatoriRecon = (() => {
     </script>
 </body>
 </html>
-
-
-
-
