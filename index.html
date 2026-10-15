@@ -77,6 +77,7 @@
             }
         }
 
+        @media print {#invoicePreviewPanel {border:0;background:white;} #invoicePreviewPanel>summary {display:none!important;}}
         /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
@@ -93,20 +94,28 @@
             background: #475569;
         }
         .hidden, [hidden] { display: none !important; }
+
+        .compact-panel {border:1px solid #334155;border-radius:14px;background:#0f172a;overflow:hidden;}
+        .compact-panel>summary {padding:14px 16px;cursor:pointer;font-size:13px;font-weight:700;color:#cbd5e1;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+        .compact-panel>summary::after {content:'＋';font-size:18px;color:#67e8f9;}
+        .compact-panel[open]>summary::after {content:'−';}
+        .compact-panel>summary:focus-visible {outline:2px solid #38bdf8;outline-offset:-3px;}
+        .compact-panel .compact-panel-body {padding:0 14px 14px;}
+        .compact-item {padding:14px 0;border-bottom:1px solid #334155;}
+        .compact-item-head {display:flex;justify-content:space-between;gap:12px;font-size:14px;}
+        .compact-item-head small {display:block;color:#94a3b8;font-size:11px;margin-top:3px;}
+        .compact-item-values,.compact-fields {display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+        .compact-field {display:block;color:#94a3b8;font-size:11px;min-width:0;}
+        .compact-field input,.compact-field select {display:block;width:100%;margin-top:5px;padding:10px;border:1px solid #475569;border-radius:9px;background:#020617;color:#e2e8f0;font-size:14px;min-width:0;}
+        .compact-field.wide {grid-column:1/-1;}
+        .compact-item-edit {margin-top:12px;font-size:12px;color:#94a3b8;}
+        .compact-item-edit summary {cursor:pointer;padding:5px 0;}
+        .compact-item-total {display:flex;justify-content:space-between;gap:10px;margin-top:10px;font-size:12px;color:#94a3b8;}
+        .compact-item-total strong {color:#fbbf24;}
+        .parse-status {font-size:12px;color:#6ee7b7;padding:8px 0;}
+        .parse-status.needs-review {color:#fcd34d;}
+        @media(max-width:640px) {#tab-input {gap:14px;} .compact-panel>summary {min-height:48px;}}
     </style>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script>
-        if (typeof html2canvas === 'undefined') {
-            document.write('<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>');
-        }
-        if (typeof window.jspdf === 'undefined' && typeof window.jsPDF === 'undefined') {
-            document.write('<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"><\/script>');
-        }
-    </script>
-    <!-- Mozilla PDF.js Standalone Library for In-Browser PDF Parsing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-blue-600 selection:text-white">
 
@@ -148,7 +157,7 @@
                             </h1>
                             <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                Bản V16.7 Pro (Đối chiếu Satori · CK nhập 45%)
+                                Bản V16.8 · Lên đơn gọn
                             </span>
                         </div>
                         <p class="text-xs text-slate-400">Hệ Thống Lên Hóa Đơn, Sổ Kế Toán & Quản Lý Doanh Số Tự Động 100%</p>
@@ -240,6 +249,7 @@
     <!-- ========================================================================= -->
     <!-- HERO SECTION: GIAO DIỆN HIỆN ĐẠI, TỐI GIẢN VỚI NÚT CTA NỔI BẬT             -->
     <!-- ========================================================================= -->
+<details id="introPanel" class="compact-panel no-print"><summary>Giới thiệu & hướng dẫn</summary><div class="compact-panel-body">
     <section class="no-print bg-gradient-to-b from-slate-950 via-slate-900/95 to-slate-950 border-b border-slate-800/80 px-3 sm:px-6 py-5 sm:py-7 transition-all">
         <div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-5 sm:gap-6">
             <!-- Cột trái: Tiêu đề & Giới thiệu tính năng cốt lõi -->
@@ -298,13 +308,15 @@
     </section>
 
 
+
+</div></details>
     <!-- Main Workspace Container -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-6">
 
         <!-- ========================================== -->
         <!-- TAB 1: TẠO ĐƠN & BẢN XEM TRƯỚC HÓA ĐƠN     -->
         <!-- ========================================== -->
-        <section id="tab-input" class="space-y-6">
+        <section id="tab-input" class="space-y-4">
             <!-- BANNER CHẾ ĐỘ CHỈNH SỬA HÓA ĐƠN ĐÃ GỬI (ĐỒNG BỘ SỔ KẾ TOÁN) -->
             <div id="editModeBanner" class="hidden bg-gradient-to-r from-amber-950/95 via-amber-900/90 to-slate-950 border-2 border-amber-500 rounded-2xl p-4 sm:p-5 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-pulse">
                 <div class="flex items-center gap-3">
@@ -333,6 +345,7 @@
                         <!-- ========================================================================= -->
             <!-- AI PDF INVOICE AUTO-PARSER & IMPORT ENGINE                                -->
             <!-- ========================================================================= -->
+<details id="pdfImportPanel" class="compact-panel no-print"><summary>Nhập hóa đơn từ PDF</summary><div class="compact-panel-body">
             <div class="bg-gradient-to-r from-slate-900 via-indigo-950/70 to-slate-900 border border-rose-500/40 rounded-2xl p-4 sm:p-5 shadow-xl no-print space-y-3.5">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
                     <div class="flex items-center gap-2.5">
@@ -341,7 +354,7 @@
                         </span>
                         <div>
                             <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-rose-300 flex items-center gap-1.5">
-                                <span>Tải Lên File PDF Hóa Đơn • Bóc Tách Tự Động 100%</span>
+                                <span>Đọc thông tin hóa đơn PDF</span>
                                 <span class="bg-rose-950 text-rose-300 text-[10px] px-2 py-0.2 rounded-full border border-rose-500/30 font-semibold lowercase">ai extractor</span>
                             </h3>
                             <p class="text-[11px] text-slate-300">Tự động đọc nội dung PDF hóa đơn điện tử / đơn hàng, bóc tách tên khách hàng, SĐT, địa chỉ, mặt hàng và đưa vào Hóa đơn & Sổ Kế Toán.</p>
@@ -364,20 +377,20 @@
                     <p class="text-xs font-semibold text-slate-200">
                         Kéo thả file PDF vào đây hoặc <span class="text-rose-400 underline font-bold">bấm để duyệt file</span>
                     </p>
-                    <p class="text-[10px] text-slate-400">Hỗ trợ mọi định dạng PDF hóa đơn điện tử, phiếu xuất kho, phiếu đặt hàng Satori</p>
+                    <p class="text-[10px] text-slate-400">PDF có văn bản được đọc trực tiếp; PDF ảnh được thử nhận dạng chữ. Kiểm tra kết quả trước khi lưu.</p>
                 </div>
 
                 <!-- Spinner trạng thái đang bóc tách -->
                 <div id="pdfParsingSpinner" class="hidden py-3 text-center text-xs text-rose-300 space-y-1">
                     <div class="inline-block w-6 h-6 border-3 border-rose-400 border-t-transparent rounded-full animate-spin"></div>
-                    <p class="font-medium">Đang đọc văn bản và phân tích dữ liệu hóa đơn từ file PDF...</p>
+                    <p id="pdfParsingMessage" class="font-medium" role="status">Đang đọc PDF…</p>
                 </div>
 
                 <!-- Kết quả bóc tách PDF (Hiển thị xem trước & nút hành động) -->
                 <div id="pdfParsedPreviewCard" class="hidden bg-slate-950 border border-rose-500/30 rounded-xl p-3 sm:p-4 space-y-3">
                     <div class="flex items-center justify-between border-b border-slate-800 pb-2">
                         <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                            <i class="fa-solid fa-circle-check"></i> ĐÃ BÓC TÁCH THÀNH CÔNG DỮ LIỆU TỪ FILE PDF!
+                            <i class="fa-solid fa-circle-check"></i> KẾT QUẢ ĐỌC PDF — KIỂM TRA TRƯỚC KHI LƯU
                         </span>
                         <span id="pdfFileNameBadge" class="text-[10px] text-slate-400 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800 truncate max-w-[200px]">...</span>
                     </div>
@@ -423,6 +436,8 @@
                 </div>
             </div>
 
+
+</div></details>
 <!-- AI Zalo Message Smart Parser Box -->
             <div class="bg-gradient-to-r from-slate-900 to-indigo-950 border border-blue-500/40 rounded-2xl p-4 shadow-xl no-print space-y-3">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -432,12 +447,12 @@
                         </span>
                         <div>
                             <h3 class="text-xs font-bold uppercase tracking-wider text-blue-300">
-                                Trợ Lý AI Bóc Tách Tin Nhắn Zalo Chuẩn Xác (Không Lấy Địa Chỉ Cũ)
+                                Dán tin nhắn để lên đơn
                             </h3>
-                            <p class="text-[11px] text-slate-400">AI chỉ bóc tách địa chỉ, số điện thoại và tên từ chính tin nhắn hiện tại. Tuyệt đối không chèn địa chỉ cũ từ danh bạ vào đơn hàng mới của khách!</p>
+                            <p class="text-[11px] text-slate-400">Tự điền người nhận, nơi giao, số thùng và loại nước. Loại nước, chiết khấu được đối chiếu với đơn đã lưu của khách.</p>
                         </div>
                     </div>
-                    <div class="flex flex-wrap gap-1.5">
+                    <details class="text-xs text-slate-400"><summary class="cursor-pointer">Xem tin nhắn mẫu</summary><div class="flex flex-wrap gap-1.5 mt-2">
                         <button onclick="loadSampleZalo(1)" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-blue-300 px-2.5 py-1 rounded-lg border border-slate-700 transition">
                             Mẫu 1: Traky (10 thùng nước xuống dòng)
                         </button>
@@ -451,6 +466,7 @@
                             Mẫu 4: Anh Hoàng (Đ/C Hai Bà Trưng Q.1)
                         </button>
                     </div>
+                </details>
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-2">
@@ -470,6 +486,7 @@
                 </div>
             </div>
 
+            <p id="aiParseStatus" class="parse-status" role="status" aria-live="polite"></p>
             <!-- Workspace 2 Columns: Left Input Form / Right Live Invoice Preview -->
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
@@ -491,6 +508,7 @@
 
                     <form id="orderForm" class="space-y-3.5" onsubmit="event.preventDefault(); handleSaveAndGenerate();">
                         
+<details id="invoiceMetaPanel" class="compact-panel no-print"><summary>Ngày, số hóa đơn</summary><div class="compact-panel-body">
                         <!-- Order Date & Invoice Number -->
                         <div class="grid grid-cols-2 gap-2.5">
                             <div>
@@ -503,6 +521,8 @@
                             </div>
                         </div>
 
+
+</div></details>
                         <!-- Customer Quick Select / Autocomplete -->
                         <div>
                             <div class="flex justify-between items-center mb-1">
@@ -563,9 +583,9 @@
                             <div class="flex justify-between items-center">
                                 <div>
                                     <h3 class="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-                                        <i class="fa-solid fa-boxes-stacked"></i> Danh Sách Sản Phẩm & Giá Niêm Yết
+                                        <i class="fa-solid fa-boxes-stacked"></i> Sản phẩm trong đơn
                                     </h3>
-                                    <p class="text-[10px] text-slate-500">Chỉnh sửa số lượng, giá mượt mà không bị nhảy phím</p>
+                                    <p class="text-[10px] text-slate-500">Tự điền từ tin nhắn; có thể sửa số lượng và giá bán.</p>
                                 </div>
                                 <button type="button" onclick="addNewProductItem()" class="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1 shadow">
                                     <i class="fa-solid fa-plus-circle"></i> Thêm Sản Phẩm
@@ -578,6 +598,7 @@
                             </div>
                         </div>
 
+<details id="paymentOptionsPanel" class="compact-panel no-print"><summary>Thuế, phí giao hàng & trạng thái thanh toán</summary><div class="compact-panel-body">
                         <!-- VAT & Payment Status -->
                         <!-- VAT, Shipping Cost & Payment Status (Cùng một hàng) -->
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-800">
@@ -631,6 +652,9 @@
                             </div>
                         </div>
 
+
+</div></details>
+<details id="profitPanel" class="compact-panel no-print"><summary>Xem giá vốn & lợi nhuận</summary><div class="compact-panel-body">
                         <!-- KHỐI QUẢN TRỊ NỘI BỘ: TÍNH TIỀN LỢI NHUẬN HÓA ĐƠN (CHỈ CHỦ THẤY - KHÔNG IN RA HÓA ĐƠN) -->
                         <div class="bg-gradient-to-r from-slate-950 via-purple-950/30 to-slate-950 border border-purple-500/40 rounded-xl p-3 space-y-2 shadow-inner">
                             <div class="flex items-center justify-between border-b border-purple-500/20 pb-1.5">
@@ -676,6 +700,8 @@
                             </div>
                         </div>
 
+
+</div></details>
                         <!-- Submit Button -->
                         <div class="pt-2">
                             <button type="submit" id="btnSubmitOrder" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-3 px-4 rounded-xl text-xs sm:text-sm transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-95">
@@ -688,7 +714,7 @@
                 </div>
 
                 <!-- LIVE INVOICE PREVIEW (Matches original Satori black template) -->
-                <div class="lg:col-span-7 flex flex-col space-y-3">
+                <details id="invoicePreviewPanel" class="lg:col-span-7 compact-panel"><summary class="no-print">Xem trước hóa đơn & tải PDF</summary><div class="compact-panel-body space-y-3">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 no-print bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 shadow">
                         <div class="flex items-center gap-2">
                             <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -873,7 +899,7 @@
                         </div>
 
                     </div>
-                </div>
+                </div></details>
 
             </div>
         </section>
@@ -2609,6 +2635,7 @@
         const INITIAL_ORDERS = [{"id": 1, "date": "19/08/2026", "name": "Edric Salon", "phone": "964367032", "location": "189 Chùa Láng, Hà Nội", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 1, "status": "Chưa thanh toán"}, {"id": 2, "date": "19/08/2026", "name": "Edric Salon", "phone": "772996043", "location": "96 Lê Thị Hồng Gấm, Quận", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 2, "status": "Chưa thanh toán"}, {"id": 3, "date": "19/08/2026", "name": "Edric Salon", "phone": "932190544", "location": "220/114 Lê Văn Sỹ, Quận 3", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 3, "status": "Chưa thanh toán"}, {"id": 4, "date": "19/08/2026", "name": "Edric Salon", "phone": "835970941", "location": "F23 đường 3A KDC Him Lam, Quận 7", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 4, "status": "Chưa thanh toán"}, {"id": 5, "date": "19/08/2026", "name": "Công Ty CP ACE Clubhouse", "phone": "775550723", "location": "90 Song Hành , Xa Lộ Hà Nội , Quận 2", "product": "30 Thùng Suối 550ml, 2 Thùng Ổi Hồng, 2 Thùng Mãng Cầu, 1 Thùng Me", "qty": 35, "listPrice": 88000, "discount": 0, "unitPrice": 98714, "vat": "yes", "total": 3731394.0, "invoiceNo": 5, "status": "Chưa thanh toán"}, {"id": 6, "date": "19/08/2026", "name": "CÔNG TY TNHH TM DV THỂ THAO BANGER PICKLEBALL", "phone": "775550723 (Long)", "location": "Số 90 đường Song Hành, P. Bình Trưng, TP. Hồ Chí Minh", "product": "2 Thùng Ổi Hồng, 2 Thùng Mãng Cầu, 1 Thùng Me", "qty": 5, "listPrice": 88000, "discount": 0, "unitPrice": 249999, "vat": "yes", "total": 1349994.6, "invoiceNo": 6, "status": "Chưa thanh toán"}, {"id": 7, "date": "19/08/2026", "name": "Mr Ốc Ngon", "phone": "0777399999 (Long)", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 19944, "unitPrice": 68056, "vat": "yes", "total": 735000.0, "invoiceNo": 7, "status": "Chưa thanh toán"}, {"id": 8, "date": "19/08/2026", "name": "Nhà Hàng Thạnh Phú", "phone": "0777399999 (Long)", "location": "52 Bình Phú, p. Tam Bình - hcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 19944, "unitPrice": 68056, "vat": "yes", "total": 735000.0, "invoiceNo": 8, "status": "Chưa thanh toán"}, {"id": 9, "date": "22/0802026", "name": "Edric Salon", "phone": "0978154773 (Thảo)", "location": "752 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 9, "status": "Chưa thanh toán"}, {"id": 10, "date": "22/08/2026", "name": "Edric Salon", "phone": "0366892266 (Cường)", "location": "173 Võ Văn Ngân, Phường Linh Chiểu, Thủ Đức", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 10, "status": "Chưa thanh toán"}, {"id": 11, "date": "22/08/2026", "name": "Edric Salon", "phone": "0931325049 (Trúc)", "location": "159 Calmette, P. Nguyễn Thái Bình, Q1. Tphcm", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 11, "status": "Chưa thanh toán"}, {"id": 12, "date": "22/8/2026", "name": "Edric Salon", "phone": "0947894349 (Sơn)", "location": "111 Võ Oanh, P.25, Q.Bình Thạnh, HCM", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 12, "status": "Chưa thanh toán"}, {"id": 13, "date": "22/08/2026", "name": "Edric Salon", "phone": "0392590245 (Phương)", "location": "272 Huỳnh Văn Bánh, P.11, Q. Phú Nhuận, HCM", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 13, "status": "Chưa thanh toán"}, {"id": 14, "date": "22/08/2026", "name": "Edric Salon", "phone": "0379034849 (Trọng)", "location": "377 Nguyễn Duy Trinh, P. Bình Trưng Tây, Q2, HCM", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 14, "status": "Chưa thanh toán"}, {"id": 15, "date": "24/08/2026", "name": "Nhà Hàng Thạnh Phú", "phone": "777399999 (Long)", "location": "52 Bình Phú, P Tam Bình, HCM", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 15, "status": "Chưa thanh toán"}, {"id": 16, "date": "21/08/2026", "name": "PWC", "phone": "0933493229 Trân", "location": "1137 Huỳnh Tấn Phát, q7", "product": "Suối 500ml", "qty": 30, "listPrice": 88000, "discount": 22000, "unitPrice": 66000, "vat": "no", "total": 1980000.0, "invoiceNo": 16, "status": "Chưa thanh toán"}, {"id": 17, "date": "28/08/2026", "name": "Traky Cần Thơ", "phone": "975681220", "location": "133D Trần Hưng Đạo , phường an phú . Quận Ninh Kiều , TP Cần Thơ", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 17, "status": "Chưa thanh toán"}, {"id": 18, "date": "28/08/2026", "name": "Traky Rạch Giá", "phone": "968924979", "location": "150 nguyễn trung trực, vĩnh bảo, tp rạch giá", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 18, "status": "Chưa thanh toán"}, {"id": 19, "date": "28/08/2026", "name": "Traky Long Xuyên", "phone": "989362401", "location": "245 lý thái tổ mỹ long , long xuyên, An Giang", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 19, "status": "Chưa thanh toán"}, {"id": 20, "date": "28/08/2026", "name": "Traky Mỹ Tho", "phone": "355660715", "location": "361 ấp bắc phường đạo thạnh. Tỉnh đồng tháp", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 20, "status": "Chưa thanh toán"}, {"id": 21, "date": "28/08/2026", "name": "Traky Sóc Trăng", "phone": "868233425", "location": "79 đường 30/4 - TP. Sóc Trăng", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 21, "status": "Chưa thanh toán"}, {"id": 22, "date": "28/08/2026", "name": "Traky Bến Tre", "phone": "946051098", "location": "65 Nguyễn đình chiểu p an hội bến tre", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 22, "status": "Chưa thanh toán"}, {"id": 23, "date": "28/08/2026", "name": "Traky Bạc Liêu", "phone": "386309611", "location": "367 Trần Phú - P Bạc Liêu - Tỉnh Cà Mau", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 23, "status": "Chưa thanh toán"}, {"id": 24, "date": "28/08/2026", "name": "Traky Cà Mau", "phone": "799252974", "location": "173 Bùi Thị Trường P5 Tp Cà Mau", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 24, "status": "Chưa thanh toán"}, {"id": 25, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "978154773", "location": "752 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 25, "status": "Chưa thanh toán"}, {"id": 26, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "366892266", "location": "173 Võ Văn Ngân, Phường Linh Chiểu, Thủ Đức, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 26, "status": "Chưa thanh toán"}, {"id": 27, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "Trúc - 0931325049", "location": "159 Calmette, P.Nguyễn Thái Bình, Q.1, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 27, "status": "Chưa thanh toán"}, {"id": 28, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "Sơn - 0947894349", "location": "111 Võ Oanh, Phường 25, Quận Bình Thạnh, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 28, "status": "Chưa thanh toán"}, {"id": 29, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "Phương - 0392590245", "location": "272 Huỳnh Văn Bánh, Phường 11, Quận Phú Nhuận, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 29, "status": "Chưa thanh toán"}, {"id": 30, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "Trọng - 0379034849", "location": "377 Nguyễn Duy Trinh, P.Bình Trưng Tây, Q.2, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 30, "status": "Chưa thanh toán"}, {"id": 31, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "772996043", "location": "96 Lê Thị Hồng Gấm, Quận 1", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 31, "status": "Chưa thanh toán"}, {"id": 32, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "932190544", "location": "220/114 Lê Văn Sỹ, Quận 3", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 32, "status": "Chưa thanh toán"}, {"id": 33, "date": "28/08/2026", "name": "Traky Sài Gòn", "phone": "835970941", "location": "F23 đường 3A KDC Him Lam, Quận 7", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 33, "status": "Chưa thanh toán"}, {"id": 34, "date": "28/08/2026", "name": "Nhà Hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 34, "status": "Chưa thanh toán"}, {"id": 35, "date": "31/08/2026", "name": "Ốc Ngon", "phone": "869898107", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 35, "status": "Chưa thanh toán"}, {"id": 36, "date": "03/09/2026", "name": "Nhà Hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 36, "status": "Chưa thanh toán"}, {"id": 37, "date": "04/09/2026", "name": "HỘ KINH DOANH DỊCH VỤ TÀI LỘC", "phone": "0763122658 0705232917", "location": "234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 1400000.0, "invoiceNo": 37, "status": "Đã thanh toán"}, {"id": 38, "date": "07/09/2026", "name": "Ốc Lá", "phone": "Duy - 0768629630", "location": "13 Trần Quý Kiên , Q2 , Cát Lái", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 13000, "unitPrice": 75000, "vat": "no", "total": 750000.0, "invoiceNo": 38, "status": "Chưa thanh toán"}, {"id": 39, "date": "10/10/2026", "name": "18+", "phone": "Nam - 0932720893", "location": "11 Trần Quý Kiên , Q2 , Cát Lái", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 20000, "unitPrice": 68000, "vat": "no", "total": 680000.0, "invoiceNo": 39, "status": "Chưa thanh toán"}, {"id": 40, "date": "06/09/2026", "name": "Nhà hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 40, "status": "Chưa thanh toán"}, {"id": 41, "date": "09/09/2026", "name": "Ốc Ngon", "phone": "869898107", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 41, "status": "Chưa thanh toán"}, {"id": 42, "date": "10/09/2026", "name": "Traky Hair", "phone": "964367032", "location": "75 Quang Trung, p.10, Gò Vấp", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 42, "status": "Chưa thanh toán"}, {"id": 43, "date": "11/09/2026", "name": "Traky Sài Gòn", "phone": "772996043", "location": "96 Lê Thị Hồng Gấm, Quận 1", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 43, "status": "Chưa thanh toán"}, {"id": 44, "date": "14/09/2026", "name": "Cô Hoa", "phone": "903507433", "location": "17 Mai Chí Thọ, Phường An Khánh, Quận 2, HCM (Bali 1)", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 13000, "unitPrice": 75000, "vat": "no", "total": 750000.0, "invoiceNo": 44, "status": "Chưa thanh toán"}, {"id": 45, "date": "14/09/2026", "name": "Nhà hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 45, "status": "Chưa thanh toán"}, {"id": 46, "date": "15/09/2026", "name": "Traky Hair", "phone": "389888689", "location": "48 ba cu phường vũng tàu tphcm", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 46, "status": "Chưa thanh toán"}, {"id": 47, "date": "15/09/2026", "name": "Traky Bình Dương", "phone": "0971918125 (Thành Phong)", "location": "126 yersin hiệp thành thủ dầu một bình dương", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 47, "status": "Chưa thanh toán"}, {"id": 48, "date": "15/09/2026", "name": "Traky Biên Hòa", "phone": "353540001 (Tấn Dũng)", "location": "76 đường 30 tháng 4 phường trung Dũng tp biên hòa", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 48, "status": "Chưa thanh toán"}, {"id": 49, "date": "15/09/2026", "name": "Traky Đà Nẵng 2", "phone": "0945993872 (Minh Khang)", "location": "09 Phan Đăng Lưu, Hoà Cường Nam,Hải Châu, Đà Nẵng", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 975000.0, "invoiceNo": 49, "status": "Chưa thanh toán"}, {"id": 50, "date": "20/09/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "712 Đ. Vĩnh Khánh, Khánh Hội, Hồ Chí Minh 72800", "product": "8 Suối 500ml, 4 Ổi, 4 Mãn Cầu, 4 Me", "qty": 20, "listPrice": 88000, "discount": 0, "unitPrice": 155480, "vat": "yes", "total": 3358359.0, "invoiceNo": 50, "status": "Chưa thanh toán"}, {"id": 51, "date": "18/09/2026", "name": "Ốc Q", "phone": "0901866833 (Tâm)", "location": "260 Trần Não, Khu phố 1, An Khánh, Hồ Chí Minh", "product": "Suối 450ml Premium", "qty": 15, "listPrice": 88000, "discount": 77352, "unitPrice": 10648, "vat": "yes", "total": 172500.0, "invoiceNo": 51, "status": "Chưa thanh toán"}, {"id": 52, "date": "19/09/2026", "name": "Nhà hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 52, "status": "Chưa thanh toán"}, {"id": 53, "date": "19/09/2026", "name": "Traky Sài Gòn", "phone": "772996043", "location": "96 Lê Thị Hồng Gấm, Quận 1", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 27815, "unitPrice": 60185, "vat": "yes", "total": 650000.0, "invoiceNo": 53, "status": "Đã hủy"}, {"id": 54, "date": "20/19/2026", "name": "Traky Sài Gòn", "phone": "909606933", "location": "F23 Đ. 3A, Khu đô thị Him Lam, Tân Hưng, Hồ Chí Minh", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 702000.0, "invoiceNo": 54, "status": "Chưa thanh toán"}, {"id": 55, "date": "21/09/2026", "name": "HỘ KINH DOANH DỊCH VỤ TÀI LỘC", "phone": "0763122658 0705232917", "location": "234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 23185, "unitPrice": 64815, "vat": "yes", "total": 1400000.0, "invoiceNo": 55, "status": "Chưa thanh toán"}, {"id": 56, "date": "23/09/2026", "name": "Nguyễn Bảo Châu Diamon", "phone": "0934123669 (Bảo Kim)", "location": "214 Nguyễn Trãi, phường cầu ông lãnh ( Nguyễn Bảo Châu Diamon)", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 17970, "unitPrice": 70030, "vat": "yes", "total": 1512640.0, "invoiceNo": 56, "status": "Chưa thanh toán"}, {"id": 57, "date": "23/09/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "1000 Kha Vạn Cân, Phường Thủ Đức", "product": "3 Suối 500ml, 3 Suối 1500ml, 2 Ổi Hồng, 1 Me, 1 Mãn Cầu", "qty": 10, "listPrice": 88000, "discount": 0, "unitPrice": 124886, "vat": "yes", "total": 1348773.0, "invoiceNo": 57, "status": "Chưa thanh toán"}, {"id": 58, "date": "23/09/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "Đảo Kim Cương, Toà Canary", "product": "6 Suối 500ml, 2 Ổi, 2 Mãn Cầu", "qty": 10, "listPrice": 88000, "discount": 0, "unitPrice": 124886, "vat": "yes", "total": 1348773.0, "invoiceNo": 58, "status": "Chưa thanh toán"}, {"id": 59, "date": "23/09/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "178 Nguyễn Hữu Thọ , phường Tân Hưng , Quận 7", "product": "6 Suối 500ml, 2 Ổi, 2 Mãn Cầu", "qty": 10, "listPrice": 88000, "discount": 0, "unitPrice": 198813, "vat": "yes", "total": 2147178.0, "invoiceNo": 59, "status": "Chưa thanh toán"}, {"id": 60, "date": "27/09/2026", "name": "Ốc Ngon", "phone": "869898107", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 60, "status": "Chưa thanh toán"}, {"id": 61, "date": "27/09/2026", "name": "Traky Sài Gòn", "phone": "96 Lê Thị Hồng Gấm, Quận", "location": "772996043", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 650000.0, "invoiceNo": 61, "status": "Chưa thanh toán"}, {"id": 62, "date": "28/09/2026", "name": "Hà Minh Nguyệt", "phone": "919989887", "location": "KUAI JIE ZHAO HOTPOT - 40 Võ Văn Tần, Xuân Hòa, Hồ Chí Minh 700000", "product": "2 Suối, 2 Mãn Cầu, 2 ổi", "qty": 6, "listPrice": 88000, "discount": 0, "unitPrice": 153405, "vat": "yes", "total": 994064.0, "invoiceNo": 62, "status": "Chưa thanh toán"}, {"id": 63, "date": "10/10/2026", "name": "Hà Minh Nguyệt", "phone": "919989887", "location": "KUAI JIE ZHAO HOTPOT chi nhánh 2 - 24 Bùi Bằng Đoàn, Khu đô thị Phú Mỹ Hưng, Tân Hưng, Hồ Chí Minh", "product": "2 Suối, 2 Mãn Cầu, 2 ổi", "qty": 6, "listPrice": 88000, "discount": 0, "unitPrice": 153405, "vat": "yes", "total": 994064.0, "invoiceNo": 63, "status": "Chưa thanh toán"}, {"id": 64, "date": "10/10/2026", "name": "Hà Minh Nguyệt", "phone": "919989887", "location": "Yến Hoả Quán - Đ. Vĩnh Khánh/402 HCMC, QUẬN 4, Hồ Chí Minh 70000", "product": "2 Suối, 2 Mãn Cầu, 2 ổi", "qty": 6, "listPrice": 88000, "discount": 0, "unitPrice": 153405, "vat": "yes", "total": 994064.0, "invoiceNo": 64, "status": "Chưa thanh toán"}, {"id": 65, "date": "28/09/2026", "name": "Traky Sài Gòn", "phone": "964367032", "location": "75 Quang Trung, p.10, Gò Vấp", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 14500, "unitPrice": 73500, "vat": "yes", "total": 793800.0, "invoiceNo": 65, "status": "Chưa thanh toán"}, {"id": 66, "date": "29/09/2026", "name": "Traky Sài Gòn", "phone": "865474559", "location": "220/114 Lê Văn Sỹ, Quận 3", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 702000.0, "invoiceNo": 66, "status": "Chưa thanh toán"}, {"id": 67, "date": "1/10/2026", "name": "Traky Sài Gòn", "phone": "392590245", "location": "272 Huỳnh Văn Bánh, Phường 11, Quận Phú Nhuận, TP.HCM Phương", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 702000.0, "invoiceNo": 67, "status": "Chưa thanh toán"}, {"id": 68, "date": "2/10/2026", "name": "Hà Minh Nguyệt", "phone": "389457076 (Wayson)", "location": "Chung Cư Kingdom Block B", "product": "8 Suối 500ml, 1 Mãn Cầu, 1 Ổi", "qty": 10, "listPrice": 88000, "discount": 0, "unitPrice": 100960, "vat": "yes", "total": 1090368.0, "invoiceNo": 68, "status": "Chưa thanh toán"}, {"id": 68, "date": "2/10/2026", "name": "CÔNG TY CỔ PHẦN THƯƠNG MẠI DỊCH VỤ VINAHASA (Ốc Q)", "phone": "0901866833 (Tâm)", "location": "260 Trần Não, Khu phố 1, An Khánh, Hồ Chí Minh", "product": "Suối Premium 400ml", "qty": 10, "listPrice": 88000, "discount": 0, "unitPrice": 115000, "vat": "yes", "total": 1242000.0, "invoiceNo": 68, "status": "Chưa thanh toán"}, {"id": 69, "date": "3/10/2026", "name": "Traky Sài Gòn", "phone": "909606933", "location": "F23 Đ. 3A, Khu đô thị Him Lam, Tân Hưng, Hồ Chí Minh", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 702000.0, "invoiceNo": 69, "status": "Chưa thanh toán"}, {"id": 70, "date": "03/10/2026", "name": "18+", "phone": "Nam - 0932720893", "location": "11 Trần Quý Kiên , Q2 , Cát Lái", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 20000, "unitPrice": 68000, "vat": "no", "total": 680000.0, "invoiceNo": 70, "status": "Chưa thanh toán"}, {"id": 71, "date": "04/10/2026", "name": "Nguyễn Bảo Châu Diamon", "phone": "0934123669 (Bảo Kim)", "location": "214 Nguyễn Trãi, phường cầu ông lãnh ( Nguyễn Bảo Châu Diamon)", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 17970, "unitPrice": 70030, "vat": "yes", "total": 1512640.0, "invoiceNo": 71, "status": "Chưa thanh toán"}, {"id": 72, "date": "04/10/2026", "name": "Traky Sài Gòn", "phone": "Trúc - 0931325049", "location": "159 Calmette, P.Nguyễn Thái Bình, Q.1, TP.HCM", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 1404000.0, "invoiceNo": 72, "status": "Chưa thanh toán"}, {"id": 73, "date": "5/10/2026", "name": "Nhà hàng Thạnh Phú", "phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm", "product": "Suối 500ml", "qty": 10, "listPrice": 88000, "discount": 18000, "unitPrice": 70000, "vat": "no", "total": 700000.0, "invoiceNo": 73, "status": "Chưa thanh toán"}, {"id": 74, "date": "05/10/2026", "name": "Hà Minh Nguyệt", "phone": "338915675", "location": "R4-26 Đường số 6, Tân Phong, Tân Hưng, Hồ Chí Minh", "product": "Sưới 500ml, Ổi, Mãn Cầu", "qty": 5, "listPrice": 88000, "discount": 0, "unitPrice": 115645, "vat": "yes", "total": 624481.0, "invoiceNo": 74, "status": "Chưa thanh toán"}, {"id": 75, "date": "05/10/2026", "name": "Hà Minh Nguyệt", "phone": "969264175", "location": "385 Điện Biên Phủ, phường Thạnh Mỹ Tây, TP.HCM", "product": "Sưới 500ml, Ổi, Mãn Cầu", "qty": 5, "listPrice": 88000, "discount": 0, "unitPrice": 115645, "vat": "yes", "total": 624481.0, "invoiceNo": 75, "status": "Chưa thanh toán"}, {"id": 76, "date": "05/10/2026", "name": "Hà Minh Nguyệt", "phone": "932673103", "location": "964 TRẦN HƯNG ĐẠO ,P.7,Q.5", "product": "Sưới 500ml, Ổi, Mãn Cầu", "qty": 5, "listPrice": 88000, "discount": 0, "unitPrice": 115645, "vat": "yes", "total": 624481.0, "invoiceNo": 76, "status": "Chưa thanh toán"}, {"id": 77, "date": "05/10/2026", "name": "Hà Minh Nguyệt", "phone": "356154675", "location": "86A Cống Quỳnh, phường Bến Thành, Hồ Chí Minh", "product": "Sưới 500ml, Ổi, Mãn Cầu", "qty": 5, "listPrice": 88000, "discount": 0, "unitPrice": 115645, "vat": "yes", "total": 624481.0, "invoiceNo": 77, "status": "Chưa thanh toán"}, {"id": 78, "date": "10/10/2026", "name": "HỘ KINH DOANH DỊCH VỤ TÀI LỘC", "phone": "0763122658 0705232917", "location": "234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam", "product": "Suối 350ml", "qty": 20, "listPrice": 88000, "discount": 23185, "unitPrice": 64815, "vat": "yes", "total": 1400000.0, "invoiceNo": 78, "status": "Chưa thanh toán"}, {"id": 79, "date": "07/10/2026", "name": "Traky Sài Gòn", "phone": "772996043", "location": "96 Lê Thị Hồng Gấm, Quận 1", "product": "Suối 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "yes", "total": 702000.0, "invoiceNo": 79, "status": "Chưa thanh toán"}, {"id": 80, "date": "07/10/2026", "name": "Traky Sài Gòn", "phone": "978154773", "location": "752 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM", "product": "Suối 350ml", "qty": 15, "listPrice": 88000, "discount": 44667, "unitPrice": 43333, "vat": "yes", "total": 702000.0, "invoiceNo": 80, "status": "Chưa thanh toán"}, {"id": 81, "date": "09/10/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "712 Đ. Vĩnh Khánh, Khánh Hội, Hồ Chí Minh 72800", "product": "Suối 500ml", "qty": 20, "listPrice": 88000, "discount": 24300, "unitPrice": 63700, "vat": "yes", "total": 1375920.0, "invoiceNo": 81, "status": "Chưa thanh toán"}, {"id": 82, "date": "09/10/2026", "name": "Hà Minh Nguyệt", "phone": "358707777", "location": "750 Lã Xuân Oai, Long Trường, Thủ Đức.", "product": "Suối 500ml, Suối 1.5L", "qty": 20, "listPrice": 88000, "discount": 24300, "unitPrice": 63700, "vat": "yes", "total": 1375920.0, "invoiceNo": 82, "status": "Chưa thanh toán"}, {"id": 83, "date": "10/10/2026", "name": "nguyên", "phone": "", "location": "", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 0.0, "invoiceNo": 83, "status": "Chưa thanh toán"}, {"id": 84, "date": "10/10/2026", "name": "Traky Sài Gòn", "phone": "", "location": "", "product": "Suối Satori 350ml", "qty": 10, "listPrice": 88000, "discount": 23000, "unitPrice": 65000, "vat": "no", "total": 0.0, "invoiceNo": 84, "status": "Chưa thanh toán"}];
         const CUSTOMER_DIR = {"Edric Salon": {"phone": "964367032", "location": "189 Chùa Láng, Hà Nội"}, "Công Ty CP ACE Clubhouse": {"phone": "775550723", "location": "90 Song Hành , Xa Lộ Hà Nội , Quận 2"}, "CÔNG TY TNHH TM DV THỂ THAO BANGER PICKLEBALL": {"phone": "775550723 (Long)", "location": "Số 90 đường Song Hành, P. Bình Trưng, TP. Hồ Chí Minh"}, "Mr Ốc Ngon": {"phone": "0777399999 (Long)", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm"}, "Nhà Hàng Thạnh Phú": {"phone": "0777399999 (Long)", "location": "52 Bình Phú, p. Tam Bình - hcm"}, "PWC": {"phone": "0933493229 Trân", "location": "1137 Huỳnh Tấn Phát, q7"}, "Traky Cần Thơ": {"phone": "975681220", "location": "133D Trần Hưng Đạo , phường an phú . Quận Ninh Kiều , TP Cần Thơ"}, "Traky Rạch Giá": {"phone": "968924979", "location": "150 nguyễn trung trực, vĩnh bảo, tp rạch giá"}, "Traky Long Xuyên": {"phone": "989362401", "location": "245 lý thái tổ mỹ long , long xuyên, An Giang"}, "Traky Mỹ Tho": {"phone": "355660715", "location": "361 ấp bắc phường đạo thạnh. Tỉnh đồng tháp"}, "Traky Sóc Trăng": {"phone": "868233425", "location": "79 đường 30/4 - TP. Sóc Trăng"}, "Traky Bến Tre": {"phone": "946051098", "location": "65 Nguyễn đình chiểu p an hội bến tre"}, "Traky Bạc Liêu": {"phone": "386309611", "location": "367 Trần Phú - P Bạc Liêu - Tỉnh Cà Mau"}, "Traky Cà Mau": {"phone": "799252974", "location": "173 Bùi Thị Trường P5 Tp Cà Mau"}, "Traky Sài Gòn": {"phone": "978154773", "location": "752 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM"}, "Ốc Ngon": {"phone": "869898107", "location": "267F/8 Tô Ngọc Vân - P. hiệp bình - hcm"}, "HỘ KINH DOANH DỊCH VỤ TÀI LỘC": {"phone": "0763122658 0705232917", "location": "234 Bạch Đằng, Phường Hải Châu, TP Đà Nẵng, Việt Nam"}, "Ốc Lá": {"phone": "Duy - 0768629630", "location": "13 Trần Quý Kiên , Q2 , Cát Lái"}, "18+": {"phone": "Nam - 0932720893", "location": "11 Trần Quý Kiên , Q2 , Cát Lái"}, "Nhà hàng Thạnh Phú": {"phone": "Hằng - 0784723916", "location": "52 bình phú , phường tam bình ,tphcm"}, "Traky Hair": {"phone": "964367032", "location": "75 Quang Trung, p.10, Gò Vấp"}, "Cô Hoa": {"phone": "903507433", "location": "17 Mai Chí Thọ, Phường An Khánh, Quận 2, HCM (Bali 1)"}, "Traky Bình Dương": {"phone": "0971918125 (Thành Phong)", "location": "126 yersin hiệp thành thủ dầu một bình dương"}, "Traky Biên Hòa": {"phone": "353540001 (Tấn Dũng)", "location": "76 đường 30 tháng 4 phường trung Dũng tp biên hòa"}, "Traky Đà Nẵng 2": {"phone": "0945993872 (Minh Khang)", "location": "09 Phan Đăng Lưu, Hoà Cường Nam,Hải Châu, Đà Nẵng"}, "Hà Minh Nguyệt": {"phone": "358707777", "location": "712 Đ. Vĩnh Khánh, Khánh Hội, Hồ Chí Minh 72800"}, "Ốc Q": {"phone": "0901866833 (Tâm)", "location": "260 Trần Não, Khu phố 1, An Khánh, Hồ Chí Minh"}, "Nguyễn Bảo Châu Diamon": {"phone": "0934123669 (Bảo Kim)", "location": "214 Nguyễn Trãi, phường cầu ông lãnh ( Nguyễn Bảo Châu Diamon)"}, "CÔNG TY CỔ PHẦN THƯƠNG MẠI DỊCH VỤ VINAHASA (Ốc Q)": {"phone": "0901866833 (Tâm)", "location": "260 Trần Não, Khu phố 1, An Khánh, Hồ Chí Minh"}, "nguyên": {"phone": "", "location": ""}};
 
+        let currentModalViewedOrder = null;
         let orders = null;
         try {
             orders = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -2806,96 +2833,26 @@
          * Render danh sách mặt hàng trong Form tạo hóa đơn (Hỗ trợ sửa đơn giá trực tiếp)
          */
         function renderItemsForm() {
-            const container = document.getElementById('itemsContainer');
-            container.innerHTML = '';
-
-            currentItems.forEach((item, index) => {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = "bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-3.5 space-y-3 relative shadow-md";
-                
-                const matchedCode = item.code || (catalogue.find(p => p.name === item.product)?.code) || 'custom';
-
-                itemDiv.innerHTML = `
-                    <div class="flex justify-between items-center border-b border-slate-800 pb-1.5">
-                        <span class="text-[11px] font-bold text-cyan-400 flex items-center gap-1.5">
-                            <span class="bg-blue-600/30 text-blue-300 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">${index + 1}</span>
-                            <span>Mặt hàng #${index + 1}</span>
-                            ${item.code ? `<span class="bg-slate-800 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.2 rounded text-[9px] font-mono">${item.code}</span>` : ''}
-                        </span>
-                        ${currentItems.length > 1 ? `
-                            <button type="button" onclick="removeProductItem(${index})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-0.5 rounded hover:bg-rose-950/40 transition flex items-center gap-1 border border-rose-500/20" title="Xóa mặt hàng này">
-                                <i class="fa-solid fa-trash-can"></i> Xóa
-                            </button>
-                        ` : ''}
-                    </div>
-
-                    <!-- Lựa chọn sản phẩm từ Bảng Giá hoặc nhập tên tùy ý -->
-                    <div class="grid grid-cols-1 gap-1.5">
-                        <label class="block text-[10px] text-slate-400 font-medium">Chọn sản phẩm niêm yết (hoặc nhập tên tùy ý bên dưới):</label>
-                        <select onchange="updateItemType(${index}, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-cyan-300 font-semibold focus:outline-none focus:border-blue-500">
-                            ${getProductSelectOptionsHTML(matchedCode)}
-                        </select>
-                        <input type="text" id="item_name_${index}" value="${item.product}" oninput="onItemNameInput(${index}, this.value)" placeholder="Tên sản phẩm..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium">
-                    </div>
-
-                    <!-- KHỐI ĐƠN GIÁ BÁN TRỰC TIẾP & SỐ LƯỢNG (CHO PHÉP SỬA TRỰC TIẾP) -->
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                        <!-- 1. Số lượng -->
-                        <div>
-                            <label class="block text-[10px] text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
-                                <i class="fa-solid fa-boxes-stacked text-blue-400"></i> Số lượng
-                            </label>
-                            <input type="number" id="item_qty_${index}" value="${item.qty}" min="0" oninput="onQtyInput(${index}, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-blue-500">
-                        </div>
-                        
-                        <!-- 2. Đơn vị tính -->
-                        <div>
-                            <label class="block text-[10px] text-slate-400 font-semibold mb-0.5">ĐVT</label>
-                            <input type="text" id="item_unit_${index}" value="${item.unit || 'Thùng'}" oninput="onItemUnitInput(${index}, this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
-                        </div>
-
-                        <!-- 3. ĐƠN GIÁ BÁN TRỰC TIẾP (CHO PHÉP SỬA GIÁ TIỀN TRỰC TIẾP TẠI ĐÂY) -->
-                        <div class="col-span-2 sm:col-span-2">
-                            <div class="flex justify-between items-center mb-0.5">
-                                <label class="block text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                                    <i class="fa-solid fa-pen-to-square text-emerald-400"></i> Đơn giá bán trực tiếp (đ)
-                                </label>
-                                <span class="text-[9px] text-emerald-300 bg-emerald-950/70 border border-emerald-500/40 px-1.5 py-0.2 rounded font-medium">Sửa trực tiếp</span>
-                            </div>
-                            <div class="relative">
-                                <input type="number" id="item_unitp_${index}" value="${item.unitPrice}" min="0" oninput="onUnitPriceInput(${index}, this.value)" placeholder="Nhập đơn giá bán..." class="w-full bg-slate-950 border-2 border-emerald-500/80 hover:border-emerald-400 focus:border-emerald-400 rounded-lg px-2.5 py-1.5 text-xs text-emerald-300 font-black focus:outline-none focus:ring-1 focus:ring-emerald-400 pr-6 shadow-sm shadow-emerald-500/20">
-                                <span class="absolute right-2 top-1.5 text-[10px] text-emerald-400/80 font-bold">đ</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- KHỐI CÔNG CỤ CHIẾT KHẤU 2 CHIỀU & GIÁ NIÊM YẾT (TÙY CHỌN BỔ SUNG) -->
-                    <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2 space-y-1.5">
-                        <div class="grid grid-cols-3 gap-2">
-                            <div>
-                                <label class="block text-[10px] text-cyan-300 font-medium mb-0.5">Giá niêm yết (đ)</label>
-                                <input type="number" id="item_listp_${index}" value="${item.listPrice}" min="0" oninput="onListPriceInput(${index}, this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-cyan-300 font-medium focus:outline-none focus:border-cyan-500">
-                            </div>
-                            <div>
-                                <label class="block text-[10px] text-amber-300 font-medium mb-0.5">Chiết khấu (%)</label>
-                                <input type="number" id="item_disc_${index}" value="${item.discountPercent}" step="0.01" min="0" max="100" oninput="onDiscPctInput(${index}, this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-amber-300 font-medium focus:outline-none focus:border-amber-400">
-                            </div>
-                            <div>
-                                <label class="block text-[10px] text-slate-400 font-medium mb-0.5">Tiền giảm (đ)</label>
-                                <input type="number" id="item_discamt_${index}" value="${item.discountAmount}" min="0" oninput="onDiscAmtInput(${index}, this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
-                            </div>
-                        </div>
-
-                        <!-- Dòng hiển thị thành tiền của mặt hàng -->
-                        <div class="text-right text-[11px] pt-1 border-t border-slate-800/80 flex justify-between items-center">
-                            <span class="text-slate-400 text-[10px]">
-                                Thành tiền: <strong id="item_formula_${index}" class="text-slate-300 font-mono font-normal">${item.qty} × ${(item.unitPrice || 0).toLocaleString('vi-VN')} đ</strong>
-                            </span>
-                            <span id="item_subtotal_${index}" class="font-extrabold text-amber-400 font-mono text-xs">${(item.subtotal || (item.qty * item.unitPrice) || 0).toLocaleString('vi-VN')} đ</span>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(itemDiv);
+            const container=document.getElementById('itemsContainer');
+            container.innerHTML='';
+            if(!currentItems.length) {
+                container.innerHTML='<p class="text-sm text-slate-400 py-3">Chưa có mặt hàng. Dán tin nhắn đặt hàng để tự điền, hoặc bấm Thêm sản phẩm.</p>';
+                return;
+            }
+            currentItems.forEach((item,index)=>{
+                const card=document.createElement('div');
+                card.className='compact-item';
+                const code=item.code || catalogue.find(p=>p.code===aiProductKey(item))?.code || 'custom';
+                const field=(id,label,value,handler,type='number')=>`<label class="compact-field">${label}<input id="${id}_${index}" type="${type}" value="${aiEscape(value)}" oninput="${handler}(${index},this.value)" ${type==='number'?'min="0" step="any"':''}></label>`;
+                card.innerHTML=`<div class="compact-item-head"><div><strong id="item_heading_${index}">${aiEscape(item.product)}</strong><small>${aiEscape(item.unit || 'Thùng')}${item.parseSource?' · Loại nước từ '+aiEscape(item.parseSource):''}</small></div><button type="button" onclick="removeProductItem(${index})" aria-label="Xóa ${aiEscape(item.product)}" class="text-rose-300 p-2">✕</button></div>
+                  <div class="compact-item-values">${field('item_qty','Số lượng',item.qty,'onQtyInput')}${field('item_unitp','Giá bán / '+aiEscape(item.unit || 'thùng'),item.unitPrice,'onUnitPriceInput')}</div>
+                  <details class="compact-item-edit"><summary>Đổi loại nước / chỉnh giá chi tiết</summary><div class="compact-fields">
+                    <label class="compact-field wide">Sản phẩm<select onchange="updateItemType(${index},this.value)">${getProductSelectOptionsHTML(code)}</select></label>
+                    ${field('item_name','Tên sản phẩm',item.product,'onItemNameInput','text')}${field('item_unit','Đơn vị tính',item.unit || 'Thùng','onItemUnitInput','text')}
+                    ${field('item_listp','Giá niêm yết',item.listPrice,'onListPriceInput')}${field('item_disc','Chiết khấu (%)',Number(Number(item.discountPercent || 0).toFixed(6)),'onDiscPctInput')}${field('item_discamt','Tiền giảm / đơn vị',item.discountAmount,'onDiscAmtInput')}
+                  </div></details>
+                  <div class="compact-item-total"><span id="item_formula_${index}">${item.qty} × ${Number(item.unitPrice || 0).toLocaleString('vi-VN')}đ</span><strong id="item_subtotal_${index}">${Number(item.qty*item.unitPrice || 0).toLocaleString('vi-VN')}đ</strong></div>`;
+                container.appendChild(card);
             });
         }
 
@@ -3044,6 +3001,7 @@
 
         function onItemNameInput(index, val) {
             currentItems[index].product = val;
+            const heading=document.getElementById(`item_heading_${index}`);if(heading)heading.textContent=val;
             calculateTotals();
         }
 
@@ -3078,7 +3036,7 @@
         }
 
         function removeProductItem(index) {
-            if (currentItems.length > 1) {
+            if (currentItems.length > 0) {
                 currentItems.splice(index, 1);
                 renderItemsForm();
                 calculateTotals();
@@ -3144,21 +3102,123 @@
             const values = [...new Set(valid.map(m => aiPercent(m[1])).filter(n => n !== null))];
             return values.length === 1 ? values[0] : null;
         }
-        function aiProductKey(item) {
-            if (item.code) return item.code;
-            const name = aiNormalize(item.product || item.name);
-            const exact = catalogue.find(p => aiNormalize(p.name) === name);
-            if (exact) return exact.code;
-            // Legacy single-product invoices have no code; do not map mixed summaries.
-            if (/[,;+]/.test(item.product || '') || /\d+\s*(?:thung|suoi)/.test(name)) return name;
-            const size = name.match(/(?:350|500|450|400|1500|250)ml|1[., ]?5l|19l|20l/);
+        function aiCatalogueProduct(text, unitHint = '', customer = null, allowMemory = true) {
+            const raw = String(text || '');
+            let n = ' ' + aiNormalize(raw) + ' ';
+            const code = catalogue.find(p => n.includes(' ' + aiNormalize(p.code) + ' '));
+            if (code) return code;
+            let pool = catalogue.slice();
+            const brand = n.includes(' hikari ') ? 'hikari' : n.includes(' satori ') ? 'satori' : '';
+            if (brand) pool = pool.filter(p => aiNormalize(p.name).includes(brand));
+            const flavour = /\b(?:mang|man) cau\b/.test(n) ? 'mang cau' : /\boi(?: hong)?\b/.test(n) ? 'oi' : /\bme\b/.test(n) ? 'me' : '';
+            if (/[,;+]\s*(?:\d+\s+)?(?:suối|nước|satori|hikari|ổi|me|mãng|mãn)/i.test(raw.replace(/1,5/g,'1.5'))) return null;
+            if (flavour) return pool.find(p => aiNormalize(p.name).includes(flavour)) || null;
+            // A mixed legacy summary is not one product preference.
+
+            let size = '';
+            if (/\b(?:1500\s*(?:ml)?|1[., ]5\s*l)\b/.test(n)) size = '1500';
+            else if (/\b(?:500|550)\s*(?:ml)?\b/.test(n) || /\b0[., ]5\s*l\b/.test(n)) size = '500';
+            else if (/\b350\s*(?:ml)?\b/.test(n)) size = '350';
+            else if (/\b(?:450|400)\s*(?:ml)?\b|\bpremium\b/.test(n)) size = '450';
+            else if (/\b250\s*(?:ml)?\b/.test(n)) size = '250';
+            else if (/\b20\s*(?:l|lit)\b/.test(n)) size = '20l';
+            else if (/\b19\s*(?:l|lit)\b/.test(n)) size = '19l';
+            else if (/\b5\s*(?:l|lit)\b/.test(n)) size = '5l';
             if (size) {
-                const token = size[0].replace(/ /g, '');
-                const candidates = catalogue.filter(p => aiNormalize(p.name).includes(token) && aiNormalize(p.name).includes(name.includes('hikari') ? 'hikari' : 'satori'));
-                if (candidates.length === 1) return candidates[0].code;
+                if (!brand && !['250'].includes(size)) pool = pool.filter(p => aiNormalize(p.name).includes('satori'));
+                pool = pool.filter(p => {
+                    const pn = aiNormalize(p.name);
+                    return pn.split(' ').includes(size.endsWith('l') ? size : size + 'ml');
+                });
+                if (/\bkhong voi\b|\bup\b/.test(n)) pool = pool.filter(p => /khong voi/.test(aiNormalize(p.name)));
+                else if (/\bco voi\b/.test(n)) pool = pool.filter(p => !/khong voi/.test(aiNormalize(p.name)) && /co voi/.test(aiNormalize(p.name)));
+                const unit = aiNormalize(unitHint);
+                if (['5l', '250'].includes(size) && unit) pool = pool.filter(p => aiNormalize(p.unit) === unit);
+                if (size === '250' && /\b(?:6|12|24) chai\b/.test(n)) {
+                    const count = n.match(/\b(6|12|24) chai\b/)[1];
+                    pool = pool.filter(p => aiNormalize(p.spec).startsWith(count + ' chai'));
+                }
+                if (pool.length === 1) return pool[0];
+                const saved = aiPreferredProduct(customer, pool);
+                if (saved) return saved;
+                return null;
             }
-            return name;
+            const exact = pool.find(p => aiNormalize(p.name) === aiNormalize(raw.replace(/^\d+\s*/, '')));
+            if (exact) return exact;
+            return allowMemory ? aiPreferredProduct(customer, pool.filter(p => !/juice/i.test(p.brand || ''))) : null;
         }
+        function aiPreferredProduct(customer, pool = catalogue) {
+            if (!customer) return null;
+            const allowed = new Set(pool.map(p => p.code));
+            const usual = (customer.usualItems || []).filter(it => allowed.has(it.code));
+            const codes = [...new Set(usual.map(it => it.code))];
+            if (codes.length === 1) return pool.find(p => p.code === codes[0]);
+            if (codes.length > 1) return null;
+            if (allowed.has(customer.preferredProductCode)) return pool.find(p => p.code === customer.preferredProductCode);
+            const fallback=customer.preferredProduct ? aiCatalogueProduct(customer.preferredProduct, '', null, false) : null;
+            return fallback && allowed.has(fallback.code) ? fallback : null;
+        }
+        function aiProductKey(item) {
+            if (item.code && catalogue.some(p => p.code === item.code)) return item.code;
+            return aiCatalogueProduct(item.product || item.name || '', item.unit || '', null, false)?.code || aiNormalize(item.product || item.name);
+        }
+        function aiSavedItems(order) {
+            const rows = order.items?.length ? order.items : [order];
+            return rows.map(it => {
+                const code = aiProductKey(it);
+                const product = catalogue.find(p => p.code === code);
+                if (!product || !(Number(it.qty) > 0)) return null;
+                return {code, product: product.name, unit: product.unit, qty: Number(it.qty), listPrice: Number(it.listPrice ?? product.listPrice), unitPrice: Number(it.unitPrice ?? product.unitPrice), discountPercent: aiPercent(it.discountPercent)};
+            }).filter(Boolean);
+        }
+        function aiParseProductItems(raw, customer) {
+            // Common shorthand and Vietnamese number words, while preserving product sizes.
+            const numbers = {'một':1,'mot':1,'hai':2,'ba':3,'bốn':4,'bon':4,'tư':4,'năm':5,'nam':5,'lăm':5,'sáu':6,'sau':6,'bảy':7,'bay':7,'tám':8,'tam':8,'chín':9,'chin':9,'mười':10,'muoi':10};
+            let text = String(raw).replace(/(?:^|(?<=[\s:,;]))((?:(?:hai|ba|bốn|bon|năm|nam|sáu|sau|bảy|bay|tám|tam|chín|chin)\s+mươi(?:\s+[\p{L}]+)?|mười(?:\s+[\p{L}]+)?|một|mot|hai|ba|bốn|bon|năm|nam|sáu|sau|bảy|bay|tám|tam|chín|chin))\s+(?=(?:thùng|thung|bình|binh|két|ket|lốc|loc)(?![\p{L}]))/giu, (all, words) => {
+                const parts = words.toLowerCase().split(/\s+/);
+                const value = parts[1] === 'mươi' ? numbers[parts[0]] * 10 + (numbers[parts[2]] || 0) : parts[0] === 'mười' ? 10 + (numbers[parts[1]] || 0) : numbers[parts[0]];
+                return value ? String(value) + ' ' : all;
+            });
+            const pattern = /(?<![\d\p{L}])(\d{1,4})\s*(thùng|thung|th|két|ket|bình(?!\s+(?:phú|trưng|thạnh|tân|chánh|dương|lợi|hưng|an|chiểu|phước|thuận|điền|hiệp))|binh|lốc|loc|chai|lon|t)(?![\p{L}\d])/giu;
+            const clauses = [...text.matchAll(pattern)];
+            const found = [], unresolved = [];
+            const make = (p, qty, pricing, source) => ({id:Date.now()+Math.random(),code:p.code,product:p.name,unit:p.unit,qty,listPrice:p.listPrice,discountPercent:pricing.percent,discountAmount:pricing.amount,unitPrice:pricing.price,subtotal:qty*pricing.price,parseSource:source});
+            for (let i=0;i<clauses.length;i++) {
+                const m = clauses[i], qty=Number(m[1]);
+                if (qty<=0 || qty>5000) continue;
+                const unit = /^(t|th|thung|thùng|ket|két)$/i.test(m[2]) ? 'Thùng' : /^(binh|bình)$/i.test(m[2]) ? 'Bình' : /^(loc|lốc)$/i.test(m[2]) ? 'Lốc' : m[2];
+                const after = text.slice(m.index+m[0].length, clauses[i+1]?.index ?? text.length).split(/[\r\n;]|(?:giao|địa chỉ|dia chi|sđt|sdt|người nhận|nguoi nhan)\s*[:：]?/i)[0].trim();
+                const before = text.slice(i ? clauses[i-1].index+clauses[i-1][0].length : 0,m.index).split(/[\r\n;,]/).filter(s=>s.trim()).pop() || '';
+                let product = aiCatalogueProduct(after,unit,null,false);
+                if (!product && !/\b(?:350|500|550|1500|450|250|19|20|5)\s*(?:ml|l)\b/i.test(after)) product = aiCatalogueProduct(before,unit,null,false);
+                let source='tin nhắn';
+                if (!product && !/\b(?:350|500|550|1500|450|250|19|20|5)\s*(?:ml|l)\b/i.test(after)) {
+                    const pool = catalogue.filter(p=>! /juice/i.test(p.brand || '') && aiNormalize(p.unit)===aiNormalize(unit) && (!/hikari/i.test(after) || /hikari/i.test(p.name)) && (!/satori/i.test(after) || /satori/i.test(p.name)));
+                    product = aiPreferredProduct(customer,pool);
+                    source='lịch sử khách hàng';
+                }
+                if (!product || aiNormalize(product.unit)!==aiNormalize(unit)) {unresolved.push(m[0]);continue;}
+                const pricing=aiResolvePricing(customer,product,after,raw);
+                found.push(make(product,qty,pricing,source));
+            }
+            if (!clauses.length && /như\s*(?:cũ|lần trước|đơn trước)|nhu\s*(?:cu|lan truoc|don truoc)|giống\s*(?:đơn cũ|lần trước)|same as (?:before|last)/i.test(raw) && customer?.usualItems?.length) {
+                for (const it of customer.usualItems) {
+                    const p=catalogue.find(p=>p.code===it.code);
+                    if (p) found.push(make(p,it.qty,aiResolvePricing(customer,p,'',raw),'đơn đã lưu gần nhất'));
+                }
+            }
+            // Number after product, e.g. "Satori 500ml x 10" or "SL: 10".
+            if (!clauses.length && !found.length) {
+                for (const line of text.split(/[\r\n;]/)) {
+                    const match=line.match(/(?:\bx|số lượng|so luong|\bsl)\s*[:=]?\s*(\d{1,4})(?!\d)/i);
+                    if (!match) continue;
+                    const p=aiCatalogueProduct(line.slice(0,match.index),'',customer);
+                    if (p) found.push(make(p,Number(match[1]),aiResolvePricing(customer,p,line,raw),'tin nhắn'));
+                }
+            }
+            return {items:found,unresolved};
+        }
+
         function aiOrderTime(order) {
             const stamp = Number(order.updatedAt || order.timestamp);
             if (stamp > 0) return stamp;
@@ -3198,16 +3258,19 @@
             const norm = ' ' + aiNormalize(raw) + ' ';
             const ranked = memory.map(c => {
                 const aliases = [c.name, ...(c.aliases || [])].map(aiNormalize).filter(a => a.length >= 3);
-                const names = aliases.filter(a => norm.includes(' ' + a + ' '));
+                const names = aliases.filter(a => norm.includes(' ' + a + ' ') && (a.split(' ').length>1 || raw.split(/[\n;,]/).some(segment=>{
+                    const value=aiNormalize(segment).replace(/^(?:khach hang|khach|ten khach|nguoi nhan|ten nguoi nhan)\s+/, '');
+                    return value===a || ['anh ', 'chi ', 'c ', 'a ', 'co ', 'chu ', 'goi ', 'gap '].some(prefix=>value.startsWith(prefix+a+' ') || value===prefix+a);
+                })));
                 const nameScore = names.length ? 200 + Math.max(...names.map(a => a.length)) : 0;
                 const receivers = c.receivers || [];
                 const phoneMatch = phone && [c.defaultPhone, ...receivers.map(r => r.phone)].some(p => aiPhone(p) === phone);
                 const addresses = [c.defaultLocation, ...receivers.map(r => r.location)].map(aiNormalize).filter(a => a.length >= 12);
                 const addrMatch = addresses.some(a => norm.includes(' ' + a + ' '));
                 const personMatch = person && receivers.some(r => aiNormalize(r.name) === aiNormalize(person));
-                return { c, score: nameScore + (phoneMatch ? 100 : 0) + (addrMatch ? 80 : 0) + (personMatch ? 15 : 0) };
-            }).filter(r => r.score >= 80).sort((a, b) => b.score - a.score);
-            const ambiguous = ranked.length > 1 && ranked[0].score === ranked[1].score;
+                return { c, evidenceAt: phone ? Math.max(0, ...receivers.filter(r=>aiPhone(r.phone)===phone).map(r=>Number(r.learnedAt || 0))) : 0, score: nameScore + (phoneMatch ? 100 : 0) + (addrMatch ? 80 : 0) + (personMatch ? 15 : 0) };
+            }).filter(r => r.score >= 80).sort((a, b) => b.score - a.score || b.evidenceAt - a.evidenceAt);
+            const ambiguous = ranked.length > 1 && ranked[0].score === ranked[1].score && ranked[0].evidenceAt === ranked[1].evidenceAt;
             const cust = !ambiguous ? ranked[0]?.c || null : null;
             const receiver = cust && phone ? (cust.receivers || []).find(r => aiPhone(r.phone) === phone) : null;
             if (!person && receiver && receiver.name !== 'Người nhận') person = receiver.name || '';
@@ -3284,95 +3347,8 @@
             const contactPerson = contact.person;
             const fullPhone = phoneVal ? (contactPerson ? `${phoneVal} (${contactPerson})` : phoneVal) : '';
 
-            // 3. EXTRACT PRODUCTS & QUANTITIES (BÓC TÁCH MẶT HÀNG CHUẨN XÁC, LOẠI TRỪ TỪ "BÌNH" TRONG TÊN ĐỊA DANH)
-            function matchProductFromText(textSegment, unitHint = '') {
-                const s = textSegment.toLowerCase();
-                // Loại trừ ngay các tên địa danh chứa "bình" để không bị nhận nhầm thành bình nước 19L
-                const sClean = s.replace(/\b(?:p\.|phường|q\.|quận|huyện|tỉnh|xã|ấp|kdc|khu|đường|đ\.)?\s*(?:bình\s+(?:trưng|phú|thạnh|tân|chánh|dương|an|lợi|chiểu|phước|thuận|điền|hiệp|hưng|định|tây|đông)|tam\s+bình|thanh\s+bình|hòa\s+bình|hiệp\s+bình|tân\s+bình)\b/gi, '');
-
-                for (const p of catalogue) {
-                    if (sClean.includes(p.code.toLowerCase())) return p;
-                }
-                const isHikari = sClean.includes('hikari');
-                const unitLower = (unitHint || '').toLowerCase();
-
-                if (/(?:^|[\s,;])(?:me)(?:$|[\s,;])/i.test(sClean)) return CATALOGUE_MAP['TP-00055'];
-                if (sClean.includes('mãng cầu') || sClean.includes('mãn cầu') || sClean.includes('mang cau')) return CATALOGUE_MAP['TP-00056'];
-                if (sClean.includes('ổi') || sClean.includes('ổi hồng') || sClean.includes('oi hong')) return CATALOGUE_MAP['TP-00058'];
-
-                if (isHikari) {
-                    if (sClean.includes('500')) return CATALOGUE_MAP['TP-00081'];
-                    if (sClean.includes('19l') || sClean.includes('bình')) return CATALOGUE_MAP['TP-00130'];
-                    if (sClean.includes('250')) {
-                        if (sClean.includes('6 chai') || sClean.includes('lốc 6')) return CATALOGUE_MAP['TP-00138'];
-                        if (sClean.includes('12 chai') || sClean.includes('lốc 12')) return CATALOGUE_MAP['TP-00139'];
-                        if (sClean.includes('24 chai/lốc') || sClean.includes('lốc 24')) return CATALOGUE_MAP['TP-00140'];
-                        return CATALOGUE_MAP['TP-00137'];
-                    }
-                    return CATALOGUE_MAP['TP-00081'];
-                }
-
-                if (sClean.includes('premium') || sClean.includes('450ml') || sClean.includes('400ml')) return CATALOGUE_MAP['TP-00051'];
-                if (sClean.includes('20l') || (sClean.includes('tay cầm') && sClean.includes('bình'))) return CATALOGUE_MAP['TP-00005'];
-                
-                // Bình 19L: Tuyệt đối không nhận nếu đơn vị là thùng/két
-                const isThung = sClean.includes('thùng') || sClean.includes('thung') || ['thùng', 'thung', 'két', 'ket'].includes(unitLower);
-                if (sClean.includes('19l') || (sClean.includes('bình') && !isThung)) {
-                    if (sClean.includes('không vòi') || sClean.includes('úp') || sClean.includes('up')) return CATALOGUE_MAP['TP-00096'];
-                    return CATALOGUE_MAP['TP-00033'];
-                }
-                if (sClean.includes('1.5l') || sClean.includes('1500ml') || sClean.includes('1,5l')) return CATALOGUE_MAP['TP-00004'];
-                if (sClean.includes('5l') || sClean.includes('5 lít')) {
-                    if (sClean.includes('có vòi')) {
-                        if (sClean.includes('bình lẻ') || sClean.includes('1 bình')) return CATALOGUE_MAP['TP-00142'];
-                        return CATALOGUE_MAP['TP-00136'];
-                    }
-                    return CATALOGUE_MAP['TP-00135'];
-                }
-                if (sClean.includes('500ml') || sClean.includes('500') || sClean.includes('550ml')) return CATALOGUE_MAP['TP-00003'];
-                if (sClean.includes('350ml') || sClean.includes('350')) return CATALOGUE_MAP['TP-00001'];
-
-                // Only reuse an unambiguous saved product when the message omits its size.
-                if (matchedCust?.preferredProduct && (sClean.includes('nước') || sClean.includes('suối') || isThung || ['bình', 'binh'].includes(unitLower))) {
-                    const preferred = CATALOGUE_MAP[aiProductKey({product: matchedCust.preferredProduct})];
-                    if (preferred) return preferred;
-                }
-                return null;
-            }
-
-            const quantityPattern = /(?<!\d)(\d+)\s*(thùng|thung|két|ket|bình(?!\s+(?:phú|trưng|thạnh|tân|chánh|dương|lợi|hưng|an|chiểu|phước|thuận|điền|hiệp|định|tây|đông))|binh|chai|lốc|loc|lon|t)(?![\p{L}])/giu;
-            const clauses = [...raw.matchAll(quantityPattern)];
-            const detectedItems = [];
-            for (let i = 0; i < clauses.length; i++) {
-                const pMatch = clauses[i];
-                const qty = Number(pMatch[1]);
-                if (qty <= 0 || qty > 500) continue;
-                const unit = pMatch[2];
-                const end = clauses[i + 1]?.index ?? raw.length;
-                const fullClause = raw.slice(pMatch.index, end).split(/[\r\n;]/)[0].trim();
-
-                const matchedProd = matchProductFromText(fullClause, unit);
-                if (matchedProd && (!['chai', 'lon'].includes(unit.toLowerCase()) || aiNormalize(matchedProd.unit) === aiNormalize(unit))) {
-                    const pricing = aiResolvePricing(matchedCust, matchedProd, fullClause, raw);
-                    const activeDiscPct = pricing.percent;
-                    const discAmt = pricing.amount;
-                    const unitP = pricing.price;
-                    detectedItems.push({
-                        id: Date.now() + Math.random(),
-                        code: matchedProd.code,
-                        product: matchedProd.name,
-                        unit: matchedProd.unit || (unit.toLowerCase().includes('bình') ? 'Bình' : 'Thùng'),
-                        qty: qty,
-                        listPrice: matchedProd.listPrice,
-                        discountPercent: activeDiscPct,
-                        discountAmount: discAmt,
-                        unitPrice: unitP,
-                        subtotal: qty * unitP
-                    });
-                }
-            }
-
-            currentItems = detectedItems;
+            const productResult = aiParseProductItems(raw, matchedCust);
+            currentItems = productResult.items;
             renderItemsForm();
             const locationVal = aiExtractAddress(raw, contact);
 
@@ -3416,10 +3392,13 @@
             if (!phoneVal) missing.push('số điện thoại');
             if (!locationVal) missing.push('địa chỉ');
             if (!currentItems.length) missing.push('mặt hàng và số lượng');
+            if (productResult.unresolved.length) missing.push('loại nước cho ' + productResult.unresolved.join(', '));
             if (contact.ambiguous) missing.push('khách hàng (có nhiều hồ sơ trùng thông tin)');
-            showModal(missing.length ? 'Đã bóc tách, còn thiếu thông tin' : 'Đã bóc tách tin nhắn',
-                missing.length ? `Đã điền phần nhận diện được. Chưa xác định: ${missing.join(', ')}. Hãy kiểm tra trước khi lưu hóa đơn.` :
-                `Đã điền khách hàng, người nhận, SĐT, địa chỉ và ${currentItems.length} mặt hàng. Chiết khấu lấy từ tin nhắn hoặc hồ sơ/đơn hàng đã lưu.`, missing.length ? 'info' : 'success');
+            const status=document.getElementById('aiParseStatus');
+            if(status) {
+                status.textContent=missing.length ? `Đã điền phần đọc được. Cần kiểm tra: ${missing.join(', ')}.` : `Đã điền ${currentItems.length} mặt hàng, tổng ${currentItems.reduce((n,it)=>n+it.qty,0)} đơn vị. Kiểm tra rồi lưu hóa đơn.`;
+                status.className=missing.length?'parse-status needs-review':'parse-status';
+            }
         }
 
         
@@ -4495,6 +4474,7 @@
         }
 
         function closeInvoiceModal() {
+            currentModalViewedOrder=null;
             const idm = document.getElementById('invoiceDetailModal'); if (idm) { idm.classList.add('hidden'); idm.classList.remove('flex'); idm.style.setProperty('display', 'none', 'important'); }
         }
 
@@ -4902,8 +4882,11 @@
                 qty: totalQty,
                 goodsTotal: totals.goodsTotal,
                 vat: document.getElementById('vatOption')?.value || 'no',
-                total: totals.total,
-                status: document.getElementById('status')?.value || 'Chưa thanh toán'
+                total: totals.grandTotal,
+                shippingAmount: totals.shippingAmount,
+                shippingPercent: totals.shippingPercent,
+                vatAmount: totals.vatAmount,
+                status: document.getElementById('paymentStatus')?.value || 'Chưa thanh toán'
             };
         }
 
@@ -4912,7 +4895,7 @@
         // =========================================================================
         function populatePrintInvoiceTemplate(order = null) {
             const o = order || (currentModalViewedOrder || getCurrentInvoiceData());
-            const totals = calculateTotals();
+            const totals = {goodsTotal:getOrderGoodsTotal(o)};
 
             document.getElementById('printInvNo').innerText = `#${o.invoiceNo}`;
             document.getElementById('printDate').innerText = o.date || '11/10/2026';
@@ -4924,13 +4907,13 @@
             document.getElementById('printBuyerTax').innerText = o.taxCode || 'Không có';
             document.getElementById('printSignBuyerName').innerText = o.name || 'Đại diện khách hàng';
 
-            let itemsToPrint = (o.items && Array.isArray(o.items) && o.items.length > 0) ? o.items : currentItems;
+            let itemsToPrint = (o.items && Array.isArray(o.items) && o.items.length > 0) ? o.items : [{product:o.product,unit:o.unit || 'Thùng',qty:o.qty,listPrice:o.listPrice,unitPrice:o.unitPrice,discountPercent:o.listPrice ? (o.listPrice-o.unitPrice)/o.listPrice*100 : 0}];
             const tbody = document.getElementById('printItemsTableBody');
             if (tbody) {
                 tbody.innerHTML = itemsToPrint.map((it, idx) => {
-                    const listP = it.listPrice || 88000;
+                    const listP = it.listPrice ?? 0;
                     const discPct = it.discountPercent || 0;
-                    const unitP = it.unitPrice || 65000;
+                    const unitP = it.unitPrice ?? 0;
                     const subT = it.subtotal || (it.qty * unitP);
                     return `
                         <tr style="border-bottom: 1px solid #cbd5e1; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; text-align: center;">
@@ -4947,10 +4930,10 @@
                 }).join('');
             }
 
-            const goodsT = o.goodsTotal || totals.goodsTotal;
+            const goodsT = o.goodsTotal ?? totals.goodsTotal;
             const vatOpt = o.vat || document.getElementById('vatOption').value;
             const vatAmt = (vatOpt === 'yes') ? Math.round(goodsT * 0.08) : 0;
-            const grandT = o.total || (goodsT + vatAmt);
+            const grandT = o.total ?? (goodsT + vatAmt + (o.shippingAmount || 0));
 
             const shipAmt = o.shippingAmount || 0;
             const shipPct = o.shippingPercent || 0;
@@ -4993,6 +4976,7 @@
         async function renderInvoiceToPdfBlob(order = null) {
             const o = order || (currentModalViewedOrder || getCurrentInvoiceData());
             const fileName = getInvoicePdfFilename(o);
+            await ensureInvoicePdfLibraries();
             const printTemplate = document.getElementById('invoicePrintTemplate');
             if (!printTemplate) return null;
 
@@ -5005,7 +4989,7 @@
             container.style.top = '0';
             container.style.width = '794px';
             container.style.height = 'auto';
-            container.style.zIndex = '-99999';
+            container.style.zIndex = '-1';
             container.style.opacity = '1';
             container.style.overflow = 'visible';
             container.style.pointerEvents = 'none';
@@ -5062,7 +5046,14 @@
                         unit: 'mm',
                         format: 'a4'
                     });
-                    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+                    const pagePixels=Math.ceil(canvas.width*297/210);
+                    for(let y=0,pageNo=0;y<canvas.height;pageNo++) {
+                        const slice=document.createElement('canvas');slice.width=canvas.width;slice.height=Math.min(pagePixels,canvas.height-y);
+                        slice.getContext('2d').drawImage(canvas,0,y,canvas.width,slice.height,0,0,canvas.width,slice.height);
+                        if(pageNo)pdf.addPage();
+                        pdf.addImage(slice.toDataURL('image/jpeg',0.95),'JPEG',0,0,210,slice.height*210/canvas.width);
+                        y+=slice.height;slice.width=0;slice.height=0;
+                    }
                     const blob = pdf.output('blob');
                     lastGeneratedPdfBlob = blob;
                     lastGeneratedPdfFilename = fileName;
@@ -5179,7 +5170,7 @@
                 '</div>',
                 "info"
             );
-            setTimeout(() => window.print(), 300);
+
         }
 
         // =========================================================================
@@ -5709,7 +5700,15 @@
             if (newest) {
                 if (order.phone) cust.defaultPhone = order.phone;
                 if (order.location) cust.defaultLocation = order.location;
-                if (order.product) cust.preferredProduct = order.product;
+                const savedItems=aiSavedItems(order);
+                if(savedItems.length) {
+                    cust.usualItems=savedItems;
+                    cust.preferredProductCode=savedItems.length===1?savedItems[0].code:null;
+                    cust.preferredProduct=savedItems.length===1?savedItems[0].product:order.product;
+                    cust.lastProductInvoice=order.invoiceNo;
+                } else if(order.product && /[,;+]/.test(order.product)) {
+                    cust.usualItems=[];cust.preferredProductCode=null;cust.preferredProduct=order.product;
+                }
                 cust.defaultVat = order.vat || cust.defaultVat || 'no';
                 cust.lastUpdated = order.date || new Date().toLocaleDateString('vi-VN');
                 cust.learnedAt = time;
@@ -7288,6 +7287,7 @@
 
         // --- CÁC HÀM XỬ LÝ KÉO THẢ & UPLOAD FILE PDF ---
         let currentParsedPdfData = null;
+        let pdfImportSequence = 0;
 
         function handlePdfDragOver(e) {
             e.preventDefault();
@@ -7325,6 +7325,7 @@
             const file = e.target.files && e.target.files[0];
             if (file) {
                 processPdfFile(file);
+                e.target.value='';
             }
         }
 
@@ -7334,6 +7335,8 @@
                 return;
             }
 
+            const sequence=++pdfImportSequence;
+            currentParsedPdfData=null;
             const spinner = document.getElementById('pdfParsingSpinner');
             const previewCard = document.getElementById('pdfParsedPreviewCard');
             if (spinner) spinner.classList.remove('hidden');
@@ -7345,6 +7348,7 @@
                     throw new Error("File PDF không chứa lớp văn bản (text layer) hoặc là file scan ảnh.");
                 }
 
+                if(sequence!==pdfImportSequence)return;
                 const parsed = parsePdfInvoiceText(fullText, file.name);
                 currentParsedPdfData = parsed;
 
@@ -7353,16 +7357,17 @@
                 if (previewCard) previewCard.classList.remove('hidden');
 
                 showModal(
-                    "Bóc Tách PDF Thành Công!",
-                    `Đã bóc tách thành công hóa đơn của khách hàng <b>${parsed.name}</b> với <b>${parsed.items.length} mặt hàng</b> (Tổng: ${parsed.total.toLocaleString('vi-VN')} đ). Bạn có thể bấm Điền vào Form hoặc Lưu trực tiếp vào Sổ Kế Toán!`,
+                    parsed.warnings.length ? 'PDF cần kiểm tra' : 'Đã đọc dữ liệu PDF',
+                    parsed.warnings.length ? aiEscape(parsed.warnings.join(' ')) : `Đã đọc ${parsed.items.length} mặt hàng. Có thể điền vào đơn để kiểm tra hoặc lưu vào sổ.`,
                     "success"
                 );
             } catch (err) {
+                if(sequence!==pdfImportSequence)return;
                 console.error("Lỗi đọc PDF:", err);
                 if (spinner) spinner.classList.add('hidden');
                 showModal(
                     "Lỗi Đọc File PDF",
-                    `Không thể bóc tách dữ liệu từ file PDF: ${err.message || 'Lỗi không xác định'}.`,
+                    `Không thể bóc tách dữ liệu từ file PDF: ${aiEscape(err.message || 'Lỗi không xác định')}.`,
                     "error"
                 );
             }
@@ -7371,188 +7376,147 @@
         /**
          * Tự động tải thư viện PDF.js từ nhiều nguồn dự phòng nếu chưa có
          */
+        const runtimeScriptLoads = new Map();
+        async function loadRuntimeScript(url) {
+            if (!runtimeScriptLoads.has(url)) runtimeScriptLoads.set(url,new Promise((resolve,reject)=>{
+                const script=document.createElement('script');
+                let timer=setTimeout(()=>{script.remove();reject(new Error('Quá thời gian tải thư viện.'));},15000);
+                script.src=url;script.async=true;
+                script.onload=()=>{clearTimeout(timer);resolve();};
+                script.onerror=()=>{clearTimeout(timer);script.remove();reject(new Error('Không tải được thư viện.'));};
+                document.head.appendChild(script);
+            }).catch(error=>{runtimeScriptLoads.delete(url);throw error;}));
+            return runtimeScriptLoads.get(url);
+        }
+        async function ensureInvoicePdfLibraries() {
+            const load = async (check, urls) => {
+                if (check()) return;
+                for (const url of urls) {try {await loadRuntimeScript(url);if(check())return;}catch(e){console.warn(e.message);}}
+                throw new Error('Chưa tải được công cụ PDF. Kiểm tra mạng rồi bấm thử lại.');
+            };
+            await Promise.all([
+                load(()=>!!window.html2canvas,['https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js','https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js']),
+                load(()=>!!(window.jspdf?.jsPDF || window.jsPDF),['https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js','https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'])
+            ]);
+        }
+        let pdfJsLoadPromise = null;
         async function ensurePdfJsLoaded() {
             if (window.pdfjsLib) return window.pdfjsLib;
-
-            const cdnUrls = [
-                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
-                'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
-                'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js'
-            ];
-
-            for (const url of cdnUrls) {
-                try {
-                    await new Promise((resolve, reject) => {
-                        const s = document.createElement('script');
-                        s.src = url;
-                        s.onload = () => resolve();
-                        s.onerror = () => reject();
-                        document.head.appendChild(s);
-                    });
-                    if (window.pdfjsLib) return window.pdfjsLib;
-                } catch (e) {
-                    console.warn('Không tải được CDN PDF.js:', url);
+            if (!pdfJsLoadPromise) pdfJsLoadPromise=(async()=>{
+                for (const root of ['https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/','https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/','https://unpkg.com/pdfjs-dist@3.11.174/build/']) {
+                    try {
+                        await loadRuntimeScript(root+'pdf.min.js');
+                        if (window.pdfjsLib) {window.pdfjsLib.GlobalWorkerOptions.workerSrc=root+'pdf.worker.min.js';return window.pdfjsLib;}
+                    } catch(e){console.warn(e.message);}
                 }
-            }
-            return window.pdfjsLib || null;
+                throw new Error('Không tải được bộ đọc PDF. Kiểm tra kết nối mạng rồi chọn lại file.');
+            })().catch(e=>{pdfJsLoadPromise=null;throw e;});
+            return pdfJsLoadPromise;
         }
-
+        function pdfTextLines(items) {
+            const lines=[];
+            for (const item of items) {
+                if (!item.str?.trim() || !item.transform) continue;
+                const y=item.transform[5], x=item.transform[4];
+                let row=lines.find(row=>Math.abs(row.y-y)<=Math.max(2,Math.abs(item.transform[3] || 10)*0.25));
+                if (!row) {row={y,items:[]};lines.push(row);}
+                row.items.push({text:item.str,x,end:x+(item.width || 0)});
+            }
+            return lines.sort((a,b)=>b.y-a.y).map(row=>{
+                const cells=[];
+                for(const item of row.items.sort((a,b)=>a.x-b.x)) {
+                    const prev=cells[cells.length-1];
+                    if(prev && item.x-prev.end<10) {prev.text+=' '+item.text;prev.end=item.end;}
+                    else cells.push({...item});
+                }
+                return cells.map(c=>c.text.trim()).join('\t');
+            }).join('\n');
+        }
         async function extractTextFromPdf(file) {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdfLib = await ensurePdfJsLoaded();
-            if (!pdfLib) {
-                throw new Error("Không thể tải thư viện PDF.js. Vui lòng kiểm tra kết nối mạng.");
-            }
-
+            const pdfLib=await ensurePdfJsLoaded();
+            const task=pdfLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,useSystemFonts:true});
+            let pdfDoc,worker=null;
+            const pages=[];
             try {
-                pdfLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-            } catch (e) {}
-            
-            const loadingTask = pdfLib.getDocument({
-                data: arrayBuffer,
-                useWorkerFetch: false,
-                isEvalSupported: false,
-                useSystemFonts: true
-            });
-            const pdfDoc = await loadingTask.promise;
-            let fullText = '';
-            
-            for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-                const page = await pdfDoc.getPage(pageNum);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(' ');
-                fullText += pageText + '\n';
-            }
-            return fullText;
+                pdfDoc=await task.promise;
+                for (let num=1;num<=pdfDoc.numPages;num++) {
+                    document.getElementById('pdfParsingMessage').textContent=`Đang đọc trang ${num}/${pdfDoc.numPages}…`;
+                    const page=await pdfDoc.getPage(num);
+                    let text=pdfTextLines((await page.getTextContent()).items);
+                    if (text.replace(/\s/g,'').length<15) {
+                        document.getElementById('pdfParsingMessage').textContent=`Đang đọc chữ từ ảnh trang ${num}/${pdfDoc.numPages}…`;
+                        if (!window.Tesseract) await loadRuntimeScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+                        if (!worker) worker=await window.Tesseract.createWorker(['vie','eng'],1);
+                        const viewport=page.getViewport({scale:Math.min(2,1800/page.getViewport({scale:1}).width)});
+                        const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+                        try {
+                            await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+                            text=(await worker.recognize(canvas)).data.text;
+                        } finally {canvas.width=0;canvas.height=0;}
+                    }
+                    pages.push(text);page.cleanup();
+                }
+                return pages.join('\n\n');
+            } catch(error) {
+                if(error.name==='PasswordException')throw new Error('PDF có mật khẩu. Hãy dùng bản PDF đã mở khóa.');
+                throw error;
+            } finally {if(worker)await worker.terminate();if(pdfDoc)await pdfDoc.destroy();else await task.destroy();}
         }
-
-        /**
-         * Thuật toán bóc tách thông tin hóa đơn thông minh từ nội dung văn bản PDF
-         */
-        function parsePdfInvoiceText(text, fileName = '') {
-            // 1. Tên khách hàng
-            let name = 'Khách vãng lai';
-            const nameMatch = text.match(/(?:Đơn vị\/Cá nhân|Tên đơn vị|Tên người mua|Khách hàng|Người mua|Kính gửi|Bên mua|Đơn vị mua hàng)\s*[:：]\s*([^\n\r,;|]+)/i);
-            if (nameMatch && nameMatch[1].trim()) {
-                name = nameMatch[1].trim();
-            } else {
-                // Kiểm tra tên khách hàng nổi bật trong danh bạ
-                const knownNames = ["Traky Sài Gòn", "Traky Cần Thơ", "Traky Rạch Giá", "Edric Salon", "Hà Minh Nguyệt", "Nhà Hàng Thạnh Phú", "Mr Ốc Ngon", "Công Ty CP ACE Clubhouse", "BANGER PICKLEBALL", "DỊCH VỤ TÀI LỘC"];
-                for (const kn of knownNames) {
-                    if (text.toLowerCase().includes(kn.toLowerCase())) {
-                        name = kn;
-                        break;
-                    }
-                }
-            }
-
-            // 2. Số điện thoại
-            let phone = '';
-            const phoneMatch = text.match(/(?:Số điện thoại|SĐT|Điện thoại|Phone|Tel)\s*[:：]?\s*([0-9\s.]{9,15})/i) || text.match(/(?:0|\+84)[35789]\d{8}/);
-            if (phoneMatch) {
-                phone = phoneMatch[1] ? phoneMatch[1].replace(/\D/g, '') : phoneMatch[0].replace(/\D/g, '');
-            }
-
-            // 3. Địa chỉ giao hàng
-            let location = '';
-            const locMatch = text.match(/(?:Địa chỉ giao hàng|Địa chỉ|Nơi giao|Giao tại)\s*[:：]\s*([^\n\r;|]+)/i);
-            if (locMatch && locMatch[1].trim()) {
-                location = locMatch[1].trim();
-            }
-
-            // 4. Ngày lập hóa đơn
-            let date = '';
-            const dateMatch = text.match(/(?:Ngày lập|Ngày xuất|Ngày)\s*[:：]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/i) || text.match(/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/);
-            if (dateMatch && dateMatch[1]) {
-                date = dateMatch[1].replace(/[\-\.]/g, '/');
-            } else {
-                const now = new Date();
-                date = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
-            }
-
-            // 5. Bóc tách mặt hàng & số lượng
-            let items = [];
-            const textLower = text.toLowerCase();
-
-            // Quét qua danh mục 20 sản phẩm Satori
-            catalogue.forEach(cat => {
-                let matched = false;
-                if (textLower.includes(cat.name.toLowerCase())) matched = true;
-                else if (cat.keywords && cat.keywords.some(kw => textLower.includes(kw.toLowerCase()))) matched = true;
-
-                if (matched) {
-                    // Tìm số lượng xuất hiện trước hoặc sau tên sản phẩm
-                    let qty = 10;
-                    const qtyRegex = new RegExp(`(?:\\b(\\d{1,3})\\s*(?:thùng|bình|chai|x|X)?\\s*)?(?:${cat.keywords ? cat.keywords[0] : 'satori'})(?:\\s*(?:thùng|bình|chai|x|X)?\\s*(\\d{1,3}))?`, 'i');
-                    const qm = text.match(qtyRegex);
-                    if (qm) {
-                        const parsedQ = parseInt(qm[1] || qm[2]);
-                        if (parsedQ && parsedQ > 0 && parsedQ < 500) qty = parsedQ;
-                    }
-
-                    const discAmt = Math.round(cat.listPrice * (cat.discountPercent / 100));
-                    const unitP = cat.listPrice - discAmt;
-
-                    items.push({
-                        id: Date.now() + Math.random(),
-                        code: cat.code,
-                        product: cat.name,
-                        unit: cat.unit,
-                        qty: qty,
-                        listPrice: cat.listPrice,
-                        discountPercent: cat.discountPercent,
-                        discountAmount: discAmt,
-                        unitPrice: unitP,
-                        subtotal: qty * unitP
-                    });
-                }
-            });
-
-            // Nếu không quét được mặt hàng cụ thể, tạo mặt hàng mặc định theo Satori 350ml
-            if (items.length === 0) {
-                const defProduct = catalogue[0];
-                const discAmt = Math.round(defProduct.listPrice * (defProduct.discountPercent / 100));
-                const unitP = defProduct.listPrice - discAmt;
-                items.push({
-                    id: Date.now(),
-                    code: defProduct.code,
-                    product: defProduct.name,
-                    unit: defProduct.unit,
-                    qty: 10,
-                    listPrice: defProduct.listPrice,
-                    discountPercent: defProduct.discountPercent,
-                    discountAmount: discAmt,
-                    unitPrice: unitP,
-                    subtotal: 10 * unitP
-                });
-            }
-
-            // 6. Thuế VAT
-            let vat = 'no';
-            if (textLower.includes('vat 8%') || textLower.includes('thuế vat: 8') || textLower.includes('thuế gtgt (8%)')) {
-                vat = 'yes';
-            }
-
-            // 7. Tổng tiền
-            let total = items.reduce((s, it) => s + (it.subtotal || 0), 0);
-            if (vat === 'yes') total = Math.round(total * 1.08);
-
-            const totalMatch = text.match(/(?:Tổng cộng tiền thanh toán|Tổng thanh toán|Tổng cộng|TỔNG CỘNG|Tổng tiền)\s*[:：]?\s*([\d.,]{4,15})/i);
-            if (totalMatch && totalMatch[1]) {
-                const parsedTot = parseFloat(totalMatch[1].replace(/\D/g, ''));
-                if (parsedTot && parsedTot > 0) total = parsedTot;
-            }
-
-            return {
-                fileName: fileName,
-                name: name,
-                phone: phone,
-                location: location,
-                date: date,
-                vat: vat,
-                items: items,
-                total: total
+        function pdfNumber(value) {
+            const s=String(value || '').replace(/[^\d.,-]/g,'');
+            if(!s)return null;
+            if(/^\d{1,3}(?:[.,]\d{3})+(?:[.,]0{1,2})?$/.test(s))return Number(s.replace(/[.,]0{1,2}$/,'').replace(/[.,]/g,''));
+            if(/^-?\d+[.,]\d{1,2}$/.test(s))return Number(s.replace(',','.'));
+            const n=Number(s.replace(/,/g,''));return Number.isFinite(n)?n:null;
+        }
+        function parsePdfInvoiceText(text,fileName='') {
+            const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+            const field=(labels,scope=text)=>{
+                const pattern=new RegExp(String.raw`(?:${labels})\s*[:：]\s*([^\n]+)`,'i');
+                const m=scope.match(pattern);
+                return m ? m[1].split(/\t{1,}|\s+(?:SĐT|Điện thoại|Địa chỉ|Mã số thuế)\s*[:：]/i)[0].trim() : '';
             };
+            const buyerIndex=text.search(/THÔNG TIN KHÁCH HÀNG|KHÁCH HÀNG\s*\(BÊN MUA\)|THÔNG TIN BÊN MUA/i);
+            const buyerText=buyerIndex>=0?text.slice(buyerIndex):text;
+            let name=field('Đơn vị/Cá nhân|Tên đơn vị/cá nhân|Tên người mua|Khách hàng|Người mua|Bên mua|Đơn vị mua hàng',buyerText);
+            const memory=aiMemoryForParsing();
+            const contact=aiExtractContact(text,memory);
+            if(!name)name=contact.cust?.name || 'Khách vãng lai';
+            const customer=memory.find(c=>aiNormalize(c.name)===aiNormalize(name)) || contact.cust;
+            const phone=aiPhone(field('Số điện thoại|SĐT|Điện thoại|Phone|Tel',buyerText)) || contact.phone;
+            const location=field('Địa chỉ giao hàng|Địa chỉ giao|Địa chỉ|Nơi giao|Giao tại',buyerText);
+            const date=text.match(/(?:Ngày lập|Ngày xuất|Ngày)\s*[:：]?\s*(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4})/i)?.[1]?.replace(/[.\-]/g,'/') || new Date().toLocaleDateString('vi-VN');
+            const items=[];
+            for(const line of lines) {
+                const p=aiCatalogueProduct(line,'',null,false);
+                if(!p)continue;
+                // Tab-separated table: product, unit, quantity, prices, amount.
+                let columns=line.split(/\t+|\s{2,}/).map(s=>s.trim()).filter(Boolean);
+                if(columns.length<3) {
+                    const plain=line.match(/(?:^|\s)(thùng|thung|bình|binh|lốc|loc)\s+(\d+\s+[\d.,%\s]+)$/i);
+                    if(plain)columns=[line.slice(0,plain.index),plain[1],...plain[2].trim().split(/\s+/)];
+                }
+                const unitIndex=columns.findIndex(c=>/^(thùng|thung|bình|binh|lốc|loc)$/i.test(c));
+                const numeric=unitIndex>=0?columns.slice(unitIndex+1).map(pdfNumber).filter(n=>n!==null):[];
+                if(numeric.length>=2 && numeric[0]>0 && numeric[0]<=5000) {
+                    const qty=numeric[0];
+                    const rawAmount=numeric[numeric.length-1];
+                    const unitPrice=numeric.length>=3?numeric[numeric.length-2]:rawAmount/qty;
+                    if(!(unitPrice>=0) || Math.abs(qty*unitPrice-rawAmount)>Math.max(2,qty))continue;
+                    const listPrice=numeric.length>=5?numeric[1]:Math.max(p.listPrice,unitPrice);
+                    items.push({id:Date.now()+Math.random(),code:p.code,product:p.name,unit:p.unit,qty,listPrice,unitPrice,discountPercent:(listPrice-unitPrice)/listPrice*100,discountAmount:listPrice-unitPrice,subtotal:Math.round(qty*unitPrice)});
+                }
+            }
+            if(!items.length)items.push(...aiParseProductItems(text,customer).items);
+            const vat=/vat\s*[:(]?\s*8\s*%|gtgt\s*\(?8\s*%/i.test(text)?'yes':'no';
+            const goodsTotal=items.reduce((s,it)=>s+it.qty*it.unitPrice,0);
+            const computedTotal=goodsTotal+Math.round(vat==='yes'?goodsTotal*.08:0);
+            const totalText=field('Tổng cộng tiền thanh toán|Tổng thanh toán|Tổng cộng|Tổng tiền');
+            const declaredTotal=pdfNumber(totalText);
+            const warnings=[];
+            if(!items.length)warnings.push('Chưa đọc được mặt hàng và số lượng; cần kiểm tra file.');
+            if(declaredTotal!==null && Math.abs(declaredTotal-computedTotal)>2)warnings.push('Tổng tiền trên PDF khác tổng các dòng hàng; cần kiểm tra trước khi lưu.');
+            return {fileName,name,phone,location,date,vat,items,total:declaredTotal??computedTotal,computedTotal,warnings};
         }
 
         function renderParsedPdfPreview(data) {
@@ -7566,7 +7530,7 @@
             if (itemsListEl) {
                 itemsListEl.innerHTML = data.items.map((it, idx) => `
                     <div class="flex justify-between items-center bg-slate-950 px-2.5 py-1 rounded border border-slate-800 text-[11px]">
-                        <span class="text-white font-medium">📦 ${it.qty} ${it.unit} • ${it.product}</span>
+                        <span class="text-white font-medium">📦 ${it.qty} ${aiEscape(it.unit)} • ${aiEscape(it.product)}</span>
                         <span class="font-mono text-cyan-300 font-semibold">${(it.subtotal || it.qty * it.unitPrice || 0).toLocaleString('vi-VN')} đ</span>
                     </div>
                 `).join('');
@@ -7580,6 +7544,7 @@
         function applyParsedPdfToOrderForm() {
             if (!currentParsedPdfData) return;
             const data = currentParsedPdfData;
+            currentEditingOrderId=null;currentModalViewedOrder=null;
 
             document.getElementById('busName').value = data.name;
             document.getElementById('busPhone').value = data.phone;
@@ -7597,9 +7562,7 @@
             document.getElementById('shippingOption').value = '0';
             document.getElementById('costDiscountPercent').value = getSystemDefaultCostDiscount();
 
-            if (data.items && data.items.length > 0) {
-                currentItems = JSON.parse(JSON.stringify(data.items));
-            }
+            currentItems = JSON.parse(JSON.stringify(data.items || []));
 
             renderItemsForm();
             calculateTotals();
@@ -7608,7 +7571,7 @@
             const formCard = document.getElementById('tab-input');
             if (formCard) formCard.scrollIntoView({ behavior: 'smooth' });
 
-            showModal("Đã Điền Vào Form!", `Dữ liệu từ file PDF <b>${data.fileName}</b> đã được đưa trọn vẹn vào Form tạo hóa đơn. Bạn có thể kiểm tra bản xem trước và bấm Lưu Hóa Đơn!`, "success");
+            showModal("Đã Điền Vào Form!", `Dữ liệu từ file PDF <b>${aiEscape(data.fileName)}</b> đã được đưa trọn vẹn vào Form tạo hóa đơn. Bạn có thể kiểm tra bản xem trước và bấm Lưu Hóa Đơn!`, "success");
         }
 
         /**
@@ -7617,6 +7580,7 @@
         function saveParsedPdfDirectlyToSystem() {
             if (!currentParsedPdfData) return;
             const data = currentParsedPdfData;
+            if(!data.items.length || data.warnings?.length) {showModal('Cần kiểm tra dữ liệu PDF', 'Hãy dùng nút Điền vào đơn để kiểm tra và sửa thông tin trước khi lưu.', 'info');return;}
 
             const invNum = nextInvoiceNumber;
             const defaultCostPct = getSystemDefaultCostDiscount();
@@ -7661,6 +7625,7 @@
             };
 
             orders.unshift(newOrder);
+            trainAIMemoryFromOrder(newOrder);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
 
             // Tăng số thứ tự hóa đơn
@@ -7705,6 +7670,9 @@
             );
         }
 
+let previewWasOpenBeforePrint=false;
+window.addEventListener('beforeprint',()=>{const panel=document.getElementById('invoicePreviewPanel');if(panel){previewWasOpenBeforePrint=panel.open;panel.open=true;}});
+window.addEventListener('afterprint',()=>{const panel=document.getElementById('invoicePreviewPanel');if(panel)panel.open=previewWasOpenBeforePrint;});
 window.onload = function() {
             try { renderItemsForm(); } catch(e) { console.error('Lỗi renderItemsForm:', e); }
             try { calculateTotals(); } catch(e) { console.error('Lỗi calculateTotals:', e); }
@@ -8424,3 +8392,4 @@ window.SatoriRecon = (() => {
     </script>
 </body>
 </html>
+
