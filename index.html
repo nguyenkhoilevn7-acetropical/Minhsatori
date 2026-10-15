@@ -157,7 +157,7 @@
                             </h1>
                             <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                Bản V17.0 · Đọc đủ bill & Chia sẻ PDF
+                                Bản V17.1 · Gửi Zalo / Messenger
                             </span>
                         </div>
                         <p class="text-xs text-slate-400">Hệ Thống Lên Hóa Đơn, Sổ Kế Toán & Quản Lý Doanh Số Tự Động 100%</p>
@@ -3568,6 +3568,8 @@
                 estCostDisplay.innerText = `${costTotal.toLocaleString('vi-VN')} đ`;
             }
 
+            const topInvoiceNo=document.getElementById('previewInvoiceNoTop');if(topInvoiceNo)topInvoiceNo.textContent='#'+invNo;
+            scheduleInvoicePdfPreparation();
             return { goodsTotal, shippingPercent, shippingAmount, vatAmount, grandTotal, costDiscountPercent, profit, costTotal };
         }
 
@@ -3851,7 +3853,8 @@
                         `Hóa đơn #${finishedInvNo} đã được lưu thay đổi và đồng bộ chính xác 100% vào Sổ Kế Toán!`,
                         [
                             { text: "Xem Trong Sổ Kế Toán", action: () => { closeModal(); switchTab('sheet'); }, primary: true },
-                            { text: "Chia sẻ PDF (Zalo / Messenger)", action: () => { closeModal(); shareInvoicePDF('all',updatedOrder); } },
+                            { text: "Gửi Zalo", action: () => { closeModal(); shareInvoicePDF('zalo',updatedOrder); }, primary: true },
+                    { text: "Gửi Messenger", action: () => { closeModal(); shareInvoicePDF('messenger',updatedOrder); } },
                             { text: "Tải PDF Hóa Đơn Mới", action: () => { closeModal(); downloadInvoicePDF(updatedOrder); } },
                             { text: "Tiếp Tục Lên Đơn Mới", action: () => { closeModal(); cancelEditOrder(); } }
                         ]
@@ -3938,7 +3941,8 @@
                 [
                     { text: "Xem Trong Sổ Kế Toán", action: () => { closeModal(); switchTab('sheet'); }, primary: true },
                     { text: "Xem Trong Kho Hóa Đơn", action: () => { closeModal(); switchTab('archive'); } },
-                    { text: "Chia sẻ PDF (Zalo / Messenger)", action: () => { closeModal(); shareInvoicePDF('all',newOrder); } },
+                    { text: "Gửi Zalo", action: () => { closeModal(); shareInvoicePDF('zalo',newOrder); }, primary: true },
+                    { text: "Gửi Messenger", action: () => { closeModal(); shareInvoicePDF('messenger',newOrder); } },
                     { text: "Tải PDF Ngay", action: () => { closeModal(); downloadInvoicePDF(newOrder); } },
                     { text: "Tiếp Tục Lên Đơn Mới", action: () => { closeModal(); } }
                 ]
@@ -5086,6 +5090,7 @@
         async function generateInvoicePdfBlob(elementId='invoicePreview',fileName='Bill.pdf',order=null){return (await renderInvoiceToPdfBlob(order)).blob;}
         const preparedInvoicePdfs=new Map();
         let activePreparedPdf=null,lastSavedPdfOrder=null,lastSavedPdfFormSignature=null,pdfShareRequest=0;
+        let activePdfChannel='zalo',pdfNativeSharePending=false,pdfPreparationTimer=null,pdfBuildingDraft=false;
         function pdfFormSignature() {
             return JSON.stringify({fields:['invoiceNo','orderDate','busName','busPhone','busLocation','taxCode','vatOption','shippingOption','customShippingInput','paymentStatus'].map(id=>document.getElementById(id)?.value || ''),items:currentItems});
         }
@@ -5095,31 +5100,50 @@
         function invoicePdfKey(o) {
             return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount]);
         }
+        function pdfShareFilename(name) {
+            const stem=String(name || 'Hoa_don.pdf').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/\.pdf$/i,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,120);
+            return (stem || 'Hoa_don')+'.pdf';
+        }
         function prepareInvoicePdf(o) {
             const key=invoicePdfKey(o);
             if(preparedInvoicePdfs.has(key))return preparedInvoicePdfs.get(key).promise;
-            const entry={key,result:null,promise:null};
-            preparedInvoicePdfs.set(key,entry);
-            entry.promise=renderInvoiceToPdfBlob(o).then(result=>{
-                result.file=typeof File==='function'?new File([result.blob],result.fileName,{type:'application/pdf',lastModified:Date.now()}):null;
+            const entry={key,result:null,promise:null};preparedInvoicePdfs.set(key,entry);
+            entry.promise=renderInvoiceToPdfBlob(o).then(async result=>{
+                // Finish reading all bytes before the click. Use an ASCII filename and PDF MIME.
+                const bytes=new Uint8Array(await result.blob.arrayBuffer());
+                if(String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')throw new Error('Tệp chưa phải PDF hợp lệ.');
+                result.blob=new Blob([bytes],{type:'application/pdf'});
+                result.file=typeof File==='function'?new File([bytes],pdfShareFilename(result.fileName),{type:'application/pdf',lastModified:Date.now()}):null;
                 entry.result=result;return result;
             }).catch(e=>{preparedInvoicePdfs.delete(key);throw e;});
             while(preparedInvoicePdfs.size>3)preparedInvoicePdfs.delete(preparedInvoicePdfs.keys().next().value);
             return entry.promise;
         }
         function rememberSavedInvoicePdf(order) {
-            lastSavedPdfOrder=JSON.parse(JSON.stringify(order));
-            lastSavedPdfFormSignature=pdfFormSignature();
-            // Prepare before the next click so native sharing keeps the browser's user gesture.
+            lastSavedPdfOrder=JSON.parse(JSON.stringify(order));lastSavedPdfFormSignature=pdfFormSignature();
             prepareInvoicePdf(lastSavedPdfOrder).catch(e=>console.warn('Chưa chuẩn bị PDF:',e.message));
         }
+        function scheduleInvoicePdfPreparation() {
+            if(!window.invoicePdfPreparationReady || pdfBuildingDraft)return;
+            clearTimeout(pdfPreparationTimer);
+            pdfPreparationTimer=setTimeout(()=>{
+                pdfBuildingDraft=true;
+                try {
+                    const o=resolvePdfOrder();
+                    if(o.items?.length)prepareInvoicePdf(o).catch(e=>console.warn('Chưa chuẩn bị PDF:',e.message));
+                } finally {pdfBuildingDraft=false;}
+            },700);
+        }
+        window.invoicePdfPreparationReady=true;
         let pdfDownloadUrl=null;
-        function presentPdfFile(result,message='') {
-            activePreparedPdf=result;
+        function pdfChannelName(channel) {return channel==='messenger'?'Messenger':'Zalo';}
+        function presentPdfFile(result,message='',channel=activePdfChannel,details='') {
+            activePreparedPdf=result;activePdfChannel=channel==='messenger'?'messenger':'zalo';
             if(pdfDownloadUrl)URL.revokeObjectURL(pdfDownloadUrl);
             pdfDownloadUrl=URL.createObjectURL(result.blob);
             const supportsShare=typeof navigator.share==='function' && result.file;
-            showModal('File PDF đã sẵn sàng',`<div class="space-y-3"><p>${aiEscape(result.fileName)}</p>${message?`<p role="alert" class="text-amber-300">${aiEscape(message)}</p>`:''}${supportsShare?'<button type="button" onclick="sharePreparedInvoicePdf()" class="w-full bg-blue-600 text-white p-3 rounded-xl">Chia sẻ PDF — chọn Zalo / Messenger</button>':'<p class="text-amber-300">Trình duyệt này chưa hỗ trợ chia sẻ tệp trực tiếp. Mở trang bằng Chrome hoặc Safari trên điện thoại có hỗ trợ chia sẻ tệp, hoặc tải PDF để đính kèm.</p>'}<a class="block text-center bg-emerald-600 text-white p-3 rounded-xl" href="${pdfDownloadUrl}" download="${aiEscape(result.fileName)}">Tải file PDF về máy</a><p class="text-xs text-slate-400">Khay chia sẻ của điện thoại hiển thị những ứng dụng nhận được tệp PDF. Chọn Zalo hoặc Messenger nếu ứng dụng có trong danh sách.</p></div>`,'info');
+            const buttons=supportsShare?`<div class="grid grid-cols-2 gap-2"><button type="button" data-pdf-share="zalo" onclick="sharePreparedInvoicePdf('zalo')" class="bg-blue-600 text-white p-3 rounded-xl font-bold">Gửi Zalo</button><button type="button" data-pdf-share="messenger" onclick="sharePreparedInvoicePdf('messenger')" class="bg-indigo-600 text-white p-3 rounded-xl font-bold">Gửi Messenger</button></div><p class="text-xs text-slate-400">Điện thoại mở khay chia sẻ tệp PDF. Chọn ${pdfChannelName(activePdfChannel)} trong danh sách ứng dụng.</p>`:'<p class="text-amber-300">Trình duyệt này không có chức năng chia sẻ tệp trực tiếp. Mở PDF bên dưới để chia sẻ từ trình đọc tệp.</p>';
+            showModal(message?'Chưa chia sẻ được PDF':'PDF sẵn sàng gửi',`<div class="space-y-3"><p>${aiEscape(result.fileName)}</p>${message?`<p role="alert" class="text-amber-300">${aiEscape(message)}</p>`:''}${buttons}<a class="block text-center bg-emerald-600 text-white p-3 rounded-xl font-bold" href="${pdfDownloadUrl}" target="_blank" rel="noopener">Mở PDF để chia sẻ</a><p class="text-xs text-slate-400">Nếu trình duyệt chặn chia sẻ: mở PDF, chọn Chia sẻ trong trình đọc tệp rồi chọn ${pdfChannelName(activePdfChannel)}. Nếu PDF được tải xuống, mở tệp trong mục Tải xuống.</p><a class="block text-center text-cyan-300 underline p-2" href="${pdfDownloadUrl}" download="${aiEscape(result.fileName)}">Tải file PDF về máy</a>${details?`<details class="text-xs text-slate-400"><summary>Thông tin lỗi chia sẻ</summary><p class="break-words mt-2">${aiEscape(details)}</p></details>`:''}</div>`,'info');
         }
         async function downloadInvoicePDF(order=null) {
             showModal('Đang tạo file PDF…','Đang chuẩn bị hóa đơn có lớp chữ.','info');
@@ -5128,30 +5152,37 @@
                 const a=document.createElement('a');a.href=pdfDownloadUrl;a.download=result.fileName;document.body.appendChild(a);a.click();a.remove();
             }catch(e){showModal('Chưa xuất được PDF',aiEscape(e.message),'error');}
         }
-        function sharePreparedInvoicePdf(result=activePreparedPdf) {
-            if(!result)return;
-            activePreparedPdf=result;
-            if(typeof navigator.share!=='function' || !result.file) {presentPdfFile(result);return;}
+        function sharePreparedInvoicePdf(channel='zalo',result=activePreparedPdf) {
+            if(!result || pdfNativeSharePending)return;
+            activePreparedPdf=result;activePdfChannel=channel==='messenger'?'messenger':'zalo';
+            if(typeof navigator.share!=='function' || !result.file) {presentPdfFile(result,'',activePdfChannel);return;}
+            const hadActivation=navigator.userActivation?.isActive;
             const failed=e=>{
-                if(e.name==='AbortError')return; // Closing the chooser is not a failed export.
-                const message=e.name==='NotAllowedError'?'Điện thoại chưa cho phép chia sẻ ở lần bấm này. Bấm nút Chia sẻ PDF bên dưới để mở lại khay chia sẻ.':e.name==='TypeError'?'Trình duyệt hoặc ứng dụng hiện tại chưa nhận được tệp PDF qua khay chia sẻ. Có thể tải tệp để đính kèm.':'Chưa mở được khay chia sẻ PDF: '+(e.message || e.name);
-                presentPdfFile(result,message);
+                pdfNativeSharePending=false;
+                if(e.name==='AbortError')return;
+                const denied=e.name==='NotAllowedError';
+                const message=denied?(hadActivation===false?'Trình duyệt chưa nhận được lần bấm trực tiếp. Bấm Gửi '+pdfChannelName(activePdfChannel)+' khi PDF đã sẵn sàng.':'Trình duyệt đã từ chối chia sẻ tệp PDF. Hãy dùng Mở PDF để chia sẻ từ trình đọc tệp.'):e.name==='InvalidStateError'?'Đang có một cửa sổ chia sẻ khác. Đóng cửa sổ đó trước khi gửi tiếp.':'Chưa chuyển được PDF sang ứng dụng. Hãy mở PDF để chia sẻ từ trình đọc tệp.';
+                presentPdfFile(result,message,activePdfChannel,[e.name,e.message,'Thao tác bấm: '+String(hadActivation),'PDF: '+result.file.size+' bytes'].join(' • '));
             };
             try {
-                // No await, fetching or PDF generation before this call: preserve transient activation.
-                // canShare is optional; its absence must not silently disable file sharing.
                 if(typeof navigator.canShare==='function' && !navigator.canShare({files:[result.file]})) {
-                    presentPdfFile(result,'Trình duyệt này không hỗ trợ chia sẻ tệp PDF trực tiếp. Mở trang bằng trình duyệt hỗ trợ chia sẻ tệp hoặc tải PDF để đính kèm.');return;
+                    presentPdfFile(result,'Trình duyệt không hỗ trợ chia sẻ tệp PDF này. Hãy dùng Mở PDF để chia sẻ từ trình đọc tệp.',activePdfChannel);return;
                 }
-                return Promise.resolve(navigator.share({files:[result.file],title:result.fileName})).then(()=>{},failed);
+                pdfNativeSharePending=true;
+                // Invoke synchronously from the real click; files only maximizes Android compatibility.
+                return Promise.resolve(navigator.share({files:[result.file]})).then(()=>{pdfNativeSharePending=false;},failed);
             }catch(e){failed(e);}
         }
         function shareInvoicePDF(channel='all',order=null) {
             const o=resolvePdfOrder(order),cached=preparedInvoicePdfs.get(invoicePdfKey(o));
-            if(cached?.result)return sharePreparedInvoicePdf(cached.result);
+            if(channel==='zalo' || channel==='messenger')activePdfChannel=channel;
+            if(cached?.result) {
+                if(channel==='all'){presentPdfFile(cached.result);return;}
+                return sharePreparedInvoicePdf(channel,cached.result);
+            }
             const request=++pdfShareRequest;
-            showModal('Đang chuẩn bị tệp PDF…','Khi tệp sẵn sàng, bấm Chia sẻ PDF để chọn Zalo hoặc Messenger.','info');
-            return prepareInvoicePdf(o).then(result=>{if(request===pdfShareRequest)presentPdfFile(result);},e=>{if(request===pdfShareRequest)showModal('Chưa chuẩn bị được PDF',aiEscape(e.message),'error');});
+            showModal('Đang chuẩn bị tệp PDF…','Đang tạo PDF. Khi tệp sẵn sàng, chọn nút Gửi Zalo hoặc Gửi Messenger.','info');
+            return prepareInvoicePdf(o).then(result=>{if(request===pdfShareRequest)presentPdfFile(result,'',activePdfChannel);},e=>{if(request===pdfShareRequest)showModal('Chưa chuẩn bị được PDF',aiEscape(e.message),'error');});
         }
 
         function downloadModalInvoicePDF() {
@@ -7498,8 +7529,12 @@
                         }
                     },
                     {
-                        text: "Chia sẻ PDF (Zalo / Messenger)",
-                        action: () => { closeModal(); shareInvoicePDF('all',newOrder); }
+                        text: "Gửi Zalo",
+                        action: () => { closeModal(); shareInvoicePDF('zalo',newOrder); }
+                    },
+                    {
+                        text: "Gửi Messenger",
+                        action: () => { closeModal(); shareInvoicePDF('messenger',newOrder); }
                     },
                     {
                         text: "Xuất File Excel Ngay",
@@ -8238,6 +8273,7 @@ window.SatoriRecon = (() => {
     </script>
 </body>
 </html>
+
 
 
 
