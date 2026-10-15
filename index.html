@@ -2074,28 +2074,22 @@
 
                 <div class="space-y-1">
                     <label class="block text-[11px] font-semibold text-amber-300 flex items-center justify-between">
-                        <span>Đường dẫn Web App Apps Script (Tự động 2 chiều & Đối soát ngân hàng):</span>
+                        <span>Đường dẫn Web App Google Apps Script:</span>
                         <span id="testConnStatusBadge" class="text-[10px] text-slate-400"></span>
                     </label>
                     <div class="flex gap-2">
                         <input type="url" id="inputAppsScriptUrl" placeholder="https://script.google.com/macros/s/.../exec" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
                         <button type="button" onclick="testGoogleSyncConnection()" class="bg-cyan-700 hover:bg-cyan-600 text-white font-bold px-3 py-2 rounded-xl text-xs whitespace-nowrap shadow flex items-center gap-1">
-                            <i class="fa-solid fa-plug"></i> Thử Kết Nối
+                            <i class="fa-solid fa-plug"></i> Mở Kết Nối
                         </button>
                     </div>
-                    <p class="text-[10px] text-slate-400">Triển khai file <code>google_apps_script.js</code> với quyền <b>"Bất kỳ ai (Anyone)"</b> rồi dán URL vào đây để tự động đối soát đơn hàng và biến động số dư.</p>
+                    <p class="text-[10px] text-slate-400">Dùng bản triển khai <b>Minh Satori Drive Sync</b> với quyền truy cập <b>chỉ tài khoản chủ sở hữu</b>. Mở Web App và đăng nhập tài khoản Google quản lý để sử dụng dữ liệu chung.</p>
                 </div>
 
                 <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 space-y-2">
-                    <p class="font-bold text-amber-300 text-xs flex items-center gap-1.5">
-                        <i class="fa-solid fa-qrcode"></i> HƯỚNG DẪN KẾT NỐI TỰ ĐỘNG BẮT CHUYỂN KHOẢN (CHUẨN KIOTVIET/SAPO):
-                    </p>
-                    <ol class="list-decimal pl-4 space-y-1 text-[11px] text-slate-300">
-                        <li>Mở Google Sheet <b>Customer Order</b>, vào menu <b>Tiện ích mở rộng (Extensions) ➔ Apps Script</b>, dán toàn bộ mã <code>google_apps_script.js</code> vào và Lưu.</li>
-                        <li>Bấm <b>Triển khai (Deploy) ➔ Triển khai mới (New deployment) ➔ Ứng dụng web (Web App)</b>, chọn quyền truy cập là <b>"Bất kỳ ai (Anyone)"</b> rồi sao chép URL dán vào ô trên.</li>
-                        <li>Đăng ký tài khoản miễn phí tại <b>SePay.vn</b> (hoặc payOS), liên kết tài khoản VPBank <b>658489418</b> và dán Webhook URL là đường dẫn Apps Script ở trên.</li>
-                    </ol>
-                    <p class="text-[10px] text-emerald-400 italic">➔ Mỗi khi khách quét VietQR thanh toán có mã HD, hệ thống sẽ tự động bắt tiền vào, chuông kêu Ting Ting và chuyển đơn sang "Đã thanh toán" trong 1-2 giây!</p>
+                    <p class="font-bold text-amber-300 text-xs">Dùng chung dữ liệu giữa các thiết bị</p>
+                    <p class="text-[11px] text-slate-300">Mở cùng một đường dẫn Web App trên mỗi máy và dùng cùng tài khoản Google quản lý. Chờ thanh trạng thái xác nhận đã đồng bộ Google Drive trước khi đóng ứng dụng.</p>
+                    <p class="text-[11px] text-slate-300">Lưu đường dẫn hoặc gửi yêu cầu lên Sheets chưa có nghĩa là hóa đơn đã được lưu trên Drive.</p>
                 </div>
             </div>
 
@@ -5259,7 +5253,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(order)
                 }).then(() => {
-                    console.log('Đã gửi đơn hàng #' + order.invoiceNo + ' lên Google Sheets thành công.');
+                    console.log('Đã gửi yêu cầu cho đơn #' + order.invoiceNo + '; chưa nhận được xác nhận lưu từ Google Sheets.');
                 }).catch(err => {
                     console.warn('Không thể gửi đơn hàng lên Google Sheets:', err);
                 });
@@ -5288,11 +5282,30 @@
             }
         }
 
+        function validGoogleSyncUrl(url) {
+            return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url);
+        }
+
+        function testGoogleSyncConnection() {
+            const url = document.getElementById('inputAppsScriptUrl').value.trim();
+            const badge = document.getElementById('testConnStatusBadge');
+            if (!validGoogleSyncUrl(url)) {
+                badge.textContent = 'Cần URL Web App kết thúc bằng /exec';
+                return;
+            }
+            window.open(url, '_blank', 'noopener,noreferrer');
+            badge.textContent = 'Đã yêu cầu mở Web App. Xem trạng thái đồng bộ trong ứng dụng.';
+        }
+
         function saveGoogleSyncConfig() {
             const url = document.getElementById('inputAppsScriptUrl').value.trim();
+            if (url && !validGoogleSyncUrl(url)) {
+                showModal('Đường dẫn chưa hợp lệ', 'Dùng URL Web App Google Apps Script kết thúc bằng /exec.', 'error');
+                return;
+            }
             localStorage.setItem(SYNC_URL_KEY, url);
             closeGoogleSyncModal();
-            showModal("Đã Lưu Cấu Hình!", "Đường dẫn Google Sheets Web App đã được lưu thành công. Hệ thống đã kích hoạt đối soát ngân hàng và đồng bộ 2 chiều!", "success");
+            showModal('Đã lưu cấu hình', url ? 'Đã lưu đường dẫn trên thiết bị này. Chưa xác nhận đồng bộ Google Drive; mở Web App để kiểm tra kết nối.' : 'Đã xóa đường dẫn kết nối trên thiết bị này.', 'info');
         }
 
         // Render Accounting Ledger Table & Financial Analytics
@@ -7106,6 +7119,10 @@
          * Đẩy toàn bộ dữ liệu đơn hàng hiện tại lên Google Sheets
          */
         function backupAllOrdersToGoogleSheets() {
+            if (window.__SATORI_DRIVE_APP__) {
+                showModal('Đồng bộ Google Drive', 'Ứng dụng đang dùng kết nối Drive riêng. Theo dõi thanh trạng thái dưới màn hình để biết dữ liệu đã được Drive xác nhận hay còn chờ gửi.', 'info');
+                return;
+            }
             const scriptUrl = localStorage.getItem(SYNC_URL_KEY);
             if (!scriptUrl) {
                 closeBackupRestoreModal();
@@ -7114,6 +7131,11 @@
             }
 
             closeBackupRestoreModal();
+            if (!orders.length) {
+                showModal('Chưa có hóa đơn', 'Không có hóa đơn để gửi.', 'info');
+                return;
+            }
+            const ordersToSend = orders.slice();
             showModal(
                 "Đang Đẩy Lên Google Sheets...",
                 `<div class="space-y-3 text-center py-2">
@@ -7126,7 +7148,7 @@
             let successCount = 0;
             let completed = 0;
 
-            orders.forEach((o, idx) => {
+            ordersToSend.forEach((o, idx) => {
                 setTimeout(() => {
                     fetch(scriptUrl, {
                         method: 'POST',
@@ -7137,11 +7159,11 @@
                         successCount++;
                     }).catch(() => {}).finally(() => {
                         completed++;
-                        if (completed === orders.length) {
+                        if (completed === ordersToSend.length) {
                             showModal(
-                                "Đồng Bộ Đám Mây Hoàn Tất!",
-                                `Đã gửi toàn bộ dữ liệu <b>${orders.length} hóa đơn</b> lên Google Sheets thành công!`,
-                                "success"
+                                'Chưa xác nhận lưu trên Google Sheets',
+                                `Đã gửi ${successCount}/${ordersToSend.length} yêu cầu; ${ordersToSend.length - successCount} yêu cầu gặp lỗi mạng. Kết nối này không trả về xác nhận lưu. Hãy kiểm tra dữ liệu trong Web App trước khi đổi máy.`,
+                                'info'
                             );
                         }
                     });
@@ -8459,3 +8481,4 @@ window.SatoriRecon = (() => {
 </script>
 </body>
 </html>
+
