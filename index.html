@@ -454,7 +454,7 @@
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-2">
-                    <textarea id="zaloRawText" rows="2" placeholder="Ví dụ: Traky Sài Gòn, 377 Nguyễn Duy Trinh Q.2, 15 thùng 350ml, 0379034849 (Trọng) hoặc Giao giúp e qua 52 bình phú tam bình thủ đức quán Thạnh Phú: 10 thùng Hikari 500ml và 5 bình Satori 19L có vòi nha sdt Hằng 0784723916, đã ck..." class="w-full bg-slate-950/80 border border-slate-700 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
+                    <textarea id="zaloRawText" rows="2" onpaste="setTimeout(parseZaloMessageAI, 0)" placeholder="Ví dụ: Traky Sài Gòn, 377 Nguyễn Duy Trinh Q.2, 15 thùng 350ml, 0379034849 (Trọng) hoặc Giao giúp e qua 52 bình phú tam bình thủ đức quán Thạnh Phú: 10 thùng Hikari 500ml và 5 bình Satori 19L có vòi nha sdt Hằng 0784723916, đã ck..." class="w-full bg-slate-950/80 border border-slate-700 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
                     <button onclick="parseZaloMessageAI()" class="sm:w-44 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl px-4 py-2 text-xs transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2">
                         <i class="fa-solid fa-wand-magic-sparkles"></i>
                         <span>AI Bóc Tách Đơn</span>
@@ -663,12 +663,12 @@
                                 <div>
                                     <div class="flex justify-between items-center mb-1">
                                         <label class="block text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                                            <i class="fa-solid fa-coins text-emerald-400"></i> Tiền lợi nhuận thu về:
+                                            <i class="fa-solid fa-coins text-emerald-400"></i> Lợi nhuận gộp tiền hàng:
                                         </label>
                                         <span id="profitMarginBadge" class="text-[9px] text-emerald-300 font-mono font-bold bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-500/30">+0% DT</span>
                                     </div>
                                     <div class="relative">
-                                        <input type="number" id="orderProfitInput" value="0" min="0" oninput="onManualProfitInput(this.value)" placeholder="Tiền lời..." class="w-full bg-slate-900 border-2 border-emerald-500/70 hover:border-emerald-400 focus:border-emerald-400 rounded-lg px-2.5 py-1.5 text-xs text-emerald-300 font-black focus:outline-none pr-7 shadow-sm shadow-emerald-500/10">
+                                        <input type="number" id="orderProfitInput" value="0" readonly aria-readonly="true" title="Tự tính từ tiền hàng trừ giá vốn" placeholder="Tiền lời..." class="w-full bg-slate-900 border-2 border-emerald-500/70 hover:border-emerald-400 focus:border-emerald-400 rounded-lg px-2.5 py-1.5 text-xs text-emerald-300 font-black focus:outline-none pr-7 shadow-sm shadow-emerald-500/10">
                                         <span class="absolute right-2 top-1.5 text-[10px] text-emerald-400 font-bold">đ</span>
                                     </div>
                                     <p class="text-[9px] text-slate-400 mt-0.5">Giá vốn ước tính: <span id="estimatedCostDisplay" class="font-mono text-slate-300 font-semibold">0 đ</span></p>
@@ -1103,7 +1103,7 @@
                             <span>Tổng Lợi Nhuận</span>
                             <i class="fa-solid fa-sack-dollar text-emerald-400 text-xs"></i>
                         </div>
-                        <p id="statTotalProfit" class="text-xs sm:text-sm lg:text-base font-black text-emerald-400 font-mono my-1 tracking-tight truncate" title="Lợi nhuận ròng nội bộ">+0 đ</p>
+                        <p id="statTotalProfit" class="text-xs sm:text-sm lg:text-base font-black text-emerald-400 font-mono my-1 tracking-tight truncate" title="Lợi nhuận gộp tiền hàng, chưa trừ chi phí vận hành khác">+0 đ</p>
                         <span class="text-[10px] text-purple-300/70">Lợi nhuận ròng (45% CK)</span>
                     </div>
 
@@ -1937,7 +1937,7 @@
                                 BỘ NHỚ KHÁCH HÀNG & CHIẾT KHẤU TỰ HỌC CỦA AI
                                 <span id="aiMemoryCountBadge" class="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs px-2.5 py-0.5 rounded-full font-bold">22 Khách</span>
                             </h2>
-                            <p class="text-xs text-slate-400">AI tự động học hỏi người gửi, người nhận, số điện thoại, địa chỉ và mức chiết khấu % sau mỗi lần tạo đơn để tự động điền lần sau</p>
+                            <p class="text-xs text-slate-400">Ghi nhớ thông tin đã xác nhận khi lưu hóa đơn; chiết khấu và giá bán lưu riêng theo khách hàng và mặt hàng để điền cho lần sau</p>
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2">
@@ -2092,7 +2092,7 @@
                 </div>
                 <div class="flex items-center gap-1.5">
                     <span class="hidden sm:inline-flex bg-purple-950/80 text-purple-300 border border-purple-500/40 text-[10px] px-2.5 py-1 rounded-lg font-bold items-center gap-1" title="Lợi nhuận nội bộ của đơn này">
-                        <i class="fa-solid fa-lock text-purple-400"></i> Lời: +${getOrderProfit(o).toLocaleString('vi-VN')} đ (${o.costDiscountPercent || 25}% CK)
+                        <i class="fa-solid fa-lock text-purple-400"></i> Lời: ${getOrderProfit(o) >= 0 ? "+" : ""}${getOrderProfit(o).toLocaleString('vi-VN')} đ (${o.costDiscountPercent || 25}% CK)
                     </span>
                     <button type="button" onclick="downloadModalInvoicePDF()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2.5 py-1.5 rounded-lg transition font-bold flex items-center gap-1 shadow" title="Tải PDF vào thư mục Satori Order">
                         <i class="fa-solid fa-file-pdf"></i> Tải PDF
@@ -2620,7 +2620,7 @@
         }
 
         // TỰ ĐỘNG ÁP DỤNG CHIẾT KHẤU 45% MẶC ĐỊNH (KHÔNG TÍNH THUẾ HAY TIỀN SHIP) CHO TOÀN BỘ ĐƠN TRƯỚC ĐÂY
-        const sysCostDiscount = parseFloat(localStorage.getItem('satori_system_default_cost_discount')) || 45;
+        const sysCostDiscount = aiPercent(localStorage.getItem('satori_system_default_cost_discount')) ?? 45;
         let ordersNeedSave = false;
         orders.forEach(o => {
             if (o.costDiscountPercent === undefined || o.costDiscountPercent === null) {
@@ -2635,9 +2635,14 @@
                     : (o.goodsTotal || (o.total ? (o.vat === 'yes' ? Math.round(o.total / 1.08) : o.total) : ((o.qty || 10) * (o.unitPrice || 66000))));
 
                 o.costTotal = Math.round(listTotal * (1 - sysCostDiscount / 100));
-                o.profit = Math.max(0, Math.round(goodsTotal - o.costTotal));
+                o.profit = Math.round(goodsTotal - o.costTotal);
                 ordersNeedSave = true;
             }
+        });
+        // Repair cached profit values without changing sales amounts or cloud data.
+        orders.forEach(o => {
+            const corrected = getOrderProfit(o);
+            if (o.profit !== corrected) { o.profit = corrected; ordersNeedSave = true; }
         });
         if (ordersNeedSave) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
@@ -3117,6 +3122,152 @@
         // =====================================================================================
         // AI ZALO PARSER V16.2 PRO: BÓC TÁCH THÔNG MINH, TÁCH BẠCH ĐỊA CHỈ - SẢN PHẨM - LIÊN HỆ
         // =====================================================================================
+        // Normalized matching is accent independent and preserves word boundaries.
+        function aiNormalize(value) {
+            return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/[^a-z0-9+]+/g, ' ').trim();
+        }
+        function aiPhone(value) {
+            const m = String(value || '').match(/(?<!\d)(?:\+?84|0)[\s.()-]*[35789](?:[\s.()-]*\d){8}(?!\d)|(?<!\d)[35789]\d{8}(?!\d)/);
+            if (!m) return '';
+            const d = m[0].replace(/\D/g, '');
+            return d.startsWith('84') && d.length === 11 ? '0' + d.slice(2) : d.length === 9 ? '0' + d : d;
+        }
+        function aiPercent(value) {
+            if (value === null || value === undefined || String(value).trim() === '') return null;
+            const n = Number(String(value).replace(',', '.'));
+            return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
+        }
+        function aiExplicitDiscount(text) {
+            // A factory cost discount and VAT are not a customer's sales discount.
+            const matches = [...String(text).matchAll(/(?:chiết\s*khấu|chiet\s*khau|ck|giảm|giam)\s*(?:bán|ban|khách|khach)?\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*%/gi)];
+            const valid = matches.filter(m => !/(?:nhập|nhap|vốn|von|nhà máy|nha may)\s*$/i.test(String(text).slice(Math.max(0, m.index - 15), m.index)));
+            const values = [...new Set(valid.map(m => aiPercent(m[1])).filter(n => n !== null))];
+            return values.length === 1 ? values[0] : null;
+        }
+        function aiProductKey(item) {
+            if (item.code) return item.code;
+            const name = aiNormalize(item.product || item.name);
+            const exact = catalogue.find(p => aiNormalize(p.name) === name);
+            if (exact) return exact.code;
+            // Legacy single-product invoices have no code; do not map mixed summaries.
+            if (/[,;+]/.test(item.product || '') || /\d+\s*(?:thung|suoi)/.test(name)) return name;
+            const size = name.match(/(?:350|500|450|400|1500|250)ml|1[., ]?5l|19l|20l/);
+            if (size) {
+                const token = size[0].replace(/ /g, '');
+                const candidates = catalogue.filter(p => aiNormalize(p.name).includes(token) && aiNormalize(p.name).includes(name.includes('hikari') ? 'hikari' : 'satori'));
+                if (candidates.length === 1) return candidates[0].code;
+            }
+            return name;
+        }
+        function aiOrderTime(order) {
+            const stamp = Number(order.updatedAt || order.timestamp);
+            if (stamp > 0) return stamp;
+            const m = String(order.date || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            return m ? new Date(+m[3], +m[2] - 1, +m[1]).getTime() : 0;
+        }
+        function aiMemoryForParsing() {
+            const memory = JSON.parse(JSON.stringify(getAIMemory()));
+            // Reconstruct from saved invoices, oldest to newest; parsing never trains guesses.
+            [...orders].sort((a, b) => aiOrderTime(a) - aiOrderTime(b)).forEach(o => trainAIMemoryFromOrder(o, { memory, persist: false }));
+            return memory;
+        }
+        function aiExtractContact(raw, memory) {
+            const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            const phones = [...raw.matchAll(/(?<!\d)(?:\+?84|0)[\s.()-]*[35789](?:[\s.()-]*\d){8}(?!\d)|(?<!\d)[35789]\d{8}(?!\d)/g)].map(m => {
+                const line = raw.slice(0, m.index).split(/\r?\n/).pop();
+                return { raw: m[0], phone: aiPhone(m[0]), index: m.index, score: /người nhận|nguoi nhan|liên hệ|lien he|gọi|goi|gặp|gap/i.test(line) ? 3 : /người gửi|nguoi gui|shipper|tài xế|tai xe/i.test(line) ? -2 : 0 };
+            }).sort((a, b) => b.score - a.score || a.index - b.index);
+            const selected = phones[0];
+            const phone = selected?.phone || '';
+            const phoneRaw = selected?.raw || '';
+            const clean = value => value.replace(/^[\s:;,\-]+|[\s:;,\-]+$/g, '').trim();
+            const labelledName = raw.match(/(?:^|[\n;,])\s*(?:tên\s*)?(?:người nhận|nguoi nhan|tên người nhận|ten nguoi nhan|liên hệ|lien he)\s*[:：-]\s*([^\n;,]+)/i);
+            let person = labelledName ? labelledName[1] : '';
+            if (person && phoneRaw) person = person.split(phoneRaw)[0];
+            person = clean(person.replace(/\s*(?:sđt|sdt|đt|dt|điện thoại|dien thoai)\s*:.*$/i, ''));
+            if (!person && selected) {
+                const before = raw.slice(0, selected.index).split(/[\n;,]/).pop();
+                const after = raw.slice(selected.index + phoneRaw.length).split(/[\n;,]/)[0];
+                const paren = after.match(/^\s*\(([^)]+)\)/);
+                const beforeName = before.match(/(?:sđt|sdt|gọi|gặp|liên hệ|lien he)\s*[: -]?\s*([\p{L} .]+?)\s*[-:]?\s*$/iu) || before.match(/(?:^|\s)((?:anh|chị|c|a|em)\s+[\p{L} .]+?)\s*[-:]?\s*$/iu) || before.match(/(?:^|(?:gọi|gặp|liên hệ|nguoi nhan|người nhận)\s*:?\s*)([\p{L} .]+?)\s*[-:]?\s*$/u);
+                const afterName = after.match(/^\s*[-:]\s*([\p{L} ]+)$/u);
+                person = clean(paren?.[1] || beforeName?.[1] || afterName?.[1] || '');
+                person = person.replace(/^(?:sđt|sdt|đt|điện thoại|gọi|gặp)\s*[: -]?\s*/i, '');
+                if (/địa chỉ|đường|phường|quận|thùng|sdt|sđt|người gửi|shipper/i.test(person)) person = '';
+            }
+            const norm = ' ' + aiNormalize(raw) + ' ';
+            const ranked = memory.map(c => {
+                const aliases = [c.name, ...(c.aliases || [])].map(aiNormalize).filter(a => a.length >= 3);
+                const names = aliases.filter(a => norm.includes(' ' + a + ' '));
+                const nameScore = names.length ? 200 + Math.max(...names.map(a => a.length)) : 0;
+                const receivers = c.receivers || [];
+                const phoneMatch = phone && [c.defaultPhone, ...receivers.map(r => r.phone)].some(p => aiPhone(p) === phone);
+                const addresses = [c.defaultLocation, ...receivers.map(r => r.location)].map(aiNormalize).filter(a => a.length >= 12);
+                const addrMatch = addresses.some(a => norm.includes(' ' + a + ' '));
+                const personMatch = person && receivers.some(r => aiNormalize(r.name) === aiNormalize(person));
+                return { c, score: nameScore + (phoneMatch ? 100 : 0) + (addrMatch ? 80 : 0) + (personMatch ? 15 : 0) };
+            }).filter(r => r.score >= 80).sort((a, b) => b.score - a.score);
+            const ambiguous = ranked.length > 1 && ranked[0].score === ranked[1].score;
+            const cust = !ambiguous ? ranked[0]?.c || null : null;
+            const receiver = cust && phone ? (cust.receivers || []).find(r => aiPhone(r.phone) === phone) : null;
+            if (!person && receiver && receiver.name !== 'Người nhận') person = receiver.name || '';
+            const customerLabel = raw.match(/(?:^|[\n;])\s*(?:khách hàng|khach hang|khách|khach|tên khách|ten khach|đơn vị|don vi)\s*[:：]\s*([^\n;]+)/i);
+            const first = lines[0] || '';
+            const fallback = first.length < 70 && !/\d|giao|địa chỉ|dia chi|người nhận|nguoi nhan|thùng|thung|bình|binh|cho|giúp/i.test(first) ? first : '';
+            return { phone, phoneRaw, person, cust, receiver, ambiguous, customer: cust?.name || clean(customerLabel?.[1] || fallback || person || 'Khách Zalo') };
+        }
+        function aiExtractAddress(raw, contact) {
+            const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            const labelled = lines.findIndex(s => /^(?:địa chỉ(?: nhận hàng| giao hàng)?|dia chi|đc|dc|giao (?:tại|đến|tới)|giao hang tai)\s*[:：-]?/i.test(s));
+            const stop = /(?:người nhận|nguoi nhan|sđt|sdt|điện thoại|dien thoai|liên hệ|lien he|gọi|goi|khách hàng|khach hang|chiết khấu|chiet khau|\bck\s*[:=]?\s*\d|vat|thanh toán)/i;
+            const product = /^\d+\s*(?:thùng|thung|két|ket|bình(?!\s+(?:phú|thạnh|tân|trưng|dương|an))|binh|lốc|loc|chai|lon)(?![\p{L}])/iu;
+            let parts = [];
+            if (labelled >= 0) {
+                parts.push(lines[labelled].replace(/^(?:địa chỉ(?: nhận hàng| giao hàng)?|dia chi|đc|dc|giao (?:tại|đến|tới)|giao hang tai)\s*[:：-]?\s*/i, ''));
+                for (let i = labelled + 1; i < lines.length && !stop.test(lines[i]) && !product.test(lines[i]) && !aiPhone(lines[i]); i++) {
+                    if (/^(?:p\.?|q\.?|tp\.?|phường|quận|huyện|xã|tỉnh|thành phố|hcm|hồ chí minh|hà nội)/i.test(lines[i])) parts.push(lines[i]); else break;
+                }
+            } else {
+                parts = lines.filter(s => !product.test(s) && !/^(?:khách|khach|người nhận|nguoi nhan|sđt|sdt)/i.test(s) && /(?:^|\s)[A-Za-z]?\d+[\w/.-]*\s+[\p{L}]/u.test(s));
+                if (parts.length > 1) parts = parts.slice(0, 1);
+            }
+            let address = parts.join(', ');
+            const inline = raw.match(/(?:địa chỉ|dia chi|đc|dc|giao\s+(?:tại|đến|tới|qua|về)|(?:đến|tới|qua))\s*[:：-]?\s*([^\n;]+)/i);
+            if (labelled < 0 && inline) address = inline[1];
+            if (labelled < 0 && !inline) {
+                const house = address.match(/(?:^|[,;]\s*)([A-Za-z]?\d+[\w/.-]*\s+(?!(?:thùng|thung|két|ket|chai|lon)\s)[\p{L}][^\n]*)/iu);
+                address = house?.[1] || '';
+            }
+
+            address = address.split(stop)[0];
+            if (contact.phoneRaw) address = address.split(contact.phoneRaw)[0];
+            address = address.replace(/\s+\d+\s*(?:thùng|thung|két|ket|lốc|loc|chai|lon)(?![\p{L}]).*$/iu, '');
+            address = address.replace(/^.*?(?:giao\s+(?:giúp\s+(?:em|e)\s+)?(?:tại|đến|tới|qua|về))\s*/i, '');
+            if (contact.person && address.endsWith(contact.person + ' - ')) address = address.slice(0, -(contact.person.length + 3));
+            if (contact.person && address.trim().endsWith(contact.person)) address = address.trim().slice(0, -contact.person.length);
+            address = address.replace(/^[\s:;,\-]+|[\s:;,\-]+$/g, '').trim();
+            if (address) return address;
+            if (contact.receiver?.location) return contact.receiver.location;
+            // No borrowed address for a new receiver or a customer with multiple delivery sites.
+            if (contact.cust && !contact.phone) {
+                const locations = [...new Set([contact.cust.defaultLocation, ...(contact.cust.receivers || []).map(r => r.location)].filter(Boolean).map(aiNormalize))];
+                if (locations.length === 1) return contact.cust.defaultLocation || contact.cust.receivers?.[0]?.location || '';
+            }
+            return '';
+        }
+        function aiResolvePricing(cust, product, text, raw) {
+            const explicit = aiExplicitDiscount(text) ?? aiExplicitDiscount(raw);
+            const learned = cust?.productPricing?.[aiProductKey(product)];
+            const pct = explicit ?? aiPercent(learned?.discountPercent) ?? aiPercent(cust?.discountPercent) ?? aiPercent(product.discountPercent) ?? 0;
+            // Preserve an exact negotiated selling price instead of rounding its percentage again.
+            const useExact = explicit === null && learned && Number(learned.listPrice) === Number(product.listPrice) && Number.isFinite(learned.unitPrice);
+            const price = useExact ? learned.unitPrice : product.listPrice - Math.round(product.listPrice * pct / 100);
+            return { percent: pct, price, amount: product.listPrice - price };
+        }
+        function aiEscape(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
         function parseZaloMessageAI() {
             const raw = (document.getElementById('zaloRawText')?.value || '').trim();
             if (!raw) {
@@ -3124,190 +3275,14 @@
                 return;
             }
 
-            const tLower = raw.toLowerCase();
-            const memory = getAIMemory();
-
-            // 1. EXTRACT PHONE NUMBER & CONTACT PERSON (HỖ TRỢ ĐỦ ĐỊNH DẠNG: TÊN - SĐT, SĐT (TÊN), GỌI/SDT...)
-            let phoneVal = "";
-            let phoneRaw = "";
-            let contactPerson = "";
-            let phoneContactSegment = "";
-
-            const phoneRegex = /(?:\+?84|0)?([35789]\d{8})\b|(\+?84[\s.]?\d{2,3}[\s.]?\d{3}[\s.]?\d{3}|0\d{2,3}[\s.]?\d{3}[\s.]?\d{3})\b/;
-            let mPhone = raw.match(phoneRegex);
-            if (!mPhone) {
-                mPhone = raw.match(/\b([35789]\d{8})\b/);
-            }
-
-            const geoStop = ['hồ', 'chí', 'minh', 'hà', 'nội', 'thủ', 'đức', 'quận', 'phường', 'đường', 'thùng', 'bình', 'lốc', 'chai', 'nha', 'nhé', 'tp', 'tphcm', 'hcm', 'giao', 'đc', 'địa', 'chỉ', 'qua', 'tại', 'về', 'đến'];
-
-            if (mPhone) {
-                phoneRaw = mPhone[0];
-                let digits = phoneRaw.replace(/\D/g, '');
-                if (digits.length === 9 && ['3','5','7','8','9'].includes(digits[0])) {
-                    phoneVal = '0' + digits;
-                } else if (digits.length === 11 && digits.startsWith('84')) {
-                    phoneVal = '0' + digits.substring(2);
-                } else if (digits.length === 10 && !digits.startsWith('0')) {
-                    phoneVal = '0' + digits.substring(1);
-                } else if (digits.length === 10 && digits.startsWith('0')) {
-                    phoneVal = digits;
-                } else {
-                    phoneVal = digits.startsWith('0') ? digits : ('0' + digits);
-                }
-
-                const escPhone = phoneRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-                // Pattern 1: Tên - SĐT hoặc Tên : SĐT (vd: "Trọng - 0379034849", "Hằng : 0784723916")
-                const m_name_dash = raw.match(new RegExp('(?:^|[\\r\\n,;])\\s*([A-ZÀ-Ỹa-zà-ỹ\\s]{2,20}?)\\s*[-:]\\s*' + escPhone, 'i'));
-                // Pattern 2: SĐT (Tên) hoặc (Tên) SĐT (vd: "0379034849 (Trọng)")
-                const parenAfter = raw.match(new RegExp(escPhone + '\\s*\\(([^)]+)\\)', 'i'));
-                const parenBefore = raw.match(new RegExp('\\(([^)]+)\\)\\s*' + escPhone, 'i'));
-                // Pattern 3: (sdt/sđt/gọi/gặp/anh/chị/a/c/em) Tên [-:]? SĐT
-                const prefixM = raw.match(new RegExp('(?:sdt|sđt|gọi|gặp|anh|chị|a|c|em)\\s+([A-ZÀ-Ỹa-zà-ỹ]+)\\s*[-:]?\\s*' + escPhone, 'i'));
-                // Pattern 4: Tên SĐT (vd: "Trọng 0379034849")
-                const m_name_space = raw.match(new RegExp('(?:^|[\\r\\n,;])\\s*([A-ZÀ-Ỹa-zà-ỹ]{2,15})\\s+' + escPhone, 'i'));
-                // Pattern 5: SĐT - Tên
-                const m_phone_dash = raw.match(new RegExp(escPhone + '\\s*[-:]\\s*([A-ZÀ-Ỹa-zà-ỹ]{2,15})', 'i'));
-
-                if (m_name_dash && m_name_dash[1] && !geoStop.includes(m_name_dash[1].trim().toLowerCase())) {
-                    contactPerson = m_name_dash[1].trim();
-                    phoneContactSegment = m_name_dash[0].replace(/^[\\r\\n,;\\s]+|[\\r\\n,;\\s]+$/g, '');
-                } else if (parenAfter && parenAfter[1] && !geoStop.includes(parenAfter[1].trim().toLowerCase())) {
-                    contactPerson = parenAfter[1].trim();
-                    phoneContactSegment = parenAfter[0].trim();
-                } else if (parenBefore && parenBefore[1] && !geoStop.includes(parenBefore[1].trim().toLowerCase())) {
-                    contactPerson = parenBefore[1].trim();
-                    phoneContactSegment = parenBefore[0].trim();
-                } else if (prefixM && prefixM[1] && !geoStop.includes(prefixM[1].trim().toLowerCase())) {
-                    contactPerson = prefixM[1].trim();
-                    phoneContactSegment = prefixM[0].trim();
-                } else if (m_name_space && m_name_space[1] && !geoStop.includes(m_name_space[1].trim().toLowerCase())) {
-                    contactPerson = m_name_space[1].trim();
-                    phoneContactSegment = m_name_space[0].replace(/^[\\r\\n,;\\s]+|[\\r\\n,;\\s]+$/g, '');
-                } else if (m_phone_dash && m_phone_dash[1] && !geoStop.includes(m_phone_dash[1].trim().toLowerCase())) {
-                    contactPerson = m_phone_dash[1].trim();
-                    phoneContactSegment = m_phone_dash[0].trim();
-                } else {
-                    phoneContactSegment = phoneRaw;
-                }
-            }
-
-            // 2. EXTRACT CUSTOMER NAME (TỪ VĂN BẢN HOẶC TRUY VẤN TRÍ NHỚ AI THEO SĐT / ĐỊA CHỈ)
-            const knownCustomers = [
-                ["Traky Cần Thơ", ["traky cần thơ", "traky can tho", "traky ct"]],
-                ["Traky Rạch Giá", ["traky rạch giá", "traky rach gia", "traky rg"]],
-                ["Traky Long Xuyên", ["traky long xuyên", "traky long xuyen", "traky lx"]],
-                ["Traky Mỹ Tho", ["traky mỹ tho", "traky my tho", "traky mt"]],
-                ["Traky Sài Gòn", ["traky sài gòn", "traky sai gon", "traky sg", "traky hair", "traky"]],
-                ["Edric Salon", ["edric salon", "edric"]],
-                ["Nhà Hàng Thạnh Phú", ["quán thạnh phú", "nhà hàng thạnh phú", "thạnh phú", "thanh phu"]],
-                ["Mr Ốc Ngon", ["mr ốc ngon", "ốc ngon", "oc ngon"]],
-                ["Ốc Lá", ["ốc lá", "oc la"]],
-                ["18+", ["18+"]],
-                ["Công Ty CP ACE Clubhouse", ["ace clubhouse", "ace"]],
-                ["CÔNG TY TNHH TM DV THỂ THAO BANGER PICKLEBALL", ["banger pickleball", "banger"]],
-                ["HỘ KINH DOANH DỊCH VỤ TÀI LỘC", ["tài lộc", "tai loc"]],
-                ["Nguyễn Bảo Châu Diamon", ["bảo châu", "nguyễn bảo châu", "diamon"]],
-                ["CÔNG TY CP THƯƠNG MẠI DV VINAHASA (Ốc Q)", ["vinahasa", "ốc q", "oc q"]],
-                ["Hà Minh Nguyệt", ["hà minh nguyệt", "c nguyệt", "chị nguyệt", "nguyệt"]],
-                ["Cô Hoa", ["cô hoa", "co hoa"]],
-                ["PWC", ["pwc"]]
-            ];
-
-            let customerName = "";
-            let matchedCust = null;
-            let matchedAlias = "";
-
-            // 2a. Khớp theo danh bạ tên khách hàng / bí danh trong văn bản
-            for (const [canonical, aliases] of knownCustomers) {
-                for (const a of aliases) {
-                    const aRegex = new RegExp('\\b' + a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
-                    if (aRegex.test(tLower)) {
-                        customerName = canonical;
-                        matchedAlias = a;
-                        matchedCust = memory.find(c => c.name.toLowerCase() === canonical.toLowerCase()) || { name: canonical, discountPercent: (canonical.includes('Traky') ? 26.14 : (canonical.includes('Edric') ? 26.14 : 20.45)) };
-                        break;
-                    }
-                }
-                if (customerName) break;
-            }
-
-            if (!customerName) {
-                for (const cust of memory) {
-                    if (cust.name && tLower.includes(cust.name.toLowerCase())) {
-                        customerName = cust.name;
-                        matchedCust = cust;
-                        break;
-                    }
-                }
-            }
-
-            // 2b. NẾU KHÔNG CÓ TÊN KHÁCH TRONG TIN NHẮN: TÌM TRONG TRÍ NHỚ AI BẰNG SỐ ĐIỆN THOẠI & NGƯỜI NHẬN!
-            if (!customerName && phoneVal) {
-                for (const cust of memory) {
-                    const defDigits = (cust.defaultPhone || '').replace(/\D/g, '');
-                    if (defDigits === phoneVal || (defDigits.length >= 9 && defDigits.endsWith(phoneVal.slice(-9)))) {
-                        customerName = cust.name;
-                        matchedCust = cust;
-                        if (!contactPerson) {
-                            const mP = (cust.defaultPhone || '').match(/\(([^)]+)\)/);
-                            if (mP) contactPerson = mP[1].trim();
-                        }
-                        break;
-                    }
-                    if (cust.receivers && Array.isArray(cust.receivers)) {
-                        for (const r of cust.receivers) {
-                            const rDigits = (r.phone || '').replace(/\D/g, '');
-                            if (rDigits === phoneVal || (rDigits.length >= 9 && rDigits.endsWith(phoneVal.slice(-9)))) {
-                                customerName = cust.name;
-                                matchedCust = cust;
-                                if (!contactPerson && r.name) contactPerson = r.name;
-                                break;
-                            }
-                        }
-                    }
-                    if (customerName) break;
-                }
-            }
-
-            // 2c. Tìm trong Trí Nhớ AI bằng địa chỉ nhận hàng
-            if (!customerName) {
-                for (const cust of memory) {
-                    if (cust.defaultLocation && tLower.includes(cust.defaultLocation.toLowerCase().slice(0, 20))) {
-                        customerName = cust.name;
-                        matchedCust = cust;
-                        break;
-                    }
-                    if (cust.receivers && Array.isArray(cust.receivers)) {
-                        for (const r of cust.receivers) {
-                            if (r.location && tLower.includes(r.location.toLowerCase().slice(0, 20))) {
-                                customerName = cust.name;
-                                matchedCust = cust;
-                                break;
-                            }
-                        }
-                    }
-                    if (customerName) break;
-                }
-            }
-
-            // 2d. Fallback tên người gọi hoặc "Khách Zalo"
-            if (!customerName) {
-                const personMatch = raw.match(/^(?:anh|chị|a|c|em)\s+([A-ZÀ-Ỹa-zà-ỹ\s]+?)(?:,|\s+\d|:)/i);
-                if (personMatch) {
-                    customerName = personMatch[0].replace(/[,:]/g, '').trim();
-                } else {
-                    const firstPart = raw.split(new RegExp('[,;\\r\\n:]+'))[0].trim();
-                    if (firstPart.length < 30 && !/\d+/.test(firstPart) && !/(?:giao|thùng|bình|qua|đến|về)/i.test(firstPart)) {
-                        customerName = firstPart;
-                    } else {
-                        customerName = "Khách Zalo";
-                    }
-                }
-            }
-
-            let fullPhone = phoneVal ? (contactPerson ? `${phoneVal} (${contactPerson})` : phoneVal) : "";
+            const memory = aiMemoryForParsing();
+            const contact = aiExtractContact(raw, memory);
+            const matchedCust = contact.cust;
+            const customerName = contact.customer;
+            const phoneVal = contact.phone;
+            const phoneRaw = contact.phoneRaw;
+            const contactPerson = contact.person;
+            const fullPhone = phoneVal ? (contactPerson ? `${phoneVal} (${contactPerson})` : phoneVal) : '';
 
             // 3. EXTRACT PRODUCTS & QUANTITIES (BÓC TÁCH MẶT HÀNG CHUẨN XÁC, LOẠI TRỪ TỪ "BÌNH" TRONG TÊN ĐỊA DANH)
             function matchProductFromText(textSegment, unitHint = '') {
@@ -3321,7 +3296,7 @@
                 const isHikari = sClean.includes('hikari');
                 const unitLower = (unitHint || '').toLowerCase();
 
-                if (sClean.includes('me') || sClean.includes('nước me') || sClean.includes('ép me')) return CATALOGUE_MAP['TP-00055'];
+                if (/(?:^|[\s,;])(?:me)(?:$|[\s,;])/i.test(sClean)) return CATALOGUE_MAP['TP-00055'];
                 if (sClean.includes('mãng cầu') || sClean.includes('mãn cầu') || sClean.includes('mang cau')) return CATALOGUE_MAP['TP-00056'];
                 if (sClean.includes('ổi') || sClean.includes('ổi hồng') || sClean.includes('oi hong')) return CATALOGUE_MAP['TP-00058'];
 
@@ -3346,6 +3321,7 @@
                     if (sClean.includes('không vòi') || sClean.includes('úp') || sClean.includes('up')) return CATALOGUE_MAP['TP-00096'];
                     return CATALOGUE_MAP['TP-00033'];
                 }
+                if (sClean.includes('1.5l') || sClean.includes('1500ml') || sClean.includes('1,5l')) return CATALOGUE_MAP['TP-00004'];
                 if (sClean.includes('5l') || sClean.includes('5 lít')) {
                     if (sClean.includes('có vòi')) {
                         if (sClean.includes('bình lẻ') || sClean.includes('1 bình')) return CATALOGUE_MAP['TP-00142'];
@@ -3353,44 +3329,34 @@
                     }
                     return CATALOGUE_MAP['TP-00135'];
                 }
-                if (sClean.includes('1.5l') || sClean.includes('1500ml') || sClean.includes('1,5l')) return CATALOGUE_MAP['TP-00004'];
                 if (sClean.includes('500ml') || sClean.includes('500') || sClean.includes('550ml')) return CATALOGUE_MAP['TP-00003'];
                 if (sClean.includes('350ml') || sClean.includes('350')) return CATALOGUE_MAP['TP-00001'];
 
-                // Nước suối / nước tinh khiết / thùng nước: Ưu tiên sản phẩm ưa thích của khách hàng từ AI Memory
-                if (sClean.includes('nước') || sClean.includes('suối') || isThung) {
-                    if (matchedCust && matchedCust.preferredProduct) {
-                        const pref = matchedCust.preferredProduct.toLowerCase();
-                        if (pref.includes('500')) return CATALOGUE_MAP['TP-00003'];
-                        if (pref.includes('19l') || pref.includes('bình')) return CATALOGUE_MAP['TP-00033'];
-                        return CATALOGUE_MAP['TP-00001'];
-                    }
-                    return CATALOGUE_MAP['TP-00001'];
-                }
-
-                if (['bình', 'binh'].includes(unitLower)) {
-                    return CATALOGUE_MAP['TP-00033'];
+                // Only reuse an unambiguous saved product when the message omits its size.
+                if (matchedCust?.preferredProduct && (sClean.includes('nước') || sClean.includes('suối') || isThung || ['bình', 'binh'].includes(unitLower))) {
+                    const preferred = CATALOGUE_MAP[aiProductKey({product: matchedCust.preferredProduct})];
+                    if (preferred) return preferred;
                 }
                 return null;
             }
 
-            const prodClauseRegex = /(\d+)\s*(thùng|thung|két|ket|bình(?![\s_]+(?:phú|trưng|thạnh|tân|chánh|dương|lợi|hưng|an|chiểu|phước|thuận|điền|hiệp|định|tây|đông))|binh|chai|lốc|loc|lon|t)\b(?:\s+(?:nước|suối|satori|hikari|ép|juice|ổi|me|mãng cầu|mãn cầu|[a-zà-ỹ0-9\.\s]+?))?(?=$|[\r\n,;]|(?:\s+(?:và|va|\+|&)\s+)|(?:\s*(?:đc:?|địa chỉ:?|giao|qua|tại|về|đến|\d+[\w\/\.-]*\s+[A-ZÀ-Ỹa-zà-ỹ]|sđt|sdt|gọi|gặp|anh|chị)))/gi;
+            const quantityPattern = /(?<!\d)(\d+)\s*(thùng|thung|két|ket|bình(?!\s+(?:phú|trưng|thạnh|tân|chánh|dương|lợi|hưng|an|chiểu|phước|thuận|điền|hiệp|định|tây|đông))|binh|chai|lốc|loc|lon|t)(?![\p{L}])/giu;
+            const clauses = [...raw.matchAll(quantityPattern)];
             const detectedItems = [];
-            const matchedProductTexts = [];
-
-            let pMatch;
-            while ((pMatch = prodClauseRegex.exec(raw)) !== null) {
-                const qty = parseInt(pMatch[1]);
-                if (qty > 500 || String(qty).length >= 9) continue;
+            for (let i = 0; i < clauses.length; i++) {
+                const pMatch = clauses[i];
+                const qty = Number(pMatch[1]);
+                if (qty <= 0 || qty > 500) continue;
                 const unit = pMatch[2];
-                const fullClause = pMatch[0].trim();
-                matchedProductTexts.push(fullClause);
+                const end = clauses[i + 1]?.index ?? raw.length;
+                const fullClause = raw.slice(pMatch.index, end).split(/[\r\n;]/)[0].trim();
 
                 const matchedProd = matchProductFromText(fullClause, unit);
-                if (matchedProd && !detectedItems.some(it => it.code === matchedProd.code)) {
-                    const activeDiscPct = (matchedCust && matchedCust.discountPercent > 0) ? matchedCust.discountPercent : matchedProd.discountPercent;
-                    const discAmt = Math.round(matchedProd.listPrice * (activeDiscPct / 100));
-                    const unitP = matchedProd.listPrice - discAmt;
+                if (matchedProd && (!['chai', 'lon'].includes(unit.toLowerCase()) || aiNormalize(matchedProd.unit) === aiNormalize(unit))) {
+                    const pricing = aiResolvePricing(matchedCust, matchedProd, fullClause, raw);
+                    const activeDiscPct = pricing.percent;
+                    const discAmt = pricing.amount;
+                    const unitP = pricing.price;
                     detectedItems.push({
                         id: Date.now() + Math.random(),
                         code: matchedProd.code,
@@ -3406,117 +3372,13 @@
                 }
             }
 
-            if (detectedItems.length > 0) {
-                currentItems = detectedItems;
-            } else {
-                let defaultProd = CATALOGUE_MAP['TP-00001'];
-                if (matchedCust && matchedCust.preferredProduct) {
-                    const pref = matchedCust.preferredProduct.toLowerCase();
-                    if (pref.includes('500')) defaultProd = CATALOGUE_MAP['TP-00003'];
-                    else if (pref.includes('19l') || pref.includes('bình')) defaultProd = CATALOGUE_MAP['TP-00033'];
-                }
-                const defaultQty = 10;
-                const activeDiscPct = (matchedCust && matchedCust.discountPercent > 0) ? matchedCust.discountPercent : defaultProd.discountPercent;
-                const discAmt = Math.round(defaultProd.listPrice * (activeDiscPct / 100));
-                const unitP = defaultProd.listPrice - discAmt;
-
-                currentItems = [{
-                    id: Date.now(),
-                    code: defaultProd.code,
-                    product: defaultProd.name,
-                    unit: defaultProd.unit || 'Thùng',
-                    qty: defaultQty,
-                    listPrice: defaultProd.listPrice,
-                    discountPercent: activeDiscPct,
-                    discountAmount: discAmt,
-                    unitPrice: unitP,
-                    subtotal: defaultQty * unitP
-                }];
-            }
-
+            currentItems = detectedItems;
             renderItemsForm();
-
-            // 4. EXTRACT DELIVERY ADDRESS (TÁCH BIỆT HOÀN TOÀN: KHÔNG DÍNH SẢN PHẨM, KHÔNG DÍNH TÊN LIÊN HỆ HAY SĐT)
-            const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-            let locationVal = "";
-
-            // 4a. Phân tích theo từng dòng nếu tin nhắn xuống dòng
-            if (lines.length > 1) {
-                for (const l of lines) {
-                    if (phoneContactSegment && (phoneContactSegment.includes(l) || l.includes(phoneContactSegment))) continue;
-                    if (phoneRaw && l.includes(phoneRaw) && l.length <= phoneRaw.length + 15) continue;
-                    if (matchedProductTexts.some(pt => pt.toLowerCase() === l.toLowerCase())) continue;
-                    if (/^\s*\d+\s*(?:thùng|thung|két|ket|bình(?![\s_]+(?:phú|trưng|thạnh|tân|chánh|dương|lợi|hưng|an))|binh|chai|lốc|loc|lon|t)\b/i.test(l)) continue;
-                    if (matchedAlias && l.toLowerCase() === matchedAlias.toLowerCase()) continue;
-
-                    const hasNum = /\d+/.test(l);
-                    const hasGeo = /(?:đường|đ\.|phố|phường|p\.|quận|q\.|tp|tphcm|hcm|thủ đức|hà nội|cần thơ|đà nẵng|nguyễn|lê|trần|bình trưng|bình phú|tô ngọc vân|lã xuân oai|võ oanh|huỳnh văn bánh|sư vạn hạnh|calmette|võ văn ngân|song hành|bạch đằng)/i.test(l);
-                    if (hasNum || hasGeo) {
-                        let cleanL = l.replace(/^\s*(?:giao\s+(?:giúp\s+e\s+|giúp\s+|hộ\s+e\s+|hộ\s+)?(?:qua|tại|về|đến)|qua|tại|về|đến|đc:?|địa chỉ:?)\s*/i, '');
-                        if (contactPerson) {
-                            cleanL = cleanL.replace(new RegExp('\\b' + contactPerson.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'), '');
-                        }
-                        locationVal = cleanL.replace(/^[,;:.\s-]+|[,;:.\s-]+$/g, '').trim();
-                        break;
-                    }
-                }
-            }
-
-            // 4b. Nhận diện bằng biểu thức chính quy địa chỉ
-            if (!locationVal) {
-                const addrPattern1 = /(?:(?:qua|tại|về|đến|đc:?|địa chỉ:?)\s*)?([A-Za-z]?\d+[\w\/\.-]*\s+(?!(?:thùng|thung|két|ket|bình(?![\s_]+(?:phú|trưng|thạnh|tân|chánh|dương|lợi|hưng|an))|binh|chai|lốc|loc|lon|t)\b)[^\r\n:]+?(?:quận|huyện|thành phố|thị xã|tp|hcm|tphcm|hà nội|cần thơ|đà nẵng|thủ đức|q\.\s*\d+|q\d+)[^\r\n:]*?)(?=(?:,\s*)?(?:[A-ZÀ-Ỹa-zà-ỹ\s]+[-:]\s*(?:0|\+?84)?[35789]\d{8}|(?:0|\+?84)?[35789]\d{8}|\d+\s*(?:thùng|bình)|$))/i;
-                const addrPattern2 = /((?:[A-Za-z]?\d+[\w\/\.-]*\s+)?(?:đ\.|đường|phố|khu đô thị|kđt|kdc)\s+[^\r\n:]+?(?:hồ chí minh|hcm|tphcm|hà nội|cần thơ|đà nẵng|quận|huyện|thủ đức|q\.\s*\d+|q\d+)[^\r\n:]*)/i;
-                const addrPattern3 = /(?:giao\s+(?:giúp\s+e\s+|giúp\s+|hộ\s+e\s+|hộ\s+)?(?:qua|tại|về|đến)|qua|tại|về|đến|đc:?|địa chỉ:?)\s*([^\r\n:]+?(?:quận|huyện|thành phố|tp|hcm|hà nội|cần thơ|thủ đức|q\.\s*\d+|q\d+|tam bình|bình phú|nguyễn duy trinh|lã xuân oai|hai bà trưng)[^\r\n:]*)/i;
-
-                let mAddr = raw.match(addrPattern1) || raw.match(addrPattern2) || raw.match(addrPattern3);
-                if (mAddr) {
-                    locationVal = (mAddr[1] || mAddr[0]).trim();
-                } else {
-                    let rem = raw;
-                    if (phoneContactSegment) rem = rem.replace(phoneContactSegment, '');
-                    else if (phoneRaw) rem = rem.replace(phoneRaw, '');
-                    if (contactPerson) rem = rem.replace(new RegExp('\\b' + contactPerson.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'), '');
-                    if (matchedAlias) rem = rem.replace(new RegExp('\\b' + matchedAlias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'), '');
-                    for (const pt of matchedProductTexts) rem = rem.replace(pt, '');
-                    rem = rem.replace(/\b\d+\s*(?:thùng|thung|két|ket|bình(?![\s_]+(?:phú|trưng|thạnh|tân|chánh|dương|lợi|hưng|an))|binh|chai|lốc|loc|lon|t)\b.*$/i, '');
-                    rem = rem.replace(/\b(?:đã ck|ck rồi|đã chuyển|đã thanh toán|paid|đã trả|vat|hóa đơn đỏ|8%|nha|nhé|cho|giúp|alo)\b.*$/i, '');
-                    rem = rem.replace(/^\s*(?:giao\s+(?:giúp\s+e\s+|giúp\s+|hộ\s+e\s+|hộ\s+)?(?:qua|tại|về|đến)|qua|tại|về|đến|đc:?|địa chỉ:?)\s*/i, '');
-                    rem = rem.replace(/^(?:quán|nhà hàng)\s*/i, '');
-                    locationVal = rem.replace(/^[,;:.\s-]+|[,;:.\s-]+$/g, '').trim();
-                }
-            }
-
-            // 4c. Dọn sạch triệt để mọi dư thừa trên locationVal
-            if (matchedAlias) {
-                locationVal = locationVal.replace(new RegExp('\\b' + matchedAlias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'), '');
-            }
-            if (phoneContactSegment) {
-                locationVal = locationVal.replace(phoneContactSegment, '');
-            }
-            if (phoneRaw) {
-                locationVal = locationVal.replace(phoneRaw, '');
-            }
-            if (contactPerson) {
-                locationVal = locationVal.replace(new RegExp('\\b' + contactPerson.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'), '');
-            }
-            for (const pt of matchedProductTexts) {
-                locationVal = locationVal.replace(pt, '');
-            }
-
-            // Loại bỏ hoàn toàn các cụm sản phẩm ở đầu hoặc cuối địa chỉ (trừ tên địa danh có chữ bình)
-            locationVal = locationVal.replace(/^\s*\d+\s*(?:thùng|thung|két|ket|bình(?![\s_]+(?:phú|trưng|thạnh|tân|chánh|dương|lợi|hưng|an|chiểu|phước|thuận|điền|hiệp|định|tây|đông))|binh|chai|lốc|loc|lon|t)\b[^\r\n,]*/i, '');
-            locationVal = locationVal.replace(/\s*\d+\s*(?:thùng|thung|két|ket|bình(?![\s_]+(?:phú|trưng|thạnh|tân|chánh|dương|lợi|hưng|an|chiểu|phước|thuận|điền|hiệp|định|tây|đông))|binh|chai|lốc|loc|lon|t)\b.*$/i, '');
-            locationVal = locationVal.replace(/[\s,]+(?:và|va|\+|&)\s*$/i, '');
-            locationVal = locationVal.replace(/^\s*(?:giao\s+(?:giúp\s+e\s+|giúp\s+|hộ\s+e\s+|hộ\s+)?(?:qua|tại|về|đến)|qua|tại|về|đến|đc:?|địa chỉ:?)\s*/i, '');
-            locationVal = locationVal.replace(/^(?:quán|nhà hàng)\s*/i, '');
-            locationVal = locationVal.replace(/[:]/g, '');
-            locationVal = locationVal.replace(/\s*,\s*/g, ', ');
-            locationVal = locationVal.replace(/\s+/g, ' ');
-            locationVal = locationVal.replace(/^[,;:.\s-]+|[,;:.\s-]+$/g, '').trim();
+            const locationVal = aiExtractAddress(raw, contact);
 
             // 5. PAYMENT STATUS & VAT
-            const isPaid = /đã ck|ck rồi|đã chuyển|đã thanh toán|paid|đã trả/i.test(raw);
-            const hasVat = /vat|hóa đơn đỏ|8%/i.test(raw);
+            const isPaid = /đã ck|ck rồi|đã chuyển|đã thanh toán|\bpaid\b|đã trả/i.test(raw) && !/chưa\s+(?:ck|chuyển|thanh toán|trả)|chua\s+(?:ck|chuyen|thanh toan|tra)|unpaid/i.test(raw);
+            const hasVat = /vat|hóa đơn đỏ/i.test(raw) && !/không\s+vat|khong\s+vat|vat\s*[:=]?\s*0\s*%/i.test(raw);
 
             // Populate Form Fields
             document.getElementById('busName').value = customerName;
@@ -3532,15 +3394,15 @@
             const badgeContainer = document.getElementById('aiBadgeContainer');
 
             let itemsBadges = currentItems.map(it => 
-                `<span class="bg-amber-900/60 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded-lg font-medium">📦 ${it.qty} ${it.unit} ${it.product} [CK: ${it.discountPercent}% -> ${it.unitPrice.toLocaleString('vi-VN')}đ]</span>`
+                `<span class="bg-amber-900/60 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded-lg font-medium">📦 ${it.qty} ${it.unit} ${aiEscape(it.product)} [CK: ${it.discountPercent}% -> ${it.unitPrice.toLocaleString('vi-VN')}đ]</span>`
             ).join(' ');
 
             badgeContainer.innerHTML = `
                 <div class="space-y-1.5 text-xs">
                     <div class="flex flex-wrap items-center gap-1.5">
-                        <span class="bg-blue-900/60 text-blue-300 border border-blue-700/60 px-2 py-0.5 rounded-lg font-bold">🏢 Khách: ${customerName}</span>
-                        <span class="bg-purple-900/60 text-purple-300 border border-purple-700/60 px-2 py-0.5 rounded-lg font-medium">📞 SĐT: ${fullPhone || '(Không có trong tin nhắn)'}</span>
-                        <span class="bg-emerald-900/60 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded-lg font-medium">📍 Đ/C: ${locationVal || '(Không có trong tin nhắn)'}</span>
+                        <span class="bg-blue-900/60 text-blue-300 border border-blue-700/60 px-2 py-0.5 rounded-lg font-bold">🏢 Khách: ${aiEscape(customerName)}</span>
+                        <span class="bg-purple-900/60 text-purple-300 border border-purple-700/60 px-2 py-0.5 rounded-lg font-medium">📞 SĐT: ${aiEscape(fullPhone || '(Chưa xác định)')}</span>
+                        <span class="bg-emerald-900/60 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded-lg font-medium">📍 Đ/C: ${aiEscape(locationVal || '(Chưa xác định)')}</span>
                         <span class="bg-cyan-900/60 text-cyan-300 border border-cyan-700/60 px-2 py-0.5 rounded-lg font-medium">💵 ${isPaid ? 'Đã thanh toán' : 'Chưa thanh toán'}</span>
                     </div>
                     <div class="flex flex-wrap gap-1.5 pt-1">
@@ -3550,7 +3412,14 @@
             `;
             previewBox.classList.remove('hidden');
 
-            showModal("AI Bóc Tách Thành Công!", `Đã bóc tách chính xác: Khách "${customerName}" • SĐT: ${fullPhone || '(Trống)'} • Đ/C: ${locationVal || '(Trống)'}. Mặt hàng: ${currentItems.map(it => it.qty + ' ' + it.product).join(', ')} (CK: ${currentItems[0].discountPercent}%).`, "success");
+            const missing = [];
+            if (!phoneVal) missing.push('số điện thoại');
+            if (!locationVal) missing.push('địa chỉ');
+            if (!currentItems.length) missing.push('mặt hàng và số lượng');
+            if (contact.ambiguous) missing.push('khách hàng (có nhiều hồ sơ trùng thông tin)');
+            showModal(missing.length ? 'Đã bóc tách, còn thiếu thông tin' : 'Đã bóc tách tin nhắn',
+                missing.length ? `Đã điền phần nhận diện được. Chưa xác định: ${missing.join(', ')}. Hãy kiểm tra trước khi lưu hóa đơn.` :
+                `Đã điền khách hàng, người nhận, SĐT, địa chỉ và ${currentItems.length} mặt hàng. Chiết khấu lấy từ tin nhắn hoặc hồ sơ/đơn hàng đã lưu.`, missing.length ? 'info' : 'success');
         }
 
         
@@ -3578,56 +3447,24 @@
             calculateTotals();
         }
 
-        function onManualProfitInput(val) {
-            isManualProfitOverride = true;
-            const cleanVal = String(val).trim().replace(/[^\d.]/g, '');
-            const profitVal = cleanVal === '' ? 0 : Math.max(0, parseFloat(cleanVal) || 0);
-            
-            const goodsTotal = currentItems.reduce((acc, it) => acc + (it.subtotal || it.qty * it.unitPrice || 0), 0);
-            const marginBadge = document.getElementById('profitMarginBadge');
-            if (marginBadge) {
-                const marginPct = goodsTotal > 0 ? ((profitVal / goodsTotal) * 100).toFixed(1) : 0;
-                marginBadge.innerText = `+${marginPct}% DT`;
-            }
-        }
+        function onManualProfitInput() { calculateTotals(); }
 
-        /**
-         * Tính toán tiền lợi nhuận của một đơn hàng (Dùng cho Sổ Kế Toán, Kho HĐ và Quản trị nội bộ)
-         */
+        function getOrderGoodsTotal(o) {
+            return (o.items?.length ? o.items : [o]).reduce((sum, it) => sum + Number(it.qty ?? 0) * Number(it.unitPrice ?? 0), 0);
+        }
         function getOrderProfit(o) {
-            if (!o || o.status === 'Đã hủy' || o.status === 'Không Tính') return 0;
-            if (typeof o.profit === 'number' && o.profit >= 0 && o.costDiscountPercent !== undefined) {
-                return o.profit;
-            }
-            
-            // Nếu đơn hàng chưa có trường profit riêng, tự động tính từ % CK có sẵn (mặc định 45%)
-            const costPct = (typeof o.costDiscountPercent === 'number') ? o.costDiscountPercent : getSystemDefaultCostDiscount();
-            
-            let listTotal = 0;
-            let goodsTotal = 0;
-            
-            if (o.items && Array.isArray(o.items) && o.items.length > 0) {
-                o.items.forEach(it => {
-                    const lp = it.listPrice || (it.unitPrice ? Math.round(it.unitPrice / 0.75) : 88000);
-                    listTotal += (it.qty || 1) * lp;
-                    goodsTotal += (it.qty || 1) * (it.unitPrice || lp);
-                });
-            } else {
-                const lp = o.listPrice || (o.unitPrice ? Math.round(o.unitPrice / 0.75) : 88000);
-                listTotal = (o.qty || 10) * lp;
-                goodsTotal = o.goodsTotal || (o.qty || 10) * (o.unitPrice || 66000);
-            }
-            
-            // Giá vốn nhập hàng = Tổng giá niêm yết * (1 - % chiết khấu có sẵn / 100)
-            const costTotal = Math.round(listTotal * (1 - costPct / 100));
-            const profit = Math.max(0, goodsTotal - costTotal);
-            return profit;
+            if (!o || ['Đã hủy', 'Không Tính'].includes(o.status)) return 0;
+            const pct = aiPercent(o.costDiscountPercent) ?? getSystemDefaultCostDiscount();
+            const items = o.items?.length ? o.items : [o];
+            const list = items.reduce((sum, it) => sum + Number(it.qty ?? 0) * Number(it.listPrice ?? 0), 0);
+            const goods = getOrderGoodsTotal(o);
+            return Math.round(goods - Math.round(list * (1 - pct / 100)));
         }
 
         function calculateTotals() {
             let goodsTotal = 0;
             currentItems.forEach(it => {
-                goodsTotal += (it.subtotal || (it.qty * it.unitPrice) || 0);
+                goodsTotal += (it.qty * it.unitPrice || 0);
             });
 
             // 1. Phí vận chuyển (Shipping Cost) theo %
@@ -3728,25 +3565,20 @@
             });
 
             const costDiscountInput = document.getElementById('costDiscountPercent');
-            const costDiscountPercent = costDiscountInput ? (parseFloat(costDiscountInput.value) || 0) : 25;
+            const costDiscountPercent = aiPercent(costDiscountInput?.value) ?? getSystemDefaultCostDiscount();
             
             // Giá vốn nhập hàng từ nhà máy = Tổng giá niêm yết * (1 - % chiết khấu có sẵn / 100)
             const costTotal = Math.round(listPriceTotal * (1 - costDiscountPercent / 100));
             
-            // Tiền lợi nhuận = Tổng tiền bán hàng (chưa VAT) - Giá vốn
-            let profit = 0;
+            // Lợi nhuận gộp tiền hàng, chưa gồm chi phí vận hành khác.
+            const profit = Math.round(goodsTotal - costTotal);
             const profitInput = document.getElementById('orderProfitInput');
-            if (isManualProfitOverride && profitInput) {
-                profit = parseFloat(profitInput.value) || 0;
-            } else {
-                profit = Math.max(0, goodsTotal - costTotal);
-                if (profitInput) profitInput.value = profit;
-            }
+            if (profitInput) profitInput.value = profit;
 
             const marginBadge = document.getElementById('profitMarginBadge');
             if (marginBadge) {
                 const marginPct = goodsTotal > 0 ? ((profit / goodsTotal) * 100).toFixed(1) : 0;
-                marginBadge.innerText = `+${marginPct}% DT`;
+                marginBadge.innerText = `${profit >= 0 ? "+" : ""}${marginPct}% DT`;
             }
 
             const estCostDisplay = document.getElementById('estimatedCostDisplay');
@@ -3801,7 +3633,7 @@
             }
             if (o.profit !== undefined && o.profit !== null) {
                 document.getElementById('orderProfitInput').value = o.profit;
-                isManualProfitOverride = true;
+                isManualProfitOverride = false;
             } else {
                 isManualProfitOverride = false;
             }
@@ -3934,6 +3766,10 @@
         }
 
         function handleSaveAndGenerate() {
+            if (!currentItems.length || currentItems.some(it => !Number.isFinite(Number(it.qty)) || Number(it.qty) <= 0 || !Number.isFinite(Number(it.unitPrice)) || Number(it.unitPrice) < 0)) {
+                showModal('Chưa đủ thông tin hàng hóa', 'Cần có mặt hàng, số lượng lớn hơn 0 và giá bán hợp lệ trước khi lưu hóa đơn.', 'info');
+                return;
+            }
             const totals = calculateTotals();
             const invNum = parseInt(document.getElementById('invoiceNo').value) || nextInvoiceNumber;
             
@@ -4329,14 +4165,14 @@
                         statusBadge = `<span class="bg-slate-800 text-slate-400 border border-slate-700 text-[10px] px-2 py-0.5 rounded-full font-bold">Đã hủy</span>`;
                     }
                     const profitValArchive = getOrderProfit(o);
-                    const profitBadgeArchive = `<span class="bg-purple-950/80 text-purple-300 border border-purple-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold" title="Lợi nhuận nội bộ">Lời: +${profitValArchive.toLocaleString('vi-VN')} đ</span>`;
+                    const profitBadgeArchive = `<span class="bg-purple-950/80 text-purple-300 border border-purple-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold" title="Lợi nhuận nội bộ">Lời: ${profitValArchive >= 0 ? "+" : ""}${profitValArchive.toLocaleString('vi-VN')} đ</span>`;
 
                     let itemsHtml = '';
                     if (o.items && Array.isArray(o.items) && o.items.length > 0) {
                         itemsHtml = o.items.map(it => `
                             <div class="flex justify-between text-[11px] text-slate-300 py-0.5 border-b border-slate-800/50">
                                 <span class="truncate max-w-[170px]" title="${it.product}">📦 ${it.qty}x ${it.product}</span>
-                                <span class="font-mono text-slate-400">${(it.subtotal || (it.qty * it.unitPrice) || 0).toLocaleString('vi-VN')}đ</span>
+                                <span class="font-mono text-slate-400">${(it.qty * it.unitPrice || 0).toLocaleString('vi-VN')}đ</span>
                             </div>
                         `).join('');
                     } else {
@@ -4515,7 +4351,7 @@
                         <td class="p-1.5 border-r border-slate-800 font-mono">${(it.listPrice || 0).toLocaleString('vi-VN')}</td>
                         <td class="p-1.5 border-r border-slate-800">${(it.discountAmount || 0).toLocaleString('vi-VN')} (${it.discountPercent || 0}%)</td>
                         <td class="p-1.5 border-r border-slate-800 font-semibold text-slate-200">${(it.unitPrice || 0).toLocaleString('vi-VN')}</td>
-                        <td class="p-1.5 font-bold text-white">${(it.subtotal || (it.qty * it.unitPrice) || 0).toLocaleString('vi-VN')}</td>
+                        <td class="p-1.5 font-bold text-white">${(it.qty * it.unitPrice || 0).toLocaleString('vi-VN')}</td>
                     </tr>
                 `;
             });
@@ -5857,85 +5693,64 @@
             }
         }
 
-        function trainAIMemoryFromOrder(order) {
+        function trainAIMemoryFromOrder(order, options = {}) {
             const custName = (order.name || '').trim();
-            if (!custName || custName === 'Khách vãng lai' || custName === 'Khách Zalo') return;
-
-            let memory = getAIMemory();
-
-            let contactPerson = "";
-            let cleanPhone = (order.phone || '').trim();
-            const parenMatch = cleanPhone.match(/\(([^)]+)\)/);
-            if (parenMatch) {
-                contactPerson = parenMatch[1].trim();
-            } else {
-                const hyphenMatch = cleanPhone.match(/([A-ZÀ-Ỹa-zà-ỹ\s]+)\s*[-:]\s*(0\d+)/);
-                if (hyphenMatch) {
-                    contactPerson = hyphenMatch[1].trim();
-                    cleanPhone = hyphenMatch[2].trim();
-                }
-            }
-
-            let discPct = 25.0;
-            if (order.items && order.items.length > 0) {
-                const totalList = order.items.reduce((s, it) => s + (it.listPrice * it.qty), 0);
-                const totalSub = order.items.reduce((s, it) => s + (it.unitPrice * it.qty), 0);
-                if (totalList > 0) {
-                    discPct = Math.round((totalList - totalSub) / totalList * 100 * 100) / 100;
-                }
-            } else if (order.listPrice > 0 && order.unitPrice > 0) {
-                discPct = Math.round((order.listPrice - order.unitPrice) / order.listPrice * 100 * 100) / 100;
-            }
-
-            let cust = memory.find(c => c.name.toLowerCase() === custName.toLowerCase() || (c.aliases && c.aliases.some(a => a === custName.toLowerCase())));
-            
+            if (!custName || ['khach vang lai', 'khach zalo'].includes(aiNormalize(custName)) || ['Đã hủy', 'Không Tính'].includes(order.status)) return;
+            const memory = options.memory || getAIMemory();
+            let cust = memory.find(c => [c.name, ...(c.aliases || [])].some(n => aiNormalize(n) === aiNormalize(custName)));
             if (!cust) {
-                cust = {
-                    id: 'cust_' + Date.now(),
-                    name: custName,
-                    aliases: [custName.toLowerCase()],
-                    receivers: [],
-                    defaultPhone: order.phone || '',
-                    defaultLocation: order.location || '',
-                    discountPercent: discPct,
-                    preferredProduct: order.product || 'Suối Satori 350ml',
-                    defaultVat: order.vat || 'no',
-                    orderCount: 1,
-                    lastUpdated: order.date || '10/10/2026'
-                };
+                cust = {id: 'cust_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), name: custName, aliases: [custName.toLowerCase()], receivers: [], orderCount: 0};
                 memory.unshift(cust);
-            } else {
-                cust.orderCount = (cust.orderCount || 0) + 1;
-                cust.lastUpdated = order.date || '10/10/2026';
-                if (discPct > 0) cust.discountPercent = discPct;
-                if (order.location) cust.defaultLocation = order.location;
-                if (order.phone) cust.defaultPhone = order.phone;
-                if (order.product) cust.preferredProduct = order.product;
             }
-
-            if (contactPerson || cleanPhone || order.location) {
-                if (!cust.receivers) cust.receivers = [];
-                let rec = cust.receivers.find(r => (contactPerson && r.name.toLowerCase() === contactPerson.toLowerCase()) || (cleanPhone && r.phone.includes(cleanPhone)));
-                if (!rec) {
-                    cust.receivers.push({
-                        name: contactPerson || 'Người nhận',
-                        phone: cleanPhone || order.phone,
-                        location: order.location || ''
-                    });
-                } else {
+            const time = aiOrderTime(order);
+            const newest = time >= (cust.learnedAt || 0);
+            const phone = aiPhone(order.phone);
+            const person = String(order.phone || '').match(/\(([^)]+)\)/)?.[1] || String(order.phone || '').match(/^([\p{L} .]+)\s*[-:]\s*\d/u)?.[1] || '';
+            if (newest) {
+                if (order.phone) cust.defaultPhone = order.phone;
+                if (order.location) cust.defaultLocation = order.location;
+                if (order.product) cust.preferredProduct = order.product;
+                cust.defaultVat = order.vat || cust.defaultVat || 'no';
+                cust.lastUpdated = order.date || new Date().toLocaleDateString('vi-VN');
+                cust.learnedAt = time;
+            }
+            cust.learnedOrderIds = [...new Set([...(cust.learnedOrderIds || []), String(order.invoiceNo ?? order.id)])];
+            cust.orderCount = Math.max(cust.orderCount || 0, cust.learnedOrderIds.length);
+            if (phone || order.location) {
+                cust.receivers ||= [];
+                let rec = cust.receivers.find(r => phone ? aiPhone(r.phone) === phone : aiNormalize(r.location) === aiNormalize(order.location));
+                if (!rec) {rec = {name: person || 'Người nhận', phone, location: ''}; cust.receivers.push(rec);}
+                if (time >= (rec.learnedAt || 0)) {
+                    if (person) rec.name = person.trim();
+                    if (phone) rec.phone = phone;
                     if (order.location) rec.location = order.location;
-                    if (cleanPhone) rec.phone = cleanPhone;
+                    rec.learnedAt = time;
                 }
             }
-
-            saveAIMemory(memory);
+            const items = order.items?.length ? order.items : (!/[,;+]/.test(order.product || '') ? [order] : []);
+            cust.productPricing ||= {};
+            const rates = [];
+            for (const it of items) {
+                const list = Number(it.listPrice), price = Number(it.unitPrice);
+                if (!(list > 0) || !Number.isFinite(price) || price < 0 || price > list) continue;
+                const pct = aiPercent(it.discountPercent) ?? ((list - price) / list * 100);
+                const key = aiProductKey(it);
+                if (!key) continue;
+                rates.push(pct);
+                const old = cust.productPricing[key];
+                if (time >= (cust.profileUpdatedAt || 0) && (!old || time >= (old.learnedAt || 0))) {
+                    cust.productPricing[key] = { discountPercent: pct, listPrice: list, unitPrice: price, learnedAt: time, invoiceNo: order.invoiceNo };
+                }
+            }
+            // Do not average different product discounts into an invented customer rate.
+            if (newest && rates.length && rates.every(r => r === rates[0]) && time >= (cust.profileUpdatedAt || 0)) cust.discountPercent = rates[0];
+            if (options.persist !== false) saveAIMemory(memory);
         }
 
         function retrainAIMemoryFromAllOrders() {
-            orders.forEach(o => trainAIMemoryFromOrder(o));
-            renderAIMemoryTable();
-            populateExcelCustomerFilter();
-            showModal("Huấn Luyện AI Thành Công!", `AI đã quét qua ${orders.length} đơn hàng và ghi nhớ ${getAIMemory().length} hồ sơ khách hàng cùng mức chiết khấu!`, "success");
+            const memory = aiMemoryForParsing();
+            saveAIMemory(memory);
+            showModal('Đã cập nhật trí nhớ', `Đã đọc các đơn đã lưu và ghi nhớ giá, chiết khấu theo từng khách và mặt hàng cho ${memory.length} hồ sơ.`, 'success');
         }
 
         function populateCustomerDatalist() {
@@ -5968,11 +5783,12 @@
             if (locToUse) document.getElementById('busLocation').value = locToUse;
             if (cust.defaultVat) document.getElementById('vatOption').value = cust.defaultVat;
 
-            if (cust.discountPercent > 0 && currentItems && currentItems.length > 0) {
+            if (currentItems && currentItems.length > 0) {
                 currentItems.forEach(it => {
-                    it.discountPercent = cust.discountPercent;
-                    it.discountAmount = Math.round(it.listPrice * (it.discountPercent / 100));
-                    it.unitPrice = Math.max(0, it.listPrice - it.discountAmount);
+                    const pricing = aiResolvePricing(cust, it, '', '');
+                    it.discountPercent = pricing.percent;
+                    it.discountAmount = pricing.amount;
+                    it.unitPrice = pricing.price;
                     it.subtotal = (it.qty || 0) * it.unitPrice;
                 });
                 renderItemsForm();
@@ -5996,7 +5812,7 @@
 
             const totalCust = memory.length;
             const totalRec = memory.reduce((acc, cur) => acc + (cur.receivers ? cur.receivers.length : 1), 0);
-            const avgDisc = memory.length > 0 ? (memory.reduce((acc, cur) => acc + (cur.discountPercent || 25), 0) / memory.length).toFixed(1) : "25.0";
+            const avgDisc = memory.length > 0 ? (memory.reduce((acc, cur) => acc + (cur.discountPercent ?? 25), 0) / memory.length).toFixed(1) : "25.0";
             const totalLearned = memory.reduce((acc, cur) => acc + (cur.orderCount || 1), 0);
 
             const elTotalCust = document.getElementById('aiStatTotalCustomers');
@@ -6018,7 +5834,7 @@
                     ? c.receivers.map(r => `<span class="inline-block bg-slate-800 text-cyan-300 px-2 py-0.5 rounded text-[10px] mr-1 mb-1 border border-slate-700"><b>${r.name}:</b> ${r.phone}</span>`).join('')
                     : `<span class="text-slate-400">${c.defaultPhone || 'Chưa lưu'}</span>`;
 
-                const estPrice350 = Math.round(88000 * (1 - (c.discountPercent || 25) / 100));
+                const estPrice350 = Math.round(88000 * (1 - (c.discountPercent ?? 25) / 100));
 
                 return `
                     <tr class="hover:bg-slate-900/60 transition">
@@ -6080,7 +5896,7 @@
             document.getElementById('editCustMemoryReceiver').value = (cust.receivers && cust.receivers[0]) ? cust.receivers[0].name : "";
             document.getElementById('editCustMemoryPhone').value = cust.defaultPhone || "";
             document.getElementById('editCustMemoryLocation').value = cust.defaultLocation || "";
-            document.getElementById('editCustMemoryDiscount').value = cust.discountPercent || 25.0;
+            document.getElementById('editCustMemoryDiscount').value = cust.discountPercent ?? 25.0;
             document.getElementById('editCustMemoryVat').value = cust.defaultVat || "no";
             document.getElementById('editCustMemoryAliases').value = (cust.aliases || []).join(', ');
             const aim = document.getElementById('aiMemoryModal'); if (aim) { aim.classList.remove('hidden'); aim.classList.add('flex'); aim.style.setProperty('display', 'flex', 'important'); }
@@ -6101,7 +5917,8 @@
             const receiverName = document.getElementById('editCustMemoryReceiver').value.trim();
             const phone = document.getElementById('editCustMemoryPhone').value.trim();
             const location = document.getElementById('editCustMemoryLocation').value.trim();
-            const discount = parseFloat(document.getElementById('editCustMemoryDiscount').value) || 25.0;
+            const discount = aiPercent(document.getElementById('editCustMemoryDiscount').value);
+            if (discount === null) { alert('Chiết khấu phải từ 0 đến 100%.'); return; }
             const vat = document.getElementById('editCustMemoryVat').value;
             const aliasesRaw = document.getElementById('editCustMemoryAliases').value;
             const aliases = aliasesRaw.split(',').map(a => a.trim().toLowerCase()).filter(Boolean);
@@ -6116,6 +5933,8 @@
                     cust.defaultPhone = phone;
                     cust.defaultLocation = location;
                     cust.discountPercent = discount;
+                    cust.productPricing = {};
+                    cust.profileUpdatedAt = Date.now();
                     cust.defaultVat = vat;
                     cust.aliases = aliases;
                     if (receiverName || phone || location) {
@@ -6138,6 +5957,7 @@
                     defaultPhone: phone,
                     defaultLocation: location,
                     discountPercent: discount,
+                    profileUpdatedAt: Date.now(),
                     preferredProduct: 'Suối Satori 350ml',
                     defaultVat: vat,
                     orderCount: 1,
@@ -6522,7 +6342,7 @@
             const statTotalRevenue = document.getElementById('statTotalRevenue');
             if (statTotalRevenue) statTotalRevenue.innerText = Math.round(globalTotalRev).toLocaleString('vi-VN') + ' đ';
             const statTotalProfit = document.getElementById('statTotalProfit');
-            if (statTotalProfit) statTotalProfit.innerText = '+' + Math.round(globalTotalProfit).toLocaleString('vi-VN') + ' đ';
+            if (statTotalProfit) statTotalProfit.innerText = (globalTotalProfit >= 0 ? '+' : '') + Math.round(globalTotalProfit).toLocaleString('vi-VN') + ' đ';
             const statPaid = document.getElementById('statPaid');
             if (statPaid) statPaid.innerText = Math.round(globalPaidRev).toLocaleString('vi-VN') + ' đ';
             const statUnpaid = document.getElementById('statUnpaid');
@@ -6574,7 +6394,7 @@
             const elRev = document.getElementById('subStatRevenue');
             if (elRev) elRev.innerText = subRevenue.toLocaleString('vi-VN') + ' đ';
             const elProfit = document.getElementById('subStatProfit');
-            if (elProfit) elProfit.innerText = '+' + subProfit.toLocaleString('vi-VN') + ' đ';
+            if (elProfit) elProfit.innerText = (subProfit >= 0 ? '+' : '') + subProfit.toLocaleString('vi-VN') + ' đ';
             const elPaid = document.getElementById('subStatPaid');
             if (elPaid) elPaid.innerText = subPaid.toLocaleString('vi-VN') + ' đ';
             const elUnpaid = document.getElementById('subStatUnpaid');
@@ -6602,8 +6422,8 @@
                     <td class="p-3 text-center">${o.vat === 'yes' ? '<span class="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px]">8%</span>' : '0%'}</td>
                     <td class="p-3 text-right font-bold text-white font-mono">${(o.total || 0).toLocaleString('vi-VN')}</td>
                     <td class="p-3 text-right font-black text-emerald-400 font-mono bg-emerald-950/20" title="Mức CK đại lý: ${o.costDiscountPercent || 25}%">
-                        +${getOrderProfit(o).toLocaleString('vi-VN')} đ
-                        <span class="block text-[9px] text-emerald-400/60 font-normal">(${o.total > 0 ? ((getOrderProfit(o) / (o.total || 1)) * 100).toFixed(1) : 0}%)</span>
+                        ${getOrderProfit(o) >= 0 ? "+" : ""}${getOrderProfit(o).toLocaleString('vi-VN')} đ
+                        <span class="block text-[9px] text-emerald-400/60 font-normal">(${getOrderGoodsTotal(o) > 0 ? ((getOrderProfit(o) / getOrderGoodsTotal(o)) * 100).toFixed(1) : 0}%)</span>
                     </td>
                     <td class="p-3 text-center">
                         <select onchange="updateStatus(${o.id}, this.value)" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] ${o.status === 'Đã thanh toán' ? 'text-emerald-400 font-semibold' : (o.status === 'Không Tính' ? 'text-indigo-400 font-semibold' : (o.status === 'Đã hủy' ? 'text-rose-400' : 'text-amber-400'))}">
@@ -7414,14 +7234,15 @@
         const DEFAULT_SYSTEM_COST_DISCOUNT = 45;
 
         function getSystemDefaultCostDiscount() {
-            return parseFloat(localStorage.getItem('satori_system_default_cost_discount')) || DEFAULT_SYSTEM_COST_DISCOUNT;
+            return aiPercent(localStorage.getItem('satori_system_default_cost_discount')) ?? DEFAULT_SYSTEM_COST_DISCOUNT;
         }
 
         /**
          * Áp dụng mức % chiết khấu mặc định vào toàn bộ đơn hàng trong sổ kế toán
          */
         function applySystemCostDiscountToAllOrders() {
-            const inputVal = parseFloat(document.getElementById('systemCostDiscountSetting')?.value) || 45;
+            const inputVal = aiPercent(document.getElementById('systemCostDiscountSetting')?.value);
+            if (inputVal === null) { showModal('Chiết khấu chưa hợp lệ', 'Nhập tỷ lệ từ 0 đến 100%.', 'info'); return; }
             localStorage.setItem('satori_system_default_cost_discount', inputVal);
 
             let updatedCount = 0;
@@ -7436,7 +7257,7 @@
 
                 // Giá vốn tính trên giá niêm yết không tính thuế VAT hay tiền ship
                 const costTotal = Math.round(listTotal * (1 - inputVal / 100));
-                const profit = Math.max(0, Math.round(goodsTotal - costTotal));
+                const profit = Math.round(goodsTotal - costTotal);
 
                 updatedCount++;
                 return {
@@ -7810,7 +7631,7 @@
             // Tính giá vốn và lợi nhuận theo mức chiết khấu có sẵn 45%
             let listPriceTotal = data.items.reduce((acc, it) => acc + (it.qty * (it.listPrice || (it.unitPrice ? Math.round(it.unitPrice / 0.75) : 88000))), 0);
             let costTotal = Math.round(listPriceTotal * (1 - defaultCostPct / 100));
-            let profit = Math.max(0, goodsTotal - costTotal);
+            let profit = Math.round(goodsTotal - costTotal);
 
             const newOrder = {
                 id: Date.now(),
