@@ -3327,6 +3327,7 @@
             const price = useExact ? learned.unitPrice : product.listPrice - Math.round(product.listPrice * pct / 100);
             return { percent: pct, price, amount: product.listPrice - price };
         }
+        function aiDisplayPercent(value) {return Number(value || 0).toLocaleString('vi-VN',{maximumFractionDigits:2});}
         function aiEscape(value) {
             return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         }
@@ -3370,7 +3371,7 @@
             const badgeContainer = document.getElementById('aiBadgeContainer');
 
             let itemsBadges = currentItems.map(it => 
-                `<span class="bg-amber-900/60 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded-lg font-medium">📦 ${it.qty} ${it.unit} ${aiEscape(it.product)} [CK: ${it.discountPercent}% -> ${it.unitPrice.toLocaleString('vi-VN')}đ]</span>`
+                `<span class="bg-amber-900/60 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded-lg font-medium">📦 ${it.qty} ${it.unit} ${aiEscape(it.product)} [CK: ${aiDisplayPercent(it.discountPercent)}% -> ${it.unitPrice.toLocaleString('vi-VN')}đ]</span>`
             ).join(' ');
 
             badgeContainer.innerHTML = `
@@ -3501,7 +3502,7 @@
                     <td class="p-1.5 border-r border-slate-800">${it.unit || 'Thùng'}</td>
                     <td class="p-1.5 border-r border-slate-800 font-bold">${it.qty}</td>
                     <td class="p-1.5 border-r border-slate-800 font-mono text-cyan-300 font-semibold">${(it.listPrice || 0).toLocaleString('vi-VN')}</td>
-                    <td class="p-1.5 border-r border-slate-800 text-amber-300 font-semibold">${(it.discountAmount || 0).toLocaleString('vi-VN')} (${it.discountPercent || 0}%)</td>
+                    <td class="p-1.5 border-r border-slate-800 text-amber-300 font-semibold">${(it.discountAmount || 0).toLocaleString('vi-VN')} (${aiDisplayPercent(it.discountPercent)}%)</td>
                     <td class="p-1.5 border-r border-slate-800 font-semibold text-slate-200">${(it.unitPrice || 0).toLocaleString('vi-VN')}</td>
                     <td class="p-1.5 font-bold text-white">${(it.subtotal || 0).toLocaleString('vi-VN')}</td>
                 `;
@@ -4328,7 +4329,7 @@
                         <td class="p-1.5 border-r border-slate-800">${it.unit || 'Thùng'}</td>
                         <td class="p-1.5 border-r border-slate-800 font-bold">${it.qty}</td>
                         <td class="p-1.5 border-r border-slate-800 font-mono">${(it.listPrice || 0).toLocaleString('vi-VN')}</td>
-                        <td class="p-1.5 border-r border-slate-800">${(it.discountAmount || 0).toLocaleString('vi-VN')} (${it.discountPercent || 0}%)</td>
+                        <td class="p-1.5 border-r border-slate-800">${(it.discountAmount || 0).toLocaleString('vi-VN')} (${aiDisplayPercent(it.discountPercent)}%)</td>
                         <td class="p-1.5 border-r border-slate-800 font-semibold text-slate-200">${(it.unitPrice || 0).toLocaleString('vi-VN')}</td>
                         <td class="p-1.5 font-bold text-white">${(it.qty * it.unitPrice || 0).toLocaleString('vi-VN')}</td>
                     </tr>
@@ -4903,7 +4904,7 @@
 
             document.getElementById('printBuyerName').innerText = o.name || 'Khách vãng lai';
             document.getElementById('printBuyerPhone').innerText = o.phone || '(Chưa có SĐT)';
-            document.getElementById('printBuyerLocation').innerText = o.location || 'Tại cửa hàng';
+            document.getElementById('printBuyerLocation').innerText = o.location || '(Chưa có địa chỉ)';
             document.getElementById('printBuyerTax').innerText = o.taxCode || 'Không có';
             document.getElementById('printSignBuyerName').innerText = o.name || 'Đại diện khách hàng';
 
@@ -4922,7 +4923,7 @@
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1; color: #475569;">${it.unit || 'Thùng'}</td>
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1; font-weight: 700; color: #0f172a;">${it.qty}</td>
                             <td style="padding: 6px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace;">${listP.toLocaleString('vi-VN')}</td>
-                            <td style="padding: 6px 4px; border: 1px solid #cbd5e1; color: #d97706; font-weight: 600;">${discPct}%</td>
+                            <td style="padding: 6px 4px; border: 1px solid #cbd5e1; color: #d97706; font-weight: 600;">${aiDisplayPercent(discPct)}%</td>
                             <td style="padding: 6px 6px; border: 1px solid #cbd5e1; text-align: right; font-weight: 600; font-family: monospace;">${unitP.toLocaleString('vi-VN')}</td>
                             <td style="padding: 6px 6px; border: 1px solid #cbd5e1; text-align: right; font-weight: 700; color: #0369a1; font-family: monospace;">${subT.toLocaleString('vi-VN')}</td>
                         </tr>
