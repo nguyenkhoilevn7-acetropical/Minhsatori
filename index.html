@@ -157,7 +157,7 @@
                             </h1>
                             <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                Bản V16.9 · PDF & Nhân bản bill
+                                Bản V17.0 · Đọc đủ bill & Chia sẻ PDF
                             </span>
                         </div>
                         <p class="text-xs text-slate-400">Hệ Thống Lên Hóa Đơn, Sổ Kế Toán & Quản Lý Doanh Số Tự Động 100%</p>
@@ -416,6 +416,8 @@
                             <span id="pdfExtractedItemsCount" class="font-bold text-cyan-300">0 món</span>
                         </div>
                         <div id="pdfExtractedItemsList" class="space-y-1 text-xs"></div>
+                        <p id="pdfAmountsBreakdown" class="text-[11px] text-slate-400"></p>
+                        <p id="pdfImportWarnings" role="alert" class="text-xs text-amber-300"></p>
                         <div class="flex justify-between items-center pt-1 text-xs font-bold border-t border-slate-800 text-amber-400">
                             <span>Tổng tiền hóa đơn:</span>
                             <span id="pdfExtractedTotal" class="font-mono text-sm">0 đ</span>
@@ -3105,12 +3107,14 @@
             let n = ' ' + aiNormalize(raw).replace(/(satori|hikari)(\d)/g,'$1 $2').replace(/\b(350|500|550|1500|450|400|250)\s*m(?:l|1|i)?\b/g,'$1ml') + ' ';
             const code = catalogue.find(p => n.includes(' ' + aiNormalize(p.code) + ' '));
             if (code) return code;
+            const named = catalogue.find(p => aiNormalize(p.name) === aiNormalize(raw) && (!unitHint || aiNormalize(p.unit) === aiNormalize(unitHint)));
+            if (named) return named;
             let pool = catalogue.slice();
             const brand = n.includes(' hikari ') ? 'hikari' : n.includes(' satori ') ? 'satori' : '';
             if (brand) pool = pool.filter(p => aiNormalize(p.name).includes(brand));
             const flavour = /\b(?:mang|man) cau\b/.test(n) ? 'mang cau' : /\boi(?: hong)?\b/.test(n) ? 'oi' : /\bme\b/.test(n) ? 'me' : '';
             if (/[,;+]\s*(?:\d+\s+)?(?:suối|nước|satori|hikari|ổi|me|mãng|mãn)/i.test(raw.replace(/1,5/g,'1.5'))) return null;
-            if (flavour) return pool.find(p => aiNormalize(p.name).includes(flavour)) || null;
+            if (flavour) return pool.find(p => new RegExp('\\b'+flavour+'\\b').test(aiNormalize(p.name))) || null;
             // A mixed legacy summary is not one product preference.
 
             let size = '';
@@ -3841,12 +3845,14 @@
                     renderTable();
                     renderArchiveInvoices();
 
+                    rememberSavedInvoicePdf(updatedOrder);
                     showModalWithActions(
                         "CẬP NHẬT HÓA ĐƠN THÀNH CÔNG!",
                         `Hóa đơn #${finishedInvNo} đã được lưu thay đổi và đồng bộ chính xác 100% vào Sổ Kế Toán!`,
                         [
                             { text: "Xem Trong Sổ Kế Toán", action: () => { closeModal(); switchTab('sheet'); }, primary: true },
-                            { text: "In / Tải PDF Hóa Đơn Mới", action: () => { closeModal(); downloadInvoicePDF(updatedOrder); } },
+                            { text: "Chia sẻ PDF (Zalo / Messenger)", action: () => { closeModal(); shareInvoicePDF('all',updatedOrder); } },
+                            { text: "Tải PDF Hóa Đơn Mới", action: () => { closeModal(); downloadInvoicePDF(updatedOrder); } },
                             { text: "Tiếp Tục Lên Đơn Mới", action: () => { closeModal(); cancelEditOrder(); } }
                         ]
                     );
@@ -3923,6 +3929,8 @@
             renderTable();
             renderArchiveInvoices();
 
+            rememberSavedInvoicePdf(newOrder);
+
             // 5. NOTIFY USER WITH ACTIONS
             showModalWithActions(
                 "ĐÃ LƯU TRỮ HÓA ĐƠN THÀNH CÔNG!",
@@ -3930,7 +3938,8 @@
                 [
                     { text: "Xem Trong Sổ Kế Toán", action: () => { closeModal(); switchTab('sheet'); }, primary: true },
                     { text: "Xem Trong Kho Hóa Đơn", action: () => { closeModal(); switchTab('archive'); } },
-                    { text: "In / Tải PDF Ngay", action: () => { closeModal(); window.print(); } },
+                    { text: "Chia sẻ PDF (Zalo / Messenger)", action: () => { closeModal(); shareInvoicePDF('all',newOrder); } },
+                    { text: "Tải PDF Ngay", action: () => { closeModal(); downloadInvoicePDF(newOrder); } },
                     { text: "Tiếp Tục Lên Đơn Mới", action: () => { closeModal(); } }
                 ]
             );
@@ -5075,30 +5084,74 @@
             return {blob,fileName:lastGeneratedPdfFilename};
         }
         async function generateInvoicePdfBlob(elementId='invoicePreview',fileName='Bill.pdf',order=null){return (await renderInvoiceToPdfBlob(order)).blob;}
+        const preparedInvoicePdfs=new Map();
+        let activePreparedPdf=null,lastSavedPdfOrder=null,lastSavedPdfFormSignature=null,pdfShareRequest=0;
+        function pdfFormSignature() {
+            return JSON.stringify({fields:['invoiceNo','orderDate','busName','busPhone','busLocation','taxCode','vatOption','shippingOption','customShippingInput','paymentStatus'].map(id=>document.getElementById(id)?.value || ''),items:currentItems});
+        }
+        function resolvePdfOrder(order=null) {
+            return JSON.parse(JSON.stringify(order || currentModalViewedOrder || (lastSavedPdfOrder && lastSavedPdfFormSignature===pdfFormSignature()?lastSavedPdfOrder:null) || getCurrentInvoiceData()));
+        }
+        function invoicePdfKey(o) {
+            return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount]);
+        }
+        function prepareInvoicePdf(o) {
+            const key=invoicePdfKey(o);
+            if(preparedInvoicePdfs.has(key))return preparedInvoicePdfs.get(key).promise;
+            const entry={key,result:null,promise:null};
+            preparedInvoicePdfs.set(key,entry);
+            entry.promise=renderInvoiceToPdfBlob(o).then(result=>{
+                result.file=typeof File==='function'?new File([result.blob],result.fileName,{type:'application/pdf',lastModified:Date.now()}):null;
+                entry.result=result;return result;
+            }).catch(e=>{preparedInvoicePdfs.delete(key);throw e;});
+            while(preparedInvoicePdfs.size>3)preparedInvoicePdfs.delete(preparedInvoicePdfs.keys().next().value);
+            return entry.promise;
+        }
+        function rememberSavedInvoicePdf(order) {
+            lastSavedPdfOrder=JSON.parse(JSON.stringify(order));
+            lastSavedPdfFormSignature=pdfFormSignature();
+            // Prepare before the next click so native sharing keeps the browser's user gesture.
+            prepareInvoicePdf(lastSavedPdfOrder).catch(e=>console.warn('Chưa chuẩn bị PDF:',e.message));
+        }
         let pdfDownloadUrl=null;
-        function presentPdfFile(result) {
+        function presentPdfFile(result,message='') {
+            activePreparedPdf=result;
             if(pdfDownloadUrl)URL.revokeObjectURL(pdfDownloadUrl);
             pdfDownloadUrl=URL.createObjectURL(result.blob);
-            showModal('File PDF đã sẵn sàng',`<div class="space-y-3"><p>${aiEscape(result.fileName)}</p><p>Đây là PDF có lớp chữ, có thể tìm kiếm và đọc lại trực tiếp.</p><a class="block text-center bg-emerald-600 text-white p-3 rounded-xl" href="${pdfDownloadUrl}" download="${aiEscape(result.fileName)}">Tải file PDF về máy</a><button type="button" onclick="sharePreparedInvoicePdf()" class="w-full bg-blue-600 text-white p-3 rounded-xl">Chia sẻ tệp PDF</button><p class="text-xs text-slate-400">Trong Zalo/Messenger, chọn đính kèm Tệp rồi chọn file .pdf vừa tải.</p></div>`,'success');
+            const supportsShare=typeof navigator.share==='function' && result.file;
+            showModal('File PDF đã sẵn sàng',`<div class="space-y-3"><p>${aiEscape(result.fileName)}</p>${message?`<p role="alert" class="text-amber-300">${aiEscape(message)}</p>`:''}${supportsShare?'<button type="button" onclick="sharePreparedInvoicePdf()" class="w-full bg-blue-600 text-white p-3 rounded-xl">Chia sẻ PDF — chọn Zalo / Messenger</button>':'<p class="text-amber-300">Trình duyệt này chưa hỗ trợ chia sẻ tệp trực tiếp. Mở trang bằng Chrome hoặc Safari trên điện thoại có hỗ trợ chia sẻ tệp, hoặc tải PDF để đính kèm.</p>'}<a class="block text-center bg-emerald-600 text-white p-3 rounded-xl" href="${pdfDownloadUrl}" download="${aiEscape(result.fileName)}">Tải file PDF về máy</a><p class="text-xs text-slate-400">Khay chia sẻ của điện thoại hiển thị những ứng dụng nhận được tệp PDF. Chọn Zalo hoặc Messenger nếu ứng dụng có trong danh sách.</p></div>`,'info');
         }
         async function downloadInvoicePDF(order=null) {
             showModal('Đang tạo file PDF…','Đang chuẩn bị hóa đơn có lớp chữ.','info');
-            try{
-                const result=await renderInvoiceToPdfBlob(order);presentPdfFile(result);
+            try {
+                const result=await prepareInvoicePdf(resolvePdfOrder(order));presentPdfFile(result);
                 const a=document.createElement('a');a.href=pdfDownloadUrl;a.download=result.fileName;document.body.appendChild(a);a.click();a.remove();
             }catch(e){showModal('Chưa xuất được PDF',aiEscape(e.message),'error');}
         }
-        async function sharePreparedInvoicePdf() {
-            if(!lastGeneratedPdfBlob)return;
-            const file=new File([lastGeneratedPdfBlob],lastGeneratedPdfFilename,{type:'application/pdf'});
-            if(navigator.share && navigator.canShare?.({files:[file]})) {
-                try{await navigator.share({files:[file],title:lastGeneratedPdfFilename});return;}catch(e){if(e.name==='AbortError')return;}
-            }
-            presentPdfFile({blob:lastGeneratedPdfBlob,fileName:lastGeneratedPdfFilename});
+        function sharePreparedInvoicePdf(result=activePreparedPdf) {
+            if(!result)return;
+            activePreparedPdf=result;
+            if(typeof navigator.share!=='function' || !result.file) {presentPdfFile(result);return;}
+            const failed=e=>{
+                if(e.name==='AbortError')return; // Closing the chooser is not a failed export.
+                const message=e.name==='NotAllowedError'?'Điện thoại chưa cho phép chia sẻ ở lần bấm này. Bấm nút Chia sẻ PDF bên dưới để mở lại khay chia sẻ.':e.name==='TypeError'?'Trình duyệt hoặc ứng dụng hiện tại chưa nhận được tệp PDF qua khay chia sẻ. Có thể tải tệp để đính kèm.':'Chưa mở được khay chia sẻ PDF: '+(e.message || e.name);
+                presentPdfFile(result,message);
+            };
+            try {
+                // No await, fetching or PDF generation before this call: preserve transient activation.
+                // canShare is optional; its absence must not silently disable file sharing.
+                if(typeof navigator.canShare==='function' && !navigator.canShare({files:[result.file]})) {
+                    presentPdfFile(result,'Trình duyệt này không hỗ trợ chia sẻ tệp PDF trực tiếp. Mở trang bằng trình duyệt hỗ trợ chia sẻ tệp hoặc tải PDF để đính kèm.');return;
+                }
+                return Promise.resolve(navigator.share({files:[result.file],title:result.fileName})).then(()=>{},failed);
+            }catch(e){failed(e);}
         }
-        async function shareInvoicePDF(channel='all',order=null) {
-            showModal('Đang chuẩn bị tệp PDF…','Sau khi tạo xong, bấm Chia sẻ tệp PDF để chọn ứng dụng và người nhận.','info');
-            try{presentPdfFile(await renderInvoiceToPdfBlob(order));}catch(e){showModal('Chưa chuẩn bị được PDF',aiEscape(e.message),'error');}
+        function shareInvoicePDF(channel='all',order=null) {
+            const o=resolvePdfOrder(order),cached=preparedInvoicePdfs.get(invoicePdfKey(o));
+            if(cached?.result)return sharePreparedInvoicePdf(cached.result);
+            const request=++pdfShareRequest;
+            showModal('Đang chuẩn bị tệp PDF…','Khi tệp sẵn sàng, bấm Chia sẻ PDF để chọn Zalo hoặc Messenger.','info');
+            return prepareInvoicePdf(o).then(result=>{if(request===pdfShareRequest)presentPdfFile(result);},e=>{if(request===pdfShareRequest)showModal('Chưa chuẩn bị được PDF',aiEscape(e.message),'error');});
         }
 
         function downloadModalInvoicePDF() {
@@ -7230,57 +7283,76 @@
         function parsePdfInvoiceText(text,fileName='') {
             const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
             const field=(labels,scope=text)=>{
-                const pattern=new RegExp(String.raw`(?:${labels})\s*[:：]\s*([^\n]+)`,'i');
-                const m=scope.match(pattern);
-                if(m)return m[1].split(/\t{1,}|\s+(?:SĐT|Điện thoại|Địa chỉ|Mã số thuế)\s*[:：]/i)[0].trim();
-                const wanted=labels.split('|').map(aiNormalize);
-                for(const row of scope.split(/[\n\t]/)) {
-                    const pair=row.match(/^([^:：]+)[:：]\s*(.*)$/);
-                    if(pair && wanted.some(label=>aiNormalize(pair[1]).endsWith(label)))return pair[2].trim();
-                }
-                return '';
+                const m=scope.match(new RegExp(String.raw`(?:${labels})\s*[:：]\s*([^\n]+)`,'i'));
+                return m?m[1].split(/\t+|\s+(?:SĐT|Điện thoại|Địa chỉ|Mã số thuế)\s*[:：]/i)[0].trim():'';
             };
-            const buyerIndex=lines.findIndex(line=>{const n=aiNormalize(line);return n.includes('thong tin khach hang') || n.includes('thong tin ben mua') || (n.includes('khach hang') && n.includes('ben mua'));});
+            // Totals can have their value in the next visual row, beside bank details.
+            const moneyField=labels=>{
+                for(let i=0;i<lines.length;i++) {
+                    const cells=lines[i].split(/\t+|\s{2,}/).map(s=>s.trim());
+                    for(let j=0;j<cells.length;j++) {
+                        const label=aiNormalize(cells[j].split(/[:：]/)[0]);
+                        if(!labels.some(s=>label===s || (s==='thue vat' && /^thue vat \d+$/.test(label))))continue;
+                        const colon=cells[j].match(/[:：]\s*(.+)$/);
+                        const candidates=[...(colon?[colon[1]]:[]),...cells.slice(j+1)];
+                        if(!candidates.length && lines[i+1])candidates.push(...lines[i+1].split(/\t+|\s{2,}/));
+                        for(const value of candidates.reverse())if(/^-?[\d.,]+\s*(?:đ|₫|vnd)?$/i.test(value.trim()))return pdfNumber(value);
+                    }
+                }
+                return null;
+            };
+            const buyerIndex=lines.findIndex(line=>/thong tin (?:khach hang|ben mua)/.test(aiNormalize(line)));
             const buyerText=buyerIndex>=0?lines.slice(buyerIndex).join('\n'):text;
-            let name=field('Đơn vị/Cá nhân|Tên đơn vị/cá nhân|Tên người mua|Khách hàng|Người mua|Bên mua|Đơn vị mua hàng',buyerText);
-            const memory=aiMemoryForParsing();
-            const contact=aiExtractContact(text,memory);
-            if(!name)name=contact.cust?.name || 'Khách vãng lai';
-            const customer=memory.find(c=>aiNormalize(c.name)===aiNormalize(name)) || contact.cust;
+            const contact=aiExtractContact(text,aiMemoryForParsing());
+            const name=field('Đơn vị/Cá nhân|Tên đơn vị/cá nhân|Tên người mua|Khách hàng|Người mua|Bên mua|Đơn vị mua hàng',buyerText) || contact.cust?.name || 'Khách vãng lai';
             const phone=aiPhone(field('Số điện thoại|SĐT|Điện thoại|Phone|Tel',buyerText)) || (buyerIndex<0?contact.phone:'');
             const location=field('Địa chỉ giao hàng|Địa chỉ giao|Nơi giao|Giao tại',text) || (buyerIndex>=0?field('Địa chỉ',buyerText):'');
-            const date=text.match(/(?:Ngày lập|Ngày xuất|Ngày)\s*[:：]?\s*(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4})/i)?.[1]?.replace(/[.\-]/g,'/') || new Date().toLocaleDateString('vi-VN');
-            const items=[];
+            const date=(text.match(/(?:Ngày lập|Ngày xuất|Ngày)\s*[:：]?\s*(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4})/i)?.[1] || lines.slice(0,buyerIndex>=0?buyerIndex:12).join('\n').match(/\b\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4}\b/)?.[0] || new Date().toLocaleDateString('vi-VN')).replace(/[.\-]/g,'/');
+            const items=[],warnings=[],rowNumbers=[];
+            let candidates=0;
             for(const line of lines) {
-                const p=aiCatalogueProduct(line,'',null,false);
-                if(!p)continue;
-                // Tab-separated table: product, unit, quantity, prices, amount.
                 let columns=line.split(/\t+|\s{2,}/).map(s=>s.trim()).filter(Boolean);
                 if(columns.length<3) {
-                    const plain=line.match(/(?:^|\s)(thùng|thung|thing|bình|binh|lốc|loc)\s+(\d+\s+[\d.,%\s]+)$/i);
-                    if(plain)columns=[line.slice(0,plain.index),plain[1],...plain[2].trim().split(/\s+/)];
+                    const plain=line.match(/(?:^|\s)(thùng|thung|thing|bình|binh|lốc|loc)\s+(\d+\s+[\d.,%đ₫\s]+)$/i);
+                    if(plain)columns=[line.slice(0,plain.index),plain[1],...plain[2].trim().replace(/[đ₫]/g,'').split(/\s+/)];
                 }
                 const unitIndex=columns.findIndex(c=>/^(thùng|thung|thing|bình|binh|lốc|loc)$/i.test(c));
-                const numeric=unitIndex>=0?columns.slice(unitIndex+1).map(pdfNumber).filter(n=>n!==null):[];
-                if(numeric.length>=2 && numeric[0]>0 && numeric[0]<=5000) {
-                    const qty=numeric[0];
-                    const rawAmount=numeric[numeric.length-1];
-                    const unitPrice=numeric.length>=3?numeric[numeric.length-2]:rawAmount/qty;
-                    if(!(unitPrice>=0) || Math.abs(qty*unitPrice-rawAmount)>Math.max(2,qty))continue;
-                    const listPrice=numeric.length>=5?numeric[1]:Math.max(p.listPrice,unitPrice);
-                    items.push({id:Date.now()+Math.random(),code:p.code,product:p.name,unit:p.unit,qty,listPrice,unitPrice,discountPercent:(listPrice-unitPrice)/listPrice*100,discountAmount:listPrice-unitPrice,subtotal:Math.round(qty*unitPrice)});
+                if(unitIndex<1)continue;
+                candidates++;
+                const rowNo=/^\d+$/.test(columns[0])?Number(columns[0]):null;
+                if(rowNo!==null)rowNumbers.push(rowNo);
+                const originalName=columns.slice(rowNo!==null?1:0,unitIndex).join(' ').replace(/^\d+\s+(?=\D)/,'').trim();
+                const unit=/thing|thung/i.test(columns[unitIndex])?'Thùng':columns[unitIndex];
+                // Match only the product column with its unit; never match prices or quantities.
+                const p=aiCatalogueProduct(originalName,unit,null,false);
+                const numeric=columns.slice(unitIndex+1).map(pdfNumber);
+                const qty=numeric[0],rawAmount=numeric[numeric.length-1];
+                const unitPrice=numeric.length>=3?numeric[numeric.length-2]:rawAmount/qty;
+                if(!originalName || numeric.length<2 || !Number.isFinite(qty) || qty<=0 || !Number.isFinite(unitPrice) || unitPrice<0 || !Number.isFinite(rawAmount) || Math.abs(qty*unitPrice-rawAmount)>Math.max(2,qty)) {
+                    warnings.push(`Dòng ${rowNo??candidates}: chưa đọc đủ số lượng, đơn giá hoặc thành tiền.`);continue;
                 }
+                const listPrice=numeric.length>=5?numeric[1]:(p?.listPrice??unitPrice);
+                const discountPercent=numeric.length>=5?numeric[2]:(listPrice?(listPrice-unitPrice)/listPrice*100:0);
+                if(!p)warnings.push(`Dòng ${rowNo??candidates}: giữ nguyên tên “${originalName}”; cần đối chiếu danh mục.`);
+                items.push({id:Date.now()+Math.random(),code:p?.code || '',product:originalName,unit,qty,listPrice,unitPrice,discountPercent,discountAmount:listPrice-unitPrice,subtotal:Math.round(qty*unitPrice)});
             }
-            if(!items.length)items.push(...aiParseProductItems(text,customer).items);
+            if(!items.length)warnings.push('Chưa đọc được mặt hàng và số lượng; cần kiểm tra file.');
+            if(rowNumbers.length && (new Set(rowNumbers).size!==rowNumbers.length || Math.max(...rowNumbers)!==rowNumbers.length))warnings.push('Số thứ tự dòng hàng bị thiếu hoặc trùng; cần kiểm tra đủ sản phẩm.');
+            if(candidates!==items.length)warnings.push(`Chỉ đọc đủ ${items.length}/${candidates} dòng hàng; không lưu tự động.`);
             const vat=/vat\s*[:(]?\s*8\s*%|gtgt\s*\(?8\s*%/i.test(text)?'yes':'no';
             const goodsTotal=items.reduce((s,it)=>s+it.qty*it.unitPrice,0);
-            const computedTotal=goodsTotal+Math.round(vat==='yes'?goodsTotal*.08:0);
-            const totalText=field('Tổng cộng tiền thanh toán|Tổng cộng thanh toán|Tổng thanh toán|Tổng cộng|Tổng tiền');
-            const declaredTotal=pdfNumber(totalText);
-            const warnings=[];
-            if(!items.length)warnings.push('Chưa đọc được mặt hàng và số lượng; cần kiểm tra file.');
-            if(declaredTotal!==null && Math.abs(declaredTotal-computedTotal)>2)warnings.push('Tổng tiền trên PDF khác tổng các dòng hàng; cần kiểm tra trước khi lưu.');
-            return {fileName,name,phone,location,date,vat,items,total:declaredTotal??computedTotal,computedTotal,warnings};
+            const shippingAmount=moneyField(['phi van chuyen','cuoc van chuyen','tien van chuyen','shipping cost'])??0;
+            const vatAmount=moneyField(['thue vat','tien thue gtgt'])??Math.round(vat==='yes'?goodsTotal*.08:0);
+            const rawShippingPercent=goodsTotal?shippingAmount/goodsTotal*100:0;
+            const roundedShippingPercent=Math.round(rawShippingPercent*100)/100;
+            const shippingPercent=Math.round(goodsTotal*roundedShippingPercent/100)===shippingAmount?roundedShippingPercent:rawShippingPercent;
+            const computedTotal=goodsTotal+shippingAmount+vatAmount;
+            const declaredGoods=moneyField(['tong tien hang','cong tien hang']);
+            const declaredTotal=moneyField(['tong cong tien thanh toan','tong cong thanh toan','tong thanh toan','tong cong','tong tien']);
+            if(declaredGoods!==null && Math.abs(declaredGoods-goodsTotal)>2)warnings.push('Tổng tiền hàng trên PDF khác tổng các dòng; có thể thiếu mặt hàng.');
+            if(declaredTotal!==null && Math.abs(declaredTotal-computedTotal)>2)warnings.push('Tổng thanh toán trên PDF khác tiền hàng, phí giao và VAT; cần kiểm tra trước khi lưu.');
+            if(vatAmount!==Math.round(vat==='yes'?goodsTotal*.08:0))warnings.push('Thuế VAT trên PDF cần kiểm tra trong form trước khi lưu.');
+            return {fileName,name,phone,location,date,vat,items,goodsTotal,shippingAmount,shippingPercent,vatAmount,total:declaredTotal??computedTotal,computedTotal,warnings};
         }
 
         function renderParsedPdfPreview(data) {
@@ -7289,7 +7361,10 @@
             document.getElementById('pdfExtractedPhone').innerText = data.phone || 'Chưa có SĐT';
             document.getElementById('pdfExtractedLocation').innerText = data.location || 'Chưa có địa chỉ';
             document.getElementById('pdfExtractedTotal').innerText = (data.total || 0).toLocaleString('vi-VN') + ' đ';
+            document.getElementById('pdfExtractedTotal').title = `Tiền hàng: ${data.goodsTotal?.toLocaleString('vi-VN')} đ • Phí giao: ${(data.shippingAmount || 0).toLocaleString('vi-VN')} đ • VAT: ${(data.vatAmount || 0).toLocaleString('vi-VN')} đ`;
 
+            document.getElementById('pdfAmountsBreakdown').textContent = `Tiền hàng: ${(data.goodsTotal || 0).toLocaleString('vi-VN')} đ • Phí giao: ${(data.shippingAmount || 0).toLocaleString('vi-VN')} đ • VAT: ${(data.vatAmount || 0).toLocaleString('vi-VN')} đ`;
+            document.getElementById('pdfImportWarnings').textContent = (data.warnings || []).join(' ');
             const itemsListEl = document.getElementById('pdfExtractedItemsList');
             if (itemsListEl) {
                 itemsListEl.innerHTML = data.items.map((it, idx) => `
@@ -7323,7 +7398,9 @@
             }
 
             document.getElementById('vatOption').value = data.vat || 'no';
-            document.getElementById('shippingOption').value = '0';
+            document.getElementById('shippingOption').value = data.shippingAmount ? 'custom' : '0';
+            document.getElementById('customShippingInput').value = data.shippingPercent || 0;
+            document.getElementById('customShippingWrap').classList.toggle('hidden', !data.shippingAmount);
             document.getElementById('costDiscountPercent').value = getSystemDefaultCostDiscount();
 
             currentItems = JSON.parse(JSON.stringify(data.items || []));
@@ -7353,8 +7430,8 @@
             const totalQty = data.items.reduce((acc, cur) => acc + cur.qty, 0);
 
             let goodsTotal = data.items.reduce((acc, it) => acc + (it.subtotal || it.qty * it.unitPrice || 0), 0);
-            let vatAmount = data.vat === 'yes' ? Math.round(goodsTotal * 0.08) : 0;
-            let grandTotal = data.total || (goodsTotal + vatAmount);
+            let vatAmount = data.vatAmount ?? (data.vat === 'yes' ? Math.round(goodsTotal * 0.08) : 0);
+            let grandTotal = goodsTotal + (data.shippingAmount || 0) + vatAmount;
 
             // Tính giá vốn và lợi nhuận theo mức chiết khấu có sẵn 45%
             let listPriceTotal = data.items.reduce((acc, it) => acc + (it.qty * (it.listPrice || (it.unitPrice ? Math.round(it.unitPrice / 0.75) : 88000))), 0);
@@ -7376,8 +7453,8 @@
                 unitPrice: data.items[0] ? data.items[0].unitPrice : 65000,
                 vat: data.vat,
                 goodsTotal: goodsTotal,
-                shippingPercent: 0,
-                shippingAmount: 0,
+                shippingPercent: data.shippingPercent || 0,
+                shippingAmount: data.shippingAmount || 0,
                 vatAmount: vatAmount,
                 total: grandTotal,
                 costDiscountPercent: defaultCostPct,
@@ -7407,6 +7484,7 @@
             // Tự động đẩy lên Google Sheets
             syncToGoogleSheets(newOrder);
 
+            rememberSavedInvoicePdf(newOrder);
             showModalWithActions(
                 "ĐÃ LƯU HÓA ĐƠN PDF VÀO HỆ THỐNG!",
                 `Hóa đơn #${newOrder.invoiceNo} (${newOrder.name} - ${grandTotal.toLocaleString('vi-VN')} đ) đã được bóc tách từ PDF và ghi nhận thành công vào Sổ Kế Toán với mức chiết khấu vốn 45% (Lợi nhuận: +${profit.toLocaleString('vi-VN')} đ)!`,
@@ -7418,6 +7496,10 @@
                             closeModal();
                             switchTab('sheet');
                         }
+                    },
+                    {
+                        text: "Chia sẻ PDF (Zalo / Messenger)",
+                        action: () => { closeModal(); shareInvoicePDF('all',newOrder); }
                     },
                     {
                         text: "Xuất File Excel Ngay",
@@ -8156,5 +8238,6 @@ window.SatoriRecon = (() => {
     </script>
 </body>
 </html>
+
 
 
