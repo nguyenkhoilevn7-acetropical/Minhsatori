@@ -157,7 +157,7 @@
                             </h1>
                             <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                Bản V16.8 · Lên đơn gọn
+                                Bản V16.9 · PDF & Nhân bản bill
                             </span>
                         </div>
                         <p class="text-xs text-slate-400">Hệ Thống Lên Hóa Đơn, Sổ Kế Toán & Quản Lý Doanh Số Tự Động 100%</p>
@@ -507,6 +507,7 @@
                         </div>
                     </div>
 
+                    <p id="duplicateDraftNotice" role="status" class="hidden text-xs text-cyan-300 bg-cyan-950/30 p-3 rounded-xl"></p>
                     <form id="orderForm" class="space-y-3.5" onsubmit="event.preventDefault(); handleSaveAndGenerate();">
                         
 <details id="invoiceMetaPanel" class="compact-panel no-print"><summary>Ngày, số hóa đơn</summary><div class="compact-panel-body">
@@ -2194,10 +2195,6 @@
                     <i class="fa-solid fa-file-pdf text-xl text-amber-300"></i>
                     <span>GỬI TRỰC TIẾP FILE PDF (Zalo / Messenger / Khay Hệ Thống)</span>
                 </button>
-                <button type="button" onclick="triggerNativeFileShare('image')" class="w-full p-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-95">
-                    <i class="fa-regular fa-image text-lg text-cyan-400"></i>
-                    <span>GỬI TRỰC TIẾP ẢNH HÓA ĐƠN (.JPG Sắc Nét)</span>
-                </button>
             </div>
 
             <!-- 2 Direct App Launch Buttons -->
@@ -3576,9 +3573,35 @@
         // =========================================================================
         // CHẾ ĐỘ CHỈNH SỬA HÓA ĐƠN ĐÃ GỬI (SỬA MỌI THỨ & ĐỒNG BỘ SỔ KẾ TOÁN)
         // =========================================================================
+        let duplicateSourceInvoice = null;
+        function duplicateOrder(id) {
+            const original=orders.find(o=>o.id===id);
+            if(!original)return;
+            editOrder(id);
+            currentEditingOrderId=null;
+            currentModalViewedOrder=null;
+            hideEditModeBanner();
+            closeInvoiceModal();
+            duplicateSourceInvoice=original.invoiceNo;
+            nextInvoiceNumber=Math.max(0,...orders.map(o=>Number(o.invoiceNo)||0))+1;
+            document.getElementById('invoiceNo').value=nextInvoiceNumber;
+            document.getElementById('invoiceBadge').textContent='#'+nextInvoiceNumber;
+            const now=new Date();
+            document.getElementById('orderDate').value=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+            document.getElementById('paymentStatus').value='Chưa thanh toán';
+            document.getElementById('btnSubmitText').textContent='Lưu bill mới #'+nextInvoiceNumber;
+            document.getElementById('duplicateDraftNotice').textContent='Bản sao từ bill #'+original.invoiceNo+' — chưa lưu. Anh có thể đổi chiết khấu bên dưới rồi lưu thành bill #'+nextInvoiceNumber+'. Bill gốc được giữ nguyên.';
+            document.getElementById('duplicateDraftNotice').classList.remove('hidden');
+            const meta=document.getElementById('invoiceMetaPanel');if(meta)meta.open=true;
+            document.querySelectorAll('#itemsContainer .compact-item-edit').forEach(panel=>panel.open=true);
+            calculateTotals();
+        }
+
         let currentEditingOrderId = null;
 
         function editOrder(id) {
+            duplicateSourceInvoice=null;
+            document.getElementById('duplicateDraftNotice')?.classList.add('hidden');
             const o = orders.find(x => x.id === id);
             if (!o) {
                 showModal("Lỗi", "Không tìm thấy hóa đơn cần chỉnh sửa!", "error");
@@ -3702,6 +3725,8 @@
         }
 
         function cancelEditOrder() {
+            duplicateSourceInvoice=null;
+            document.getElementById('duplicateDraftNotice')?.classList.add('hidden');
             currentEditingOrderId = null;
             hideEditModeBanner();
 
@@ -3753,6 +3778,7 @@
             }
             const totals = calculateTotals();
             const invNum = parseInt(document.getElementById('invoiceNo').value) || nextInvoiceNumber;
+            if(duplicateSourceInvoice!==null && orders.some(o=>Number(o.invoiceNo)===invNum)) {showModal('Số hóa đơn đã tồn tại','Chọn số hóa đơn mới để giữ nguyên bill gốc.','info');return;}
             
             // Format product description for ledger
             const prodSummary = currentItems.map(it => `${it.qty} ${it.product}`).join(', ');
@@ -3820,7 +3846,7 @@
                         `Hóa đơn #${finishedInvNo} đã được lưu thay đổi và đồng bộ chính xác 100% vào Sổ Kế Toán!`,
                         [
                             { text: "Xem Trong Sổ Kế Toán", action: () => { closeModal(); switchTab('sheet'); }, primary: true },
-                            { text: "In / Tải PDF Hóa Đơn Mới", action: () => { closeModal(); window.print(); } },
+                            { text: "In / Tải PDF Hóa Đơn Mới", action: () => { closeModal(); downloadInvoicePDF(updatedOrder); } },
                             { text: "Tiếp Tục Lên Đơn Mới", action: () => { closeModal(); cancelEditOrder(); } }
                         ]
                     );
@@ -3832,6 +3858,7 @@
             // TRƯỜNG HỢP 2: TẠO MỚI HÓA ĐƠN (NEW BILL)
             // ==============================================================
             const newOrder = {
+                duplicatedFromInvoiceNo: duplicateSourceInvoice,
                 id: Date.now(),
                 date: saveDate || '12/10/2026',
                 name: document.getElementById('busName').value || 'Khách vãng lai',
@@ -3859,6 +3886,8 @@
             };
 
             // 1. SAVE TO LOCAL ORDERS (ALWAYS KEEP AT TOP & REPLACE DUPLICATE INVOICE NO)
+            duplicateSourceInvoice=null;
+            document.getElementById('duplicateDraftNotice')?.classList.add('hidden');
             orders = orders.filter(o => o.invoiceNo !== invNum);
             orders.unshift(newOrder);
             
@@ -4207,14 +4236,15 @@
                                 <span class="font-bold text-emerald-400 text-sm font-mono">${(o.total || 0).toLocaleString('vi-VN')} đ</span>
                             </div>
 
-                            <div class="grid grid-cols-4 gap-1.5 pt-1">
+                            <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-1">
                                 <button onclick="viewInvoiceDetailModal(${o.id})" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 shadow" title="Xem bản in chi tiết">
                                     <i class="fa-solid fa-eye"></i> Xem
                                 </button>
                                 <button onclick="downloadInvoiceById(${o.id})" class="bg-emerald-700 hover:bg-emerald-600 text-white text-[10px] font-bold py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 shadow" title="Tải File PDF A4">
                                     <i class="fa-solid fa-file-pdf"></i> PDF
                                 </button>
-                                <button onclick="editOrder(${o.id})" class="bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 shadow" title="Chỉnh sửa mọi thông tin">
+                                <button type="button" onclick="duplicateOrder(${o.id})" class="px-2 py-1.5 bg-cyan-900 text-cyan-200 rounded-lg text-xs font-semibold" title="Tạo bản sao để sửa chiết khấu, giữ nguyên bill gốc">Nhân bản</button>
+<button onclick="editOrder(${o.id})" class="bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 shadow" title="Chỉnh sửa mọi thông tin">
                                     <i class="fa-solid fa-pen-to-square"></i> Sửa
                                 </button>
                                 <button onclick="deleteArchiveInvoice(${o.id})" class="bg-slate-800 hover:bg-rose-950/50 text-slate-400 hover:text-rose-300 text-[10px] py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1" title="Xóa hóa đơn vào Thùng Rác 30 ngày">
@@ -4261,7 +4291,8 @@
                             <button onclick="downloadInvoiceById(${o.id})" class="text-emerald-400 hover:text-emerald-300 p-1 transition" title="Tải File PDF A4">
                                 <i class="fa-solid fa-file-pdf"></i>
                             </button>
-                            <button onclick="editOrder(${o.id})" class="px-2 py-1 bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/40 rounded-lg text-xs font-bold transition flex items-center gap-1" title="Chỉnh sửa và đồng bộ sổ sách">
+                            <button type="button" onclick="duplicateOrder(${o.id})" class="px-2 py-1.5 bg-cyan-900 text-cyan-200 rounded-lg text-xs font-semibold" title="Tạo bản sao để sửa chiết khấu, giữ nguyên bill gốc">Nhân bản</button>
+<button onclick="editOrder(${o.id})" class="px-2 py-1 bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/40 rounded-lg text-xs font-bold transition flex items-center gap-1" title="Chỉnh sửa và đồng bộ sổ sách">
                                 <i class="fa-solid fa-pen-to-square"></i> <span>Sửa</span>
                             </button>
                             <button onclick="deleteArchiveInvoice(${o.id})" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Xóa vào Thùng Rác 30 ngày">
@@ -4975,221 +5006,99 @@
         let lastGeneratedPdfBlob = null;
         let lastGeneratedPdfFilename = null;
 
-        async function renderInvoiceToPdfBlob(order = null) {
-            const o = order || (currentModalViewedOrder || getCurrentInvoiceData());
-            const fileName = getInvoicePdfFilename(o);
-            await ensureInvoicePdfLibraries();
-            const printTemplate = document.getElementById('invoicePrintTemplate');
-            if (!printTemplate) return null;
-
-            populatePrintInvoiceTemplate(o);
-
-            // Tạo khung chứa độc lập ngoài màn hình ở tọa độ (0,0) tuyệt đối
-            const container = document.createElement('div');
-            container.style.position = 'fixed';
-            container.style.left = '0';
-            container.style.top = '0';
-            container.style.width = '794px';
-            container.style.height = 'auto';
-            container.style.zIndex = '-1';
-            container.style.opacity = '1';
-            container.style.overflow = 'visible';
-            container.style.pointerEvents = 'none';
-            container.style.backgroundColor = '#ffffff';
-
-            const clone = printTemplate.cloneNode(true);
-            clone.id = 'invoicePrintClone';
-            clone.style.display = 'block';
-            clone.style.position = 'static';
-            clone.style.width = '794px';
-            clone.style.minHeight = '1123px';
-            clone.style.boxSizing = 'border-box';
-            clone.style.backgroundColor = '#ffffff';
-            clone.style.margin = '0';
-            clone.style.padding = '32px 36px';
-
-            container.appendChild(clone);
-            document.body.appendChild(container);
-
-            try {
-                // Đợi ảnh nạp xong
-                const imgs = Array.from(clone.querySelectorAll('img'));
-                await Promise.all(imgs.map(img => {
-                    if (img.complete) return Promise.resolve();
-                    return new Promise(res => {
-                        img.onload = res;
-                        img.onerror = () => {
-                            img.style.display = 'none';
-                            res();
-                        };
-                        setTimeout(res, 400);
-                    });
-                }));
-
-                // 1. Chụp ảnh chất lượng Retina 2x qua html2canvas
-                const canvas = await html2canvas(clone, {
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: false,
-                    logging: false,
-                    scrollX: 0,
-                    scrollY: 0,
-                    windowWidth: 794,
-                    backgroundColor: '#ffffff'
-                });
-
-                const imgData = canvas.toDataURL('image/jpeg', 0.98);
-
-                // 2. Tạo PDF chuẩn A4 (210mm x 297mm) bằng jsPDF
-                const jsPdfClass = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : (window.jsPDF || null);
-                if (jsPdfClass) {
-                    const pdf = new jsPdfClass({
-                        orientation: 'portrait',
-                        unit: 'mm',
-                        format: 'a4'
-                    });
-                    const pagePixels=Math.ceil(canvas.width*297/210);
-                    for(let y=0,pageNo=0;y<canvas.height;pageNo++) {
-                        const slice=document.createElement('canvas');slice.width=canvas.width;slice.height=Math.min(pagePixels,canvas.height-y);
-                        slice.getContext('2d').drawImage(canvas,0,y,canvas.width,slice.height,0,0,canvas.width,slice.height);
-                        if(pageNo)pdf.addPage();
-                        pdf.addImage(slice.toDataURL('image/jpeg',0.95),'JPEG',0,0,210,slice.height*210/canvas.width);
-                        y+=slice.height;slice.width=0;slice.height=0;
-                    }
-                    const blob = pdf.output('blob');
-                    lastGeneratedPdfBlob = blob;
-                    lastGeneratedPdfFilename = fileName;
-                    return { blob, imgData, fileName };
-                } else if (typeof html2pdf !== 'undefined') {
-                    const worker = html2pdf().set({
-                        margin: 0,
-                        filename: fileName,
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollY: 0, scrollX: 0, windowWidth: 794 },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                    }).from(clone);
-                    const blob = await worker.output('blob');
-                    lastGeneratedPdfBlob = blob;
-                    lastGeneratedPdfFilename = fileName;
-                    return { blob, imgData, fileName };
-                } else {
-                    return { blob: null, imgData, fileName };
-                }
-            } finally {
-                if (container.parentNode) {
-                    container.parentNode.removeChild(container);
-                }
-            }
-        }
-
-        async function generateInvoicePdfBlob(elementId = 'invoicePreview', fileName = 'Bill.pdf', order = null) {
-            const res = await renderInvoiceToPdfBlob(order);
-            return res ? res.blob : null;
-        }
-
-        async function downloadInvoicePDF(order = null, elementId = 'invoicePreview') {
-            const o = order || (currentModalViewedOrder || getCurrentInvoiceData());
-            const fileName = getInvoicePdfFilename(o);
-
-            showModal(
-                "Đang Tạo Hóa Đơn PDF...",
-                '<div class="flex flex-col items-center justify-center py-4 space-y-3">' +
-                '  <div class="w-10 h-10 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>' +
-                '  <p class="text-xs text-slate-300">Đang xuất file PDF A4 sắc nét...</p>' +
-                '  <p class="text-[11px] font-mono text-cyan-400">' + fileName + '</p>' +
-                '</div>',
-                "info"
-            );
-
-            try {
-                const result = await renderInvoiceToPdfBlob(o);
-                closeModal();
-
-                if (result && result.blob && result.blob.size > 2000) {
-                    const blobUrl = URL.createObjectURL(result.blob);
-
-                    // 1. Tự động kích hoạt tải tệp
+        let textPdfReady = null;
+        async function ensureTextPdf() {
+            if (!textPdfReady) textPdfReady=(async()=>{
+                for(const root of ['https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/','https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/']) {
                     try {
-                        const a = document.createElement('a');
-                        a.href = blobUrl;
-                        a.download = fileName;
-                        document.body.appendChild(a);
-                        a.click();
-                        setTimeout(() => {
-                            document.body.removeChild(a);
-                        }, 2500);
-                    } catch (clickErr) {
-                        console.warn("Lỗi auto click download:", clickErr);
-                    }
-
-                    // 2. Hiển thị thông báo hoàn tất kèm NÚT BẤM TẢI TRỰC TIẾP (đảm bảo 100% thành công trên Safari & Chrome di động)
-                    showModal(
-                        "Đã Xuất File PDF Thành Công!",
-                        '<div class="space-y-3 text-left">' +
-                        '  <p class="text-xs text-slate-300">Hóa đơn chuẩn A4 <strong>' + fileName + '</strong> đã sẵn sàng:</p>' +
-                        '  <div class="p-2.5 bg-slate-900 border border-cyan-500/40 rounded-xl font-mono text-cyan-400 text-xs font-bold break-all">' +
-                        '    ' + fileName +
-                        '  </div>' +
-                        '  <div class="flex flex-col sm:flex-row gap-2 pt-1">' +
-                        '    <a href="' + blobUrl + '" download="' + fileName + '" target="_blank" class="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold text-center transition flex items-center justify-center gap-1.5 shadow">' +
-                        '      <i class="fa-solid fa-download"></i> Bấm Tải Về Máy / Mở File' +
-                        '    </a>' +
-                        '    <button onclick="triggerNativeShareWithBlob(\'' + fileName + '\')" class="py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow">' +
-                        '      <i class="fa-solid fa-share-nodes"></i> Chia Sẻ File PDF' +
-                        '    </button>' +
-                        '  </div>' +
-                        '  <div class="pt-1 border-t border-slate-800 flex justify-between items-center text-[11px] text-slate-400">' +
-                        '    <span>Nếu thiết bị chặn tải ngầm, hãy chạm nút xanh ở trên để tải về.</span>' +
-                        '    <a href="' + result.imgData + '" download="' + fileName.replace('.pdf', '.jpg') + '" class="text-cyan-400 hover:underline">Tải ảnh .jpg</a>' +
-                        '  </div>' +
-                        '</div>',
-                        "success"
-                    );
-                    return;
-                } else if (result && result.imgData) {
-                    const a = document.createElement('a');
-                    a.href = result.imgData;
-                    a.download = fileName.replace('.pdf', '.jpg');
-                    document.body.appendChild(a);
-                    a.click();
-                    setTimeout(() => document.body.removeChild(a), 1000);
-                    showModal("Đã Tải Ảnh Hóa Đơn!", "Đã tải ảnh hóa đơn độ nét cao (.jpg) về máy của bạn.", "success");
-                    return;
+                        if(!window.pdfMake)await loadRuntimeScript(root+'pdfmake.min.js');
+                        if(!window.pdfMake?.vfs?.['Roboto-Regular.ttf'])await loadRuntimeScript(root+'vfs_fonts.js');
+                        if(window.pdfMake?.vfs?.['Roboto-Regular.ttf'])return window.pdfMake;
+                    }catch(e){console.warn(e.message);}
                 }
-            } catch (err) {
-                console.error("Lỗi xuất PDF:", err);
-                closeModal();
-            }
-
-            // Fallback in hệ thống
-            showModal(
-                "Mở Hộp Thoại In / Lưu PDF",
-                '<div class="space-y-3 text-center">' +
-                '  <p class="text-xs text-slate-300">Chọn <strong>Lưu dưới dạng PDF</strong> trong hộp thoại in:</p>' +
-                '  <button onclick="window.print()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition">' +
-                '    <i class="fa-solid fa-print"></i> Mở Hộp Thoại In' +
-                '  </button>' +
-                '</div>',
-                "info"
-            );
-
+                throw new Error('Chưa tải được công cụ PDF và phông tiếng Việt. Kiểm tra mạng rồi thử lại.');
+            })().catch(e=>{textPdfReady=null;throw e;});
+            return textPdfReady;
         }
-
-        // =========================================================================
-        // CHIA SẺ TRỰC TIẾP QUA ZALO & MESSENGER (SMOOTH & KHÔNG DELAY)
-        // =========================================================================
-        function shareInvoicePDF(channel = 'all', order = null, elementId = 'invoicePreview') {
-            const o = order || (currentModalViewedOrder || getCurrentInvoiceData());
-            const fileName = getInvoicePdfFilename(o);
-
-            // On mobile devices with Web Share API file support, directly trigger native file share!
-            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-            if (isMobile && navigator.share && navigator.canShare) {
-                triggerNativeFileShare('pdf');
-                return;
+        function invoicePdfDefinition(o, qrImage=null) {
+            const items=o.items?.length?o.items:[{product:o.product,unit:o.unit || 'Thùng',qty:o.qty,listPrice:o.listPrice,unitPrice:o.unitPrice}];
+            if(!items.length)throw new Error('Hóa đơn chưa có mặt hàng.');
+            const money=n=>Number(n || 0).toLocaleString('vi-VN')+' đ';
+            const goods=items.reduce((sum,it)=>sum+Number(it.qty || 0)*Number(it.unitPrice || 0),0);
+            const vat=o.vatAmount ?? (o.vat==='yes'?Math.round(goods*.08):0);
+            const ship=Number(o.shippingAmount || 0), total=goods+vat+ship;
+            const memo=('HD'+o.invoiceNo+' '+(o.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').replace(/[^a-zA-Z0-9 ]/g,'')).slice(0,25);
+            const head=['STT','Tên sản phẩm','ĐVT','SL','Giá niêm yết','CK (%)','Đơn giá','Thành tiền'].map(text=>({text,bold:true,color:'#ffffff',fillColor:'#0369a1',alignment:'center',fontSize:8}));
+            const rows=items.map((it,i)=>{
+                const lp=Number(it.listPrice || 0),up=Number(it.unitPrice || 0),pct=it.discountPercent ?? (lp?(lp-up)/lp*100:0);
+                return [String(i+1),String(it.product || ''),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
+            });
+            const bank=[{text:'THÔNG TIN THANH TOÁN',bold:true,color:'#0369a1',margin:[0,8,0,6]},'Ngân hàng: VPBank','Số tài khoản: 658489418','Chủ tài khoản: HKD MINH SATORI',{text:'Nội dung: '+memo,margin:[0,4,0,0]}];
+            if(qrImage)bank.push({image:qrImage,fit:[90,90],margin:[0,8,0,0]});
+            return {pageSize:'A4',pageMargins:[30,30,30,35],defaultStyle:{font:'Roboto',fontSize:9,color:'#0f172a'},info:{title:'Hóa đơn #'+o.invoiceNo+' - '+(o.name || ''),author:'HKD Minh Satori'},
+                footer:(page,count)=>({text:page+' / '+count,alignment:'right',fontSize:8,margin:[30,8,30,0],color:'#64748b'}),
+                content:[
+                    {columns:[{width:'*',stack:[{text:'HỘ KINH DOANH MINH SATORI',bold:true,fontSize:15,color:'#0369a1'},'Mã số thuế: 075087004222','Hotline: 0903 772 980',{text:'Địa chỉ: Số 96/41 Tôn Đản, Phường Khánh Hội, TP. Hồ Chí Minh',fontSize:8}]},{width:145,alignment:'right',stack:[{text:'PHIẾU XUẤT HÓA ĐƠN',bold:true,fontSize:13},{text:'#'+o.invoiceNo,bold:true,fontSize:14,color:'#b45309'},String(o.date || ''),String(o.status || 'Chưa thanh toán')]}]},
+                    {canvas:[{type:'line',x1:0,y1:0,x2:535,y2:0,lineWidth:1,lineColor:'#0284c7'}],margin:[0,12,0,12]},
+                    {text:'THÔNG TIN KHÁCH HÀNG',bold:true,color:'#0369a1',margin:[0,0,0,6]},
+                    {text:'Khách hàng: '+(o.name || 'Khách vãng lai')},
+                    {text:'Điện thoại: '+(o.phone || '(Chưa có SĐT)')},
+                    {text:'Địa chỉ giao: '+(o.location || '(Chưa có địa chỉ)')},
+                    {text:'Mã số thuế: '+(o.taxCode || 'Không có'),margin:[0,0,0,12]},
+                    {table:{headerRows:1,widths:[18,'*',30,24,57,38,57,64],body:[head,...rows]},layout:{hLineColor:()=> '#cbd5e1',vLineColor:()=> '#cbd5e1',paddingTop:()=>7,paddingBottom:()=>7}},
+                    {columns:[{width:'*',stack:bank},{width:240,margin:[0,12,0,0],table:{widths:['*',100],body:[['Tổng tiền hàng:',{text:money(goods),alignment:'right'}],['Phí vận chuyển:',{text:money(ship),alignment:'right'}],['Thuế VAT ('+(o.vat==='yes'?'8':'0')+'%):',{text:money(vat),alignment:'right'}],[{text:'TỔNG THANH TOÁN',bold:true},{text:money(total),bold:true,alignment:'right',color:'#0369a1',fontSize:12}]]},layout:'noBorders'}]},
+                    {text:'Số tiền bằng chữ: '+moneyToVietnameseWords(total),italics:true,margin:[0,12,0,16]},
+                    {columns:[{stack:[{text:'ĐẠI DIỆN BÊN BÁN',bold:true},'(Ký, ghi rõ họ tên)',{text:'HKD MINH SATORI',margin:[0,45,0,0],bold:true,color:'#0369a1'}],alignment:'center'},{stack:[{text:'ĐẠI DIỆN BÊN MUA / NGƯỜI NHẬN',bold:true},'(Ký, ghi rõ họ tên)',{text:o.name || '',margin:[0,45,0,0],bold:true}],alignment:'center'}]}
+                ]};
+        }
+        async function invoiceQrImage(o) {
+            const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);
+            try {
+                const amount=getOrderGoodsTotal(o)+(o.shippingAmount || 0)+(o.vatAmount ?? (o.vat==='yes'?Math.round(getOrderGoodsTotal(o)*.08):0));
+                const url='https://img.vietqr.io/image/vpbank-658489418-compact2.png?amount='+amount+'&addInfo='+encodeURIComponent('HD'+o.invoiceNo)+'&accountName=HKD%20MINH%20SATORI';
+                const response=await fetch(url,{signal:controller.signal});
+                if(!response.ok)return null;
+                const blob=await response.blob();
+                return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob);});
+            }catch{return null;}finally{clearTimeout(timer);}
+        }
+        async function renderInvoiceToPdfBlob(order=null) {
+            const o=JSON.parse(JSON.stringify(order || currentModalViewedOrder || getCurrentInvoiceData()));
+            const pdfMake=await ensureTextPdf();
+            const definition=invoicePdfDefinition(o,await invoiceQrImage(o));
+            const blob=await new Promise((resolve,reject)=>{
+                const timeout=setTimeout(()=>reject(new Error('Tạo PDF quá thời gian. Hãy bấm thử lại.')),30000);
+                try{pdfMake.createPdf(definition).getBlob(b=>{clearTimeout(timeout);resolve(b);});}catch(e){clearTimeout(timeout);reject(e);}
+            });
+            if(!blob || await blob.slice(0,5).text()!=='%PDF-')throw new Error('Chưa tạo được tệp PDF hợp lệ.');
+            lastGeneratedPdfBlob=blob;lastGeneratedPdfFilename=getInvoicePdfFilename(o);
+            return {blob,fileName:lastGeneratedPdfFilename};
+        }
+        async function generateInvoicePdfBlob(elementId='invoicePreview',fileName='Bill.pdf',order=null){return (await renderInvoiceToPdfBlob(order)).blob;}
+        let pdfDownloadUrl=null;
+        function presentPdfFile(result) {
+            if(pdfDownloadUrl)URL.revokeObjectURL(pdfDownloadUrl);
+            pdfDownloadUrl=URL.createObjectURL(result.blob);
+            showModal('File PDF đã sẵn sàng',`<div class="space-y-3"><p>${aiEscape(result.fileName)}</p><p>Đây là PDF có lớp chữ, có thể tìm kiếm và đọc lại trực tiếp.</p><a class="block text-center bg-emerald-600 text-white p-3 rounded-xl" href="${pdfDownloadUrl}" download="${aiEscape(result.fileName)}">Tải file PDF về máy</a><button type="button" onclick="sharePreparedInvoicePdf()" class="w-full bg-blue-600 text-white p-3 rounded-xl">Chia sẻ tệp PDF</button><p class="text-xs text-slate-400">Trong Zalo/Messenger, chọn đính kèm Tệp rồi chọn file .pdf vừa tải.</p></div>`,'success');
+        }
+        async function downloadInvoicePDF(order=null) {
+            showModal('Đang tạo file PDF…','Đang chuẩn bị hóa đơn có lớp chữ.','info');
+            try{
+                const result=await renderInvoiceToPdfBlob(order);presentPdfFile(result);
+                const a=document.createElement('a');a.href=pdfDownloadUrl;a.download=result.fileName;document.body.appendChild(a);a.click();a.remove();
+            }catch(e){showModal('Chưa xuất được PDF',aiEscape(e.message),'error');}
+        }
+        async function sharePreparedInvoicePdf() {
+            if(!lastGeneratedPdfBlob)return;
+            const file=new File([lastGeneratedPdfBlob],lastGeneratedPdfFilename,{type:'application/pdf'});
+            if(navigator.share && navigator.canShare?.({files:[file]})) {
+                try{await navigator.share({files:[file],title:lastGeneratedPdfFilename});return;}catch(e){if(e.name==='AbortError')return;}
             }
-
-            openSocialShareModal(o, fileName, channel);
+            presentPdfFile({blob:lastGeneratedPdfBlob,fileName:lastGeneratedPdfFilename});
+        }
+        async function shareInvoicePDF(channel='all',order=null) {
+            showModal('Đang chuẩn bị tệp PDF…','Sau khi tạo xong, bấm Chia sẻ tệp PDF để chọn ứng dụng và người nhận.','info');
+            try{presentPdfFile(await renderInvoiceToPdfBlob(order));}catch(e){showModal('Chưa chuẩn bị được PDF',aiEscape(e.message),'error');}
         }
 
         function downloadModalInvoicePDF() {
@@ -5245,165 +5154,9 @@
             const ssm = document.getElementById('socialShareModal'); if (ssm) { ssm.classList.add('hidden'); ssm.classList.remove('flex'); ssm.style.setProperty('display', 'none', 'important'); }
         }
 
-        async function openZaloShare() {
-            const activeOrder = currentModalViewedOrder || getCurrentInvoiceData();
-            copyShareMessageSilent();
-
-            // Thử chia sẻ trực tiếp file PDF nếu thiết bị hỗ trợ
-            if (navigator.share && navigator.canShare) {
-                await triggerNativeFileShare('pdf');
-                return;
-            }
-
-            // Fallback: Tải PDF và mở Zalo
-            downloadInvoicePDF(activeOrder);
-
-            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-            showModal(
-                "Đang Mở Zalo...",
-                '<div class="space-y-3 text-left">' +
-                '  <p class="text-xs text-slate-300">Đã sao chép nội dung tóm tắt hóa đơn và thông tin chuyển khoản vào bộ nhớ tạm.</p>' +
-                '  <p class="text-xs text-emerald-400 font-bold">File PDF hóa đơn đang được tải về máy.</p>' +
-                '  <p class="text-xs text-slate-400">Khi Zalo mở lên, bạn chỉ cần chọn người nhận, dán tin nhắn và đính kèm file vừa tải.</p>' +
-                '  <div class="pt-2">' +
-                '    <a href="' + (isMobile ? 'zalo://' : 'https://chat.zalo.me/') + '" target="_blank" class="block w-full py-2.5 text-center bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow">' +
-                '      <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở Zalo Ngay' +
-                '    </a>' +
-                '  </div>' +
-                '</div>',
-                "success"
-            );
-
-            if (isMobile) {
-                setTimeout(() => { window.location.href = "zalo://"; }, 800);
-            } else {
-                setTimeout(() => { window.open("https://chat.zalo.me/", "_blank"); }, 800);
-            }
-        }
-
-        async function openMessengerShare() {
-            const activeOrder = currentModalViewedOrder || getCurrentInvoiceData();
-            copyShareMessageSilent();
-
-            if (navigator.share && navigator.canShare) {
-                await triggerNativeFileShare('pdf');
-                return;
-            }
-
-            downloadInvoicePDF(activeOrder);
-
-            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-            showModal(
-                "Đang Mở Facebook Messenger...",
-                '<div class="space-y-3 text-left">' +
-                '  <p class="text-xs text-slate-300">Đã sao chép nội dung hóa đơn và thông tin thanh toán vào bộ nhớ tạm.</p>' +
-                '  <p class="text-xs text-emerald-400 font-bold">File PDF hóa đơn đang được tải về máy.</p>' +
-                '  <p class="text-xs text-slate-400">Khi Messenger mở lên, bạn chỉ cần chọn người nhận, dán tin nhắn và đính kèm file vừa tải.</p>' +
-                '  <div class="pt-2">' +
-                '    <a href="' + (isMobile ? 'fb-messenger://' : 'https://www.messenger.com/') + '" target="_blank" class="block w-full py-2.5 text-center bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition shadow">' +
-                '      <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở Messenger Ngay' +
-                '    </a>' +
-                '  </div>' +
-                '</div>',
-                "success"
-            );
-
-            if (isMobile) {
-                setTimeout(() => { window.location.href = "fb-messenger://"; }, 800);
-            } else {
-                setTimeout(() => { window.open("https://www.messenger.com/", "_blank"); }, 800);
-            }
-        }
-
-        async function triggerNativeFileShare(mode = 'pdf') {
-            const o = currentModalViewedOrder || getCurrentInvoiceData();
-            const fileName = getInvoicePdfFilename(o);
-            const cleanMemo = ('HD' + o.invoiceNo + ' ' + (o.name || '').replace(/[^a-zA-Z0-9 ]/g, '')).substring(0, 25);
-            const qrUrl = 'https://img.vietqr.io/image/vpbank-658489418-compact2.png?amount=' + o.total + '&addInfo=' + encodeURIComponent(cleanMemo) + '&accountName=HKD%20MINH%20SATORI';
-            const shareText = 'Kính gửi ' + (o.name || 'Quý khách') + ' hóa đơn bán nước Satori #' + o.invoiceNo + ':\n' +
-                '- Tổng thanh toán: ' + (o.total || 0).toLocaleString('vi-VN') + ' đ\n' +
-                '- STK VPBank: 658489418 (HKD MINH SATORI)\n' +
-                '- Nội dung CK: ' + cleanMemo + '\n' +
-                'Mã QR quét trả tiền: ' + qrUrl;
-
-            copyShareMessageSilent();
-
-            showModal(
-                "Đang Chuẩn Bị Tệp Đính Kèm...",
-                '<div class="flex flex-col items-center justify-center py-4 space-y-3">' +
-                '  <div class="w-10 h-10 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>' +
-                '  <p class="text-xs text-slate-300">Đang chuẩn bị file ' + (mode === 'pdf' ? 'PDF' : 'ảnh') + ' đính kèm...</p>' +
-                '  <p class="text-[11px] font-mono text-cyan-400">' + fileName + '</p>' +
-                '</div>',
-                "info"
-            );
-
-            try {
-                const result = await renderInvoiceToPdfBlob(o);
-                closeModal();
-
-                if (!result) {
-                    openSocialShareModal(o, fileName);
-                    return;
-                }
-
-                // Chia sẻ tệp PDF
-                if (mode === 'pdf' && result.blob && result.blob.size > 2000) {
-                    const pdfFile = new File([result.blob], fileName, { type: 'application/pdf' });
-                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-                        try {
-                            await navigator.share({
-                                files: [pdfFile],
-                                title: 'Hóa Đơn Minh Satori #' + o.invoiceNo + ' - ' + o.name,
-                                text: shareText
-                            });
-                            return;
-                        } catch (shareErr) {
-                            if (shareErr.name === 'AbortError') return;
-                            console.warn("Lỗi share file PDF:", shareErr);
-                        }
-                    }
-                } 
-                // Chia sẻ ảnh hóa đơn
-                else if (mode === 'image' && result.imgData) {
-                    const imgBlob = await (await fetch(result.imgData)).blob();
-                    const imgFilename = fileName.replace('.pdf', '.jpg');
-                    const imgFile = new File([imgBlob], imgFilename, { type: 'image/jpeg' });
-                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [imgFile] })) {
-                        try {
-                            await navigator.share({
-                                files: [imgFile],
-                                title: 'Hóa Đơn Minh Satori #' + o.invoiceNo + ' - ' + o.name,
-                                text: shareText
-                            });
-                            return;
-                        } catch (shareErr) {
-                            if (shareErr.name === 'AbortError') return;
-                            console.warn("Lỗi share ảnh:", shareErr);
-                        }
-                    }
-                }
-
-                // Nếu không chia sẻ được file trực tiếp, thử chia sẻ nội dung text + link
-                if (navigator.share) {
-                    try {
-                        await navigator.share({
-                            title: 'Hóa Đơn Minh Satori #' + o.invoiceNo + ' - ' + o.name,
-                            text: shareText,
-                            url: qrUrl
-                        });
-                        return;
-                    } catch (e) {
-                        if (e.name === 'AbortError') return;
-                    }
-                }
-            } catch (err) {
-                console.error("Lỗi chuẩn bị tệp chia sẻ:", err);
-                closeModal();
-            }
-
-            openSocialShareModal(o, fileName);
-        }
+        async function openZaloShare() {await shareInvoicePDF('zalo');}
+        async function openMessengerShare() {await shareInvoicePDF('messenger');}
+        async function triggerNativeFileShare() {await shareInvoicePDF();}
 
         async function triggerNativeShareWithBlob(fileName) {
             triggerNativeFileShare('pdf');
@@ -6436,7 +6189,8 @@
                     </td>
                     <td class="p-3 text-center">
                         <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="editOrder(${o.id})" class="px-2 py-1 bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/40 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm" title="Chỉnh sửa mọi thông tin hóa đơn này (Đồng bộ sổ sách)">
+                            <button type="button" onclick="duplicateOrder(${o.id})" class="px-2 py-1.5 bg-cyan-900 text-cyan-200 rounded-lg text-xs font-semibold" title="Tạo bản sao để sửa chiết khấu, giữ nguyên bill gốc">Nhân bản</button>
+<button onclick="editOrder(${o.id})" class="px-2 py-1 bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/40 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm" title="Chỉnh sửa mọi thông tin hóa đơn này (Đồng bộ sổ sách)">
                                 <i class="fa-solid fa-pen-to-square"></i>
                                 <span class="hidden sm:inline">Sửa</span>
                             </button>
@@ -8402,4 +8156,5 @@ window.SatoriRecon = (() => {
     </script>
 </body>
 </html>
+
 
