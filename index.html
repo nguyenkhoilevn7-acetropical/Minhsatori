@@ -158,7 +158,7 @@
                             </h1>
                             <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                Bản V17.5 · Logo & PDF
+                                Bản V17.6 · PDF & lời nhắn
                             </span>
                         </div>
                         <p class="text-xs text-slate-400">Hệ Thống Lên Hóa Đơn, Sổ Kế Toán & Quản Lý Doanh Số Tự Động 100%</p>
@@ -5027,7 +5027,7 @@
         function sendStandalonePdf(entry,token){
             if(!entry.ready || entry.popup.closed)return;
             if(entry.error)entry.popup.postMessage({channel:'minhsatori-pdf-v1',type:'error',token,message:entry.error},location.origin);
-            else if(entry.result)entry.popup.postMessage({channel:'minhsatori-pdf-v1',type:'file',token,blob:entry.result.blob,fileName:entry.result.fileName},location.origin);
+            else if(entry.result)entry.popup.postMessage({channel:'minhsatori-pdf-v1',type:'file',token,blob:entry.result.blob,fileName:entry.result.fileName,shareMessage:entry.result.shareMessage},location.origin);
         }
         function openStandalonePdfShare(channel,resultOrPromise){
             const random=crypto.getRandomValues(new Uint8Array(16)),token=Array.from(random,n=>n.toString(16).padStart(2,'0')).join('');
@@ -5067,14 +5067,37 @@
             })().catch(e=>{textPdfReady=null;throw e;});
             return textPdfReady;
         }
+        function invoicePaymentDetails(o) {
+            const goods=getOrderGoodsTotal(o),ship=Number(o.shippingAmount || 0);
+            const vat=Number(o.vatAmount ?? (o.vat==='yes'?Math.round(goods*.08):0));
+            const total=goods+vat+ship;
+            const memo=('HD'+o.invoiceNo+' '+(o.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^a-zA-Z0-9 ]/g,'')).slice(0,25);
+            const qrUrl='https://img.vietqr.io/image/vpbank-658489418-compact2.png?amount='+total+'&addInfo='+encodeURIComponent(memo)+'&accountName=HKD%20MINH%20SATORI';
+            return {goods,ship,vat,total,memo,qrUrl};
+        }
+        function invoicePdfShareMessage(o) {
+            const payment=invoicePaymentDetails(o);
+            return 'Kính gửi '+(o.name || 'Quý khách')+' hóa đơn bán nước Satori #'+o.invoiceNo+':\n'
+                +'- Tổng thanh toán: '+payment.total.toLocaleString('vi-VN')+' đ\n'
+                +'- STK VPBank: 658489418 (HKD MINH SATORI)\n'
+                +'- Nội dung CK: '+payment.memo+'\n'
+                +'Mã QR quét trả tiền:\n'+payment.qrUrl;
+        }
+        async function copyPreparedPdfMessage() {
+            if(!activePreparedPdf?.shareMessage)return;
+            const field=document.getElementById('preparedPdfMessage');
+            try {
+                if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(activePreparedPdf.shareMessage);
+                else {field.focus();field.select();if(!document.execCommand('copy'))throw Error();}
+                const button=document.getElementById('copyPreparedPdfMessageButton');
+                if(button)button.textContent='Đã sao chép lời nhắn';
+            }catch{if(field){field.focus();field.select();}const button=document.getElementById('copyPreparedPdfMessageButton');if(button)button.textContent='Chọn lời nhắn và sao chép thủ công';}
+        }
         function invoicePdfDefinition(o, qrImage=null, logoImage=null) {
             const items=o.items?.length?o.items:[{product:o.product,unit:o.unit || 'Thùng',qty:o.qty,listPrice:o.listPrice,unitPrice:o.unitPrice}];
             if(!items.length)throw new Error('Hóa đơn chưa có mặt hàng.');
             const money=n=>Number(n || 0).toLocaleString('vi-VN')+' đ';
-            const goods=items.reduce((sum,it)=>sum+Number(it.qty || 0)*Number(it.unitPrice || 0),0);
-            const vat=o.vatAmount ?? (o.vat==='yes'?Math.round(goods*.08):0);
-            const ship=Number(o.shippingAmount || 0), total=goods+vat+ship;
-            const memo=('HD'+o.invoiceNo+' '+(o.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').replace(/[^a-zA-Z0-9 ]/g,'')).slice(0,25);
+            const {goods,vat,ship,total,memo}=invoicePaymentDetails(o);
             const head=['STT','Tên sản phẩm','ĐVT','SL','Giá niêm yết','CK (%)','Đơn giá','Thành tiền'].map(text=>({text,bold:true,color:'#ffffff',fillColor:'#0369a1',alignment:'center',fontSize:8}));
             const rows=items.map((it,i)=>{
                 const lp=Number(it.listPrice || 0),up=Number(it.unitPrice || 0),pct=it.discountPercent ?? (lp?(lp-up)/lp*100:0);
@@ -5101,8 +5124,7 @@
         async function invoiceQrImage(o) {
             const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);
             try {
-                const amount=getOrderGoodsTotal(o)+(o.shippingAmount || 0)+(o.vatAmount ?? (o.vat==='yes'?Math.round(getOrderGoodsTotal(o)*.08):0));
-                const url='https://img.vietqr.io/image/vpbank-658489418-compact2.png?amount='+amount+'&addInfo='+encodeURIComponent('HD'+o.invoiceNo)+'&accountName=HKD%20MINH%20SATORI';
+                const url=invoicePaymentDetails(o).qrUrl;
                 const response=await fetch(url,{signal:controller.signal});
                 if(!response.ok)return null;
                 const blob=await response.blob();
@@ -5140,6 +5162,7 @@
             return (stem || 'Hoa_don')+'.pdf';
         }
         function prepareInvoicePdf(o) {
+            o=JSON.parse(JSON.stringify(o));
             const key=invoicePdfKey(o);
             if(preparedInvoicePdfs.has(key))return preparedInvoicePdfs.get(key).promise;
             const entry={key,result:null,promise:null};preparedInvoicePdfs.set(key,entry);
@@ -5149,6 +5172,7 @@
                 if(String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')throw new Error('Tệp chưa phải PDF hợp lệ.');
                 result.blob=new Blob([bytes],{type:'application/pdf'});
                 result.file=typeof File==='function'?new File([bytes],pdfShareFilename(result.fileName),{type:'application/pdf',lastModified:Date.now()}):null;
+                result.shareMessage=invoicePdfShareMessage(o);
                 entry.result=result;return result;
             }).catch(e=>{preparedInvoicePdfs.delete(key);throw e;});
             while(preparedInvoicePdfs.size>3)preparedInvoicePdfs.delete(preparedInvoicePdfs.keys().next().value);
@@ -5178,7 +5202,7 @@
             pdfDownloadUrl=URL.createObjectURL(result.blob);
             const supportsShare=(window.parent!==window || typeof navigator.share==='function') && result.file;
             const buttons=supportsShare?`<div class="grid grid-cols-2 gap-2"><button type="button" data-pdf-share="zalo" onclick="sharePreparedInvoicePdf('zalo')" class="bg-blue-600 text-white p-3 rounded-xl font-bold">Gửi Zalo</button><button type="button" data-pdf-share="messenger" onclick="sharePreparedInvoicePdf('messenger')" class="bg-indigo-600 text-white p-3 rounded-xl font-bold">Gửi Messenger</button></div><p class="text-xs text-slate-400">Điện thoại mở khay chia sẻ tệp PDF. Chọn ${pdfChannelName(activePdfChannel)} trong danh sách ứng dụng.</p>`:'<p class="text-amber-300">Trình duyệt này không có chức năng chia sẻ tệp trực tiếp. Mở PDF bên dưới để chia sẻ từ trình đọc tệp.</p>';
-            showModal(message?'Chưa chia sẻ được PDF':'PDF sẵn sàng gửi',`<div class="space-y-3"><p>${aiEscape(result.fileName)}</p>${message?`<p role="alert" class="text-amber-300">${aiEscape(message)}</p>`:''}${buttons}<a class="block text-center bg-emerald-600 text-white p-3 rounded-xl font-bold" href="${pdfDownloadUrl}" target="_blank" rel="noopener">Mở PDF để chia sẻ</a><p class="text-xs text-slate-400">Nếu trình duyệt chặn chia sẻ: mở PDF, chọn Chia sẻ trong trình đọc tệp rồi chọn ${pdfChannelName(activePdfChannel)}. Nếu PDF được tải xuống, mở tệp trong mục Tải xuống.</p><a class="block text-center text-cyan-300 underline p-2" href="${pdfDownloadUrl}" download="${aiEscape(result.fileName)}">Tải file PDF về máy</a>${details?`<details class="text-xs text-slate-400"><summary>Thông tin lỗi chia sẻ</summary><p class="break-words mt-2">${aiEscape(details)}</p></details>`:''}</div>`,'info');
+            showModal(message?'Chưa chia sẻ được PDF':'PDF sẵn sàng gửi',`<div class="space-y-3"><p>${aiEscape(result.fileName)}</p>${message?`<p role="alert" class="text-amber-300">${aiEscape(message)}</p>`:''}${buttons}${result.shareMessage?`<label class="block text-sm font-bold" for="preparedPdfMessage">Lời nhắn kèm hóa đơn</label><textarea id="preparedPdfMessage" readonly rows="7" class="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-sm">${aiEscape(result.shareMessage)}</textarea><button id="copyPreparedPdfMessageButton" type="button" onclick="copyPreparedPdfMessage()" class="w-full bg-slate-700 text-white p-3 rounded-xl font-bold">Sao chép lời nhắn</button><p class="text-xs text-slate-400">PDF được gửi kèm lời nhắn và link QR. Nếu ứng dụng chỉ nhận PDF, sao chép lời nhắn để dán vào cuộc trò chuyện.</p>`:''}<a class="block text-center bg-emerald-600 text-white p-3 rounded-xl font-bold" href="${pdfDownloadUrl}" target="_blank" rel="noopener">Mở PDF để chia sẻ</a><p class="text-xs text-slate-400">Nếu trình duyệt chặn chia sẻ: mở PDF, chọn Chia sẻ trong trình đọc tệp rồi chọn ${pdfChannelName(activePdfChannel)}. Nếu PDF được tải xuống, mở tệp trong mục Tải xuống.</p><a class="block text-center text-cyan-300 underline p-2" href="${pdfDownloadUrl}" download="${aiEscape(result.fileName)}">Tải file PDF về máy</a>${details?`<details class="text-xs text-slate-400"><summary>Thông tin lỗi chia sẻ</summary><p class="break-words mt-2">${aiEscape(details)}</p></details>`:''}</div>`,'info');
         }
         async function downloadInvoicePDF(order=null) {
             showModal('Đang tạo file PDF…','Đang chuẩn bị hóa đơn có lớp chữ.','info');
@@ -5205,8 +5229,8 @@
                     presentPdfFile(result,'Trình duyệt không hỗ trợ chia sẻ tệp PDF này. Hãy dùng Mở PDF để chia sẻ từ trình đọc tệp.',activePdfChannel);return;
                 }
                 pdfNativeSharePending=true;
-                // Invoke synchronously from the real click; files only maximizes Android compatibility.
-                return Promise.resolve(navigator.share({files:[result.file]})).then(()=>{pdfNativeSharePending=false;},failed);
+                // Keep file and invoice message in the same native share, called directly from the click.
+                return Promise.resolve(navigator.share({files:[result.file],text:result.shareMessage || ''})).then(()=>{pdfNativeSharePending=false;},failed);
             }catch(e){failed(e);}
         }
         function shareInvoicePDF(channel='all',order=null) {
@@ -5247,11 +5271,7 @@
             document.getElementById('shareModalTotal').innerText = `${(o.total || 0).toLocaleString('vi-VN')} đ`;
             document.getElementById('shareModalFileName').innerText = fileName;
 
-            const cleanMemo = `HD${o.invoiceNo} ${(o.name || '').replace(/[^a-zA-Z0-9 ]/g, '')}`.substring(0, 25);
-            const qrUrl = `https://img.vietqr.io/image/vpbank-658489418-compact2.png?amount=${o.total}&addInfo=${encodeURIComponent(cleanMemo)}&accountName=HKD%20MINH%20SATORI`;
-
-            const shipShareText = (o.shippingAmount && o.shippingAmount > 0) ? `\n- Phí vận chuyển (${o.shippingPercent}%): ${(o.shippingAmount).toLocaleString('vi-VN')} đ` : '';
-            const summaryText = `Kính gửi ${o.name || 'Quý khách'} hóa đơn bán nước Satori #${o.invoiceNo}:\n- Tiền hàng: ${(o.goodsTotal || o.total || 0).toLocaleString('vi-VN')} đ${shipShareText}\n- Tổng thanh toán: ${(o.total || 0).toLocaleString('vi-VN')} đ\n- STK VPBank: 658489418 (HKD MINH SATORI)\n- Nội dung CK: ${cleanMemo}\nLink mã QR thanh toán: ${qrUrl}`;
+            const summaryText=invoicePdfShareMessage(o);
 
             document.getElementById('shareTextContent').value = summaryText;
             modal.classList.remove('hidden'); modal.classList.add('flex'); modal.style.setProperty('display', 'flex', 'important');

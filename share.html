@@ -16,6 +16,8 @@
 <p id="status" role="status" aria-live="polite">Giữ tab Minh Satori đang mở trong lúc chuẩn bị tệp.</p>
 <div class="actions"><button id="shareZalo" type="button" disabled>Gửi Zalo</button><button id="shareMessenger" type="button" class="messenger" disabled>Gửi Messenger</button></div>
 <p class="muted" id="shareHint">Khi PDF sẵn sàng, bấm nút rồi chọn ứng dụng trong khay chia sẻ của điện thoại.</p>
+<section id="messageSection" hidden><label for="invoiceMessage"><strong>Lời nhắn kèm hóa đơn</strong></label><textarea id="invoiceMessage" readonly rows="8" style="width:100%;margin:10px 0;padding:12px;border:1px solid #475569;border-radius:12px;background:#0f172a;color:#e2e8f0;font:14px system-ui;line-height:1.5"></textarea><button id="copyMessage" type="button" style="width:100%;background:#334155">Sao chép lời nhắn</button><p class="muted">PDF được gửi kèm lời nhắn và link QR thanh toán. Cách hiển thị do Zalo/Messenger quyết định. Nếu ứng dụng chỉ nhận PDF, sao chép lời nhắn rồi dán vào cuộc trò chuyện.</p></section>
+<button id="sharePdfOnly" type="button" style="width:100%;margin:12px 0;background:#334155" hidden>Gửi riêng PDF</button>
 <a id="openPdf" class="action" target="_blank" rel="noopener" hidden>Mở PDF để chia sẻ</a>
 <a id="downloadPdf" class="action download" hidden>Tải PDF về máy</a>
 <p id="samsungHelp" class="muted" hidden>Nếu Samsung Secret Mode không cho gửi trực tiếp: bấm <strong>Tải PDF về máy</strong>, mở mục <strong>Tải xuống</strong> trong Samsung Browser, chọn tệp rồi bấm <strong>Chia sẻ → Zalo hoặc Messenger</strong>. Nếu không có lựa chọn này, dùng Chrome Private đã gửi được trên máy anh.</p>
@@ -35,6 +37,8 @@
         shareError.textContent='Mã: '+code+' · '+message;
         hint.textContent=samsung?'Có thể gửi từ mục Tải xuống của Samsung Browser hoặc dùng Chrome Private.':'Bấm Mở PDF hoặc Tải PDF về máy để gửi từ trình đọc tệp.';
     }
+    const messageSection=document.getElementById('messageSection'),messageField=document.getElementById('invoiceMessage'),copyMessage=document.getElementById('copyMessage'),pdfOnly=document.getElementById('sharePdfOnly');
+    let shareMessage='',lastApp='Zalo';
     let file=null,url=null,receiving=false,sharing=false,received=false,readyTimer=null;
     const safeName=value=>(String(value||'Hoa_don.pdf').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').replace(/[^a-zA-Z0-9_.-]/g,'_').slice(0,140).replace(/\.pdf$/i,'')||'Hoa_don')+'.pdf';
     function ready(){if(!received)window.opener?.postMessage({channel,type:'ready',token},origin);}
@@ -48,6 +52,8 @@
         try{
             if(m.blob.size<5 || m.blob.size>25*1024*1024 || await m.blob.slice(0,5).text()!=='%PDF-')throw Error('Tệp nhận được chưa phải PDF hợp lệ.');
             file=new File([m.blob],safeName(m.fileName),{type:'application/pdf',lastModified:Date.now()});
+            shareMessage=typeof m.shareMessage==='string'?m.shareMessage.slice(0,12000):'';
+            messageField.value=shareMessage;messageSection.hidden=!shareMessage;
             received=true;clearInterval(readyTimer);url=URL.createObjectURL(file);name.textContent=file.name+' · '+Math.ceil(file.size/1024)+' KB';
             open.href=url;open.hidden=false;download.href=url;download.download=file.name;download.hidden=false;
             let supported=false;
@@ -58,9 +64,10 @@
             window.opener.postMessage({channel,type:'received',token},origin);
         }catch(e){receiveError(e.message);}finally{receiving=false;}
     }
-    function share(app){
+    function share(app,includeMessage=true){
         if(!file || sharing)return;
         if(typeof navigator.share!=='function'){status.textContent='Trình duyệt không có chức năng chia sẻ tệp. Hãy mở PDF để gửi.';return;}
+        lastApp=app;
         sharing=true;zalo.disabled=messenger.disabled=true;status.textContent='Chọn '+app+' và người nhận trong khay chia sẻ của điện thoại.';
         const fail=e=>{
             sharing=false;zalo.disabled=messenger.disabled=false;
@@ -73,13 +80,23 @@
                 TypeError:'Trình duyệt không chấp nhận chia sẻ PDF trong phiên hiện tại. Thử gửi từ tệp tải xuống.'
             };
             status.textContent=messages[e?.name]||'Chưa mở được khay chia sẻ. Bấm Mở PDF để tiếp tục.';
+            if(includeMessage && shareMessage && ['TypeError','DataError'].includes(e?.name)){pdfOnly.hidden=false;status.textContent='Ứng dụng chưa nhận được PDF kèm lời nhắn. Sao chép lời nhắn, bấm Gửi riêng PDF rồi dán lời nhắn vào cuộc trò chuyện.';}
             explainFailure(e?.name||'SHARE_FAILED',e?.message||status.textContent);
         };
         try{
             // Call directly in the user's click, after all file work has finished.
-            Promise.resolve(navigator.share({files:[file]})).then(()=>{sharing=false;zalo.disabled=messenger.disabled=false;status.textContent='Đã chuyển PDF cho chức năng chia sẻ của điện thoại.';},fail);
+            Promise.resolve(navigator.share(includeMessage && shareMessage?{files:[file],text:shareMessage}:{files:[file]})).then(()=>{sharing=false;zalo.disabled=messenger.disabled=false;status.textContent='Đã chuyển PDF cho chức năng chia sẻ của điện thoại.';},fail);
         }catch(e){fail(e);}
     }
+    copyMessage.addEventListener('click',async()=>{
+        if(!shareMessage)return;
+        try{
+            if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(shareMessage);
+            else {messageField.focus();messageField.select();if(!document.execCommand('copy'))throw Error();}
+            copyMessage.textContent='Đã sao chép lời nhắn';
+        }catch{messageField.focus();messageField.select();copyMessage.textContent='Chọn lời nhắn và sao chép thủ công';}
+    });
+    pdfOnly.addEventListener('click',()=>share(lastApp,false));
     zalo.addEventListener('click',()=>share('Zalo'));messenger.addEventListener('click',()=>share('Messenger'));
     if(!/^[a-f0-9]{32}$/.test(token||'') || !window.opener){receiveError('Mở trang này từ nút Gửi Zalo hoặc Gửi Messenger trong Minh Satori.');return;}
     window.addEventListener('message',receive);ready();readyTimer=setInterval(ready,500);
