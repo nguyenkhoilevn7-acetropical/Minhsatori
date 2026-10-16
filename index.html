@@ -158,7 +158,7 @@
                             </h1>
                             <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                Bản V17.1 · Gửi Zalo / Messenger
+                                Bản V17.2 · Đồng bộ Google Drive
                             </span>
                         </div>
                         <p class="text-xs text-slate-400">Hệ Thống Lên Hóa Đơn, Sổ Kế Toán & Quản Lý Doanh Số Tự Động 100%</p>
@@ -8381,7 +8381,7 @@ window.SatoriRecon = (() => {
     if (!location.hash.includes('satori-drive=1') || window.parent === window) return;
     window.__SATORI_DRIVE_APP__ = true;
     // Set only after the authorized deployment's actual sandbox origin is observed.
-    const cloudOrigin = 'PENDING_AUTHORIZED_GOOGLE_DEPLOYMENT_ORIGIN';
+    const cloudOrigin = 'https://n-odiq6uswj4btzrnvxzkeunjxowbbmowt7yh4sqa-0lu-script.googleusercontent.com';
     const channel = 'minhsatori-drive-v1';
     const cacheKey = 'satori_drive_bridge_pending_v1';
     const storage = window.localStorage;
@@ -8478,6 +8478,26 @@ window.SatoriRecon = (() => {
     setInterval(tick,15000);setTimeout(tick,0);
 })();
 
+</script>
+<script>
+(() => {
+    if (window.__SATORI_DRIVE_APP__) return;
+    const show = () => {
+        const note = document.createElement('div');
+        note.setAttribute('role', 'status');
+        note.className = 'no-print';
+        note.style.cssText = 'position:sticky;top:0;z-index:100000;padding:12px;background:#312e81;color:white;text-align:center;font:13px sans-serif';
+        note.appendChild(document.createTextNode('Bản này lưu riêng trên thiết bị. Để dùng cùng dữ liệu trên mọi máy, hãy mở bản Google Drive: '));
+        const link = document.createElement('a');
+        link.href = 'https://script.google.com/macros/s/AKfycbwJjiajW-gbCwCISrGjvLy5L5ETdmfAGV1zHpUWoeszRUXNgQ6vGHOs3DVABSAcEtV1/exec';
+        link.target = '_blank'; link.rel = 'noopener noreferrer';
+        link.textContent = 'Mở Minh Satori đồng bộ Drive';
+        link.style.cssText = 'color:#a5f3fc;text-decoration:underline;font-weight:bold';
+        note.appendChild(link);
+        document.body.prepend(note);
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show, {once:true}); else show();
+})();
 </script>
 </body>
 </html>
