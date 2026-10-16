@@ -56,7 +56,7 @@ function calculate(all,partners){
 // Reconciliation only: accent-insensitive keyword overlap, with a house-number guard.
 function addressSimilarity(left,right){
  const prepare=value=>{
-  let text=norm(value).replace(/\b(?:tp\s*)?ho chi minh\b|\btp\s*hcm\b|\btphcm\b|\bhcm\b|\bviet nam\b/g,' ')
+  let text=norm(value).replace(/\b([pq])(?=\d)/g,'$1 ').replace(/\b(?:tp\s*)?ho chi minh\b|\btp\s*hcm\b|\btphcm\b|\bhcm\b|\bviet nam\b/g,' ')
    .replace(/\b(?:thanh pho|thi xa|thi tran|quan|huyen|phuong|xa|tp|q|p)\b.*$/,' ')
    .replace(/\b(?:thanh pho|thi xa|thi tran|quan|huyen|phuong|xa|tp|q|p|duong|street|so|dia chi|viet nam)\b/g,' ')
    .replace(/\//g,' ').replace(/\s+/g,' ').trim();
@@ -67,7 +67,7 @@ function addressSimilarity(left,right){
  const score=a.tokens.length&&b.tokens.length?2*common.length/(a.tokens.length+b.tokens.length):0;
  const houseConflict=!!a.house&&!!b.house&&a.house!==b.house;
  const words=common.filter(t=>/[a-z]/.test(t));
- const sufficient=words.length>=2 || (words.length>=1&&common.some(t=>/^\d/.test(t)));
+ const sufficient=words.length>=2 || (words.length>=1&&common.some(t=>/^\d/.test(t))) || (!!a.house&&a.house===b.house&&common.length>=2);
  return {score,percent:Math.round(score*100),common,houseConflict,matched:score>=0.45&&sufficient&&!houseConflict};
 }
 function identityMatch(companies,locals){
