@@ -53,6 +53,19 @@ function calculate(all,partners){
  });
  return {...pairing,rows,partners:partners.map(p=>{const pr=rows.filter(r=>r.partnerId===p.id&&r.eligible);return {...p,count:pr.length,profit:pr.reduce((s,r)=>s+r.profit,0),settled:pr.reduce((s,r)=>s+r.settled,0),due:pr.reduce((s,r)=>s+r.due,0)};})};
 }
+// Group imported Satori lines before matching. Invoice and order IDs have separate namespaces.
+function groupCompanyRows(rows){
+ const parents=rows.map((_,i)=>i),seen=new Map();
+ const find=i=>parents[i]===i?i:(parents[i]=find(parents[i]));
+ const code=v=>{const s=String(v??'').trim().toUpperCase().replace(/\s+/g,' ');return /^(?:|0|-|N\/A|NULL|KHONG CO)$/.test(s)?'':s;};
+ rows.forEach((r,i)=>{
+  const ids=[code(r.invoice)&&'invoice:'+code(r.invoice),code(r.ref)&&'order:'+code(r.ref)].filter(Boolean);
+  if(!ids.length&&code(r.doc))ids.push('document:'+code(r.doc));
+  for(const id of ids){if(seen.has(id))parents[find(i)]=find(seen.get(id));else seen.set(id,i);}
+ });
+ const groups=new Map();rows.forEach((r,i)=>{const k=find(i);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);});
+ return [...groups.values()].map((list,i)=>{const unique=f=>[...new Set(list.map(r=>code(r[f])).filter(Boolean))];const invoices=unique('invoice'),refs=unique('ref');return {id:invoices.length?'invoice:'+invoices[0]:refs.length?'order:'+refs[0]:'row:'+i,rows:list,invoices,refs};});
+}
 // Reconciliation only: accent-insensitive keyword overlap, with a house-number guard.
 function addressSimilarity(left,right){
  const prepare=value=>{
@@ -76,16 +89,17 @@ function identityMatch(companies,locals){
  const matchedLocal=new Set();
  const rows=companies.map(a=>{
   const ac=codes(a);
-  const comparisons=locals.map((b,j)=>{const similarity=addressSimilarity(a.address,b.address);return {b,j,code:ac.some(c=>codes(b).includes(c)),address:similarity.matched,similarity};});
+  const comparisons=locals.map((b,j)=>{const similarity=(a.addresses?.length?a.addresses:[a.address]).map(v=>addressSimilarity(v,b.address)).sort((x,y)=>Number(y.matched)-Number(x.matched)||y.score-x.score)[0];return {b,j,code:ac.some(c=>codes(b).includes(c)),address:similarity.matched,similarity};});
   const candidates=comparisons.filter(x=>x.code||x.address);
   candidates.forEach(x=>matchedLocal.add(x.j));
   const unique=candidates.length===1?candidates[0].b:null;
   const basis=[...new Set(candidates.flatMap(x=>[x.code?'mã hóa đơn':'',x.address?'từ khóa địa chỉ ≥45%':'']).filter(Boolean))];
   const evidence=candidates.filter(x=>x.address).map(x=>'HĐ '+(x.b.invoice||x.b.ref||'nội bộ')+': '+x.similarity.percent+'% · từ trùng: '+x.similarity.common.join(', '));
-  return {company:a.rows||[],local:candidates.flatMap(x=>x.b.rows||[]),source:a,companyAmount:a.amount??null,localAmount:unique?.amount??null,delta:unique&&a.amount!=null&&unique.amount!=null?a.amount-unique.amount:null,status:candidates.length?'Khớp':'Không khớp',category:candidates.length?'matched':'unmatched',basis,addressMatches:candidates.filter(x=>x.address).map(x=>({invoice:x.b.invoice||x.b.ref||'',percent:x.similarity.percent,common:x.similarity.common})),detail:candidates.length?'Khớp '+basis.join(' hoặc ')+'. '+evidence.join('; ')+(candidates.length>1?' · Có '+candidates.length+' hóa đơn nội bộ phù hợp; liệt kê tất cả, không tự bù trừ tiền.':'')+(a.error?' · Dữ liệu phụ: '+a.error:''):'Không có mã hóa đơn trùng hoặc địa chỉ đạt 45% từ khóa phù hợp. Địa chỉ khác số nhà không tự ghép. Tên, SĐT, ngày, hàng, số lượng và tiền không quyết định kết quả.'};
+  return {company:a.rows||[],local:candidates.flatMap(x=>x.b.rows||[]),source:a,companyAmount:a.amount??null,localAmount:unique?.amount??null,delta:unique&&a.amount!=null&&unique.amount!=null?a.amount-unique.amount:null,status:candidates.length?'Khớp':'Không khớp',category:candidates.length?'matched':'unmatched',basis,addressMatches:candidates.filter(x=>x.address).map(x=>({invoice:x.b.invoice||x.b.ref||'',percent:x.similarity.percent,common:x.similarity.common})),detail:(a.groupDetail?a.groupDetail+' ':'')+(candidates.length?'Khớp '+basis.join(' hoặc ')+'. '+evidence.join('; ')+(candidates.length>1?' · Có '+candidates.length+' hóa đơn nội bộ phù hợp; liệt kê tất cả, không tự bù trừ tiền.':'')+(a.error?' · Dữ liệu phụ: '+a.error:''):'Không có mã hóa đơn trùng hoặc địa chỉ đạt 45% từ khóa phù hợp. Địa chỉ khác số nhà không tự ghép. Tên, SĐT, ngày, hàng, số lượng và tiền không quyết định kết quả.')};
  });
  locals.forEach((b,j)=>{if(!matchedLocal.has(j))rows.push({company:[],local:b.rows||[],source:null,companyAmount:null,localAmount:b.amount??null,delta:null,status:'Chưa có trong Excel',category:'localOnly',basis:[],detail:'Đơn nội bộ không có mã hoặc từ khóa địa chỉ khớp trong Excel (ngưỡng 45%).'});});
  return rows;
 }
-root.SatoriAccountingCore={key,norm,number,active,paid,items,goods,listed,total,basket,pairOrders,calculate,addressSimilarity,identityMatch};
+root.SatoriAccountingCore={key,norm,number,active,paid,items,goods,listed,total,basket,pairOrders,calculate,groupCompanyRows,addressSimilarity,identityMatch};
 })(typeof window!=='undefined'?window:globalThis);
+
