@@ -158,7 +158,7 @@
                             </h1>
                             <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                Bản V17.3 · Đồng bộ Google Drive
+                                Bản V17.4 · Drive & PDF
                             </span>
                         </div>
                         <p class="text-xs text-slate-400">Hệ Thống Lên Hóa Đơn, Sổ Kế Toán & Quản Lý Doanh Số Tự Động 100%</p>
@@ -5015,6 +5015,44 @@
         let lastGeneratedPdfFilename = null;
 
         let textPdfReady = null;
+        const invoicePdfTransfers=new Map();
+        window.addEventListener('message',event=>{
+            const m=event.data,entry=invoicePdfTransfers.get(m?.token);
+            if(!entry || event.origin!==location.origin || event.source!==entry.popup || m.channel!=='minhsatori-pdf-v1')return;
+            if(m.type==='received'){clearTimeout(entry.timer);invoicePdfTransfers.delete(m.token);return;}
+            if(m.type!=='ready')return;
+            entry.ready=true;sendStandalonePdf(entry,m.token);
+        });
+        function sendStandalonePdf(entry,token){
+            if(!entry.ready || entry.popup.closed)return;
+            if(entry.error)entry.popup.postMessage({channel:'minhsatori-pdf-v1',type:'error',token,message:entry.error},location.origin);
+            else if(entry.result)entry.popup.postMessage({channel:'minhsatori-pdf-v1',type:'file',token,blob:entry.result.blob,fileName:entry.result.fileName},location.origin);
+        }
+        function openStandalonePdfShare(channel,resultOrPromise){
+            const random=crypto.getRandomValues(new Uint8Array(16)),token=Array.from(random,n=>n.toString(16).padStart(2,'0')).join('');
+            const url=new URL('share.html',location.href);url.hash='token='+token+'&app='+encodeURIComponent(channel);
+            // Open synchronously before preparing the PDF, so mobile popup blockers see the actual click.
+            const popup=window.open(url.href,'_blank');
+            if(!popup){
+                Promise.resolve(resultOrPromise).then(result=>presentPdfFile(result,'Trình duyệt đã chặn mở trang chia sẻ. Cho phép mở tab mới cho trang này rồi bấm gửi lại.',channel),e=>showModal('Chưa tạo được PDF',aiEscape(e.message),'error'));
+                return;
+            }
+            const entry={popup,result:null,error:null,ready:false,timer:null};invoicePdfTransfers.set(token,entry);
+            entry.timer=setTimeout(()=>{invoicePdfTransfers.delete(token);},120000);
+            Promise.resolve(resultOrPromise).then(result=>{entry.result=result;sendStandalonePdf(entry,token);},e=>{entry.error=e.message||'Không tạo được PDF.';sendStandalonePdf(entry,token);});
+            return popup;
+        }
+        let invoiceLogoPromise=null;
+        function invoiceLogoImage(){
+            if(!invoiceLogoPromise)invoiceLogoPromise=(async()=>{
+                const response=await fetch(new URL('icon-192.png',location.href).href);
+                if(!response.ok)throw Error('Chưa tải được logo hóa đơn. Tải lại trang và thử lại.');
+                const blob=await response.blob();
+                return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Không đọc được logo hóa đơn.'));reader.readAsDataURL(blob);});
+            })().catch(e=>{invoiceLogoPromise=null;throw e;});
+            return invoiceLogoPromise;
+        }
+
         async function ensureTextPdf() {
             if (!textPdfReady) textPdfReady=(async()=>{
                 for(const root of ['https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/','https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/']) {
@@ -5028,7 +5066,7 @@
             })().catch(e=>{textPdfReady=null;throw e;});
             return textPdfReady;
         }
-        function invoicePdfDefinition(o, qrImage=null) {
+        function invoicePdfDefinition(o, qrImage=null, logoImage=null) {
             const items=o.items?.length?o.items:[{product:o.product,unit:o.unit || 'Thùng',qty:o.qty,listPrice:o.listPrice,unitPrice:o.unitPrice}];
             if(!items.length)throw new Error('Hóa đơn chưa có mặt hàng.');
             const money=n=>Number(n || 0).toLocaleString('vi-VN')+' đ';
@@ -5046,7 +5084,7 @@
             return {pageSize:'A4',pageMargins:[30,30,30,35],defaultStyle:{font:'Roboto',fontSize:9,color:'#0f172a'},info:{title:'Hóa đơn #'+o.invoiceNo+' - '+(o.name || ''),author:'HKD Minh Satori'},
                 footer:(page,count)=>({text:page+' / '+count,alignment:'right',fontSize:8,margin:[30,8,30,0],color:'#64748b'}),
                 content:[
-                    {columns:[{width:'*',stack:[{text:'HỘ KINH DOANH MINH SATORI',bold:true,fontSize:15,color:'#0369a1'},'Mã số thuế: 075087004222','Hotline: 0903 772 980',{text:'Địa chỉ: Số 96/41 Tôn Đản, Phường Khánh Hội, TP. Hồ Chí Minh',fontSize:8}]},{width:145,alignment:'right',stack:[{text:'PHIẾU XUẤT HÓA ĐƠN',bold:true,fontSize:13},{text:'#'+o.invoiceNo,bold:true,fontSize:14,color:'#b45309'},String(o.date || ''),String(o.status || 'Chưa thanh toán')]}]},
+                    {columns:[...(logoImage?[{width:62,image:logoImage,fit:[50,50],margin:[0,0,10,0]}]:[]),{width:'*',stack:[{text:'HỘ KINH DOANH MINH SATORI',bold:true,fontSize:15,color:'#0369a1'},'Mã số thuế: 075087004222','Hotline: 0903 772 980',{text:'Địa chỉ: Số 96/41 Tôn Đản, Phường Khánh Hội, TP. Hồ Chí Minh',fontSize:8}]},{width:145,alignment:'right',stack:[{text:'PHIẾU XUẤT HÓA ĐƠN',bold:true,fontSize:13},{text:'#'+o.invoiceNo,bold:true,fontSize:14,color:'#b45309'},String(o.date || ''),String(o.status || 'Chưa thanh toán')]}]},
                     {canvas:[{type:'line',x1:0,y1:0,x2:535,y2:0,lineWidth:1,lineColor:'#0284c7'}],margin:[0,12,0,12]},
                     {text:'THÔNG TIN KHÁCH HÀNG',bold:true,color:'#0369a1',margin:[0,0,0,6]},
                     {text:'Khách hàng: '+(o.name || 'Khách vãng lai')},
@@ -5073,7 +5111,8 @@
         async function renderInvoiceToPdfBlob(order=null) {
             const o=JSON.parse(JSON.stringify(order || currentModalViewedOrder || getCurrentInvoiceData()));
             const pdfMake=await ensureTextPdf();
-            const definition=invoicePdfDefinition(o,await invoiceQrImage(o));
+            const [qrImage,logoImage]=await Promise.all([invoiceQrImage(o),invoiceLogoImage()]);
+            const definition=invoicePdfDefinition(o,qrImage,logoImage);
             const blob=await new Promise((resolve,reject)=>{
                 const timeout=setTimeout(()=>reject(new Error('Tạo PDF quá thời gian. Hãy bấm thử lại.')),30000);
                 try{pdfMake.createPdf(definition).getBlob(b=>{clearTimeout(timeout);resolve(b);});}catch(e){clearTimeout(timeout);reject(e);}
@@ -5136,7 +5175,7 @@
             activePreparedPdf=result;activePdfChannel=channel==='messenger'?'messenger':'zalo';
             if(pdfDownloadUrl)URL.revokeObjectURL(pdfDownloadUrl);
             pdfDownloadUrl=URL.createObjectURL(result.blob);
-            const supportsShare=typeof navigator.share==='function' && result.file;
+            const supportsShare=(window.parent!==window || typeof navigator.share==='function') && result.file;
             const buttons=supportsShare?`<div class="grid grid-cols-2 gap-2"><button type="button" data-pdf-share="zalo" onclick="sharePreparedInvoicePdf('zalo')" class="bg-blue-600 text-white p-3 rounded-xl font-bold">Gửi Zalo</button><button type="button" data-pdf-share="messenger" onclick="sharePreparedInvoicePdf('messenger')" class="bg-indigo-600 text-white p-3 rounded-xl font-bold">Gửi Messenger</button></div><p class="text-xs text-slate-400">Điện thoại mở khay chia sẻ tệp PDF. Chọn ${pdfChannelName(activePdfChannel)} trong danh sách ứng dụng.</p>`:'<p class="text-amber-300">Trình duyệt này không có chức năng chia sẻ tệp trực tiếp. Mở PDF bên dưới để chia sẻ từ trình đọc tệp.</p>';
             showModal(message?'Chưa chia sẻ được PDF':'PDF sẵn sàng gửi',`<div class="space-y-3"><p>${aiEscape(result.fileName)}</p>${message?`<p role="alert" class="text-amber-300">${aiEscape(message)}</p>`:''}${buttons}<a class="block text-center bg-emerald-600 text-white p-3 rounded-xl font-bold" href="${pdfDownloadUrl}" target="_blank" rel="noopener">Mở PDF để chia sẻ</a><p class="text-xs text-slate-400">Nếu trình duyệt chặn chia sẻ: mở PDF, chọn Chia sẻ trong trình đọc tệp rồi chọn ${pdfChannelName(activePdfChannel)}. Nếu PDF được tải xuống, mở tệp trong mục Tải xuống.</p><a class="block text-center text-cyan-300 underline p-2" href="${pdfDownloadUrl}" download="${aiEscape(result.fileName)}">Tải file PDF về máy</a>${details?`<details class="text-xs text-slate-400"><summary>Thông tin lỗi chia sẻ</summary><p class="break-words mt-2">${aiEscape(details)}</p></details>`:''}</div>`,'info');
         }
@@ -5150,6 +5189,7 @@
         function sharePreparedInvoicePdf(channel='zalo',result=activePreparedPdf) {
             if(!result || pdfNativeSharePending)return;
             activePreparedPdf=result;activePdfChannel=channel==='messenger'?'messenger':'zalo';
+            if(window.parent!==window)return openStandalonePdfShare(activePdfChannel,result);
             if(typeof navigator.share!=='function' || !result.file) {presentPdfFile(result,'',activePdfChannel);return;}
             const hadActivation=navigator.userActivation?.isActive;
             const failed=e=>{
@@ -5171,6 +5211,7 @@
         function shareInvoicePDF(channel='all',order=null) {
             const o=resolvePdfOrder(order),cached=preparedInvoicePdfs.get(invoicePdfKey(o));
             if(channel==='zalo' || channel==='messenger')activePdfChannel=channel;
+            if(window.parent!==window && (channel==='zalo' || channel==='messenger'))return openStandalonePdfShare(channel,cached?.result || prepareInvoicePdf(o));
             if(cached?.result) {
                 if(channel==='all'){presentPdfFile(cached.result);return;}
                 return sharePreparedInvoicePdf(channel,cached.result);

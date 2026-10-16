@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Gửi hóa đơn PDF · Minh Satori</title>
+<style>
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;background:#0f172a;color:#e2e8f0;font:16px system-ui,sans-serif;line-height:1.5;padding:24px}main{max-width:580px;margin:32px auto;padding:24px;background:#172033;border:1px solid #334155;border-radius:20px}header{display:flex;gap:14px;align-items:center}header img{width:50px;height:50px;object-fit:contain}h1{font-size:23px;margin:0}p{margin:14px 0}.muted{color:#a8b6cb;font-size:14px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0}button,a.action{font:inherit;font-weight:700;border:0;border-radius:12px;padding:14px;text-align:center;text-decoration:none;cursor:pointer;color:white;background:#2563eb}button:disabled{opacity:.45;cursor:wait}.messenger{background:#4f46e5}a.action{display:block;margin-top:12px;background:#047857}a.download{background:#334155}#status{border-radius:10px;padding:12px;background:#1e293b;overflow-wrap:anywhere}#fileName{overflow-wrap:anywhere}button:focus-visible,a:focus-visible{outline:3px solid #fbbf24;outline-offset:3px}
+</style>
+</head>
+<body>
+<main>
+<header><img src="icon-192.png" alt="Logo Satori"><div><h1>Gửi hóa đơn PDF</h1><div class="muted">Hộ kinh doanh Minh Satori</div></div></header>
+<p id="fileName">Đang nhận hóa đơn từ ứng dụng…</p>
+<p id="status" role="status" aria-live="polite">Giữ tab Minh Satori đang mở trong lúc chuẩn bị tệp.</p>
+<div class="actions"><button id="shareZalo" type="button" disabled>Gửi Zalo</button><button id="shareMessenger" type="button" class="messenger" disabled>Gửi Messenger</button></div>
+<p class="muted" id="shareHint">Khi PDF sẵn sàng, bấm nút rồi chọn ứng dụng trong khay chia sẻ của điện thoại.</p>
+<a id="openPdf" class="action" target="_blank" rel="noopener" hidden>Mở PDF để chia sẻ</a>
+<a id="downloadPdf" class="action download" hidden>Tải PDF về máy</a>
+<p class="muted">Trang này chỉ giữ tệp tạm trong bộ nhớ của trình duyệt. Tệp không được tải lên máy chủ chia sẻ.</p>
+</main>
+<script>
+(() => {
+    'use strict';
+    const params=new URLSearchParams(location.hash.slice(1)),token=params.get('token'),channel='minhsatori-pdf-v1',origin=location.origin;
+    const status=document.getElementById('status'),name=document.getElementById('fileName'),zalo=document.getElementById('shareZalo'),messenger=document.getElementById('shareMessenger'),open=document.getElementById('openPdf'),download=document.getElementById('downloadPdf'),hint=document.getElementById('shareHint');
+    let file=null,url=null,receiving=false,sharing=false,received=false,readyTimer=null;
+    const safeName=value=>(String(value||'Hoa_don.pdf').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').replace(/[^a-zA-Z0-9_.-]/g,'_').slice(0,140).replace(/\.pdf$/i,'')||'Hoa_don')+'.pdf';
+    function ready(){if(!received)window.opener?.postMessage({channel,type:'ready',token},origin);}
+    function receiveError(message){status.textContent=message;name.textContent='Chưa nhận được PDF.';}
+    async function receive(event){
+        const m=event.data;
+        if(!window.opener || event.source!==window.opener || event.origin!==origin || m?.channel!==channel || m.token!==token || received || receiving)return;
+        if(m.type==='error'){clearInterval(readyTimer);receiveError(m.message||'Không tạo được PDF. Quay lại ứng dụng và thử lại.');return;}
+        if(m.type!=='file' || !(m.blob instanceof Blob))return;
+        receiving=true;
+        try{
+            if(m.blob.size<5 || m.blob.size>25*1024*1024 || await m.blob.slice(0,5).text()!=='%PDF-')throw Error('Tệp nhận được chưa phải PDF hợp lệ.');
+            file=new File([m.blob],safeName(m.fileName),{type:'application/pdf',lastModified:Date.now()});
+            received=true;clearInterval(readyTimer);url=URL.createObjectURL(file);name.textContent=file.name+' · '+Math.ceil(file.size/1024)+' KB';
+            open.href=url;open.hidden=false;download.href=url;download.download=file.name;download.hidden=false;
+            let supported=false;
+            try{supported=typeof navigator.share==='function' && (typeof navigator.canShare!=='function'||navigator.canShare({files:[file]}));}catch{}
+            zalo.disabled=messenger.disabled=!supported;
+            status.textContent=supported?'PDF đã sẵn sàng. Bấm Gửi Zalo hoặc Gửi Messenger.':'Trình duyệt hiện tại không hỗ trợ chia sẻ tệp PDF trực tiếp. Bấm Mở PDF để gửi từ trình đọc tệp.';
+            window.opener.postMessage({channel,type:'received',token},origin);
+        }catch(e){receiveError(e.message);}finally{receiving=false;}
+    }
+    function share(app){
+        if(!file || sharing)return;
+        if(typeof navigator.share!=='function'){status.textContent='Trình duyệt không có chức năng chia sẻ tệp. Hãy mở PDF để gửi.';return;}
+        sharing=true;zalo.disabled=messenger.disabled=true;status.textContent='Chọn '+app+' và người nhận trong khay chia sẻ của điện thoại.';
+        const fail=e=>{sharing=false;zalo.disabled=messenger.disabled=false;status.textContent=e?.name==='AbortError'?'Đã đóng khay chia sẻ. PDF vẫn sẵn sàng để gửi.':e?.name==='NotAllowedError'?'Trình duyệt đang chặn chia sẻ tệp PDF. Bấm Mở PDF để chia sẻ từ trình đọc tệp.':'Chưa mở được khay chia sẻ. Bấm Mở PDF để tiếp tục.';};
+        try{
+            // Call directly in the user's click, after all file work has finished.
+            Promise.resolve(navigator.share({files:[file]})).then(()=>{sharing=false;zalo.disabled=messenger.disabled=false;status.textContent='Đã chuyển PDF cho chức năng chia sẻ của điện thoại.';},fail);
+        }catch(e){fail(e);}
+    }
+    zalo.addEventListener('click',()=>share('Zalo'));messenger.addEventListener('click',()=>share('Messenger'));
+    if(!/^[a-f0-9]{32}$/.test(token||'') || !window.opener){receiveError('Mở trang này từ nút Gửi Zalo hoặc Gửi Messenger trong Minh Satori.');return;}
+    window.addEventListener('message',receive);ready();readyTimer=setInterval(ready,500);
+    setTimeout(()=>{if(!received){clearInterval(readyTimer);status.textContent='Chưa nhận được tệp. Giữ tab Minh Satori mở; nếu đã đóng, quay lại hóa đơn và bấm gửi lần nữa.';}},60000);
+    window.addEventListener('beforeunload',()=>{if(url)URL.revokeObjectURL(url);});
+})();
+</script>
+</body>
+</html>
