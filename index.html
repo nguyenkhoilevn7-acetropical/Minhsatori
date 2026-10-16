@@ -8468,14 +8468,16 @@ window.SatoriRecon = (() => {
         if(!initialized) {
             const pending=storage.getItem(cacheKey);
             if(pending) {
-                const saved=JSON.parse(pending);base=saved.base;apply(saved.local);
+                const saved=JSON.parse(pending);base=saved.base;apply(saved.local,sent);
             } else {
                 const raw=storage.getItem('satori_orders_v15');
                 if(raw)set.call(storage,'satori_orders_recovery_before_cloud_'+Date.now(),raw);
-                apply(remote);base=remote;
+                if(equal(snapshot(),sent)){apply(remote);base=remote;}
+                else {base=sent;}
             }
             initialized=true;
-        } else {apply(remote,sent);base=remote;}
+        } else if(equal(snapshot(),sent)){apply(remote);base=remote;}
+        else {base=sent;}
         persistPending();
         const pending=!equal(snapshot(),base);
         label.textContent=pending?'Dữ liệu trên máy đang chờ gửi lên Drive…':'Đã đồng bộ Google Drive · bản '+m.state.revision;
