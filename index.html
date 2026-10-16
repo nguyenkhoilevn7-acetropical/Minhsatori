@@ -8430,10 +8430,14 @@ window.SatoriRecon = (() => {
     };
     function apply(values, sent) {
         const current=snapshot();
+        let changed=false;
         for(const key of keys) {
             if(sent && current[key]!==sent[key])continue;
+            if(current[key]===values[key])continue;
+            changed=true;
             if(values[key]===undefined)remove.call(storage,key);else set.call(storage,key,values[key]);
         }
+        if(!changed)return;
         const safeRefresh=()=>{try{refresh();}catch(e){console.warn('Dữ liệu đã nhận; cần tải lại giao diện.',e);}};
         if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',safeRefresh,{once:true});else safeRefresh();
     }
