@@ -8505,11 +8505,15 @@ window.SatoriRecon = (() => {
         note.style.cssText = 'position:sticky;top:0;z-index:100000;padding:12px;background:#312e81;color:white;text-align:center;font:13px sans-serif';
         note.appendChild(document.createTextNode('Bản này lưu riêng trên thiết bị. Để dùng cùng dữ liệu trên mọi máy, hãy mở bản Google Drive: '));
         const link = document.createElement('a');
-        link.href = 'https://script.google.com/macros/s/AKfycbwJjiajW-gbCwCISrGjvLy5L5ETdmfAGV1zHpUWoeszRUXNgQ6vGHOs3DVABSAcEtV1/exec';
+        link.href = 'https://script.google.com/macros/s/AKfycbwJjiajW-gbCwCISrGjvLy5L5ETdmfAGV1zHpUWoeszRUXNgQ6vGHOs3DVABSAcEtV1/exec?authuser=nguyenkhoilevn7%40gmail.com';
         link.target = '_blank'; link.rel = 'noopener noreferrer';
         link.textContent = 'Mở Minh Satori đồng bộ Drive';
         link.style.cssText = 'color:#a5f3fc;text-decoration:underline;font-weight:bold';
         note.appendChild(link);
+        const help=document.createElement('div');
+        help.textContent='Dùng tài khoản nguyenkhoilevn7@gmail.com. Nếu Google báo không mở được, thử tab ẩn danh và chỉ đăng nhập tài khoản này.';
+        help.style.cssText='font-size:12px;margin-top:6px';
+        note.appendChild(help);
         document.body.prepend(note);
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show, {once:true}); else show();
