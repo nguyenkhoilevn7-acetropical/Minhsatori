@@ -11,13 +11,15 @@
 </head>
 <body>
 <main>
-<header><img src="icon-192.png" alt="Logo Satori"><div><h1>Gửi hóa đơn PDF</h1><div class="muted">Hộ kinh doanh Minh Satori</div></div></header>
+<header><img src="logo-satori-3394.jpg" alt="Logo Satori"><div><h1>Gửi hóa đơn PDF</h1><div class="muted">Hộ kinh doanh Minh Satori</div></div></header>
 <p id="fileName">Đang nhận hóa đơn từ ứng dụng…</p>
 <p id="status" role="status" aria-live="polite">Giữ tab Minh Satori đang mở trong lúc chuẩn bị tệp.</p>
 <div class="actions"><button id="shareZalo" type="button" disabled>Gửi Zalo</button><button id="shareMessenger" type="button" class="messenger" disabled>Gửi Messenger</button></div>
 <p class="muted" id="shareHint">Khi PDF sẵn sàng, bấm nút rồi chọn ứng dụng trong khay chia sẻ của điện thoại.</p>
 <a id="openPdf" class="action" target="_blank" rel="noopener" hidden>Mở PDF để chia sẻ</a>
 <a id="downloadPdf" class="action download" hidden>Tải PDF về máy</a>
+<p id="samsungHelp" class="muted" hidden>Nếu Samsung Secret Mode không cho gửi trực tiếp: bấm <strong>Tải PDF về máy</strong>, mở mục <strong>Tải xuống</strong> trong Samsung Browser, chọn tệp rồi bấm <strong>Chia sẻ → Zalo hoặc Messenger</strong>. Nếu không có lựa chọn này, dùng Chrome Private đã gửi được trên máy anh.</p>
+<details id="shareDiagnostics" class="muted" hidden><summary>Thông tin lỗi chia sẻ</summary><p id="shareError"></p></details>
 <p class="muted">Trang này chỉ giữ tệp tạm trong bộ nhớ của trình duyệt. Tệp không được tải lên máy chủ chia sẻ.</p>
 </main>
 <script>
@@ -25,6 +27,14 @@
     'use strict';
     const params=new URLSearchParams(location.hash.slice(1)),token=params.get('token'),channel='minhsatori-pdf-v1',origin=location.origin;
     const status=document.getElementById('status'),name=document.getElementById('fileName'),zalo=document.getElementById('shareZalo'),messenger=document.getElementById('shareMessenger'),open=document.getElementById('openPdf'),download=document.getElementById('downloadPdf'),hint=document.getElementById('shareHint');
+    const samsung=/SamsungBrowser\//i.test(navigator.userAgent||'');
+    const samsungHelp=document.getElementById('samsungHelp'),diagnostics=document.getElementById('shareDiagnostics'),shareError=document.getElementById('shareError');
+    samsungHelp.hidden=!samsung;
+    function explainFailure(code,message){
+        diagnostics.hidden=false;
+        shareError.textContent='Mã: '+code+' · '+message;
+        hint.textContent=samsung?'Có thể gửi từ mục Tải xuống của Samsung Browser hoặc dùng Chrome Private.':'Bấm Mở PDF hoặc Tải PDF về máy để gửi từ trình đọc tệp.';
+    }
     let file=null,url=null,receiving=false,sharing=false,received=false,readyTimer=null;
     const safeName=value=>(String(value||'Hoa_don.pdf').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').replace(/[^a-zA-Z0-9_.-]/g,'_').slice(0,140).replace(/\.pdf$/i,'')||'Hoa_don')+'.pdf';
     function ready(){if(!received)window.opener?.postMessage({channel,type:'ready',token},origin);}
@@ -43,6 +53,7 @@
             let supported=false;
             try{supported=typeof navigator.share==='function' && (typeof navigator.canShare!=='function'||navigator.canShare({files:[file]}));}catch{}
             zalo.disabled=messenger.disabled=!supported;
+            if(!supported)explainFailure(typeof navigator.share!=='function'?'SHARE_API_UNAVAILABLE':'PDF_SHARE_UNSUPPORTED','Trình duyệt không cung cấp chức năng chia sẻ PDF trong phiên hiện tại.');
             status.textContent=supported?'PDF đã sẵn sàng. Bấm Gửi Zalo hoặc Gửi Messenger.':'Trình duyệt hiện tại không hỗ trợ chia sẻ tệp PDF trực tiếp. Bấm Mở PDF để gửi từ trình đọc tệp.';
             window.opener.postMessage({channel,type:'received',token},origin);
         }catch(e){receiveError(e.message);}finally{receiving=false;}
@@ -51,7 +62,19 @@
         if(!file || sharing)return;
         if(typeof navigator.share!=='function'){status.textContent='Trình duyệt không có chức năng chia sẻ tệp. Hãy mở PDF để gửi.';return;}
         sharing=true;zalo.disabled=messenger.disabled=true;status.textContent='Chọn '+app+' và người nhận trong khay chia sẻ của điện thoại.';
-        const fail=e=>{sharing=false;zalo.disabled=messenger.disabled=false;status.textContent=e?.name==='AbortError'?'Đã đóng khay chia sẻ. PDF vẫn sẵn sàng để gửi.':e?.name==='NotAllowedError'?'Trình duyệt đang chặn chia sẻ tệp PDF. Bấm Mở PDF để chia sẻ từ trình đọc tệp.':'Chưa mở được khay chia sẻ. Bấm Mở PDF để tiếp tục.';};
+        const fail=e=>{
+            sharing=false;zalo.disabled=messenger.disabled=false;
+            if(e?.name==='AbortError'){status.textContent='Đã đóng khay chia sẻ. PDF vẫn sẵn sàng để gửi.';return;}
+            const messages={
+                NotAllowedError:'Trình duyệt đang chặn chia sẻ tệp PDF. Bấm Mở PDF hoặc Tải PDF về máy để tiếp tục.',
+                SecurityError:'Phiên trình duyệt hiện tại không cho phép chia sẻ tệp. Bấm Tải PDF về máy để tiếp tục.',
+                InvalidStateError:'Đang có một khay chia sẻ khác. Đóng khay đó rồi bấm gửi lại.',
+                DataError:'Trình duyệt chưa chuyển được PDF cho ứng dụng nhận. Thử gửi từ tệp tải xuống.',
+                TypeError:'Trình duyệt không chấp nhận chia sẻ PDF trong phiên hiện tại. Thử gửi từ tệp tải xuống.'
+            };
+            status.textContent=messages[e?.name]||'Chưa mở được khay chia sẻ. Bấm Mở PDF để tiếp tục.';
+            explainFailure(e?.name||'SHARE_FAILED',e?.message||status.textContent);
+        };
         try{
             // Call directly in the user's click, after all file work has finished.
             Promise.resolve(navigator.share({files:[file]})).then(()=>{sharing=false;zalo.disabled=messenger.disabled=false;status.textContent='Đã chuyển PDF cho chức năng chia sẻ của điện thoại.';},fail);
