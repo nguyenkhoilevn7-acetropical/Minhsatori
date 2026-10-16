@@ -3389,6 +3389,7 @@
 
             // Populate Form Fields
             document.getElementById('busName').value = customerName;
+            Acct.suggestPartner(contact);
             document.getElementById('busPhone').value = fullPhone;
             document.getElementById('busLocation').value = locationVal;
             document.getElementById('vatOption').value = hasVat ? 'yes' : 'no';
@@ -3760,6 +3761,7 @@
         }
 
         function cancelEditOrder() {
+            Acct.formSelect();
             duplicateSourceInvoice=null;
             document.getElementById('duplicateDraftNotice')?.classList.add('hidden');
             currentEditingOrderId = null;
@@ -8420,7 +8422,7 @@ window.SatoriRecon = (() => {
 
     </script>
 <script src="accounting-workbook.js?v=181"></script>
-<script src="accounting.js?v=181"></script>
+<script src="accounting.js?v=182"></script>
 <script>
 (() => {
     if (!location.hash.includes('satori-drive=1') || window.parent === window) return;
