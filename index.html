@@ -8386,12 +8386,22 @@ window.SatoriRecon = (() => {
     const cacheKey = 'satori_drive_bridge_pending_v1';
     const storage = window.localStorage;
     const set = Storage.prototype.setItem, remove = Storage.prototype.removeItem;
-    const keys = ['satori_orders_v15','satori_catalogue_v15','satori_ai_customer_memory','satori_trash_bin_v15','satori_deleted_invoice_nos','satori_system_default_cost_discount','satori_app_version'];
+    const keys = ['satori_orders_v15','satori_catalogue_v15','satori_ai_customer_memory','satori_trash_bin_v15','satori_deleted_invoice_nos','satori_system_default_cost_discount','satori_app_version','satori_drive_verified_at'];
     let base=null, busy=null, initialized=false, timer=null, id=0;
     const status=document.createElement('div');
     status.id='driveConnectionStatus';status.setAttribute('role','status');
+    const label=document.createElement('span');
+    const check=document.createElement('button');
+    check.type='button';check.textContent='Kiểm tra lưu Drive';
+    check.style.cssText='margin-left:12px;padding:4px 8px;border:1px solid white;border-radius:6px;color:white;background:transparent;cursor:pointer';
+    check.addEventListener('click',()=>{
+        if(!initialized){label.textContent='Chờ kết nối Drive trước khi kiểm tra lưu.';return;}
+        try {storage.setItem('satori_drive_verified_at',new Date().toISOString());}
+        catch(e){label.textContent='Chưa lưu được mốc kiểm tra: '+e.message;}
+    });
+    status.append(label,check);
     status.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:99999;padding:10px;background:#7c2d12;color:white;font:13px sans-serif;text-align:center';
-    status.textContent='Đang chờ kết nối Google Drive; chưa xác nhận đồng bộ.';
+    label.textContent='Đang chờ kết nối Google Drive; chưa xác nhận đồng bộ.';
     document.addEventListener('DOMContentLoaded',()=>document.body.appendChild(status));
     const snapshot=()=>Object.fromEntries(keys.map(k=>[k,storage.getItem(k)]).filter(x=>x[1]!==null));
     const equal=(a,b)=>keys.every(k=>a[k]===b[k]);
@@ -8410,7 +8420,7 @@ window.SatoriRecon = (() => {
             if(before===null)remove.call(this,k);else set.call(this,k,before);
             throw e;
         }
-        status.textContent='Đã lưu trên máy; đang chờ Google Drive xác nhận…';schedule();
+        label.textContent='Đã lưu trên máy; đang chờ Google Drive xác nhận…';schedule();
     };
     Storage.prototype.removeItem=function(k) {
         if(this!==storage || !keys.includes(k))return remove.call(this,k);
@@ -8441,18 +8451,18 @@ window.SatoriRecon = (() => {
     function tick() {
         if(busy || document.hidden)return;
         if(!/^https:\/\/[a-z0-9-]+(?:\.script|-script)\.googleusercontent\.com$/.test(cloudOrigin)) {
-            status.textContent='Google Drive chưa được kích hoạt. Dữ liệu chưa được đồng bộ.';return;
+            label.textContent='Google Drive chưa được kích hoạt. Dữ liệu chưa được đồng bộ.';return;
         }
         const local=snapshot(),type=base&&!equal(local,base)?'commit':'read';
         busy={id:++id,local:local};
         window.parent.postMessage({channel:channel,type:type,id:id,request:type==='commit'?{base:base,local:local}:null},cloudOrigin);
         const requestId=id;
-        setTimeout(()=>{if(busy?.id===requestId){busy=null;status.textContent='Chưa nhận được xác nhận từ Drive. Đang giữ dữ liệu trên máy để gửi lại.';schedule();}},30000);
+        setTimeout(()=>{if(busy?.id===requestId){busy=null;label.textContent='Chưa nhận được xác nhận từ Drive. Đang giữ dữ liệu trên máy để gửi lại.';schedule();}},30000);
     }
     window.addEventListener('message',event=>{
         if(event.source!==window.parent || event.origin!==cloudOrigin || event.data?.channel!==channel || event.data.id!==busy?.id)return;
         const m=event.data,sent=busy.local;busy=null;
-        if(m.type==='error'){status.textContent='Chưa đồng bộ: '+m.error;return;}
+        if(m.type==='error'){label.textContent='Chưa đồng bộ: '+m.error;return;}
         if(m.type!=='state'||!m.state?.values || !Number.isInteger(m.state.revision))return;
         const remote=m.state.values;
         if(!initialized) {
@@ -8468,7 +8478,7 @@ window.SatoriRecon = (() => {
         } else {apply(remote,sent);base=remote;}
         persistPending();
         const pending=!equal(snapshot(),base);
-        status.textContent=pending?'Dữ liệu trên máy đang chờ gửi lên Drive…':'Đã đồng bộ Google Drive · bản '+m.state.revision;
+        label.textContent=pending?'Dữ liệu trên máy đang chờ gửi lên Drive…':'Đã đồng bộ Google Drive · bản '+m.state.revision;
         status.style.background=pending?'#7c2d12':'#065f46';
         if(pending)schedule();
     });
