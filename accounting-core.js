@@ -59,8 +59,9 @@ function identityMatch(companies,locals){
  const codes=d=>[d.ref,d.invoice,...(d.rows||[]).flatMap(r=>[r.invoice,r.ref])].map(key).filter(Boolean);
  const matchedLocal=new Set();
  const rows=companies.map(a=>{
-  const ac=codes(a),address=norm(a.address);
-  const candidates=locals.map((b,j)=>({b,j,code:ac.some(c=>codes(b).includes(c)),address:!!address&&address===norm(b.address)})).filter(x=>x.code||x.address);
+  const addressKey=v=>norm(v).replace(/\//g,' ').replace(/\s+/g,' ');
+  const ac=codes(a),address=addressKey(a.address);
+  const candidates=locals.map((b,j)=>({b,j,code:ac.some(c=>codes(b).includes(c)),address:!!address&&address===addressKey(b.address)})).filter(x=>x.code||x.address);
   candidates.forEach(x=>matchedLocal.add(x.j));
   const unique=candidates.length===1?candidates[0].b:null;
   return {company:a.rows||[],local:candidates.flatMap(x=>x.b.rows||[]),source:a,companyAmount:a.amount??null,localAmount:unique?.amount??null,delta:unique&&a.amount!=null&&unique.amount!=null?a.amount-unique.amount:null,status:candidates.length?'Khớp':'Không khớp',category:candidates.length?'matched':'unmatched',basis:[...new Set(candidates.flatMap(x=>[x.code?'mã hóa đơn':'',x.address?'địa chỉ':'']).filter(Boolean))],detail:candidates.length?'Khớp '+[...new Set(candidates.flatMap(x=>[x.code?'mã hóa đơn':'',x.address?'địa chỉ':'']).filter(Boolean))].join(' hoặc ')+(candidates.length>1?' · Có '+candidates.length+' hóa đơn nội bộ phù hợp; liệt kê tất cả, không tự bù trừ tiền.':'.')+(a.error?' · Dữ liệu phụ: '+a.error:''):'Không có mã hóa đơn hoặc địa chỉ khớp. Tên, SĐT, ngày, hàng, số lượng và tiền không quyết định kết quả.'};
