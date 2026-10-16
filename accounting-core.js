@@ -53,21 +53,39 @@ function calculate(all,partners){
  });
  return {...pairing,rows,partners:partners.map(p=>{const pr=rows.filter(r=>r.partnerId===p.id&&r.eligible);return {...p,count:pr.length,profit:pr.reduce((s,r)=>s+r.profit,0),settled:pr.reduce((s,r)=>s+r.settled,0),due:pr.reduce((s,r)=>s+r.due,0)};})};
 }
-// Only invoice code OR delivery address determines reconciliation membership.
+// Reconciliation only: accent-insensitive keyword overlap, with a house-number guard.
+function addressSimilarity(left,right){
+ const prepare=value=>{
+  let text=norm(value).replace(/\b(?:tp\s*)?ho chi minh\b|\btp\s*hcm\b|\btphcm\b|\bhcm\b|\bviet nam\b/g,' ')
+   .replace(/\b(?:thanh pho|thi xa|thi tran|quan|huyen|phuong|xa|tp|q|p)\b.*$/,' ')
+   .replace(/\b(?:thanh pho|thi xa|thi tran|quan|huyen|phuong|xa|tp|q|p|duong|street|so|dia chi|viet nam)\b/g,' ')
+   .replace(/\//g,' ').replace(/\s+/g,' ').trim();
+  const house=text.match(/^(?:hem\s+|ngo\s+)?(\d+[a-z]?(?:\s+\d+[a-z]?)*)(?=\s|$)/)?.[1]||'';
+  return {house,tokens:[...new Set(text.split(' ').filter(Boolean))]};
+ };
+ const a=prepare(left),b=prepare(right),common=a.tokens.filter(t=>b.tokens.includes(t));
+ const score=a.tokens.length&&b.tokens.length?2*common.length/(a.tokens.length+b.tokens.length):0;
+ const houseConflict=!!a.house&&!!b.house&&a.house!==b.house;
+ const words=common.filter(t=>/[a-z]/.test(t));
+ const sufficient=words.length>=2 || (words.length>=1&&common.some(t=>/^\d/.test(t)));
+ return {score,percent:Math.round(score*100),common,houseConflict,matched:score>=0.45&&sufficient&&!houseConflict};
+}
 function identityMatch(companies,locals){
  const key=v=>norm(v).replace(/^hd\s*/,'').replace(/\s/g,'').replace(/^0+(?=\d)/,'');
  const codes=d=>[d.ref,d.invoice,...(d.rows||[]).flatMap(r=>[r.invoice,r.ref])].map(key).filter(Boolean);
  const matchedLocal=new Set();
  const rows=companies.map(a=>{
-  const addressKey=v=>norm(v).replace(/\//g,' ').replace(/\s+/g,' ');
-  const ac=codes(a),address=addressKey(a.address);
-  const candidates=locals.map((b,j)=>({b,j,code:ac.some(c=>codes(b).includes(c)),address:!!address&&address===addressKey(b.address)})).filter(x=>x.code||x.address);
+  const ac=codes(a);
+  const comparisons=locals.map((b,j)=>{const similarity=addressSimilarity(a.address,b.address);return {b,j,code:ac.some(c=>codes(b).includes(c)),address:similarity.matched,similarity};});
+  const candidates=comparisons.filter(x=>x.code||x.address);
   candidates.forEach(x=>matchedLocal.add(x.j));
   const unique=candidates.length===1?candidates[0].b:null;
-  return {company:a.rows||[],local:candidates.flatMap(x=>x.b.rows||[]),source:a,companyAmount:a.amount??null,localAmount:unique?.amount??null,delta:unique&&a.amount!=null&&unique.amount!=null?a.amount-unique.amount:null,status:candidates.length?'Khớp':'Không khớp',category:candidates.length?'matched':'unmatched',basis:[...new Set(candidates.flatMap(x=>[x.code?'mã hóa đơn':'',x.address?'địa chỉ':'']).filter(Boolean))],detail:candidates.length?'Khớp '+[...new Set(candidates.flatMap(x=>[x.code?'mã hóa đơn':'',x.address?'địa chỉ':'']).filter(Boolean))].join(' hoặc ')+(candidates.length>1?' · Có '+candidates.length+' hóa đơn nội bộ phù hợp; liệt kê tất cả, không tự bù trừ tiền.':'.')+(a.error?' · Dữ liệu phụ: '+a.error:''):'Không có mã hóa đơn hoặc địa chỉ khớp. Tên, SĐT, ngày, hàng, số lượng và tiền không quyết định kết quả.'};
+  const basis=[...new Set(candidates.flatMap(x=>[x.code?'mã hóa đơn':'',x.address?'từ khóa địa chỉ ≥45%':'']).filter(Boolean))];
+  const evidence=candidates.filter(x=>x.address).map(x=>'HĐ '+(x.b.invoice||x.b.ref||'nội bộ')+': '+x.similarity.percent+'% · từ trùng: '+x.similarity.common.join(', '));
+  return {company:a.rows||[],local:candidates.flatMap(x=>x.b.rows||[]),source:a,companyAmount:a.amount??null,localAmount:unique?.amount??null,delta:unique&&a.amount!=null&&unique.amount!=null?a.amount-unique.amount:null,status:candidates.length?'Khớp':'Không khớp',category:candidates.length?'matched':'unmatched',basis,addressMatches:candidates.filter(x=>x.address).map(x=>({invoice:x.b.invoice||x.b.ref||'',percent:x.similarity.percent,common:x.similarity.common})),detail:candidates.length?'Khớp '+basis.join(' hoặc ')+'. '+evidence.join('; ')+(candidates.length>1?' · Có '+candidates.length+' hóa đơn nội bộ phù hợp; liệt kê tất cả, không tự bù trừ tiền.':'')+(a.error?' · Dữ liệu phụ: '+a.error:''):'Không có mã hóa đơn trùng hoặc địa chỉ đạt 45% từ khóa phù hợp. Địa chỉ khác số nhà không tự ghép. Tên, SĐT, ngày, hàng, số lượng và tiền không quyết định kết quả.'};
  });
- locals.forEach((b,j)=>{if(!matchedLocal.has(j))rows.push({company:[],local:b.rows||[],source:null,companyAmount:null,localAmount:b.amount??null,delta:null,status:'Chưa có trong Excel',category:'localOnly',basis:[],detail:'Đơn nội bộ không có mã hoặc địa chỉ khớp trong Excel.'});});
+ locals.forEach((b,j)=>{if(!matchedLocal.has(j))rows.push({company:[],local:b.rows||[],source:null,companyAmount:null,localAmount:b.amount??null,delta:null,status:'Chưa có trong Excel',category:'localOnly',basis:[],detail:'Đơn nội bộ không có mã hoặc từ khóa địa chỉ khớp trong Excel (ngưỡng 45%).'});});
  return rows;
 }
-root.SatoriAccountingCore={key,norm,number,active,paid,items,goods,listed,total,basket,pairOrders,calculate,identityMatch};
+root.SatoriAccountingCore={key,norm,number,active,paid,items,goods,listed,total,basket,pairOrders,calculate,addressSimilarity,identityMatch};
 })(typeof window!=='undefined'?window:globalThis);

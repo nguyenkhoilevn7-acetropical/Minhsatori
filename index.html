@@ -137,7 +137,7 @@
     </div>
 
     <!-- Top Navigation Header -->
-    <header class="bg-slate-950/95 border-b border-slate-800 sticky top-0 z-40 px-3 sm:px-6 py-3 shadow-xl backdrop-blur-md no-print">
+    <header id="appHeader" class="bg-slate-950/95 border-b border-slate-800 sticky top-0 z-40 px-3 sm:px-6 py-3 shadow-xl backdrop-blur-md no-print">
         <div class="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-3">
             <!-- Brand & Official Logo -->
             <div class="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
@@ -149,15 +149,16 @@
                                 <i class="fa-solid fa-droplet text-cyan-400 text-base"></i>
                             </div>
                         </div>
-                        <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-950 rounded-full shadow"></div>
+
                     </div>
                     <div>
                         <div class="flex items-center gap-2 flex-wrap">
                             <h1 class="font-black text-base sm:text-lg tracking-tight text-white flex items-center gap-1.5">
                                 HKD MINH SATORI
+                                <span id="driveSyncDot" hidden role="status" aria-label="Đang kết nối Google Drive" title="Đang kết nối Google Drive" style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex:none"></span>
                             </h1>
                             <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                
                                 Bản V18.0 · Kế toán & CTV
                             </span>
                         </div>
@@ -1356,7 +1357,7 @@
         <section id="tab-reconcile" class="hidden space-y-4 no-print">
             <div class="bg-slate-950 border border-cyan-700 rounded-2xl p-4 sm:p-6 space-y-4">
                 <h2 class="text-xl font-bold text-cyan-300">Đối chiếu đơn nhập từ Satori</h2>
-                <p class="text-sm text-slate-300">Chỉ cần tải Excel. Hệ thống tự tìm cặp đơn và đưa ra kết quả, không cần chọn hay nhập mã đơn. Chỉ so mã hóa đơn hoặc địa chỉ người nhận. Một trong hai khớp là vào khung Khớp; các dòng còn lại được tách riêng.</p>
+                <p class="text-sm text-slate-300">Chỉ cần tải Excel. Hệ thống tự tìm cặp đơn và đưa ra kết quả, không cần chọn hay nhập mã đơn. Chỉ so mã hóa đơn hoặc từ khóa địa chỉ người nhận (khớp từ 45%, không cần viết giống hoàn toàn). Một trong hai khớp là vào khung Khớp; các dòng còn lại được tách riêng.</p>
                 <p class="text-sm text-amber-300">Ví dụ: tiền niêm yết 1.000.000 đ → sau CK 45% còn 550.000 đ, trước VAT. Không trừ chiết khấu lần nữa trên tiền Satori.</p>
                 <div class="grid sm:grid-cols-3 gap-3" style="display:none">
                     <label class="text-sm">Từ ngày<input id="rc-from" type="date" class="rc-input" onchange="SatoriRecon.baseline(); SatoriRecon.rerun()"></label>
@@ -2585,7 +2586,7 @@
     <!-- ========================================================================= -->
     <!-- TOÀN BỘ JAVASCRIPT XỬ LÝ DUY NHẤT (ĐẶT CUỐI BODY, KHÔNG CẮT NGẮN MÃ NGUỒN)    -->
     <!-- ========================================================================= -->
-        <script src="accounting-core.js?v=181"></script>
+        <script src="accounting-core.js?v=182"></script>
 <script>
 // 1. OFFICIAL CATALOGUE OF 20 PRODUCTS (FROM IMAGE 2438.JPG)
         const DEFAULT_CATALOGUE = [{"tt": 1, "brand": "SATORI", "code": "TP-00001", "name": "Nước tinh khiết Satori 350ml", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 88000, "discountPercent": 25.0, "unitPrice": 66000, "keywords": ["350ml", "350", "satori 350"]}, {"tt": 2, "brand": "SATORI", "code": "TP-00003", "name": "Nước tinh khiết Satori 500ml", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 98000, "discountPercent": 25.0, "unitPrice": 73500, "keywords": ["satori 500ml", "satori 500", "500ml", "500"]}, {"tt": 3, "brand": "SATORI", "code": "TP-00004", "name": "Nước tinh khiết Satori 1500ml", "spec": "12 chai/thùng", "unit": "Thùng", "listPrice": 98000, "discountPercent": 25.0, "unitPrice": 73500, "keywords": ["1500ml", "1.5l", "1,5l", "satori 1.5", "satori 1500"]}, {"tt": 4, "brand": "SATORI", "code": "TP-00051", "name": "Nước tinh khiết Satori Premium 450ml", "spec": "20 chai/thùng", "unit": "Thùng", "listPrice": 137963, "discountPercent": 25.0, "unitPrice": 103472, "keywords": ["premium", "450ml", "satori 450", "satori premium", "400ml"]}, {"tt": 5, "brand": "SATORI", "code": "TP-00005", "name": "Nước tinh khiết Satori bình 20L, có tay cầm, không vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 49142, "discountPercent": 25.0, "unitPrice": 36857, "keywords": ["20l", "bình 20l", "tay cầm", "satori 20l", "không vòi 20l"]}, {"tt": 6, "brand": "SATORI", "code": "TP-00033", "name": "Nước tinh khiết Satori bình 19L có vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 49142, "discountPercent": 25.0, "unitPrice": 36857, "keywords": ["19l có vòi", "19l vòi", "bình 19l có vòi", "satori có vòi", "bình satori có vòi", "satori 19l có vòi"]}, {"tt": 7, "brand": "SATORI", "code": "TP-00096", "name": "Nước tinh khiết Satori bình 19L không vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 49142, "discountPercent": 25.0, "unitPrice": 36857, "keywords": ["19l không vòi", "19l up", "bình úp", "satori úp", "satori không vòi", "bình satori không vòi", "bình 19l không vòi", "bình satori", "19l"]}, {"tt": 8, "brand": "SATORI", "code": "TP-00135", "name": "Nước tinh khiết Satori 5L không vòi", "spec": "04 bình/thùng", "unit": "Thùng", "listPrice": 102500, "discountPercent": 25.0, "unitPrice": 76875, "keywords": ["thùng 5l không vòi", "5l không vòi", "thùng 5l", "satori 5l không vòi", "satori 5l"]}, {"tt": 9, "brand": "SATORI", "code": "TP-00136", "name": "Nước tinh khiết Satori 5L có vòi", "spec": "04 bình/thùng", "unit": "Thùng", "listPrice": 110000, "discountPercent": 25.0, "unitPrice": 82500, "keywords": ["thùng 5l có vòi", "5l có vòi", "satori 5l có vòi"]}, {"tt": 10, "brand": "SATORI", "code": "TP-00143", "name": "Nước tinh khiết Satori 5L không vòi, bình", "spec": "01 bình", "unit": "Bình", "listPrice": 25625, "discountPercent": 25.0, "unitPrice": 19219, "keywords": ["bình 5l không vòi", "bình lẻ 5l không vòi", "bình 5l lẻ", "1 bình 5l không vòi"]}, {"tt": 11, "brand": "SATORI", "code": "TP-00142", "name": "Nước tinh khiết Satori 5L có vòi, bình", "spec": "01 bình", "unit": "Bình", "listPrice": 27500, "discountPercent": 25.0, "unitPrice": 20625, "keywords": ["bình 5l có vòi", "bình lẻ 5l có vòi", "1 bình 5l có vòi"]}, {"tt": 12, "brand": "HIKARI", "code": "TP-00081", "name": "Nước đóng chai Hikari 500ml", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 83000, "discountPercent": 25.0, "unitPrice": 62250, "keywords": ["hikari 500ml", "hikari 500", "chai hikari 500", "nước hikari 500"]}, {"tt": 13, "brand": "HIKARI", "code": "TP-00130", "name": "Nước tinh khiết Hikari bình 19L có vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 38889, "discountPercent": 25.0, "unitPrice": 29167, "keywords": ["hikari 19l", "bình hikari 19l", "hikari bình", "hikari có vòi", "bình hikari"]}, {"tt": 14, "brand": "HIKARI", "code": "TP-00137", "name": "Nước đóng chai Hikari 250ml, thùng", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 62500, "discountPercent": 25.0, "unitPrice": 46875, "keywords": ["hikari 250ml thùng", "thùng hikari 250ml", "thùng hikari 250", "hikari 250ml", "hikari 250"]}, {"tt": 15, "brand": "HIKARI", "code": "TP-00140", "name": "Nước đóng chai Hikari 250ml (24 chai/lốc)", "spec": "24 chai/lốc", "unit": "Lốc", "listPrice": 62500, "discountPercent": 25.0, "unitPrice": 46875, "keywords": ["hikari 250ml 24 chai/lốc", "lốc 24 chai hikari", "hikari 250 lốc 24", "lốc 24 chai"]}, {"tt": 16, "brand": "HIKARI", "code": "TP-00139", "name": "Nước đóng chai Hikari 250ml (12 chai/lốc)", "spec": "12 chai/lốc", "unit": "Lốc", "listPrice": 31250, "discountPercent": 25.0, "unitPrice": 23438, "keywords": ["hikari 250ml 12 chai/lốc", "lốc 12 chai hikari", "hikari 250 lốc 12", "lốc 12 chai", "hikari 12 chai"]}, {"tt": 17, "brand": "HIKARI", "code": "TP-00138", "name": "Nước đóng chai Hikari 250ml (6 chai/lốc)", "spec": "6 chai/lốc", "unit": "Lốc", "listPrice": 15625, "discountPercent": 25.0, "unitPrice": 11719, "keywords": ["hikari 250ml 6 chai/lốc", "lốc 6 chai hikari", "hikari 250 lốc 6", "lốc 6 chai", "hikari 6 chai"]}, {"tt": 18, "brand": "JUICE", "code": "TP-00055", "name": "Nước ép me Satori Juice 24 lon/thùng", "spec": "24 lon/thùng", "unit": "Thùng", "listPrice": 333333, "discountPercent": 25.0, "unitPrice": 250000, "keywords": ["ép me", "me satori", "satori juice me", "nước me", "me lon", "thùng me", "lon me", "me"]}, {"tt": 19, "brand": "JUICE", "code": "TP-00056", "name": "Nước ép mãng cầu Satori Juice 24 lon/thùng", "spec": "24 lon/thùng", "unit": "Thùng", "listPrice": 333333, "discountPercent": 25.0, "unitPrice": 250000, "keywords": ["ép mãng cầu", "mãng cầu", "mãn cầu", "satori juice mãng cầu", "thùng mãng cầu", "thùng mãn cầu", "mang cau"]}, {"tt": 20, "brand": "JUICE", "code": "TP-00058", "name": "Nước ép ổi hồng Satori Juice 24 lon/thùng", "spec": "24 lon/thùng", "unit": "Thùng", "listPrice": 333333, "discountPercent": 25.0, "unitPrice": 250000, "keywords": ["ép ổi", "ổi hồng", "satori juice ổi hồng", "thùng ổi", "thùng ổi hồng", "oi hong", "ổi", "oi"]}];
@@ -8362,7 +8363,7 @@ window.SatoriRecon = (() => {
     function renderAutomatic() {
         const {rows}=state.result;
         const matched=rows.filter(r=>r.category==='matched'),unmatched=rows.filter(r=>r.category==='unmatched'),local=rows.filter(r=>r.category==='localOnly');
-        $('summary').innerHTML='<div class="grid grid-cols-3 gap-3">'+[['Khớp',matched.length],['Không khớp / thiếu dữ liệu',unmatched.length],['Nội bộ chưa có trên Excel',local.length]].map(([title,n])=>'<div class="bg-slate-900 rounded-xl p-3"><span>'+esc(title)+'</span><p class="text-2xl font-bold">'+n+'</p></div>').join('')+'</div><p>Chỉ cần mã hóa đơn HOẶC địa chỉ người nhận trùng là vào Khớp. Không dùng tên, SĐT, tiền, ngày, sản phẩm hoặc số lượng để quyết định. Nhiều đơn cùng địa chỉ vẫn liệt kê tất cả; không tự bù trừ tiền.</p>';
+        $('summary').innerHTML='<div class="grid grid-cols-3 gap-3">'+[['Khớp',matched.length],['Không khớp / thiếu dữ liệu',unmatched.length],['Nội bộ chưa có trên Excel',local.length]].map(([title,n])=>'<div class="bg-slate-900 rounded-xl p-3"><span>'+esc(title)+'</span><p class="text-2xl font-bold">'+n+'</p></div>').join('')+'</div><p>Chỉ cần mã hóa đơn trùng HOẶC địa chỉ có từ khóa tương đồng từ 45% là vào Khớp. Tự bỏ dấu, chuẩn hóa cách viết và bỏ từ hành chính thông dụng; khác số nhà thì không tự ghép. Mỗi kết quả ghi rõ tỷ lệ và từ khóa trùng. Không dùng tên, SĐT, tiền, ngày, sản phẩm hoặc số lượng để quyết định. Nhiều đơn cùng địa chỉ vẫn liệt kê tất cả; không tự bù trừ tiền.</p>';
         const card=(title,items,color)=>'<section class="border '+color+' rounded-xl p-3 my-3"><h3 class="font-bold text-lg">'+title+' ('+items.length+')</h3>'+items.map(r=>'<div class="border-b border-slate-700 py-3"><b>'+esc(r.source?.displayCustomer||r.source?.customer||r.local[0]?.label||'Chưa có tên')+'</b><p>Mã: '+esc(r.source?.invoice||r.source?.ref||r.company[0]?.invoice||r.company[0]?.ref||r.local[0]?.invoice||'Không có')+' · Địa chỉ: '+esc(r.source?.address||r.local[0]?.address||'Không có')+'</p><p>Hóa đơn nội bộ: '+esc([...new Set(r.local.map(v=>v.label||v.invoice))].join('; ')||'Không tìm thấy')+'</p><p class="text-sm">'+esc(r.detail)+'</p></div>').join('')+'</section>';
         $('results').innerHTML='';
         let box=document.getElementById('rc-identity-results');if(!box){box=document.createElement('div');box.id='rc-identity-results';$('summary').after(box);}
@@ -8438,14 +8439,20 @@ window.SatoriRecon = (() => {
     const status=document.createElement('div');
     status.id='driveConnectionStatus';status.setAttribute('role','status');
     status.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:100001;padding:10px;background:#7c2d12;color:white;font:13px sans-serif;text-align:center';
+    const dot=document.getElementById('driveSyncDot');
+    function syncIndicator(state,message){
+        status.hidden=state==='synced';
+        if(dot){dot.hidden=false;dot.style.background=state==='synced'?'#34d399':state==='error'?'#f87171':'#f59e0b';dot.title=message;dot.setAttribute('aria-label',message);}
+    }
     const label=document.createElement('span');
+    const updateSync=(message,state='pending')=>{label.textContent=message;syncIndicator(state,message);};
     const check=document.createElement('button');
     check.type='button';check.textContent='Kiểm tra lưu Drive';
     check.style.cssText='margin-left:12px;padding:4px 8px;border:1px solid white;border-radius:6px;color:white;background:transparent;cursor:pointer';
     check.addEventListener('click',()=>{
         if(!initialized){schedule(0);return;}
         try {storage.setItem('satori_drive_verified_at',new Date().toISOString());}
-        catch(e){label.textContent='Chưa lưu được mốc kiểm tra: '+e.message;}
+        catch(e){updateSync('Chưa lưu được mốc kiểm tra: '+e.message,'error');}
     });
     const download=document.createElement('button');
     download.type='button';download.textContent='Tải bản trên máy cần đối chiếu';download.hidden=true;
@@ -8460,7 +8467,7 @@ window.SatoriRecon = (() => {
     cover.id='driveLoadingCover';cover.setAttribute('role','status');
     cover.style.cssText='position:fixed;inset:0;z-index:100000;background:#0f172af2;color:white;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font:16px sans-serif';
     cover.textContent='Đang tải dữ liệu chung từ Google Drive. Vui lòng chờ trước khi nhập hoặc sửa đơn.';
-    label.textContent='Đang chờ dữ liệu Google Drive…';
+    updateSync('Đang chờ dữ liệu Google Drive…');
     const attach=()=>{document.body.append(cover,status);};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',attach,{once:true});else attach();
     const pick=values=>Object.fromEntries(keys.filter(k=>values && typeof values[k]==='string').map(k=>[k,values[k]]));
@@ -8486,14 +8493,14 @@ window.SatoriRecon = (() => {
         // Initial rendering creates defaults. Those writes are not user edits and must not be uploaded.
         if(!initialized)return;
         try {persistPending();}catch(e){if(before===null)remove.call(this,k);else set.call(this,k,before);throw e;}
-        if(before!==String(v)){label.textContent='Đã lưu trên máy; đang chờ Google Drive xác nhận…';status.style.background='#7c2d12';schedule();}
+        if(before!==String(v)){updateSync('Đã lưu trên máy; đang chờ Google Drive xác nhận…');status.style.background='#7c2d12';schedule();}
     };
     Storage.prototype.removeItem=function(k) {
         if(this!==storage || !keys.includes(k))return remove.call(this,k);
         const before=storage.getItem(k);remove.call(this,k);
         if(!initialized)return;
         try {persistPending();}catch(e){if(before!==null)set.call(this,k,before);throw e;}
-        if(before!==null)schedule();
+        if(before!==null){updateSync('Đã thay đổi trên máy; đang chờ Google Drive xác nhận…');schedule();}
     };
     function refresh() {
         if(typeof orders==='undefined')return;
@@ -8550,17 +8557,17 @@ window.SatoriRecon = (() => {
     function tick() {
         if(!loaded || busy || document.hidden)return;
         const local=snapshot(),type=initialized && base && !equal(local,base)?'commit':'read';
-        if(type==='commit' && JSON.stringify({base:pick(base),local}).length>3800000){label.textContent='Chứng từ vượt dung lượng đồng bộ. Dùng liên kết Drive cho tệp lớn; dữ liệu trên máy vẫn còn.';status.style.background='#7c2d12';return;}
+        if(type==='commit' && JSON.stringify({base:pick(base),local}).length>3800000){updateSync('Chứng từ vượt dung lượng đồng bộ. Dùng liên kết Drive cho tệp lớn; dữ liệu trên máy vẫn còn.','error');status.style.background='#7c2d12';return;}
         busy={id:++id,local,type};
         window.parent.postMessage({channel,type,id:busy.id,request:type==='commit'?{base:pick(base),local}:null},cloudOrigin);
         const requestId=busy.id;
-        setTimeout(()=>{if(busy?.id===requestId){busy=null;label.textContent='Chưa nhận được xác nhận từ Drive. Dữ liệu trên máy vẫn được giữ lại.';schedule();}},30000);
+        setTimeout(()=>{if(busy?.id===requestId){busy=null;updateSync('Chưa nhận được xác nhận từ Drive. Dữ liệu trên máy vẫn được giữ lại.','error');schedule();}},30000);
     }
     window.addEventListener('message',event=>{
         if(event.source!==window.parent || event.origin!==cloudOrigin || event.data?.channel!==channel || event.data.id!==busy?.id)return;
         const m=event.data,sent=busy.local,requestType=busy.type;busy=null;
         if(m.type==='error'){
-            label.textContent='Chưa lưu lên Drive: '+m.error;
+            updateSync('Chưa lưu lên Drive: '+m.error,'error');
             status.style.background='#7c2d12';
             if(requestType==='commit'){persistPending();initialized=false;cover.hidden=false;cover.style.display='flex';schedule();}
             return;
@@ -8582,10 +8589,10 @@ window.SatoriRecon = (() => {
             else {base=pick(sent);}
             persistPending();
             const pending=!equal(snapshot(),base),count=JSON.parse(remote.satori_orders_v15).length;
-            label.textContent=recoveredConflict?'Đã tải '+count+' bản ghi từ Drive. Thay đổi cũ trên máy đã được giữ trong bản đối chiếu; chưa ghi đè Drive.':pending?'Dữ liệu trên máy đang chờ gửi lên Drive…':'Đã đồng bộ Google Drive · bản '+m.state.revision+' · '+count+' bản ghi';
+            updateSync(recoveredConflict?'Đã tải '+count+' bản ghi từ Drive. Thay đổi cũ trên máy đã được giữ trong bản đối chiếu; chưa ghi đè Drive.':pending?'Dữ liệu trên máy đang chờ gửi lên Drive…':'Đã đồng bộ Google Drive · bản '+m.state.revision+' · '+count+' bản ghi',pending?'pending':recoveredConflict?'error':'synced');
             status.style.background=pending || recoveredConflict?'#7c2d12':'#065f46';
             if(pending)schedule();
-        }catch(e){label.textContent='Chưa nhận dữ liệu Drive: '+e.message;status.style.background='#7c2d12';}
+        }catch(e){updateSync('Chưa nhận dữ liệu Drive: '+e.message,'error');status.style.background='#7c2d12';}
     });
     window.addEventListener('online',()=>schedule());
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule();});
@@ -8620,7 +8627,33 @@ window.SatoriRecon = (() => {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show, {once:true}); else show();
 })();
 </script>
+<style>
+#appHeader {transition:transform .2s ease;}
+#appHeader.header-scroll-hidden {transform:translateY(calc(-100% - 2px));pointer-events:none;}
+#appHeader:has(:focus-visible) {transform:translateY(0);pointer-events:auto;}
+@media (prefers-reduced-motion:reduce) {#appHeader {transition:none;}}
+[hidden]#driveConnectionStatus,[hidden]#driveSyncDot {display:none!important;}
+</style>
+<script id="satori-scroll-header">
+(() => {
+ const header=document.getElementById('appHeader');if(!header)return;
+ let last=Math.max(0,window.scrollY),direction=0,distance=0,queued=false;
+ function update(){
+  queued=false;
+  const y=Math.max(0,Math.min(window.scrollY,Math.max(0,document.documentElement.scrollHeight-window.innerHeight)));
+  const delta=y-last;last=y;
+  if(y<20){header.classList.remove('header-scroll-hidden');distance=0;return;}
+  if(Math.abs(delta)<1)return;
+  const next=delta>0?1:-1;if(next!==direction){direction=next;distance=0;}
+  distance+=Math.abs(delta);
+  if(distance>=12)header.classList.toggle('header-scroll-hidden',direction>0&&y>header.offsetHeight);
+ }
+ window.addEventListener('scroll',()=>{if(!queued){queued=true;requestAnimationFrame(update);}},{passive:true});
+ header.addEventListener('focusin',()=>header.classList.remove('header-scroll-hidden'));
+})();
+</script>
 </body>
 </html>
+
 
 
