@@ -591,7 +591,7 @@
                                     <h3 class="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
                                         <i class="fa-solid fa-boxes-stacked"></i> Sản phẩm trong đơn
                                     </h3>
-                                    <p class="text-[10px] text-slate-500">Tự điền từ tin nhắn; có thể sửa số lượng và giá bán.</p>
+                                    <p class="text-[10px] text-slate-500">Chỉnh số lượng, giá niêm yết, chiết khấu (%) hoặc đơn giá bán ngay tại từng sản phẩm. Đổi giá bán sẽ tự tính lại chiết khấu; đổi chiết khấu sẽ tự tính lại giá bán.</p>
                                 </div>
                                 <button type="button" onclick="addNewProductItem()" class="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1 shadow">
                                     <i class="fa-solid fa-plus-circle"></i> Thêm Sản Phẩm
@@ -2840,17 +2840,22 @@
                 const card=document.createElement('div');
                 card.className='compact-item';
                 const code=item.code || catalogue.find(p=>p.code===aiProductKey(item))?.code || 'custom';
-                const field=(id,label,value,handler,type='number')=>`<label class="compact-field">${label}<input id="${id}_${index}" type="${type}" value="${aiEscape(value)}" oninput="${handler}(${index},this.value)" ${type==='number'?'min="0" step="any"':''}></label>`;
+                const field=(id,label,value,handler,type='number')=>`<label class="compact-field">${label}<input id="${id}_${index}" type="${type}" value="${aiEscape(value)}" oninput="${handler}(${index},this.value)" ${type==='number'?'min="0" step="any"':''} ${id==='item_disc'?'max="100"':''}></label>`;
                 card.innerHTML=`<div class="compact-item-head"><div><strong id="item_heading_${index}">${aiEscape(item.product)}</strong><small>${aiEscape(item.unit || 'Thùng')}${item.parseSource?' · Loại nước từ '+aiEscape(item.parseSource):''}</small></div><button type="button" onclick="removeProductItem(${index})" aria-label="Xóa ${aiEscape(item.product)}" class="text-rose-300 p-2">✕</button></div>
-                  <div class="compact-item-values">${field('item_qty','Số lượng',item.qty,'onQtyInput')}${field('item_unitp','Giá bán / '+aiEscape(item.unit || 'thùng'),item.unitPrice,'onUnitPriceInput')}</div>
-                  <details class="compact-item-edit"><summary>Đổi loại nước / chỉnh giá chi tiết</summary><div class="compact-fields">
+                  <div class="compact-item-values">${field('item_qty','Số lượng',item.qty,'onQtyInput')}${field('item_listp','Giá niêm yết / '+aiEscape(item.unit || 'thùng'),item.listPrice,'onListPriceInput')}${field('item_disc','Chiết khấu (%)',Number(Number(item.discountPercent || 0).toFixed(6)),'onDiscPctInput')}${field('item_unitp','Đơn giá bán / '+aiEscape(item.unit || 'thùng'),item.unitPrice,'onUnitPriceInput')}</div>
+                  <details class="compact-item-edit"><summary>Đổi loại nước / tên hàng / tiền giảm</summary><div class="compact-fields">
                     <label class="compact-field wide">Sản phẩm<select onchange="updateItemType(${index},this.value)">${getProductSelectOptionsHTML(code)}</select></label>
                     ${field('item_name','Tên sản phẩm',item.product,'onItemNameInput','text')}${field('item_unit','Đơn vị tính',item.unit || 'Thùng','onItemUnitInput','text')}
-                    ${field('item_listp','Giá niêm yết',item.listPrice,'onListPriceInput')}${field('item_disc','Chiết khấu (%)',Number(Number(item.discountPercent || 0).toFixed(6)),'onDiscPctInput')}${field('item_discamt','Tiền giảm / đơn vị',item.discountAmount,'onDiscAmtInput')}
+                    ${field('item_discamt','Tiền giảm / đơn vị',item.discountAmount,'onDiscAmtInput')}
                   </div></details>
                   <div class="compact-item-total"><span id="item_formula_${index}">${item.qty} × ${Number(item.unitPrice || 0).toLocaleString('vi-VN')}đ</span><strong id="item_subtotal_${index}">${Number(item.qty*item.unitPrice || 0).toLocaleString('vi-VN')}đ</strong></div>`;
                 container.appendChild(card);
             });
+        }
+
+        function updateItemFormula(index) {
+            const item=currentItems[index],el=document.getElementById(`item_formula_${index}`);
+            if(el)el.innerText=`${item.qty || 0} × ${Number(item.unitPrice || 0).toLocaleString('vi-VN')} đ`;
         }
 
         // INLINE EVENT HANDLERS (NEVER RE-RENDER DOM WHILE TYPING!)
@@ -2863,6 +2868,7 @@
             
             const subtotalEl = document.getElementById(`item_subtotal_${index}`);
             if (subtotalEl) subtotalEl.innerText = (qty * unitP).toLocaleString('vi-VN') + ' đ';
+            updateItemFormula(index);
             calculateTotals();
         }
 
@@ -2888,6 +2894,7 @@
             const subtotalEl = document.getElementById(`item_subtotal_${index}`);
             if (subtotalEl) subtotalEl.innerText = (currentItems[index].subtotal).toLocaleString('vi-VN') + ' đ';
             
+            updateItemFormula(index);
             calculateTotals();
         }
 
@@ -2913,6 +2920,7 @@
             const subtotalEl = document.getElementById(`item_subtotal_${index}`);
             if (subtotalEl) subtotalEl.innerText = (currentItems[index].subtotal).toLocaleString('vi-VN') + ' đ';
             
+            updateItemFormula(index);
             calculateTotals();
         }
 
@@ -2938,6 +2946,7 @@
             const subtotalEl = document.getElementById(`item_subtotal_${index}`);
             if (subtotalEl) subtotalEl.innerText = (currentItems[index].subtotal).toLocaleString('vi-VN') + ' đ';
             
+            updateItemFormula(index);
             calculateTotals();
         }
 
@@ -8664,6 +8673,7 @@ window.SatoriRecon = (() => {
 </script>
 </body>
 </html>
+
 
 
 
