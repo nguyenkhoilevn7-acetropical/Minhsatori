@@ -36,7 +36,7 @@ async function build(data,Excel){
   ['Lời Minh Satori sau CTV',`SUMIF('Hoa don'!AB5:AB${orderEnd},"Có",'Hoa don'!Z5:Z${orderEnd})`,sum(economic,r=>C.goods(r.order)-C.items(r.order).reduce((s,i)=>s+Math.round(numeric(i.qty)*numeric(i.listPrice)*(1-numeric(r.order.costDiscountPercent??45)/100)),0)-r.profit),'Tiền hàng − giá vốn − lời CTV; chưa trừ chi phí vận hành.']
  ])summary.addRow([label,f(formula,result),note]);
  const review=sheet(wb,'Can kiem tra','CÁC NHÓM CHƯA TỰ GHÉP',['Nhóm','Hóa đơn','Người nhận','Địa chỉ','Giá trị','Lý do'],[14,20,30,48,22,78]);m.review.forEach((g,i)=>g.orders.forEach(o=>review.addRow([i+1,String(o.invoiceNo),o.name,o.location,C.total(o),g.reason])));
- const rs=sheet(wb,'Chung tu','CHỨNG TỪ KHÁCH THANH TOÁN',['Hóa đơn','Khách','Tên chứng từ','Ngày tải lên','Liên kết / vị trí','Loại tệp'],[18,32,48,30,64,24]);for(const o of all)for(const r of o.paymentReceipts||[]){const link=r.url?{text:'Mở chứng từ trên Drive',hyperlink:r.url}:'Tệp nhúng trong dữ liệu gốc, xem bản sao lưu JSON để phục hồi';rs.addRow([String(o.invoiceNo),o.name,r.name,r.uploadedAt,link,r.mime||'Drive']);}
+ const rs=sheet(wb,'Chung tu','CHỨNG TỪ THANH TOÁN KHÁCH / SATORI',['Hóa đơn','Khách','Tên chứng từ','Ngày tải lên','Liên kết / vị trí','Loại tệp','Nhóm thanh toán','Bên thanh toán'],[18,32,48,30,64,24,40,26]);for(const o of all)for(const original of o.paymentReceipts||[]){const r=C.resolveReceipt(original,data.allOrders||all);const link=r.url?{text:'Mở chứng từ trên Drive',hyperlink:r.url}:'Tệp nhúng trong dữ liệu gốc, xem bản sao lưu JSON để phục hồi';rs.addRow([String(o.invoiceNo),o.name,r.name,r.uploadedAt,link,r.mime||'Drive',r.groupId||'',r.party==='satori'?'Satori':'Khách']);}
  const cat=sheet(wb,'Bang gia','DANH MỤC SẢN PHẨM',['Mã SP','Tên','Quy cách','ĐVT','Giá niêm yết','CK mặc định','Giá bán tính lại'],[24,48,45,18,24,20,24]);for(const p of data.catalogue||[]){const r=cat.rowCount+1;cat.addRow([p.code,p.name,p.spec,p.unit,numeric(p.listPrice),numeric(p.discountPercent)/100,f(`ROUND(E${r}*(1-F${r}),0)`,Math.round(numeric(p.listPrice)*(1-numeric(p.discountPercent)/100)))]);}cat.getColumn('F').numFmt='0.0%';
  if(data.reconciliation){
   const report=data.reconciliation;
@@ -56,3 +56,4 @@ async function build(data,Excel){
 async function download(data){const Excel=await library(),wb=await build(data,Excel),buffer=await wb.xlsx.writeBuffer(),url=URL.createObjectURL(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})),a=document.createElement('a');a.href=url;a.download='MinhSatori_KeToan_CTV_'+new Date().toISOString().slice(0,10)+'.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}
 return {library,build,download};
 })();
+

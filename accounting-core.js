@@ -101,7 +101,45 @@ function identityMatch(companies,locals){
  locals.forEach((b,j)=>{if(!matchedLocal.has(j))rows.push({company:[],local:b.rows||[],source:null,companyAmount:null,localAmount:b.amount??null,delta:null,status:'Chưa có trong Excel',category:'localOnly',basis:[],detail:'Đơn nội bộ không có mã hoặc từ khóa địa chỉ khớp trong Excel (ngưỡng 45%).'});});
  return rows;
 }
-root.SatoriAccountingCore={key,norm,number,active,statusClass,paid,items,goods,listed,total,basket,pairOrders,calculate,groupCompanyRows,addressSimilarity,identityMatch};
+// Shared payment evidence lives once in the existing synced orders payload.
+function resolveReceipt(receipt,all){
+ if(receipt.data||receipt.url)return receipt;
+ if(!receipt.sharedReceiptId)return receipt;
+ const asset=all.flatMap(o=>o.paymentReceipts||[]).find(r=>r.id===receipt.sharedReceiptId&&(r.data||r.url));
+ return asset?{...asset,...receipt,data:asset.data,url:asset.url,mime:asset.mime}:receipt;
+}
+function preserveReceiptAssets(next,previous){
+ const assets=new Map(previous.flatMap(o=>o.paymentReceipts||[]).filter(r=>r.data||r.url).map(r=>[r.id,r]));
+ const present=new Set(next.flatMap(o=>o.paymentReceipts||[]).filter(r=>r.data||r.url).map(r=>r.id));
+ return next.map(o=>{let changed=false;const paymentReceipts=(o.paymentReceipts||[]).map(r=>{const id=r.sharedReceiptId;if(id&&!present.has(id)&&assets.has(id)){changed=true;present.add(id);return {...assets.get(id),...r,data:assets.get(id).data,url:assets.get(id).url,mime:assets.get(id).mime};}return r;});return changed?{...o,paymentReceipts}:o;});
+}
+function customerMatches(o,query){
+ const q=norm(query);if(!q)return true;
+ const values=[o.name,o.phone,o.customerCode,o.customerId,o.clientCode];
+ if(values.some(v=>norm(v).includes(q)))return true;
+ const digits=String(query).replace(/\D/g,'');return digits.length>=5&&String(o.phone||'').replace(/\D/g,'').includes(digits);
+}
+function paymentGroup(all,ids,{id,target,markPaid=true,receipt=null,at,scope=''}){
+ if(!['customer','satori'].includes(target)||!id||!at)throw Error('Nhóm thanh toán không hợp lệ.');
+ const selected=new Set(ids.map(String));if(!selected.size)throw Error('Chọn ít nhất một hóa đơn.');
+ for(const k of selected){const found=all.filter(o=>key(o)===k);if(found.length!==1||!active(found[0]))throw Error('Có bill đã đổi hoặc không còn hợp lệ. Mở lại nhóm trước khi lưu.');if(!markPaid&&!(target==='customer'?paid(found[0]):found[0].status==='Đã TT Satori'||found[0].satoriPaidAt))throw Error('Có bill chưa ghi thanh toán cho bên đã chọn. Bật ghi đã thanh toán hoặc bỏ chọn bill đó.');}
+ let owner=true;
+ return all.map(o=>{
+  if(!selected.has(key(o)))return o;
+  const group={id,target,at,scope},next={...o,updatedAt:Date.parse(at),paymentGroups:[...(o.paymentGroups||[]).filter(g=>g.id!==id),group]};
+  if(markPaid&&target==='customer'){next.customerPaidAt=o.customerPaidAt||at;if(o.status!=='Đã TT Satori')next.status='Đã thanh toán';}
+  if(markPaid&&target==='satori'){if(paid(o))next.customerPaidAt=o.customerPaidAt||at;next.satoriPaidAt=o.satoriPaidAt||at;next.status='Đã TT Satori';}
+  if(receipt&&!next.paymentReceipts?.some(r=>r.id===receipt.id)){
+   const meta={...receipt,groupId:id,party:target,sharedReceiptId:receipt.id};
+   if(!owner){delete meta.data;delete meta.url;}owner=false;
+   next.paymentReceipts=[...(o.paymentReceipts||[]),meta];
+  }
+  return next;
+ });
+}
+
+root.SatoriAccountingCore={key,norm,number,active,statusClass,paid,resolveReceipt,preserveReceiptAssets,customerMatches,paymentGroup,items,goods,listed,total,basket,pairOrders,calculate,groupCompanyRows,addressSimilarity,identityMatch};
 })(typeof window!=='undefined'?window:globalThis);
+
 
 
