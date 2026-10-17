@@ -1196,7 +1196,7 @@
                             </span>
                             <div>
                                 <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-cyan-300">
-                                    BỘ LỌC ĐA NĂNG: TÌM THEO TÊN KHÁCH HÀNG & KHOẢNG NGÀY (FROM - TO)
+                                    BỘ LỌC KHÁCH HÀNG / SĐT / MÃ KHÁCH & KHOẢNG NGÀY
                                 </h3>
                                 <p class="text-[11px] text-slate-400">Tìm kiếm chính xác theo tên khách hàng, kết hợp lọc từ ngày nào tới ngày nào, hoặc xem nhanh theo tháng/năm</p>
                             </div>
@@ -1222,11 +1222,11 @@
                         <!-- Khối 1: Tìm Kiếm / Chọn Khách Hàng -->
                         <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 space-y-2 flex flex-col justify-between shadow-inner">
                             <label class="block text-[11px] font-bold text-cyan-300 flex items-center justify-between">
-                                <span class="flex items-center gap-1.5"><i class="fa-solid fa-user-check text-cyan-400"></i> 1. Tên Khách Hàng:</span>
-                                <span id="excelCustomerClearBtn" onclick="clearExcelCustomerFilter()" class="text-[10px] text-rose-400 hover:underline cursor-pointer hidden">Xóa tên</span>
+                                <span class="flex items-center gap-1.5"><i class="fa-solid fa-user-check text-cyan-400"></i> 1. Khách / SĐT / Mã khách:</span>
+                                <span id="excelCustomerClearBtn" onclick="clearExcelCustomerFilter()" class="text-[10px] text-rose-400 hover:underline cursor-pointer hidden">Xóa tìm kiếm</span>
                             </label>
                             <div class="space-y-1.5">
-                                <input type="text" id="excelFilterCustomerName" oninput="onCustomerFilterChange()" placeholder="Gõ tên khách (VD: Traky, Edric...)" class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none transition">
+                                <input type="text" id="excelFilterCustomerName" oninput="onCustomerFilterChange()" placeholder="Tên khách, SĐT hoặc mã khách hàng" class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none transition">
                                 <select id="excelFilterCustomer" onchange="onCustomerSelectChange()" class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none transition">
                                     <option value="all">-- Danh sách khách hàng (Tất cả) --</option>
                                 </select>
