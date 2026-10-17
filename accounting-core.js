@@ -4,6 +4,7 @@ const key=o=>String(o.__syncId||String(o.id)+'|'+String(o.invoiceNo));
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase().replace(/[^a-z0-9/]+/g,' ').trim().replace(/\s+/g,' ');
 const number=v=>Number.isFinite(Number(v))?Number(v):0;
 const active=o=>!['Đã hủy','Không Tính'].includes(o.status);
+const statusClass=o=>({'Đã TT Satori':'text-emerald-400','Đã thanh toán':'text-emerald-400','Chưa thanh toán':'text-amber-400','Không Tính':'text-indigo-400','Đã hủy':'text-rose-400'}[o.status]||'text-slate-400')+' font-semibold';
 const paid=o=>o.status==='Đã thanh toán'||!!o.customerPaidAt;
 const items=o=>o.items?.length?o.items:[o];
 const goods=o=>items(o).reduce((s,i)=>s+number(i.qty)*number(i.unitPrice),0);
@@ -100,6 +101,7 @@ function identityMatch(companies,locals){
  locals.forEach((b,j)=>{if(!matchedLocal.has(j))rows.push({company:[],local:b.rows||[],source:null,companyAmount:null,localAmount:b.amount??null,delta:null,status:'Chưa có trong Excel',category:'localOnly',basis:[],detail:'Đơn nội bộ không có mã hoặc từ khóa địa chỉ khớp trong Excel (ngưỡng 45%).'});});
  return rows;
 }
-root.SatoriAccountingCore={key,norm,number,active,paid,items,goods,listed,total,basket,pairOrders,calculate,groupCompanyRows,addressSimilarity,identityMatch};
+root.SatoriAccountingCore={key,norm,number,active,statusClass,paid,items,goods,listed,total,basket,pairOrders,calculate,groupCompanyRows,addressSimilarity,identityMatch};
 })(typeof window!=='undefined'?window:globalThis);
+
 
