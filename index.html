@@ -2149,13 +2149,13 @@
 
     <!-- Notification Modal -->
     <div id="customModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4 no-print backdrop-blur-sm" style="display: none !important;">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-center">
-            <div id="modalIcon" class="text-3xl text-emerald-400">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-center" style="display:flex;flex-direction:column;max-height:calc(100vh - 2rem);max-height:calc(100dvh - 2rem)">
+            <div id="modalIcon" class="text-3xl text-emerald-400" style="flex-shrink:0">
                 <i class="fa-solid fa-circle-check"></i>
             </div>
-            <h3 id="modalTitle" class="font-bold text-base text-white">Thành Công</h3>
-            <p id="modalMessage" class="text-xs text-slate-300">Thông báo từ hệ thống!</p>
-            <div class="flex gap-2 pt-1" id="modalActions">
+            <h3 id="modalTitle" class="font-bold text-base text-white" style="flex-shrink:0">Thành Công</h3>
+            <div id="modalMessage" class="text-xs text-slate-300" style="min-height:0;overflow-y:auto;overscroll-behavior:contain;flex:1 1 auto">Thông báo từ hệ thống!</div>
+            <div class="flex gap-2 pt-1" id="modalActions" style="flex-shrink:0">
                 <button onclick="closeModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 rounded-xl text-xs transition">Đóng</button>
             </div>
         </div>
@@ -8450,7 +8450,7 @@ window.SatoriRecon = (() => {
 
     </script>
 <script src="accounting-workbook.js?v=185"></script>
-<script src="accounting.js?v=188"></script>
+<script src="accounting.js?v=189"></script>
 <script>
 (() => {
     if (!location.hash.includes('satori-drive=1') || window.parent === window) return;
@@ -8681,6 +8681,7 @@ window.SatoriRecon = (() => {
 </script>
 </body>
 </html>
+
 
 
 
