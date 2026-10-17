@@ -159,7 +159,7 @@
                             </h1>
                             <span id="syncStatusBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
                                 
-                                Bản V18.0 · Kế toán & CTV
+                                Bản V18.1 · Thanh toán nhóm
                             </span>
                         </div>
                         <p class="text-xs text-slate-400">Hệ Thống Lên Hóa Đơn, Sổ Kế Toán & Quản Lý Doanh Số Tự Động 100%</p>
@@ -7841,11 +7841,13 @@ window.onload = function() {
             }
         }
 
+        // Disable this app's obsolete cached shell without clearing invoices or other apps.
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('SW Registered:', reg.scope))
-                    .catch(err => console.warn('SW Error:', err));
+                const appScope=new URL('./',location.href).href;
+                navigator.serviceWorker.getRegistrations()
+                    .then(regs=>Promise.all(regs.filter(reg=>reg.scope===appScope).map(reg=>reg.unregister())))
+                    .catch(err=>console.warn('Không kiểm tra được bộ nhớ đệm giao diện:',err));
             });
         }
     </script>
@@ -8450,7 +8452,7 @@ window.SatoriRecon = (() => {
 
     </script>
 <script src="accounting-workbook.js?v=185"></script>
-<script src="accounting.js?v=189"></script>
+<script src="accounting.js?v=190"></script>
 <script>
 (() => {
     if (!location.hash.includes('satori-drive=1') || window.parent === window) return;
@@ -8681,6 +8683,7 @@ window.SatoriRecon = (() => {
 </script>
 </body>
 </html>
+
 
 
 
