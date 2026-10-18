@@ -50,6 +50,28 @@ function renderBulkBar(){
  const recent=[...groups.values()].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,5);
  bar.innerHTML=`<div class="flex flex-wrap items-center justify-between gap-2"><p><b>${eligible.length} bill hợp lệ trong bộ lọc</b><br><small class="text-slate-400">Ghi thanh toán và upload một chứng từ chung; bỏ qua bill hủy / không tính.</small></p><button id="acct-bulk-open" type="button" class="rc-button" ${eligible.length?'':'disabled'}>Gom bill đang lọc / Upload chung</button></div>${recent.length?'<details><summary class="text-cyan-300 cursor-pointer">Nhóm thanh toán gần đây — upload bổ sung</summary>'+recent.map(g=>`<button type="button" data-payment-group="${esc(g.id)}" class="block text-left p-2 underline text-cyan-300">${esc(new Date(g.at).toLocaleString('vi-VN'))} · ${g.ids.length} bill · ${g.target==='satori'?'Satori':'Khách thanh toán'}</button>`).join('')+'</details>':''}`;
  $('acct-bulk-open').onclick=()=>bulkForm();bar.querySelectorAll('[data-payment-group]').forEach(b=>b.onclick=()=>bulkForm(groups.get(b.dataset.paymentGroup)));
+ renderDebtBar(bar);
+}
+let debtExportBusy=false;
+function debtExportData(){
+ const customer=$('excelFilterCustomer')?.value||'all';
+ return {orders:filteredOrders(),allOrders:orders,customer:[$('excelFilterCustomerName')?.value,customer==='all'?'':customer,$('searchInput')?.value].filter(Boolean).join(' / '),from:$('excelFilterFromDate')?.value||'',to:$('excelFilterToDate')?.value||'',scope:'Trạng thái: '+(($('filterStatus')?.value||'all')==='all'?'Tất cả':$('filterStatus').value)};
+}
+function renderDebtBar(anchor){
+ if(!window.SatoriCustomerDebt)return;
+ let box=$('acct-debt-bar');if(!box){box=document.createElement('div');box.id='acct-debt-bar';box.className='my-3 p-3 rounded-xl border border-emerald-700 bg-slate-950';anchor.after(box);}
+ try{const data=debtExportData(),p=SatoriCustomerDebt.prepare(data),customers=new Set(p.rows.map(r=>C.norm(r.order.name)));
+ box.innerHTML=`<div class="flex flex-wrap items-center justify-between gap-3"><div><b class="text-emerald-300">Công nợ khách theo bộ lọc</b><p>${p.rows.length} bill · ${customers.size} tên khách · Còn phải thu: <b>${money(p.due)}</b></p><small class="text-slate-400">${esc(data.customer||'Tất cả khách trong bộ lọc')} · ${esc(data.from||'Đầu kỳ')} → ${esc(data.to||'Hiện tại')}<br>${esc(data.scope)}. Đã TT Satori không tự giảm nợ khách.${p.excluded.length?'<br>Bỏ qua '+p.excluded.length+' bill hủy / không tính / bill đối chiếu CTV.':''}${p.review?'<br><span class="text-amber-300">Có '+p.review+' bill cùng người nhận / hàng cần đối chiếu trước khi thu tiền.</span>':''}</small></div><button id="acct-debt-export" type="button" class="rc-button" ${p.rows.length&&!debtExportBusy?'':'disabled'}>${debtExportBusy?'Đang tạo Excel…':'Xuất Excel công nợ khách'}</button></div>`;
+ $('acct-debt-export').onclick=exportCustomerDebt;
+ }catch(e){box.innerHTML='<p class="text-amber-300">Chưa xuất được công nợ: '+esc(e.message)+'</p>';}
+}
+async function exportCustomerDebt(){
+ if(debtExportBusy)return;
+ try{const data=JSON.parse(JSON.stringify(debtExportData()));
+ if(data.from&&data.to&&data.from>data.to)throw Error('Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.');
+ if(!SatoriCustomerDebt.prepare(data).rows.length)throw Error('Không có hóa đơn bán khách hợp lệ trong bộ lọc này.');
+ debtExportBusy=true;renderDebtBar($('acct-bulk-bar'));await SatoriCustomerDebt.download(data);
+ }catch(e){showModal('Chưa xuất được Excel',esc(e.message||e),'error');}finally{debtExportBusy=false;renderDebtBar($('acct-bulk-bar'));}
 }
 let bulkDialogCleanup=null;
 function closeBulkDialog(){if(bulkDialogCleanup){const cleanup=bulkDialogCleanup;bulkDialogCleanup=null;cleanup();}}
@@ -110,9 +132,10 @@ async function exportWorkbook(filtered=true,reconciliation=null){try{if(reconcil
 const previousRender=renderTable;renderTable=function(){previousRender();render();renderBulkBar();const m=model(),primary=m.rows.filter(r=>C.active(r.order)&&!r.secondary);for(const [id,value] of [['statTotalProfit',primary.reduce((s,r)=>s+getOrderProfit(r.order)-r.profit,0)],['statTotalRevenue',primary.reduce((s,r)=>s+C.total(r.order),0)],['statPaid',primary.filter(r=>r.customerPaid).reduce((s,r)=>s+C.total(r.order),0)],['statUnpaid',primary.filter(r=>!r.customerPaid).reduce((s,r)=>s+C.total(r.order),0)]])if($(id))$(id).textContent=money(value);};
 updateStatus=status;exportToExcel=()=>exportWorkbook(true);
 const previousEdit=editOrder;editOrder=function(id){const result=previousEdit(id);formSelect(orders.find(o=>o.id===id)?.collaboratorId||'');return result;};
-window.addEventListener('load',()=>{if($('syncStatusBadge'))$('syncStatusBadge').textContent='Bản V18.1 · Thanh toán nhóm';mount();render();renderBulkBar();});
-return {model,registry,render,formMeta,paymentMeta,formSelect,suggestPartner,assign,patchOrder,receiptData,exportWorkbook,filteredOrders,status,bulkForm,renderBulkBar,cancelBulk:()=>{bulkGeneration++;closeBulkDialog();}};
+window.addEventListener('load',()=>{if($('syncStatusBadge'))$('syncStatusBadge').textContent='Bản V18.2 · Công nợ khách';mount();render();renderBulkBar();});
+return {model,registry,render,formMeta,paymentMeta,formSelect,suggestPartner,assign,patchOrder,receiptData,exportWorkbook,exportCustomerDebt,filteredOrders,status,bulkForm,renderBulkBar,cancelBulk:()=>{bulkGeneration++;closeBulkDialog();}};
 })();
+
 
 
 

@@ -1,0 +1,28 @@
+const assert=require('node:assert/strict'),fs=require('fs'),vm=require('node:vm');
+require('../accounting-core.js');require('../customer-debt.js');
+const D=global.SatoriCustomerDebt;
+const base=(id,extra={})=>({id,invoiceNo:'00'+id,name:'Khách A',phone:'0900000000',location:'Địa chỉ thử nghiệm',date:'01/10/2026',status:'Chưa thanh toán',total:100000,items:[{product:'Satori 500 ml',qty:id,unit:'Thùng',unitPrice:100000/id}],...extra});
+const all=[base(1),base(2,{status:'Đã TT Satori'}),base(3,{status:'Đã thanh toán'}),base(4,{status:'Đã TT Satori',customerPaidAt:'2026-10-02T03:00:00Z'}),base(5,{status:'Đã hủy'}),base(6,{status:'Không Tính'}),base(7,{name:'Khách khác',total:999999,privateNote:'PRIVATE_SENTINEL'})];
+const data={orders:all.slice(0,6),allOrders:all,customer:'Khách A',from:'2026-10-01',to:'2026-10-31',scope:'Trạng thái: Tất cả'};
+const p=D.prepare(data);assert.equal(p.rows.length,4);assert.equal(p.excluded.length,2);assert.equal(p.total,400000);assert.equal(p.paid,200000);assert.equal(p.due,200000);assert.equal(p.rows[1].due,100000,'Satori payment is not customer collection');
+const high=base(8,{total:200000}),low=base(9,{items:high.items,total:150000});const pair=D.prepare({orders:[low,high],allOrders:[low,high]});assert.equal(pair.rows.length,1);assert.equal(pair.rows[0].amount,200000);assert.equal(pair.excluded.length,1);
+const more=base(10,{items:high.items});assert.equal(D.prepare({orders:[high,low,more]}).review,3,'ambiguous duplicates retained and flagged');
+assert.throws(()=>D.prepare({orders:[base(1,{total:'invalid'})]}),/tổng tiền/);assert.throws(()=>D.prepare({orders:[base(1,{total:null})]}),/tổng tiền/);
+assert.equal(D.prepare({orders:[]}).rows.length,0);assert(!D.filename({...data,customer:'../../Khách A?'}).includes('/'));
+(async()=>{
+ // Run the real accounting filter and export handler with a pending download.
+ const nodes=new Map(Object.entries({searchInput:'',filterStatus:'all',excelFilterCustomer:'all',excelFilterCustomerName:'khach a',excelFilterFromDate:'2026-10-01',excelFilterToDate:'2026-10-31'}).map(([id,value])=>[id,{value}]));
+ const basic=()=>({innerHTML:'',after(){},querySelectorAll:()=>[]});nodes.set('acct-bulk-bar',basic());nodes.set('acct-debt-bar',basic());nodes.set('acct-debt-export',basic());
+ let captured,release,errors=0,writes=0;const service={prepare:D.prepare,download:async data=>{captured=data;await new Promise(resolve=>release=resolve);}};
+ const scope={SatoriAccountingCore:global.SatoriAccountingCore,SatoriCustomerDebt:service,window:{addEventListener(){},SatoriCustomerDebt:service},orders:structuredClone(all.concat(base(11,{date:'01/11/2026'}))),localStorage:{getItem:()=>null,setItem(){writes++;}},aiEscape:v=>String(v??''),document:{getElementById:id=>nodes.get(id),createElement:basic},showModal(){errors++;},renderTable(){},editOrder(){},updateStatus(){},exportToExcel(){},matchOrderUniversal:(o,q)=>global.SatoriAccountingCore.customerMatches(o,q),isOrderInDateRange:(value,from,to)=>{const [d,m,y]=value.split('/'),iso=`${y}-${m}-${d}`;return (!from||iso>=from)&&(!to||iso<=to);}};
+ vm.createContext(scope);vm.runInContext(fs.readFileSync(__dirname+'/../accounting.js','utf8'),scope);
+ assert.equal(scope.window.Acct.filteredOrders().length,6,'customer and inclusive date range');
+ nodes.get('excelFilterCustomerName').value='0900 000 000';nodes.get('filterStatus').value='Đã TT Satori';assert.equal(scope.window.Acct.filteredOrders().length,2,'phone and status filters');
+ nodes.get('filterStatus').value='all';nodes.get('excelFilterCustomerName').value='Khách A';
+ const pending=scope.window.Acct.exportCustomerDebt();assert.equal(captured.orders.length,6);nodes.get('excelFilterCustomerName').value='Khách khác';scope.orders[0].total=1;assert.equal(captured.orders[0].total,100000,'snapshot not changed by sync');assert.equal(captured.customer,'Khách A');assert.equal(captured.from,'2026-10-01');release();await pending;assert.equal(writes,0,'export must not change invoice/payment state');assert.equal(errors,0);
+ nodes.get('excelFilterFromDate').value='2026-12-01';await scope.window.Acct.exportCustomerDebt();assert.equal(errors,1,'invalid dates blocked before export');
+ if(process.env.EXCELJS_PATH){const Excel=require(process.env.EXCELJS_PATH),wb=await D.build(data,Excel),ws=wb.getWorksheet('Cong no khach');assert.equal(wb.worksheets.length,1);assert.equal(ws.rowCount,16);assert.equal(ws.getCell('B13').value,'001');assert(ws.getCell('C13').value instanceof Date);assert.equal(ws.getCell('I14').value.result,100000);assert.equal(ws.getCell('H15').value,100000);assert.equal(ws.getCell('I10').value.result,200000);assert.equal(ws.getCell('I10').value.formula,'SUM(I13:I16)');assert.equal(ws.getCell('I16').value.formula,'MAX(0,G16-H16)');assert(ws.getCell('J16').value.formula.includes('ISNUMBER'));assert.equal(ws.getCell('H13').dataValidation.allowBlank,false);assert.equal(ws.views[0].ySplit,12);assert.equal(ws.autoFilter.to.row,16);
+  const buffer=await wb.xlsx.writeBuffer(),read=new Excel.Workbook();await read.xlsx.load(buffer);assert.equal(read.worksheets.length,1);assert.equal(read.getWorksheet('Cong no khach').getCell('B13').value,'001');const serial=JSON.stringify(read.model);assert(!serial.includes('PRIVATE_SENTINEL'));assert(!serial.includes('999999'));assert(!serial.includes('collaboratorDiscount'));await assert.rejects(()=>D.build({orders:[]},Excel));if(process.env.DEBT_TEST_OUTPUT)fs.writeFileSync(process.env.DEBT_TEST_OUTPUT,Buffer.from(buffer));
+ }
+ console.log('PASS: customer debt scope, customer vs Satori payments, cancelled/reference exclusions, duplicate review, amounts, formulas, IDs, dates and customer-only workbook round trip');
+})().catch(e=>{console.error(e);process.exitCode=1;});
