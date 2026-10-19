@@ -8,6 +8,19 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: satori_test
+          POSTGRES_USER: api_test
+          POSTGRES_PASSWORD: integration_test_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://api_test:integration_test_only@localhost:5432/satori_test
     defaults:
       run:
         working-directory: api
@@ -20,5 +33,5 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Syntax check
         run: npm run check
-      - name: Core tests
+      - name: Core and integration tests
         run: npm test
