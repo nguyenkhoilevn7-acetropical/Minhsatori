@@ -80,3 +80,89 @@ const debt=call('debt.summary',{query:'Khach CTV'});assert.equal(debt.ok,true);a
 assert.equal(call('debt.summary',{query:'102'}).data.due,0,'reference bill must not become debt when high sale outside filter');
 console.log('PASS — debt agrees with ledger: excludes low CTV reference using full-state pairing before filtering');
 console.log('PASS — authenticated customer profiles, create, soft delete, paid protection, backups, idempotency, revision, debt');
+
+
+// Mobile Android owner API: isolated mock Google tokeninfo and userinfo; NO real credentials.
+props.SATORI_ANDROID_OWNER_EMAIL='owner@example.com';
+props.SATORI_ANDROID_ALLOWED_CLIENT_IDS_JSON=JSON.stringify(['android-test-client-id']);
+const issuer={email:'owner@example.com',aud:'android-test-client-id',scope:
+ 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.readonly'};
+context.UrlFetchApp={fetch(url,options){
+  let obj,status=200;
+  if(url.startsWith('https://oauth2.googleapis.com/tokeninfo?access_token=')){
+    const token=decodeURIComponent(url.split('access_token=')[1]||'');
+    obj={aud:issuer.aud,expires_in:3600,scope:issuer.scope};
+    if(token!=='valid-owner-token')status=401;
+  }else if(url==='https://www.googleapis.com/oauth2/v3/userinfo'){
+    const bearer=options&&options.headers&&options.headers.Authorization;
+    if(bearer!=='Bearer valid-owner-token')status=401;
+    obj={email:issuer.email,email_verified:true,sub:'google-owner-test'};
+  }else throw Error('Unexpected URL in isolated test');
+  return {getResponseCode:()=>status,getContentText:()=>JSON.stringify(obj)};
+}};
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../api/MobileApi.gs'),'utf8'),context);
+function mobile(action,payload={},overrides={}){
+  const body={kind:'satori-android-v1',accessToken:'valid-owner-token',action,
+     nonce:'mobiletestnonce'+String(++sequence).padStart(20,'0'),payload,...overrides};
+  return JSON.parse(context.doPost({parameter:{route:'android'},
+    postData:{contents:JSON.stringify(body)}}).text);
+}
+assert.equal(mobile('mobile.snapshot').data.revision,20);
+const earlierWriteCount=writes;
+assert.equal(mobile('orders.create',{expectedRevision:20,requestId:'phone-order-001',
+  confirmedNewCustomer:true,order:{name:'Android Test Customer',location:'Cát Lái 101',phone:'0909988999',
+  items:[{product:'Satori 350 ml',qty:2,unitPrice:65000}],
+  shippingAmount:20000,total:150000,deliveryNote:'Shipper gửi hóa đơn có giá.'}},
+  {accessToken:'bad-token'}).error.code,'AUTH_FAILED');
+assert.equal(writes,earlierWriteCount);
+issuer.aud='unknown-android-client';
+assert.equal(mobile('mobile.snapshot').error.code,'FORBIDDEN');
+issuer.aud='android-test-client-id';
+issuer.email='attacker@example.com';
+assert.equal(mobile('mobile.snapshot').error.code,'FORBIDDEN');
+issuer.email='owner@example.com';
+const createdMobile=mobile('orders.create',{expectedRevision:20,requestId:'phone-order-001',
+  confirmedNewCustomer:true,order:{name:'Android Test Customer',location:'Cát Lái 101',phone:'0909988999',
+  items:[{product:'Satori 350 ml',qty:2,unitPrice:65000}],
+  shippingAmount:20000,total:150000,deliveryNote:'Shipper gửi hóa đơn có giá.'}});
+assert.equal(createdMobile.ok,true);
+assert.equal(createdMobile.backupCreated,true);
+assert.equal(createdMobile.data.order.deliveryNote,'Shipper gửi hóa đơn có giá.');
+assert.equal(mobile('orders.create',{expectedRevision:20,requestId:'phone-order-001',
+  confirmedNewCustomer:true,order:{name:'Android Test Customer',location:'Cát Lái 101',phone:'0909988999',
+  items:[{product:'Satori 350 ml',qty:2,unitPrice:65000}],
+  shippingAmount:20000,total:150000}}).data.duplicate,true);
+let mobileId=createdMobile.data.order.id,mobileNo=createdMobile.data.order.invoiceNo;
+const edit=mobile('orders.update',{expectedRevision:21,requestId:'phone-update-001',
+  id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
+  expectedTotal:150000,confirmed:true,
+  order:{name:'Android Test Customer',phone:'0909988999',location:'Cát Lái 101',
+   items:[{product:'Satori 350 ml',qty:3,unitPrice:65000}],
+   shippingAmount:20000,total:215000,deliveryNote:'Mang đủ hóa đơn có số tiền'}});
+assert.equal(edit.ok,true);
+assert.equal(edit.data.order.total,215000);
+assert.equal(edit.data.order.deliveryNote,'Mang đủ hóa đơn có số tiền');
+assert.equal(mobile('orders.update',{expectedRevision:20,requestId:'phone-update-002',
+  id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
+  expectedTotal:215000,confirmed:true,order:{name:'Android Test Customer',
+  location:'Cát Lái 101',items:[{product:'Satori 350 ml',qty:3,unitPrice:65000}]}}).error.code,
+  'REVISION_CONFLICT');
+const deletedMobile=mobile('orders.delete',{expectedRevision:22,requestId:'phone-delete-001',
+  id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
+  expectedTotal:215000,confirmed:true});
+assert.equal(deletedMobile.data.deleted,true);
+assert.equal(mobile('mobile.trash').data.orders.some(x=>x.invoiceNo===mobileNo),true);
+const restoredMobile=mobile('orders.restore',{expectedRevision:23,requestId:'phone-restore-001',
+  id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
+  expectedTotal:215000,confirmed:true});
+assert.equal(restoredMobile.data.restored,true);
+const markedMobile=mobile('payments.markCustomerPaid',{expectedRevision:24,
+  invoiceNo:mobileNo,amount:215000,confirmed:true});
+assert.equal(markedMobile.data.order.status,'Đã thanh toán');
+assert.equal(mobile('orders.delete',{expectedRevision:25,requestId:'phone-delete-002',
+  id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
+  expectedTotal:215000,confirmed:true}).error.code,'PAID_ORDER_PROTECTED');
+assert.equal(data.revision,25);
+assert.equal(writes,earlierWriteCount+5);
+console.log('PASS — Mobile Google client/email/expiry checks and read-only snapshot');
+console.log('PASS — Mobile create/edit/delete/restore/payment with backup, revision, no duplicate');
