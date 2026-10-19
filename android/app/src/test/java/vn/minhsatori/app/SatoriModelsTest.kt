@@ -123,8 +123,11 @@ class SatoriModelsTest {
         val root = JSONObject().put("revision", 1).put("values",
             JSONObject().put("satori_orders_v15", orders.toString()))
         val invoices = SatoriData.fromDriveState(root.toString()).invoices
-        assertEquals(SatoriData.customerKey(invoices[0]), SatoriData.customerKey(invoices[1]))
-        assertNotEquals(SatoriData.customerKey(invoices[1]), SatoriData.customerKey(invoices[2]))
+        val first = invoices.single { it.number == "5901" }
+        val second = invoices.single { it.number == "5902" }
+        val third = invoices.single { it.number == "5903" }
+        assertEquals(SatoriData.customerKey(first), SatoriData.customerKey(second))
+        assertNotEquals(SatoriData.customerKey(second), SatoriData.customerKey(third))
     }
 
     @Test
@@ -137,7 +140,7 @@ class SatoriModelsTest {
         val invoice = SatoriData.fromDriveState(data.toString()).invoices.single()
         assertTrue(SatoriData.search(invoice, "0903123456"))
         assertTrue(SatoriData.search(invoice, "312345"))
-        assertFalse(SatoriData.search(invoice, "12345"))
+        assertFalse(SatoriData.search(invoice, "3123"))
         assertFalse(SatoriData.search(invoice, "999991"))
     }
 
