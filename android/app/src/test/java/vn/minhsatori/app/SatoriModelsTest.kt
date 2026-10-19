@@ -182,6 +182,25 @@ class SatoriModelsTest {
         assertEquals("20261019", invoices.single { it.number == "104" }.sortDate)
     }
 
+    @Test
+    fun preservesWebsiteInvoiceTaxCodeAndDiscountForNativePdf() {
+        val item = JSONObject().put("product", "Suối 350ml")
+            .put("qty", 10).put("unit", "Thùng")
+            .put("listPrice", 100000).put("unitPrice", 65000)
+            .put("discountPercent", 35)
+        val order = JSONObject().put("invoiceNo", 9)
+            .put("name", "Edric Salon").put("taxCode", "0312345678")
+            .put("items", JSONArray().put(item)).put("total", 650000)
+        val root = JSONObject().put("revision", 105).put("values",
+            JSONObject().put("satori_orders_v15", JSONArray().put(order).toString()))
+        val parsed = SatoriData.fromDriveState(root.toString()).invoices.single()
+        assertEquals("0312345678", parsed.taxCode)
+        assertEquals(35.0, parsed.lines.single().discountPercent!!, 0.00001)
+        assertEquals(100000L, parsed.lines.single().listPrice)
+        assertEquals(650000L, parsed.lines.single().amount)
+        assertEquals(650000L, parsed.total)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun refusesSnapshotWithoutRevision() {
         SatoriData.fromDriveState("""{"values":{"satori_orders_v15":"[]"}}""")
