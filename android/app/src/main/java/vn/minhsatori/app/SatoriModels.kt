@@ -168,14 +168,22 @@ object SatoriData {
         return SatoriSnapshot(revision, string(root, "updatedAt"), invoices, products)
     }
 
+    // Presentation separators do not change the recipient's phone number.
+    // Still require matching delivery address, so separate delivery points stay separate.
     fun customerKey(invoice: SatoriInvoice): String =
-        normalized(invoice.customer) + "|" + normalized(invoice.phone) + "|" +
+        normalized(invoice.customer) + "|" + invoice.phone.filter { it.isDigit() } + "|" +
             normalized(invoice.address)
 
     fun search(invoice: SatoriInvoice, query: String): Boolean {
         val needle = normalized(query)
-        return needle.isBlank() || normalized(listOf(invoice.number, invoice.customer,
-            invoice.phone, invoice.address, invoice.lines.joinToString(" ") { it.description })
-            .joinToString(" ")).contains(needle)
+        if (needle.isBlank()) return true
+        val content = normalized(listOf(invoice.number, invoice.customer, invoice.phone,
+            invoice.address, invoice.lines.joinToString(" ") { it.description })
+            .joinToString(" "))
+        if (content.contains(needle)) return true
+        // A customer typing 0903123456 must also find a stored "0903 123 456".
+        val phoneDigits = query.filter { it.isDigit() }
+        return phoneDigits.length >= 5 &&
+            invoice.phone.filter { it.isDigit() }.contains(phoneDigits)
     }
 }
