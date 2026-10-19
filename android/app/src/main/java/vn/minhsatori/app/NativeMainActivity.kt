@@ -637,10 +637,12 @@ class NativeMainActivity : AppCompatActivity() {
     private fun connectGoogle() {
         if (isLoading) return
         val request = AuthorizationRequest.builder()
-            .setRequestedScopes(listOf(Scope(
-                "https://www.googleapis.com/auth/drive.readonly")))
+            .setRequestedScopes(listOf(
+                Scope("https://www.googleapis.com/auth/userinfo.email"),
+                Scope("https://www.googleapis.com/auth/drive.readonly")
+            ))
             .build()
-        statusMessage = "Đang yêu cầu quyền đọc Drive bằng tài khoản Google trên Android."
+        statusMessage = "Đang đăng nhập Google để xác thực chủ tài khoản Minh Satori."
         render()
         Identity.getAuthorizationClient(this).authorize(request)
             .addOnSuccessListener { applyAuthorization(it) }
@@ -668,14 +670,14 @@ class NativeMainActivity : AppCompatActivity() {
             }
         } else {
             val token = result.accessToken
-            if (token.isNullOrBlank() || !result.grantedScopes.contains(
-                    "https://www.googleapis.com/auth/drive.readonly")) {
-                statusMessage = "Tài khoản chưa cho phép đọc Drive."
+            if (token.isNullOrBlank() ||
+                !result.grantedScopes.contains("https://www.googleapis.com/auth/userinfo.email")) {
+                statusMessage = "Google chưa cấp quyền xác minh email chủ sở hữu."
                 render()
                 return
             }
             accessToken = token
-            refreshFromDrive()
+            if (apiEndpoint != null) refreshFromMobileApi() else refreshFromDrive()
         }
     }
 
