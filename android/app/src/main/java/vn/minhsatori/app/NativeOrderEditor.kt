@@ -6,6 +6,7 @@ import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -85,6 +86,12 @@ object NativeOrderEditor {
         var ref:SatoriInvoice?=editing?:customer
         val profiles=state.invoices.distinctBy{SatoriData.customerKey(it)}
             .sortedBy{SatoriData.normalized(it.customer)}
+        val newBranch = CheckBox(a).apply {
+            text = "Đây là KHÁCH MỚI / ĐIỂM GIAO MỚI (dù trùng tên)"
+            textSize = 12f
+            isChecked = false
+        }
+        page.addView(newBranch)
         action(a,page,"CHỌN KHÁCH / ĐỊA CHỈ GIAO"){
             AlertDialog.Builder(a).setTitle("Chọn đúng khách và điểm giao")
                 .setItems(profiles.map{
@@ -192,6 +199,11 @@ object NativeOrderEditor {
                         "Tổng tiền vượt giới hạn."
                     }
                     val sum=goods+shipping+vat
+                    val dateText=deliveryDate.text.toString().trim()
+                    require(dateText.isBlank() ||
+                        Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(dateText)){
+                        "Ngày giao phải theo định dạng YYYY-MM-DD."
+                    }
                     val order=JSONObject().put("name",cleanName).put("phone",cleanPhone)
                         .put("location",cleanAddress).put("items",lines)
                         .put("shippingAmount",shipping).put("vatAmount",vat)
@@ -213,9 +225,12 @@ object NativeOrderEditor {
                             payload.put("customerRef",JSONObject().put("id",match.id)
                                 .put("invoiceNo",match.number))
                         }else{
-                            require(profiles.none{SatoriData.normalized(it.customer)==
-                                    SatoriData.normalized(cleanName)}){
-                                "Tên khách đã có trong hệ thống. Hãy chọn đúng điểm giao."
+                            val duplicatedName=profiles.any{
+                                SatoriData.normalized(it.customer)==SatoriData.normalized(cleanName)
+                            }
+                            require(!duplicatedName||newBranch.isChecked){
+                                "Tên khách đã có nhiều điểm giao. Chọn đúng điểm giao, " +
+                                    "hoặc đánh dấu KHÁCH MỚI / ĐIỂM GIAO MỚI."
                             }
                             payload.put("confirmedNewCustomer",true)
                         }
