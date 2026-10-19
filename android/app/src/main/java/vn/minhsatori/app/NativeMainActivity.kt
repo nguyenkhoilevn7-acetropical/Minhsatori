@@ -180,32 +180,42 @@ class NativeMainActivity : AppCompatActivity() {
         val connected = snapshot != null
         val snapshotInfo = snapshot
         val status = if (connected) {
-            "Đã đọc Google Drive · Revision " + snapshotInfo!!.revision +
+            "Đã đọc " + (if (dataSource.isBlank()) "Drive" else dataSource) +
+                " · Revision " + snapshotInfo!!.revision +
                 " · " + snapshotInfo.invoices.size + " hóa đơn"
         } else statusMessage
-        val statusColor = if (connected) teal else gold
-        label(content, status, 12f, true, statusColor, 12)
+        label(content, status, 13f, true, if (connected) teal else gold, 12)
+        if (connected) {
+            label(content, "Drive cập nhật: " + snapshotInfo!!.updatedAt +
+                (if (lastReadAt.isBlank()) "" else " · Đọc lúc " + lastReadAt),
+                11f, false, muted, 4)
+        }
 
-        if (isLoading) label(content, "Đang kết nối và đối chiếu dữ liệu Drive…",
+        if (isLoading) label(content, "Đang đọc dữ liệu Drive…",
             13f, true, teal, 8)
-        button(content, if (accessToken == null) "KẾT NỐI GOOGLE DRIVE" else
-            "LÀM MỚI TỪ GOOGLE DRIVE", true) {
-            if (accessToken == null) connectGoogle() else refreshFromDrive()
+
+        button(content, if (fileUri == null && accessToken == null)
+            "KẾT NỐI DỮ LIỆU GOOGLE DRIVE" else "LÀM MỚI DỮ LIỆU", true) {
+            when {
+                fileUri != null -> refreshFromPicker()
+                accessToken != null -> refreshFromDrive()
+                else -> filePicker.launch(arrayOf("text/plain", "application/json"))
+            }
         }
-        button(content, "CHỌN FILE DRIVE BẰNG ANDROID (KHÔNG CẦN OAUTH)") {
-            filePicker.launch(arrayOf("*/*"))
-        }
-        if (fileUri != null) {
-            button(content, "ĐỌC LẠI FILE DRIVE ĐÃ CHỌN") { refreshFromPicker() }
+        button(content, if (fileUri == null) "CHỌN FILE MINH SATORI" else
+            "CHỌN FILE DRIVE KHÁC") {
+            filePicker.launch(arrayOf("text/plain", "application/json"))
         }
 
         if (snapshotInfo == null) {
-            section(content, "Dữ liệu luôn lấy từ Drive",
-                "Ứng dụng chưa đọc hóa đơn nào. Không có cơ sở dữ liệu giả hoặc bản sao " +
-                    "hóa đơn cũ lưu trên điện thoại.")
-            section(content, "Bảo mật",
-                "Chỉ xin quyền đọc Google Drive. Không lưu mật khẩu, khóa Bot API " +
-                    "hay mã hóa đơn xuống bộ nhớ điện thoại.")
+            section(content, "KẾT NỐI TRONG 3 BƯỚC",
+                "1. Bấm KẾT NỐI DỮ LIỆU GOOGLE DRIVE.\n" +
+                "2. Trong cửa sổ Android, chọn Google Drive (biểu tượng tam giác).\n" +
+                "3. Chọn đúng file MinhSatori_Live_Data.json của tài khoản quản lý.\n\n" +
+                "Các lần mở sau app tự đọc lại file đã cho phép. Không cần Chrome.")
+            section(content, "Không hiển thị số liệu khi chưa đồng bộ",
+                "App chỉ hiển thị hóa đơn thực đã đọc được. Nếu không thấy Google Drive " +
+                "trong cửa sổ chọn file, hãy đăng nhập ứng dụng Drive trên Samsung.")
         } else when (activeTab) {
             0 -> renderOverview(content, snapshotInfo)
             1 -> renderInvoices(content, snapshotInfo)
