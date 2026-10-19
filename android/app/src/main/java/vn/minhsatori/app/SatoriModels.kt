@@ -6,6 +6,14 @@ import java.text.Normalizer
 import java.util.Locale
 
 /** Only parsed, read-only snapshots; never store customer records on the phone. */
+data class SatoriProduct(
+    val code: String,
+    val name: String,
+    val unit: String,
+    val unitPrice: Long,
+    val listPrice: Long
+)
+
 data class SatoriLine(
     val description: String,
     val quantity: Int,
@@ -30,7 +38,8 @@ data class SatoriInvoice(
     val lines: List<SatoriLine>,
     val deliveryNote: String,
     val customerPaidAt: String,
-    val duplicateFrom: String
+    val duplicateFrom: String,
+    val requestId: String = ""
 ) {
     val isExcluded: Boolean get() = status.equals("Không Tính", ignoreCase = true)
     val customerHasPaid: Boolean get() =
@@ -43,7 +52,12 @@ data class SatoriInvoice(
     }
 }
 
-data class SatoriSnapshot(val revision: Long, val updatedAt: String, val invoices: List<SatoriInvoice>) {
+data class SatoriSnapshot(
+    val revision: Long,
+    val updatedAt: String,
+    val invoices: List<SatoriInvoice>,
+    val products: List<SatoriProduct> = emptyList()
+) {
     val activeCount: Int get() = invoices.count { !it.isExcluded }
     val outstandingCount: Int get() = invoices.count { it.isOutstanding }
     val outstandingAmount: Long get() = invoices.filter { it.isOutstanding }.sumOf { it.total }
@@ -106,11 +120,26 @@ object SatoriData {
                 lines = lines,
                 deliveryNote = string(x, "deliveryNote").take(1000),
                 customerPaidAt = string(x, "customerPaidAt"),
-                duplicateFrom = string(x, "duplicatedFromInvoiceNo")
+                duplicateFrom = string(x, "duplicatedFromInvoiceNo"),
+                requestId = string(x, "apiRequestId")
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
-        return SatoriSnapshot(revision, string(root, "updatedAt"), invoices)
+        val catalogue = try {
+            JSONArray(values.optString("satori_catalogue_v15", "[]"))
+        } catch (_: Exception) { JSONArray() }
+        val products = (0 until catalogue.length()).mapNotNull { i ->
+            val item = catalogue.optJSONObject(i) ?: return@mapNotNull null
+            val name = string(item, "name").ifBlank { string(item, "product") }
+            if (name.isBlank()) null else SatoriProduct(
+                code = string(item, "code"),
+                name = name,
+                unit = string(item, "unit").ifBlank { "Thùng" },
+                unitPrice = item.optLong("unitPrice", 0).coerceAtLeast(0),
+                listPrice = item.optLong("listPrice", 0).coerceAtLeast(0)
+            )
+        }
+        return SatoriSnapshot(revision, string(root, "updatedAt"), invoices, products)
     }
 
     fun customerKey(invoice: SatoriInvoice): String =
