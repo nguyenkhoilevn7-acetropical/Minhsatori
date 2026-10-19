@@ -42,7 +42,7 @@ function app(){
  const URL={createObjectURL(){return 'blob:test'},revokeObjectURL(){}};
  const window={__SATORI_DRIVE_APP__:true,localStorage:storage,parent,
    addEventListener(k,fn){handlers[k]=fn}};
- const env={window,document:doc,Storage,setTimeout,clearTimeout,setInterval,Blob,URL,
+ const env={window,document:doc,location:{hash:'#satori-drive=1'},Storage,setTimeout,clearTimeout,setInterval,Blob,URL,
    console,JSON,Date,Object,Array,String,Number,Error,Map,Set};
  vm.runInNewContext(bridge,env,{timeout:2000});
  function timer(ms){const entry=[...scheduled.entries()].find(([id,v])=>v.ms===ms);assert.ok(entry,'Missing timer '+ms);scheduled.delete(entry[0]);entry[1].fn()}
