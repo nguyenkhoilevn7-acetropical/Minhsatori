@@ -1,0 +1,22 @@
+name: Satori Server Bot API Tests
+on:
+  push:
+    branches:
+      - "feature/satori-bot-api-stage1"
+  pull_request:
+    paths:
+      - "api/**"
+      - "tests/satori-bot-api.test.js"
+permissions:
+  contents: read
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Offline HMAC, money, invoice, backup and delete tests
+        run: node tests/satori-bot-api.test.js
