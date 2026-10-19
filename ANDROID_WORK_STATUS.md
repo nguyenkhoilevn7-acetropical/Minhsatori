@@ -50,3 +50,11 @@ Detailed handoff: [android/RESUME_HANDOFF_2026-10-19.md](android/RESUME_HANDOFF_
 - **Latest code commit:** `7a7838a4bf95b6eb9913cebfcab898a67af40151`.
 - **Latest GitHub Actions run:** https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39280903525 — **QUEUED** as last checked. Do NOT claim APK build success, exact visual parity or Samsung PDF acceptance until CI passes and owner compares v0.3.1 PDF.
 - **NEXT:** read workflow result, resolve build/test errors, download new debug artifact when success; owner installs v0.3.1 and compares an invoice against website PDF including logo/table/bank QR and multisheet layout. If not matching, iterate. Keep production invoices and website unmodified.
+
+## CI queue diagnosis — 2026-10-19 late evening
+- Owner reported ChatGPT task looked stalled after PDF template rewrite.
+- GitHub CI run **39280903525** for Android v0.3.1 commit `7a7838a4` was confirmed **QUEUED**; its job 118154581591 also QUEUED, with no build result at last observation.
+- Multiple earlier development-branch runs were pending concurrently. In earlier runs 39278976211 and 39278949247, unit tests, Gradle APK build, metadata verification and artifact upload all showed SUCCESS, but jobs were still in the post-Gradle cleanup step, hence status in_progress.
+- This is consistent with GitHub Actions queue and cleanup delays. It is NOT proof that latest v0.3.1 compiles and NOT a Samsung device freeze. Do not promise APK installation yet.
+- Resume: inspect https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39280903525 and fetch its job logs when it actually runs. Fix any compilation issues on the development branch, and verify the artifact. Then Samsung compare PDF to website.
+- Avoid producing more redundant commits/runs while CI backlog exists. No production data writes occurred.
