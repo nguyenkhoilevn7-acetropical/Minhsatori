@@ -32,7 +32,7 @@ test('Postgres API: import, no data loss, invoice and payment concurrency', {ski
     assert.equal((await req('/v1/orders')).status,503);
     assert.equal((await req('/v1/admin/legacy/preview','POST','read',{})).status,403);
     const snapshot={values:{satori_orders_v15:JSON.stringify([
-      {id:1,date:'19/10/2026',name:'Khách cũ',phone:'0900111222',location:'VN',product:'Satori 350ml',qty:1,unitPrice:12000,total:12000,status:'Chưa thanh toán'}])}};
+      {id:1,invoiceNo:1,date:'19/10/2026',name:'Khách cũ',phone:'0900111222',location:'VN',product:'Satori 350ml',qty:1,unitPrice:12000,total:12000,status:'Chưa thanh toán'}])}};
     const preview=await req('/v1/admin/legacy/preview','POST','admin',{snapshot});
     assert.equal(preview.status,200);
     assert.equal(preview.body.count,1);
