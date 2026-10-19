@@ -422,6 +422,17 @@ class NativeMainActivity : AppCompatActivity() {
         render()
         Thread {
             val result = try {
+                // Prevent accidentally displaying a downloaded backup or unrelated file.
+                val chosenName = contentResolver.query(
+                    selected, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }.orEmpty()
+                if (chosenName.isNotBlank() && !chosenName.contains(
+                        "MinhSatori_Live_Data", ignoreCase = true)) {
+                    throw IllegalArgumentException("Đang chọn file '" + chosenName +
+                        "'. Anh hãy chọn MinhSatori_Live_Data.json trên Drive.")
+                }
                 val bytes = contentResolver.openInputStream(selected)?.use { stream ->
                     val buffer = ByteArray(8192)
                     val target = ByteArrayOutputStream()
@@ -434,7 +445,11 @@ class NativeMainActivity : AppCompatActivity() {
                     }
                     target.toByteArray()
                 } ?: throw IllegalArgumentException("Không mở được file đã chọn.")
-                Result.success(SatoriData.fromDriveState(String(bytes, Charsets.UTF_8)))
+                val parsed = SatoriData.fromDriveState(String(bytes, Charsets.UTF_8))
+                require(parsed.revision >= 1 && parsed.updatedAt.isNotBlank()) {
+                    "File thiếu revision hoặc ngày cập nhật."
+                }
+                Result.success(parsed)
             } catch (e: Exception) {
                 Result.failure<SatoriSnapshot>(e)
             }
@@ -443,11 +458,15 @@ class NativeMainActivity : AppCompatActivity() {
                 result.fold(
                     onSuccess = {
                         snapshot = it
-                        statusMessage = "Đọc file thành công; kiểm tra revision và thời gian cập nhật."
+                        dataSource = "file Google Drive"
+                        lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+                        statusMessage = "Đã đọc dữ liệu Drive."
                     },
                     onFailure = {
                         snapshot = null
-                        statusMessage = "Lỗi file Drive: " + (it.message ?: "không đọc được")
+                        statusMessage = "Không đọc được dữ liệu: " +
+                            (it.message ?: "không rõ nguyên nhân") +
+                            ". Bấm CHỌN FILE DRIVE KHÁC để kết nối lại."
                     }
                 )
                 render()
@@ -517,7 +536,9 @@ class NativeMainActivity : AppCompatActivity() {
                 response.fold(
                     onSuccess = {
                         snapshot = it
-                        statusMessage = "Đã đồng bộ thành công."
+                        dataSource = "Google Drive API"
+                        lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+                        statusMessage = "Đã đồng bộ trực tiếp."
                     },
                     onFailure = {
                         snapshot = null
