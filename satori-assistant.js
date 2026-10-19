@@ -99,7 +99,7 @@
     if(/gi[aá]\s*(?:như\s*)?(?:cũ|lần trước)|gia\s*(?:nhu\s*)?(?:cu|lan truoc)/i.test(raw))
       issues.push('Khách yêu cầu giá cũ: cần đối chiếu lịch sử trước khi lưu.');
     if(/đã\s*(?:ck|chuyển|thanh toán|trả)/i.test(raw))issues.push('Khách nói đã thanh toán: cần kiểm tra chứng từ trước khi đánh dấu đã thanh toán.');
-    return {ok:items.length>0&&!customer.ambiguous&&!issues.some(s=>s.startsWith('Chưa xác định đúng sản phẩm:')||s.startsWith('Số lượng không hợp lệ:')||s.startsWith('Chưa có giá hợp lệ:')),customer:customer.name,knownCustomer:customer.known,
+    return {ok:items.length>0&&!!customer.name&&!customer.ambiguous&&!issues.some(s=>s.startsWith('Chưa xác định đúng sản phẩm:')||s.startsWith('Số lượng không hợp lệ:')||s.startsWith('Chưa có giá hợp lệ:')),customer:customer.name,knownCustomer:customer.known,
       phone:number,address,items,issues,source:'nội dung dán thủ công',totalEstimate:items.reduce((v,it)=>v+it.subtotal,0)};
   }
   function debtReport(query,orders=[]) {
