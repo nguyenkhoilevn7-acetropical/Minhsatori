@@ -47,14 +47,16 @@ internal object WebsiteInvoicePdf {
         "Mã QR quét trả tiền:\n" + qrUrl(invoice)
 
     private fun fetchQr(invoice: SatoriInvoice): Bitmap? {
-        val conn = URL(qrUrl(invoice)).openConnection() as HttpURLConnection
-        conn.connectTimeout = 5000
-        conn.readTimeout = 5000
+        // Internet can be unavailable; never let QR retrieval prevent a readable invoice.
         return try {
-            if (conn.responseCode != 200) null
-            else conn.inputStream.use { BitmapFactory.decodeStream(it) }
+            val conn = URL(qrUrl(invoice)).openConnection() as HttpURLConnection
+            try {
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                if (conn.responseCode != 200) null
+                else conn.inputStream.use { BitmapFactory.decodeStream(it) }
+            } finally { conn.disconnect() }
         } catch (_: Exception) { null }
-        finally { conn.disconnect() }
     }
 
     private class W(private val pdf: PdfDocument, private val totalPages: Int?) {
@@ -316,7 +318,7 @@ internal object WebsiteInvoicePdf {
 
         w.gap(13f)
         // The financial block must remain together, including signature columns.
-        w.ensure(300f)
+        w.ensure(330f)
         val top = w.y
         w.boxText("THÔNG TIN THANH TOÁN", 30f, top, 270f, 10f, true, blue)
         w.boxText("Ngân hàng: VPBank", 30f, top + 20f, 270f)
