@@ -1,6 +1,7 @@
 // Staged, self-contained Node tests: no network or Google Drive access.
 const vm=require('node:vm'),assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto'),path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../api/BotApi.gs'),'utf8'),secret='LOCAL_UNIT_TEST_SECRET_012345678901234567890';
+assert.equal(fs.readFileSync(path.join(__dirname,'../api/AccountingCore.gs'),'utf8').trimEnd(),fs.readFileSync(path.join(__dirname,'../accounting-core.js'),'utf8').trimEnd(),'API and website must use identical accounting rules');
 let data={revision:1,updatedAt:'2026-10-18T00:00:00Z',values:{satori_orders_v15:'[]',satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}},backs=0,writes=0,sequence=0;
 const cache=new Map(),props={STATE_FILE_ID:'test-file',SATORI_BOT_CLIENTS_JSON:JSON.stringify({'bot-01':{secret,enabled:true,scopes:['orders:read','orders:write','orders:delete','customers:read','debt:read','payments:write']}})};
 const context={
@@ -13,7 +14,7 @@ const context={
  Utilities:{computeHmacSha256Signature:(m,k)=>[...crypto.createHmac('sha256',k).update(m).digest()],getUuid:()=>String(++sequence),formatDate:()=> '19/10/2026'},
  DriveApp:{getFileById:()=>({makeCopy:()=>{const original=JSON.stringify(data);return {getId:()=>String(++backs),getBlob:()=>({getDataAsString:()=>original})}},setContent(s){data=JSON.parse(s);writes++}})}
 };
-vm.createContext(context);vm.runInContext(source,context);
+vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../accounting-core.js'),'utf8'),context);vm.runInContext(source,context);
 function call(action,payload={},override={}){
  const body={keyId:'bot-01',timestamp:Date.now(),nonce:'test_nonce_'+String(++sequence).padStart(20,'0'),action,payload};
  body.signature=crypto.createHmac('sha256',secret).update([body.keyId,body.timestamp,body.nonce,body.action,JSON.stringify(body.payload)].join('\n')).digest('hex');
@@ -73,4 +74,9 @@ assert.equal(call('orders.delete',{expectedRevision:6,requestId:'delete-00007',c
 assert.equal(backs,5);
 
 assert.equal(call('system.status',{}, {signature:'0'.repeat(64)}).error.code,'AUTH_FAILED');
+const pairBase={name:'Khach CTV',location:'123 test',status:'Chưa thanh toán',date:'19/10/2026',items:[{product:'Nuoc',qty:2,unitPrice:10000}]};
+data={revision:20,updatedAt:'2026-10-19T00:00:00Z',values:{satori_orders_v15:JSON.stringify([{...pairBase,id:101,invoiceNo:101,total:20000},{...pairBase,id:102,invoiceNo:102,total:15000}])}};
+const debt=call('debt.summary',{query:'Khach CTV'});assert.equal(debt.ok,true);assert.equal(debt.data.due,20000);assert.equal(debt.data.orders,1);assert.equal(debt.data.excludedReferenceCount,1);
+assert.equal(call('debt.summary',{query:'102'}).data.due,0,'reference bill must not become debt when high sale outside filter');
+console.log('PASS — debt agrees with ledger: excludes low CTV reference using full-state pairing before filtering');
 console.log('PASS — authenticated customer profiles, create, soft delete, paid protection, backups, idempotency, revision, debt');

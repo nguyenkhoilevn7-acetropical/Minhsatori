@@ -1,6 +1,6 @@
 # Minh Satori Bot API — source package (server-side)
 
-**Deployment status (19/10/2026):** API code and offline tests exist in GitHub only. The existing Apps Script project is NOT yet updated, no bot HMAC secret is configured, and no working public API endpoint is verified. GitHub Pages deployment does not deploy Apps Script code.
+**Activation status (19/10/2026):** API source has been added to the existing Apps Script project and exercised with isolated native Drive tests. A separate owner-only deployment and a private ChatGPT plugin host exist. Production HMAC credentials and external API access are NOT activated; ChatGPT-to-Drive end-to-end operation is NOT verified. See [activation checkpoint](WORK_STATUS_2026-10-19.md). GitHub Pages does not deploy Apps Script.
 
 ## Verified topology
 
@@ -47,6 +47,8 @@ The backend API has these additional safeguards:
 - `orders.delete` is a **reversible soft delete**: it archives a full order in `satori_trash_bin_v15` for 30 days, adds its invoice number to `satori_deleted_invoice_nos`, and checks customer, amount, invoiceNo, unique ID, explicit confirmation, revision and request ID before writing. Paid invoices cannot be deleted through this API.
 - All writes take the existing Apps Script script lock, create a backup before file replacement, and verify the Drive readback. The same lock must be shared with `driveCommit` in the live project.
 
+`AccountingCore.gs` is required and must match `accounting-core.js`. `debt.summary` excludes low CTV reference bills according to the ledger rules and reports ambiguous groups in `reviewCount`.
+
 ## Action list
 
 | Action | Required scope | Payload summary |
@@ -61,7 +63,7 @@ Money is VND, \`from/to\` are ISO dates \`YYYY-MM-DD\`. Never assert that a clou
 
 ## Current limitations
 
-This is a staged implementation: no real Apps Script deployment, no configured bot secrets, no direct ChatGPT connector, no live API calls. Review the production invoice data contract, Google Apps Script execution quotas, retry semantics, and security posture before enabling writes. It is not ready to manage accounting autonomously.
+The dedicated deployment is still owner-only, with no production client secret. Native sandbox and owner-runtime production reads passed, but externally signed HTTP and direct ChatGPT tool calls are not verified. Writes remain disabled. Review [activation checkpoint](WORK_STATUS_2026-10-19.md) before activation.
 ## Server-side client and smoke test
 
 Once the SAME Apps Script project hosts this API as a dedicated Web App deployment and the bot account has read scopes, put all secrets in the trusted connector/server environment (`SATORI_BOT_API_URL`, `SATORI_BOT_KEY_ID`, `SATORI_BOT_SECRET`). Run `node api/bot-client.mjs system.status '{}'` and `node api/bot-client.mjs customers.search '{"query":"Traky Hair"}'`. Do not run a mutation against live data for smoke tests; use a test copy first. **Never** load `api/bot-client.mjs` into browser source or publish its environment variables.

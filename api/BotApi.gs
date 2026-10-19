@@ -177,8 +177,12 @@ function read(s,action,p){
  var found=select(all,p);
  if(action==='orders.list')return {revision:s.revision,totalMatches:found.length,orders:found.slice(0,Math.min(100,Math.max(1,Number(p.limit)||30))).map(visible)};
  if(action==='debt.summary'){
-  found=found.filter(active);var owed=found.filter(function(o){return !paid(o)});
+  need(typeof SatoriAccountingCore!=='undefined','CONFIG_MISSING','Thiếu AccountingCore.gs cho công nợ');
+  var ledger=SatoriAccountingCore.calculate(all,[]),secondary=new Set(ledger.rows.filter(function(r){return r.secondary}).map(function(r){return r.order}));
+  var excluded=found.filter(function(o){return active(o)&&secondary.has(o)}).length;
+  found=found.filter(function(o){return active(o)&&!secondary.has(o)});var owed=found.filter(function(o){return !paid(o)});
   return {revision:s.revision,orders:found.length,unpaidCount:owed.length,
+   excludedReferenceCount:excluded,reviewCount:ledger.rows.filter(function(r){return r.review&&found.includes(r.order)}).length,
    total:found.reduce(function(n,o){return n+Number(o.total||0)},0),
    due:owed.reduce(function(n,o){return n+Number(o.total||0)},0),
    unpaidInvoices:owed.slice(0,100).map(visible),truncated:owed.length>100};
@@ -222,3 +226,4 @@ function handle(e){
 return {handle:handle};
 })();
 function doPost(e){return SatoriBotApi.handle(e)}
+
