@@ -147,7 +147,7 @@
   function calculatePreview(){
     if(!current)return;
     var qty=Number(input('qty').value),price=Number(input('unitprice').value);
-    var total=Number.isSafeInteger(qty)&&qty>0&&Number.isFinite(price)&&price>0?Math.round(qty*price*(input('vat').value==='yes'?1.08:1)):null;
+    var total=Number.isSafeInteger(qty)&&qty>0&&Number.isFinite(price)&&price>0?Math.round(qty*price)+(input('vat').value==='yes'?Math.round(qty*price*0.08):0):null;
     var sum=input('total');sum.textContent=total===null?'Thiếu số lượng / giá':fmt(total);
     var mismatch=current.mentionedTotal!==null&&total!==null&&current.mentionedTotal!==total;
     var msg=input('mismatch');msg.textContent=mismatch?'Tin nhắn ghi '+fmt(current.mentionedTotal)+' — không khớp tổng Bot tính.':'';
@@ -164,7 +164,7 @@
     if(!Number.isSafeInteger(qty)||qty<=0||qty>10000||!Number.isFinite(price)||price<=0||price>1e9)throw Error('Số lượng hoặc giá không hợp lệ.');
     if(!/^\d{4}-\d\d-\d\d$/.test(delivery))throw Error('Ngày giao không hợp lệ.');
     var days=new Date(delivery+'T00:00:00');if(Number.isNaN(days.getTime())||dateIso(days)!==delivery)throw Error('Ngày giao không hợp lệ.');
-    var total=Math.round(qty*price*(vat==='yes'?1.08:1));
+    var total=Math.round(qty*price)+(vat==='yes'?Math.round(qty*price*0.08):0);
     if(draft.mentionedTotal!==null&&total!==draft.mentionedTotal)throw Error('Tổng tiền không khớp tin nhắn.');
     var values=Object.fromEntries(['busName','busPhone','busLocation','taxCode','orderDate','invoiceNo','vatOption','shippingOption','paymentStatus','costDiscountPercent'].map(k=>[k,document.getElementById(k)?.value]));
     var rows=getRows(),reference=rows.find(o=>Number(o.invoiceNo)===Number(draft.referenceNo));
@@ -271,7 +271,7 @@
       var summary='LƯU ĐƠN THẬT?\nKhách: '+current.customer+'\nSản phẩm: '+current.product+
       '\nSố lượng: '+qty+' '+current.unit+'\nĐơn giá: '+fmt(price)+
       '\nVAT: '+(vat==='yes'?'8%':'0%')+'\nNgày giao: '+date+
-      '\nTổng: '+fmt(Math.round(qty*price*(vat==='yes'?1.08:1)))+'\nTrạng thái: Chưa thanh toán';
+      '\nTổng: '+fmt(Math.round(qty*price)+(vat==='yes'?Math.round(qty*price*0.08):0))+'\nTrạng thái: Chưa thanh toán';
       if(!confirm(summary))return;
       guard=true;calculatePreview();
       try{var done=applyToForm(current,true);renderStatus('Đã tạo đơn #'+done.invoiceNo+'; đang chờ xác nhận Drive.',false)}
