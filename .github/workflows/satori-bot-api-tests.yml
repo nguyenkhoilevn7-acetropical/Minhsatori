@@ -3,6 +3,11 @@ on:
   push:
     branches:
       - "feature/satori-bot-api-stage1"
+      - "feature/minhsatori-native-android-v020"
+    paths:
+      - "api/**"
+      - "tests/satori-bot-api.test.js"
+      - ".github/workflows/satori-bot-api-tests.yml"
   pull_request:
     paths:
       - "api/**"
