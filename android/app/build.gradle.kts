@@ -28,8 +28,8 @@ android {
         applicationId = "vn.minhsatori.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.1.2"
+        versionCode = 5
+        versionName = "0.2.0"
         buildConfigField("String", "SATORI_WEB_APP_URL", "\"$ownerWebAppUrl\"")
     }
 
@@ -57,5 +57,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.browser:browser:1.8.0")
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
     testImplementation("junit:junit:4.13.2")
 }
