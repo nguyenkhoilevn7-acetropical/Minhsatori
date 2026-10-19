@@ -293,12 +293,13 @@ internal object WebsiteInvoicePdf {
             true, black, Paint.Align.RIGHT)
         w.boxText("#" + invoice.number, 410f, 48f, 155f, 13f,
             true, amber, Paint.Align.RIGHT)
-        w.boxText(invoice.displayDate, 410f, 68f, 155f, 8f,
+        val dateHeight = w.boxText(invoice.displayDate, 410f, 68f, 155f, 8f,
             false, black, Paint.Align.RIGHT)
-        w.boxText(invoice.status, 410f, 81f, 155f, 8f,
+        val statusTop = 70f + dateHeight
+        val statusHeight = w.boxText(invoice.status, 410f, statusTop, 155f, 8f,
             false, black, Paint.Align.RIGHT)
         logo?.recycle()
-        w.move(115f)
+        w.move(maxOf(115f, statusTop + statusHeight + 12f))
         w.lineRule()
         w.section("THÔNG TIN KHÁCH HÀNG")
         w.text("Khách hàng: " + invoice.customer)
