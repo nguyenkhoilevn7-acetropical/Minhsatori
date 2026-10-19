@@ -1,0 +1,37 @@
+name: Minh Satori API checks
+on:
+  push:
+    branches: [feature/satori-api-v1]
+    paths: [api/**, .github/workflows/satori-api-ci.yml]
+  pull_request:
+    paths: [api/**, .github/workflows/satori-api-ci.yml]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: satori_test
+          POSTGRES_USER: api_test
+          POSTGRES_PASSWORD: integration_test_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://api_test:integration_test_only@localhost:5432/satori_test
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Syntax check
+        run: npm run check
+      - name: Core and integration tests
+        run: npm test
