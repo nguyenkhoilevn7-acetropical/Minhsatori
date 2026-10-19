@@ -1,5 +1,7 @@
 # Minh Satori Android v0.3.0 — Native thử nghiệm, CHƯA phát hành live
 
+**Checkpoint khôi phục khi ChatGPT bị treo:** xem [`RESUME_HANDOFF_2026-10-19.md`](RESUME_HANDOFF_2026-10-19.md) trong cùng nhánh Android để biết tiến độ đã xác minh và công việc còn thiếu.
+
 ## Những gì đã có trong mã v0.3.0
 Màn hình Android native không mở Chrome; đọc hóa đơn và công nợ, xuất và chia sẻ PDF, lên đơn mới, sửa đơn, thanh toán, xóa mềm, khôi phục. Nút ghi chỉ bật khi Google xác thực và server trả allowedActions. Thao tác ghi dùng revision, backup và requestId, không ghi trực tiếp Drive, không chứa secret HMAC trong APK. Bản Android mới đã sửa trường hợp thanh toán lặp, trạng thái Đã TT Satori, hóa đơn Đã hủy và cố gắng xác minh đơn được lưu khi mất phản hồi.
 
@@ -47,7 +49,7 @@ gradle -p android :app:testDebugUnitTest :app:assembleDebug --no-daemon
 
 APK nằm tại `android/app/build/outputs/apk/debug/app-debug.apk`.
 GitHub workflow `.github/workflows/android-apk.yml` xuất artifact
-`MinhSatori-Samsung-Native-v0.2.0-debug`.
+`MinhSatori-Samsung-Native-v0.3.0-debug` (debug only).
 
 ### Kết nối Google API trên Android
 
