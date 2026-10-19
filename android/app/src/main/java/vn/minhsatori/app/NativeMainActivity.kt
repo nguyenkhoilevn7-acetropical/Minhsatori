@@ -378,6 +378,9 @@ class NativeMainActivity : AppCompatActivity() {
         button(parent, "TRÍ NHỚ AI · " + data.customerMemory.size + " HỒ SƠ (CHỈ XEM)") {
             showCustomerMemory(data)
         }
+        button(parent, "ĐỐI CHIẾU HAI BẢN GIÁ · (CHỈ XEM)") {
+            showPriceComparison(data)
+        }
         section(parent, "Kho hóa đơn · " + data.invoices.size,
             data.activeCount.toString() + " bản ghi tính doanh thu; các bản 'Không Tính' " +
                 "không cộng trùng.")
@@ -390,6 +393,72 @@ class NativeMainActivity : AppCompatActivity() {
                 invoice.displayDate + " · " + SatoriData.money(invoice.total) + " · " +
                     invoice.status) { openInvoice(invoice) }
         }
+    }
+
+    // Conservative read-only comparison of delivery price variants, not an
+    // imported supplier Excel match. Nothing here writes or deduplicates Drive.
+    private fun showPriceComparison(data: SatoriSnapshot) {
+        val comparison = SatoriPriceComparison.compare(data.invoices)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(10), dp(14), dp(12))
+        }
+        label(panel, "ĐỐI CHIẾU HAI BẢN GIÁ · REV " + data.revision,
+            14f, true, teal)
+        label(panel, "Ghép tự động chỉ khi cùng khách, ngày, số điện thoại, " +
+            "địa chỉ, hàng và số lượng; hai bản tạo trong 30 phút và có dấu hiệu " +
+            "bản giá. Thiếu bằng chứng → cần kiểm tra. Chỉ đọc dữ liệu.",
+            12f, false, muted, 5)
+        section(panel, comparison.pairs.size.toString() + " cặp đủ bằng chứng",
+            comparison.toReview.size.toString() +
+                " nhóm cần kiểm tra · " + comparison.notPairedCount +
+                " bản ghi chưa ghép. Chênh lệch giá KHÔNG mặc định là lợi nhuận.")
+        val scroll = ScrollView(this)
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(results)
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, dp(460)))
+
+        label(results, "CÁC CẶP ĐỦ BẰNG CHỨNG", 13f, true, teal, 11)
+        if (comparison.pairs.isEmpty()) label(results,
+            "Chưa có cặp nào đủ điều kiện tự ghép.", 12f, false, muted, 7)
+        comparison.pairs.take(80).forEach { pair ->
+            section(results, "#" + pair.delivery.number + " / #" +
+                pair.alternate.number + " · " + pair.delivery.customer,
+                pair.delivery.address +
+                    "\nBản tính doanh thu: " + SatoriData.money(pair.delivery.total) +
+                    " · Bản giá khác: " + SatoriData.money(pair.alternate.total) +
+                    "\nChênh lệch hai bản giá: " +
+                    SatoriData.money(pair.priceDifference)) {
+                AlertDialog.Builder(this)
+                    .setTitle("Cặp #" + pair.delivery.number + " / #" +
+                        pair.alternate.number)
+                    .setMessage("Chỉ đối chiếu, không xóa hoặc cộng trừ hai đơn.\n\n" +
+                        "Bản giao: #" + pair.delivery.number + " · " +
+                        pair.delivery.status + "\n" +
+                        SatoriData.money(pair.delivery.total) +
+                        "\nBản giá khác: #" + pair.alternate.number + " · " +
+                        pair.alternate.status + "\n" +
+                        SatoriData.money(pair.alternate.total))
+                    .setPositiveButton("Đóng", null)
+                    .show()
+            }
+        }
+        if (comparison.pairs.size > 80) label(results,
+            "Chỉ hiển thị 80 cặp đầu tiên.", 11f, false, muted, 5)
+        label(results, "CẦN KIỂM TRA THỦ CÔNG", 13f, true, gold, 15)
+        if (comparison.toReview.isEmpty()) label(results,
+            "Không có nhóm nghi vấn trong dữ liệu hiện tại.", 12f, false, muted, 6)
+        comparison.toReview.take(80).forEach { review ->
+            section(results, review.invoices.joinToString(" / ") { "#" + it.number },
+                review.invoices.first().customer + "\n" + review.reason)
+        }
+        if (comparison.toReview.size > 80) label(results,
+            "Chỉ hiển thị 80 nhóm đầu tiên.", 11f, false, muted, 5)
+        AlertDialog.Builder(this)
+            .setTitle("ĐỐI CHIẾU SATORI · HAI BẢN GIÁ")
+            .setView(panel)
+            .setPositiveButton("Đóng", null)
+            .show()
     }
 
     // AI memory comes only from the current verified snapshot. File picker
