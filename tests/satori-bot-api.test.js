@@ -5,7 +5,7 @@ const sandboxSource=fs.readFileSync(path.join(__dirname,'../api/BotApiSandbox.gs
 const embedded=sandboxSource.match(/^var SATORI_BOT_SANDBOX_SOURCE_ = (.+);$/m);
 assert.ok(embedded,'Sandbox must embed the current BotApi.gs source');
 assert.equal(JSON.parse(embedded[1]),source,'Sandbox embedded API must exactly match BotApi.gs');
-const sandboxHelpers=sandboxSource.split('\n').slice(2).join('\n');
+const sandboxHelpers=sandboxSource.replace(/^var SATORI_BOT_SANDBOX_SOURCE_ = (.+);$/m,'');
 assert.equal((sandboxHelpers.match(/computeHmacSha256Signature\([^;\n]*Utilities\.Charset\.UTF_8\)/g)||[]).length,2,
   'Both owner-run native sandbox and read-only smoke must explicitly sign UTF-8');
 assert.equal(fs.readFileSync(path.join(__dirname,'../api/AccountingCore.gs'),'utf8').trimEnd(),fs.readFileSync(path.join(__dirname,'../accounting-core.js'),'utf8').trimEnd(),'API and website must use identical accounting rules');
