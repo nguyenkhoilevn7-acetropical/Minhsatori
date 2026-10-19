@@ -36,3 +36,17 @@ Detailed handoff: [android/RESUME_HANDOFF_2026-10-19.md](android/RESUME_HANDOFF_
 - Latest CI run as checked: https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39278976211 — **QUEUED** when recorded. Wait for final result before claiming new APK built.
 - NEXT: verify CI passes, download/install newly built test APK, compare revision/count with website and test PDF + Android Zalo share read-only. Then stage server-side OAuth/Mobile API, simulate safe writes in sandbox. Do not modify production.
 - Engineering completion remains about **70%** until Google authorization, API connection, multi-device sync, PDF, Zalo, signing, and safety acceptance tests pass.
+
+## Website-style Android PDF v0.3.1 — 2026-10-19 evening (implementation checkpoint)
+- Owner tested direct PDF→Zalo from v0.3.0: **PDF sharing works** but PDF layout **does not match website**. Screenshot of `MinhSatori_HD_9_2.pdf` shows plain text, no website logo, table/discounts or QR. Do not call v0.3.0 PDF acceptance complete.
+- Owner explicitly requested the native PDF be **the same as the website PDF**.
+- Website canonical source: `index.html` on `main`, function `invoicePdfDefinition()` (logo+branding, customer tax code, 8-column product table, list price/discount, bank VietQR, totals, Vietnamese amount-in-words, two signatures, page number). Source logo: `logo-satori-3394.jpg`.
+- Changes on **development branch only**, not production:
+  * Imported the exact website logo as `android/app/src/main/res/drawable/satori_invoice_logo.jpg` using original Git blob.
+  * Updated `SatoriModels.kt` to preserve order taxCode and line discountPercent from snapshot; added regression test.
+  * New `WebsiteInvoicePdf.kt` reproduces website A4 sections natively, uses actual source total, 8-column table, website bank QR URL, notes, signatures and page counts. On QR network failure, prints a visible warning instead of inventing a QR.
+  * Replaced `NativeInvoicePdf.kt` share renderer to use that template, render in a worker thread so the Samsung UI does not stall, and append website-matched bank/message details.
+  * Bumped trial version to **0.3.1 / versionCode 8**, aligned GitHub Actions artifact name/metadata.
+- **Latest code commit:** `7a7838a4bf95b6eb9913cebfcab898a67af40151`.
+- **Latest GitHub Actions run:** https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39280903525 — **QUEUED** as last checked. Do NOT claim APK build success, exact visual parity or Samsung PDF acceptance until CI passes and owner compares v0.3.1 PDF.
+- **NEXT:** read workflow result, resolve build/test errors, download new debug artifact when success; owner installs v0.3.1 and compares an invoice against website PDF including logo/table/bank QR and multisheet layout. If not matching, iterate. Keep production invoices and website unmodified.
