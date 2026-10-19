@@ -424,6 +424,152 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    private fun configureMobileApi() {
+        val entry = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setText(apiEndpoint.orEmpty())
+            setSingleLine(false)
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("KẾT NỐI MOBILE API")
+            .setMessage("Nhập liên kết /exec của Apps Script Bot API đã được kích hoạt quyền Android chủ sở hữu. Chỉ nhập đường dẫn, KHÔNG nhập khóa HMAC hay mật khẩu.")
+            .setView(entry)
+            .setNegativeButton("Hủy", null)
+            .setPositiveButton("LƯU & KẾT NỐI", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val candidate = entry.text.toString().trim()
+                if (!MobileApiClient.saveEndpoint(this, candidate)) {
+                    entry.error = "Chỉ chấp nhận liên kết HTTPS Apps Script /macros/s/.../exec"
+                    return@setOnClickListener
+                }
+                apiEndpoint = MobileApiClient.endpoint(this)
+                // Previously loaded file snapshots are read-only until verified API connects.
+                dataSource = ""
+                snapshot = null
+                dialog.dismiss()
+                connectGoogle()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun refreshFromMobileApi() {
+        val endpoint = apiEndpoint ?: run {
+            statusMessage = "Chưa cấu hình Mobile API."
+            render()
+            return
+        }
+        val token = accessToken ?: run { connectGoogle(); return }
+        if (isLoading) return
+        isLoading = true
+        statusMessage = "Đang xác thực chủ sở hữu và đồng bộ hóa đơn…"
+        render()
+        Thread {
+            val outcome = runCatching { MobileApiClient.snapshot(endpoint, token) }
+            runOnUiThread {
+                isLoading = false
+                outcome.fold(
+                    onSuccess = {
+                        snapshot = it
+                        dataSource = "Minh Satori API"
+                        lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+                        statusMessage = "Đã kết nối quyền lên đơn."
+                    },
+                    onFailure = {
+                        snapshot = null
+                        dataSource = ""
+                        statusMessage = "Không kết nối được Mobile API: " +
+                            (it.message ?: "không rõ lỗi") +
+                            ". Chưa bật chức năng lưu đơn."
+                        if (it is MobileApiError &&
+                            (it.apiCode == "AUTH_FAILED" || it.apiCode == "FORBIDDEN")) {
+                            accessToken = null
+                        }
+                    }
+                )
+                render()
+            }
+        }.start()
+    }
+
+    private fun executeWrite(
+        action: String,
+        payload: JSONObject,
+        completed: (Boolean, String) -> Unit
+    ) {
+        val endpoint = apiEndpoint
+        val token = accessToken
+        if (!canWrite || endpoint == null || token == null || isLoading) {
+            completed(false, "Chưa kết nối tài khoản Google với Mobile API.")
+            return
+        }
+        isLoading = true
+        statusMessage = "Đang gửi " + action + " lên Minh Satori…"
+        render()
+        Thread {
+            val writeResult = runCatching {
+                MobileApiClient.request(endpoint, token, action, payload,
+                    UUID.randomUUID().toString().replace("-", ""))
+            }
+            val latest = if (writeResult.isSuccess) runCatching {
+                MobileApiClient.snapshot(endpoint, token)
+            } else null
+            runOnUiThread {
+                isLoading = false
+                writeResult.fold(
+                    onSuccess = { reply ->
+                        if (latest?.isSuccess == true) {
+                            snapshot = latest.getOrNull()
+                            dataSource = "Minh Satori API"
+                            lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+                        } else {
+                            // A confirmed write must never be reported as a failed write.
+                            snapshot = null
+                            dataSource = ""
+                            statusMessage = "Server đã xử lý lệnh. Không xác minh được đồng bộ; hãy kết nối lại trước thao tác tiếp."
+                        }
+                        val changed = reply.optJSONObject("data")?.optJSONObject("order")
+                        val invoiceNo = changed?.optString("invoiceNo").orEmpty()
+                        val answer = if (invoiceNo.isNotBlank())
+                            "Thành công: Hóa đơn #" + invoiceNo else "Server xác nhận thành công."
+                        Toast.makeText(this, answer, Toast.LENGTH_LONG).show()
+                        completed(true, answer)
+                    },
+                    onFailure = { e ->
+                        val info = (e.message ?: "Không rõ lỗi")
+                        statusMessage = "Không thể hoàn tất yêu cầu: " + info
+                        if (e is MobileApiError && (e.apiCode == "REVISION_CONFLICT" ||
+                                e.apiCode == "PROFILE_CHANGED" ||
+                                e.apiCode == "ORDER_CHANGED")) {
+                            Toast.makeText(this,
+                                "Dữ liệu đã thay đổi trên máy khác. Tải lại trước khi tiếp tục.",
+                                Toast.LENGTH_LONG).show()
+                        }
+                        // No automatic retry: requestId is retained by the editor.
+                        completed(false, info)
+                    }
+                )
+                render()
+            }
+        }.start()
+    }
+
+    private fun launchEditor(editing: SatoriInvoice? = null,
+                             customer: SatoriInvoice? = null) {
+        val loaded = snapshot
+        if (!canWrite || loaded == null) {
+            Toast.makeText(this, "Cần kết nối Mobile API để lên đơn.", Toast.LENGTH_LONG).show()
+            return
+        }
+        NativeOrderEditor.show(this, loaded, editing, customer) { action, payload, done ->
+            executeWrite(action, payload, done)
+        }
+    }
+
     private fun refreshFromPicker() {
         val selected = fileUri ?: run {
             statusMessage = "Anh cần chọn file MinhSatori_Live_Data.json."
