@@ -116,6 +116,8 @@ function write(s,action,p){
  var file=DriveApp.getFileById(fileId);
  var backup=file.makeCopy('MinhSatori_API_PreWrite_'+new Date().toISOString().replace(/[:.]/g,'-'));
  need(backup&&backup.getId(),'BACKUP_FAILED','Không tạo được bản sao trước ghi');
+ var backedUp=JSON.parse(backup.getBlob().getDataAsString());
+ need(JSON.stringify(backedUp)===JSON.stringify(s),'BACKUP_FAILED','Bản sao trước ghi không khớp dữ liệu hiện tại');
  var next={revision:s.revision+1,values:Object.assign({},s.values),updatedAt:new Date().toISOString()};
  next.values[ORDER_KEY]=JSON.stringify(all);
  file.setContent(JSON.stringify(next));
