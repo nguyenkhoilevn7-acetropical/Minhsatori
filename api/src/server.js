@@ -52,7 +52,7 @@ async function record(client,id,{lock=false}={}) {
   return result.rows[0];
 }
 function present(row) {
-  return {id:row.id,version:row.version,invoiceNo:row.invoice_no,order:row.data,updatedAt:row.updated_at};
+  return {id:row.id,version:row.version,invoiceNo:row.invoice_no===null?null:Number(row.invoice_no),order:row.data,updatedAt:row.updated_at};
 }
 async function audit(client, actor, action, id, before, after) {
   await client.query('INSERT INTO audit_log(actor,action,order_id,before_state,after_state) VALUES($1,$2,$3,$4,$5)',
@@ -205,22 +205,25 @@ async function handler(req,res,pool,keys,rates) {
     const payment=Boolean(match[2]);
     scope(key,payment?'payments:write':'orders:write');
     const body=await json(req);
+    if(!body || typeof body!=='object' || Array.isArray(body))throw C.error('INVALID_JSON','Cần một JSON object');
     const out=await mutation(pool,req,key.id,body,async client=>{
       const row=await record(client,match[1],{lock:true});needVersion(body,row);
       let o=structuredClone(row.data);
       if(payment){
         if(!['Đã thanh toán','Chưa thanh toán'].includes(body.status))throw C.error('INVALID_STATUS','Chỉ hỗ trợ đánh dấu đã/chưa thanh toán của khách');
-        o.status=body.status;
+        if(o.status==='Đã TT Satori' && !o.satoriPaidAt)o.satoriPaidAt=new Date().toISOString();
+        o.status=body.status==='Chưa thanh toán' && o.satoriPaidAt?'Đã TT Satori':body.status;
         if(body.status==='Đã thanh toán')o.customerPaidAt=new Date().toISOString();
         else delete o.customerPaidAt;
       }else {
         const keys=Object.keys(body).filter(k=>k!=='expectedVersion');
         if(!keys.length||keys.some(k=>!editable.has(k)))throw C.error('INVALID_PATCH','Chỉ cho sửa các trường thông tin hóa đơn cho phép');
-        if(!Array.isArray(o.items) && keys.some(k=>!['name','phone','location','date'].includes(k)))
+        const contactOnly=keys.every(k=>['name','phone','location','date'].includes(k));
+        if(!contactOnly && !Array.isArray(o.items))
           throw C.error('LEGACY_PRICE_REVIEW','Hóa đơn cũ chưa có items; không tự tính lại giá, chỉ hỗ trợ sửa thông tin khách/ngày');
         for(const k of keys)o[k]=body[k];
-        if(Array.isArray(o.items))o=C.validateOrder(o);
-        else if(!C.fold(o.name)||!C.dateISO(o.date))throw C.error('INVALID_PATCH','Tên hoặc ngày không hợp lệ');
+        if(contactOnly){if(!C.fold(o.name)||!C.dateISO(o.date))throw C.error('INVALID_PATCH','Tên hoặc ngày không hợp lệ');}
+        else o=C.validateOrder(o);
       }
       const changed=await updateRecord(client,row,o,key.id,payment?'payment.update':'order.update');
       return {status:200,payload:changed};
