@@ -367,6 +367,9 @@ class NativeMainActivity : AppCompatActivity() {
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
         if (canWrite) button(parent, "+ LÊN ĐƠN MỚI", true) { launchEditor() }
+        button(parent, "BẢNG GIÁ SATORI · " + data.products.size + " sản phẩm (CHỈ XEM)") {
+            showCatalogue(data)
+        }
         section(parent, "Kho hóa đơn · " + data.invoices.size,
             data.activeCount.toString() + " bản ghi tính doanh thu; các bản 'Không Tính' " +
                 "không cộng trùng.")
@@ -379,6 +382,66 @@ class NativeMainActivity : AppCompatActivity() {
                 invoice.displayDate + " · " + SatoriData.money(invoice.total) + " · " +
                     invoice.status) { openInvoice(invoice) }
         }
+    }
+
+    // Website-parity milestone: browse the actual current catalogue from the
+    // verified snapshot. No price editing until owner API permission is proven.
+    private fun showCatalogue(data: SatoriSnapshot) {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(8))
+        }
+        label(panel, "Giá lấy từ bản dữ liệu đang mở · Revision " + data.revision +
+            ". Chỉ xem, không ghi lên Google Drive.", 12f, false, muted)
+        val search = EditText(this).apply {
+            hint = "Tìm sản phẩm hoặc mã hàng…"
+            setSingleLine(true)
+            textSize = 14f
+        }
+        panel.addView(search, LinearLayout.LayoutParams(-1, dp(48)))
+        val scroll = ScrollView(this).apply { isFillViewport = false }
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(4), 0, dp(12))
+        }
+        scroll.addView(list)
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, dp(460)))
+        fun update() {
+            list.removeAllViews()
+            val needle = SatoriData.normalized(search.text.toString())
+            val products = data.products.filter { product ->
+                needle.isBlank() || SatoriData.normalized(
+                    product.name + " " + product.code + " " + product.unit
+                ).contains(needle)
+            }
+            label(list, products.size.toString() + " sản phẩm", 12f, true, teal, 8)
+            products.forEach { p ->
+                val discountText = p.discountPercent?.let { pct ->
+                    " · CK " + String.format(java.util.Locale("vi", "VN"), "%.1f%%", pct)
+                }.orEmpty()
+                section(list, p.name + (if (p.code.isBlank()) "" else " · " + p.code),
+                    p.unit + " · Giá niêm yết: " + SatoriData.money(p.listPrice) +
+                    " · Đơn giá: " + SatoriData.money(p.unitPrice) + discountText)
+            }
+            if (products.isEmpty()) {
+                label(list, if (data.products.isEmpty())
+                    "Chưa có bảng giá trong nguồn dữ liệu này. Hãy đồng bộ lại."
+                    else "Không tìm thấy sản phẩm phù hợp.", 12f, false, muted, 12)
+            }
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                update()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        update()
+        AlertDialog.Builder(this)
+            .setTitle("BẢNG GIÁ SATORI")
+            .setView(panel)
+            .setPositiveButton("Đóng", null)
+            .show()
     }
 
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
