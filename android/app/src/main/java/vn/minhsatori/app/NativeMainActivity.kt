@@ -8,6 +8,9 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
@@ -56,6 +59,26 @@ class NativeMainActivity : AppCompatActivity() {
     private var lastReadAt = ""
     private var apiEndpoint: String? = null
     private var allowedActions: Set<String> = emptySet()
+    // Owner opt-in: Google read-only access replaces repeated manual Drive file selection.
+    // Poll only while the app is foregrounded, and only after successful authorization.
+    private val syncHandler = Handler(Looper.getMainLooper())
+    private val syncIntervalMs = 120_000L
+    private var lastOnlineReadElapsedMs = 0L
+    private var foreground = false
+    private val syncTick = object : Runnable {
+        override fun run() {
+            if (!foreground) return
+            if (!isLoading && accessToken != null &&
+                lastOnlineReadElapsedMs > 0L &&
+                SystemClock.elapsedRealtime() - lastOnlineReadElapsedMs >= syncIntervalMs) {
+                when (dataSource) {
+                    "Minh Satori API" -> refreshFromMobileApi()
+                    "Google Drive API" -> refreshFromDrive()
+                }
+            }
+            syncHandler.postDelayed(this, syncIntervalMs)
+        }
+    }
     private fun canAction(action: String): Boolean =
         apiEndpoint != null && accessToken != null &&
             dataSource == "Minh Satori API" && allowedActions.contains(action)
@@ -105,11 +128,38 @@ class NativeMainActivity : AppCompatActivity() {
         }
         apiEndpoint = MobileApiClient.endpoint(this)
         render()
-        if (apiEndpoint != null) connectGoogle()
+        if (apiEndpoint != null || preferGoogleDrive()) connectGoogle()
         else if (fileUri != null) refreshFromPicker()
     }
 
+    override fun onResume() {
+        super.onResume()
+        foreground = true
+        syncHandler.removeCallbacks(syncTick)
+        syncHandler.postDelayed(syncTick, syncIntervalMs)
+        // If returning from another app after a long time, refresh the authenticated
+        // source rather than displaying a read-only file as live synced data.
+        if (!isLoading && accessToken != null &&
+            lastOnlineReadElapsedMs > 0L &&
+            SystemClock.elapsedRealtime() - lastOnlineReadElapsedMs >= syncIntervalMs) {
+            when (dataSource) {
+                "Minh Satori API" -> refreshFromMobileApi()
+                "Google Drive API" -> refreshFromDrive()
+            }
+        }
+    }
+
+    override fun onPause() {
+        foreground = false
+        syncHandler.removeCallbacks(syncTick)
+        super.onPause()
+    }
+
+    private fun preferGoogleDrive(): Boolean =
+        getPreferences(MODE_PRIVATE).getBoolean("google_drive_auto_read", false)
+
     override fun onDestroy() {
+        syncHandler.removeCallbacks(syncTick)
         // Never persist OAuth access tokens or cached customer data to disk.
         accessToken = null
         snapshot = null
@@ -217,6 +267,20 @@ class NativeMainActivity : AppCompatActivity() {
             label(content, if (canWrite) "Đã xác thực chủ sở hữu · Được phép lên đơn" else
                 "Chưa xác thực kết nối ghi đơn. Không thể lưu cho tới khi API hoạt động.",
                 12f, true, if (canWrite) teal else gold, 8)
+        }
+        if (apiEndpoint == null) {
+            button(content, if (preferGoogleDrive())
+                "LÀM MỚI DỮ LIỆU BẰNG GOOGLE (CHỈ XEM)" else
+                "KẾT NỐI GOOGLE DRIVE (CHỈ XEM · TỰ ĐỒNG BỘ)") {
+                getPreferences(MODE_PRIVATE).edit()
+                    .putBoolean("google_drive_auto_read", true).apply()
+                if (accessToken == null) connectGoogle() else refreshFromDrive()
+            }
+            if (preferGoogleDrive()) label(content,
+                "Đã chọn chế độ Google Drive. Khi app đang mở, " +
+                    "dữ liệu sẽ làm mới khoảng mỗi 2 phút sau khi cấp quyền. " +
+                    "Không tự cập nhật từ file Drive được chọn thủ công.",
+                12f, false, muted, 7)
         }
         button(content, "CÀI ĐẶT LIÊN KẾT API") { configureMobileApi() }
         button(content, if (fileUri == null) "ĐỌC FILE DRIVE (CHỈ XEM)" else
@@ -628,6 +692,7 @@ class NativeMainActivity : AppCompatActivity() {
                         allowedActions = it.allowedActions
                         dataSource = "Minh Satori API"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+                        lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
                         statusMessage = "Đã kết nối quyền lên đơn."
                     },
                     onFailure = {
@@ -893,6 +958,7 @@ class NativeMainActivity : AppCompatActivity() {
                         snapshot = it
                         dataSource = "Google Drive API"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+                        lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
                         statusMessage = "Đã đồng bộ trực tiếp."
                     },
                     onFailure = {
