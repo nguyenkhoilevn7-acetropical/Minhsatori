@@ -434,10 +434,23 @@ object SatoriSupplierReconciliation {
                         parseDate(doc.date).isNotBlank() &&
                         parseDate(doc.date) != parseDate(invoice.date))
             }
+            // Company document IDs and local invoice IDs belong to distinct
+            // namespaces. Even a coincidentally equal number is NOT sufficient
+            // to auto-match unless independent delivery evidence agrees.
+            val corroborated = candidates.singleOrNull()?.let { invoice ->
+                (doc.phone.filter(Char::isDigit).isNotBlank() &&
+                    doc.phone.filter(Char::isDigit) == invoice.phone.filter(Char::isDigit)) ||
+                    addressComparable(doc.address, invoice.address) ||
+                    (norm(doc.customer).isNotBlank() &&
+                        norm(doc.customer) == norm(invoice.customer) &&
+                        parseDate(doc.date).isNotBlank() &&
+                        parseDate(doc.date) == parseDate(invoice.date))
+            } ?: false
+            val invalidSupplierDate = doc.date.isNotBlank() && parseDate(doc.date).isBlank()
             val category = when {
                 doc.amountProblem != null -> "review"
                 candidates.isEmpty() -> "unmatched"
-                candidates.size != 1 || conflict -> "review"
+                candidates.size != 1 || conflict || !corroborated || invalidSupplierDate -> "review"
                 else -> "matched"
             }
             val local = candidates.singleOrNull()?.takeIf { category == "matched" }
