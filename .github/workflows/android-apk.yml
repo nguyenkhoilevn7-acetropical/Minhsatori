@@ -42,6 +42,13 @@ jobs:
           gradle-version: '8.9'
       - name: Run Android unit tests and build APK
         run: gradle -p android :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace
+      - name: Verify APK version and package before upload
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee /tmp/satori-apk-badging.txt
+          grep -F "package: name='vn.minhsatori.app' versionCode='4' versionName='0.1.2'" /tmp/satori-apk-badging.txt
+          sha256sum "$APK"
       - name: Upload debug APK (trial only)
         uses: actions/upload-artifact@v4
         with:

@@ -136,6 +136,8 @@ class MainActivity : AppCompatActivity() {
                     "Mở website đã đăng nhập bằng Chrome thông thường",
                     prominent = true) { openPortal() }
                 action(column, "TRA CỨU HÓA ĐƠN", "Đi tới mục Hóa đơn") { goTo(1) }
+                action(column, "XUẤT PDF / CHIA SẺ ZALO",
+                    "Mở Chrome để xuất PDF và chia sẻ từ website đã đăng nhập") { openPortal() }
                 action(column, "KIỂM TRA CÔNG NỢ", "Đi tới mục Công nợ") { goTo(3) }
             }
             1 -> {
@@ -178,7 +180,7 @@ class MainActivity : AppCompatActivity() {
             "Thay URL Drive Sync nếu hệ thống được chủ sở hữu cập nhật") {
             editPortalUrl()
         }
-        block(column, "Minh Satori Android · thử nghiệm 0.2.0", 12f, false, muted, 20)
+        block(column, "Minh Satori Android · thử nghiệm ${BuildConfig.VERSION_NAME}", 12f, false, muted, 20)
 
         val horizontal = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
@@ -318,15 +320,23 @@ class MainActivity : AppCompatActivity() {
                 storage.edit().remove("owner_portal_url").apply()
                 Toast.makeText(this, "Đã dùng lại địa chỉ mặc định", Toast.LENGTH_SHORT).show()
             }
-            .setPositiveButton("Lưu") { _, _ ->
-                val value = PortalUrlValidator.normalize(field.text.toString())
-                if (value == null) {
-                    Toast.makeText(this, "Chỉ nhận link Drive Sync /exec với authuser và pli (nếu có)", Toast.LENGTH_LONG).show()
-                } else {
-                    storage.edit().putString("owner_portal_url", value).apply()
-                    Toast.makeText(this, "Đã lưu địa chỉ trên điện thoại này", Toast.LENGTH_SHORT).show()
+            .setPositiveButton("Lưu", null)
+            .create()
+            .also { dialog ->
+                dialog.setOnShowListener {
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        val value = PortalUrlValidator.normalize(field.text.toString())
+                        if (value == null) {
+                            field.error = "Chỉ nhận liên kết HTTPS Apps Script /exec hợp lệ"
+                            Toast.makeText(this, "Liên kết không hợp lệ; chưa thay đổi cài đặt", Toast.LENGTH_LONG).show()
+                        } else {
+                            storage.edit().putString("owner_portal_url", value).apply()
+                            Toast.makeText(this, "Đã lưu địa chỉ trên điện thoại này", Toast.LENGTH_SHORT).show()
+                            dialog.dismiss()
+                        }
+                    }
                 }
+                dialog.show()
             }
-            .show()
     }
 }

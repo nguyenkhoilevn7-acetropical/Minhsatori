@@ -32,6 +32,10 @@ class PortalUrlValidatorTest {
         assertNull(PortalUrlValidator.normalize(url + "?authuser=%30"))
         assertNull(PortalUrlValidator.normalize(url + "?authuser=0&pli=1#fragment"))
         assertNull(PortalUrlValidator.normalize(url + "?"))
+        assertNull(PortalUrlValidator.normalize(url + "?pli=2"))
+        assertNull(PortalUrlValidator.normalize(url + "?authuser=0&"))
+        assertNull(PortalUrlValidator.normalize(url + "?%61uthuser=0"))
+        assertNull(PortalUrlValidator.normalize(url + "?authuser=0&authuser=0"))
     }
 
     @Test fun rejectsOtherGooglePathsAndCredentials() {
