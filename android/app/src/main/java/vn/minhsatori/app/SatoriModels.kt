@@ -45,6 +45,11 @@ data class SatoriInvoice(
     val isExcluded: Boolean get() = status.equals("Không Tính", ignoreCase = true)
     val customerHasPaid: Boolean get() =
         status.equals("Đã thanh toán", ignoreCase = true) || customerPaidAt.isNotBlank()
+    // "Đã TT Satori" reflects settlement with Satori, NOT payment by customer.
+    // Keep edits/deletes protected but allow recording the customer's payment.
+    val canEditOrDelete: Boolean get() = !isExcluded && !customerHasPaid &&
+        !status.equals("Đã TT Satori", ignoreCase = true)
+    val canMarkCustomerPaid: Boolean get() = !isExcluded && !customerHasPaid && total > 0L
     val isOutstanding: Boolean get() = !isExcluded && !customerHasPaid && total > 0L
     val sortDate: String get() {
         val parts = date.split("/")
