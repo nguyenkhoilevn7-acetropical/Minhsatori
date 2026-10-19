@@ -14,7 +14,16 @@ import java.io.FileOutputStream
 
 /** Creates and shares a real Android PDF from the current live Drive snapshot. */
 object NativeInvoicePdf {
-    fun share(context: Context, invoice: SatoriInvoice) {
+    fun shareZalo(context: Context, invoice: SatoriInvoice) =
+        shareInternal(context, invoice, "com.zing.zalo")
+
+    fun shareMessenger(context: Context, invoice: SatoriInvoice) =
+        shareInternal(context, invoice, "com.facebook.orca")
+
+    fun share(context: Context, invoice: SatoriInvoice) =
+        shareInternal(context, invoice, null)
+
+    private fun shareInternal(context: Context, invoice: SatoriInvoice, packageName: String?) {
         val directory = File(context.cacheDir, "shared_invoices")
         require(directory.isDirectory || directory.mkdirs()) { "Không thể tạo thư mục PDF." }
         val safeNumber = invoice.number.replace(Regex("[^a-zA-Z0-9_-]"), "").take(24)
@@ -31,6 +40,14 @@ object NativeInvoicePdf {
                 invoice.customer + " - " + SatoriData.money(invoice.total))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             clipData = ClipData.newUri(context.contentResolver, "Hóa đơn Minh Satori", uri)
+        }
+        if (packageName != null) {
+            try {
+                context.startActivity(Intent(send).apply { setPackage(packageName) })
+                return
+            } catch (_: android.content.ActivityNotFoundException) {
+                // App not installed or does not accept PDF. Let owner choose instead.
+            }
         }
         context.startActivity(Intent.createChooser(send, "Gửi PDF qua Zalo, Messenger…"))
     }
