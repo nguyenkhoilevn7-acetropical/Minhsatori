@@ -489,11 +489,60 @@ class NativeMainActivity : AppCompatActivity() {
             label(content, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, gold, 14)
             label(content, invoice.deliveryNote, 13f, true, dark, 4)
         }
+        var invoiceDialog: AlertDialog? = null
+        if (canWrite && !invoice.customerHasPaid && !invoice.isExcluded &&
+            invoice.status != "Đã TT Satori") {
+            button(content, "SỬA HÓA ĐƠN") {
+                invoiceDialog?.dismiss()
+                launchEditor(editing = invoice)
+            }
+            button(content, "GHI NHẬN ĐÃ THANH TOÁN") {
+                AlertDialog.Builder(this)
+                    .setTitle("Xác nhận đã thực nhận tiền?")
+                    .setMessage("Hóa đơn #" + invoice.number + "\nKhách: " +
+                        invoice.customer + "\nĐã nhận đủ " + SatoriData.money(invoice.total) +
+                        "?\nChỉ đánh dấu khi tiền đã thực sự nhận.")
+                    .setNegativeButton("Chưa nhận", null)
+                    .setPositiveButton("XÁC NHẬN ĐỦ TIỀN") { _, _ ->
+                        val p = JSONObject()
+                            .put("expectedRevision", snapshot?.revision ?: -1)
+                            .put("invoiceNo", invoice.number.toInt())
+                            .put("amount", invoice.total)
+                            .put("confirmed", true)
+                        executeWrite("payments.markCustomerPaid", p) { success, _ ->
+                            if (success) invoiceDialog?.dismiss()
+                        }
+                    }.show()
+            }
+            val deleteId = UUID.randomUUID().toString().replace("-", "")
+            button(content, "XÓA MỀM VÀO THÙNG RÁC 30 NGÀY") {
+                AlertDialog.Builder(this)
+                    .setTitle("Xóa mềm hóa đơn #" + invoice.number + "?")
+                    .setMessage("Khách: " + invoice.customer + "\n" +
+                        SatoriData.money(invoice.total) +
+                        "\nĐơn chuyển vào thùng rác trong 30 ngày; chưa xóa vĩnh viễn.")
+                    .setNegativeButton("Hủy", null)
+                    .setPositiveButton("XÁC NHẬN XÓA") { _, _ ->
+                        val p = JSONObject()
+                            .put("expectedRevision", snapshot?.revision ?: -1)
+                            .put("requestId", deleteId)
+                            .put("id", invoice.id)
+                            .put("invoiceNo", invoice.number.toInt())
+                            .put("expectedName", invoice.customer)
+                            .put("expectedTotal", invoice.total)
+                            .put("confirmed", true)
+                        executeWrite("orders.delete", p) { success, _ ->
+                            if (success) invoiceDialog?.dismiss()
+                        }
+                    }.show()
+            }
+        }
         val dialog = AlertDialog.Builder(this)
             .setView(wrapper)
             .setNegativeButton("Đóng", null)
             .setPositiveButton("Xuất / Chia sẻ PDF", null)
             .create()
+        invoiceDialog = dialog
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 try {
