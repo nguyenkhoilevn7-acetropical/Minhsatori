@@ -107,6 +107,56 @@ class NativeMainActivity : AppCompatActivity() {
         }
     }
 
+    // Open a supplier XLSX/CSV statement strictly for local, read-only analysis.
+    // Never upload statement bytes, persist a copy or mutate a Drive invoice.
+    private val supplierStatementPicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val source = snapshot
+            if (source == null) {
+                Toast.makeText(this, "Cần đọc dữ liệu hóa đơn trước.", Toast.LENGTH_LONG).show()
+            } else {
+                val fileName = try {
+                    contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME),
+                        null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) cursor.getString(0) else null
+                    }
+                } catch (_: Exception) { null } ?: "satori.xlsx"
+                Toast.makeText(this, "Đang đối chiếu bảng kê chỉ xem…", Toast.LENGTH_SHORT).show()
+                Thread {
+                    try {
+                        val input = contentResolver.openInputStream(uri)
+                            ?: throw IllegalArgumentException("Không đọc được bảng kê.")
+                        val bytes = input.use { stream ->
+                            val out = ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            while (true) {
+                                val count = stream.read(buffer)
+                                if (count < 0) break
+                                if (out.size() + count > 8 * 1024 * 1024)
+                                    throw IllegalArgumentException("Bảng kê vượt 8 MB.")
+                                out.write(buffer, 0, count)
+                            }
+                            out.toByteArray()
+                        }
+                        val sheet = SatoriSupplierSpreadsheet.open(fileName, bytes)
+                        val rows = SatoriSupplierReconciliation.parse(sheet)
+                        val report = SatoriSupplierReconciliation.compare(rows, source)
+                        runOnUiThread { showSupplierStatementReport(fileName, source.revision, report) }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            AlertDialog.Builder(this)
+                                .setTitle("KHÔNG ĐỌC ĐƯỢC BẢNG KÊ")
+                                .setMessage(e.message ?: "File không đúng định dạng XLSX/CSV.")
+                                .setPositiveButton("Đóng", null).show()
+                        }
+                    }
+                }.start()
+            }
+        }
+    }
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -381,6 +431,12 @@ class NativeMainActivity : AppCompatActivity() {
         button(parent, "ĐỐI CHIẾU HAI BẢN GIÁ · (CHỈ XEM)") {
             showPriceComparison(data)
         }
+        button(parent, "ĐỐI CHIẾU BẢNG KÊ SATORI · XLSX/CSV (CHỈ XEM)") {
+            supplierStatementPicker.launch(arrayOf(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "text/csv", "text/plain", "application/octet-stream"
+            ))
+        }
         section(parent, "Kho hóa đơn · " + data.invoices.size,
             data.activeCount.toString() + " bản ghi tính doanh thu; các bản 'Không Tính' " +
                 "không cộng trùng.")
@@ -459,6 +515,52 @@ class NativeMainActivity : AppCompatActivity() {
             .setView(panel)
             .setPositiveButton("Đóng", null)
             .show()
+    }
+
+    private fun showSupplierStatementReport(filename: String, revision: Long,
+                                            report: SupplierReconciliationReport) {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+        }
+        label(panel, "BẢNG KÊ: " + filename + " · REV " + revision, 14f, true, teal)
+        label(panel, "Chỉ so sánh dữ liệu trong bộ nhớ app. Không sửa hóa đơn, " +
+            "không đánh dấu thanh toán, không gửi file lên máy chủ. " +
+            "Chênh lệch là Satori trừ tiền hóa đơn nội bộ trước khi xét " +
+            "chiết khấu, thuế hay phí giao hàng.", 12f, false, muted, 6)
+        section(panel, report.documentCount.toString() + " chứng từ Satori",
+            report.matched.toString() + " khớp duy nhất · " +
+                report.needsReview + " cần kiểm tra · " +
+                report.unmatched + " chưa khớp.")
+        val scroll = ScrollView(this)
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(results)
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, dp(460)))
+        report.items.take(120).forEach { item ->
+            val title = when (item.category) {
+                "matched" -> "KHỚP"
+                "review" -> "CẦN KIỂM TRA"
+                else -> "CHƯA KHỚP"
+            }
+            val amounts = if (item.difference != null)
+                "\nSatori: " + SatoriData.money(item.document.amount ?: 0L) +
+                    " · Nội bộ: " + SatoriData.money(item.localAmount ?: 0L) +
+                    " · Chênh: " + SatoriData.money(item.difference)
+                else if (item.document.amount != null)
+                    "\nSatori: " + SatoriData.money(item.document.amount)
+                else ""
+            section(results, title + " · " + item.document.label,
+                item.explanation + amounts +
+                    (if (item.candidateNumbers.isEmpty()) "" else
+                        "\nHĐ ứng viên: " + item.candidateNumbers.joinToString(", ")))
+        }
+        if (report.items.size > 120) label(results,
+            "Đang hiển thị 120 kết quả đầu. Chỉ có dữ liệu trong file đã chọn " +
+                "được so sánh.", 12f, false, gold, 7)
+        AlertDialog.Builder(this)
+            .setTitle("ĐỐI CHIẾU SATORI · CHỈ XEM")
+            .setView(panel)
+            .setPositiveButton("Đóng", null).show()
     }
 
     // AI memory comes only from the current verified snapshot. File picker
