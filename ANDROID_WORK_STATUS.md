@@ -58,3 +58,12 @@ Detailed handoff: [android/RESUME_HANDOFF_2026-10-19.md](android/RESUME_HANDOFF_
 - This is consistent with GitHub Actions queue and cleanup delays. It is NOT proof that latest v0.3.1 compiles and NOT a Samsung device freeze. Do not promise APK installation yet.
 - Resume: inspect https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39280903525 and fetch its job logs when it actually runs. Fix any compilation issues on the development branch, and verify the artifact. Then Samsung compare PDF to website.
 - Avoid producing more redundant commits/runs while CI backlog exists. No production data writes occurred.
+
+## Downloaded native APK artifact v0.3.1 — owner ready for read-only Samsung trial
+- GitHub Actions run: https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39280903525 (commit `7a7838a4bf95b6eb9913cebfcab898a67af40151`).
+- GitHub output artifact **EXISTS** even though workflow status endpoint still said QUEUED at last checked: `MinhSatori-Samsung-Native-v0.3.1-debug`, ID **12199838339**, archived size 3,872,338 bytes, expires **2026-11-18**.
+- Artifact ZIP SHA256 (verified after connector download): `301922109c07d0c4facf6062a809b5cd3455636682b48edfd92365e4f5ee0fd3`.
+- ZIP contains `app-debug.apk`, extracted as `MinhSatori-v0.3.1-Samsung-debug.apk`, **4,294,827 bytes**, SHA256 `8178da0c7d2c8394be99e2fc30769f2a0f024c4054709fe96b41ba6eecedadc6`. Container ZIP CRC check passed, APK has AndroidManifest.xml, DEX, bundled `satori_invoice_logo` and APK signing block.
+- Artifact existence and ZIP checksum prove a real native APK was produced and downloaded. The GitHub workflow overall has **not** reported completed/success yet; do not claim overall workflow green or on-device visual identity.
+- App v0.3.1 needs Samsung read-only acceptance test: PDF same as website incl 8-col discounts, QR, logo, text, multi-page, sharing. Owner should not use native writes on live invoices; OAuth/Mobile API still unverified.
+- Debug signatures can differ between CI runs: if Android says update incompatible, owner may need to uninstall the previous *debug app only* then install v0.3.1; this does not delete data on Drive, but locally chosen file/URL may need re-selection.
