@@ -1,4 +1,20 @@
-# Minh Satori Android v0.2.0 — Native thử nghiệm
+# Minh Satori Android v0.3.0 — Native thử nghiệm, CHƯA phát hành live
+
+## Những gì đã có trong mã v0.3.0
+Màn hình Android native không mở Chrome; đọc hóa đơn và công nợ, xuất và chia sẻ PDF, lên đơn mới, sửa đơn, thanh toán, xóa mềm, khôi phục. Nút ghi chỉ bật khi Google xác thực và server trả allowedActions. Thao tác ghi dùng revision, backup và requestId, không ghi trực tiếp Drive, không chứa secret HMAC trong APK. Bản Android mới đã sửa trường hợp thanh toán lặp, trạng thái Đã TT Satori, hóa đơn Đã hủy và cố gắng xác minh đơn được lưu khi mất phản hồi.
+
+## Điều kiện bắt buộc trước khi triển khai cho kinh doanh
+1. Sao lưu và đối chiếu revision/số hóa đơn live, dùng bản sao Drive riêng để thử.
+2. Triển khai hai file api/MobileApi.gs và api/BotApi.gs vào cùng dự án Apps Script đang chạy, giữ nguyên website doGet và bảo vệ HMAC. Việc commit GitHub KHÔNG tự triển khai Apps Script.
+3. Trong Script Properties phía server thiết lập SATORI_ANDROID_OWNER_EMAIL, SATORI_ANDROID_ALLOWED_CLIENT_IDS_JSON, và SATORI_ANDROID_STAFF_PERMISSIONS_JSON nếu cần. KHÔNG đưa secret vào chat hoặc APK.
+4. Trong Google Cloud cấp Android OAuth client cho package vn.minhsatori.app và SHA-1 của đúng khóa ký. Dùng keystore phát hành cố định lưu an toàn, không sử dụng khóa debug CI để chạy live.
+5. Thử staging: từ chối token giả và tài khoản sai; nhân viên chỉ xem không ghi; kiểm tra tạo/sửa/thu tiền/xóa/khôi phục, requestId chống trùng, revision conflict, backup, đồng bộ nhiều thiết bị.
+6. Thử trên Samsung thật: đăng nhập, lưu đơn, PDF tiếng Việt, Zalo/Messenger, mạng ngắt giữa lúc gửi, cập nhật trên website và đọc qua ChatGPT. Khi đó mới cân nhắc phát hành production.
+
+**Trạng thái hiện tại:** bản APK debug và test CI không chứng minh Google OAuth, Apps Script Mobile API hoặc Zalo đã chạy trên Samsung. Không merge/phát hành live nếu chưa kiểm tra các điều kiện trên.
+
+----
+
 
 ## Điểm khác v0.1.2
 
@@ -20,7 +36,7 @@
 | Google Identity/Drive API | ⚠️ Đã viết, cần Android OAuth client và thử thực tế |
 | Chọn file qua trình chọn Drive trên Android | ✅ Đã viết, cần thử trên Samsung |
 | Tự động đồng bộ liên tục | ⚠️ Google API cần kết nối hợp lệ, bản thử hỗ trợ refresh thủ công |
-| Tạo/sửa/xóa đơn, đánh dấu đã thanh toán trong app | ⛔ Chưa bật. Cần server backend xác thực, kiểm thử sandbox, revision lock |
+| Tạo/sửa/xóa đơn và ghi nhận thanh toán trong app | ⚠️ Đã viết; khóa cho đến khi kết nối OAuth + API và xác minh trên Samsung |
 | Native app release signing/auto-update | ⛔ Chưa xong. Hiện APK ký debug trên GitHub Actions |
 
 ## Build và kiểm thử
