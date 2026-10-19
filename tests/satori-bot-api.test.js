@@ -32,6 +32,13 @@ assert.equal(call('orders.list',{query:'Test Customer'}).data.totalMatches,1);
 assert.equal(call('debt.summary').data.due,20000);
 assert.equal(call('payments.markCustomerPaid',{expectedRevision:2,invoiceNo:1,confirmed:false}).error.code,'CONFIRMATION_REQUIRED');
 assert.equal(call('payments.markCustomerPaid',{expectedRevision:2,invoiceNo:1,confirmed:true,amount:20000}).data.order.status,'Đã thanh toán');
+// When a mobile reply is lost after a committed payment, a retry with the same
+// stale revision must be read-only, but still reject missing confirmation or
+// a different amount. This must not create another backup or write.
+assert.equal(call('payments.markCustomerPaid',{expectedRevision:2,invoiceNo:1,confirmed:true,amount:20000}).data.alreadyPaid,true);
+assert.equal(call('payments.markCustomerPaid',{expectedRevision:2,invoiceNo:1,confirmed:false,amount:20000}).error.code,'CONFIRMATION_REQUIRED');
+assert.equal(call('payments.markCustomerPaid',{expectedRevision:2,invoiceNo:1,confirmed:true,amount:19000}).error.code,'TOTAL_MISMATCH');
+assert.equal(data.revision,3);
 assert.equal(call('debt.summary').data.due,0);assert.equal(backs,2);assert.equal(writes,2);
 
 assert.equal(call('customers.search',{query:'Test Customer'}).data.profiles.total,1);
