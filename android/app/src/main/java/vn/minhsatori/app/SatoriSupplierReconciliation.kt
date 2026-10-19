@@ -395,16 +395,39 @@ object SatoriSupplierReconciliation {
         return xWords.intersect(yWords).size >= 2
     }
     private fun sameGoods(doc: SupplierDocument, local: SatoriInvoice): Boolean {
-        if (doc.quantity == null || doc.quantity <= 0) return false
+        if (doc.quantity == null || doc.quantity <= 0 || local.lines.isEmpty()) return false
+        if (doc.lines.any { it.product.isBlank() || it.quantity == null || it.quantity <= 0 }) return false
         if (doc.quantity != local.lines.sumOf { it.quantity }) return false
-        if (doc.lines.any { it.product.isBlank() }) return false
-        // Product labels vary between supplier and shop: do not claim verified
-        // line-level match unless every named supplier product has evidence.
-        val localProducts = local.lines.map { norm(it.code + " " + it.description) }
-        return doc.lines.all { row ->
-            val name = norm(row.product)
-            name.isNotBlank() && localProducts.any { it == name || it.contains(name) || name.contains(it) }
+        val supplier = doc.lines.groupBy { norm(it.product) to norm(it.unit) }
+            .mapValues { (_, rows) -> rows.sumOf { it.quantity ?: 0 } }
+        val ours = local.lines.groupBy { norm(it.code + " " + it.description) to norm(it.unit) }
+            .mapValues { (_, rows) -> rows.sumOf { it.quantity } }
+        if (supplier.size != ours.size) return false
+        val used = mutableSetOf<Pair<String, String>>()
+        for ((product, quantity) in supplier) {
+            if (product.first.isBlank()) return false
+            val possible = ours.filter { (key, q) ->
+                q == quantity &&
+                    (key.first == product.first || key.first.contains(product.first) ||
+                        product.first.contains(key.first)) &&
+                    (product.second.isBlank() || key.second.isBlank() || key.second == product.second) &&
+                    key !in used
+            }
+            if (possible.size != 1) return false
+            used += possible.keys.single()
         }
+        return used.size == ours.size
+    }
+
+    private fun sameDelivery(doc: SupplierDocument, invoice: SatoriInvoice): Boolean {
+        val name = norm(doc.customer)
+        val phone = doc.phone.filter(Char::isDigit)
+        val day = parseDate(doc.date)
+        return name.isNotBlank() && name == norm(invoice.customer) &&
+            phone.isNotBlank() && phone == invoice.phone.filter(Char::isDigit) &&
+            day.isNotBlank() && day == parseDate(invoice.date) &&
+            addressComparable(doc.address, invoice.address) &&
+            sameGoods(doc, invoice)
     }
 
     fun compare(lines: List<SupplierStatementLine>, snapshot: SatoriSnapshot): SupplierReconciliationReport {
@@ -414,14 +437,7 @@ object SatoriSupplierReconciliation {
             val byCode = active.filter { invoice ->
                 code(invoice.number).isNotBlank() && doc.invoiceCodes.contains(code(invoice.number))
             }
-            val byEvidence = active.filter { invoice ->
-                norm(doc.customer).isNotBlank() &&
-                    norm(doc.customer) == norm(invoice.customer) &&
-                    addressComparable(doc.address, invoice.address) &&
-                    parseDate(doc.date).isNotBlank() &&
-                    parseDate(doc.date) == parseDate(invoice.date) &&
-                    sameGoods(doc, invoice)
-            }
+            val byEvidence = active.filter { invoice -> sameDelivery(doc, invoice) }
             val candidates = (byCode + byEvidence).distinctBy { it.id + "|" + it.number }
             val conflict = candidates.any { invoice ->
                 (doc.phone.isNotBlank() && invoice.phone.isNotBlank() &&
@@ -438,13 +454,7 @@ object SatoriSupplierReconciliation {
             // namespaces. Even a coincidentally equal number is NOT sufficient
             // to auto-match unless independent delivery evidence agrees.
             val corroborated = candidates.singleOrNull()?.let { invoice ->
-                (doc.phone.filter(Char::isDigit).isNotBlank() &&
-                    doc.phone.filter(Char::isDigit) == invoice.phone.filter(Char::isDigit)) ||
-                    addressComparable(doc.address, invoice.address) ||
-                    (norm(doc.customer).isNotBlank() &&
-                        norm(doc.customer) == norm(invoice.customer) &&
-                        parseDate(doc.date).isNotBlank() &&
-                        parseDate(doc.date) == parseDate(invoice.date))
+                sameDelivery(doc, invoice)
             } ?: false
             val invalidSupplierDate = doc.date.isNotBlank() && parseDate(doc.date).isBlank()
             val category = when {
