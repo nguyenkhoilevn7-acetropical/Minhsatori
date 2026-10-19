@@ -67,3 +67,10 @@ Detailed handoff: [android/RESUME_HANDOFF_2026-10-19.md](android/RESUME_HANDOFF_
 - Artifact existence and ZIP checksum prove a real native APK was produced and downloaded. The GitHub workflow overall has **not** reported completed/success yet; do not claim overall workflow green or on-device visual identity.
 - App v0.3.1 needs Samsung read-only acceptance test: PDF same as website incl 8-col discounts, QR, logo, text, multi-page, sharing. Owner should not use native writes on live invoices; OAuth/Mobile API still unverified.
 - Debug signatures can differ between CI runs: if Android says update incompatible, owner may need to uninstall the previous *debug app only* then install v0.3.1; this does not delete data on Drive, but locally chosen file/URL may need re-selection.
+
+## Owner confirms Samsung invoice PDF visually accepted — 2026-10-19
+- On Samsung with the installed **v0.3.1 trial APK**, owner opened the invoice/PDF following Drive file read and said **"Mẫu lên ... thấy đúng rồi đó. Thấy ok rồi đó"**.
+- Record **PASS: owner's visual review of v0.3.1 invoice PDF versus website layout**. This resolves the owner-reported v0.3.0 visual mismatch.
+- Still NOT verified separately: multi-page overflow, all product configurations, every QR under offline mode, exact numeric/discount reconciliation across distinct invoices, Messenger/Zalo handoff on this specific v0.3.1 run, auto Google sign-in or sync, production write permissions, final release signing.
+- User wants engineering to continue on GitHub without needing a new APK for each incremental change. Next owner interaction should be a consolidated near-final Samsung acceptance test. Do not request re-testing this PDF layout as if still unreviewed.
+- Continue Google identity, server-side Mobile API staging security, automatic read-only sync and regression tests. Production Drive state and website unchanged.
