@@ -670,6 +670,15 @@ class NativeMainActivity : AppCompatActivity() {
             val latest = if (writeResult.isSuccess) runCatching {
                 MobileApiClient.snapshot(endpoint, token)
             } else null
+            val requestId = payload.optString("requestId")
+            // A timeout is not proof that the server rejected the write.
+            // Read the authoritative ledger and find the same durable
+            // requestId instead of sending a second write.
+            val recovery = if (writeResult.isFailure &&
+                writeResult.exceptionOrNull() !is MobileApiError &&
+                requestId.isNotBlank() &&
+                action in setOf("orders.create", "orders.update", "orders.restore")
+            ) runCatching { MobileApiClient.snapshot(endpoint, token) } else null
             runOnUiThread {
                 isLoading = false
                 writeResult.fold(
@@ -694,17 +703,42 @@ class NativeMainActivity : AppCompatActivity() {
                         completed(true, answer)
                     },
                     onFailure = { e ->
-                        val info = (e.message ?: "Không rõ lỗi")
-                        statusMessage = "Không thể hoàn tất yêu cầu: " + info
-                        if (e is MobileApiError && (e.apiCode == "REVISION_CONFLICT" ||
-                                e.apiCode == "PROFILE_CHANGED" ||
-                                e.apiCode == "ORDER_CHANGED")) {
-                            Toast.makeText(this,
-                                "Dữ liệu đã thay đổi trên máy khác. Tải lại trước khi tiếp tục.",
-                                Toast.LENGTH_LONG).show()
+                        val recovered = recovery?.getOrNull()
+                        val committed = recovered?.snapshot?.confirmedWrite(action, requestId)
+                        if (recovered != null) {
+                            snapshot = recovered.snapshot
+                            allowedActions = recovered.allowedActions
+                            dataSource = "Minh Satori API"
+                            lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         }
-                        // No automatic retry: requestId is retained by the editor.
-                        completed(false, info)
+                        if (committed != null) {
+                            val info = "Đã xác minh hóa đơn #" + committed.number +
+                                " đã được lưu trước khi mất kết nối."
+                            statusMessage = info
+                            Toast.makeText(this, info, Toast.LENGTH_LONG).show()
+                            completed(true, info)
+                        } else {
+                            val info = (e.message ?: "Không rõ lỗi")
+                            // If confirmation is missing, disable further writes until
+                            // the next successful authoritative server refresh.
+                            if (recovered == null && e !is MobileApiError) {
+                                snapshot = null
+                                allowedActions = emptySet()
+                                dataSource = ""
+                                statusMessage = "Chưa xác minh được đã lưu đơn. Hãy đồng bộ lại " +
+                                    "trước khi tiếp tục; không tạo lại đơn với mã mới."
+                            } else {
+                                statusMessage = "Không thể hoàn tất yêu cầu: " + info
+                            }
+                            if (e is MobileApiError && (e.apiCode == "REVISION_CONFLICT" ||
+                                    e.apiCode == "PROFILE_CHANGED" ||
+                                    e.apiCode == "ORDER_CHANGED")) {
+                                Toast.makeText(this,
+                                    "Dữ liệu đã thay đổi trên máy khác. Tải lại trước khi tiếp tục.",
+                                    Toast.LENGTH_LONG).show()
+                            }
+                            completed(false, statusMessage)
+                        }
                     }
                 )
                 render()
