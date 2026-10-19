@@ -15,6 +15,24 @@ data class SatoriProduct(
     val discountPercent: Double? = null
 )
 
+data class SatoriReceiver(
+    val name: String,
+    val phone: String,
+    val location: String
+)
+
+data class SatoriCustomerMemory(
+    val id: String,
+    val name: String,
+    val aliases: List<String>,
+    val defaultPhone: String,
+    val defaultLocation: String,
+    val discountPercent: Double?,
+    val preferredProduct: String,
+    val orderCount: Int,
+    val receivers: List<SatoriReceiver>
+)
+
 data class SatoriLine(
     val description: String,
     val quantity: Int,
@@ -84,7 +102,8 @@ data class SatoriSnapshot(
     val revision: Long,
     val updatedAt: String,
     val invoices: List<SatoriInvoice>,
-    val products: List<SatoriProduct> = emptyList()
+    val products: List<SatoriProduct> = emptyList(),
+    val customerMemory: List<SatoriCustomerMemory> = emptyList()
 ) {
     val activeCount: Int get() = invoices.count { !it.isExcluded }
     val outstandingCount: Int get() = invoices.count { it.isOutstanding }
@@ -190,7 +209,39 @@ object SatoriData {
                     item.optDouble("discountPercent").takeIf { it.isFinite() } else null
             )
         }
-        return SatoriSnapshot(revision, string(root, "updatedAt"), invoices, products)
+        // Memory is private customer data. Only read it when the verified source
+        // supplies the field; never synthesize entries from old APK defaults.
+        val memoryRows = try {
+            JSONArray(values.optString("satori_ai_customer_memory", "[]"))
+        } catch (_: Exception) { JSONArray() }
+        require(memoryRows.length() <= 5000) { "Bộ nhớ khách hàng vượt giới hạn an toàn." }
+        val memory = (0 until memoryRows.length()).mapNotNull { index ->
+            val row = memoryRows.optJSONObject(index) ?: return@mapNotNull null
+            val name = string(row, "name")
+            if (name.isBlank()) return@mapNotNull null
+            val aliasesJson = row.optJSONArray("aliases") ?: JSONArray()
+            val receiverRows = row.optJSONArray("receivers") ?: JSONArray()
+            val receivers = (0 until minOf(50, receiverRows.length())).mapNotNull { j ->
+                val r = receiverRows.optJSONObject(j) ?: return@mapNotNull null
+                SatoriReceiver(string(r, "name"), string(r, "phone"), string(r, "location"))
+            }
+            SatoriCustomerMemory(
+                id = string(row, "id").ifBlank { "memory-" + index },
+                name = name,
+                aliases = (0 until minOf(40, aliasesJson.length())).mapNotNull { j ->
+                    aliasesJson.optString(j, "").trim().takeIf { it.isNotBlank() }
+                },
+                defaultPhone = string(row, "defaultPhone"),
+                defaultLocation = string(row, "defaultLocation"),
+                discountPercent = if (row.has("discountPercent") &&
+                    !row.isNull("discountPercent"))
+                    row.optDouble("discountPercent").takeIf { it.isFinite() } else null,
+                preferredProduct = string(row, "preferredProduct"),
+                orderCount = row.optInt("orderCount", 0).coerceAtLeast(0),
+                receivers = receivers
+            )
+        }
+        return SatoriSnapshot(revision, string(root, "updatedAt"), invoices, products, memory)
     }
 
     // Presentation separators do not change the recipient's phone number.
