@@ -91,6 +91,26 @@ class SatoriModelsTest {
         assertEquals(30000L, snapshot.outstandingAmount)
     }
 
+    @Test
+    fun recognizesCommittedOrdersAfterLostMobileResponse() {
+        val orders = JSONArray()
+            .put(JSONObject().put("id", 1).put("invoiceNo", 100)
+                .put("name", "Khách mới").put("apiRequestId", "create123"))
+            .put(JSONObject().put("id", 2).put("invoiceNo", 101)
+                .put("name", "Khách cũ").put("apiUpdateRequestId", "update123"))
+            .put(JSONObject().put("id", 3).put("invoiceNo", 102)
+                .put("name", "Khách khôi phục").put("apiRestoreRequestId", "restore123"))
+        val root = JSONObject().put("revision", 15).put("values",
+            JSONObject().put("satori_orders_v15", orders.toString()))
+        val snapshot = SatoriData.fromDriveState(root.toString())
+        assertEquals("100", snapshot.confirmedWrite("orders.create", "create123")?.number)
+        assertEquals("101", snapshot.confirmedWrite("orders.update", "update123")?.number)
+        assertEquals("102", snapshot.confirmedWrite("orders.restore", "restore123")?.number)
+        assertNull(snapshot.confirmedWrite("orders.create", "not-matching"))
+        assertNull(snapshot.confirmedWrite("orders.delete", "create123"))
+        assertNull(snapshot.confirmedWrite("orders.create", ""))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun refusesSnapshotWithoutRevision() {
         SatoriData.fromDriveState("""{"values":{"satori_orders_v15":"[]"}}""")
