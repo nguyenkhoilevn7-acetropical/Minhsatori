@@ -191,6 +191,10 @@
       qty:qty,listPrice:draft.listPrice,discountPercent:draft.listPrice?(draft.listPrice-price)/draft.listPrice*100:0,
       discountAmount:draft.listPrice-price,unitPrice:price,subtotal:qty*price}];
     nextInvoiceNumber=nextNo;
+    // Bot creates a fresh invoice, never a duplicate of any previously opened draft.
+    if(typeof duplicateSourceInvoice!=='undefined')duplicateSourceInvoice=null;
+    var duplicateNotice=document.getElementById('duplicateDraftNotice');
+    if(duplicateNotice)duplicateNotice.classList.add('hidden');
     renderItemsForm();calculateTotals();switchTab('input');
     if(!saveNow){hide();document.getElementById('orderForm')?.scrollIntoView({behavior:'smooth',block:'start'});return {invoiceNo:nextNo,saved:false}}
     // LocalStorage mutation is done ONLY by the existing site's save function, not by this bot.
