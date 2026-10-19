@@ -81,3 +81,15 @@ Detailed handoff: [android/RESUME_HANDOFF_2026-10-19.md](android/RESUME_HANDOFF_
 - Preserved the `discountPercent` field of `SatoriProduct` when decoding Drive, with added JUnit regression test confirming two product records, exact prices, optional discount and unchanged input JSON.
 - Latest source change commit `53849cfe6524186c635409da84cec79b2867f07b`, dev branch `feature/minhsatori-native-android-v020`. Check GitHub Actions and fix any errors before treating it as compiled or requesting device tests.
 - Remaining: website module parity (reconciliation, AI memory, accounting ledger), server/mobile OAuth, staging-backed write workflow and stable release signing. Production untouched. Avoid requesting another owner APK install for this incremental change.
+
+## Current resumed engineering: ledger + memory (2026-10-19)
+- Owner requested to continue until Minh Satori Android matches the entire website; no more per-feature Samsung APK tests. Continue only on `feature/minhsatori-native-android-v020`, keep `main` and production Drive untouched.
+- Delivered new code (not yet CI/device-accepted):
+  * `SatoriLedger.kt`: read-only financial status summaries, paid/unpaid/excluded, invalid-date count, search/filter. No profit guessed; website has a much richer AccountingCore duplicate-pair model still to port.
+  * `NativeMainActivity.kt`: native searchable **SỔ KẾ TOÁN** with status selector and figures, and **TRÍ NHỚ AI** native read-only profiles/recipients. Both entered from Overview and share existing website-aligned branding.
+  * `SatoriModels.kt`: parse AI customer memory (aliases, saved delivery recipients, discount) directly from authorized data; include it only when present, no fabricated local defaults. Invoice search short IDs `#9`, `HD 5918`, `5914` exact rather than matching phone digits.
+  * `api/MobileApi.gs`: staging source only, conditionally supplies memory if user is owner or has `customers:read`, never with only `orders:read`. Not deployed. Production API remains unchanged.
+  * `SatoriModelsTest.kt`: fixture regression coverage for accounting status/totals/date, invoice number matching and distinct memory delivery points.
+- Key most recent test-source commit: `6b8a995dc3d587bc98d90cd91ba68b2644a5a6e8`. Roadmap synchronized in `android/WEBSITE_PARITY_ROADMAP.md`.
+- **No new APK asserted complete:** need verify GitHub Actions run https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39287800595, inspect failed logs if needed and run broader tests. Last known owner-installed APK v0.3.1 still lacks these features.
+- Remaining blockers to fully meeting owner’s target: full worksheet/partner reconciliation and profit logic parity, AI memory training/edit API, signed Android OAuth, staged deployment of Mobile API, safe write flows + end-to-end verification, stable release signing and Samsung acceptance.
