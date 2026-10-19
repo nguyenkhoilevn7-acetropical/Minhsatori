@@ -112,6 +112,46 @@ class SatoriModelsTest {
     }
 
     @Test
+    fun ledgerTotalsRespectWebsiteExclusionAndCustomerSettlementRules() {
+        val orders = JSONArray()
+            .put(JSONObject().put("id", 1).put("invoiceNo", 5914)
+                .put("date", "19/10/2026").put("name", "Hà Minh Nguyệt")
+                .put("status", "Chưa thanh toán").put("total", 950400))
+            .put(JSONObject().put("id", 2).put("invoiceNo", 5918)
+                .put("date", "19/10/2026").put("name", "Hà Minh Nguyệt")
+                .put("status", "Không Tính").put("total", 617760))
+            .put(JSONObject().put("id", 3).put("invoiceNo", 5920)
+                .put("date", "19/10/2026").put("name", "Khách thanh toán")
+                .put("status", "Đã thanh toán").put("total", 300000))
+            .put(JSONObject().put("id", 4).put("invoiceNo", 5921)
+                .put("date", "19/10/2026").put("name", "Đã TT Satori")
+                .put("status", "Đã TT Satori").put("total", 150000))
+            .put(JSONObject().put("id", 5).put("invoiceNo", 5922)
+                .put("date", "19/10/2026").put("name", "Đơn hủy")
+                .put("status", "Đã hủy").put("total", 100000))
+            .put(JSONObject().put("id", 6).put("invoiceNo", 9)
+                .put("date", "22/0802026").put("name", "Ngày lỗi")
+                .put("status", "Chưa thanh toán").put("total", 0))
+        val state = JSONObject().put("revision", 105).put("values",
+            JSONObject().put("satori_orders_v15", orders.toString()))
+        val invoices = SatoriData.fromDriveState(state.toString()).invoices
+        val total = SatoriLedger.totals(invoices)
+        assertEquals(6, total.recordCount)
+        assertEquals(4, total.countedCount)
+        assertEquals(2, total.excludedCount)
+        assertEquals(1400400L, total.revenue)
+        assertEquals(300000L, total.customerPaid)
+        assertEquals(1100400L, total.customerUnpaid)
+        assertEquals(1, total.invalidDateCount)
+        val supplier = SatoriLedger.query(invoices, "", "Đã TT Satori")
+        assertEquals(1, supplier.size)
+        assertEquals(150000L, SatoriLedger.totals(supplier).customerUnpaid)
+        val collaborator = SatoriLedger.query(invoices, "Hà Minh Nguyệt", "Không Tính")
+        assertEquals(1, collaborator.size)
+        assertEquals(0L, SatoriLedger.totals(collaborator).revenue)
+    }
+
+    @Test
     fun catalogueUsesDrivePricesAndExplicitDiscountWithoutChangingSource() {
         val products = JSONArray()
             .put(JSONObject().put("code", "TP-00001")
