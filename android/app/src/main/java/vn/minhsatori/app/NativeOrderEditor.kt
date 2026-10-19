@@ -163,6 +163,9 @@ object NativeOrderEditor {
         tax=input(a,page,"VAT (đ)",editing?.vat?.toString()?:"0",numeric=true)
         watcher(ship!!);watcher(tax!!);recalc()
         val requestId=UUID.randomUUID().toString().replace("-","")
+        // One durable request ID must always represent exactly one order payload.
+        // Never allow an edited payload to reuse an ID after an ambiguous HTTP failure.
+        var submittedPayload: String? = null
         val dialog=AlertDialog.Builder(a).setView(scroll)
             .setNegativeButton("Hủy",null)
             .setPositiveButton("KIỂM TRA & LƯU",null).create()
@@ -257,6 +260,15 @@ object NativeOrderEditor {
                     confirm.setOnShowListener{
                         val save=confirm.getButton(AlertDialog.BUTTON_POSITIVE)
                         save.setOnClickListener{
+                            val exactPayload = payload.toString()
+                            if (submittedPayload != null && submittedPayload != exactPayload) {
+                                Toast.makeText(a,
+                                    "Nội dung đã đổi sau lần gửi trước. Hãy hủy, đồng bộ dữ liệu " +
+                                        "rồi mở đơn mới; không gửi nội dung khác với cùng mã yêu cầu.",
+                                    Toast.LENGTH_LONG).show()
+                                return@setOnClickListener
+                            }
+                            submittedPayload = exactPayload
                             save.isEnabled=false
                             submit(if(editing==null)"orders.create" else "orders.update",payload){
                                 success,message->
