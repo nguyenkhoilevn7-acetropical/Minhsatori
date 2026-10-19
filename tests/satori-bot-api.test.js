@@ -62,5 +62,15 @@ assert.equal(call('orders.create',{expectedRevision:5,requestId:'create-00005',
  order:{name:'Unknown',location:'ABC',items:[{product:'Satori 500 ml',qty:1,unitPrice:10000}]}}).error.code,'PROFILE_CONFIRMATION_REQUIRED');
 assert.equal(backs,4);
 
+const third=call('orders.create',{expectedRevision:5,requestId:'create-00006',confirmedNewCustomer:true,
+ order:{name:'Another Test',phone:'0901122334',location:'Địa chỉ giao thử',
+ items:[{product:'Satori 500 ml',qty:1,unitPrice:12000}],total:12000}});
+assert.equal(third.ok,true);
+assert.equal(third.data.order.invoiceNo,3); // #2 stays reserved after deletion.
+assert.equal(data.revision,6);assert.equal(backs,5);
+assert.equal(call('orders.delete',{expectedRevision:6,requestId:'delete-00007',confirmed:true,
+ invoiceNo:3,expectedName:'Another Test',expectedTotal:12000}).error.code,'INVALID_ORDER');
+assert.equal(backs,5);
+
 assert.equal(call('system.status',{}, {signature:'0'.repeat(64)}).error.code,'AUTH_FAILED');
 console.log('PASS — authenticated customer profiles, create, soft delete, paid protection, backups, idempotency, revision, debt');
