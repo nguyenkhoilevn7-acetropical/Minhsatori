@@ -267,6 +267,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
+        if (canWrite) button(parent, "+ LÊN ĐƠN MỚI", true) { launchEditor() }
         section(parent, "Kho hóa đơn · " + data.invoices.size,
             data.activeCount.toString() + " bản ghi tính doanh thu; các bản 'Không Tính' " +
                 "không cộng trùng.")
@@ -282,6 +283,10 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
+        if (canWrite) {
+            button(parent, "+ TẠO HÓA ĐƠN", true) { launchEditor() }
+            button(parent, "THÙNG RÁC 30 NGÀY") { showTrash() }
+        }
         label(parent, "Tìm số hóa đơn, khách hàng, số điện thoại hoặc địa chỉ", 12f,
             false, muted, 14)
         val input = EditText(this).apply {
@@ -341,7 +346,19 @@ class NativeMainActivity : AppCompatActivity() {
                                 " · " + it.status
                         })
                     .setPositiveButton("Đóng", null)
-                    .show()
+                    .apply {
+                        if (canWrite) setNeutralButton("LÊN ĐƠN CHO KHÁCH", null)
+                    }
+                    .create().also { info ->
+                        info.setOnShowListener {
+                            if (canWrite) info.getButton(AlertDialog.BUTTON_NEUTRAL)
+                                .setOnClickListener {
+                                    info.dismiss()
+                                    launchEditor(customer = representative)
+                                }
+                        }
+                        info.show()
+                    }
             }
         }
     }
@@ -360,15 +377,19 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderNewOrderInfo(parent: LinearLayout) {
-        label(parent, "Lên đơn trên Android", 17f, true, teal, 16)
-        section(parent, "Chưa bật chức năng ghi đơn trong bản thử này",
-            "Bản Android đã đọc dữ liệu thật, tạo PDF và chia sẻ trong app. " +
-                "Để tạo hoặc sửa đơn trực tiếp, cần API xác thực tài khoản Android " +
-                "và kiểm soát revision phía Apps Script. Không được ghi thẳng " +
-                "vào file JSON trên Drive vì dễ gây mất hóa đơn giữa các thiết bị.")
-        label(parent, "Không có nút lưu giả. Khi API production được xác thực và " +
-            "kiểm thử trên sandbox, chức năng tạo/sửa/xóa mới được mở.",
-            12f, false, gold, 12)
+        label(parent, "LÊN ĐƠN TRỰC TIẾP", 18f, true, teal, 14)
+        if (canWrite) {
+            section(parent, "Đã sẵn sàng lên đơn",
+                "Tạo hóa đơn nhiều mặt hàng, chọn đúng điểm giao, nhập số tiền và ghi chú.")
+            button(parent, "+ TẠO HÓA ĐƠN MỚI", true) { launchEditor() }
+        } else {
+            section(parent, "Chưa được cấp quyền ghi đơn",
+                "Đăng nhập Google và kết nối Mobile API chủ sở hữu trước khi lưu. " +
+                "App không ghi trực tiếp lên tệp Drive và không dùng khóa bí mật.")
+            button(parent, "KẾT NỐI ĐỂ LÊN ĐƠN", true) {
+                if (apiEndpoint == null) configureMobileApi() else connectGoogle()
+            }
+        }
     }
 
     private fun openInvoice(invoice: SatoriInvoice) {
