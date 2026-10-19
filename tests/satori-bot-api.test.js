@@ -182,3 +182,25 @@ assert.equal(data.revision,25);
 assert.equal(writes,earlierWriteCount+5);
 console.log('PASS — Mobile Google client/email/expiry checks and read-only snapshot');
 console.log('PASS — Mobile create/edit/delete/restore/payment with backup, revision, no duplicate');
+
+// "Đã TT Satori" is a vendor-side settlement, not proof that the customer paid.
+// Accept a customer payment while preserving that vendor status and record it once.
+const priorBackups=backs,priorWrites=writes;
+data={revision:70,updatedAt:'2026-10-19T00:00:00Z',values:{
+  satori_orders_v15:JSON.stringify([{id:700,invoiceNo:700,
+    name:'Settlement Example',location:'123 Sample Road',status:'Đã TT Satori',
+    date:'19/10/2026',total:25000,items:[{product:'Satori 350 ml',qty:1,unitPrice:25000}]}]),
+  satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}};
+const payment=mobile('payments.markCustomerPaid',{
+  expectedRevision:70,invoiceNo:700,amount:25000,confirmed:true});
+assert.equal(payment.ok,true);
+assert.equal(payment.data.order.status,'Đã TT Satori');
+assert.ok(JSON.parse(data.values.satori_orders_v15)[0].customerPaidAt);
+assert.equal(call('debt.summary').data.due,0);
+assert.equal(mobile('payments.markCustomerPaid',{
+  expectedRevision:70,invoiceNo:700,amount:25000,confirmed:true
+}).data.alreadyPaid,true);
+assert.equal(data.revision,71);
+assert.equal(backs,priorBackups+1);
+assert.equal(writes,priorWrites+1);
+console.log('PASS — Satori-side paid is separate from customer-paid, payment retry is read-only');
