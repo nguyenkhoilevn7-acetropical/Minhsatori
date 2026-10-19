@@ -70,6 +70,27 @@ class SatoriModelsTest {
         assertFalse(invoice102.isOutstanding)
     }
 
+    @Test
+    fun cancelledInvoicesAreNotDebtOrActiveAndCannotBePaid() {
+        val orders = JSONArray()
+            .put(JSONObject().put("id", 1).put("invoiceNo", 100)
+                .put("name", "Khách A").put("status", "Đã hủy").put("total", 50000))
+            .put(JSONObject().put("id", 2).put("invoiceNo", 101)
+                .put("name", "Khách A").put("status", "Chưa thanh toán")
+                .put("total", 30000))
+        val values = JSONObject().put("satori_orders_v15", orders.toString())
+        val snapshot = SatoriData.fromDriveState(
+            JSONObject().put("revision", 1).put("values", values).toString())
+        val cancelled = snapshot.invoices.single { it.number == "100" }
+        assertTrue(cancelled.isExcluded)
+        assertFalse(cancelled.isOutstanding)
+        assertFalse(cancelled.canMarkCustomerPaid)
+        assertFalse(cancelled.canEditOrDelete)
+        assertEquals(1, snapshot.activeCount)
+        assertEquals(1, snapshot.outstandingCount)
+        assertEquals(30000L, snapshot.outstandingAmount)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun refusesSnapshotWithoutRevision() {
         SatoriData.fromDriveState("""{"values":{"satori_orders_v15":"[]"}}""")
