@@ -19,4 +19,4 @@ jobs:
       - name: Check assistant JavaScript
         run: node --check satori-assistant.js && node --check satori-assistant-ui.js
       - name: New assistant and accounting regression tests
-        run: node --test tests/assistant-order.cjs tests/customer-debt.cjs tests/payment-groups.cjs
+        run: node --test tests/assistant-order.cjs tests/assistant-ui.cjs tests/customer-debt.cjs tests/payment-groups.cjs
