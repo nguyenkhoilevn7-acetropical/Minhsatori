@@ -92,17 +92,17 @@ context.UrlFetchApp={fetch(url,options){
   if(url.startsWith('https://oauth2.googleapis.com/tokeninfo?access_token=')){
     const token=decodeURIComponent(url.split('access_token=')[1]||'');
     obj={aud:issuer.aud,expires_in:3600,scope:issuer.scope};
-    if(token!=='valid-owner-token')status=401;
+    if(token!=='valid-owner-oauth-access-token')status=401;
   }else if(url==='https://www.googleapis.com/oauth2/v3/userinfo'){
     const bearer=options&&options.headers&&options.headers.Authorization;
-    if(bearer!=='Bearer valid-owner-token')status=401;
+    if(bearer!=='Bearer valid-owner-oauth-access-token')status=401;
     obj={email:issuer.email,email_verified:true,sub:'google-owner-test'};
   }else throw Error('Unexpected URL in isolated test');
   return {getResponseCode:()=>status,getContentText:()=>JSON.stringify(obj)};
 }};
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../api/MobileApi.gs'),'utf8').replace("message:recognized?error.message:'Không thực hiện được tác vụ; vui lòng tải lại và thử lại'","message:String(error&&error.stack||error)"),context);
 function mobile(action,payload={},overrides={}){
-  const body={kind:'satori-android-v1',accessToken:'valid-owner-token',action,
+  const body={kind:'satori-android-v1',accessToken:'valid-owner-oauth-access-token',action,
      nonce:'mobiletestnonce'+String(++sequence).padStart(20,'0'),payload,...overrides};
   return JSON.parse(context.doPost({parameter:{route:'android'},
     postData:{contents:JSON.stringify(body)}}).text);
