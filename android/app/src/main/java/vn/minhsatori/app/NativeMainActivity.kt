@@ -17,6 +17,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -232,11 +233,39 @@ class NativeMainActivity : AppCompatActivity() {
         scroll.addView(content)
         shell.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        label(content, "MINH SATORI", 14f, true, teal)
+        // Use the website's original logo and slate-to-blue brand banner.
+        // Cosmetic only: do not alter account permissions or invoice calculations.
+        val brand = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(Color.rgb(15, 23, 42), Color.rgb(30, 58, 138))).apply {
+                cornerRadius = dp(16).toFloat()
+            }
+        }
+        val brandLogo = ImageView(this).apply {
+            setImageResource(R.drawable.satori_invoice_logo)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            background = background(Color.WHITE, 10)
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+            clipToOutline = true
+            contentDescription = "Logo Minh Satori"
+        }
+        brand.addView(brandLogo, LinearLayout.LayoutParams(dp(48), dp(48)))
+        val brandText = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), 0, 0, 0)
+        }
+        label(brandText, "MINH SATORI", 17f, true, Color.WHITE)
+        label(brandText, "Hóa đơn · Sổ kế toán · Google Drive", 11f,
+            false, Color.rgb(186, 230, 253), 3)
+        brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
+        content.addView(brand, LinearLayout.LayoutParams(-1, -2))
         label(content, listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn")[
-            activeTab], 27f, true, dark, 6)
-        label(content, "Minh Satori Native v" + BuildConfig.VERSION_NAME +
-            " · không mở Chrome", 12f, false, muted, 5)
+            activeTab], 27f, true, dark, 13)
+        label(content, "Minh Satori v" + BuildConfig.VERSION_NAME +
+            " · ứng dụng Android", 12f, false, muted, 5)
         val connected = snapshot != null
         val snapshotInfo = snapshot
         val status = if (connected) {
@@ -309,8 +338,8 @@ class NativeMainActivity : AppCompatActivity() {
         // Always display all five tabs without horizontal scrolling.
         val tabs = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(white)
-            setPadding(dp(4), dp(5), dp(4), dp(5))
+            setBackgroundColor(Color.rgb(15, 23, 42))
+            setPadding(dp(4), dp(6), dp(4), dp(6))
         }
         listOf("Tổng quan", "Hóa đơn", "Khách", "Công nợ", "Lên đơn").forEachIndexed { i, name ->
             val chip = TextView(this).apply {
@@ -319,8 +348,10 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
                 maxLines = 2
                 setPadding(dp(2), dp(8), dp(2), dp(8))
-                setTextColor(if (activeTab == i) white else teal)
-                background = background(if (activeTab == i) teal else white, 10)
+                setTextColor(if (activeTab == i) Color.WHITE else
+                    Color.rgb(203, 213, 225))
+                background = background(if (activeTab == i)
+                    Color.rgb(3, 105, 161) else Color.rgb(30, 41, 59), 10)
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Mở mục " + name
