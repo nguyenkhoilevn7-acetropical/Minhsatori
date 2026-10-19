@@ -2,6 +2,9 @@ package vn.minhsatori.app
 
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
+import java.io.ByteArrayOutputStream
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -45,6 +48,27 @@ class NativeMainActivity : AppCompatActivity() {
     private var statusMessage = "Kết nối tài khoản Google để đồng bộ dữ liệu hóa đơn."
     private var searchText = ""
     private var isLoading = false
+    private var fileUri: Uri? = null
+
+    private val filePicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) {
+            statusMessage = "Chưa chọn file Drive."
+            render()
+        } else {
+            try {
+                contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) {
+                // Some providers grant only a session-scoped read URI.
+            }
+            fileUri = uri
+            getPreferences(MODE_PRIVATE).edit().putString("drive_file_uri", uri.toString()).apply()
+            refreshFromPicker()
+        }
+    }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -65,6 +89,9 @@ class NativeMainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        fileUri = getPreferences(MODE_PRIVATE).getString("drive_file_uri", null)?.let {
+            Uri.parse(it)
+        }
         render()
     }
 
@@ -157,9 +184,15 @@ class NativeMainActivity : AppCompatActivity() {
 
         if (isLoading) label(content, "Đang kết nối và đối chiếu dữ liệu Drive…",
             13f, true, teal, 8)
-        button(content, if (accessToken == null) "KẾT NỐI TÀI KHOẢN GOOGLE" else
+        button(content, if (accessToken == null) "KẾT NỐI GOOGLE DRIVE" else
             "LÀM MỚI TỪ GOOGLE DRIVE", true) {
             if (accessToken == null) connectGoogle() else refreshFromDrive()
+        }
+        button(content, "CHỌN FILE DRIVE BẰNG ANDROID (KHÔNG CẦN OAUTH)") {
+            filePicker.launch(arrayOf("*/*"))
+        }
+        if (fileUri != null) {
+            button(content, "ĐỌC LẠI FILE DRIVE ĐÃ CHỌN") { refreshFromPicker() }
         }
 
         if (snapshotInfo == null) {
@@ -362,6 +395,51 @@ class NativeMainActivity : AppCompatActivity() {
             }
         }
         dialog.show()
+    }
+
+    private fun refreshFromPicker() {
+        val selected = fileUri ?: run {
+            statusMessage = "Anh cần chọn file MinhSatori_Live_Data.json."
+            render()
+            return
+        }
+        if (isLoading) return
+        isLoading = true
+        statusMessage = "Đang đọc file Drive được chọn qua Android."
+        render()
+        Thread {
+            val result = try {
+                val bytes = contentResolver.openInputStream(selected)?.use { stream ->
+                    val buffer = ByteArray(8192)
+                    val target = ByteArrayOutputStream()
+                    while (true) {
+                        val count = stream.read(buffer)
+                        if (count < 0) break
+                        if (target.size() + count > 12_000_000)
+                            throw IllegalArgumentException("File quá lớn.")
+                        target.write(buffer, 0, count)
+                    }
+                    target.toByteArray()
+                } ?: throw IllegalArgumentException("Không mở được file đã chọn.")
+                Result.success(SatoriData.fromDriveState(String(bytes, Charsets.UTF_8)))
+            } catch (e: Exception) {
+                Result.failure<SatoriSnapshot>(e)
+            }
+            runOnUiThread {
+                isLoading = false
+                result.fold(
+                    onSuccess = {
+                        snapshot = it
+                        statusMessage = "Đọc file thành công; kiểm tra revision và thời gian cập nhật."
+                    },
+                    onFailure = {
+                        snapshot = null
+                        statusMessage = "Lỗi file Drive: " + (it.message ?: "không đọc được")
+                    }
+                )
+                render()
+            }
+        }.start()
     }
 
     private fun connectGoogle() {
