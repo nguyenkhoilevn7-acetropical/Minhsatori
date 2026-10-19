@@ -97,6 +97,21 @@ object SatoriPriceComparison {
                         "có thể khách đặt hai lần riêng.")
                 continue
             }
+            // Exactly one original revenue invoice and one alternate price view
+            // are required before showing a proven physical-delivery pair.
+            // Never silently collapse two active sales or two excluded views.
+            val activeCount = listOf(a, b).count { !it.isExcluded }
+            if (activeCount != 1) {
+                reviews += SatoriComparisonReview(rows,
+                    "Cả hai bản đều tính doanh thu hoặc đều Không Tính; " +
+                        "chưa thể chọn đơn giao gốc, cần kiểm tra.")
+                continue
+            }
+            if (a.total == b.total) {
+                reviews += SatoriComparisonReview(rows,
+                    "Hai hóa đơn cùng số tiền, chưa có chênh lệch hai bản giá.")
+                continue
+            }
             if (!closeInTime(a, b)) {
                 reviews += SatoriComparisonReview(rows,
                     "Chưa xác minh được hai bản giá tạo gần nhau trong 30 phút " +
