@@ -392,6 +392,68 @@ class NativeMainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showTrash() {
+        val endpoint = apiEndpoint
+        val token = accessToken
+        if (!canWrite || endpoint == null || token == null) {
+            Toast.makeText(this, "Chưa kết nối Mobile API.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (isLoading) return
+        isLoading = true
+        statusMessage = "Đang đọc thùng rác 30 ngày…"
+        render()
+        Thread {
+            val reply = runCatching { MobileApiClient.trash(endpoint, token) }
+            runOnUiThread {
+                isLoading = false
+                reply.fold(
+                    onSuccess = { json ->
+                        val arr = json.optJSONArray("orders")
+                        if (arr == null || arr.length() == 0) {
+                            Toast.makeText(this, "Thùng rác không có hóa đơn.", Toast.LENGTH_LONG).show()
+                        } else {
+                            val entries = (0 until arr.length()).map { arr.getJSONObject(it) }
+                            val labels = entries.map {
+                                "#" + it.optString("invoiceNo") + " · " + it.optString("name") +
+                                    "\n" + SatoriData.money(it.optLong("total"))
+                            }
+                            AlertDialog.Builder(this)
+                                .setTitle("THÙNG RÁC 30 NGÀY")
+                                .setItems(labels.toTypedArray()) { _, index ->
+                                    val chosen = entries[index]
+                                    val invoice = chosen.optInt("invoiceNo")
+                                    val customer = chosen.optString("name")
+                                    val total = chosen.optLong("total")
+                                    AlertDialog.Builder(this)
+                                        .setTitle("Khôi phục hóa đơn #" + invoice + "?")
+                                        .setMessage(customer + "\n" + SatoriData.money(total) +
+                                            "\nKhôi phục với đúng mã hóa đơn cũ, không tạo đơn mới.")
+                                        .setNegativeButton("Hủy", null)
+                                        .setPositiveButton("XÁC NHẬN KHÔI PHỤC") { _, _ ->
+                                            val p = JSONObject()
+                                                .put("expectedRevision", snapshot?.revision ?: -1)
+                                                .put("requestId", UUID.randomUUID().toString().replace("-", ""))
+                                                .put("invoiceNo", invoice)
+                                                .put("id", chosen.optString("id"))
+                                                .put("expectedName", customer)
+                                                .put("expectedTotal", total)
+                                                .put("confirmed", true)
+                                            executeWrite("orders.restore", p) { _, _ -> }
+                                        }.show()
+                                }.setNegativeButton("Đóng", null).show()
+                        }
+                        render()
+                    },
+                    onFailure = { error ->
+                        statusMessage = "Không đọc được thùng rác: " + (error.message ?: "Lỗi")
+                        render()
+                    }
+                )
+            }
+        }.start()
+    }
+
     private fun openInvoice(invoice: SatoriInvoice) {
         val wrapper = ScrollView(this)
         val content = LinearLayout(this).apply {
