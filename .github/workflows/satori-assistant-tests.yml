@@ -1,0 +1,22 @@
+name: Independent Satori assistant tests
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-assistant:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check assistant JavaScript
+        run: node --check satori-assistant.js && node --check satori-assistant-ui.js
+      - name: New assistant and accounting regression tests
+        run: node --test tests/assistant-order.cjs tests/customer-debt.cjs tests/payment-groups.cjs
