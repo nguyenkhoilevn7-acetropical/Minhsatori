@@ -144,6 +144,42 @@ class SatoriModelsTest {
         assertFalse(SatoriData.search(invoice, "999991"))
     }
 
+    @Test
+    fun malformedSourceDatesAreFlaggedAndNeverSortAheadOfValidDates() {
+        val orders = JSONArray()
+            .put(JSONObject().put("invoiceNo", 9).put("date", "22/0802026"))
+            .put(JSONObject().put("invoiceNo", 54).put("date", "20/19/2026"))
+            .put(JSONObject().put("invoiceNo", 5900).put("date", "19/10/2026"))
+            .put(JSONObject().put("invoiceNo", 5901).put("date", "18/10/2026"))
+        val state = JSONObject().put("revision", 105).put("values",
+            JSONObject().put("satori_orders_v15", orders.toString()))
+        val invoices = SatoriData.fromDriveState(state.toString()).invoices
+        assertEquals(listOf("5900", "5901"), invoices.take(2).map { it.number })
+        val bad9 = invoices.single { it.number == "9" }
+        val bad54 = invoices.single { it.number == "54" }
+        assertEquals("22/0802026", bad9.date)
+        assertEquals("20/19/2026", bad54.date)
+        assertFalse(bad9.hasValidDate)
+        assertFalse(bad54.hasValidDate)
+        assertTrue(bad9.displayDate.contains("Ngày cần kiểm tra"))
+        assertEquals("00000000", bad54.sortDate)
+        assertTrue(invoices.first().hasValidDate)
+    }
+
+    @Test
+    fun rejectsImpossibleCalendarDatesButAllowsLeapDay() {
+        val orders = JSONArray()
+            .put(JSONObject().put("invoiceNo", 101).put("date", "29/02/2024"))
+            .put(JSONObject().put("invoiceNo", 102).put("date", "29/02/2025"))
+            .put(JSONObject().put("invoiceNo", 103).put("date", "31/04/2026"))
+        val state = JSONObject().put("revision", 1).put("values",
+            JSONObject().put("satori_orders_v15", orders.toString()))
+        val invoices = SatoriData.fromDriveState(state.toString()).invoices
+        assertEquals("20240229", invoices.single { it.number == "101" }.sortDate)
+        assertFalse(invoices.single { it.number == "102" }.hasValidDate)
+        assertFalse(invoices.single { it.number == "103" }.hasValidDate)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun refusesSnapshotWithoutRevision() {
         SatoriData.fromDriveState("""{"values":{"satori_orders_v15":"[]"}}""")
