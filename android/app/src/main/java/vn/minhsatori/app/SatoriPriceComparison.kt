@@ -37,6 +37,21 @@ object SatoriPriceComparison {
             .sorted().joinToString(";")
     }
 
+    private fun creationMillis(invoice: SatoriInvoice): Long? {
+        // The website generates order.id = Date.now(); that 13-digit epoch is
+        // evidence of creation time. Do not treat unrelated numeric IDs as dates.
+        val millis = invoice.id.toLongOrNull() ?: return null
+        return millis.takeIf { it in 1577836800000L..4102444800000L }
+    }
+
+    private fun closeInTime(a: SatoriInvoice, b: SatoriInvoice): Boolean {
+        val first = creationMillis(a) ?: return false
+        val second = creationMillis(b) ?: return false
+        // A price view copied within 30 min can be recognized; older deliveries
+        // still require manual review rather than an invented time relationship.
+        return kotlin.math.abs(first - second) <= 30L * 60L * 1000L
+    }
+
     private fun linked(a: SatoriInvoice, b: SatoriInvoice): Boolean {
         val byNumber = a.duplicateFrom == b.number || b.duplicateFrom == a.number
         val alternatePrice = a.status == "Không Tính" || b.status == "Không Tính"
@@ -80,6 +95,12 @@ object SatoriPriceComparison {
                 reviews += SatoriComparisonReview(rows,
                     "Thông tin giao trùng nhưng chưa xác nhận là hai bản giá; " +
                         "có thể khách đặt hai lần riêng.")
+                continue
+            }
+            if (!closeInTime(a, b)) {
+                reviews += SatoriComparisonReview(rows,
+                    "Chưa xác minh được hai bản giá tạo gần nhau trong 30 phút " +
+                        "(thiếu thời điểm tạo hoặc tạo cách xa); không tự ghép.")
                 continue
             }
             val main = when {
