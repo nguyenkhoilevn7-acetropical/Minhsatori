@@ -14,11 +14,13 @@ import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.provider.OpenableColumns
+import java.text.DateFormat
+import java.util.Date
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -44,16 +46,18 @@ class NativeMainActivity : AppCompatActivity() {
     private var activeTab = 0
     private var accessToken: String? = null
     private var snapshot: SatoriSnapshot? = null
-    private var statusMessage = "Kết nối tài khoản Google để đồng bộ dữ liệu hóa đơn."
+    private var statusMessage = "Chưa liên kết dữ liệu Google Drive. Bấm KẾT NỐI DỮ LIỆU để bắt đầu."
     private var searchText = ""
     private var isLoading = false
     private var fileUri: Uri? = null
+    private var dataSource = ""
+    private var lastReadAt = ""
 
     private val filePicker = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri == null) {
-            statusMessage = "Chưa chọn file Drive."
+            if (snapshot == null) statusMessage = "Chưa chọn file. Bấm KẾT NỐI DỮ LIỆU rồi chọn MinhSatori_Live_Data.json trong Google Drive."
             render()
         } else {
             try {
@@ -92,6 +96,7 @@ class NativeMainActivity : AppCompatActivity() {
             Uri.parse(it)
         }
         render()
+        if (fileUri != null) refreshFromPicker()
     }
 
     override fun onDestroy() {
