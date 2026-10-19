@@ -100,14 +100,14 @@ context.UrlFetchApp={fetch(url,options){
   }else throw Error('Unexpected URL in isolated test');
   return {getResponseCode:()=>status,getContentText:()=>JSON.stringify(obj)};
 }};
-vm.runInContext(fs.readFileSync(path.join(__dirname,'../api/MobileApi.gs'),'utf8'),context);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../api/MobileApi.gs'),'utf8').replace("message:recognized?error.message:'Không thực hiện được tác vụ; vui lòng tải lại và thử lại'","message:String(error&&error.stack||error)"),context);
 function mobile(action,payload={},overrides={}){
   const body={kind:'satori-android-v1',accessToken:'valid-owner-token',action,
      nonce:'mobiletestnonce'+String(++sequence).padStart(20,'0'),payload,...overrides};
   return JSON.parse(context.doPost({parameter:{route:'android'},
     postData:{contents:JSON.stringify(body)}}).text);
 }
-assert.equal(mobile('mobile.snapshot').data.revision,20);
+const firstMobile=mobile('mobile.snapshot');console.log('MOBILE smoke:',JSON.stringify(firstMobile));assert.equal(firstMobile.data.revision,20);
 const earlierWriteCount=writes;
 assert.equal(mobile('orders.create',{expectedRevision:20,requestId:'phone-order-001',
   confirmedNewCustomer:true,order:{name:'Android Test Customer',location:'Cát Lái 101',phone:'0909988999',
