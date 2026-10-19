@@ -22,3 +22,17 @@ Detailed handoff: [android/RESUME_HANDOFF_2026-10-19.md](android/RESUME_HANDOFF_
 
 **New-task prompt:**
 `Tiếp tục Android APK Minh Satori từ ANDROID_WORK_STATUS.md trên branch feature/minhsatori-native-android-v020. Đọc android/RESUME_HANDOFF_2026-10-19.md và GitHub Actions. Hoàn tất và test native Samsung APK, Google, PDF, Zalo, đồng bộ; không sửa dữ liệu production. Cập nhật checkpoint sau mốc xác minh.`
+
+## Samsung owner acceptance checkpoint — 2026-10-19 around 22:29 ICT
+
+**Verified by owner-supplied Samsung screenshot**, not by automated CI:
+- Minh Satori Native **v0.3.0** launches without Chrome.
+- Native Android document picker opens Google Drive; owner selected the live JSON.
+- Read-only dashboard rendered **revision 105, 113 invoices**, of which **107** counted for revenue, **24** customer-unpaid invoices, total estimated outstanding **23,711,911 VND**.
+- Snapshot displays `updatedAt=2026-10-19T14:16:55.465Z` (21:16:55 ICT), read around 22:29 ICT. File-picker read is a snapshot, **not confirmed live syncing**.
+- Current screenshot still shows **KÍCH HOẠT KẾT NỐI LÊN ĐƠN** and **CÀI ĐẶT LIÊN KẾT API**. This does **not** verify Google OAuth, Mobile API permissions, write operations, automatic sync, PDF, Zalo, or release signing.
+- Two source invoice dates visibly malformed in the recent-orders display: `22/0802026` and `20/19/2026`. Do NOT guess corrected dates or mutate production invoice records.
+- Android development branch commits through `b4da32618c3649a0fead3308068306abe63a91d6` validate sortable dates (Vietnamese and ISO), sort invalid dates last, warn visibly while preserving original values; add regression tests for invalid dates and leap days. This change **has not yet passed CI nor been installed on Samsung**.
+- Latest CI run as checked: https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39278976211 — **QUEUED** when recorded. Wait for final result before claiming new APK built.
+- NEXT: verify CI passes, download/install newly built test APK, compare revision/count with website and test PDF + Android Zalo share read-only. Then stage server-side OAuth/Mobile API, simulate safe writes in sandbox. Do not modify production.
+- Engineering completion remains about **70%** until Google authorization, API connection, multi-device sync, PDF, Zalo, signing, and safety acceptance tests pass.
