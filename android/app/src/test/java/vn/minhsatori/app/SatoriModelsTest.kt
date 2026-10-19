@@ -112,6 +112,37 @@ class SatoriModelsTest {
     }
 
     @Test
+    fun catalogueUsesDrivePricesAndExplicitDiscountWithoutChangingSource() {
+        val products = JSONArray()
+            .put(JSONObject().put("code", "TP-00001")
+                .put("name", "Nước tinh khiết Satori 350ml")
+                .put("unit", "Thùng")
+                .put("listPrice", 88000)
+                .put("unitPrice", 66000)
+                .put("discountPercent", 25.0))
+            .put(JSONObject().put("code", "TP-00002")
+                .put("name", "Nước Satori 500ml")
+                .put("unit", "Thùng")
+                .put("listPrice", 112000)
+                .put("unitPrice", 84000))
+        val values = JSONObject()
+            .put("satori_orders_v15", "[]")
+            .put("satori_catalogue_v15", products.toString())
+        val state = JSONObject().put("revision", 108).put("values", values)
+        val before = state.toString()
+        val loaded = SatoriData.fromDriveState(before)
+        assertEquals(2, loaded.products.size)
+        val first = loaded.products.first()
+        assertEquals("TP-00001", first.code)
+        assertEquals("Nước tinh khiết Satori 350ml", first.name)
+        assertEquals(88000L, first.listPrice)
+        assertEquals(66000L, first.unitPrice)
+        assertEquals(25.0, first.discountPercent!!, 0.00001)
+        assertNull(loaded.products[1].discountPercent)
+        assertEquals(before, state.toString())
+    }
+
+    @Test
     fun formattingSeparatorsDoNotCreateAnExtraCustomerProfile() {
         val orders = JSONArray()
             .put(JSONObject().put("invoiceNo", 5901).put("name", "Hà Minh Nguyệt")
