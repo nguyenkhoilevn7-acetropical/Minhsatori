@@ -100,6 +100,27 @@ class SatoriSupplierReconciliationTest {
         assertEquals("review", two.items.single().category)
     }
 
+    @Test fun sameNumericCodeAloneCannotJoinSeparateSupplierAndLocalNamespaces() {
+        val file = sheet(
+            listOf("Số hóa đơn", "Mã đặt hàng", "Tổng tiền"),
+            listOf("5914", "S-582", "950400"))
+        val result = SatoriSupplierReconciliation.compare(file,
+            SatoriSnapshot(1, "", listOf(local("5914"))))
+        assertEquals(0, result.matched)
+        assertEquals(1, result.needsReview)
+        assertNull(result.items.single().difference)
+    }
+
+    @Test fun invalidSupplierDateMustNeverAutoMatchEvenWithSameInvoiceCode() {
+        val invalid = row("5914", "S-582", "950400", "Nước Satori 350ml")
+            .toMutableList()
+        invalid[5] = "99/10/2026"
+        val result = SatoriSupplierReconciliation.compare(sheet(header, invalid),
+            SatoriSnapshot(1, "", listOf(local("5914"))))
+        assertEquals(1, result.needsReview)
+        assertEquals(0, result.matched)
+    }
+
     @Test fun ambiguousAmountAndUnmatchedBillDoNotProduceInventedDifferences() {
         val lines = sheet(header,
             row("A-1", "O-1", "not-a-number", "Nước Satori 350ml"),
