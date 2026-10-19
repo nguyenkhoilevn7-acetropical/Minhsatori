@@ -335,16 +335,19 @@ internal object WebsiteInvoicePdf {
             "Thuế VAT:" to SatoriData.money(invoice.vat),
             "TỔNG THANH TOÁN" to SatoriData.money(invoice.total)
         )
+        // Match the website's compact two-column totals table: 19pt line pitch
+        // instead of the previous 30pt, and narrower label-to-amount spacing.
+        // Only the positions change; amounts retain their original values.
         totals.forEachIndexed { index, row ->
-            val baseline = top + 13f + index * 30f
-            w.draw(row.first, 320f, baseline, 8.5f, index == 3)
-            w.draw(row.second, 565f, baseline, if (index == 3) 11f else 9f,
+            val baseline = top + 16f + index * 19f
+            w.draw(row.first, 350f, baseline, if (index == 3) 8.5f else 8.5f, index == 3)
+            w.draw(row.second, 555f, baseline, if (index == 3) 10f else 9f,
                 index == 3, if (index == 3) blue else black, Paint.Align.RIGHT)
         }
         val calculated = invoice.lines.sumOf { it.amount } + invoice.shipping + invoice.vat
         if (calculated != invoice.total) w.boxText(
             "Lưu ý: Tổng đã lưu khác tổng các dòng; cần đối chiếu hóa đơn gốc.",
-            320f, top + 135f, 245f, 7.3f, false, amber)
+            350f, top + 93f, 205f, 7.3f, false, amber)
         w.move(top + 181f)
         w.text("Số tiền bằng chữ: " + words(invoice.total), 9f)
         w.gap(13f)
