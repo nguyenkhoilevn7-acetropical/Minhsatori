@@ -288,7 +288,25 @@ function handle(e){
   }finally{lock.releaseLock()}
  }catch(err){return json({ok:false,error:{code:err.code||'ERROR',message:err.code?err.message:'Không xử lý được; kiểm tra nhật ký hệ thống'}})}
 }
-return {handle:handle};
+function executeVerified(action,payload,nonce) {
+ need(Object.prototype.hasOwnProperty.call(SCOPES,action),'INVALID_ACTION','Lệnh không hỗ trợ');
+ need(typeof nonce==='string'&&/^[A-Za-z0-9_-]{12,100}$/.test(nonce),
+   'INVALID_REQUEST','Thiếu mã yêu cầu');
+ var p=payload||{};
+ need(p&&typeof p==='object'&&!Array.isArray(p),'INVALID_REQUEST','Payload không hợp lệ');
+ var lock=LockService.getScriptLock();lock.waitLock(30000);
+ try {
+  var cache=CacheService.getScriptCache(),key='satorimobile:'+nonce;
+  need(!cache.get(key),'REPLAYED','Không gửi lặp thao tác');
+  var s=state(),writeAction=['orders.create','orders.update','orders.delete',
+   'orders.restore','payments.markCustomerPaid'].includes(action);
+  var result=writeAction?write(s,action,p):{revision:s.revision,data:read(s,action,p)};
+  cache.put(key,'1',600);
+  return {ok:true,action:action,revision:result.revision,data:result.data,
+    backupCreated:!!result.backupCreated};
+ }finally{lock.releaseLock()}
+}
+return {handle:handle,executeVerified:executeVerified};
 })();
-function doPost(e){return SatoriBotApi.handle(e)}
+function doPost(e){return e&&e.parameter&&e.parameter.route==='android'?SatoriMobileApi.handle(e):SatoriBotApi.handle(e)}
 
