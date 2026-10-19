@@ -4,10 +4,18 @@ plugins {
 }
 
 val ownerWebAppUrl = providers.gradleProperty("satoriWebAppUrl")
-    .orElse("https://script.google.com/macros/s/AKfycbwJjiajW-gbCwCISrGjvLy5L5ETdmfAGV1zHpUWoeszRUXNgQ6vGHOs3DVABSAcEtV1/exec")
+    .orElse("https://script.google.com/macros/s/AKfycbwJjiajW-gbCwCISrGjvLy5L5ETdmfAGV1zHpUWoeszRUXNgQ6vGHOs3DVABSAcEtV1/exec?authuser=0&pli=1")
     .get()
-require(ownerWebAppUrl.startsWith("https://script.google.com/macros/s/") && ownerWebAppUrl.endsWith("/exec")) {
-    "satoriWebAppUrl must be a valid owner-only Apps Script /exec URL"
+val ownerUri = java.net.URI(ownerWebAppUrl)
+require(
+    ownerUri.scheme == "https" &&
+    ownerUri.host == "script.google.com" &&
+    ownerUri.port == -1 && ownerUri.userInfo == null &&
+    ownerUri.path.matches(Regex("^/macros/s/[A-Za-z0-9_-]+/exec$")) &&
+    ownerUri.fragment == null &&
+    (ownerUri.rawQuery == null || ownerUri.rawQuery == "authuser=0&pli=1")
+) {
+    "satoriWebAppUrl must be a valid owner-only Apps Script /exec URL with optional authuser=0&pli=1"
 }
 
 android {
@@ -18,8 +26,8 @@ android {
         applicationId = "vn.minhsatori.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0-test"
+        versionCode = 2
+        versionName = "0.1.1-test"
         buildConfigField("String", "SATORI_WEB_APP_URL", "\"$ownerWebAppUrl\"")
     }
 

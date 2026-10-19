@@ -1,15 +1,16 @@
 # Minh Satori Android (Samsung) — Safe trial APK
 
 ## Purpose
-Native Android launcher with **Chrome Custom Tabs** to open the **existing owner-only
-Google Apps Script Drive Sync website**. This approach shares Chrome Google sign-in,
+Native Android launcher with **regular Google Chrome** to open the **existing owner-only
+Google Apps Script Drive Sync website**. This approach uses the very same Chrome Google sign-in,
 preserves the original website's PDF/sharing UX and avoids duplicating invoice storage.
 
 Important distinctions:
 - This is a **trial APK**, not yet a fully native accounting client.
 - It contains **NO production HMAC keys**, access tokens, private invoice JSON, or offline invoice database.
-- Chrome Custom Tabs are intentionally used instead of WebView because Google's sign-in
-  can reject embedded WebViews. The app never opens the raw GitHub Pages site as its primary
+- An explicit regular Chrome browser Intent is intentionally used instead of WebView
+  or Chrome Custom Tabs, because the owner verified that the existing website loads
+  through an ordinary Chrome tab. The app never opens the raw GitHub Pages site as its primary
   entrypoint, because that could create a misleading local-only invoice view.
 - This APK never directly writes an invoice; writes remain inside the owner's existing
   authenticated website and its Script Properties state, with its existing authorization logic.
@@ -17,13 +18,14 @@ Important distinctions:
 
 ## Configuration
 Default portal entrypoint: existing Drive Sync owner web app,
-`https://script.google.com/macros/s/AKfycbwJjiajW-gbCwCISrGjvLy5L5ETdmfAGV1zHpUWoeszRUXNgQ6vGHOs3DVABSAcEtV1/exec`.
+`https://script.google.com/macros/s/AKfycbwJjiajW-gbCwCISrGjvLy5L5ETdmfAGV1zHpUWoeszRUXNgQ6vGHOs3DVABSAcEtV1/exec?authuser=0&pli=1`.
 
 **Verify** this deployment URL against the latest Apps Script Manage Deployments before
 accepting the trial APK. It may be updated without rebuilding through
 **Cài đặt liên kết** in the installed Android app, and build systems can set
 `-PsatoriWebAppUrl=https://script.google.com/macros/s/.../exec`.
-Only HTTPS script.google.com owner /exec URLs are accepted. NEVER paste Bot API /exec here.
+Only HTTPS script.google.com owner /exec URLs are accepted. The only accepted optional
+query keys are authuser (digits) and pli (0 or 1). NEVER paste Bot API /exec here.
 
 ## Build
 Requirements: JDK 17, Android SDK platform 35, Gradle 8.9.
@@ -43,12 +45,20 @@ and design a safe update path. Never commit signing keys.
 
 ## Non-destructive test checklist
 1. Backup current Drive live JSON; independently verify size, invoice count and revision.
-2. Test login using owner Google account in Chrome Custom Tab.
+2. Test opening the owner-only Drive Sync website using the same regular Chrome session,
+   preserving `?authuser=0&pli=1` from the user's known working URL.
 3. Read invoice count in app vs existing website on Samsung and a second device.
 4. Validate PDF share via Chrome → Android Sharesheet to Zalo/Messenger.
 5. Test airplane mode: app must NOT silently display stale local invoices.
 6. Create/edit/delete on a SEPARATE copied test Drive document and test deployment.
 7. Production writes only after API, backup, and multi-device conflict tests pass.
+
+## Known APK upgrade limitation
+This trial is signed using a **GitHub Actions ephemeral debug key**, so a later
+trial APK may require uninstalling the old trial first if Android reports an
+incompatible signature. This launcher stores NO orders, HMAC keys or private
+invoice data. Uninstalling it does NOT delete Google Drive invoices. If the
+owner has customized the local portal URL, it must be re-entered after reinstall.
 
 ## Future native iteration
 After Bot API HMAC connector is fully verified and user authentication strategy

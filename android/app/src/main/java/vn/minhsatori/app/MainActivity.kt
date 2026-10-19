@@ -23,7 +23,8 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.content.ContextCompat
 
 /**
- * Android owner portal launcher. Chrome Custom Tabs share the user's Google login.
+ * Android owner portal launcher. Opens the website in the same regular Chrome
+ * browser session already used by the owner (instead of an embedded WebView).
  *
  * Never load index.html from file:///android_asset: doing so creates an isolated
  * localStorage database and can mislead users about invoice synchronization.
@@ -134,9 +135,9 @@ class MainActivity : AppCompatActivity() {
             editPortalUrl()
         }
         block(column,
-            "Lưu ý: Phiên bản này dùng Chrome Custom Tabs để bảo toàn đăng nhập Google và tính năng chia sẻ. Không sử dụng file HTML ngoại tuyến để tránh tạo hai bộ dữ liệu khác nhau.",
+            "Lưu ý: Hệ thống mở bằng Chrome bình thường để sử dụng đúng tài khoản Google đã đăng nhập và tính năng chia sẻ. Ứng dụng không tạo dữ liệu hóa đơn ngoại tuyến.",
             12f, false, muted, 22)
-        block(column, "Minh Satori Android · thử nghiệm 0.1.0", 12f, false, muted, 12)
+        block(column, "Minh Satori Android · thử nghiệm 0.1.1", 12f, false, muted, 12)
     }
 
     private fun hasNetwork(): Boolean {
@@ -161,7 +162,31 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Cần Internet để đồng bộ hóa đơn", Toast.LENGTH_LONG).show()
             return
         }
-        launchHttps(url)
+        launchOwnerPortalInChrome(url)
+    }
+
+    /**
+     * Open in the actual regular Chrome browser, preserving the owner's
+     * successful Google login + authuser account routing. Custom Tabs can
+     * behave differently from a regular tab for some Apps Script deployments.
+     */
+    private fun launchOwnerPortalInChrome(url: String) {
+        val uri = android.net.Uri.parse(url)
+        val chrome = Intent(Intent.ACTION_VIEW, uri).apply {
+            addCategory(Intent.CATEGORY_BROWSABLE)
+            setPackage("com.android.chrome")
+        }
+        try {
+            startActivity(chrome)
+        } catch (_: ActivityNotFoundException) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
+                    addCategory(Intent.CATEGORY_BROWSABLE)
+                })
+            } catch (_: ActivityNotFoundException) {
+                Toast.makeText(this, "Không tìm thấy trình duyệt để mở Minh Satori", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun launchHttps(url: String) {
@@ -199,7 +224,7 @@ class MainActivity : AppCompatActivity() {
         }
         AlertDialog.Builder(this)
             .setTitle("Liên kết Google Apps Script")
-            .setMessage("Chỉ dán URL /exec của website Drive Sync thuộc tài khoản của anh, KHÔNG dùng URL Bot API.")
+            .setMessage("Dán URL website Drive Sync đang mở thành công bằng Chrome, bao gồm ?authuser=0&pli=1 nếu có. KHÔNG dùng URL Bot API.")
             .setView(wrapper)
             .setNegativeButton("Hủy", null)
             .setNeutralButton("Mặc định") { _, _ ->
@@ -209,7 +234,7 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Lưu") { _, _ ->
                 val value = PortalUrlValidator.normalize(field.text.toString())
                 if (value == null) {
-                    Toast.makeText(this, "Chỉ chấp nhận URL https://script.google.com/macros/s/.../exec", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Chỉ nhận link Drive Sync /exec với authuser và pli (nếu có)", Toast.LENGTH_LONG).show()
                 } else {
                     storage.edit().putString("owner_portal_url", value).apply()
                     Toast.makeText(this, "Đã lưu địa chỉ trên điện thoại này", Toast.LENGTH_SHORT).show()
