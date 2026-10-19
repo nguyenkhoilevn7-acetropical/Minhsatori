@@ -175,8 +175,8 @@ class NativeMainActivity : AppCompatActivity() {
         label(content, "MINH SATORI", 14f, true, teal)
         label(content, listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn")[
             activeTab], 27f, true, dark, 6)
-        label(content, "Ứng dụng Android · hoạt động ngay trong app · không mở Chrome",
-            12f, false, muted, 5)
+        label(content, "Minh Satori Native v" + BuildConfig.VERSION_NAME +
+            " · không mở Chrome", 12f, false, muted, 5)
         val connected = snapshot != null
         val snapshotInfo = snapshot
         val status = if (connected) {
