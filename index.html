@@ -584,6 +584,12 @@
                             <input type="text" id="busLocation" oninput="calculateTotals()" placeholder="Địa chỉ giao..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
                         </div>
 
+                        <div class="rounded-xl border border-amber-500/50 bg-amber-950/20 p-3">
+                            <label for="deliveryNote" class="block text-xs font-bold text-amber-300 mb-1"><i class="fa-solid fa-clipboard-list mr-1"></i> Ghi chú / Yêu cầu giao hàng (hiện trên hóa đơn)</label>
+                            <textarea id="deliveryNote" rows="3" maxlength="1000" oninput="calculateTotals()" placeholder="Ví dụ: Gọi trước khi giao 15 phút; giao tại quầy lễ tân; liên hệ anh Nam..." class="w-full rounded-lg bg-slate-950 border border-amber-500/40 p-2.5 text-sm text-white resize-y focus:outline-none focus:border-amber-400"></textarea>
+                            <p class="text-[10px] text-slate-400 mt-1">Ghi chú này sẽ xuất hiện trên bản xem trước, hóa đơn in và PDF gửi khách. Không ghi thông tin nội bộ hoặc bí mật.</p>
+                        </div>
+
                         <!-- MULTI-PRODUCT ITEMS SECTION (SMOOTH EDITING NO JUMPING) -->
                         <div class="border-t border-slate-800 pt-3 space-y-3">
                             <div class="flex justify-between items-center">
@@ -817,6 +823,10 @@
                                 <p><span class="text-slate-400">Số điện thoại:</span> <span id="prevPhone" class="font-medium text-slate-200">...</span></p>
                                 <p><span class="text-slate-400">Email:</span> <span id="prevEmail" class="text-slate-400">...</span></p>
                             </div>
+                        </div>
+                        <div id="prevDeliveryNoteBox" class="hidden border border-amber-500/60 bg-amber-950/30 rounded-lg p-3 text-xs">
+                            <div class="font-bold text-amber-300 mb-1">GHI CHÚ / YÊU CẦU GIAO HÀNG</div>
+                            <p id="prevDeliveryNote" class="text-slate-100 whitespace-pre-wrap break-words"></p>
                         </div>
 
                         <!-- Invoice Meta -->
@@ -2497,6 +2507,7 @@
                     <p style="margin: 2px 0 0 0;"><span style="color: #64748b;">Điện thoại:</span> <strong style="color: #0f172a;" id="printBuyerPhone">...</strong></p>
                     <p style="margin: 2px 0 0 0;"><span style="color: #64748b;">Địa chỉ giao:</span> <span id="printBuyerLocation" style="color: #0f172a;">...</span></p>
                     <p style="margin: 2px 0 0 0;"><span style="color: #64748b;">Mã số thuế:</span> <span id="printBuyerTax">Không có</span></p>
+                    <p id="printDeliveryNoteRow" style="display:none;margin:7px 0 0;padding:8px;border:1px solid #f59e0b;background:#fffbeb;white-space:pre-wrap;overflow-wrap:anywhere;"><strong style="color:#92400e">GHI CHÚ / YÊU CẦU GIAO HÀNG:</strong> <span id="printDeliveryNote"></span></p>
                 </div>
             </div>
         </div>
@@ -3530,6 +3541,9 @@
             document.getElementById('prevTax').innerText = document.getElementById('taxCode').value || '...';
             document.getElementById('prevAddress').innerText = document.getElementById('busLocation').value || '...';
             document.getElementById('prevPhone').innerText = document.getElementById('busPhone').value || '...';
+            const notePreview = (document.getElementById('deliveryNote')?.value || '').trim();
+            document.getElementById('prevDeliveryNote').textContent = notePreview;
+            document.getElementById('prevDeliveryNoteBox').classList.toggle('hidden', !notePreview);
             document.getElementById('prevInvNo').innerText = invNo;
             
             const dateVal = document.getElementById('orderDate').value;
@@ -3678,6 +3692,7 @@
             document.getElementById('busName').value = o.name || '';
             document.getElementById('busPhone').value = o.phone || '';
             document.getElementById('busLocation').value = o.location || '';
+            document.getElementById('deliveryNote').value = o.deliveryNote || '';
             document.getElementById('taxCode').value = o.taxCode || '';
             document.getElementById('vatOption').value = o.vat || 'no';
             document.getElementById('paymentStatus').value = o.status || 'Chưa thanh toán';
@@ -3796,6 +3811,7 @@
             document.getElementById('busName').value = '';
             document.getElementById('busPhone').value = '';
             document.getElementById('busLocation').value = '';
+            document.getElementById('deliveryNote').value = '';
             document.getElementById('taxCode').value = '';
             document.getElementById('vatOption').value = 'no';
             document.getElementById('paymentStatus').value = 'Chưa thanh toán';
@@ -3864,6 +3880,7 @@
                         name: document.getElementById('busName').value || 'Khách vãng lai',
                         phone: document.getElementById('busPhone').value || '',
                         location: document.getElementById('busLocation').value || '',
+                        deliveryNote: (document.getElementById('deliveryNote')?.value || '').trim().slice(0,1000),
                         taxCode: document.getElementById('taxCode').value || '',
                         product: prodSummary,
                         items: JSON.parse(JSON.stringify(currentItems)),
@@ -3936,6 +3953,7 @@
                 name: document.getElementById('busName').value || 'Khách vãng lai',
                 phone: document.getElementById('busPhone').value || '',
                 location: document.getElementById('busLocation').value || '',
+                        deliveryNote: (document.getElementById('deliveryNote')?.value || '').trim().slice(0,1000),
                 taxCode: document.getElementById('taxCode').value || '',
                 product: prodSummary,
                 items: JSON.parse(JSON.stringify(currentItems)),
@@ -4490,6 +4508,8 @@
                         </div>
                     </div>
 
+                    ${o.deliveryNote?.trim() ? `<div class="rounded-lg border border-amber-500/60 bg-amber-950/30 p-3 text-xs"><div class="font-bold text-amber-300 mb-1">GHI CHÚ / YÊU CẦU GIAO HÀNG</div><p class="text-slate-100 whitespace-pre-wrap break-words">${aiEscape(o.deliveryNote)}</p></div>` : ''}
+
                     <div class="border border-slate-700 divide-y divide-slate-700 text-xs">
                         <div class="bg-slate-900 font-bold px-3 py-1 text-center text-slate-300 text-[11px]">THÔNG TIN HÓA ĐƠN</div>
                         <div class="grid grid-cols-6 divide-x divide-slate-700 text-center">
@@ -4991,6 +5011,7 @@
                 name: document.getElementById('busName')?.value || 'Khách vãng lai',
                 phone: document.getElementById('busPhone')?.value || '',
                 location: document.getElementById('busLocation')?.value || '',
+                deliveryNote: (document.getElementById('deliveryNote')?.value || '').trim().slice(0,1000),
                 taxCode: document.getElementById('taxCode')?.value || '',
                 product: prodSummary,
                 items: JSON.parse(JSON.stringify(currentItems || [])),
@@ -5020,6 +5041,8 @@
             document.getElementById('printBuyerPhone').innerText = o.phone || '(Chưa có SĐT)';
             document.getElementById('printBuyerLocation').innerText = o.location || '(Chưa có địa chỉ)';
             document.getElementById('printBuyerTax').innerText = o.taxCode || 'Không có';
+            document.getElementById('printDeliveryNote').textContent = o.deliveryNote || '';
+            document.getElementById('printDeliveryNoteRow').style.display = o.deliveryNote?.trim() ? 'block' : 'none';
             document.getElementById('printSignBuyerName').innerText = o.name || 'Đại diện khách hàng';
 
             let itemsToPrint = (o.items && Array.isArray(o.items) && o.items.length > 0) ? o.items : [{product:o.product,unit:o.unit || 'Thùng',qty:o.qty,listPrice:o.listPrice,unitPrice:o.unitPrice,discountPercent:o.listPrice ? (o.listPrice-o.unitPrice)/o.listPrice*100 : 0}];
@@ -5188,6 +5211,7 @@
                     {text:'Điện thoại: '+(o.phone || '(Chưa có SĐT)')},
                     {text:'Địa chỉ giao: '+(o.location || '(Chưa có địa chỉ)')},
                     {text:'Mã số thuế: '+(o.taxCode || 'Không có'),margin:[0,0,0,12]},
+                    ...(o.deliveryNote?.trim() ? [{table:{widths:['*'],body:[[{stack:[{text:'GHI CHÚ / YÊU CẦU GIAO HÀNG',bold:true,color:'#92400e',margin:[0,0,0,4]},{text:o.deliveryNote,style:'deliveryNote'}],fillColor:'#fffbeb'}]]},layout:{hLineColor:()=> '#f59e0b',vLineColor:()=> '#f59e0b'},margin:[0,0,0,12]}] : []),
                     {table:{headerRows:1,widths:[18,'*',30,24,57,38,57,64],body:[head,...rows]},layout:{hLineColor:()=> '#cbd5e1',vLineColor:()=> '#cbd5e1',paddingTop:()=>7,paddingBottom:()=>7}},
                     {columns:[{width:'*',stack:bank},{width:240,margin:[0,12,0,0],table:{widths:['*',100],body:[['Tổng tiền hàng:',{text:money(goods),alignment:'right'}],['Phí vận chuyển:',{text:money(ship),alignment:'right'}],['Thuế VAT ('+(o.vat==='yes'?'8':'0')+'%):',{text:money(vat),alignment:'right'}],[{text:'TỔNG THANH TOÁN',bold:true},{text:money(total),bold:true,alignment:'right',color:'#0369a1',fontSize:12}]]},layout:'noBorders'}]},
                     {text:'Số tiền bằng chữ: '+moneyToVietnameseWords(total),italics:true,margin:[0,12,0,16]},
@@ -5222,13 +5246,13 @@
         let activePreparedPdf=null,lastSavedPdfOrder=null,lastSavedPdfFormSignature=null,pdfShareRequest=0;
         let activePdfChannel='zalo',pdfNativeSharePending=false,pdfPreparationTimer=null,pdfBuildingDraft=false;
         function pdfFormSignature() {
-            return JSON.stringify({fields:['invoiceNo','orderDate','busName','busPhone','busLocation','taxCode','vatOption','shippingOption','customShippingInput','paymentStatus'].map(id=>document.getElementById(id)?.value || ''),items:currentItems});
+            return JSON.stringify({fields:['invoiceNo','orderDate','busName','busPhone','busLocation','deliveryNote','taxCode','vatOption','shippingOption','customShippingInput','paymentStatus'].map(id=>document.getElementById(id)?.value || ''),items:currentItems});
         }
         function resolvePdfOrder(order=null) {
             return JSON.parse(JSON.stringify(order || currentModalViewedOrder || (lastSavedPdfOrder && lastSavedPdfFormSignature===pdfFormSignature()?lastSavedPdfOrder:null) || getCurrentInvoiceData()));
         }
         function invoicePdfKey(o) {
-            return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount]);
+            return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount]);
         }
         function pdfShareFilename(name) {
             const stem=String(name || 'Hoa_don.pdf').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/\.pdf$/i,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,120);
