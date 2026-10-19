@@ -281,7 +281,7 @@ class NativeMainActivity : AppCompatActivity() {
         label(parent, "ĐƠN GẦN ĐÂY", 14f, true, teal, 15)
         data.invoices.take(12).forEach { invoice ->
             section(parent, "#" + invoice.number + " · " + invoice.customer,
-                invoice.date + " · " + SatoriData.money(invoice.total) + " · " +
+                invoice.displayDate + " · " + SatoriData.money(invoice.total) + " · " +
                     invoice.status) { openInvoice(invoice) }
         }
     }
@@ -312,7 +312,7 @@ class NativeMainActivity : AppCompatActivity() {
             label(list, "Tìm thấy " + matching.size + " hóa đơn", 12f, true, teal, 8)
             matching.take(120).forEach { inv ->
                 section(list, "#" + inv.number + " · " + inv.customer,
-                    inv.date + " · " + SatoriData.money(inv.total) + " · " +
+                    inv.displayDate + " · " + SatoriData.money(inv.total) + " · " +
                         inv.status + (if (inv.deliveryNote.isNotBlank()) " · Có ghi chú" else "")) {
                     openInvoice(inv)
                 }
@@ -375,7 +375,7 @@ class NativeMainActivity : AppCompatActivity() {
             SatoriData.money(data.outstandingAmount))
         data.invoices.filter { it.isOutstanding }.forEach { inv ->
             section(parent, "#" + inv.number + " · " + inv.customer,
-                inv.date + " · " + SatoriData.money(inv.total) +
+                inv.displayDate + " · " + SatoriData.money(inv.total) +
                     " · " + inv.address) { openInvoice(inv) }
         }
     }
@@ -467,7 +467,7 @@ class NativeMainActivity : AppCompatActivity() {
         wrapper.addView(content)
         label(content, "HÓA ĐƠN #" + invoice.number, 19f, true, teal)
         label(content, invoice.customer, 16f, true, dark, 10)
-        label(content, "Ngày: " + invoice.date + " · " + invoice.status, 13f,
+        label(content, "Ngày: " + invoice.displayDate + " · " + invoice.status, 13f,
             false, muted, 7)
         label(content, "Điện thoại: " + invoice.phone, 13f, false, dark, 9)
         label(content, "Giao tới: " + invoice.address, 13f, false, dark, 5)
