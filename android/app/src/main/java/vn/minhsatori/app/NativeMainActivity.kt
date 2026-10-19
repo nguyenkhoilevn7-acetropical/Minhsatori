@@ -16,6 +16,8 @@ import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -370,6 +372,9 @@ class NativeMainActivity : AppCompatActivity() {
         button(parent, "BẢNG GIÁ SATORI · " + data.products.size + " sản phẩm (CHỈ XEM)") {
             showCatalogue(data)
         }
+        button(parent, "SỔ KẾ TOÁN · TRA CỨU (CHỈ XEM)") {
+            showLedger(data)
+        }
         section(parent, "Kho hóa đơn · " + data.invoices.size,
             data.activeCount.toString() + " bản ghi tính doanh thu; các bản 'Không Tính' " +
                 "không cộng trùng.")
@@ -442,6 +447,87 @@ class NativeMainActivity : AppCompatActivity() {
             .setView(panel)
             .setPositiveButton("Đóng", null)
             .show()
+    }
+
+    // Website-inspired ledger: filter invoices without writing or estimating profit.
+    // Financial totals intentionally ignore "Không Tính" and "Đã hủy" statuses.
+    private fun showLedger(data: SatoriSnapshot) {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(8), dp(14), dp(12))
+        }
+        label(content, "SỔ KẾ TOÁN · Revision " + data.revision, 14f, true, teal)
+        label(content, "Xem số liệu đã lưu. 'Đã TT Satori' không có nghĩa khách đã trả tiền. " +
+            "Lợi nhuận và đối chiếu trùng đơn sẽ được kiểm tra riêng, không tự ước tính.",
+            12f, false, muted, 6)
+
+        val search = EditText(this).apply {
+            hint = "Số hóa đơn, khách hàng, điện thoại, địa chỉ…"
+            setSingleLine(true)
+            textSize = 13f
+        }
+        content.addView(search, LinearLayout.LayoutParams(-1, dp(48)))
+
+        val statuses = listOf("Tất cả", "Chưa thanh toán", "Đã thanh toán",
+            "Đã TT Satori", "Không Tính", "Đã hủy")
+        val filter = Spinner(this)
+        val choices = ArrayAdapter(this, android.R.layout.simple_spinner_item, statuses)
+        choices.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        filter.adapter = choices
+        content.addView(filter, LinearLayout.LayoutParams(-1, dp(48)))
+
+        val totalsView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = background(Color.rgb(239, 246, 255))
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+        }
+        content.addView(totalsView)
+        val scroll = ScrollView(this)
+        val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(rows)
+        content.addView(scroll, LinearLayout.LayoutParams(-1, dp(410)))
+        fun refresh() {
+            val matched = SatoriLedger.query(
+                data.invoices, search.text.toString(), statuses[filter.selectedItemPosition])
+            val t = SatoriLedger.totals(matched)
+            totalsView.removeAllViews()
+            rows.removeAllViews()
+            label(totalsView, "Hóa đơn: " + t.recordCount +
+                " · Tính doanh thu: " + t.countedCount +
+                " · Không tính/hủy: " + t.excludedCount, 12f, true, teal)
+            label(totalsView, "Doanh thu: " + SatoriData.money(t.revenue), 14f, true, teal, 5)
+            label(totalsView, "Khách đã trả: " + SatoriData.money(t.customerPaid) +
+                " · Cần thu: " + SatoriData.money(t.customerUnpaid), 12f, false, dark, 4)
+            if (t.invalidDateCount > 0) label(totalsView,
+                "Có " + t.invalidDateCount +
+                    " hóa đơn có ngày chưa hợp lệ; giữ nguyên dữ liệu để đối chiếu.",
+                11f, false, gold, 5)
+            label(rows, "KẾT QUẢ (" + matched.size + " hóa đơn)", 12f, true, teal, 11)
+            matched.take(150).forEach { invoice ->
+                section(rows, "#" + invoice.number + " · " + invoice.customer,
+                    invoice.displayDate + " · " + invoice.status + " · " +
+                    SatoriData.money(invoice.total)) { openInvoice(invoice) }
+            }
+            if (matched.size > 150) label(rows,
+                "Đang hiển thị 150 hóa đơn đầu tiên. Tìm theo số, khách hoặc trạng thái " +
+                    "để thu hẹp kết quả.", 11f, false, muted, 8)
+            if (matched.isEmpty()) label(rows, "Không có hóa đơn phù hợp.", 12f)
+        }
+        filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
+                view: View?, position: Int, id: Long) { refresh() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                refresh()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        refresh()
+        AlertDialog.Builder(this).setTitle("SỔ KẾ TOÁN MINH SATORI")
+            .setView(content).setPositiveButton("Đóng", null).show()
     }
 
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
