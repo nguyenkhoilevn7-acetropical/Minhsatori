@@ -494,13 +494,12 @@ class NativeMainActivity : AppCompatActivity() {
             label(content, invoice.deliveryNote, 13f, true, dark, 4)
         }
         var invoiceDialog: AlertDialog? = null
-        if (!invoice.customerHasPaid && !invoice.isExcluded &&
-            invoice.status != "Đã TT Satori") {
-            if (canAction("orders.update")) button(content, "SỬA HÓA ĐƠN") {
+        if (invoice.canEditOrDelete || invoice.canMarkCustomerPaid) {
+            if (invoice.canEditOrDelete && canAction("orders.update")) button(content, "SỬA HÓA ĐƠN") {
                 invoiceDialog?.dismiss()
                 launchEditor(editing = invoice)
             }
-            if (canAction("payments.markCustomerPaid")) button(content, "GHI NHẬN ĐÃ THANH TOÁN") {
+            if (invoice.canMarkCustomerPaid && canAction("payments.markCustomerPaid")) button(content, "GHI NHẬN ĐÃ THANH TOÁN") {
                 AlertDialog.Builder(this)
                     .setTitle("Xác nhận đã thực nhận tiền?")
                     .setMessage("Hóa đơn #" + invoice.number + "\nKhách: " +
@@ -519,7 +518,7 @@ class NativeMainActivity : AppCompatActivity() {
                     }.show()
             }
             val deleteId = UUID.randomUUID().toString().replace("-", "")
-            if (canAction("orders.delete")) button(content, "XÓA MỀM VÀO THÙNG RÁC 30 NGÀY") {
+            if (invoice.canEditOrDelete && canAction("orders.delete")) button(content, "XÓA MỀM VÀO THÙNG RÁC 30 NGÀY") {
                 AlertDialog.Builder(this)
                     .setTitle("Xóa mềm hóa đơn #" + invoice.number + "?")
                     .setMessage("Khách: " + invoice.customer + "\n" +
