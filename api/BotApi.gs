@@ -146,11 +146,11 @@ function create(s,all,p){
  if(o.total!==undefined)need(money(o.total)===total,'TOTAL_MISMATCH','Tổng tiền không khớp');
  var reserved=JSON.parse(s.values.satori_deleted_invoice_nos||'[]');
  var history=all.map(function(o){return Number(o.invoiceNo)||0})
-  .concat(trash.map(function(t){return Number(t.order&&t.order.invoiceNo)||0}))
+  .concat(bin.map(function(t){return Number(t.order&&t.order.invoiceNo)||0}))
   .concat(reserved.map(function(n){return Number(n)||0}));
  var invoice=1+history.reduce(function(a,b){return Math.max(a,b)},0);
  need(Number.isSafeInteger(invoice)&&invoice>0,'INVALID_ORDER','Không thể cấp số hóa đơn mới');
- var id=Date.now();while(all.some(function(i){return String(i.id)===String(id)})||trash.some(function(t){return String(t.order&&t.order.id)===String(id)}))id++;
+ var id=Date.now();while(all.some(function(i){return String(i.id)===String(id)})||bin.some(function(t){return String(t.order&&t.order.id)===String(id)}))id++;
  var next={id:id,__syncId:Utilities.getUuid(),apiRequestId:req,invoiceNo:invoice,
   deliveryDate:String(o.deliveryDate||'').slice(0,10)||null,
   date:Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','dd/MM/yyyy'),timestamp:Date.now(),
