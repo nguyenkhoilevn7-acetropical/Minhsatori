@@ -537,6 +537,20 @@ class NativeMainActivity : AppCompatActivity() {
                     }.show()
             }
         }
+        button(content, "GỬI PDF QUA ZALO") {
+            try { NativeInvoicePdf.shareZalo(this, invoice) }
+            catch (error: Exception) {
+                Toast.makeText(this, "Không chia sẻ được Zalo: " +
+                    (error.message ?: ""), Toast.LENGTH_LONG).show()
+            }
+        }
+        button(content, "GỬI PDF QUA MESSENGER") {
+            try { NativeInvoicePdf.shareMessenger(this, invoice) }
+            catch (error: Exception) {
+                Toast.makeText(this, "Không chia sẻ được Messenger: " +
+                    (error.message ?: ""), Toast.LENGTH_LONG).show()
+            }
+        }
         val dialog = AlertDialog.Builder(this)
             .setView(wrapper)
             .setNegativeButton("Đóng", null)
