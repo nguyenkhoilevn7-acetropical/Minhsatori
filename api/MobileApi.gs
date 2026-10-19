@@ -103,11 +103,16 @@ function handle(e){
         var allowedActions=Object.keys(ACTION_SCOPES).filter(function(a){
           return verified.owner||verified.scopes.includes(ACTION_SCOPES[a]);
         });
+        var values={satori_orders_v15:state.values.satori_orders_v15,
+          satori_catalogue_v15:state.values.satori_catalogue_v15||'[]'};
+        // AI customer memory includes receiver addresses and phone numbers.
+        // Never disclose to staff with only orders:read; require customers:read.
+        if(verified.owner||verified.scopes.includes('customers:read')){
+          values.satori_ai_customer_memory=state.values.satori_ai_customer_memory||'[]';
+        }
         return json({ok:true,action:action,revision:state.revision,
          data:{revision:state.revision,updatedAt:state.updatedAt,
-          allowedActions:allowedActions,
-          values:{satori_orders_v15:state.values.satori_orders_v15,
-           satori_catalogue_v15:state.values.satori_catalogue_v15||'[]'}}});
+          allowedActions:allowedActions,values:values}});
       }
       var bin=JSON.parse(state.values.satori_trash_bin_v15||'[]');
       return json({ok:true,action:action,revision:state.revision,data:{
