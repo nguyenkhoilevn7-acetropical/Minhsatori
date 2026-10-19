@@ -1,23 +1,6 @@
-import java.net.URI
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-}
-
-val ownerWebAppUrl = providers.gradleProperty("satoriWebAppUrl")
-    .orElse("https://script.google.com/macros/s/AKfycbwJjiajW-gbCwCISrGjvLy5L5ETdmfAGV1zHpUWoeszRUXNgQ6vGHOs3DVABSAcEtV1/exec?authuser=0&pli=1")
-    .get()
-val ownerUri = URI(ownerWebAppUrl)
-require(
-    ownerUri.scheme == "https" &&
-    ownerUri.host == "script.google.com" &&
-    ownerUri.port == -1 && ownerUri.userInfo == null &&
-    ownerUri.path.matches(Regex("^/macros/s/[A-Za-z0-9_-]+/exec$")) &&
-    ownerUri.fragment == null &&
-    (ownerUri.rawQuery == null || ownerUri.rawQuery == "authuser=0&pli=1")
-) {
-    "satoriWebAppUrl must be a valid owner-only Apps Script /exec URL with optional authuser=0&pli=1"
 }
 
 android {
@@ -28,9 +11,8 @@ android {
         applicationId = "vn.minhsatori.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.2.0"
-        buildConfigField("String", "SATORI_WEB_APP_URL", "\"$ownerWebAppUrl\"")
+        versionCode = 6
+        versionName = "0.2.1"
     }
 
     buildFeatures { buildConfig = true }
@@ -55,7 +37,6 @@ android {
 
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.browser:browser:1.8.0")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("com.google.android.gms:play-services-auth:21.3.0")
