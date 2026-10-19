@@ -19,7 +19,8 @@ data class SatoriLine(
     val quantity: Int,
     val unit: String,
     val unitPrice: Long,
-    val listPrice: Long
+    val listPrice: Long,
+    val code: String = ""
 ) {
     val amount: Long get() = quantity.toLong() * unitPrice
 }
@@ -94,7 +95,8 @@ object SatoriData {
                         quantity = row.optInt("qty", 0).coerceAtLeast(0),
                         unit = string(row, "unit").ifEmpty { "Thùng" },
                         unitPrice = row.optLong("unitPrice", 0).coerceAtLeast(0),
-                        listPrice = row.optLong("listPrice", 0).coerceAtLeast(0)
+                        listPrice = row.optLong("listPrice", 0).coerceAtLeast(0),
+                        code = string(row, "code")
                     )
                 }
             } else {
