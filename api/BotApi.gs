@@ -8,12 +8,12 @@ var SatoriBotApi=(function(){
 'use strict';
 var ORDER_KEY='satori_orders_v15';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
- 'debt.summary':'debt:read','orders.create':'orders:write',
+ 'debt.summary':'debt:read','customers.search':'customers:read','orders.create':'orders:write','orders.delete':'orders:delete',
  'payments.markCustomerPaid':'payments:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
-function norm(v){return String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().trim();}
+function norm(v){return String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\btreky\b/g,'traky').trim();}
 function money(v){var n=Number(v);need(Number.isFinite(n)&&n>=0&&n<=1e11,'INVALID_AMOUNT','Số tiền không hợp lệ');return n;}
 function signed(secret,data){return Utilities.computeHmacSha256Signature(data,secret).map(function(b){return ('0'+(b&255).toString(16)).slice(-2)}).join('');}
 function equalSig(a,b){if(typeof a!=='string'||typeof b!=='string'||a.length!==64||b.length!==64)return false;var x=0;for(var i=0;i<64;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;}
@@ -55,14 +55,84 @@ function select(all,p){
 }
 function active(o){return !['Đã hủy','Không Tính'].includes(o.status);}
 function paid(o){return o.status==='Đã thanh toán'||!!o.customerPaidAt;}
+
+function locKey(o){
+ return [norm(o.name),norm(o.location).replace(/[^a-z0-9]+/g,' ').trim(),String(o.phone||'').replace(/\D/g,'').slice(-9)].join('|');
+}
+function searchProfiles(all,p){
+ var q=norm(p.query||''),needle=String(p.phone||'').replace(/\D/g,'');
+ need(q.length>=2||needle.length>=7,'INVALID_QUERY','Cần tên từ 2 ký tự hoặc số điện thoại từ 7 chữ số');
+ var a={};
+ all.forEach(function(o){
+   if(q&&!norm(o.name).includes(q)&&!norm(o.location).includes(q))return;
+   if(needle&&!String(o.phone||'').replace(/\D/g,'').includes(needle))return;
+   var k=locKey(o),t=Number(o.timestamp||o.id)||0,g=a[k];
+   if(!g)a[k]=g={key:k,name:o.name,phone:o.phone||'',location:o.location||'',count:0,
+      ref:{id:o.id,invoiceNo:o.invoiceNo},lastDate:o.date,sourceInvoiceNo:o.invoiceNo,timestamp:t};
+   g.count++;
+   if(t>g.timestamp){g.ref={id:o.id,invoiceNo:o.invoiceNo};g.lastDate=o.date;g.sourceInvoiceNo=o.invoiceNo;g.timestamp=t}
+ });
+ var list=Object.keys(a).map(function(k){return a[k]}).sort(function(a,b){return b.timestamp-a.timestamp});
+ return {total:list.length,requiresSelection:list.length>1,profiles:list.slice(0,Math.min(100,Math.max(1,Number(p.limit)||50)))};
+}
+function checkProfile(all,o,p){
+ if(p.customerRef){
+   var r=p.customerRef;
+   var refs=all.filter(function(v){return String(v.id)===String(r.id)&&Number(v.invoiceNo)===Number(r.invoiceNo)});
+   need(refs.length===1,'PROFILE_CHANGED','Khách tham chiếu không còn hợp lệ');
+   var v=refs[0];
+   need(norm(v.name)===norm(o.name)&&norm(v.location)===norm(o.location)&&
+      String(v.phone||'').replace(/\D/g,'')===String(o.phone||'').replace(/\D/g,''),
+      'PROFILE_MISMATCH','Tên, địa chỉ hoặc số điện thoại chưa khớp điểm giao đã chọn');
+ } else {
+   need(p.confirmedNewCustomer===true,'PROFILE_CONFIRMATION_REQUIRED','Chọn đúng điểm giao hoặc xác nhận khách mới');
+   need(String(o.location||'').trim().length>=5,'INVALID_ORDER','Khách mới phải có địa chỉ');
+ }
+}
+function removeOrder(s,all,p){
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Chưa xác nhận xóa hóa đơn');
+ need(/^[a-zA-Z0-9_-]{8,100}$/.test(String(p.requestId||'')),
+  'INVALID_REQUEST','Thiếu requestId chống thao tác lặp');
+ var trash=JSON.parse(s.values.satori_trash_bin_v15||'[]');
+ var previous=trash.find(function(t){return t.apiDeleteRequestId===p.requestId});
+ if(previous)return {modified:false,result:{duplicate:true,deleted:true,invoiceNo:previous.order.invoiceNo}};
+ version(s,p);
+ need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0&&p.id!==undefined,
+   'INVALID_ORDER','Cần số hóa đơn và ID');
+ need(String(p.expectedName||'').trim().length>=2&&Number.isFinite(p.expectedTotal),
+   'CONFIRMATION_REQUIRED','Cần tên khách và tổng tiền để xác nhận');
+ var found=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo&&String(o.id)===String(p.id)});
+ need(found.length===1,'INVALID_ORDER','Hóa đơn không còn tồn tại hoặc mã bị trùng');
+ var o=found[0];
+ need(norm(o.name)===norm(p.expectedName)&&Number(o.total)===p.expectedTotal,
+   'ORDER_CHANGED','Tên khách hoặc tổng tiền đã khác');
+ need(!['Đã thanh toán','Đã TT Satori'].includes(o.status)&&!o.customerPaidAt,
+   'PAID_ORDER_PROTECTED','Không được xóa hóa đơn đã thu tiền qua Bot');
+ var exists=all.some(function(v){return v.apiRequestId===p.requestId})||
+     trash.some(function(t){return t.order&&t.order.apiRequestId===p.requestId});
+ need(!exists,'REUSED_REQUEST_ID','Mã yêu cầu đã được dùng cho thao tác khác');
+ var now=Date.now();
+ trash.unshift({order:o,deletedAt:now,
+   deletedDateStr:Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','dd/MM/yyyy HH:mm'),
+   expiresAt:now+30*86400000,apiDeleteRequestId:p.requestId});
+ all.splice(all.indexOf(o),1);
+ var deleted=JSON.parse(s.values.satori_deleted_invoice_nos||'[]');
+ if(!deleted.some(function(v){return Number(v)===Number(o.invoiceNo)}))deleted.push(o.invoiceNo);
+ return {modified:true,extras:{satori_trash_bin_v15:JSON.stringify(trash),
+   satori_deleted_invoice_nos:JSON.stringify(deleted)},
+   result:{deleted:true,id:o.id,invoiceNo:o.invoiceNo,restorable:true}};
+}
 function create(s,all,p){
  var req=String(p.requestId||'');need(/^[a-zA-Z0-9_-]{8,100}$/.test(req),'INVALID_REQUEST','Thiếu requestId hợp lệ');
  var old=all.find(function(o){return o.apiRequestId===req});if(old)return {modified:false,result:{order:visible(old),duplicate:true}};
+ var bin=JSON.parse(s.values.satori_trash_bin_v15||'[]');
+ need(!bin.some(function(t){return t.order&&t.order.apiRequestId===req}),'REUSED_REQUEST_ID','Đơn cũ đã chuyển vào thùng rác');
  version(s,p);
  var o=p.order;need(o&&typeof o==='object'&&String(o.name||'').trim().length>=2,'INVALID_ORDER','Thiếu tên khách');
  need(Array.isArray(o.items)&&o.items.length>0&&o.items.length<=50,'INVALID_ORDER','Danh sách sản phẩm không hợp lệ');
  var name=String(o.name).trim(),phone=String(o.phone||''),location=String(o.location||'');
  need(name.length<=150&&phone.length<=60&&location.length<=500,'INVALID_ORDER','Thông tin khách quá dài');
+ checkProfile(all,o,p);
  var items=o.items.map(function(i){
   need(i&&String(i.product||i.name||'').trim().length>=2,'INVALID_ITEM','Thiếu tên sản phẩm');
   var qty=Number(i.qty),price=money(i.unitPrice);need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Sai số lượng');
@@ -77,6 +147,7 @@ function create(s,all,p){
  var invoice=1+all.reduce(function(v,i){return Math.max(v,Number(i.invoiceNo)||0)},0);
  var id=Date.now();while(all.some(function(i){return String(i.id)===String(id)}))id++;
  var next={id:id,__syncId:Utilities.getUuid(),apiRequestId:req,invoiceNo:invoice,
+  deliveryDate:String(o.deliveryDate||'').slice(0,10)||null,
   date:Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','dd/MM/yyyy'),timestamp:Date.now(),
   name:name,phone:phone,location:location,items:items,
   product:items.map(function(i){return i.product+' x'+i.qty}).join(', '),qty:items.reduce(function(v,i){return v+i.qty},0),
@@ -97,6 +168,7 @@ function markPaid(s,all,p){
 function read(s,action,p){
  var all=rows(s);
  if(action==='system.status')return {revision:s.revision,updatedAt:s.updatedAt,orders:all.length};
+ if(action==='customers.search')return {revision:s.revision,profiles:searchProfiles(all,p)};
  var found=select(all,p);
  if(action==='orders.list')return {revision:s.revision,totalMatches:found.length,orders:found.slice(0,Math.min(100,Math.max(1,Number(p.limit)||30))).map(visible)};
  if(action==='debt.summary'){
@@ -109,7 +181,7 @@ function read(s,action,p){
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
 function write(s,action,p){
- var all=rows(s),result=action==='orders.create'?create(s,all,p):markPaid(s,all,p);
+ var all=rows(s),result=action==='orders.create'?create(s,all,p):action==='orders.delete'?removeOrder(s,all,p):markPaid(s,all,p);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
  need(!!fileId,'CONFIG_MISSING','Thiếu STATE_FILE_ID');
@@ -120,8 +192,10 @@ function write(s,action,p){
  need(JSON.stringify(backedUp)===JSON.stringify(s),'BACKUP_FAILED','Bản sao trước ghi không khớp dữ liệu hiện tại');
  var next={revision:s.revision+1,values:Object.assign({},s.values),updatedAt:new Date().toISOString()};
  next.values[ORDER_KEY]=JSON.stringify(all);
+ if(result.extras)Object.keys(result.extras).forEach(function(k){next.values[k]=result.extras[k]});
  file.setContent(JSON.stringify(next));
- var check=state();need(check.revision===next.revision&&check.values[ORDER_KEY]===next.values[ORDER_KEY],
+ var check=state();need(check.revision===next.revision&&check.values[ORDER_KEY]===next.values[ORDER_KEY]&&
+  (!result.extras||Object.keys(result.extras).every(function(k){return check.values[k]===result.extras[k]})),
   'COMMIT_UNVERIFIED','Chưa xác minh được ghi dữ liệu');
  return {revision:next.revision,data:result.result,backupCreated:true};
 }
@@ -133,7 +207,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.delete'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
