@@ -824,6 +824,10 @@
                                 <p><span class="text-slate-400">Email:</span> <span id="prevEmail" class="text-slate-400">...</span></p>
                             </div>
                         </div>
+                        <div id="prevDeliveryNoteBox" class="hidden border border-amber-500/60 bg-amber-950/30 rounded-lg p-3 text-xs">
+                            <div class="font-bold text-amber-300 mb-1">GHI CHÚ / YÊU CẦU GIAO HÀNG</div>
+                            <p id="prevDeliveryNote" class="text-slate-100 whitespace-pre-wrap break-words"></p>
+                        </div>
 
                         <!-- Invoice Meta -->
                         <div class="border border-slate-700 divide-y divide-slate-700 text-xs">
@@ -3537,6 +3541,9 @@
             document.getElementById('prevTax').innerText = document.getElementById('taxCode').value || '...';
             document.getElementById('prevAddress').innerText = document.getElementById('busLocation').value || '...';
             document.getElementById('prevPhone').innerText = document.getElementById('busPhone').value || '...';
+            const notePreview = (document.getElementById('deliveryNote')?.value || '').trim();
+            document.getElementById('prevDeliveryNote').textContent = notePreview;
+            document.getElementById('prevDeliveryNoteBox').classList.toggle('hidden', !notePreview);
             document.getElementById('prevInvNo').innerText = invNo;
             
             const dateVal = document.getElementById('orderDate').value;
