@@ -1,4 +1,4 @@
-name: Minh Satori Android APK (trial)
+name: Minh Satori Android Native APK (test)
 
 on:
   push:
@@ -48,12 +48,12 @@ jobs:
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee /tmp/satori-apk-badging.txt
-          grep -F "package: name='vn.minhsatori.app' versionCode='5' versionName='0.2.0'" /tmp/satori-apk-badging.txt
+          grep -F "package: name='vn.minhsatori.app' versionCode='6' versionName='0.2.1'" /tmp/satori-apk-badging.txt
           sha256sum "$APK"
       - name: Upload debug APK (trial only)
         uses: actions/upload-artifact@v4
         with:
-          name: MinhSatori-Samsung-Native-v0.2.0-debug
+          name: MinhSatori-Samsung-Native-v0.2.1-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
