@@ -1,6 +1,13 @@
 // Staged, self-contained Node tests: no network or Google Drive access.
 const vm=require('node:vm'),assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto'),path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../api/BotApi.gs'),'utf8'),secret='LOCAL_UNIT_TEST_SECRET_012345678901234567890';
+const sandboxSource=fs.readFileSync(path.join(__dirname,'../api/BotApiSandbox.gs'),'utf8');
+const embedded=sandboxSource.match(/^var SATORI_BOT_SANDBOX_SOURCE_ = (.+);$/m);
+assert.ok(embedded,'Sandbox must embed the current BotApi.gs source');
+assert.equal(JSON.parse(embedded[1]),source,'Sandbox embedded API must exactly match BotApi.gs');
+const sandboxHelpers=sandboxSource.split('\n').slice(2).join('\n');
+assert.equal((sandboxHelpers.match(/computeHmacSha256Signature\([^;\n]*Utilities\.Charset\.UTF_8\)/g)||[]).length,2,
+  'Both owner-run native sandbox and read-only smoke must explicitly sign UTF-8');
 assert.equal(fs.readFileSync(path.join(__dirname,'../api/AccountingCore.gs'),'utf8').trimEnd(),fs.readFileSync(path.join(__dirname,'../accounting-core.js'),'utf8').trimEnd(),'API and website must use identical accounting rules');
 let data={revision:1,updatedAt:'2026-10-18T00:00:00Z',values:{satori_orders_v15:'[]',satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}},backs=0,writes=0,sequence=0;
 const cache=new Map(),props={STATE_FILE_ID:'test-file',SATORI_BOT_CLIENTS_JSON:JSON.stringify({'bot-01':{secret,enabled:true,scopes:['orders:read','orders:write','orders:delete','customers:read','debt:read','payments:write']}})};
@@ -11,7 +18,7 @@ const context={
  PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]})},
  CacheService:{getScriptCache:()=>({get:k=>cache.get(k),put:(k,v)=>cache.set(k,v)})},
  LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
- Utilities:{computeHmacSha256Signature:(m,k)=>[...crypto.createHmac('sha256',k).update(m).digest()],getUuid:()=>String(++sequence),formatDate:()=> '19/10/2026'},
+ Utilities:{Charset:{UTF_8:'UTF_8'},computeHmacSha256Signature:(m,k,charset)=>{assert.equal(charset,'UTF_8','HMAC must explicitly specify UTF-8');return [...crypto.createHmac('sha256',k).update(m,'utf8').digest()]},getUuid:()=>String(++sequence),formatDate:()=> '19/10/2026'},
  DriveApp:{getFileById:()=>({makeCopy:()=>{const original=JSON.stringify(data);return {getId:()=>String(++backs),getBlob:()=>({getDataAsString:()=>original})}},setContent(s){data=JSON.parse(s);writes++}})}
 };
 vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../accounting-core.js'),'utf8'),context);vm.runInContext(source,context);
@@ -21,6 +28,7 @@ function call(action,payload={},override={}){
  Object.assign(body,override);return JSON.parse(context.doPost({postData:{contents:JSON.stringify(body)}}).text);
 }
 assert.equal(call('system.status').data.orders,0);
+assert.equal(call('customers.search',{query:'Hà Minh Nguyệt – Ốc Q'}).ok,true,'Unicode UTF-8 request must authenticate');
 const input={expectedRevision:1,requestId:'create-00001',confirmedNewCustomer:true,order:{name:'Test Customer',location:'123 Đường thử nghiệm',phone:'0901234567',items:[{product:'Satori 500 ml',qty:2,unitPrice:10000}],total:20000}};
 assert.equal(call('orders.create',input).data.order.invoiceNo,1);
 assert.equal(backs,1);assert.equal(data.revision,2);
