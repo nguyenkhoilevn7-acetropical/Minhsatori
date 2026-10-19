@@ -40,7 +40,9 @@ data class SatoriInvoice(
     val deliveryNote: String,
     val customerPaidAt: String,
     val duplicateFrom: String,
-    val requestId: String = ""
+    val requestId: String = "",
+    val updateRequestId: String = "",
+    val restoreRequestId: String = ""
 ) {
     val isExcluded: Boolean get() = status.equals("Không Tính", ignoreCase = true) ||
         status.equals("Đã hủy", ignoreCase = true)
@@ -68,6 +70,20 @@ data class SatoriSnapshot(
     val activeCount: Int get() = invoices.count { !it.isExcluded }
     val outstandingCount: Int get() = invoices.count { it.isOutstanding }
     val outstandingAmount: Long get() = invoices.filter { it.isOutstanding }.sumOf { it.total }
+
+    // A requestId is committed to the single Drive ledger by the server.
+    // After a lost HTTP response, this can confirm a write without resending it.
+    fun confirmedWrite(action: String, requestId: String): SatoriInvoice? {
+        if (requestId.isBlank()) return null
+        return invoices.firstOrNull { invoice ->
+            when (action) {
+                "orders.create" -> invoice.requestId == requestId
+                "orders.update" -> invoice.updateRequestId == requestId
+                "orders.restore" -> invoice.restoreRequestId == requestId
+                else -> false
+            }
+        }
+    }
 }
 
 object SatoriData {
@@ -129,7 +145,9 @@ object SatoriData {
                 deliveryNote = string(x, "deliveryNote").take(1000),
                 customerPaidAt = string(x, "customerPaidAt"),
                 duplicateFrom = string(x, "duplicatedFromInvoiceNo"),
-                requestId = string(x, "apiRequestId")
+                requestId = string(x, "apiRequestId"),
+                updateRequestId = string(x, "apiUpdateRequestId"),
+                restoreRequestId = string(x, "apiRestoreRequestId")
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
