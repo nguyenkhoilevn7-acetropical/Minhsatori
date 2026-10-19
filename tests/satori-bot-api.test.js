@@ -11,7 +11,7 @@ const context={
  CacheService:{getScriptCache:()=>({get:k=>cache.get(k),put:(k,v)=>cache.set(k,v)})},
  LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
  Utilities:{computeHmacSha256Signature:(m,k)=>[...crypto.createHmac('sha256',k).update(m).digest()],getUuid:()=>String(++sequence),formatDate:()=> '19/10/2026'},
- DriveApp:{getFileById:()=>({makeCopy:()=>({getId:()=>String(++backs)}),setContent(s){data=JSON.parse(s);writes++}})}
+ DriveApp:{getFileById:()=>({makeCopy:()=>{const original=JSON.stringify(data);return {getId:()=>String(++backs),getBlob:()=>({getDataAsString:()=>original})}},setContent(s){data=JSON.parse(s);writes++}})}
 };
 vm.createContext(context);vm.runInContext(source,context);
 function call(action,payload={},override={}){
