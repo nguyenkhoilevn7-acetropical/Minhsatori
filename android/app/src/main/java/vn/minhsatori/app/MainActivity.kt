@@ -12,6 +12,7 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.EditText
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -31,6 +32,8 @@ import androidx.core.content.ContextCompat
  * No production HMAC secret or customer record is embedded in this APK.
  */
 class MainActivity : AppCompatActivity() {
+    private val sections = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Trợ lý AI")
+    private var currentSection = 0
     private val teal = Color.rgb(17, 106, 115)
     private val ink = Color.rgb(23, 43, 53)
     private val muted = Color.rgb(93, 110, 118)
@@ -92,52 +95,136 @@ class MainActivity : AppCompatActivity() {
         parent.addView(item, layout)
     }
 
+
+    /**
+     * Native tab navigation. All invoice and customer operations still run in
+     * the existing Chrome-authenticated owner portal; native pages contain no
+     * simulated financial data and no HMAC keys.
+     */
     private fun renderHome() {
-        val scroll = ScrollView(this).apply {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setBackgroundColor(page)
-            isFillViewport = true
         }
+        setContentView(root)
+
+        val scroll = ScrollView(this).apply { isFillViewport = true }
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(24), dp(20), dp(28))
         }
         scroll.addView(column)
-        setContentView(scroll)
+        root.addView(scroll, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
 
         block(column, "MINH SATORI", 13f, true, teal)
-        block(column, "Quản lý hóa đơn\nvà công nợ", 30f, true, ink, 12)
-        block(column, "Ứng dụng thử nghiệm dành riêng cho Samsung Android", 14f,
+        block(column, sections[currentSection], 30f, true, ink, 12)
+        block(column, "Ứng dụng Samsung · quản lý bằng dữ liệu Google Drive", 14f,
             false, muted, 10)
 
-        val intro = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = background(Color.WHITE)
-            setPadding(dp(18), dp(15), dp(18), dp(15))
-        }
-        block(intro, "Dữ liệu đồng bộ qua Google Drive", 16f, true)
-        block(intro, "Mở hệ thống trong phiên Google đã đăng nhập. Ứng dụng không giữ bản sao hóa đơn riêng và không chứa khóa Bot.", 13f, false, muted, 6)
-        column.addView(intro, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(24) })
-
         if (!hasNetwork()) {
-            block(column, "Không có Internet. Vui lòng kết nối Wi-Fi hoặc dữ liệu di động để xem hóa đơn mới nhất.", 14f,
-                true, Color.rgb(156, 73, 35), 16)
+            block(column, "Đang ngoại tuyến. Không thể xác minh số liệu mới nhất. Kết nối Internet trước khi quản lý hóa đơn.",
+                14f, true, Color.rgb(156, 73, 35), 16)
         }
 
-        action(column, "MỞ HỆ THỐNG MINH SATORI  ↗",
-            "Quản lý hóa đơn, khách hàng, công nợ; xuất PDF và chia sẻ",
-            prominent = true) { openPortal() }
-        action(column, "TRỢ LÝ AI TRONG CHATGPT  ↗",
-            "Tra cứu bằng plugin Minh Satori Bot khi đã được kết nối") {
-            launchHttps("https://chatgpt.com/")
+        when (currentSection) {
+            0 -> {
+                infoPanel(column, "Dữ liệu thống nhất",
+                    "Website Minh Satori và Google Drive vẫn là nơi lưu hóa đơn gốc. Ứng dụng Android không tạo thêm một bộ dữ liệu riêng.")
+                action(column, "MỞ HỆ THỐNG MINH SATORI  ↗",
+                    "Mở website đã đăng nhập bằng Chrome thông thường",
+                    prominent = true) { openPortal() }
+                action(column, "TRA CỨU HÓA ĐƠN", "Đi tới mục Hóa đơn") { goTo(1) }
+                action(column, "KIỂM TRA CÔNG NỢ", "Đi tới mục Công nợ") { goTo(3) }
+            }
+            1 -> {
+                infoPanel(column, "Hóa đơn trực tuyến",
+                    "Tạo, tìm, kiểm tra, xuất PDF và chia sẻ bằng website đã đồng bộ. Màn hình Android chưa có quyền ghi API trực tiếp.")
+                action(column, "MỞ DANH SÁCH HÓA ĐƠN  ↗",
+                    "Dùng Chrome với tài khoản Google đang đăng nhập",
+                    prominent = true) { openPortal() }
+                infoPanel(column, "Xuất PDF / Zalo / Messenger",
+                    "Sử dụng chức năng có sẵn trong website để xuất PDF và chia sẻ qua bảng chia sẻ Android.")
+            }
+            2 -> {
+                infoPanel(column, "Khách hàng",
+                    "Tìm theo tên, địa chỉ giao hàng và số điện thoại. Khi trùng tên, phải chọn đúng điểm giao trước khi tạo đơn.")
+                action(column, "MỞ DANH SÁCH KHÁCH HÀNG  ↗",
+                    "Mở dữ liệu khách trực tuyến",
+                    prominent = true) { openPortal() }
+            }
+            3 -> {
+                infoPanel(column, "Công nợ",
+                    "Kiểm tra các hóa đơn chưa thanh toán trên website. App không hiển thị số nợ giả hoặc thông tin cũ khi chưa truy vấn được máy chủ.")
+                action(column, "MỞ BẢNG CÔNG NỢ  ↗",
+                    "Xem công nợ thực tế trong hệ thống",
+                    prominent = true) { openPortal() }
+                infoPanel(column, "Ghi nhận thanh toán",
+                    "Chỉ xác nhận đúng hóa đơn qua luồng quản trị hiện có. Không tự động đánh dấu đã thanh toán trong bản thử nghiệm.")
+            }
+            else -> {
+                infoPanel(column, "Trợ lý Minh Satori",
+                    "ChatGPT có thể tìm khách, hóa đơn và công nợ khi plugin được kết nối. Ứng dụng điện thoại không chứa khóa bảo mật của Bot.")
+                action(column, "MỞ CHATGPT  ↗",
+                    "Ví dụ: Kiểm tra công nợ Hà Minh Nguyệt",
+                    prominent = true) { launchHttps("https://chatgpt.com/") }
+                infoPanel(column, "Quyền tạo và xóa hóa đơn",
+                    "Chỉ kích hoạt sau khi xác thực tài khoản Android qua máy chủ trung gian và kiểm tra dữ liệu an toàn.")
+            }
         }
+
         action(column, "CÀI ĐẶT LIÊN KẾT  ⚙",
-            "Chỉ thay đổi địa chỉ Apps Script khi chủ hệ thống cập nhật deployment") {
+            "Thay URL Drive Sync nếu hệ thống được chủ sở hữu cập nhật") {
             editPortalUrl()
         }
-        block(column,
-            "Lưu ý: Hệ thống mở bằng Chrome bình thường để sử dụng đúng tài khoản Google đã đăng nhập và tính năng chia sẻ. Ứng dụng không tạo dữ liệu hóa đơn ngoại tuyến.",
-            12f, false, muted, 22)
-        block(column, "Minh Satori Android · thử nghiệm 0.1.1", 12f, false, muted, 12)
+        block(column, "Minh Satori Android · thử nghiệm 0.2.0", 12f, false, muted, 20)
+
+        val horizontal = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setBackgroundColor(Color.WHITE)
+        }
+        val tabs = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(10), dp(8), dp(10), dp(9))
+        }
+        sections.forEachIndexed { index, name ->
+            val selected = index == currentSection
+            val tab = TextView(this).apply {
+                text = name
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setTextColor(if (selected) teal else muted)
+                if (selected) setTypeface(typeface, Typeface.BOLD)
+                setPadding(dp(14), dp(11), dp(14), dp(11))
+                background = background(if (selected) Color.rgb(226, 242, 242) else Color.WHITE, 13)
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Mở mục " + name
+                setOnClickListener { goTo(index) }
+            }
+            tabs.addView(tab)
+        }
+        horizontal.addView(tabs)
+        root.addView(horizontal)
+    }
+
+    private fun infoPanel(parent: LinearLayout, heading: String, description: String) {
+        val item = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = background(Color.WHITE)
+        }
+        block(item, heading, 17f, true, ink)
+        block(item, description, 14f, false, muted, 7)
+        parent.addView(item, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(16)
+        })
+    }
+
+    private fun goTo(index: Int) {
+        currentSection = index
+        renderHome()
     }
 
     private fun hasNetwork(): Boolean {
