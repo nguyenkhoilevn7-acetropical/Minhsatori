@@ -5,6 +5,15 @@ const sandboxSource=fs.readFileSync(path.join(__dirname,'../api/BotApiSandbox.gs
 const embedded=sandboxSource.match(/^var SATORI_BOT_SANDBOX_SOURCE_ = (.+);$/m);
 assert.ok(embedded,'Sandbox must embed the current BotApi.gs source');
 assert.equal(JSON.parse(embedded[1]),source,'Sandbox embedded API must exactly match BotApi.gs');
+const utf8Canonical=['bot_utf8_fixture',1792383152719,'utf8_fixture_nonce','customers.search',
+ JSON.stringify({query:'Hà Minh Nguyệt – Ốc Q',limit:2})].join('\n');
+assert.equal(crypto.createHmac('sha256','SANDBOX_ONLY_HMAC_UTF8_REFERENCE_KEY_123456789')
+ .update(utf8Canonical,'utf8').digest('hex'),'97c4f5e3a9f147c53b9d6047056351cfb3f71287e50f0a635cbdfc7636085d3e',
+ 'Known-answer fixture must match independent Node crypto HMAC-SHA256 UTF-8');
+assert.ok(sandboxSource.includes('function satoriBotSandboxUtf8KnownAnswerTest('),
+ 'Native owner-only HMAC self-test must exist');
+assert.ok(sandboxSource.includes('SANDBOX FAILED: native HMAC-SHA256 UTF-8 known-answer mismatch'));
+assert.ok(sandboxSource.includes('changed Unicode payload rejected after signing'));
 const sandboxHelpers=sandboxSource.replace(/^var SATORI_BOT_SANDBOX_SOURCE_ = (.+);$/m,'');
 assert.equal((sandboxHelpers.match(/computeHmacSha256Signature\([^;\n]*Utilities\.Charset\.UTF_8\)/g)||[]).length,2,
   'Both owner-run native sandbox and read-only smoke must explicitly sign UTF-8');
@@ -29,6 +38,7 @@ function call(action,payload={},override={}){
 }
 assert.equal(call('system.status').data.orders,0);
 assert.equal(call('customers.search',{query:'Hà Minh Nguyệt – Ốc Q'}).ok,true,'Unicode UTF-8 request must authenticate');
+assert.equal(call('customers.search',{query:'Hà Minh Nguyệt – Ốc Q'},{payload:{query:'Hà Minh Nguyệt – Ốc Q!'}}).error.code,'AUTH_FAILED','Tampered Unicode request must fail signature');
 const input={expectedRevision:1,requestId:'create-00001',confirmedNewCustomer:true,order:{name:'Test Customer',location:'123 Đường thử nghiệm',phone:'0901234567',items:[{product:'Satori 500 ml',qty:2,unitPrice:10000}],total:20000}};
 assert.equal(call('orders.create',input).data.order.invoiceNo,1);
 assert.equal(backs,1);assert.equal(data.revision,2);
