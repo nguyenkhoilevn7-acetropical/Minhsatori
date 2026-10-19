@@ -1,0 +1,22 @@
+name: Drive Sync Incident Guard
+on:
+  push:
+    branches:
+      - "hotfix/drive-sync-error-unblock-20261019"
+  pull_request:
+    paths:
+      - "index.html"
+      - "tests/satori-drive-sync-recovery.test.js"
+permissions:
+  contents: read
+jobs:
+  protect-drive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Test Drive conflict handling and ensure existing bot still passes
+        run: node --test tests/satori-drive-sync-recovery.test.js tests/satori-bot-live.test.js

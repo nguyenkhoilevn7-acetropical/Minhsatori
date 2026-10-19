@@ -3826,6 +3826,11 @@
         }
 
         function handleSaveAndGenerate() {
+            if(window.__SATORI_DRIVE_APP__ && !window.__SATORI_DRIVE_READY__){
+                showModal('Google Drive chưa sẵn sàng',
+                    'Chưa thể lưu hóa đơn an toàn. Hãy kiểm tra thanh đồng bộ Drive bên dưới, tải bản dữ liệu chưa đồng bộ nếu có, rồi thử kết nối lại.', 'info');
+                return;
+            }
             if (!currentItems.length || currentItems.some(it => !Number.isFinite(Number(it.qty)) || Number(it.qty) <= 0 || !Number.isFinite(Number(it.unitPrice)) || Number(it.unitPrice) < 0)) {
                 showModal('Chưa đủ thông tin hàng hóa', 'Cần có mặt hàng, số lượng lớn hơn 0 và giá bán hợp lệ trước khi lưu hóa đơn.', 'info');
                 return;
@@ -6487,6 +6492,11 @@
         // SAFE DELETE ORDER WITH ANTI-RESURRECTION
         // ==========================================
         function deleteOrder(id) {
+            if(window.__SATORI_DRIVE_APP__ && !window.__SATORI_DRIVE_READY__){
+                showModal('Chưa thể xóa hóa đơn',
+                    'Google Drive chưa báo đồng bộ. Tạm dừng xóa để tránh mất hoặc trùng dữ liệu. Kiểm tra trạng thái Drive trước.', 'info');
+                return;
+            }
             const orderToDelete = orders.find(o => o.id === id);
             if (!orderToDelete) return;
             const invNoToDelete = orderToDelete.invoiceNo;
@@ -8471,7 +8481,9 @@ window.SatoriRecon = (() => {
     const set = Storage.prototype.setItem, remove = Storage.prototype.removeItem;
     // The code version is device metadata; it must never delete or conflict with cloud settings.
     const keys = ['satori_orders_v15','satori_catalogue_v15','satori_ai_customer_memory','satori_trash_bin_v15','satori_deleted_invoice_nos','satori_system_default_cost_discount','satori_drive_verified_at','satori_collaborators_v1'];
-    let base=null, busy=null, initialized=false, loaded=false, timer=null, id=0, recovery=null, recoveredConflict='';
+    let base=null, busy=null, initialized=false, loaded=false, timer=null, id=0, recovery=null, recoveredConflict='', halted=false;
+    // A blocked/error cloud read must never leave a full-screen overlay forever.
+    window.__SATORI_DRIVE_READY__=false;
     const status=document.createElement('div');
     status.id='driveConnectionStatus';status.setAttribute('role','status');
     status.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:100001;padding:10px;background:#7c2d12;color:white;font:13px sans-serif;text-align:center';
@@ -8481,20 +8493,26 @@ window.SatoriRecon = (() => {
         if(dot){dot.hidden=false;dot.style.background=state==='synced'?'#34d399':state==='error'?'#f87171':'#f59e0b';dot.title=message;dot.setAttribute('aria-label',message);}
     }
     const label=document.createElement('span');
-    const updateSync=(message,state='pending')=>{label.textContent=message;syncIndicator(state,message);};
+    const updateSync=(message,state='pending')=>{
+        label.textContent=message;
+        window.__SATORI_DRIVE_READY__=state==='synced' && initialized && !halted;
+        syncIndicator(state,message);
+    };
     const check=document.createElement('button');
-    check.type='button';check.textContent='Kiểm tra lưu Drive';
+    check.type='button';check.textContent='Thử kết nối lại Drive';
     check.style.cssText='margin-left:12px;padding:4px 8px;border:1px solid white;border-radius:6px;color:white;background:transparent;cursor:pointer';
     check.addEventListener('click',()=>{
-        if(!initialized){schedule(0);return;}
-        try {storage.setItem('satori_drive_verified_at',new Date().toISOString());}
-        catch(e){updateSync('Chưa lưu được mốc kiểm tra: '+e.message,'error');}
+        if(busy)return;
+        halted=false;recoveredConflict='';
+        updateSync('Đang thử kết nối lại Google Drive…','pending');
+        schedule(0); // Read or retry the preserved pending state, never create a new invoice.
     });
     const download=document.createElement('button');
     download.type='button';download.textContent='Tải bản trên máy cần đối chiếu';download.hidden=true;
     download.style.cssText=check.style.cssText;
     download.addEventListener('click',()=>{
-        if(!recovery)return;
+        if(!recovery)recovery={format:'minhsatori-drive-recovery-v2',createdAt:new Date().toISOString(),
+            reason:'Bản trên máy chưa xác minh đồng bộ',values:snapshot(),pending:storage.getItem(cacheKey)};
         const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(recovery,null,2)],{type:'application/json'}));
         a.href=url;a.download='MinhSatori_ChuaDongBo.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     });
@@ -8513,14 +8531,30 @@ window.SatoriRecon = (() => {
     const same=(a,b)=>stable(a)===stable(b);
     function archive(reason,values,pending) {
         recovery={format:'minhsatori-drive-recovery-v2',createdAt:new Date().toISOString(),reason,values,pending};
-        // Keep the whole pending payload, including unknown legacy fields, before adopting cloud data.
-        set.call(storage,'satori_drive_recovery_v2_'+Date.now()+'_'+(++id),JSON.stringify(recovery));
+        // Avoid indefinite load failures when many recovery files already fill localStorage.
+        // The current pending payload is kept in its own key and this recovery is downloadable.
+        try {
+            const keys=Object.keys(storage).filter(k=>k.startsWith('satori_drive_recovery_v2_'));
+            if(keys.length<3)set.call(storage,'satori_drive_recovery_v2_'+Date.now()+'_'+(++id),JSON.stringify(recovery));
+        }catch(e){console.warn('Không thể lưu thêm bản phục hồi trên máy:',e);}
+        download.hidden=false;
     }
     function persistPending() {
         if(!initialized || !base)return;
         const local=snapshot();
         if(equal(local,base))remove.call(storage,cacheKey);
         else set.call(storage,cacheKey,JSON.stringify({format:2,base:pick(base),local}));
+    }
+    function pauseSync(reason){
+        halted=true;window.__SATORI_DRIVE_READY__=false;
+        try{if(initialized)persistPending();}catch(e){console.warn('Giữ bản chưa đồng bộ:',e);}
+        recovery={format:'minhsatori-drive-recovery-v2',createdAt:new Date().toISOString(),
+            reason:String(reason||'Không xác định'),values:snapshot(),pending:storage.getItem(cacheKey)};
+        download.hidden=false;
+        cover.hidden=true;cover.style.display='none'; // Never trap the entire screen.
+        updateSync('⛔ Tạm dừng đồng bộ Drive: '+String(reason||'Không xác định')+
+            '. Dữ liệu trên máy được giữ lại. Tải bản đối chiếu rồi bấm Thử kết nối lại Drive.','error');
+        status.style.background='#7c2d12';
     }
     function schedule(delay=1000) {clearTimeout(timer);timer=setTimeout(tick,delay);}
     Storage.prototype.setItem=function(k,v) {
@@ -8591,24 +8625,26 @@ window.SatoriRecon = (() => {
         }
     }
     function tick() {
-        if(!loaded || busy || document.hidden)return;
+        if(!loaded || busy || halted || document.hidden)return;
         const local=snapshot(),type=initialized && base && !equal(local,base)?'commit':'read';
         if(type==='commit' && JSON.stringify({base:pick(base),local}).length>3800000){updateSync('Chứng từ vượt dung lượng đồng bộ. Dùng liên kết Drive cho tệp lớn; dữ liệu trên máy vẫn còn.','error');status.style.background='#7c2d12';return;}
         busy={id:++id,local,type};
         window.parent.postMessage({channel,type,id:busy.id,request:type==='commit'?{base:pick(base),local}:null},cloudOrigin);
         const requestId=busy.id;
-        setTimeout(()=>{if(busy?.id===requestId){busy=null;updateSync('Chưa nhận được xác nhận từ Drive. Dữ liệu trên máy vẫn được giữ lại.','error');schedule();}},30000);
+        setTimeout(()=>{if(busy?.id===requestId){busy=null;pauseSync('Quá thời gian chờ phản hồi Google Drive (30 giây).');}},30000);
     }
     window.addEventListener('message',event=>{
         if(event.source!==window.parent || event.origin!==cloudOrigin || event.data?.channel!==channel || event.data.id!==busy?.id)return;
         const m=event.data,sent=busy.local,requestType=busy.type;busy=null;
         if(m.type==='error'){
-            updateSync('Chưa lưu lên Drive: '+m.error,'error');
-            status.style.background='#7c2d12';
-            if(requestType==='commit'){persistPending();initialized=false;cover.hidden=false;cover.style.display='flex';schedule();}
+            // Do not re-enable the full-screen loading cover or auto-retry forever.
+            pauseSync('Google Drive báo lỗi '+String(m.error||'không xác định'));
             return;
         }
-        if(m.type!=='state' || !m.state?.values || !Number.isInteger(m.state.revision))return;
+        if(m.type!=='state' || !m.state?.values || !Number.isInteger(m.state.revision)){
+            pauseSync('Phản hồi Drive chưa hợp lệ.');
+            return;
+        }
         try {
             const remote=pick(m.state.values);validate(remote);
             if(!initialized){
@@ -8617,7 +8653,15 @@ window.SatoriRecon = (() => {
                 if(rawPending){
                     archive('Hàng chờ trước khi tải bản Drive',current,rawPending);
                     try{desired=recoverPending(JSON.parse(rawPending),remote);validate(desired);}
-                    catch(e){recoveredConflict=e.message;download.hidden=false;}
+                    catch(e){
+                        // Keep the original local cache AND its original base; do not silently
+                        // accept remote state or rebase a conflicting mutation against it.
+                        recoveredConflict=e.message;
+                        const original=JSON.parse(rawPending);
+                        base=pick(original.base);initialized=true;
+                        pauseSync('Hai phiên bản dữ liệu khác nhau: '+e.message);
+                        return;
+                    }
                 }else if(current.satori_orders_v15 && current.satori_orders_v15!==remote.satori_orders_v15){archive('Bản trên máy trước lần tải Drive',current,null);}
                 base=remote;initialized=true;apply(desired);remove.call(storage,cacheKey);persistPending();
                 cover.hidden=true;cover.style.display='none';
@@ -8628,7 +8672,7 @@ window.SatoriRecon = (() => {
             updateSync(recoveredConflict?'Đã tải '+count+' bản ghi từ Drive. Thay đổi cũ trên máy đã được giữ trong bản đối chiếu; chưa ghi đè Drive.':pending?'Dữ liệu trên máy đang chờ gửi lên Drive…':'Đã đồng bộ Google Drive · bản '+m.state.revision+' · '+count+' bản ghi',pending?'pending':recoveredConflict?'error':'synced');
             status.style.background=pending || recoveredConflict?'#7c2d12':'#065f46';
             if(pending)schedule();
-        }catch(e){updateSync('Chưa nhận dữ liệu Drive: '+e.message,'error');status.style.background='#7c2d12';}
+        }catch(e){pauseSync('Không xử lý được dữ liệu Drive: '+e.message);}
     });
     window.addEventListener('online',()=>schedule());
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule();});
