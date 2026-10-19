@@ -7,7 +7,7 @@ Detailed handoff: [android/RESUME_HANDOFF_2026-10-19.md](android/RESUME_HANDOFF_
 - Repository: https://github.com/nguyenkhoilevn7-acetropical/Minhsatori
 - Active native Android branch: `feature/minhsatori-native-android-v020` (Android files are not on `main`).
 - PR #9: https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/pull/9 — draft, not merged as last inspected.
-- Native Android current trial: **v0.3.0** (versionCode 7, package `vn.minhsatori.app`).
+- Native Android currently installed owner trial: **v0.3.0** (versionCode 7). **v0.3.1 (versionCode 8)** is new development source with website-style PDF, awaiting CI and Samsung validation. Package `vn.minhsatori.app`.
 - Verified existing successful debug APK build: https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39274433128 . Artifact `MinhSatori-Samsung-Native-v0.3.0-debug`, ID `12197051788`, available until **2026-11-18**.
 - Owner received **~70% overall progress estimate**. This is NOT end-to-end verified completion and is NOT production release.
 - New work completed after initial handoff, all on this development branch:
