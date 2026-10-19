@@ -1,0 +1,18 @@
+{
+  "name": "minhsatori-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Versioned bot API for Minh Satori",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/*.test.cjs",
+    "check": "node --check src/server.js && node --check src/core.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}
