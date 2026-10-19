@@ -20,7 +20,8 @@ data class SatoriLine(
     val unit: String,
     val unitPrice: Long,
     val listPrice: Long,
-    val code: String = ""
+    val code: String = "",
+    val discountPercent: Double? = null
 ) {
     val amount: Long get() = quantity.toLong() * unitPrice
 }
@@ -42,7 +43,8 @@ data class SatoriInvoice(
     val duplicateFrom: String,
     val requestId: String = "",
     val updateRequestId: String = "",
-    val restoreRequestId: String = ""
+    val restoreRequestId: String = "",
+    val taxCode: String = ""
 ) {
     val isExcluded: Boolean get() = status.equals("Không Tính", ignoreCase = true) ||
         status.equals("Đã hủy", ignoreCase = true)
@@ -134,7 +136,9 @@ object SatoriData {
                         unit = string(row, "unit").ifEmpty { "Thùng" },
                         unitPrice = row.optLong("unitPrice", 0).coerceAtLeast(0),
                         listPrice = row.optLong("listPrice", 0).coerceAtLeast(0),
-                        code = string(row, "code")
+                        code = string(row, "code"),
+                        discountPercent = if (row.has("discountPercent") && !row.isNull("discountPercent"))
+                            row.optDouble("discountPercent").takeIf { it.isFinite() } else null
                     )
                 }
             } else {
@@ -163,7 +167,8 @@ object SatoriData {
                 duplicateFrom = string(x, "duplicatedFromInvoiceNo"),
                 requestId = string(x, "apiRequestId"),
                 updateRequestId = string(x, "apiUpdateRequestId"),
-                restoreRequestId = string(x, "apiRestoreRequestId")
+                restoreRequestId = string(x, "apiRestoreRequestId"),
+                taxCode = string(x, "taxCode")
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
