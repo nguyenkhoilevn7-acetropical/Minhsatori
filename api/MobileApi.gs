@@ -9,6 +9,9 @@
  *  SATORI_ANDROID_ALLOWED_CLIENT_IDS_JSON — JSON array of OAuth client IDs
  *  issued to authorized Android signing certificate/package (and optional
  *  trusted OAuth clients).
+ *  SATORI_ANDROID_STAFF_PERMISSIONS_JSON — optional map of verified staff
+ *  emails to allowed scopes, e.g. {"staff@example.com":["orders:read","orders:write"]}.
+ *  Owner has full access; nonlisted staff are denied. Configure ONLY server-side.
  * Needs UrlFetchApp scope and the script's existing Drive API permissions.
  *
  * IMPORTANT: deploying the GitHub files does NOT deploy Apps Script;
@@ -20,6 +23,14 @@ function fail(code,message){var ex=new Error(message);ex.code=code;throw ex;}
 function need(value,code,message){if(!value)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function props(){return PropertiesService.getScriptProperties();}
+var ACTION_SCOPES={
+ 'mobile.snapshot':'orders:read','mobile.trash':'orders:delete',
+ 'system.status':'orders:read','orders.list':'orders:read',
+ 'customers.search':'customers:read','debt.summary':'debt:read',
+ 'orders.create':'orders:write','orders.update':'orders:write',
+ 'orders.delete':'orders:delete','orders.restore':'orders:delete',
+ 'payments.markCustomerPaid':'payments:write'
+};
 function verifyOwner(accessToken){
  need(typeof accessToken==='string'&&accessToken.length>=20&&accessToken.length<=4096,
    'AUTH_FAILED','Thiếu phiên đăng nhập Google');
@@ -49,9 +60,23 @@ function verifyOwner(accessToken){
  });
  need(profileResponse.getResponseCode()===200,'AUTH_FAILED','Không xác minh được tài khoản Google');
  var profile=JSON.parse(profileResponse.getContentText());
- need(profile.email_verified===true&&String(profile.email||'').toLowerCase()===owner,
-  'FORBIDDEN','Không phải tài khoản Google quản lý Minh Satori');
- return {email:owner,subject:String(profile.sub||'')};
+ need(profile.email_verified===true,'FORBIDDEN','Tài khoản Google chưa xác minh email');
+ var email=String(profile.email||'').trim().toLowerCase();
+ var ownerAccess=email===owner;
+ var staff={};
+ try{staff=JSON.parse(config.getProperty('SATORI_ANDROID_STAFF_PERMISSIONS_JSON')||'{}')}
+ catch(e){fail('MOBILE_NOT_CONFIGURED','Danh sách quyền nhân viên không hợp lệ')}
+ need(staff&&typeof staff==='object'&&!Array.isArray(staff),
+      'MOBILE_NOT_CONFIGURED','Danh sách quyền nhân viên không hợp lệ');
+ var permitted=Object.prototype.hasOwnProperty.call(staff,email)?staff[email]:null;
+ if(!ownerAccess){
+   need(Array.isArray(permitted)&&permitted.length>0&&permitted.length<=10&&
+      permitted.every(function(scope){
+        return typeof scope==='string'&&Object.values(ACTION_SCOPES).includes(scope);
+      }), 'FORBIDDEN','Tài khoản không thuộc nhân viên được cấp quyền Minh Satori');
+ }
+ return {email:email,subject:String(profile.sub||''),
+         owner:ownerAccess,scopes:ownerAccess?null:permitted};
 }
 function handle(e){
  try{
@@ -61,8 +86,12 @@ function handle(e){
   var request=JSON.parse(raw);
   need(request&&request.kind==='satori-android-v1'&&typeof request.action==='string',
     'INVALID_REQUEST','Sai giao thức Android');
-  verifyOwner(request.accessToken);
+  var verified=verifyOwner(request.accessToken);
   var action=request.action;
+  need(Object.prototype.hasOwnProperty.call(ACTION_SCOPES,action),
+       'INVALID_ACTION','Lệnh không hỗ trợ');
+  need(verified.owner||verified.scopes.includes(ACTION_SCOPES[action]),
+       'FORBIDDEN','Nhân viên chưa được cấp quyền thực hiện thao tác này');
   if(action==='mobile.snapshot'||action==='mobile.trash'){
     var lock=LockService.getScriptLock();lock.waitLock(30000);
     try{
