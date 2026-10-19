@@ -225,12 +225,16 @@ function restoreOrder(s,all,p){
     result:{restored:true,order:visible(next)}};
 }
 function markPaid(s,all,p){
- version(s,p);need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Thiếu số hóa đơn');
+ need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Thiếu số hóa đơn');
  var match=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo});
  need(match.length===1&&active(match[0]),'INVALID_ORDER','Hóa đơn không duy nhất hoặc đã hủy');
- var old=match[0];if(paid(old))return {modified:false,result:{order:visible(old),alreadyPaid:true}};
+ var old=match[0];
+ // Verify confirmation and amount even on a repeated request. A lost mobile
+ // response must not turn a successful payment into a revision conflict.
  need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần xác nhận thực nhận tiền');
  if(p.amount!==undefined)need(money(p.amount)===money(old.total),'TOTAL_MISMATCH','Tiền thanh toán không khớp');
+ if(paid(old))return {modified:false,result:{order:visible(old),alreadyPaid:true}};
+ version(s,p);
  var updated=Object.assign({},old,{customerPaidAt:new Date().toISOString(),updatedAt:Date.now()});
  if(updated.status!=='Đã TT Satori')updated.status='Đã thanh toán';
  all[all.indexOf(old)]=updated;return {modified:true,result:{order:visible(updated),alreadyPaid:false}};
