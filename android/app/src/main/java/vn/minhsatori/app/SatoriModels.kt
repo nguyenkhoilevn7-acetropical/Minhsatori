@@ -205,13 +205,13 @@ object SatoriData {
         // Match the website's invoice lookup: short numeric or #/HD/Bill queries
         // select an exact invoice number, not coincidental phone/address digits.
         val prefixedInvoice = Regex(
-            """^(?:#|hd\\s*#?|bill\\s*#?|hoa\\s+don\\s*#?)\\s*(\\d+)$"""
+            """^(?:#|hd\s*#?|bill\s*#?|hoa\s+don\s*#?)\s*(\d+)$"""
         ).matchEntire(needle)
         if (prefixedInvoice != null) {
             return invoice.number.trimStart('0') ==
                 prefixedInvoice.groupValues[1].trimStart('0')
         }
-        if (needle.matches(Regex("""\\d{1,4}"""))) {
+        if (needle.matches(Regex("""\d{1,4}"""))) {
             return invoice.number.trimStart('0') == needle.trimStart('0')
         }
         val content = normalized(listOf(invoice.number, invoice.customer, invoice.phone,
