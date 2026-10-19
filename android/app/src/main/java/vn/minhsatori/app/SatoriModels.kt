@@ -42,7 +42,8 @@ data class SatoriInvoice(
     val duplicateFrom: String,
     val requestId: String = ""
 ) {
-    val isExcluded: Boolean get() = status.equals("Không Tính", ignoreCase = true)
+    val isExcluded: Boolean get() = status.equals("Không Tính", ignoreCase = true) ||
+        status.equals("Đã hủy", ignoreCase = true)
     val customerHasPaid: Boolean get() =
         status.equals("Đã thanh toán", ignoreCase = true) || customerPaidAt.isNotBlank()
     // "Đã TT Satori" reflects settlement with Satori, NOT payment by customer.
