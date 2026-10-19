@@ -15,8 +15,8 @@ assert.ok(sandboxSource.includes('function satoriBotSandboxUtf8KnownAnswerTest('
 assert.ok(sandboxSource.includes('SANDBOX FAILED: native HMAC-SHA256 UTF-8 known-answer mismatch'));
 assert.ok(sandboxSource.includes('changed Unicode payload rejected after signing'));
 const sandboxHelpers=sandboxSource.replace(/^var SATORI_BOT_SANDBOX_SOURCE_ = (.+);$/m,'');
-assert.equal((sandboxHelpers.match(/computeHmacSha256Signature\([^;\n]*Utilities\.Charset\.UTF_8\)/g)||[]).length,2,
-  'Both owner-run native sandbox and read-only smoke must explicitly sign UTF-8');
+assert.equal((sandboxHelpers.match(/computeHmacSha256Signature\([^;\n]*Utilities\.Charset\.UTF_8\)/g)||[]).length,3,
+  'Native known-answer, sandbox requests and read-only smoke must explicitly sign UTF-8');
 assert.equal(fs.readFileSync(path.join(__dirname,'../api/AccountingCore.gs'),'utf8').trimEnd(),fs.readFileSync(path.join(__dirname,'../accounting-core.js'),'utf8').trimEnd(),'API and website must use identical accounting rules');
 let data={revision:1,updatedAt:'2026-10-18T00:00:00Z',values:{satori_orders_v15:'[]',satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}},backs=0,writes=0,sequence=0;
 const cache=new Map(),props={STATE_FILE_ID:'test-file',SATORI_BOT_CLIENTS_JSON:JSON.stringify({'bot-01':{secret,enabled:true,scopes:['orders:read','orders:write','orders:delete','customers:read','debt:read','payments:write']}})};
