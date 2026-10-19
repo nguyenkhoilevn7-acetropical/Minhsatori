@@ -72,6 +72,25 @@ class SatoriPriceComparisonTest {
     }
 
     @Test
+    fun bothActiveOrBothExcludedOrEqualPriceAreOnlyManualReview() {
+        val first = invoice(day, "5914")
+        val linkedActive = invoice(day + 60_000L, "5918",
+            total = 617760, linkedTo = "5914")
+        val bothActive = SatoriPriceComparison.compare(listOf(first, linkedActive))
+        assertTrue(bothActive.pairs.isEmpty())
+        assertEquals(1, bothActive.toReview.size)
+        val bothExcluded = SatoriPriceComparison.compare(listOf(
+            first.copy(status = "Không Tính"),
+            linkedActive.copy(status = "Không Tính")))
+        assertTrue(bothExcluded.pairs.isEmpty())
+        assertEquals(1, bothExcluded.toReview.size)
+        val samePrice = SatoriPriceComparison.compare(listOf(
+            first, linkedActive.copy(status = "Không Tính", total = first.total)))
+        assertTrue(samePrice.pairs.isEmpty())
+        assertEquals(1, samePrice.toReview.size)
+    }
+
+    @Test
     fun moreThanTwoInvoicesOrInvalidDatesMustBeReviewed() {
         val a = invoice(day, "5914")
         val b = invoice(day + 60_000L, "5918", status = "Không Tính")
