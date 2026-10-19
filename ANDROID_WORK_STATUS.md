@@ -74,3 +74,10 @@ Detailed handoff: [android/RESUME_HANDOFF_2026-10-19.md](android/RESUME_HANDOFF_
 - Still NOT verified separately: multi-page overflow, all product configurations, every QR under offline mode, exact numeric/discount reconciliation across distinct invoices, Messenger/Zalo handoff on this specific v0.3.1 run, auto Google sign-in or sync, production write permissions, final release signing.
 - User wants engineering to continue on GitHub without needing a new APK for each incremental change. Next owner interaction should be a consolidated near-final Samsung acceptance test. Do not request re-testing this PDF layout as if still unreviewed.
 - Continue Google identity, server-side Mobile API staging security, automatic read-only sync and regression tests. Production Drive state and website unchanged.
+
+## Work resumed — 2026-10-19 late night: native catalogue parity
+- Owner asked whether engineering work was actually underway. Verified GitHub code branch and resumed active modifications; no claim of background work between chat turns.
+- Implemented `BẢNG GIÁ SATORI` read-only searchable viewer from Overview using the same `satori_catalogue_v15` snapshot as website. Displays product name, code, unit, list price, unit price and explicit discount percentage; does not write pricing or Drive data. It is a **partial** website parity implementation, not full catalogue editor.
+- Preserved the `discountPercent` field of `SatoriProduct` when decoding Drive, with added JUnit regression test confirming two product records, exact prices, optional discount and unchanged input JSON.
+- Latest source change commit `53849cfe6524186c635409da84cec79b2867f07b`, dev branch `feature/minhsatori-native-android-v020`. Check GitHub Actions and fix any errors before treating it as compiled or requesting device tests.
+- Remaining: website module parity (reconciliation, AI memory, accounting ledger), server/mobile OAuth, staging-backed write workflow and stable release signing. Production untouched. Avoid requesting another owner APK install for this incremental change.
