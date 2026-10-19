@@ -21,6 +21,8 @@ import android.widget.Toast
 import android.provider.OpenableColumns
 import java.text.DateFormat
 import java.util.Date
+import org.json.JSONObject
+import java.util.UUID
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -52,6 +54,8 @@ class NativeMainActivity : AppCompatActivity() {
     private var fileUri: Uri? = null
     private var dataSource = ""
     private var lastReadAt = ""
+    private var apiEndpoint: String? = null
+    private val canWrite: Boolean get() = apiEndpoint != null && accessToken != null && dataSource == "Minh Satori API"
 
     private val filePicker = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -95,8 +99,10 @@ class NativeMainActivity : AppCompatActivity() {
         fileUri = getPreferences(MODE_PRIVATE).getString("drive_file_uri", null)?.let {
             Uri.parse(it)
         }
+        apiEndpoint = MobileApiClient.endpoint(this)
         render()
-        if (fileUri != null) refreshFromPicker()
+        if (apiEndpoint != null) connectGoogle()
+        else if (fileUri != null) refreshFromPicker()
     }
 
     override fun onDestroy() {
@@ -194,28 +200,36 @@ class NativeMainActivity : AppCompatActivity() {
         if (isLoading) label(content, "Đang đọc dữ liệu Drive…",
             13f, true, teal, 8)
 
-        button(content, if (fileUri == null && accessToken == null)
-            "KẾT NỐI DỮ LIỆU GOOGLE DRIVE" else "LÀM MỚI DỮ LIỆU", true) {
+        button(content, if (apiEndpoint == null) "KÍCH HOẠT KẾT NỐI LÊN ĐƠN" else
+            if (accessToken == null) "ĐĂNG NHẬP GOOGLE ĐỂ LÊN ĐƠN" else
+            "ĐỒNG BỘ MINH SATORI", true) {
             when {
-                fileUri != null -> refreshFromPicker()
-                accessToken != null -> refreshFromDrive()
-                else -> filePicker.launch(arrayOf("text/plain", "application/json"))
+                apiEndpoint == null -> configureMobileApi()
+                accessToken == null -> connectGoogle()
+                else -> refreshFromMobileApi()
             }
         }
-        button(content, if (fileUri == null) "CHỌN FILE MINH SATORI" else
-            "CHỌN FILE DRIVE KHÁC") {
-            filePicker.launch(arrayOf("text/plain", "application/json"))
+        if (apiEndpoint != null) {
+            label(content, if (canWrite) "Đã xác thực chủ sở hữu · Được phép lên đơn" else
+                "Chưa xác thực kết nối ghi đơn. Không thể lưu cho tới khi API hoạt động.",
+                12f, true, if (canWrite) teal else gold, 8)
+        }
+        button(content, "CÀI ĐẶT LIÊN KẾT API") { configureMobileApi() }
+        button(content, if (fileUri == null) "ĐỌC FILE DRIVE (CHỈ XEM)" else
+            "LÀM MỚI FILE DRIVE (CHỈ XEM)") {
+            if (fileUri != null) refreshFromPicker()
+            else filePicker.launch(arrayOf("text/plain", "application/json"))
         }
 
         if (snapshotInfo == null) {
-            section(content, "KẾT NỐI TRONG 3 BƯỚC",
-                "1. Bấm KẾT NỐI DỮ LIỆU GOOGLE DRIVE.\n" +
-                "2. Trong cửa sổ Android, chọn Google Drive (biểu tượng tam giác).\n" +
-                "3. Chọn đúng file MinhSatori_Live_Data.json của tài khoản quản lý.\n\n" +
-                "Các lần mở sau app tự đọc lại file đã cho phép. Không cần Chrome.")
-            section(content, "Không hiển thị số liệu khi chưa đồng bộ",
-                "App chỉ hiển thị hóa đơn thực đã đọc được. Nếu không thấy Google Drive " +
-                "trong cửa sổ chọn file, hãy đăng nhập ứng dụng Drive trên Samsung.")
+            section(content, "KẾT NỐI ĐỂ LÊN ĐƠN TRỰC TIẾP",
+                "1. Kích hoạt đường dẫn Mobile API đã được chủ sở hữu triển khai.\n" +
+                "2. Đăng nhập Google trên Android.\n" +
+                "3. Hệ thống xác thực tài khoản và đồng bộ đơn từ Drive.\n\n" +
+                "Nếu API chưa kích hoạt, có thể chọn file Drive chỉ để kiểm tra dữ liệu.")
+            section(content, "An toàn dữ liệu",
+                "App không ghi trực tiếp lên file JSON. Mọi lần lưu cần server " +
+                "xác thực, kiểm tra revision và sao lưu.")
         } else when (activeTab) {
             0 -> renderOverview(content, snapshotInfo)
             1 -> renderInvoices(content, snapshotInfo)
