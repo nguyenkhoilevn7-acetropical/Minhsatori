@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -6,7 +8,7 @@ plugins {
 val ownerWebAppUrl = providers.gradleProperty("satoriWebAppUrl")
     .orElse("https://script.google.com/macros/s/AKfycbwJjiajW-gbCwCISrGjvLy5L5ETdmfAGV1zHpUWoeszRUXNgQ6vGHOs3DVABSAcEtV1/exec?authuser=0&pli=1")
     .get()
-val ownerUri = java.net.URI(ownerWebAppUrl)
+val ownerUri = URI(ownerWebAppUrl)
 require(
     ownerUri.scheme == "https" &&
     ownerUri.host == "script.google.com" &&
