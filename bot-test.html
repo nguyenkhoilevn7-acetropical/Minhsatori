@@ -33,7 +33,7 @@ a{color:#76e3d8}footer{font-size:12px;color:#9baebb;margin-top:25px}@media(max-w
 <section class="panel" id="result" hidden aria-live="polite">
 <h2>Kết quả nhận diện</h2><div class="grid">
 <dl><dt>Khách hàng</dt><dd id="name">—</dd><dt>Số điện thoại</dt><dd id="phone">—</dd><dt>Địa chỉ</dt><dd id="address">—</dd></dl>
-<dl><dt>Tổng tiền</dt><dd id="total">—</dd><dt>Thanh toán</dt><dd id="status">—</dd><dt>Số dòng sản phẩm</dt><dd id="count">—</dd></dl>
+<dl><dt>Tổng tiền</dt><dd id="total">—</dd><dt>Thanh toán</dt><dd id="status">—</dd><dt>Ngày giao dự kiến</dt><dd id="delivery">—</dd><dt>Số dòng sản phẩm</dt><dd id="count">—</dd></dl>
 </div>
 <h3>Sản phẩm</h3><div class="scroll"><table><thead><tr><th>STT</th><th>SL</th><th>Đơn vị</th><th>Sản phẩm</th><th>Đơn giá</th></tr></thead><tbody id="items"></tbody></table></div>
 <div id="warning"></div><div class="buttons"><button id="copy">Sao chép bản phân tích</button></div><p id="note" role="status"></p>
@@ -50,34 +50,37 @@ function first(s,re){const m=s.match(re);return m?m[1].trim().replace(/[,;. ]+$/
 function parseMessage(s){
  s=String(s||'').trim();
  const name=first(s,/(?:tên\s*(?:khách\s*hàng)?|khách\s*hàng|người\s*nhận|khách)\s*[:：\-]\s*([^\n,;]+)/i)||
- first(s,/(?:lên\s*đơn|tạo\s*đơn|đặt\s*hàng|giao\s*hàng)\s+cho\s+([^,\n;]+)/i);
+ first(s,/(?:lên\s*đơn|tạo\s*đơn|đặt\s*hàng|giao\s*hàng)\s+cho\s+([^,\n;]+)/i)||
+ first(s,/(?:^|\n)\s*(?:(?:ngày\s+)?mai\s+)?giao\s+(?:(?:cho\s+)?(?:em|e)\s+)?([^,\n;]+)/i);
  const phone=(s.match(/(?:\+84|0)[\s.-]?(?:\d[\s.-]?){8,10}/)||[])[0]||'';
  const address=first(s,/(?:địa\s*chỉ(?:\s*giao(?:\s*hàng)?)?|giao\s*(?:tại|đến))\s*[:：\-]?\s*([^\n;]+)/i);
  const m=s.match(/(?:tổng\s*(?:tiền|cộng|thanh\s*toán)?|thành\s*tiền|tổng\s*đơn)\s*[:：=]?\s*(\d[\d.,]*)\s*(?:đ|₫|vnd)?/i);
  const total=m?amount(m[1]):null;
  const status=/chưa\s*(?:thanh\s*toán|trả\s*tiền|tt)/i.test(s)?'Chưa thanh toán':/đã\s*(?:thanh\s*toán|trả\s*tiền|tt)/i.test(s)?'Đã thanh toán':'Chưa rõ';
+ const delivery=/\bmai\s+giao\b|\bgiao\s+mai\b/i.test(s)?new Date(Date.now()+86400000).toLocaleDateString('vi-VN'):'';
  const items=[];
  for(const chunk of s.split(/[\n,;]+/)){
-  const m=chunk.match(/(?:^|\s)(\d{1,5})\s*(thùng|bình|lốc|chai|lon|két)\s+(.+)/i);if(!m)continue;
+  const m=chunk.match(/(?:^|\s)(\d{1,5})\s*(thùng|bình|lốc|chai|lon|két|t(?=\s))\s+(.+)/i);if(!m)continue;
   let product=m[3].trim().replace(/[.!?]+$/,''),price=null;
   const p=product.match(/\s+(?:đơn\s*giá|giá)\s*[:：=]?\s*(\d[\d.,]*)\s*(?:đ|₫|vnd)?/i);
   if(p){price=amount(p[1]);product=product.slice(0,p.index).trim();}
   product=product.replace(/\s*(?:tổng\s*(?:tiền|cộng)|chưa\s*thanh\s*toán|đã\s*thanh\s*toán)\b.*$/i,'').trim();
-  if(product.length>1)items.push({qty:Number(m[1]),unit:m[2],product,unitPrice:price});
+  if(product.length>1)items.push({qty:Number(m[1]),unit:/^t$/i.test(m[2])?'Thùng':m[2],product,unitPrice:price});
  }
  const warnings=[];
  if(!name)warnings.push('Chưa nhận diện rõ tên khách.');
  if(!items.length)warnings.push('Chưa có dòng sản phẩm rõ ràng; thử dạng “5 bình nước Satori”.');
+ if(items.some(x=>/^(?:suoi|suối|nuoc suoi|nước suối)$/i.test(x.product)))warnings.push('Tin chỉ ghi “suối”, chưa có dung tích. Cần đối chiếu loại nước trong lịch sử khách trước khi lưu.');
  if(total===null)warnings.push('Chưa có tổng tiền.');
  if(items.some(x=>x.unitPrice===null))warnings.push('Chưa có đơn giá đầy đủ; không tự suy đoán.');
  if(status==='Chưa rõ')warnings.push('Chưa rõ trạng thái thanh toán.');
  const calculated=items.length&&items.every(x=>x.unitPrice!==null)?items.reduce((a,x)=>a+x.qty*x.unitPrice,0):null;
  if(calculated!==null&&total!==null&&calculated!==total)warnings.push('Tổng thành tiền không khớp đơn giá; cần xem phí ship/VAT.');
- return {name,phone,address,total,status,items,calculated,warnings};
+ return {name,phone,address,total,status,delivery,items,calculated,warnings};
 }
 function set(id,s){el(id).textContent=s==null||s===''?'Chưa có':String(s)}
 function draw(d){
- last=d;set('name',d.name);set('phone',d.phone);set('address',d.address);set('total',fmt(d.total));set('status',d.status);set('count',d.items.length);
+ last=d;set('name',d.name);set('phone',d.phone);set('address',d.address);set('total',fmt(d.total));set('status',d.status);set('delivery',d.delivery);set('count',d.items.length);
  const tb=el('items');tb.replaceChildren();
  d.items.forEach((x,i)=>{const tr=document.createElement('tr');[i+1,x.qty,x.unit,x.product,fmt(x.unitPrice)].forEach(v=>{const td=document.createElement('td');td.textContent=String(v);tr.appendChild(td)});tb.appendChild(tr)});
  const w=el('warning');w.replaceChildren();
