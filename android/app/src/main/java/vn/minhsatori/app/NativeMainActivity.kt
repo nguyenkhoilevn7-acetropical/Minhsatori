@@ -55,7 +55,11 @@ class NativeMainActivity : AppCompatActivity() {
     private var dataSource = ""
     private var lastReadAt = ""
     private var apiEndpoint: String? = null
-    private val canWrite: Boolean get() = apiEndpoint != null && accessToken != null && dataSource == "Minh Satori API"
+    private var allowedActions: Set<String> = emptySet()
+    private fun canAction(action: String): Boolean =
+        apiEndpoint != null && accessToken != null &&
+            dataSource == "Minh Satori API" && allowedActions.contains(action)
+    private val canWrite: Boolean get() = canAction("orders.create")
 
     private val filePicker = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -395,8 +399,8 @@ class NativeMainActivity : AppCompatActivity() {
     private fun showTrash() {
         val endpoint = apiEndpoint
         val token = accessToken
-        if (!canWrite || endpoint == null || token == null) {
-            Toast.makeText(this, "Chưa kết nối Mobile API.", Toast.LENGTH_LONG).show()
+        if (!canAction("orders.delete") || endpoint == null || token == null) {
+            Toast.makeText(this, "Chưa có quyền quản lý thùng rác.", Toast.LENGTH_LONG).show()
             return
         }
         if (isLoading) return
@@ -490,13 +494,13 @@ class NativeMainActivity : AppCompatActivity() {
             label(content, invoice.deliveryNote, 13f, true, dark, 4)
         }
         var invoiceDialog: AlertDialog? = null
-        if (canWrite && !invoice.customerHasPaid && !invoice.isExcluded &&
+        if (!invoice.customerHasPaid && !invoice.isExcluded &&
             invoice.status != "Đã TT Satori") {
-            button(content, "SỬA HÓA ĐƠN") {
+            if (canAction("orders.update")) button(content, "SỬA HÓA ĐƠN") {
                 invoiceDialog?.dismiss()
                 launchEditor(editing = invoice)
             }
-            button(content, "GHI NHẬN ĐÃ THANH TOÁN") {
+            if (canAction("payments.markCustomerPaid")) button(content, "GHI NHẬN ĐÃ THANH TOÁN") {
                 AlertDialog.Builder(this)
                     .setTitle("Xác nhận đã thực nhận tiền?")
                     .setMessage("Hóa đơn #" + invoice.number + "\nKhách: " +
@@ -515,7 +519,7 @@ class NativeMainActivity : AppCompatActivity() {
                     }.show()
             }
             val deleteId = UUID.randomUUID().toString().replace("-", "")
-            button(content, "XÓA MỀM VÀO THÙNG RÁC 30 NGÀY") {
+            if (canAction("orders.delete")) button(content, "XÓA MỀM VÀO THÙNG RÁC 30 NGÀY") {
                 AlertDialog.Builder(this)
                     .setTitle("Xóa mềm hóa đơn #" + invoice.number + "?")
                     .setMessage("Khách: " + invoice.customer + "\n" +
@@ -596,6 +600,7 @@ class NativeMainActivity : AppCompatActivity() {
                 // Previously loaded file snapshots are read-only until verified API connects.
                 dataSource = ""
                 snapshot = null
+                allowedActions = emptySet()
                 dialog.dismiss()
                 connectGoogle()
             }
@@ -620,13 +625,15 @@ class NativeMainActivity : AppCompatActivity() {
                 isLoading = false
                 outcome.fold(
                     onSuccess = {
-                        snapshot = it
+                        snapshot = it.snapshot
+                        allowedActions = it.allowedActions
                         dataSource = "Minh Satori API"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         statusMessage = "Đã kết nối quyền lên đơn."
                     },
                     onFailure = {
                         snapshot = null
+                        allowedActions = emptySet()
                         dataSource = ""
                         statusMessage = "Không kết nối được Mobile API: " +
                             (it.message ?: "không rõ lỗi") +
@@ -649,8 +656,8 @@ class NativeMainActivity : AppCompatActivity() {
     ) {
         val endpoint = apiEndpoint
         val token = accessToken
-        if (!canWrite || endpoint == null || token == null || isLoading) {
-            completed(false, "Chưa kết nối tài khoản Google với Mobile API.")
+        if (!canAction(action) || endpoint == null || token == null || isLoading) {
+            completed(false, "Tài khoản chưa được cấp quyền thực hiện lệnh này.")
             return
         }
         isLoading = true
@@ -669,12 +676,14 @@ class NativeMainActivity : AppCompatActivity() {
                 writeResult.fold(
                     onSuccess = { reply ->
                         if (latest?.isSuccess == true) {
-                            snapshot = latest.getOrNull()
+                            snapshot = latest.getOrNull()?.snapshot
+                            allowedActions = latest.getOrNull()?.allowedActions ?: emptySet()
                             dataSource = "Minh Satori API"
                             lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         } else {
                             // A confirmed write must never be reported as a failed write.
                             snapshot = null
+                            allowedActions = emptySet()
                             dataSource = ""
                             statusMessage = "Server đã xử lý lệnh. Không xác minh được đồng bộ; hãy kết nối lại trước thao tác tiếp."
                         }
@@ -707,8 +716,9 @@ class NativeMainActivity : AppCompatActivity() {
     private fun launchEditor(editing: SatoriInvoice? = null,
                              customer: SatoriInvoice? = null) {
         val loaded = snapshot
-        if (!canWrite || loaded == null) {
-            Toast.makeText(this, "Cần kết nối Mobile API để lên đơn.", Toast.LENGTH_LONG).show()
+        val action = if (editing == null) "orders.create" else "orders.update"
+        if (!canAction(action) || loaded == null) {
+            Toast.makeText(this, "Tài khoản chưa được cấp quyền lên/sửa đơn.", Toast.LENGTH_LONG).show()
             return
         }
         NativeOrderEditor.show(this, loaded, editing, customer) { action, payload, done ->
