@@ -12,7 +12,7 @@ const catalogue=[{code:'TP-00051',unit:'Thùng',name:'Nước tinh khiết Sator
 function setup(rows=[older,fixture],connected=true){
  const els=new Map();
  const element=id=>{if(!els.has(id))els.set(id,{value:'',title:'',hidden:false,style:{display:'none'},
-  getAttribute(){return this.title},setAttribute(){},scrollIntoView(){},remove(){},focus(){}});return els.get(id)};
+  getAttribute(){return this.title},setAttribute(){},scrollIntoView(){},remove(){},focus(){},classList:{add(){},remove(){}}});return els.get(id)};
  element('driveSyncDot').title=connected?'Đã đồng bộ Google Drive · bản 90 · 111 bản ghi':'Chưa lưu lên Drive';
  element('driveLoadingCover').style.display='none';
  const storage={satori_orders_v15:JSON.stringify(rows)};
