@@ -53,14 +53,18 @@
   function customerMatch(rows,query){
     var q=norm(query).replace(/[^a-z0-9 ]/g,'').trim();
     if(q.length<2)return [];
-    return rows.map(o=>{
+    var all=rows.map(o=>{
       var name=norm(o.name),score=name===q?100:name.includes('('+q+')')?95:name.endsWith(' '+q)?90:name.includes(q)?70:0;
       return {order:o,score:score};
-    }).filter(x=>x.score).sort((a,b)=>b.score-a.score||orderDate(b.order)-orderDate(a.order));
+    }).filter(x=>x.score);
+    var strong=all.filter(x=>x.score>=90);
+    return strong.length?strong.sort((a,b)=>orderDate(b.order)-orderDate(a.order)||b.score-a.score):all.sort((a,b)=>b.score-a.score||orderDate(b.order)-orderDate(a.order));
   }
   function chooseProduct(parsed,matched,catalog){
     var first=parsed.items[0],hint=norm(first.hint),list=matched.map(x=>x.order);
     var last=null,explicitHint=/\d{2,4}\s*(?:ml|l)\b|premium|hikari|juice|ổi|me|mãng cầu/i.test(hint);
+    var waterHint=/(suoi|nuoc|satori|premium|hikari|juice|mang cau|oi hong)/.test(hint);
+    if(!waterHint)return null;
     if(explicitHint){
       var size=hint.match(/(\d{2,4})\s*(ml|l)\b/),wantsPremium=hint.includes('premium');
       var same=list.find(o=>Array.isArray(o.items)&&o.items.length===1&&norm(o.items[0].product).includes(size?size[1]:'')&&(!wantsPremium||norm(o.items[0].product).includes('premium')));
@@ -80,8 +84,8 @@
   }
   function buildDraft(message,rows,catalog,now) {
     var p=parseMessage(message,now),candidates=customerMatch(rows,p.name);
-    var ref=candidates.length?candidates[0].order:null;
-    var inferred=chooseProduct(p,candidates,catalog),first=p.items[0]||null;
+    var ref=candidates.length&&candidates[0].score>=90?candidates[0].order:null;
+    var inferred=ref?chooseProduct(p,candidates.filter(x=>x.score>=90),catalog):null,first=p.items[0]||null;
     var warnings=[];
     if(!p.name)warnings.push('Chưa nhận diện tên khách hàng.');
     if(!ref)warnings.push('Chưa tìm thấy khách trong lịch sử; không thể tự điền địa chỉ và giá.');
