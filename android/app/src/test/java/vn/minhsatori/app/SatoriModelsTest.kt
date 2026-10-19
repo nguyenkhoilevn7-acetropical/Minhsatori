@@ -172,12 +172,14 @@ class SatoriModelsTest {
             .put(JSONObject().put("invoiceNo", 101).put("date", "29/02/2024"))
             .put(JSONObject().put("invoiceNo", 102).put("date", "29/02/2025"))
             .put(JSONObject().put("invoiceNo", 103).put("date", "31/04/2026"))
+            .put(JSONObject().put("invoiceNo", 104).put("date", "2026-10-19"))
         val state = JSONObject().put("revision", 1).put("values",
             JSONObject().put("satori_orders_v15", orders.toString()))
         val invoices = SatoriData.fromDriveState(state.toString()).invoices
         assertEquals("20240229", invoices.single { it.number == "101" }.sortDate)
         assertFalse(invoices.single { it.number == "102" }.hasValidDate)
         assertFalse(invoices.single { it.number == "103" }.hasValidDate)
+        assertEquals("20261019", invoices.single { it.number == "104" }.sortDate)
     }
 
     @Test(expected = IllegalArgumentException::class)
