@@ -159,6 +159,71 @@ function create(s,all,p){
   goodsTotal:goods,shippingAmount:ship,vatAmount:vat,vat:vat?'yes':'no',total:total,status:'Chưa thanh toán',source:'bot_api',deliveryNote:String(o.deliveryNote||'').slice(0,1000)};
  all.unshift(next);return {modified:true,result:{order:visible(next),duplicate:false}};
 }
+
+function updateOrder(s,all,p){
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần xác nhận sửa hóa đơn');
+ var req=String(p.requestId||'');
+ need(/^[a-zA-Z0-9_-]{8,100}$/.test(req),'INVALID_REQUEST','Thiếu requestId');
+ var repeated=all.find(function(o){return o.apiUpdateRequestId===req});
+ if(repeated)return {modified:false,result:{order:visible(repeated),duplicate:true}};
+ version(s,p);
+ need(Number.isSafeInteger(p.invoiceNo)&&p.id!=null,'INVALID_ORDER','Thiếu mã hóa đơn');
+ var matches=all.filter(function(o){return o.invoiceNo===p.invoiceNo&&String(o.id)===String(p.id)});
+ need(matches.length===1,'ORDER_CHANGED','Hóa đơn đã thay đổi hoặc không tìm thấy');
+ var old=matches[0];
+ need(!paid(old)&&old.status!=='Đã TT Satori','PAID_ORDER_PROTECTED',
+    'Hóa đơn đã thanh toán không được sửa tiền hàng qua API');
+ need(norm(old.name)===norm(p.expectedName)&&Number(old.total)===Number(p.expectedTotal),
+    'ORDER_CHANGED','Tên hoặc số tiền đã khác, hãy tải lại');
+ var o=p.order;
+ need(o&&typeof o==='object'&&String(o.name||'').trim().length>=2,'INVALID_ORDER','Thiếu tên khách');
+ var name=String(o.name).trim(),phone=String(o.phone||'').trim(),location=String(o.location||'').trim();
+ need(name.length<=150&&phone.length<=60&&location.length<=500,'INVALID_ORDER','Thông tin khách quá dài');
+ need(Array.isArray(o.items)&&o.items.length>=1&&o.items.length<=50,'INVALID_ORDER','Thiếu danh sách hàng');
+ var items=o.items.map(function(i){
+  need(i&&String(i.product||i.name||'').trim().length>=2,'INVALID_ITEM','Thiếu sản phẩm');
+  var qty=Number(i.qty),price=money(i.unitPrice);need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Sai số lượng');
+  var list=i.listPrice==null?price:money(i.listPrice);
+  return {id:Utilities.getUuid(),code:String(i.code||'').slice(0,50),product:String(i.product||i.name).slice(0,200),
+   unit:String(i.unit||'Thùng').slice(0,30),qty:qty,unitPrice:price,listPrice:list,
+   discountAmount:list-price,subtotal:Math.round(qty*price)};
+ });
+ var goods=items.reduce(function(v,i){return v+i.subtotal},0);
+ var ship=money(o.shippingAmount==null?0:o.shippingAmount),vat=money(o.vatAmount==null?0:o.vatAmount);
+ var total=Math.round(goods+ship+vat);
+ need(total<=1e11,'INVALID_AMOUNT','Tổng tiền quá lớn');
+ if(o.total!==undefined)need(money(o.total)===total,'TOTAL_MISMATCH','Tổng không khớp');
+ var next=Object.assign({},old,{name:name,phone:phone,location:location,items:items,
+  product:items.map(function(i){return i.product+' x'+i.qty}).join(', '),
+  qty:items.reduce(function(v,i){return v+i.qty},0),goodsTotal:goods,
+  shippingAmount:ship,vatAmount:vat,vat:vat?'yes':'no',total:total,
+  deliveryNote:String(o.deliveryNote||'').slice(0,1000),
+  deliveryDate:o.deliveryDate?String(o.deliveryDate).slice(0,10):old.deliveryDate,
+  apiUpdateRequestId:req,updatedAt:Date.now()});
+ all[all.indexOf(old)]=next;return {modified:true,result:{order:visible(next),duplicate:false}};
+}
+function restoreOrder(s,all,p){
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần xác nhận khôi phục hóa đơn');
+ var req=String(p.requestId||'');
+ need(/^[a-zA-Z0-9_-]{8,100}$/.test(req),'INVALID_REQUEST','Thiếu requestId');
+ var existing=all.find(function(o){return o.apiRestoreRequestId===req});
+ if(existing)return {modified:false,result:{order:visible(existing),duplicate:true}};
+ version(s,p);
+ var trash=JSON.parse(s.values.satori_trash_bin_v15||'[]');
+ var match=trash.filter(function(t){return t.order&&Number(t.order.invoiceNo)===p.invoiceNo&&String(t.order.id)===String(p.id)});
+ need(match.length===1,'NOT_FOUND','Không tìm thấy hóa đơn trong thùng rác');
+ var record=match[0],old=record.order;
+ need((!record.expiresAt||Number(record.expiresAt)>Date.now()),'EXPIRED','Đơn đã hết thời hạn 30 ngày');
+ need(norm(old.name)===norm(p.expectedName)&&Number(old.total)===Number(p.expectedTotal),
+   'ORDER_CHANGED','Tên hoặc số tiền không khớp');
+ need(!all.some(function(o){return String(o.id)===String(old.id)||Number(o.invoiceNo)===Number(old.invoiceNo)}),
+   'ORDER_CONFLICT','Mã hóa đơn đã tồn tại');
+ var next=Object.assign({},old,{apiRestoreRequestId:req,updatedAt:Date.now()});
+ trash.splice(trash.indexOf(record),1);
+ all.unshift(next);
+ return {modified:true,extras:{satori_trash_bin_v15:JSON.stringify(trash)},
+    result:{restored:true,order:visible(next)}};
+}
 function markPaid(s,all,p){
  version(s,p);need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Thiếu số hóa đơn');
  var match=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo});
@@ -190,7 +255,7 @@ function read(s,action,p){
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
 function write(s,action,p){
- var all=rows(s),result=action==='orders.create'?create(s,all,p):action==='orders.delete'?removeOrder(s,all,p):markPaid(s,all,p);
+ var all=rows(s),result=action==='orders.create'?create(s,all,p):action==='orders.update'?updateOrder(s,all,p):action==='orders.restore'?restoreOrder(s,all,p):action==='orders.delete'?removeOrder(s,all,p):markPaid(s,all,p);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
  need(!!fileId,'CONFIG_MISSING','Thiếu STATE_FILE_ID');
@@ -216,7 +281,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.delete'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.update'||identity.action==='orders.restore'||identity.action==='orders.delete'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
