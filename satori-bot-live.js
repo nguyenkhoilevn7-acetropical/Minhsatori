@@ -167,10 +167,11 @@
     var total=Math.round(qty*price)+(vat==='yes'?Math.round(qty*price*0.08):0);
     if(draft.mentionedTotal!==null&&total!==draft.mentionedTotal)throw Error('Tổng tiền không khớp tin nhắn.');
     var values=Object.fromEntries(['busName','busPhone','busLocation','taxCode','orderDate','invoiceNo','vatOption','shippingOption','paymentStatus','costDiscountPercent'].map(k=>[k,document.getElementById(k)?.value]));
-    var rows=getRows(),reference=rows.find(o=>Number(o.invoiceNo)===Number(draft.referenceNo));
-    if(!reference||reference.name!==draft.customer)throw Error('Khách hàng đã thay đổi trên Drive. Phân tích lại tin nhắn.');
+    var rows=getRows(),matches=rows.filter(o=>Number(o.invoiceNo)===Number(draft.referenceNo));
+    if(matches.length!==1||matches[0].name!==draft.customer)throw Error('Hóa đơn khách đã thay đổi hoặc có mã trùng. Phân tích lại tin nhắn.');
+    var reference=matches[0];
     var productRow=reference.items?.find(x=>x.code===draft.code);
-    if(!productRow)throw Error('Sản phẩm đã đổi. Vui lòng phân tích lại.');
+    if(!productRow||Number(productRow.unitPrice)!==Number(draft.price))throw Error('Sản phẩm hoặc đơn giá tham chiếu đã thay đổi. Phân tích lại tin nhắn.');
     var nextNo=1+rows.reduce((n,o)=>Math.max(n,Number(o.invoiceNo)||0),0);
     if(!Number.isSafeInteger(nextNo)||rows.some(o=>Number(o.invoiceNo)===nextNo))throw Error('Không xác định được số hóa đơn mới.');
     var fresh=localStorage.getItem(KEY);if(!fresh)throw Error('Không có dữ liệu đã đồng bộ.');
