@@ -11,7 +11,8 @@ data class SatoriProduct(
     val name: String,
     val unit: String,
     val unitPrice: Long,
-    val listPrice: Long
+    val listPrice: Long,
+    val discountPercent: Double? = null
 )
 
 data class SatoriLine(
@@ -183,7 +184,10 @@ object SatoriData {
                 name = name,
                 unit = string(item, "unit").ifBlank { "Thùng" },
                 unitPrice = item.optLong("unitPrice", 0).coerceAtLeast(0),
-                listPrice = item.optLong("listPrice", 0).coerceAtLeast(0)
+                listPrice = item.optLong("listPrice", 0).coerceAtLeast(0),
+                discountPercent = if (item.has("discountPercent") &&
+                    !item.isNull("discountPercent"))
+                    item.optDouble("discountPercent").takeIf { it.isFinite() } else null
             )
         }
         return SatoriSnapshot(revision, string(root, "updatedAt"), invoices, products)
