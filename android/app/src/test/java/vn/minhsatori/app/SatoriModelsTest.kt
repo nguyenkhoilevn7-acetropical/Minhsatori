@@ -111,6 +111,36 @@ class SatoriModelsTest {
         assertNull(snapshot.confirmedWrite("orders.create", ""))
     }
 
+    @Test
+    fun formattingSeparatorsDoNotCreateAnExtraCustomerProfile() {
+        val orders = JSONArray()
+            .put(JSONObject().put("invoiceNo", 5901).put("name", "Hà Minh Nguyệt")
+                .put("phone", "0903 123 456").put("location", "12 Cát Lái"))
+            .put(JSONObject().put("invoiceNo", 5902).put("name", "Ha Minh Nguyet")
+                .put("phone", "0903-123-456").put("location", "12 Cát Lái"))
+            .put(JSONObject().put("invoiceNo", 5903).put("name", "Hà Minh Nguyệt")
+                .put("phone", "0903123456").put("location", "18 Cát Lái"))
+        val root = JSONObject().put("revision", 1).put("values",
+            JSONObject().put("satori_orders_v15", orders.toString()))
+        val invoices = SatoriData.fromDriveState(root.toString()).invoices
+        assertEquals(SatoriData.customerKey(invoices[0]), SatoriData.customerKey(invoices[1]))
+        assertNotEquals(SatoriData.customerKey(invoices[1]), SatoriData.customerKey(invoices[2]))
+    }
+
+    @Test
+    fun findsFormattedPhoneByUnformattedDigitsWithoutLooseShortMatches() {
+        val data = JSONObject().put("revision", 1).put("values",
+            JSONObject().put("satori_orders_v15", JSONArray()
+                .put(JSONObject().put("invoiceNo", 5901)
+                    .put("name", "Khách A").put("phone", "0903 123 456")
+                    .put("location", "Cát Lái")).toString()))
+        val invoice = SatoriData.fromDriveState(data.toString()).invoices.single()
+        assertTrue(SatoriData.search(invoice, "0903123456"))
+        assertTrue(SatoriData.search(invoice, "312345"))
+        assertFalse(SatoriData.search(invoice, "12345"))
+        assertFalse(SatoriData.search(invoice, "999991"))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun refusesSnapshotWithoutRevision() {
         SatoriData.fromDriveState("""{"values":{"satori_orders_v15":"[]"}}""")
