@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minh Satori · Bot Lab (Thử nghiệm)</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#edf7f9;background:#07121b}*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at top left,#14506b,transparent 35%),linear-gradient(135deg,#08121b,#101f2d);min-height:100vh}
+main{max-width:850px;margin:auto;padding:25px 16px 60px}header{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.logo{font-weight:800;letter-spacing:.17em;color:#70e5d6}.badge{font-size:12px;border:1px solid #d6a34d;border-radius:99px;padding:8px 12px;color:#ffd38f;background:#422d14;font-weight:800}
+h1{font-size:clamp(28px,5vw,42px);line-height:1.12;letter-spacing:-.035em;margin:22px 0 12px}p{color:#b6c8d4;line-height:1.7}
+.panel{background:#0d2030;border:1px solid #334f63;border-radius:19px;padding:22px;margin-top:20px;box-shadow:0 12px 38px #0004}
+label{display:block;font-weight:750;margin-bottom:10px}textarea{width:100%;min-height:155px;border-radius:12px;background:#071421;border:1px solid #60758a;padding:15px;color:#fff;resize:vertical;font:inherit;line-height:1.65}
+textarea:focus{outline:2px solid #55d4c0;outline-offset:2px}.buttons{display:flex;gap:10px;flex-wrap:wrap;margin-top:13px}button{cursor:pointer;border-radius:11px;border:1px solid #5e7b87;background:#1a3545;color:#fff;padding:11px 16px;font:inherit;font-weight:750}
+button.primary{background:#068377;border-color:#28b5a5}button:hover{filter:brightness(1.1)}
+small{color:#aec2d0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}dt{font-size:12px;color:#9eb7c6}dd{font-size:17px;font-weight:750;margin:4px 0 18px;overflow-wrap:anywhere}
+table{border-collapse:collapse;width:100%;min-width:430px}th,td{padding:11px 9px;text-align:left;border-bottom:1px solid #365062}th{font-size:12px;color:#9bb8ca}.scroll{overflow:auto}
+.warn{background:#46331a;border:1px solid #855b26;color:#ffe1ab;border-radius:10px;padding:12px;margin:14px 0}ul{margin:8px 0;padding-left:24px}
+.safe{padding:12px 15px;background:#123429;border-left:4px solid #60d4a3;color:#c2eed6;margin-top:18px;border-radius:4px}
+a{color:#76e3d8}footer{font-size:12px;color:#9baebb;margin-top:25px}@media(max-width:600px){.grid{grid-template-columns:1fr}.panel{padding:16px}}
+</style>
+</head><body>
+<main>
+<header><div class="logo">MINH SATORI · BOT LAB</div><span class="badge">CHẾ ĐỘ DEMO — KHÔNG LƯU THẬT</span></header>
+<h1>Dán tin nhắn, thử lên đơn</h1>
+<p>Dán nội dung khách đặt nước từ Zalo hoặc tin nhắn. Trang này chỉ phân tích ngay trong điện thoại của anh, <strong>không tạo hóa đơn thật và không gửi dữ liệu lên máy chủ</strong>.</p>
+<section class="panel">
+<label for="msg">Nội dung tin nhắn</label>
+<textarea id="msg" spellcheck="false" placeholder="Anh lên đơn cho Nguyễn Văn A, 5 bình nước Satori, tổng tiền 450.000đ, chưa thanh toán."></textarea>
+<div class="buttons"><button class="primary" id="parse">Phân tích tin nhắn</button><button id="sample">Dùng mẫu</button><button id="clear">Xóa</button></div>
+<p><small>Mục tiêu là kiểm tra khả năng nhận diện, không tự phán đoán giá còn thiếu. Anh có thể dùng đơn mẫu trước khi kết nối API thật.</small></p>
+</section>
+<section class="panel" id="result" hidden aria-live="polite">
+<h2>Kết quả nhận diện</h2><div class="grid">
+<dl><dt>Khách hàng</dt><dd id="name">—</dd><dt>Số điện thoại</dt><dd id="phone">—</dd><dt>Địa chỉ</dt><dd id="address">—</dd></dl>
+<dl><dt>Tổng tiền</dt><dd id="total">—</dd><dt>Thanh toán</dt><dd id="status">—</dd><dt>Số dòng sản phẩm</dt><dd id="count">—</dd></dl>
+</div>
+<h3>Sản phẩm</h3><div class="scroll"><table><thead><tr><th>STT</th><th>SL</th><th>Đơn vị</th><th>Sản phẩm</th><th>Đơn giá</th></tr></thead><tbody id="items"></tbody></table></div>
+<div id="warning"></div><div class="buttons"><button id="copy">Sao chép bản phân tích</button></div><p id="note" role="status"></p>
+<div class="safe"><strong>Dữ liệu an toàn:</strong> 111 hóa đơn cũ trên Drive không bị truy cập hay cập nhật từ trang thử này. Nút lưu đơn thật sẽ chỉ được bật khi API có xác thực và đã qua kiểm thử với Google Apps Script.</div>
+</section>
+<footer><a href="./">Quay về Minh Satori</a> · Không nhập mật khẩu hoặc mã API vào trang này.</footer>
+</main>
+<script>
+'use strict';
+const el=id=>document.getElementById(id),fmt=n=>n==null?'Chưa có':new Intl.NumberFormat('vi-VN').format(n)+' đ';
+let last=null;
+function amount(v){let s=String(v||'').trim().replace(/[\sđ₫vnd]/gi,'');if(!/^\d[\d.,]*$/.test(s))return null;if(/^\d{1,3}([.,]\d{3})+$/.test(s))return Number(s.replace(/[.,]/g,''));if(/^\d+[.,]\d{1,2}$/.test(s))return Number(s.replace(',','.'));return Number(s.replace(/[.,]/g,''));}
+function first(s,re){const m=s.match(re);return m?m[1].trim().replace(/[,;. ]+$/,''):'';}
+function parseMessage(s){
+ s=String(s||'').trim();
+ const name=first(s,/(?:tên\s*(?:khách\s*hàng)?|khách\s*hàng|người\s*nhận|khách)\s*[:：\-]\s*([^\n,;]+)/i)||
+ first(s,/(?:lên\s*đơn|tạo\s*đơn|đặt\s*hàng|giao\s*hàng)\s+cho\s+([^,\n;]+)/i);
+ const phone=(s.match(/(?:\+84|0)[\s.-]?(?:\d[\s.-]?){8,10}/)||[])[0]||'';
+ const address=first(s,/(?:địa\s*chỉ(?:\s*giao(?:\s*hàng)?)?|giao\s*(?:tại|đến))\s*[:：\-]?\s*([^\n;]+)/i);
+ const m=s.match(/(?:tổng\s*(?:tiền|cộng|thanh\s*toán)?|thành\s*tiền|tổng\s*đơn)\s*[:：=]?\s*(\d[\d.,]*)\s*(?:đ|₫|vnd)?/i);
+ const total=m?amount(m[1]):null;
+ const status=/chưa\s*(?:thanh\s*toán|trả\s*tiền|tt)/i.test(s)?'Chưa thanh toán':/đã\s*(?:thanh\s*toán|trả\s*tiền|tt)/i.test(s)?'Đã thanh toán':'Chưa rõ';
+ const items=[];
+ for(const chunk of s.split(/[\n,;]+/)){
+  const m=chunk.match(/(?:^|\s)(\d{1,5})\s*(thùng|bình|lốc|chai|lon|két)\s+(.+)/i);if(!m)continue;
+  let product=m[3].trim().replace(/[.!?]+$/,''),price=null;
+  const p=product.match(/\s+(?:đơn\s*giá|giá)\s*[:：=]?\s*(\d[\d.,]*)\s*(?:đ|₫|vnd)?/i);
+  if(p){price=amount(p[1]);product=product.slice(0,p.index).trim();}
+  product=product.replace(/\s*(?:tổng\s*(?:tiền|cộng)|chưa\s*thanh\s*toán|đã\s*thanh\s*toán)\b.*$/i,'').trim();
+  if(product.length>1)items.push({qty:Number(m[1]),unit:m[2],product,unitPrice:price});
+ }
+ const warnings=[];
+ if(!name)warnings.push('Chưa nhận diện rõ tên khách.');
+ if(!items.length)warnings.push('Chưa có dòng sản phẩm rõ ràng; thử dạng “5 bình nước Satori”.');
+ if(total===null)warnings.push('Chưa có tổng tiền.');
+ if(items.some(x=>x.unitPrice===null))warnings.push('Chưa có đơn giá đầy đủ; không tự suy đoán.');
+ if(status==='Chưa rõ')warnings.push('Chưa rõ trạng thái thanh toán.');
+ const calculated=items.length&&items.every(x=>x.unitPrice!==null)?items.reduce((a,x)=>a+x.qty*x.unitPrice,0):null;
+ if(calculated!==null&&total!==null&&calculated!==total)warnings.push('Tổng thành tiền không khớp đơn giá; cần xem phí ship/VAT.');
+ return {name,phone,address,total,status,items,calculated,warnings};
+}
+function set(id,s){el(id).textContent=s==null||s===''?'Chưa có':String(s)}
+function draw(d){
+ last=d;set('name',d.name);set('phone',d.phone);set('address',d.address);set('total',fmt(d.total));set('status',d.status);set('count',d.items.length);
+ const tb=el('items');tb.replaceChildren();
+ d.items.forEach((x,i)=>{const tr=document.createElement('tr');[i+1,x.qty,x.unit,x.product,fmt(x.unitPrice)].forEach(v=>{const td=document.createElement('td');td.textContent=String(v);tr.appendChild(td)});tb.appendChild(tr)});
+ const w=el('warning');w.replaceChildren();
+ if(d.warnings.length){const box=document.createElement('div');box.className='warn';box.textContent='Cần kiểm tra:';const ul=document.createElement('ul');d.warnings.forEach(x=>{const li=document.createElement('li');li.textContent=x;ul.appendChild(li)});box.appendChild(ul);w.appendChild(box)}
+ el('result').hidden=false;set('note','');el('result').scrollIntoView({behavior:'smooth',block:'start'});
+}
+el('parse').addEventListener('click',()=>{const s=el('msg').value.trim();if(s)draw(parseMessage(s));else el('msg').focus()});
+el('sample').addEventListener('click',()=>{el('msg').value='Anh lên đơn cho Nguyễn Văn A, 5 bình nước Satori, tổng tiền 450.000đ, chưa thanh toán.';el('msg').focus()});
+el('clear').addEventListener('click',()=>{el('msg').value='';el('result').hidden=true;last=null;el('msg').focus()});
+el('copy').addEventListener('click',async()=>{if(!last)return;try{await navigator.clipboard.writeText(JSON.stringify(last,null,2));set('note','Đã sao chép JSON xem trước.')}catch(e){set('note','Trình duyệt không cho sao chép; hãy chụp màn hình kết quả.')}});
+</script>
+</body></html>
