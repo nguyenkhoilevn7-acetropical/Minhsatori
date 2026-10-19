@@ -93,3 +93,11 @@ Detailed handoff: [android/RESUME_HANDOFF_2026-10-19.md](android/RESUME_HANDOFF_
 - Key most recent test-source commit: `6b8a995dc3d587bc98d90cd91ba68b2644a5a6e8`. Roadmap synchronized in `android/WEBSITE_PARITY_ROADMAP.md`.
 - **No new APK asserted complete:** need verify GitHub Actions run https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39287800595, inspect failed logs if needed and run broader tests. Last known owner-installed APK v0.3.1 still lacks these features.
 - Remaining blockers to fully meeting owner’s target: full worksheet/partner reconciliation and profit logic parity, AI memory training/edit API, signed Android OAuth, staged deployment of Mobile API, safe write flows + end-to-end verification, stable release signing and Samsung acceptance.
+
+## Verified Android CI — 2026-10-19 late night
+- GitHub Actions source commit `6b8a995dc3d587bc98d90cd91ba68b2644a5a6e8`, [workflow 39287800595](https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39287800595) — **completed / success**, confirming Android Gradle unit test + debug APK build for read-only AI memory and prior ledger changes.
+- [Workflow 39287905714](https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39287905714), source commit `cd29c808a75736f5122954cbcf1d35bd04b8be82` — **completed / success**.
+- All 15 branch workflow runs returned in latest CI status query were `completed/success`. Current HEAD may be documentation-only later commit `38c125f2f7774e8988dea69fed0250326f230c28` not separately compiled; latest successful source commit is unchanged.
+- Verified tests/build success **does not validate Samsung Google OAuth**, Apps Script staging deployment, mobile write authorization or full website parity.
+- Already implemented and unit-tested: improved PDF, tighter totals, read-only Drive foreground sync candidate, website-styled brand header, read-only catalogue/ledger/customer memory, exact bill search, role-scoped memory API source. Owner should not be asked to reinstall for a partial stage.
+- Immediate next focus: entire website accounting/partner matching and Excel comparison, Android staging OAuth/API; preserve production and keep development branch isolated.
