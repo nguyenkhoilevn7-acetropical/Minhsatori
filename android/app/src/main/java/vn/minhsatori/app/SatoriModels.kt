@@ -54,11 +54,22 @@ data class SatoriInvoice(
         !status.equals("Đã TT Satori", ignoreCase = true)
     val canMarkCustomerPaid: Boolean get() = !isExcluded && !customerHasPaid && total > 0L
     val isOutstanding: Boolean get() = !isExcluded && !customerHasPaid && total > 0L
+    // Keep source dates untouched, but never sort impossible dates as recent orders.
+    // Malformed dates are preserved for manual review instead of being guessed.
     val sortDate: String get() {
-        val parts = date.split("/")
-        return if (parts.size == 3) parts[2] + parts[1].padStart(2, '0') +
-                parts[0].padStart(2, '0') else date
+        val match = Regex("""^(\\d{1,2})/(\\d{1,2})/(\\d{4})$""")
+            .matchEntire(date.trim()) ?: return "00000000"
+        val (day, month, year) = match.destructured
+        return try {
+            java.time.LocalDate.of(year.toInt(), month.toInt(), day.toInt())
+                .toString().replace("-", "")
+        } catch (_: java.time.DateTimeException) {
+            "00000000"
+        }
     }
+    val hasValidDate: Boolean get() = sortDate != "00000000"
+    val displayDate: String get() =
+        if (hasValidDate) date else "⚠ Ngày cần kiểm tra: " + date.ifBlank { "(trống)" }
 }
 
 data class SatoriSnapshot(
