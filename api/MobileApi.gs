@@ -100,8 +100,12 @@ function handle(e){
        typeof state.values.satori_orders_v15==='string','INVALID_STATE',
        'Dữ liệu hóa đơn chưa sẵn sàng');
       if(action==='mobile.snapshot'){
+        var allowedActions=Object.keys(ACTION_SCOPES).filter(function(a){
+          return verified.owner||verified.scopes.includes(ACTION_SCOPES[a]);
+        });
         return json({ok:true,action:action,revision:state.revision,
          data:{revision:state.revision,updatedAt:state.updatedAt,
+          allowedActions:allowedActions,
           values:{satori_orders_v15:state.values.satori_orders_v15,
            satori_catalogue_v15:state.values.satori_catalogue_v15||'[]'}}});
       }
