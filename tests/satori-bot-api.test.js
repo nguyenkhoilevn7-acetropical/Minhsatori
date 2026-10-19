@@ -121,6 +121,15 @@ issuer.aud='android-test-client-id';
 issuer.email='attacker@example.com';
 assert.equal(mobile('mobile.snapshot').error.code,'FORBIDDEN');
 issuer.email='owner@example.com';
+// A staff account granted only read scope cannot change or inspect deleted invoices.
+props.SATORI_ANDROID_STAFF_PERMISSIONS_JSON=JSON.stringify({
+ 'staff@example.com':['orders:read']
+});
+issuer.email='staff@example.com';
+assert.equal(mobile('mobile.snapshot').ok,true);
+assert.equal(mobile('mobile.snapshot').data.allowedActions.includes('orders.create'),false);
+assert.equal(mobile('mobile.trash').error.code,'FORBIDDEN');
+issuer.email='owner@example.com';
 const createdMobile=mobile('orders.create',{expectedRevision:20,requestId:'phone-order-001',
   confirmedNewCustomer:true,order:{name:'Android Test Customer',location:'Cát Lái 101',phone:'0909988999',
   items:[{product:'Satori 350 ml',qty:2,unitPrice:65000}],
