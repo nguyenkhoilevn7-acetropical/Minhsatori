@@ -375,6 +375,9 @@ class NativeMainActivity : AppCompatActivity() {
         button(parent, "SỔ KẾ TOÁN · TRA CỨU (CHỈ XEM)") {
             showLedger(data)
         }
+        button(parent, "TRÍ NHỚ AI · " + data.customerMemory.size + " HỒ SƠ (CHỈ XEM)") {
+            showCustomerMemory(data)
+        }
         section(parent, "Kho hóa đơn · " + data.invoices.size,
             data.activeCount.toString() + " bản ghi tính doanh thu; các bản 'Không Tính' " +
                 "không cộng trùng.")
@@ -387,6 +390,85 @@ class NativeMainActivity : AppCompatActivity() {
                 invoice.displayDate + " · " + SatoriData.money(invoice.total) + " · " +
                     invoice.status) { openInvoice(invoice) }
         }
+    }
+
+    // AI memory comes only from the current verified snapshot. File picker
+    // shows the user's selected local copy; server mode enforces customers:read.
+    // This native view never trains, edits or overwrites memory on Drive.
+    private fun showCustomerMemory(data: SatoriSnapshot) {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(10), dp(14), dp(12))
+        }
+        label(panel, "TRÍ NHỚ AI · Revision " + data.revision, 14f, true, teal)
+        label(panel, "Chỉ xem hồ sơ và các điểm giao đã đồng bộ. " +
+            "Không tự thay đổi địa chỉ hoặc chiết khấu khách hàng.",
+            12f, false, muted, 5)
+        val search = EditText(this).apply {
+            hint = "Tên khách, tên người nhận, điện thoại, địa chỉ…"
+            setSingleLine(true)
+            textSize = 13f
+        }
+        panel.addView(search, LinearLayout.LayoutParams(-1, dp(48)))
+        val scroll = ScrollView(this)
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(results)
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, dp(460)))
+        fun refresh() {
+            results.removeAllViews()
+            val q = SatoriData.normalized(search.text.toString())
+            val matches = data.customerMemory.filter { memory ->
+                val searchable = listOf(
+                    memory.name, memory.defaultPhone, memory.defaultLocation,
+                    memory.preferredProduct, memory.aliases.joinToString(" "),
+                    memory.receivers.joinToString(" ") { r ->
+                        r.name + " " + r.phone + " " + r.location
+                    }
+                ).joinToString(" ")
+                q.isBlank() || SatoriData.normalized(searchable).contains(q)
+            }
+            label(results, matches.size.toString() + " hồ sơ", 12f, true, teal, 8)
+            if (data.customerMemory.isEmpty()) label(results,
+                "Nguồn hiện tại không cung cấp Trí nhớ AI. Kiểm tra quyền " +
+                    "customers:read và đồng bộ lại, không dùng bộ nhớ mặc định giả.",
+                12f, false, gold, 10)
+            else matches.take(120).forEach { memory ->
+                val discount = memory.discountPercent?.let {
+                    " · CK " + String.format(java.util.Locale("vi", "VN"), "%.1f%%", it)
+                }.orEmpty()
+                section(results, memory.name + discount,
+                    "Điện thoại: " + memory.defaultPhone +
+                        "\nĐịa chỉ thường dùng: " + memory.defaultLocation +
+                        "\nSố điểm giao: " + memory.receivers.size +
+                        " · Đơn đã học: " + memory.orderCount +
+                        (if (memory.preferredProduct.isBlank()) "" else
+                            "\nSản phẩm thường mua: " + memory.preferredProduct)) {
+                    val points = if (memory.receivers.isEmpty())
+                        "Chưa lưu điểm giao riêng." else memory.receivers.joinToString("\n\n") {
+                            (if (it.name.isBlank()) "Người nhận" else it.name) +
+                                " · " + it.phone + "\n" + it.location
+                        }
+                    AlertDialog.Builder(this)
+                        .setTitle(memory.name + " · Các điểm giao")
+                        .setMessage(points)
+                        .setPositiveButton("Đóng", null)
+                        .show()
+                }
+            }
+            if (matches.size > 120) label(results,
+                "Hiển thị 120 hồ sơ đầu tiên; nhập từ khóa để thu hẹp.",
+                11f, false, muted, 8)
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                refresh()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        refresh()
+        AlertDialog.Builder(this).setTitle("TRÍ NHỚ KHÁCH HÀNG")
+            .setView(panel).setPositiveButton("Đóng", null).show()
     }
 
     // Website-parity milestone: browse the actual current catalogue from the
