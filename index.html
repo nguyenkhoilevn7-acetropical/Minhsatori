@@ -3920,6 +3920,12 @@
                 ...Acct.formMeta(),
                 ...Acct.paymentMeta(),
                 duplicatedFromInvoiceNo: duplicateSourceInvoice,
+                // Bot submits through the same existing save handler. Keep delivery metadata only for bot orders.
+                ...(window.__satoriBotSaveMeta ? {
+                    deliveryDate: window.__satoriBotSaveMeta.deliveryDate,
+                    botRequestId: window.__satoriBotSaveMeta.requestId,
+                    botSourceMessage: String(window.__satoriBotSaveMeta.sourceMessage || '').slice(0, 3000)
+                } : {}),
                 id: Date.now(),
                 date: saveDate || '12/10/2026',
                 name: document.getElementById('busName').value || 'Khách vãng lai',
@@ -8682,6 +8688,7 @@ window.SatoriRecon = (() => {
  header.addEventListener('focusin',()=>header.classList.remove('header-scroll-hidden'));
 })();
 </script>
+    <script src="satori-bot-live.js?v=20261019" defer></script>
 </body>
 </html>
 
