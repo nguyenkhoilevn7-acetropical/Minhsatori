@@ -782,18 +782,22 @@ class NativeMainActivity : AppCompatActivity() {
 
     private fun connectGoogle() {
         if (isLoading) return
+        // The secured Mobile API only needs verified email identity.
+        // Avoid requesting restricted Drive access when the server reads Drive.
+        // Read-only Drive mode still asks for drive.readonly when no API is configured.
+        val scopes = mutableListOf(Scope("https://www.googleapis.com/auth/userinfo.email"))
+        if (apiEndpoint == null) {
+            scopes.add(Scope("https://www.googleapis.com/auth/drive.readonly"))
+        }
         val request = AuthorizationRequest.builder()
-            .setRequestedScopes(listOf(
-                Scope("https://www.googleapis.com/auth/userinfo.email"),
-                Scope("https://www.googleapis.com/auth/drive.readonly")
-            ))
+            .setRequestedScopes(scopes)
             .build()
-        statusMessage = "Đang đăng nhập Google để xác thực chủ tài khoản Minh Satori."
+        statusMessage = "Đang xác thực tài khoản Google được cấp quyền Minh Satori."
         render()
         Identity.getAuthorizationClient(this).authorize(request)
             .addOnSuccessListener { applyAuthorization(it) }
             .addOnFailureListener {
-                statusMessage = "Không thể cấp quyền Drive. Kiểm tra tài khoản Google " +
+                statusMessage = "Không thể cấp quyền Google. Kiểm tra tài khoản " +
                     "và quyền ứng dụng trên điện thoại."
                 render()
             }
