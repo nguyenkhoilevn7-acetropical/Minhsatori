@@ -56,7 +56,7 @@ object NativeOrderEditor {
         }
         p.addView(b,LinearLayout.LayoutParams(-1,dp(a,45)).apply{topMargin=dp(a,8)})
     }
-    private fun amount(s:String)=s.filter{it.isDigit()}.toLongOrNull()?:0L
+    private fun amount(s:String)=SatoriOrderValidation.amount(s)
     private data class Row(
         val view:LinearLayout,val name:EditText,val qty:EditText,val unit:EditText,
         val price:EditText,val listPrice:EditText,var code:String
@@ -113,10 +113,21 @@ object NativeOrderEditor {
         val total=title(a,page,"Tổng tiền: 0 đ",18f)
         var ship:EditText?=null
         var tax:EditText?=null
-        fun totalGoods():Long=rows.sumOf{amount(it.qty.text.toString())*
-            amount(it.price.text.toString())}
-        fun recalc(){total.text="TỔNG: "+SatoriData.money(totalGoods()+
-            amount(ship?.text?.toString().orEmpty())+amount(tax?.text?.toString().orEmpty()))}
+        fun totalGoods():Long=rows.fold(0L){acc,row->
+            SatoriOrderValidation.sum(acc,SatoriOrderValidation.lineAmount(
+                amount(row.qty.text.toString()),amount(row.price.text.toString())))
+        }
+        fun recalc(){
+            val result=runCatching{
+                SatoriOrderValidation.sum(totalGoods(),
+                    amount(ship?.text?.toString().orEmpty()),
+                    amount(tax?.text?.toString().orEmpty()))
+            }
+            total.text=result.fold(
+                onSuccess={"TỔNG: "+SatoriData.money(it)},
+                onFailure={"TỔNG: — (kiểm tra số lượng và đơn giá)"}
+            )
+        }
         fun watcher(e:EditText){
             e.addTextChangedListener(object:TextWatcher{
                 override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}
@@ -201,17 +212,13 @@ object NativeOrderEditor {
                         goods<=100000000000L&&goods+shipping+vat<=100000000000L){
                         "Tổng tiền vượt giới hạn."
                     }
-                    val sum=goods+shipping+vat
-                    val dateText=deliveryDate.text.toString().trim()
-                    require(dateText.isBlank() ||
-                        Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(dateText)){
-                        "Ngày giao phải theo định dạng YYYY-MM-DD."
-                    }
+                    val sum=SatoriOrderValidation.sum(goods,shipping,vat)
+                    val dateText=SatoriOrderValidation.validDeliveryDate(deliveryDate.text.toString())
                     val order=JSONObject().put("name",cleanName).put("phone",cleanPhone)
                         .put("location",cleanAddress).put("items",lines)
                         .put("shippingAmount",shipping).put("vatAmount",vat)
                         .put("total",sum).put("deliveryNote",note.text.toString().trim())
-                        .put("deliveryDate",deliveryDate.text.toString().trim())
+                        .put("deliveryDate",dateText)
                     val payload=JSONObject().put("expectedRevision",state.revision)
                         .put("requestId",requestId).put("order",order)
                     if(editing!=null){
@@ -246,7 +253,7 @@ object NativeOrderEditor {
                         val line=lines.getJSONObject(i)
                         preview.append("\n").append(line.getString("product")).append(" × ")
                             .append(line.getInt("qty")).append(" = ")
-                            .append(SatoriData.money(line.getLong("qty")*line.getLong("unitPrice")))
+                            .append(SatoriData.money(SatoriOrderValidation.lineAmount(line.getLong("qty"),line.getLong("unitPrice"))))
                     }
                     preview.append("\nTiền hàng: ").append(SatoriData.money(goods))
                         .append("\nPhí giao: ").append(SatoriData.money(shipping))
