@@ -101,3 +101,10 @@ Detailed handoff: [android/RESUME_HANDOFF_2026-10-19.md](android/RESUME_HANDOFF_
 - Verified tests/build success **does not validate Samsung Google OAuth**, Apps Script staging deployment, mobile write authorization or full website parity.
 - Already implemented and unit-tested: improved PDF, tighter totals, read-only Drive foreground sync candidate, website-styled brand header, read-only catalogue/ledger/customer memory, exact bill search, role-scoped memory API source. Owner should not be asked to reinstall for a partial stage.
 - Immediate next focus: entire website accounting/partner matching and Excel comparison, Android staging OAuth/API; preserve production and keep development branch isolated.
+
+
+## Verified reconciliation CI checkpoint — 2026-10-20 00:01 ICT
+- GitHub Actions [run 39290118377](https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39290118377) for commit `ba5d1329a9e7b030f8c05f6cbfa995a79273187e`: **completed/success**. Conservative matching now rejects two revenue-counted views, two excluded views, and equal-price pairs instead of falsely selecting a delivery.
+- GitHub Actions [run 39290144851](https://github.com/nguyenkhoilevn7-acetropical/Minhsatori/actions/runs/39290144851) for commit `9b03a9083012e79e24d3b61c598500e84e60652e`: **completed/success**. Regression tests for the above ambiguous states ran through the Android unit-test/APK workflow.
+- Source work is on Android development branch only. This does **not** establish on-device final acceptance, full Satori Excel reconciliation, staged OAuth/write security, or complete website UI parity. Do not treat a successful debug APK build as a production release.
+- NEXT: add the **separate** Satori supplier Excel/PDF reconciliation flow; validate spreadsheet line grouping, dates/addresses/order matching and amount reconciliation using controlled fixtures. Continue Mobile API staging and OAuth permissions before any write. Keep website/main and live invoice JSON unchanged. No owner install until consolidated near-final acceptance.
