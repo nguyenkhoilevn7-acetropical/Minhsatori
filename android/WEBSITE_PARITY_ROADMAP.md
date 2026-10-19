@@ -21,9 +21,9 @@ Updated 2026-10-19. Owner's explicit requirement: **Bring the full current Minh 
 |---|---|---|
 | Lên Đơn / order composer | Native editor coded, gated | Match website full form, item list, price overrides, discounts, delivery fee/VAT, notes, review-before-save; test only staging writes |
 | Kho HĐ / invoices | Native invoice search/detail coded and owner read 113 invoices on Samsung | Website-like archive, status transitions, PDF, filtered views, restored/trash checks |
-| Sổ Kế Toán / accounting | Summary/debts exists | Full website ledger/reports/reconciliation and matching calculations |
+| Sổ Kế Toán / accounting | Added searchable **read-only** ledger with paid/unpaid/excluded summary and status filters; new unit test on dev branch (CI pending) | Full website profit/partner transactions, imports, reports, duplicate-pair reconciliation, staging permissions and signed APK tests |
 | Đối Chiếu Satori | Not yet present as equivalent top-level Android workflow | Bring complete compare/import/flags and results, test with synthetic Excel/PDF and no production mutations |
-| Trí Nhớ AI | Not yet present as equivalent top-level Android workflow | Carry across existing customer/memory UI and permissions; preserve website behavior |
+| Trí Nhớ AI | Added searchable **read-only** native customer memory and delivery-recipient viewer from synced memory; tests pending CI. Mobile API staging returns memory only to owner or staff with customers:read | Match full website AI training/edit behavior through safe authenticated API; UI/device acceptance |
 | Bảng Giá / catalogue | Basic product parsing exists | Full website catalogue, pricing, editing controls behind validated server permissions |
 | Khách hàng / Công nợ | Read-only native grouping and debts | Match website grouping, duplicate price-views exclusion, settlement/payment distinction and transaction filters |
 | Hóa đơn PDF / Zalo / Messenger | v0.3.1 PDF owner visually approved; Android sharesheet coded | Verify line-by-line totals, 8 cols, QR fallback, multi-page, share recipient on Samsung; tighter totals layout pending final build |
@@ -44,3 +44,9 @@ Updated 2026-10-19. Owner's explicit requirement: **Bring the full current Minh 
 - `2d566709c9a2a4d6811458e0baf67ddaa2a4219a`: tighter PDF financial summary block, owner-requested.
 - `a8cb96c2a3147485c141ffbb9db42bd7239b9ac9`: Google Drive read-only authorization entry and foreground refresh candidate (requires CI, valid OAuth and device tests).
 - Do not claim full parity or 100% completion while missing capabilities remain. No edits to production invoice data.
+
+## 2026-10-19 additional native parity commits
+- `cccb64689b705583b68e9847fc1ec4688fbdc1fb` + `d0e96bede9a3b5314892f26b696ee03a090cc906` + `8fc367ffdebbc9506b0d9407f163ea41727f1848`: native ledger formulas, searchable UI and regression tests; **read-only, not full financial parity**.
+- `a2e0b2ee8a8cbd95afa20fc16977e04ec24ad4a0` corrected by `3325f2058c28ebc8e827dc78a9291f5c48aaa010` + `285c5b2567c2d8b5ae9a9c8c925cf48b6de127b8`: exact short-number/#/HD invoice lookup to prevent accidental phone/address substring matches; source regex corrected and regression tests added.
+- `d8a23121416f8bd6de3191c13268c9f99941f3f5` + `7c0c7390abba87a880bb25dd52a58e7011f4703b` + `8ac7223d621cefadb50a4f4433690826a38fa21c` + `6b8a995dc3d587bc98d90cd91ba68b2644a5a6e8`: read-only memory model/UI; server staging role guard for customers:read; JUnit fixture with distinct receiver locations. **Server source is un-deployed.**
+- All new Android CI runs were queued or in_progress when checked; do not claim a finished new APK. Do not ask the owner to test these piecemeal. Production Drive and website unmodified.
