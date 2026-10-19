@@ -48,12 +48,12 @@ jobs:
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee /tmp/satori-apk-badging.txt
-          grep -F "package: name='vn.minhsatori.app' versionCode='7' versionName='0.3.0'" /tmp/satori-apk-badging.txt
+          grep -F "package: name='vn.minhsatori.app' versionCode='8' versionName='0.3.1'" /tmp/satori-apk-badging.txt
           sha256sum "$APK"
       - name: Upload debug APK (trial only)
         uses: actions/upload-artifact@v4
         with:
-          name: MinhSatori-Samsung-Native-v0.3.0-debug
+          name: MinhSatori-Samsung-Native-v0.3.1-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
