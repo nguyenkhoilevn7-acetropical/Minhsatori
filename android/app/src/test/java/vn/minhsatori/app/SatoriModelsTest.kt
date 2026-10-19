@@ -152,6 +152,40 @@ class SatoriModelsTest {
     }
 
     @Test
+    fun memoryReadsMultipleRecipientsWithoutModifyingDriveSource() {
+        val receiverA = JSONObject().put("name", "Người nhận A")
+            .put("phone", "0900111222").put("location", "Quận 1")
+        val receiverB = JSONObject().put("name", "Người nhận B")
+            .put("phone", "0900333444").put("location", "Quận 2")
+        val memory = JSONObject().put("id", "cust_test")
+            .put("name", "Khách nhiều chi nhánh")
+            .put("aliases", JSONArray().put("Khách cũ"))
+            .put("receivers", JSONArray().put(receiverA).put(receiverB))
+            .put("defaultPhone", "0900111222")
+            .put("defaultLocation", "Quận 1")
+            .put("discountPercent", 35.0)
+            .put("preferredProduct", "Nước Satori 350ml")
+            .put("orderCount", 7)
+        val values = JSONObject().put("satori_orders_v15", "[]")
+            .put("satori_ai_customer_memory", JSONArray().put(memory).toString())
+        val root = JSONObject().put("revision", 105).put("values", values)
+        val raw = root.toString()
+        val parsed = SatoriData.fromDriveState(raw)
+        assertEquals(1, parsed.customerMemory.size)
+        val cust = parsed.customerMemory.single()
+        assertEquals("Khách nhiều chi nhánh", cust.name)
+        assertEquals(2, cust.receivers.size)
+        assertEquals("Quận 1", cust.receivers[0].location)
+        assertEquals("Quận 2", cust.receivers[1].location)
+        assertEquals("Khách cũ", cust.aliases.single())
+        assertEquals(35.0, cust.discountPercent!!, 0.00001)
+        assertEquals(raw, root.toString())
+        val withoutMemory = JSONObject().put("revision", 106).put("values",
+            JSONObject().put("satori_orders_v15", "[]"))
+        assertTrue(SatoriData.fromDriveState(withoutMemory.toString()).customerMemory.isEmpty())
+    }
+
+    @Test
     fun catalogueUsesDrivePricesAndExplicitDiscountWithoutChangingSource() {
         val products = JSONArray()
             .put(JSONObject().put("code", "TP-00001")
