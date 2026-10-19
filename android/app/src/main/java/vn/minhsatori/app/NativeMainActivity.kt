@@ -224,33 +224,32 @@ class NativeMainActivity : AppCompatActivity() {
             else -> renderNewOrderInfo(content)
         }
 
-        val horizontal = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            setBackgroundColor(white)
-        }
+        // Always display all five tabs without horizontal scrolling.
         val tabs = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(8), dp(6), dp(8), dp(6))
+            setBackgroundColor(white)
+            setPadding(dp(4), dp(5), dp(4), dp(5))
         }
-        listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn").forEachIndexed { i, name ->
+        listOf("Tổng quan", "Hóa đơn", "Khách", "Công nợ", "Lên đơn").forEachIndexed { i, name ->
             val chip = TextView(this).apply {
                 text = name
-                textSize = 13f
+                textSize = 11f
                 gravity = Gravity.CENTER
-                setPadding(dp(12), dp(12), dp(12), dp(12))
+                maxLines = 2
+                setPadding(dp(2), dp(8), dp(2), dp(8))
                 setTextColor(if (activeTab == i) white else teal)
                 background = background(if (activeTab == i) teal else white, 10)
                 isClickable = true
                 isFocusable = true
+                contentDescription = "Mở mục " + name
                 setOnClickListener {
                     activeTab = i
                     render()
                 }
             }
-            tabs.addView(chip)
+            tabs.addView(chip, LinearLayout.LayoutParams(0, dp(48), 1f))
         }
-        horizontal.addView(tabs)
-        shell.addView(horizontal)
+        shell.addView(tabs)
     }
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
