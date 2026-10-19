@@ -202,6 +202,29 @@ class SatoriModelsTest {
     }
 
     @Test
+    fun searchExactShortInvoiceAndPrefixedIdNeverMatchesPhoneDigits() {
+        val invoices = JSONArray()
+            .put(JSONObject().put("invoiceNo", 9).put("name", "Khách A")
+                .put("phone", "0903 999 999").put("location", "Số 5914"))
+            .put(JSONObject().put("invoiceNo", 5914).put("name", "Hà Minh Nguyệt")
+                .put("phone", "0903 5914 000").put("location", "Số 9"))
+            .put(JSONObject().put("invoiceNo", 5918).put("name", "Hà Minh Nguyệt")
+                .put("phone", "0903 5914 000").put("location", "Số 10"))
+        val root = JSONObject().put("revision", 2).put("values",
+            JSONObject().put("satori_orders_v15", invoices.toString()))
+        val rows = SatoriData.fromDriveState(root.toString()).invoices
+        assertEquals(listOf("9"), rows.filter { SatoriData.search(it, "#9") }
+            .map { it.number })
+        assertEquals(listOf("5914"), rows.filter { SatoriData.search(it, "5914") }
+            .map { it.number })
+        assertEquals(listOf("5914"), rows.filter { SatoriData.search(it, "hóa đơn #5914") }
+            .map { it.number })
+        assertEquals(listOf("5918"), rows.filter { SatoriData.search(it, "HD 5918") }
+            .map { it.number })
+        assertEquals(2, rows.count { SatoriData.search(it, "Hà Minh Nguyệt") })
+    }
+
+    @Test
     fun findsFormattedPhoneByUnformattedDigitsWithoutLooseShortMatches() {
         val data = JSONObject().put("revision", 1).put("values",
             JSONObject().put("satori_orders_v15", JSONArray()
