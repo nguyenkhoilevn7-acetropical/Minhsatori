@@ -57,12 +57,17 @@ data class SatoriInvoice(
     // Keep source dates untouched, but never sort impossible dates as recent orders.
     // Malformed dates are preserved for manual review instead of being guessed.
     val sortDate: String get() {
-        val match = Regex("""^(\d{1,2})/(\d{1,2})/(\d{4})$""")
-            .matchEntire(date.trim()) ?: return "00000000"
-        val (day, month, year) = match.destructured
+        val raw = date.trim()
+        val match = Regex("""^(\d{1,2})/(\d{1,2})/(\d{4})$""").matchEntire(raw)
         return try {
-            java.time.LocalDate.of(year.toInt(), month.toInt(), day.toInt())
-                .toString().replace("-", "")
+            val parsed = if (match == null) {
+                // The old UI also accepted ISO yyyy-MM-dd strings.
+                java.time.LocalDate.parse(raw)
+            } else {
+                val (day, month, year) = match.destructured
+                java.time.LocalDate.of(year.toInt(), month.toInt(), day.toInt())
+            }
+            parsed.toString().replace("-", "")
         } catch (_: java.time.DateTimeException) {
             "00000000"
         }
