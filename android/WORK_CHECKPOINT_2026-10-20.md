@@ -25,3 +25,11 @@ Release pipeline now verifies the pinned public certificate SHA-256, rejects deb
 - Manual release workflow must be available through an authorized workflow entry before dispatch; do not merge main solely to activate it without the owner's production safeguards.
 
 Next: verify development CI, authenticate GitHub administration, establish durable signing custody and register matching Android OAuth identity in Google Cloud, deploy isolated Mobile API sandbox and test all writes/recovery. Request production approval only after backups, revision/count and staging evidence are complete.
+
+## Follow-up after owner login and CLI approval
+
+- Owner successfully signed into GitHub browser; repository Actions Secrets UI explicitly shows no repository secrets. Owner approved GitHub CLI default scopes and reported completing device authorization from their phone.
+- CLI still cannot complete login: Work execution policy blocks `https://api.github.com:443`. No CLI credential file was saved; `gh auth status` reports no logged-in hosts. Do not ask the owner to repeat authorization to fix an execution-network restriction. Source connector remains usable; it does not expose Secrets administration.
+- Apps Script project listing is accessible and signed in. Identified live project `Minh Satori Drive Sync`; no project code, properties, deployments or invoice data changed. Google Cloud credentials page remains unavailable after one reload.
+- Found an actual write-recovery flaw: `COMMIT_UNVERIFIED` is raised AFTER Drive setContent; generic `ERROR` and `INVALID_STATE` can also follow a commit. Native app now treats every server error except a limited known-before-commit rejection list as uncertain, uses authoritative snapshot recovery and retains the existing write lock if outcome remains unknown. Four Android regression tests cover post-commit errors, replay/unknown errors, lost replies and definite rejections. This does not yet provide a durable encrypted outbox across process death; that remains a release limitation requiring further work and device tests.
+- Previous commit `2d34b1a` Android CI `39350834844` and API CI `39350834823` PASS. New Android write-recovery tests require CI verification for the follow-up commit.

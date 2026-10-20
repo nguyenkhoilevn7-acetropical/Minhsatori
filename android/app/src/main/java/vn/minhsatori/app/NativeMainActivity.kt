@@ -1173,8 +1173,11 @@ class NativeMainActivity : AppCompatActivity() {
             // A timeout is not proof that the server rejected the write.
             // Read the authoritative ledger and find the same durable
             // requestId instead of sending a second write.
-            val uncertainTransport = writeResult.isFailure &&
-                writeResult.exceptionOrNull() !is MobileApiError
+            // COMMIT_UNVERIFIED and generic server exceptions can occur AFTER
+            // file.setContent succeeds. Treat these just like a lost reply.
+            val uncertainTransport = writeResult.exceptionOrNull()?.let {
+                MobileWriteOutcome.requiresReconciliation(it)
+            } ?: false
             val canVerifyFromSnapshot = (requestId.isNotBlank() &&
                 action in setOf("orders.create", "orders.update", "orders.restore")) ||
                 action == "payments.markCustomerPaid"
