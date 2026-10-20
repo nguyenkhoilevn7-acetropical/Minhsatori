@@ -1172,11 +1172,13 @@ class NativeMainActivity : AppCompatActivity() {
             // A timeout is not proof that the server rejected the write.
             // Read the authoritative ledger and find the same durable
             // requestId instead of sending a second write.
-            val recovery = if (writeResult.isFailure &&
-                writeResult.exceptionOrNull() !is MobileApiError &&
-                requestId.isNotBlank() &&
-                action in setOf("orders.create", "orders.update", "orders.restore")
-            ) runCatching { MobileApiClient.snapshot(endpoint, token) } else null
+            val uncertainTransport = writeResult.isFailure &&
+                writeResult.exceptionOrNull() !is MobileApiError
+            val canVerifyFromSnapshot = (requestId.isNotBlank() &&
+                action in setOf("orders.create", "orders.update", "orders.restore")) ||
+                action == "payments.markCustomerPaid"
+            val recovery = if (uncertainTransport && canVerifyFromSnapshot)
+                runCatching { MobileApiClient.snapshot(endpoint, token) } else null
             runOnUiThread {
                 isLoading = false
                 writeResult.fold(
@@ -1203,6 +1205,12 @@ class NativeMainActivity : AppCompatActivity() {
                     onFailure = { e ->
                         val recovered = recovery?.getOrNull()
                         val committed = recovered?.snapshot?.confirmedWrite(action, requestId)
+                        val confirmedPaid = if (action == "payments.markCustomerPaid") {
+                            recovered?.snapshot?.confirmedCustomerPayment(
+                                payload.optString("invoiceNo"),
+                                payload.optLong("amount", -1L)
+                            )
+                        } else null
                         if (recovered != null) {
                             snapshot = recovered.snapshot
                             allowedActions = recovered.allowedActions
@@ -1215,16 +1223,24 @@ class NativeMainActivity : AppCompatActivity() {
                             statusMessage = info
                             Toast.makeText(this, info, Toast.LENGTH_LONG).show()
                             completed(true, info)
+                        } else if (confirmedPaid != null) {
+                            val info = "Đã đối chiếu hóa đơn #" + confirmedPaid.number +
+                                ": trạng thái khách thanh toán đã được lưu. Không ghi lần nữa."
+                            statusMessage = info
+                            Toast.makeText(this, info, Toast.LENGTH_LONG).show()
+                            completed(true, info)
                         } else {
                             val info = (e.message ?: "Không rõ lỗi")
-                            // If confirmation is missing, disable further writes until
-                            // the next successful authoritative server refresh.
-                            if (recovered == null && e !is MobileApiError) {
+                            // A later write may still commit AFTER the recovery snapshot
+                            // was read. Even a successful refresh without an exact match
+                            // does NOT prove that the operation failed.
+                            if (uncertainTransport) {
                                 snapshot = null
                                 allowedActions = emptySet()
                                 dataSource = ""
-                                statusMessage = "Chưa xác minh được đã lưu đơn. Hãy đồng bộ lại " +
-                                    "trước khi tiếp tục; không tạo lại đơn với mã mới."
+                                statusMessage = "Chưa xác minh được kết quả thao tác. " +
+                                    "Tạm khóa ghi để tránh trùng đơn/thanh toán; hãy kiểm tra " +
+                                    "hóa đơn trên hệ thống và đồng bộ lại trước khi tiếp tục."
                             } else {
                                 statusMessage = "Không thể hoàn tất yêu cầu: " + info
                             }
