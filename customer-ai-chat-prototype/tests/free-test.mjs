@@ -1,4 +1,4 @@
-/* Offline free-mode end-to-end tests: no real Cloudflare/OpenAI requests or production data. */
+/* Offline free-mode end-to-end tests: no real Gemini API requests or production data. */
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {mkdtempSync,rmSync} from 'node:fs';
@@ -7,7 +7,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const dir=path.dirname(fileURLToPath(import.meta.url)),root=path.dirname(dir),data=mkdtempSync(path.join(tmpdir(),'ms-free-test-'));
 const port=25000+Math.floor(Math.random()*1000),base='http://127.0.0.1:'+port;
-const proc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(port),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:data,OPENAI_API_KEY:'UNUSED_IN_FREE_MODE',CLOUDFLARE_ACCOUNT_ID:'',CLOUDFLARE_API_TOKEN:''},stdio:['ignore','pipe','pipe']});
+const proc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(port),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:data,GEMINI_API_KEY:'',GEMINI_FREE_TIER_ONLY:'false'},stdio:['ignore','pipe','pipe']});
 let output='';proc.stderr.on('data',b=>output+=String(b));proc.stdout.on('data',b=>output+=String(b));
 const sleep=t=>new Promise(r=>setTimeout(r,t));
 const get=async u=>{const r=await fetch(base+u);return {status:r.status,body:await r.json()}};
@@ -18,7 +18,7 @@ try {
  test(ready,'server starts');
  const health=await get('/health');
  test(health.body.rulesReady&&!health.body.aiConfigured,'no credentials required for free rules');
- test(health.body.aiProvider.includes('Cloudflare'),'free provider displayed');
+ test(health.body.aiProvider.includes('Gemini'),'free provider displayed');
  const a=await get('/api/session?token=demo-a'),b=await get('/api/session?token=demo-b');
  test(a.body.profile.discount===20,'A discount 20%');test(b.body.profile.discount===35,'B discount 35%');
  test((await get('/api/session?token=unknown')).status===404,'unknown link blocked');
