@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer"><title>Minh Satori • Quản lý link khách thử</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#e9f1ff;background:#0b1325}
+*{box-sizing:border-box}body{margin:0;padding:14px}main{max-width:820px;margin:auto}
+header{display:flex;align-items:center;gap:10px;margin-bottom:18px}header a{color:#91caff;text-decoration:none}
+h1{font-size:23px;margin:8px 0}h2{font-size:19px;margin:0 0 10px}.card{background:#172844;border:1px solid #304765;border-radius:20px;padding:18px;margin:14px 0;box-shadow:0 9px 25px #0002}
+small,.hint{color:#b9cbe0;font-size:13px;line-height:1.5}.warning{padding:12px;border-radius:12px;background:#393019;border:1px solid #776027;color:#ffe29c}
+label{display:block;font-weight:600;font-size:13px;margin:12px 0 5px}
+input{background:#0e1c33;border:1px solid #42607f;border-radius:12px;padding:12px;color:#fff;width:100%;font:inherit}
+input:focus{outline:2px solid #8ac7fd}button{border:0;background:#1d96b4;color:#fff;border-radius:13px;padding:12px 16px;font-weight:700;min-height:45px;cursor:pointer}
+button.secondary{background:#25435e;border:1px solid #527391}button.danger{background:#76344a}button:disabled{opacity:.6;cursor:wait}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:120px}
+.customer{padding:15px 0;border-top:1px solid #314967}.customer strong{display:block}.customer .row>*{min-width:110px}
+.link{overflow-wrap:anywhere;font-size:13px;color:#c1f9e5;background:#0b1a2b;padding:11px;border-radius:9px;margin:12px 0}#result,#error{white-space:pre-wrap;overflow-wrap:anywhere}#error{color:#ffaaa8}#result{color:#abf0c9}
+[hidden]{display:none!important}@media(max-width:540px){.card{padding:14px}h1{font-size:20px}}
+</style></head><body><main>
+<header><a href="/c/demo-a">← Chat thử</a><strong>MINH SATORI • SANDBOX</strong></header>
+<h1>Quản lý link khách hàng</h1>
+<p class="warning"><b>Chỉ dùng thông tin GIẢ.</b> Đây là bản thử nghiệm trên Render Free, dữ liệu có thể mất sau khi dịch vụ khởi động lại. Chưa đồng bộ hoặc bảo vệ xác thực khách thật với website Minh Satori.</p>
+<section class="card"><h2>Đăng nhập quản trị thử</h2>
+<label for="access">Mã quản trị trên Render (không nằm trong đường link)</label><input id="access" type="password" autocomplete="off" placeholder="Nhập mã quản trị thử">
+<p class="hint">Mã chỉ giữ trong bộ nhớ trình duyệt khi trang đang mở, không lưu vào máy. Không gửi mã cho khách.</p>
+<button id="login">Mở quản lý</button> <span id="authState" class="hint"></span><p id="error" role="alert"></p></section>
+<div id="workspace" hidden>
+<section class="card"><h2>Tạo link riêng cho khách thử</h2><p class="hint">Mỗi link chỉ thuộc một hồ sơ. Thông tin khách và chiết khấu được kiểm tra ở máy chủ, không lấy từ tin nhắn AI.</p>
+<form id="create">
+<label for="name">Tên khách</label><input id="name" required minlength="2" maxlength="120" placeholder="Khách Demo C">
+<label for="phone">Số điện thoại thử</label><input id="phone" required maxlength="30" type="tel" placeholder="000 000 0003">
+<label for="address">Địa chỉ giao hàng thử</label><input id="address" required maxlength="300" placeholder="789 Đường Mẫu, TP.HCM">
+<div class="row"><div><label for="discount">Chiết khấu (%)</label><input id="discount" required type="number" min="0" max="70" step="1" value="20"></div><div><label for="ship">Phí giao hàng (%)</label><input id="ship" required type="number" min="0" max="30" step="1" value="8"></div></div>
+<p><button type="submit" id="createButton">+ Tạo link khách</button></p></form>
+<div id="result" role="status"></div><div id="newLink" hidden><p class="hint">Sao chép ngay link này để chia sẻ. Mất link thì tạo lại; link cũ sẽ hết hiệu lực.</p><div id="linkText" class="link"></div><button id="copyLink" type="button">Sao chép link để gửi Zalo</button></div>
+</section>
+<section class="card"><h2>Danh sách hồ sơ đã tạo</h2><p class="hint">Thu hồi link sẽ ngăn truy cập mới nhưng giữ lịch sử đơn thử. Đổi link sẽ vô hiệu hóa link cũ.</p><div id="list"></div></section>
+</div>
+</main><script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+let secret='',lastLink='';
+const clearError=()=>{$('error').textContent='';$('result').textContent=''};
+async function request(path,method='GET',payload){
+ const r=await fetch(path,{method,headers:{'Authorization':'Bearer '+secret,...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'});
+ const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.message||'Không thể kết nối quản trị');
+ return data;
+}
+const money=n=>Number(n).toLocaleString('vi-VN');
+async function load(){
+ const data=await request('/api/admin/customers');
+ const list=$('list');list.textContent='';
+ if(!data.customers.length){list.textContent='Chưa có hồ sơ mới. Tạo một khách GIẢ để kiểm thử.';return}
+ for(const c of data.customers){
+  const section=document.createElement('section');section.className='customer';
+  const title=document.createElement('strong');title.textContent=c.name+' • CK '+c.discount+'% • '+(c.enabled?'Link đang hoạt động':'Đã thu hồi');
+  const p=document.createElement('p');p.className='hint';p.textContent=c.phone+' • '+c.address+' • Vận chuyển '+c.ship+'%';
+  const row=document.createElement('div');row.className='row';
+  const rotate=document.createElement('button');rotate.className='secondary';rotate.textContent=c.enabled?'Đổi link':'Cấp lại link';
+  const revoke=document.createElement('button');revoke.className='danger';revoke.textContent='Thu hồi link';revoke.disabled=!c.enabled;
+  rotate.onclick=async()=>{if(!confirm('Đổi link sẽ khiến link cũ không còn sử dụng được. Tiếp tục?'))return;rotate.disabled=true;try{const d=await request('/api/admin/customers/'+encodeURIComponent(c.id)+'/rotate','POST');showNewLink(d.customerLink);await load()}catch(e){$('error').textContent=e.message}finally{rotate.disabled=false}};
+  revoke.onclick=async()=>{if(!confirm('Thu hồi link của '+c.name+'?'))return;revoke.disabled=true;try{await request('/api/admin/customers/'+encodeURIComponent(c.id)+'/revoke','POST');await load()}catch(e){$('error').textContent=e.message}finally{revoke.disabled=false}};
+  row.append(rotate,revoke);section.append(title,p,row);list.append(section);
+ }
+}
+function showNewLink(url){lastLink=url;$('newLink').hidden=false;$('linkText').textContent=url;$('result').textContent='Đã tạo link riêng. Nhớ lưu hoặc gửi cho khách THỬ.'}
+$('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
+ secret=code;$('login').disabled=true;try{await request('/api/admin/status');$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
+$('create').onsubmit=async e=>{e.preventDefault();clearError();
+ const b=$('createButton');b.disabled=true;
+ const payload={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),discount:Number($('discount').value),ship:Number($('ship').value)};
+ try{const data=await request('/api/admin/customers','POST',payload);showNewLink(data.customerLink);$('create').reset();await load()}catch(err){$('error').textContent=err.message}finally{b.disabled=false}};
+$('copyLink').onclick=async()=>{try{await navigator.clipboard.writeText(lastLink);$('result').textContent='Đã sao chép link để gửi cho khách thử.'}catch(e){$('result').textContent='Không tự sao chép được. Anh giữ lâu để chọn và sao chép link ở trên.'}};
+})();
+</script></body></html>
