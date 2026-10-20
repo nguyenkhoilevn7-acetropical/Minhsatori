@@ -17,8 +17,15 @@ try{
  let denied=await req('/api/admin/customers');ok(denied.status===401,'anonymous admin denied');
  const adminCheck=await req('/api/admin/status','GET',undefined,admin);ok(adminCheck.status===200&&adminCheck.data.ok,'base64 admin token survives pasted env whitespace');
  denied=await req('/api/admin/customers','POST',{name:'Fake Customer'});ok(denied.status===401,'anonymous create denied');
- const creation=await req('/api/admin/customers','POST',{name:'Khách Giả C',phone:'000 000 0003',address:'789 Đường Giả Lập, TP.HCM',discount:25,ship:8},admin);
+ const creation=await req('/api/admin/customers','POST',{name:'Khách Giả C',phone:'000 000 0003',address:'789 Đường Giả Lập, TP.HCM',discount:25,ship:8,vatRate:8},admin);
  ok(creation.status===201&&creation.data.ok,'admin can create sandbox customer');
+ ok(creation.data.customer.vatRate===8,'VAT option saved to sandbox profile');
+ const duplicate=await req('/api/admin/customers','POST',{name:'Khách Trùng',phone:'0000000003',address:'123 Đường Giả Lập',discount:20,ship:8,vatRate:0},admin);
+ ok(duplicate.status===409&&duplicate.data.error==='DUPLICATE_CUSTOMER','duplicate phone blocked');
+ const listed=await req('/api/admin/customers','GET',undefined,admin);
+ ok(listed.data.customers.length===1&&listed.data.customers[0].vatRate===8,'existing customer selector sees saved profile');
+ const badTax=await req('/api/admin/customers','POST',{name:'Khách Sai Thuế',phone:'000 000 0019',address:'123 Đường Giả Lập',discount:20,ship:8,vatRate:99},admin);
+ ok(badTax.status===400,'unapproved VAT rate rejected');
  const url=new URL(creation.data.customerLink),token=decodeURIComponent(url.pathname.split('/').at(-1));
  ok(token.length>=40&&!url.searchParams.has('phone'),'unguessable link contains no phone');
  const saved=readFileSync(path.join(temp,'customer-links-SANDBOX.json'),'utf8');
@@ -29,8 +36,11 @@ try{
  ok(empty.status===200&&empty.data.orders.length===0,'new customer has empty history');
  const message=await req('/api/message','POST',{token,message:'Cho tôi 10 thùng Satori 500ml'});
  ok(message.status===200&&message.data.quote?.discount===25,'private quote uses assigned discount');
+ ok(message.data.quote.vatRate===8&&message.data.quote.vatAmount===Math.round(message.data.quote.subtotal*.08),'VAT calculated after discount');
+ ok(message.data.quote.total===message.data.quote.subtotal+message.data.quote.shipping+message.data.quote.vatAmount,'total adds VAT once');
  const confirm=await req('/api/confirm','POST',{token,quoteId:message.data.quote.quoteId,requestId:'customer-c-test-123',deliveryNote:'Giao sau 3 giờ, gọi trước khi đến'});
  ok(confirm.status===200&&confirm.data.order?.ref,'created sandbox invoice');
+ ok(confirm.data.order.vatRate===8&&confirm.data.order.vatAmount===message.data.quote.vatAmount,'VAT persisted in confirmed order');
  const history=await req('/api/history?token='+encodeURIComponent(token));
  ok(history.data.count===1&&history.data.orders[0].ref===confirm.data.order.ref,'history includes only own invoice');
  ok(history.data.orders[0].deliveryNote==='Giao sau 3 giờ, gọi trước khi đến','notes visible in own history');
