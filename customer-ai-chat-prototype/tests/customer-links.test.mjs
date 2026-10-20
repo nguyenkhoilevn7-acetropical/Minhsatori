@@ -28,10 +28,11 @@ try{
  ok(empty.status===200&&empty.data.orders.length===0,'new customer has empty history');
  const message=await req('/api/message','POST',{token,message:'Cho tôi 10 thùng Satori 500ml'});
  ok(message.status===200&&message.data.quote?.discount===25,'private quote uses assigned discount');
- const confirm=await req('/api/confirm','POST',{token,quoteId:message.data.quote.quoteId,requestId:'customer-c-test-123'});
+ const confirm=await req('/api/confirm','POST',{token,quoteId:message.data.quote.quoteId,requestId:'customer-c-test-123',deliveryNote:'Giao sau 3 giờ, gọi trước khi đến'});
  ok(confirm.status===200&&confirm.data.order?.ref,'created sandbox invoice');
  const history=await req('/api/history?token='+encodeURIComponent(token));
  ok(history.data.count===1&&history.data.orders[0].ref===confirm.data.order.ref,'history includes only own invoice');
+ ok(history.data.orders[0].deliveryNote==='Giao sau 3 giờ, gọi trước khi đến','notes visible in own history');
  ok(!Number.isNaN(Date.parse(history.data.orders[0].createdAt)),'history includes exact order timestamp');
  const other=await req('/api/history?token=demo-a');
  ok(other.status===200&&other.data.count===0,'customer A cannot see customer C history');
