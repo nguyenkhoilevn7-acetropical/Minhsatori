@@ -1,7 +1,8 @@
-"""Minh Satori A4 PDF: visual parity with website invoice, but strictly TEST data only.
-NO real bank account and NO payment QR for sandbox.
+"""Minh Satori A4 PDF — invoice #5910-inspired layout, strictly non-payable sandbox.
+A unique per-bill QR records test order reference and total, NOT bank transfer instructions.
 """
 import sys, json, io, os, re, datetime
+import qrcode
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -82,15 +83,8 @@ def words(n):
     full=' '.join(parts)
     return full[0].upper()+full[1:]+' đồng chẵn'
 
-# Low-impact diagonal sandbox watermark
-c.saveState()
-c.translate(W/2,H/2)
-c.rotate(33)
-c.setFillColor(Color(.81,.85,.89,alpha=.22))
-c.setFont('MSVN-B',64)
-c.drawCentredString(0,0,'SANDBOX')
-c.restoreState()
-
+# The header and footer already identify this as a test. Avoid an intrusive watermark
+# across the customer/product sections of the reference invoice.
 left=37;rightedge=W-37
 logo_path=os.path.join(os.path.dirname(os.path.abspath(__file__)),'assets','logo-satori.jpg')
 if os.path.isfile(logo_path):
@@ -125,44 +119,93 @@ if o.get('deliveryNote'):
 y=wrapped(left,y,'Mã số thuế: Không có',510,8.1)
 top=min(y-20,H-224)
 
-# Product table, website columns
-widths=[25,190,39,27,72,36,70,62]
+# A4 product grid. Fit every money value into its own cell; never clip the last digit.
+# Column sum is exactly the printable A4 width (521 points).
+widths=[24,178,40,27,69,38,74,71]
 xs=[left]
-for w in widths:xs.append(xs[-1]+w)
+for w in widths: xs.append(xs[-1]+w)
+assert sum(widths)==521 and xs[-1]<=rightedge
 headers=['STT','Tên sản phẩm','ĐVT','SL','Giá niêm yết','CK (%)','Đơn giá','Thành tiền']
-rowh=29
-c.setFillColor(C_BLUE);c.rect(left,top-rowh,sum(widths),rowh,stroke=0,fill=1)
-for i,lab in enumerate(headers):
-    x1,x2=xs[i],xs[i+1]
-    c.setFont('MSVN-B',6.55)
-    c.setFillColor(HexColor('#FFFFFF'))
-    c.drawCentredString((x1+x2)/2,top-18,lab)
-c.setStrokeColor(C_BORDER);c.setLineWidth(.55)
 rows=o.get('items') if isinstance(o.get('items'),list) and o.get('items') else [o]
 if len(rows)>6: raise SystemExit('Too many product rows for sandbox PDF')
-table_bottom=top-rowh*(len(rows)+1)
+def fit_right(x,y,value,available,size=7,min_size=5.1,bold=False):
+    value=str(value)
+    face='MSVN-B' if bold else 'MSVN'
+    while size>min_size and pdfmetrics.stringWidth(value,face,size)>available:
+        size-=0.2
+    if pdfmetrics.stringWidth(value,face,size)>available:
+        raise ValueError('Numeric product cell exceeds maximum width')
+    right(x,y,value,size,bold)
+def fit_center(cx,y,value,available,size=7,min_size=5):
+    value=str(value)
+    while size>min_size and pdfmetrics.stringWidth(value,'MSVN-B',size)>available:
+        size-=0.2
+    if pdfmetrics.stringWidth(value,'MSVN-B',size)>available:
+        raise ValueError('Table header or product cell exceeds maximum width')
+    c.setFont('MSVN-B',size)
+    c.setFillColor(C_DARK)
+    c.drawCentredString(cx,y,value)
+names=[simpleSplit(str(item.get('product','')),'MSVN',7.1,widths[1]-10) or [''] for item in rows]
+row_heights=[max(29,12+11*len(lines)) for lines in names]
+rowh=29
+table_bottom=top-rowh-sum(row_heights)
+if table_bottom<100: raise SystemExit('Product table too tall for A4')
+c.setFillColor(C_BLUE)
+c.rect(left,top-rowh,sum(widths),rowh,stroke=0,fill=1)
+for i,lab in enumerate(headers):
+    face='MSVN-B';size=6.45
+    while size>5 and pdfmetrics.stringWidth(lab,face,size)>widths[i]-5: size-=0.15
+    c.setFont(face,size)
+    c.setFillColor(HexColor('#FFFFFF'))
+    c.drawCentredString((xs[i]+xs[i+1])/2,top-18,lab)
+c.setStrokeColor(C_BORDER);c.setLineWidth(.55)
 for x in xs:c.line(x,table_bottom,x,top)
 c.line(left,top-rowh,rightedge,top-rowh)
+row_top=top-rowh
 for idx,item in enumerate(rows):
-    dataY=top-rowh*(idx+1)-13.5
-    name_lines=simpleSplit(str(item.get('product','')),'MSVN',7.1,widths[1]-10)[:2]
-    text(left+widths[0]/2-2,dataY,str(idx+1),7)
-    for ii,line in enumerate(name_lines):text(xs[1]+4,dataY-ii*10,line,7.1)
-    text(xs[2]+3,dataY,str(item.get('unit') or 'Thùng'),7)
-    right(xs[4]-4,dataY,str(int(item.get('qty') or 0)),7.1)
-    right(xs[5]-4,dataY,fmt(item.get('listPrice',item.get('unitPrice',0))),7)
-    right(xs[6]-3,dataY,str(item.get('discount',o.get('discount',0)))+'%',7)
-    right(xs[7]-3,dataY,fmt(item.get('unitPrice',0)),7)
-    right(xs[8]-4,dataY,fmt(item.get('subtotal',0)),7.1)
-    c.line(left,top-rowh*(idx+2),rightedge,top-rowh*(idx+2))
+    row_bottom=row_top-row_heights[idx]
+    dataY=row_top-17
+    fit_center((xs[0]+xs[1])/2,dataY,str(idx+1),widths[0]-5,7)
+    for ii,line in enumerate(names[idx]):text(xs[1]+5,dataY-ii*11,line,7.1)
+    unit=str(item.get('unit') or 'Thùng')
+    unit_size=7.0
+    while unit_size>5 and pdfmetrics.stringWidth(unit,'MSVN',unit_size)>widths[2]-7:unit_size-=0.2
+    text(xs[2]+4,dataY,unit,unit_size)
+    fit_right(xs[4]-5,dataY,str(int(item.get('qty') or 0)),widths[3]-9,7)
+    fit_right(xs[5]-5,dataY,fmt(item.get('listPrice',item.get('unitPrice',0))),widths[4]-9,7)
+    fit_right(xs[6]-5,dataY,str(item.get('discount',o.get('discount',0))),widths[5]-9,7)
+    fit_right(xs[7]-5,dataY,fmt(item.get('unitPrice',0)),widths[6]-9,7)
+    fit_right(xs[8]-6,dataY,fmt(item.get('subtotal',0)),widths[7]-10,7.1)
+    c.line(left,row_bottom,rightedge,row_bottom)
+    row_top=row_bottom
 below=table_bottom-18
+# Large orders continue their payment and signatures on a second A4 page.
+second_page=below<383
+if second_page:
+    right(rightedge,29,'1 / 2',7,C_GRAY)
+    c.showPage()
+    text(left,H-49,'HỘ KINH DOANH MINH SATORI',10,True,C_BLUE)
+    right(rightedge,H-49,'PHIẾU XUẤT HÓA ĐƠN — BẢN THỬ',8,True)
+    right(rightedge,H-65,str(o['ref']),8,True,C_BLUE)
+    c.setStrokeColor(C_BLUE);c.line(left,H-75,rightedge,H-75)
+    below=H-103
 
 text(left,below,'THÔNG TIN THANH TOÁN',8.7,True,C_BLUE)
 text(left,below-16,'Ngân hàng: KHÔNG ÁP DỤNG (SANDBOX)',7.4)
 text(left,below-30,'Số tài khoản: Không hiển thị trong bản thử',7.4)
 text(left,below-44,'Chủ tài khoản: HKD MINH SATORI',7.4)
 text(left,below-58,'Nội dung: '+str(o['ref']),7.4)
-# Do not expose production bank coordinates or QR: fake ordering sandbox.
+# Unique, machine-readable order QR without VietQR banking payload.
+# Never route funds to a real account for a TEST invoice.
+qr_payload='MINH-SATORI|SANDBOX|REF='+str(o['ref'])+'|TOTAL-VND='+str(int(round(float(o.get('total',0)))))
+qr=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=4,border=2)
+qr.add_data(qr_payload)
+qr.make(fit=True)
+qr_image=qr.make_image(fill_color='black',back_color='white').get_image()
+c.drawImage(ImageReader(qr_image),left+6,below-163,width=92,height=92,mask='auto')
+text(left+106,below-102,'QR tra cứu đơn thử',7.7,True,C_BLUE)
+text(left+106,below-115,'Mã: '+str(o['ref']),6.7)
+text(left+106,below-128,'KHÔNG CHUYỂN KHOẢN',6.8,True,C_GRAY)
 tx=324;valueX=rightedge
 right(valueX,below,fmt(o.get('subtotal',0)),8.1)
 text(tx,below,'Tổng tiền hàng:',7.8)
@@ -174,17 +217,19 @@ c.setStrokeColor(C_BORDER);c.line(tx,below-42,valueX,below-42)
 text(tx,below-57,'TỔNG THANH TOÁN',8.3,True)
 right(valueX,below-57,fmt(o.get('total',0)),10.3,True,C_BLUE)
 
-noteY=below-99
-wrapped(left,noteY,'Số tiền bằng chữ: '+words(o.get('total',0)),515,8,leading=12)
-text(left,noteY-43,'ĐẠI DIỆN BÊN BÁN',8.5,True)
-text(left,noteY-56,'(Ký, ghi rõ họ tên)',7.2)
-text(left+10,noteY-116,'HKD MINH SATORI',8,True,C_BLUE)
-cx=W/2+80
-text(cx,noteY-43,'ĐẠI DIỆN BÊN MUA / NGƯỜI NHẬN',8.3,True)
-text(cx+30,noteY-56,'(Ký, ghi rõ họ tên)',7.2)
-wrapped(cx+30,noteY-116,o.get('name','Khách thử'),180,8,True)
-
+noteY=below-182
+word_end=wrapped(left,noteY,'Số tiền bằng chữ: '+words(o.get('total',0)),515,7.7,leading=11)
+sigY=word_end-29
+text(left+79,sigY,'ĐẠI DIỆN BÊN BÁN',8.2,True)
+text(left+84,sigY-13,'(Ký, ghi rõ họ tên)',7.2)
+text(left+79,sigY-74,'HKD MINH SATORI',8,True,C_BLUE)
+cx=W/2+71
+text(cx,sigY,'ĐẠI DIỆN BÊN MUA / NGƯỜI NHẬN',7.8,True)
+text(cx+29,sigY-13,'(Ký, ghi rõ họ tên)',7.2)
+wrapped(cx+24,sigY-74,o.get('name','Khách thử'),175,8,True)
+if sigY-74<=49:
+    raise SystemExit('Invoice signature overlaps A4 footer')
 text(left,45,'SANDBOX — Phiếu thử nghiệm, không có giá trị thanh toán hoặc giao hàng.',7.3,True,C_GRAY)
-right(rightedge,29,'1 / 1',7,C_GRAY)
+right(rightedge,29,'2 / 2' if second_page else '1 / 1',7,C_GRAY)
 c.showPage();c.save()
 sys.stdout.buffer.write(buf.getvalue())
