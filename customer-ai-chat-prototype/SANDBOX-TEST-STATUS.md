@@ -1,15 +1,20 @@
-# Sandbox validation checkpoint — 2026-10-20
+# Sandbox validation checkpoint — 2026-10-20, 09:17 Asia/Ho_Chi_Minh
 
 Scope: Render My Workspace, service srv-dbbca5uq1p3s73c31910, branch prototype/customer-ai-chat-sandbox-20261020. Production and main were not modified.
 
-- Deployed application commit: 340ba111828a1bf339cc8b186db03a0c9cdf20ce.
-- Latest verified deployment: dep-dbbcnorrjlhs73dpnqdg, live.
-- Local programming tests using an OpenAI test double: 35/35 PASS. Includes server pricing at 20% and 35%, correct confirmation, same-request replay, consumed-quote replay with a different request ID, cross-customer access denial, PDF signature and sanitized error responses. These are not real GPT accuracy results.
-- Live session endpoints: demo-a is KH-DEMO-A / 20%; demo-b is KH-DEMO-B / 35%. Explicit address change requires human review and creates no quote.
-- OPENAI_API_KEY is present, but live requests return AI_KEY_FORMAT_INVALID. The configured value contains a character outside printable non-space ASCII after trimming. Its value was not inspected or logged. No OpenAI HTTP response has been obtained.
-- The same format error persisted after explicitly redeploying to apply saved configuration. Latest measured failed request: 6633ms including network overhead. This is not GPT latency.
-- Live GPT quote accuracy, live confirmation/PDF/replay flow and GPT p50/p95: BLOCKED; no performance or accuracy claim.
-- Browser: demo-a page loads the correct fake profile and accurate configured-key wording. Fixed server-mode single-column layout and send-in-flight guard. Static checks confirm responsive breakpoint, 16px server textarea, 44px sample buttons and closing HTML tags. Samsung Chrome/Samsung Internet physical-device and keyboard/PDF testing are NOT verified.
-- Free-instance sandbox order storage remains ephemeral. Multi-SKU messages and a real customer rollout remain outside this validated prototype.
+## Verified
 
-Next: replace the environment value with a complete OpenAI secret key copied directly at creation, save and deploy, then run python tests/live-sandbox.py. That test calls only the named sandbox with fake profiles, takes 20 real GPT samples, verifies pricing, creates two unpaid TEST orders, checks duplicate protection/customer isolation and extracts Unicode PDF text. It stops on API unavailability. Do not substitute mock timings for real GPT performance.
+- Deployed application commit: ccd72ef5c015a0e7a355fe46c608fe84b4a51e12; deployment dep-dbbctlbrjlhs73dqaks0 is live.
+- The user replaced the API key and saved/deployed. Previous format blocker is resolved. Upstream now returns HTTP 429 with code credit_balance_exhausted, exposed safely as OPENAI_CREDIT_BALANCE_EXHAUSTED. No key value was inspected or logged. Further GPT calls stopped pending API credits.
+- Local programming tests with a mocked OpenAI response: 36/36 PASS. Includes pricing at 20%/35%, confirmation, same-request replay, consumed quote under a new request ID, cross-customer rejection, PDF signature, safe network/quota diagnostics and no raw secret/error payload exposure. These are NOT real GPT accuracy results.
+- Additional PDF extraction checks for both fake customers verify Vietnamese names/address, 20%/35% discount text and correct totals. For 10 cartons of 5L at list price 110,000 VND and 8% shipping, totals are A 950,400 VND, B 772,200 VND. This was local testing, not a live GPT-created order.
+- Live session endpoints return demo-a = KH-DEMO-A / 20%, demo-b = KH-DEMO-B / 35%. Explicit address changes require human review without a quote. Last verified sandbox order count: 0.
+- Desktop browser loads both profiles. Demo-b send disables the submit button while waiting, displays the upstream error, then re-enables it without creating an order. Server-mode layout is one column, 850px chat width at a 1363px viewport, with no horizontal page overflow, a 16px textarea and 44px sample buttons. HTML closes correctly and contains responsive CSS.
+
+## Not yet verified / remaining limitations
+
+- Live GPT extraction/quote accuracy, live GPT confirmation/PDF/replay flow and p50/p95 are BLOCKED by exhausted API credit. Latest failed upstream roundtrip was 7468ms; it is not model inference latency and must not be reported as GPT p50/p95.
+- Physical Samsung Chrome / Samsung Internet, keyboard interaction and PDF sharing are NOT verified. Static responsive checks and desktop browser results do not certify a Samsung device.
+- Free Render sandbox storage is ephemeral; no real data should be entered. Multi-SKU messages remain outside this prototype's supported scope.
+
+Next: the API account owner must restore API credit (billing is separate from ChatGPT Plus). Do not rotate keys merely for exhausted credit. After credit is available, run python tests/live-sandbox.py: it targets only this sandbox with fake profiles, takes 20 GPT samples and verifies two unpaid TEST orders, quote/customer isolation, replay protection and Unicode PDF contents. Stop on upstream failure and report the measured results honestly.
