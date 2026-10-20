@@ -34,7 +34,7 @@ Yêu cầu Node >= 20, Python 3, `reportlab` và một font Unicode tiếng Vi�
 # chạy trong thư mục chứa README
 # thiết lập OPENAI_API_KEY bí mật trên SERVER theo cơ chế quản lý secrets của môi trường chạy
 # không nhập API key vào file HTML hay commit .env
-export OPENAI_MODEL=gpt-5.6-terra
+export OPENAI_MODEL=gpt-5-mini
 node server.mjs
 ```
 
@@ -122,3 +122,11 @@ Minh Satori Bot API orders.create (khi đã phê duyệt tích hợp)
 ## Công nghệ AI
 
 Chỉ dùng GPT qua OpenAI Responses API và Structured Outputs. Parser quy tắc trong file HTML và test double chỉ tồn tại ở **môi trường thử offline**. Không hứa rằng website này có cùng ký ức hay phiên làm việc với ChatGPT cá nhân; toàn bộ thông tin khách có thể đồng nhất nhờ API Minh Satori và chính sách dữ liệu dùng chung.
+## Render sandbox Docker deployment (NOT production)
+
+- Branch: `prototype/customer-ai-chat-sandbox-20261020`; Dockerfile path: `customer-ai-chat-prototype/Dockerfile`; context: repository root `.`.
+- Create a separate **free** Render service only after the account workspace is confirmed. Do not attach `Minhsatori` production files, Google Drive IDs, bot HMAC credentials or live customer data.
+- Store `OPENAI_API_KEY` only as a Render server environment secret, never in the repo, page, or URL. Without this setting the GPT endpoint returns a clear error and refuses to save orders.
+- Sandbox links `/c/demo-a` and `/c/demo-b` use **fake profiles** and openly guessable demo tokens; they are for isolated testing only and must NEVER be issued to real customers. Sandbox JSON is ephemeral on a free instance.
+- Verify `/health`, two separate price quotes, one confirmed demo order, PDF download, and replay rejection before sharing testing links.
+- Real-GPT latency and accuracy are NOT verified until a valid API key is provisioned in the staging service. Do not claim mock test numbers as GPT accuracy.
