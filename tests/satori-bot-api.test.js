@@ -21,6 +21,34 @@ function call(action,payload={},override={}){
  Object.assign(body,override);return JSON.parse(context.doPost({postData:{contents:JSON.stringify(body)}}).text);
 }
 const initialStatus=call('system.status');console.log('HMAC smoke:',JSON.stringify(initialStatus));assert.equal(initialStatus.data.orders,0);
+ // Scope-isolated, versioned product catalogue: never trust website localStorage.
+ assert.equal(call('catalogue.list').error.code,'FORBIDDEN','existing read/write bot may NOT read catalogue without explicit scope');
+ const originalClients=props.SATORI_BOT_CLIENTS_JSON;
+ const clients=JSON.parse(originalClients);
+ clients['bot-01'].scopes.push('catalogue:read');
+ props.SATORI_BOT_CLIENTS_JSON=JSON.stringify(clients);
+ const beforeCatalogueReadWrites=writes;
+ assert.equal(call('catalogue.list').error.code,'CATALOGUE_NOT_PERSISTED','missing shared ledger catalogue must fail closed');
+ data.values.satori_catalogue_v15=JSON.stringify([
+  {code:'TP-00003',name:'Satori 500ml',unit:'Thùng',brand:'SATORI',
+    spec:'24 chai/thùng',listPrice:98000,unitPrice:73500,discountPercent:25}
+ ]);
+ const catalogueResponse=call('catalogue.list');
+ assert.equal(catalogueResponse.ok,true);
+ assert.equal(catalogueResponse.data.source,'drive-ledger:satori_catalogue_v15');
+ assert.equal(catalogueResponse.data.revision,data.revision);
+ assert.equal(catalogueResponse.data.products[0].listPrice,98000);
+ assert.equal(catalogueResponse.data.products[0].code,'TP-00003');
+ assert.equal(catalogueResponse.data.products[0].standardDiscountPercent,25);
+ assert.equal(writes,beforeCatalogueReadWrites,'catalogue.list must never touch Drive');
+ data.values.satori_catalogue_v15=JSON.stringify([
+  {code:'TP-00003',name:'Satori 500ml',unit:'Thùng',listPrice:98000,unitPrice:73500},
+  {code:'TP-00003',name:'Duplicate',unit:'Thùng',listPrice:98000,unitPrice:73500}
+ ]);
+ assert.equal(call('catalogue.list').error.code,'INVALID_CATALOGUE','duplicate SKU must not silently corrupt pricing');
+ delete data.values.satori_catalogue_v15;
+ props.SATORI_BOT_CLIENTS_JSON=originalClients;
+
 const input={expectedRevision:1,requestId:'create-00001',confirmedNewCustomer:true,order:{name:'Test Customer',location:'123 Đường thử nghiệm',phone:'0901234567',items:[{product:'Satori 500 ml',qty:2,unitPrice:10000}],total:20000}};
 assert.equal(call('orders.create',input).data.order.invoiceNo,1);
 assert.equal(backs,1);assert.equal(data.revision,2);
