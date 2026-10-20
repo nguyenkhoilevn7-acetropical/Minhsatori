@@ -67,7 +67,7 @@ async function callGemini(message){
 }
 export async function parseOrder(message,profile={}){
  const rule=parseRules(message,profile);
- if(rule?.needsHuman||['UNSUPPORTED','MULTI_SKU'].includes(rule?.reason)||(rule&&!rule.needMoreDetails))return rule;
+ if(rule?.needsHuman||['UNSUPPORTED','MULTI_SKU','PRODUCT_AMBIGUOUS'].includes(rule?.reason)||(rule&&!rule.needMoreDetails))return rule;
  if(!geminiConfigured())return rule||{intent:'other',sku:'unknown',qty:0,source:'rules'};
  const ai=await callGemini(message);
  if(!ai)return rule||{intent:'other',sku:'unknown',qty:0,source:'rules'};
