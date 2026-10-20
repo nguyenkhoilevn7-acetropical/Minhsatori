@@ -65,6 +65,32 @@ async function load(){
   row.append(rotate,revoke);section.append(title,p,row);list.append(section);
  }
 }
+async function loadRequests(){
+ const data=await request('/api/admin/change-requests');
+ $('changeCount').textContent=data.pendingCount;
+ const root=$('changeList');root.textContent='';
+ if(!data.requests.length){root.textContent='Chưa có yêu cầu thay đổi thông tin.';return}
+ for(const x of data.requests){
+  const card=document.createElement('article');card.className='customer';
+  const title=document.createElement('strong');
+  title.textContent=x.customerName+' • '+(x.status==='pending'?'Chờ quản trị xem':'Đã xem');
+  const current=document.createElement('p');current.className='hint';
+  current.textContent='Link đang khóa: '+x.approvedName+' • '+x.approvedPhone+' • '+x.approvedAddress;
+  const time=document.createElement('p');time.className='hint';
+  time.textContent='Gửi lúc '+new Date(x.requestedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'});
+  const words=document.createElement('p');words.textContent='Khách nhắn: '+x.message;
+  card.append(title,time,current,words);
+  if(x.status==='pending'){
+   const button=document.createElement('button');
+   button.className='secondary';button.textContent='Đã xem (không đổi thông tin)';
+   button.onclick=async()=>{button.disabled=true;try{await request('/api/admin/change-requests/'+x.id+'/review','POST');await loadRequests()}catch(e){$('error').textContent=e.message;button.disabled=false}};
+   card.append(button);
+  }
+  root.append(card);
+ }
+}
+$('refreshChanges').onclick=()=>loadRequests().catch(e=>{$('error').textContent=e.message});
+setInterval(()=>{if(secret&&!$('workspace').hidden)loadRequests().catch(()=>{})},30000);
 function showNewLink(url){lastLink=url;$('newLink').hidden=false;$('linkText').textContent=url;$('result').textContent='Đã tạo link riêng. Nhớ lưu hoặc gửi cho khách THỬ.'}
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
  secret=code;$('login').disabled=true;try{await request('/api/admin/status');$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
