@@ -48,9 +48,16 @@ class PendingMobileWriteTest {
     @Test fun paymentRecoveryMustMatchIdInvoiceAndAmountNotJustName() {
         val old = pending("payments.markCustomerPaid", JSONObject().put("id", "branch-a-order")
             .put("invoiceNo", 99).put("amount", 20000))
-        assertTrue(old.confirmedIn(snapshot(bill().put("status", "Đã thanh toán"))))
-        assertFalse(old.confirmedIn(snapshot(bill().put("id", "branch-b-order").put("status", "Đã thanh toán"))))
-        assertFalse(old.confirmedIn(snapshot(bill().put("total", 21000).put("status", "Đã thanh toán"))))
+        val paid = bill().put("status", "Đã thanh toán")
+            .put("apiPaymentRequestId", old.requestId)
+        assertTrue(old.confirmedIn(snapshot(paid)))
+        // A different device could pay the same invoice and amount while our
+        // reply is lost: payment state alone does NOT prove this request.
+        assertFalse(old.confirmedIn(snapshot(bill().put("status", "Đã thanh toán"))))
+        assertFalse(old.confirmedIn(snapshot(bill().put("status", "Đã thanh toán")
+            .put("apiPaymentRequestId", "another-device-request"))))
+        assertFalse(old.confirmedIn(snapshot(JSONObject(paid.toString()).put("id", "branch-b-order"))))
+        assertFalse(old.confirmedIn(snapshot(JSONObject(paid.toString()).put("total", 21000))))
         assertFalse(old.confirmedIn(snapshot(bill())))
     }
 
