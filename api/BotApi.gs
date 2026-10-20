@@ -122,9 +122,39 @@ function removeOrder(s,all,p){
    satori_deleted_invoice_nos:JSON.stringify(deleted)},
    result:{deleted:true,id:o.id,invoiceNo:o.invoiceNo,restorable:true}};
 }
+function sameCreateIntent(saved,provided){
+ // A requestId is bound to the entire intended order, not just its invoice number.
+ // Compare only canonical fields already persisted in the Drive ledger, so a lost
+ // HTTP reply can be retried without another backup/write. Modified carts fail.
+ if(!provided||typeof provided!=='object'||Array.isArray(provided)||
+    !Array.isArray(provided.items)||!Array.isArray(saved.items)||
+    provided.items.length!==saved.items.length)return false;
+ if(norm(saved.name)!==norm(provided.name)||
+    norm(saved.location)!==norm(provided.location)||
+    String(saved.phone||'').replace(/\\D/g,'')!==String(provided.phone||'').replace(/\\D/g,'')||
+    Number(saved.total)!==Number(provided.total))return false;
+ if(Number(saved.shippingAmount||0)!==Number(provided.shippingAmount||0)||
+    Number(saved.vatAmount||0)!==Number(provided.vatAmount||0)||
+    String(saved.deliveryNote||'')!==String(provided.deliveryNote||'')||
+    String(saved.deliveryDate||'')!==String(provided.deliveryDate||''))return false;
+ return provided.items.every(function(item,i){
+  var old=saved.items[i];
+  return item&&old&&String(item.code||'')===String(old.code||'')&&
+   norm(item.product||item.name)===norm(old.product)&&
+   String(item.unit||'Thùng')===String(old.unit||'Thùng')&&
+   Number(item.qty)===Number(old.qty)&&
+   Number(item.unitPrice)===Number(old.unitPrice)&&
+   Number(item.listPrice==null?item.unitPrice:item.listPrice)===Number(old.listPrice);
+ });
+}
 function create(s,all,p){
  var req=String(p.requestId||'');need(/^[a-zA-Z0-9_-]{8,100}$/.test(req),'INVALID_REQUEST','Thiếu requestId hợp lệ');
- var old=all.find(function(o){return o.apiRequestId===req});if(old)return {modified:false,result:{order:visible(old),duplicate:true}};
+ var old=all.find(function(o){return o.apiRequestId===req});
+ if(old){
+  need(sameCreateIntent(old,p.order),'REQUEST_ID_CONFLICT',
+   'Mã requestId đã được dùng cho nội dung đơn khác, cần tạo yêu cầu mới');
+  return {modified:false,result:{order:visible(old),duplicate:true}};
+ }
  var bin=JSON.parse(s.values.satori_trash_bin_v15||'[]');
  need(!bin.some(function(t){return t.order&&t.order.apiRequestId===req}),'REUSED_REQUEST_ID','Đơn cũ đã chuyển vào thùng rác');
  version(s,p);
