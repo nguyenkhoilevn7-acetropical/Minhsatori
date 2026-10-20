@@ -345,7 +345,7 @@ class NativeMainActivity : AppCompatActivity() {
             }
         }
         if (apiEndpoint != null) {
-            label(content, if (canWrite) "Đã xác thực chủ sở hữu · Được phép lên đơn" else
+            label(content, if (canWrite) "Đã xác thực tài khoản · Được phép lên đơn" else
                 "Chưa xác thực kết nối ghi đơn. Không thể lưu cho tới khi API hoạt động.",
                 12f, true, if (canWrite) teal else gold, 8)
         }
@@ -784,8 +784,8 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
-        if (canWrite) {
-            button(parent, "+ TẠO HÓA ĐƠN", true) { launchEditor() }
+        if (canWrite) button(parent, "+ TẠO HÓA ĐƠN", true) { launchEditor() }
+        if (canAction("mobile.trash") && canAction("orders.restore")) {
             button(parent, "THÙNG RÁC 30 NGÀY") { showTrash() }
         }
         label(parent, "Tìm số hóa đơn, khách hàng, số điện thoại hoặc địa chỉ", 12f,
@@ -896,7 +896,8 @@ class NativeMainActivity : AppCompatActivity() {
     private fun showTrash() {
         val endpoint = apiEndpoint
         val token = accessToken
-        if (!canAction("orders.delete") || endpoint == null || token == null) {
+        if (!canAction("mobile.trash") || !canAction("orders.restore") ||
+            endpoint == null || token == null) {
             Toast.makeText(this, "Chưa có quyền quản lý thùng rác.", Toast.LENGTH_LONG).show()
             return
         }
