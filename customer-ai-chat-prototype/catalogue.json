@@ -1,0 +1,309 @@
+{
+  "source": "Minhsatori/main index.html DEFAULT_CATALOGUE (static fallback, NOT live synced settings)",
+  "version": "2026-10-20",
+  "items": [
+    {
+      "code": "TP-00001",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori 350ml",
+      "unit": "Thùng",
+      "spec": "24 chai/thùng",
+      "listPrice": 88000,
+      "keywords": [
+        "350ml",
+        "350",
+        "satori 350"
+      ]
+    },
+    {
+      "code": "TP-00003",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori 500ml",
+      "unit": "Thùng",
+      "spec": "24 chai/thùng",
+      "listPrice": 98000,
+      "keywords": [
+        "satori 500ml",
+        "satori 500",
+        "500ml",
+        "500"
+      ]
+    },
+    {
+      "code": "TP-00004",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori 1500ml",
+      "unit": "Thùng",
+      "spec": "12 chai/thùng",
+      "listPrice": 98000,
+      "keywords": [
+        "1500ml",
+        "1.5l",
+        "1,5l",
+        "satori 1.5",
+        "satori 1500"
+      ]
+    },
+    {
+      "code": "TP-00051",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori Premium 450ml",
+      "unit": "Thùng",
+      "spec": "20 chai/thùng",
+      "listPrice": 137963,
+      "keywords": [
+        "premium",
+        "450ml",
+        "satori 450",
+        "satori premium",
+        "400ml"
+      ]
+    },
+    {
+      "code": "TP-00005",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori bình 20L, có tay cầm, không vòi",
+      "unit": "Bình",
+      "spec": "01 bình",
+      "listPrice": 49142,
+      "keywords": [
+        "20l",
+        "bình 20l",
+        "tay cầm",
+        "satori 20l",
+        "không vòi 20l"
+      ]
+    },
+    {
+      "code": "TP-00033",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori bình 19L có vòi",
+      "unit": "Bình",
+      "spec": "01 bình",
+      "listPrice": 49142,
+      "keywords": [
+        "19l có vòi",
+        "19l vòi",
+        "bình 19l có vòi",
+        "satori có vòi",
+        "bình satori có vòi",
+        "satori 19l có vòi"
+      ]
+    },
+    {
+      "code": "TP-00096",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori bình 19L không vòi",
+      "unit": "Bình",
+      "spec": "01 bình",
+      "listPrice": 49142,
+      "keywords": [
+        "19l không vòi",
+        "19l up",
+        "bình úp",
+        "satori úp",
+        "satori không vòi",
+        "bình satori không vòi",
+        "bình 19l không vòi",
+        "bình satori",
+        "19l"
+      ]
+    },
+    {
+      "code": "TP-00135",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori 5L không vòi",
+      "unit": "Thùng",
+      "spec": "04 bình/thùng",
+      "listPrice": 102500,
+      "keywords": [
+        "thùng 5l không vòi",
+        "5l không vòi",
+        "thùng 5l",
+        "satori 5l không vòi",
+        "satori 5l"
+      ]
+    },
+    {
+      "code": "TP-00136",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori 5L có vòi",
+      "unit": "Thùng",
+      "spec": "04 bình/thùng",
+      "listPrice": 110000,
+      "keywords": [
+        "thùng 5l có vòi",
+        "5l có vòi",
+        "satori 5l có vòi"
+      ]
+    },
+    {
+      "code": "TP-00143",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori 5L không vòi, bình",
+      "unit": "Bình",
+      "spec": "01 bình",
+      "listPrice": 25625,
+      "keywords": [
+        "bình 5l không vòi",
+        "bình lẻ 5l không vòi",
+        "bình 5l lẻ",
+        "1 bình 5l không vòi"
+      ]
+    },
+    {
+      "code": "TP-00142",
+      "brand": "SATORI",
+      "name": "Nước tinh khiết Satori 5L có vòi, bình",
+      "unit": "Bình",
+      "spec": "01 bình",
+      "listPrice": 27500,
+      "keywords": [
+        "bình 5l có vòi",
+        "bình lẻ 5l có vòi",
+        "1 bình 5l có vòi"
+      ]
+    },
+    {
+      "code": "TP-00081",
+      "brand": "HIKARI",
+      "name": "Nước đóng chai Hikari 500ml",
+      "unit": "Thùng",
+      "spec": "24 chai/thùng",
+      "listPrice": 83000,
+      "keywords": [
+        "hikari 500ml",
+        "hikari 500",
+        "chai hikari 500",
+        "nước hikari 500"
+      ]
+    },
+    {
+      "code": "TP-00130",
+      "brand": "HIKARI",
+      "name": "Nước tinh khiết Hikari bình 19L có vòi",
+      "unit": "Bình",
+      "spec": "01 bình",
+      "listPrice": 38889,
+      "keywords": [
+        "hikari 19l",
+        "bình hikari 19l",
+        "hikari bình",
+        "hikari có vòi",
+        "bình hikari"
+      ]
+    },
+    {
+      "code": "TP-00137",
+      "brand": "HIKARI",
+      "name": "Nước đóng chai Hikari 250ml, thùng",
+      "unit": "Thùng",
+      "spec": "24 chai/thùng",
+      "listPrice": 62500,
+      "keywords": [
+        "hikari 250ml thùng",
+        "thùng hikari 250ml",
+        "thùng hikari 250",
+        "hikari 250ml",
+        "hikari 250"
+      ]
+    },
+    {
+      "code": "TP-00140",
+      "brand": "HIKARI",
+      "name": "Nước đóng chai Hikari 250ml (24 chai/lốc)",
+      "unit": "Lốc",
+      "spec": "24 chai/lốc",
+      "listPrice": 62500,
+      "keywords": [
+        "hikari 250ml 24 chai/lốc",
+        "lốc 24 chai hikari",
+        "hikari 250 lốc 24",
+        "lốc 24 chai"
+      ]
+    },
+    {
+      "code": "TP-00139",
+      "brand": "HIKARI",
+      "name": "Nước đóng chai Hikari 250ml (12 chai/lốc)",
+      "unit": "Lốc",
+      "spec": "12 chai/lốc",
+      "listPrice": 31250,
+      "keywords": [
+        "hikari 250ml 12 chai/lốc",
+        "lốc 12 chai hikari",
+        "hikari 250 lốc 12",
+        "lốc 12 chai",
+        "hikari 12 chai"
+      ]
+    },
+    {
+      "code": "TP-00138",
+      "brand": "HIKARI",
+      "name": "Nước đóng chai Hikari 250ml (6 chai/lốc)",
+      "unit": "Lốc",
+      "spec": "6 chai/lốc",
+      "listPrice": 15625,
+      "keywords": [
+        "hikari 250ml 6 chai/lốc",
+        "lốc 6 chai hikari",
+        "hikari 250 lốc 6",
+        "lốc 6 chai",
+        "hikari 6 chai"
+      ]
+    },
+    {
+      "code": "TP-00055",
+      "brand": "JUICE",
+      "name": "Nước ép me Satori Juice 24 lon/thùng",
+      "unit": "Thùng",
+      "spec": "24 lon/thùng",
+      "listPrice": 333333,
+      "keywords": [
+        "ép me",
+        "me satori",
+        "satori juice me",
+        "nước me",
+        "me lon",
+        "thùng me",
+        "lon me",
+        "me"
+      ]
+    },
+    {
+      "code": "TP-00056",
+      "brand": "JUICE",
+      "name": "Nước ép mãng cầu Satori Juice 24 lon/thùng",
+      "unit": "Thùng",
+      "spec": "24 lon/thùng",
+      "listPrice": 333333,
+      "keywords": [
+        "ép mãng cầu",
+        "mãng cầu",
+        "mãn cầu",
+        "satori juice mãng cầu",
+        "thùng mãng cầu",
+        "thùng mãn cầu",
+        "mang cau"
+      ]
+    },
+    {
+      "code": "TP-00058",
+      "brand": "JUICE",
+      "name": "Nước ép ổi hồng Satori Juice 24 lon/thùng",
+      "unit": "Thùng",
+      "spec": "24 lon/thùng",
+      "listPrice": 333333,
+      "keywords": [
+        "ép ổi",
+        "ổi hồng",
+        "satori juice ổi hồng",
+        "thùng ổi",
+        "thùng ổi hồng",
+        "oi hong",
+        "ổi",
+        "oi"
+      ]
+    }
+  ]
+}
