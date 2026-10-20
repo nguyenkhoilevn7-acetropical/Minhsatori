@@ -28,7 +28,7 @@ var ACTION_SCOPES={
  'system.status':'orders:read','orders.list':'orders:read',
  'customers.search':'customers:read','debt.summary':'debt:read',
  'orders.create':'orders:write','orders.update':'orders:write',
- 'orders.delete':'orders:delete','orders.restore':'orders:delete',
+ 'orders.delete':'orders:delete','orders.restore':'orders:write',
  'payments.markCustomerPaid':'payments:write'
 };
 function verifyOwner(accessToken){
