@@ -78,7 +78,7 @@ const server=http.createServer(async(req,res)=>{
   if(previous?.pendingDeliveryMessage&&previous.expiresAt>Date.now()&&/^(?:(?:sau|luc|vao)\s+)?\d{1,2}\s*(?:gio|h|tieng)\s*(?:chieu|sang|trua|toi|dem|nua)$/i.test(normalized.trim())){
    const answer=normalized.trim();
    const suffix=/\bnua$/.test(answer)?'giao sau '+answer.replace(/^sau\s+/,''):'giao sau '+answer.replace(/^(luc|vao|sau)\s+/,'');
-   parsedMessage=previous.pendingDeliveryMessage.replace(/(?:giao|ship)\s+sau\s+\d{1,2}\s*(?:giờ|gio|h)\b/iu,suffix);
+   parsedMessage=previous.pendingDeliveryMessage.replace(/(?:giao|ship)\s+sau\s+\d{1,2}\s*(?:giờ|gio|h)(?![\p{L}\p{N}])/iu,suffix);
   }else if(previous&&previous.expiresAt>Date.now()){
    const onlySku=normalized.trim().match(/^(?:nuoc\s+|loai\s+)?(5\s*l|500\s*ml|350\s*ml)$/);
    const onlyQty=normalized.trim().match(/^(\d{1,4})(?:\s*(?:thung|thg|t))?$/);
