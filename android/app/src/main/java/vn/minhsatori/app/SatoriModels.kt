@@ -63,7 +63,8 @@ data class SatoriInvoice(
     val requestId: String = "",
     val updateRequestId: String = "",
     val restoreRequestId: String = "",
-    val taxCode: String = ""
+    val taxCode: String = "",
+    val paymentRequestId: String = ""
 ) {
     val isExcluded: Boolean get() = status.equals("Không Tính", ignoreCase = true) ||
         status.equals("Đã hủy", ignoreCase = true)
@@ -199,6 +200,7 @@ object SatoriData {
                 requestId = string(x, "apiRequestId"),
                 updateRequestId = string(x, "apiUpdateRequestId"),
                 restoreRequestId = string(x, "apiRestoreRequestId"),
+                paymentRequestId = string(x, "apiPaymentRequestId"),
                 taxCode = string(x, "taxCode")
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
