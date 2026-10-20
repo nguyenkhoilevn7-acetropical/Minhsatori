@@ -25,6 +25,26 @@ try {
  let r=await post('/api/message',{token:'demo-a',message:'Cho tôi 10 thùng Satori 5L'});
  test(r.body.quote?.total===950400,'server computes correct A quote');
  test(r.body.parserSource==='rules','simple order uses no paid inference');
+ const cat=await get('/api/catalogue');
+ test(cat.body.count===20&&cat.body.products.length===20,'all official 20 products available');
+ test(cat.body.products.some(x=>x.code==='TP-00051'&&/Premium/i.test(x.name)),'Premium SKU available');
+ r=await post('/api/message',{token:'demo-b',message:'Cho anh 20 thùng premium'});
+ test(r.body.quote?.code==='TP-00051'&&r.body.quote?.qty===20,'B premium request resolved with quantity 20');
+ test(r.body.quote?.listPrice===137963&&r.body.quote?.discount===35,'premium pricing matches official default and B policy');
+ test(r.body.quote?.total===Math.round(137963*.65)*20*1.08,'premium payable sum derived on server');
+ r=await post('/api/message',{token:'demo-b',message:'Cho tôi 5 thùng Hikari 500ml'});
+ test(r.body.quote?.code==='TP-00081'&&r.body.quote?.qty===5,'Hikari 500ml correctly recognized');
+ r=await post('/api/message',{token:'demo-b',message:'Đặt 3 thùng nước ép mãng cầu'});
+ test(r.body.quote?.code==='TP-00056','Satori Juice mang cau correctly recognized');
+ r=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng 5L không vòi'});
+ test(r.body.quote?.code==='TP-00135','Satori 5L no-spout detected');
+ r=await post('/api/message',{token:'demo-b',message:'Cho tôi 5 thùng 5L'});
+ test(r.body.needMoreDetails&&!r.body.quote,'5L spout ambiguity safely rejected for B');
+ r=await post('/api/message',{token:'demo-b',message:'Cho 20 thùng 5L có vòi'});
+ test(r.body.quote?.code==='TP-00136','5L with spout resolved');
+ r=await post('/api/message',{token:'demo-b',message:'Cho tôi 20 thùng premium'});
+ test(r.body.quote?.qty===20,'premium price repeat stable');
+
  const quoteA=r.body.quote;
  r=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng Satori 5L'});
  test(r.body.quote?.total===772200,'server computes correct B quote');
@@ -36,6 +56,9 @@ try {
  test(r.body.quote?.total===950400,'unique frequent item inferred for A');
  r=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng nước'});
  test(r.body.needMoreDetails&&!r.body.quote,'ambiguous B must clarify');
+ r=await post('/api/message',{token:'demo-b',message:'premium'});
+ test(r.body.quote?.code==='TP-00051'&&r.body.quote?.qty===10,'premium follow-up completes pending 10 cartons');
+
  r=await post('/api/message',{token:'demo-b',message:'500ml'});
  test(r.body.quote?.qty===10&&r.body.quote?.sku==='S500'&&r.body.quote?.total===687960,'B replies 500ml, retaining 10 cartons and B discount');
 
