@@ -3,11 +3,89 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0e1930">
+<meta name="theme-color" content="#f8f9fc">
 <title>Minh Satori • AI Customer Chat — Demo an toàn</title>
 <style>
 :root{color-scheme:dark;--bg:#0b1324;--panel:#111f37;--panel2:#182945;--text:#e9f1fb;--muted:#9dafc9;--line:#293d59;--blue:#58b7fe;--green:#54deb2;--yellow:#ffc96a;--radius:19px}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 25% 0,#19385a 0,transparent 45%),var(--bg);font:15px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--text)}button,input,textarea,select{font:inherit}button{cursor:pointer;border:0}button:disabled{cursor:not-allowed;opacity:.45}.app{max-width:1200px;margin:auto;padding:18px;min-height:100vh}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px}.brand{display:flex;align-items:center;gap:12px}.logo{height:48px;width:48px;display:grid;place-items:center;border-radius:15px;background:linear-gradient(135deg,#2f7b93,#30ac92);font-weight:900;font-size:25px;box-shadow:0 10px 28px #050b1780}.brand h1{font-size:21px;margin:0}.brand p{margin:0;color:var(--muted);font-size:12px}.pill{border:1px solid #765c2b;background:#49341866;color:#ffd38c;border-radius:999px;font-size:12px;padding:6px 11px;white-space:nowrap}.layout{display:grid;grid-template-columns:340px minmax(0,1fr);gap:18px}.card{background:linear-gradient(165deg,#142741,#101d32);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 12px 40px #04091355}.panel{padding:19px}.panel h2{margin:0 0 5px;font-size:17px}.helper{color:var(--muted);font-size:12px;margin:0 0 15px}.field{display:grid;gap:6px;margin:13px 0}.field label{color:#d4e2f2;font-size:13px;font-weight:650}.field input,.field select{min-height:42px;border:1px solid #37506f;background:#0b182b;border-radius:12px;color:var(--text);padding:10px 12px;width:100%;outline:none}.field input:focus,.field select:focus{border-color:var(--blue)}.value{padding:10px 12px;border-radius:11px;background:#0b182b;color:#dbe6f5;font-size:13px;border:1px solid #233851;overflow-wrap:anywhere}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid #37516c;border-radius:12px;padding:11px 13px;background:#223955;color:#f3f7ff;font-weight:700;font-size:13px;display:inline-flex;gap:7px;align-items:center;justify-content:center}.btn.primary{background:linear-gradient(120deg,#1d8a94,#2ba888);border-color:transparent;color:white}.btn.alt{background:#1a2940}.btn:hover:not(:disabled){filter:brightness(1.1)}.info{font-size:12px;color:#c6d5ea;border:1px solid #47557a;background:#1b2844;border-radius:12px;padding:11px;margin-top:15px}.chat{display:flex;flex-direction:column;min-height:690px;overflow:hidden}.chat-head{padding:18px 19px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line)}.bot{height:45px;width:45px;display:grid;place-items:center;font-size:22px;border-radius:15px;background:#1b706c}.chat-head h2{font-size:17px;margin:0}.chat-head p{font-size:12px;color:var(--muted);margin:1px 0 0}.status{margin-left:auto;color:var(--green);font-size:11px;border:1px solid #348068;padding:4px 8px;border-radius:99px}.messages{padding:19px;display:flex;flex-direction:column;gap:13px;flex:1;min-height:360px;max-height:510px;overflow-y:auto;scroll-behavior:smooth}.bubble{max-width:90%;padding:12px 14px;border-radius:17px;border:1px solid #36506a;background:#1c3048;white-space:pre-wrap;overflow-wrap:anywhere}.bubble.user{align-self:flex-end;background:#164d5d;border-color:#226e83;border-bottom-right-radius:4px}.bubble.assistant{align-self:flex-start;border-bottom-left-radius:4px}.bubble.note{align-self:center;background:#3b2c184d;border-color:#69552e;color:#ffdb99;font-size:12px;text-align:center;max-width:100%}.quote{align-self:stretch;background:#112d37;border:1px solid #2c827c;border-radius:17px;padding:15px}.quote h3{margin:0 0 9px;font-size:15px}.quote .line{display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:13px}.quote .line span:first-child{color:#b6cdde}.quote strong{white-space:nowrap}.quote hr{border:0;border-top:1px solid #326164;margin:10px 0}.quote .total{font-size:20px;color:var(--green)}.quote .small{color:#afc8cb;font-size:11px}.chips{display:flex;gap:8px;overflow:auto;padding:9px 18px 12px;scrollbar-width:thin}.chip{white-space:nowrap;background:#1d324d;color:#d8e9f7;border:1px solid #355272;padding:9px 11px;font-size:12px;border-radius:99px}.composer{display:flex;gap:10px;padding:14px 18px 17px;border-top:1px solid var(--line)}.composer textarea{border:1px solid #395271;background:#0b192c;color:white;border-radius:15px;padding:12px 14px;resize:none;flex:1;min-width:0;min-height:51px;max-height:130px;outline:none}.composer textarea:focus{border-color:#4dafdc}.composer button{min-width:68px}.footnote{color:#8ca0b7;font-size:12px;margin-top:12px}.invoice{display:none;position:fixed;inset:0;background:#07111eec;z-index:12;overflow:auto;padding:22px}.paper{background:white;color:#172232;max-width:620px;margin:10px auto;padding:32px;border-radius:12px;box-shadow:0 20px 55px #0008}.paper h2{margin:0;font-size:23px;color:#0e6074}.paper .muted{color:#536879}.paper table{width:100%;border-collapse:collapse;margin-top:18px;font-size:13px}.paper th,.paper td{padding:9px 6px;border-bottom:1px solid #d9e2e7;text-align:left}.paper th:last-child,.paper td:last-child{text-align:right}.paper .total{font-size:20px;font-weight:800;text-align:right;color:#0e6074;margin-top:20px}.paper .warn{color:#b24f00;font-weight:700;font-size:12px;border:1px solid #ffdbb7;background:#fff7e9;padding:8px;margin:17px 0}.paper-btns{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin:8px auto 40px}.paper-btns .btn{background:#243953}.mini{color:var(--muted);font-size:12px}.red{color:#ffadb3}.green{color:var(--green)}.divider{height:1px;background:var(--line);margin:15px 0}@media(max-width:760px){.app{padding:12px}.layout{grid-template-columns:1fr}.top{align-items:flex-start}.brand h1{font-size:17px}.logo{height:41px;width:41px;border-radius:11px}.panel{padding:14px}.settings-body{display:none}.panel.open .settings-body{display:block}.panel .toggle{display:inline-flex}.chat{min-height:70vh}.messages{max-height:55vh}.status{display:none}.bubble{max-width:95%}}@media(min-width:761px){.panel .toggle{display:none}}@media print{body{background:white}.app,.paper-btns{display:none!important}.invoice{position:static;display:block!important;padding:0;background:white}.paper{max-width:none;margin:0;border:0;box-shadow:none;padding:12mm;border-radius:0}.paper .warn{color:#111} @page{size:A4;margin:10mm}}
 .server-mode .layout{grid-template-columns:minmax(0,1fr);max-width:850px;margin:auto}.server-mode .composer textarea{font-size:16px}.chip{min-height:44px}@media(max-width:760px){.top{flex-wrap:wrap}.brand{min-width:0}.brand h1{overflow-wrap:anywhere}.paper{padding:18px}.invoice{padding:10px}}
+
+/* iMessage-inspired customer chat, responsive and accessible; no third-party assets. */
+:root{color-scheme:light;--bg:#eff2f7;--panel:#fff;--text:#1b2430;--muted:#778393;--line:#e3e8ef;--blue:#087aff;--green:#0b9f72}
+body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif}
+.app{max-width:960px;min-height:100dvh;padding:12px}
+.top{margin-bottom:10px;padding:0 10px}
+.brand h1{color:#1d2734;font-size:18px}.brand p,.footnote{color:#65738a}
+.logo{background:linear-gradient(145deg,#3c91f8,#0767cf);color:#fff;box-shadow:none}
+.pill{background:#fff7e5;color:#96651a;border:1px solid #eddfb6}
+.card{background:#fff;box-shadow:0 6px 25px #263c5320;border:1px solid #dce2eb}
+.server-mode .layout{display:block;max-width:760px}
+.chat{min-height:calc(100dvh - 115px);border-radius:23px;box-shadow:0 10px 35px #22324822}
+.chat-head{background:#f8f9fc;padding:13px 17px;border-bottom:1px solid #e2e5eb;gap:11px}
+.chat-head h2{font-size:16px;font-weight:720;color:#161f2b}
+.chat-head p{color:#748095;font-size:12px}
+.bot{border-radius:999px;height:42px;width:42px;background:#0b80ff;color:#fff;font-weight:700}
+.status{color:#0b9560;border-color:#b9e9ce;background:#eafff2}
+.messages{background:#fff;padding:22px 17px 15px;gap:12px;min-height:380px;max-height:calc(100dvh - 328px);scroll-padding-bottom:28px}
+.bubble{border:0;padding:11px 15px;max-width:80%;font-size:15.5px;line-height:1.45;border-radius:19px;background:#e9e9eb;color:#19212c;box-shadow:none}
+.bubble.user{background:#087aff;color:#fff;align-self:flex-end;border:0;border-radius:19px;border-bottom-right-radius:5px}
+.bubble.assistant{align-self:flex-start;border-radius:19px;border-bottom-left-radius:5px}
+.bubble.note{background:#fff8e8;border:1px solid #f7deb0;color:#805c20;font-size:12px;padding:7px 13px;border-radius:99px}
+.quote{background:#f7fbff;border:1px solid #cde4ff;border-radius:18px;color:#16243b;box-shadow:0 4px 12px #087aff0d}
+.quote h3{color:#114d99}.quote .line span:first-child{color:#516176}.quote .total{color:#006adb}.quote .small{color:#718196}.quote hr{border-top:1px solid #d7e8f8}
+.quote .mini,.mini{color:#718196}
+.chips{background:#fff;gap:8px;scrollbar-width:none;padding:9px 15px 11px;scroll-snap-type:x proximity}
+.chips::-webkit-scrollbar{display:none}
+.chip{background:#f0f6ff;color:#0862cd;border:1px solid #cce0f9;font-size:13px;border-radius:99px;padding:10px 13px;min-height:39px;scroll-snap-align:start}
+.chip:hover{background:#e3f0ff}
+.chip.catalog-entry{background:#087aff;color:#fff;border-color:#087aff;font-weight:730}
+.composer{background:#f8f9fc;border-top:1px solid #e1e6ed;padding:12px 15px max(15px,env(safe-area-inset-bottom));gap:10px;align-items:center}
+.composer textarea{border:1px solid #d3dae5;background:#fff;color:#172432;border-radius:22px;padding:12px 15px;min-height:48px;max-height:118px;font-size:16px;box-shadow:none}
+.composer textarea:focus{border-color:#087aff;box-shadow:0 0 0 2px #087aff1c}
+.composer button,.btn.primary{background:#087aff;color:#fff;border:0;border-radius:22px;min-width:54px}
+.composer button{height:48px;font-size:14px}
+.composer button:hover:not(:disabled),.btn.primary:hover:not(:disabled){background:#0069df}
+.footnote{text-align:center;font-size:11px;line-height:1.45;padding:0 18px}
+.catalog-backdrop{display:none;position:fixed;inset:0;background:#16202a99;z-index:35;align-items:flex-end;justify-content:center}
+.catalog-backdrop.open{display:flex}
+.catalog-sheet{background:#fff;color:#1c2734;width:min(720px,100%);height:min(85dvh,790px);border-radius:24px 24px 0 0;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -18px 60px #0003}
+.catalog-head{padding:15px 18px;border-bottom:1px solid #e4e9f0;display:flex;align-items:center;gap:13px}
+.catalog-head strong{font-size:19px}.catalog-head small{display:block;color:#738094;font-size:12px}
+.catalog-close{margin-left:auto;border:0;border-radius:50%;width:34px;height:34px;color:#607086;background:#edf1f6;font-size:20px}
+.catalog-search{margin:13px 16px 8px;width:calc(100% - 32px);border:1px solid #d7e0eb;border-radius:12px;padding:12px 15px;font-size:16px;background:#f6f8fb;color:#202936}
+.catalog-filters{display:flex;gap:7px;padding:5px 16px 11px;overflow:auto}
+.catalog-filter{border-radius:99px;border:1px solid #d2e2f6;background:#f6f9ff;color:#3163a2;padding:8px 14px;white-space:nowrap}
+.catalog-filter.active{background:#087aff;border-color:#087aff;color:#fff}
+.catalog-items{overflow-y:auto;flex:1;overscroll-behavior:contain;padding:4px 14px 20px}
+.catalog-item{width:100%;text-align:left;background:#fff;border:0;border-bottom:1px solid #edf0f5;padding:13px 5px;display:flex;gap:15px;align-items:center;color:#1b2737}
+.catalog-item:hover{background:#f5f9ff}
+.catalog-icon{display:grid;place-items:center;background:#eaf4ff;border-radius:13px;width:42px;height:42px;font-size:23px;flex:0 0 42px}
+.catalog-label{flex:1;min-width:0;font-weight:670;font-size:14px}
+.catalog-label small{display:block;font-weight:400;font-size:12px;color:#798497;margin-top:4px}
+.catalog-arrow{font-size:24px;color:#087aff}
+.catalog-empty{padding:28px 15px;text-align:center;color:#7b8795}
+#productSelection{display:none;border-top:1px solid #e6eaf0;padding:12px 16px;background:#f7fbff}
+#productSelection.active{display:block}
+#productSelection strong{display:block;font-size:13px;margin-bottom:10px}
+.selection-controls{display:flex;gap:8px;align-items:center}
+.selection-controls input{width:86px;border-radius:10px;padding:10px;border:1px solid #cdd9e8;font-size:16px}
+.selection-controls button{flex:1;border-radius:12px;padding:12px;background:#087aff;color:white;font-weight:700}
+.selection-controls button:disabled{background:#bcc8d7}
+@media(min-width:761px){.catalog-sheet{margin:auto;border-radius:22px;height:min(82vh,760px)}}
+@media(max-width:760px){
+ .app{padding:0;max-width:100%}
+ .top{display:none}
+ .card.chat{border:0;border-radius:0;box-shadow:none}
+ .chat{height:100dvh;min-height:100dvh}
+ .chat-head{padding:12px 14px}
+ .messages{min-height:0;max-height:none;flex:1;overflow:auto}
+ .composer{padding:9px 12px max(12px,env(safe-area-inset-bottom))}
+ .footnote{display:none}
+ .bubble{max-width:87%}
+ .catalog-sheet{height:88dvh}
+ .status{display:none}
+}
+@media(prefers-reduced-motion:reduce){.messages{scroll-behavior:auto}}
+
 </style>
 </head>
 <body>
@@ -25,11 +103,18 @@
 </div></aside>
 <main class="card chat"><div class="chat-head"><div class="bot">✦</div><div><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><div class="status">Chế độ thử an toàn</div></div>
 <div class="messages" id="messages" aria-live="polite"></div>
-<div class="chips" aria-label="Tin nhắn mẫu"><button class="chip" data-msg="Cho tôi 10 thùng nước Satori 5L như lần trước">10 thùng 5L</button><button class="chip" data-msg="Cho tôi đặt lại đơn lần trước">Đặt lại đơn cũ</button><button class="chip" data-msg="Cho tôi 5 thùng nước Satori 500ml">5 thùng 500ml</button><button class="chip" data-msg="Cho tôi 10 thùng 5L giao đến 999 Đường Lạ">Đổi địa chỉ</button><button class="chip" data-msg="Cho tôi 10 thùng nước 350ml">10 thùng 350ml</button></div>
+<div class="chips" aria-label="Gợi ý sản phẩm"><button class="chip catalog-entry" type="button" id="allProductsButton">☷ Tất cả sản phẩm</button><button class="chip" data-msg="Cho tôi 10 thùng nước Satori 500ml">500ml</button><button class="chip" data-msg="Cho tôi 10 thùng nước Satori 5L có vòi">5 lít</button><button class="chip" data-msg="Cho tôi 10 thùng nước ép mãng cầu Satori Juice">Mãng cầu</button><button class="chip" data-msg="Cho tôi 10 thùng nước ép ổi hồng Satori Juice">Ổi hồng</button><button class="chip" data-msg="Cho tôi 10 thùng Premium 450ml">Premium</button><button class="chip" data-msg="Cho tôi đặt lại đơn lần trước">Đặt lại đơn cũ</button></div>
 <form class="composer" id="sendForm"><textarea id="messageInput" maxlength="500" rows="2" placeholder="Nhắn: Cho tôi 10 thùng nước 5L..." aria-label="Nhập yêu cầu đặt hàng"></textarea><button type="submit" class="btn primary">Gửi ➤</button></form>
 </main></div>
 <p class="footnote">Dữ liệu và giá chỉ để thử nghiệm. AI GPT thật, tạo PDF tự động phía server, gửi thông báo và đồng bộ đơn hàng sẽ được kích hoạt sau khi backend staging được cấp cấu hình. Không có yêu cầu nào ở trang này gửi đến Minh Satori production.</p>
 </div>
+<section class="catalog-backdrop" id="catalogBackdrop" role="dialog" aria-modal="true" aria-label="Tất cả sản phẩm Minh Satori">
+ <div class="catalog-sheet"><header class="catalog-head"><div><strong>☷ Tất cả sản phẩm</strong><small id="catalogDescription">Đang tải danh mục Minh Satori...</small></div><button class="catalog-close" type="button" id="catalogClose" aria-label="Đóng danh mục">×</button></header>
+ <input class="catalog-search" type="search" id="catalogSearch" placeholder="Tìm sản phẩm, dung tích, mã hàng..." aria-label="Tìm kiếm sản phẩm">
+ <div class="catalog-filters" id="catalogFilters"><button class="catalog-filter active" type="button" data-brand="ALL">Tất cả</button><button class="catalog-filter" type="button" data-brand="SATORI">Satori</button><button class="catalog-filter" type="button" data-brand="HIKARI">Hikari</button><button class="catalog-filter" type="button" data-brand="JUICE">Juice</button></div>
+ <div class="catalog-items" id="catalogItems" role="list"></div>
+ <div id="productSelection"><strong id="selectedProductName"></strong><div class="selection-controls"><input inputmode="numeric" type="number" id="selectedQuantity" min="1" max="500" value="1" aria-label="Số lượng"><button id="addProductMessage" type="button">Viết tin nhắn đặt hàng ➜</button></div></div>
+ </div></section>
 <section id="invoice" class="invoice" aria-label="Phiếu xác nhận đơn thử"><div class="paper" id="printPaper"></div><div class="paper-btns"><button class="btn" id="closeInvoice">Đóng</button><button class="btn primary" id="printInvoice">In / Lưu PDF</button></div></section>
 <script>
 (function(){'use strict';
@@ -49,10 +134,10 @@ function msg(text,who='assistant'){const e=document.createElement('div');e.class
 function bottom(){requestAnimationFrame(()=>$('messages').scrollTop=$('messages').scrollHeight)}
 function customer(){return FIXTURES[current]}
 function firstActiveProfile(){const fragment=location.hash.slice(1);const match=Object.entries(FIXTURES).find(([,v])=>fragment===v.token);return match?.[0]||'A'}
-function selectProfile(id){current=id;draft=null;const c=customer();$('customer').value=current;$('discount').value=c.discount;$('ship').value=c.ship;$('identity').textContent=`${c.name} · ${c.phone}\n${c.address}`;$('fixedLink').textContent=`#${c.token}`;$('chatSubtitle').textContent=`${c.name} • hồ sơ đặt hàng thử`;$('messages').innerHTML='';msg(`Xin chào ${c.name}! Mình đã mở phòng chat riêng của bạn. Bạn cần đặt loại nước nào và bao nhiêu thùng?`);if(!serverMode)msg('Đây là DEMO giao diện: bộ nhận diện tin nhắn dùng quy tắc lập trình miễn phí. Giá và khách đều là dữ liệu giả.', 'note')}
+function selectProfile(id){current=id;draft=null;const c=customer();$('customer').value=current;$('discount').value=c.discount;$('ship').value=c.ship;$('identity').textContent=`${c.name} · ${c.phone}\n${c.address}`;$('fixedLink').textContent=`#${c.token}`;$('chatSubtitle').textContent=`${c.name} • hồ sơ đặt hàng thử`;$('messages').innerHTML='';msg(`Xin chào ${c.name}! Mình đã mở cuộc trò chuyện riêng của bạn. Bạn cần đặt nước gì hôm nay? Chọn gợi ý hoặc xem Tất cả sản phẩm nhé.`);if(!serverMode)msg('Đây là DEMO giao diện: bộ nhận diện tin nhắn dùng quy tắc lập trình miễn phí. Giá và khách đều là dữ liệu giả.', 'note')}
 function matchRequest(message){const text=norm(message),c=customer();const amount=text.match(/\b(\d{1,4})\s*(thung|thg|kien|case)\b/),quantity=amount?Number(amount[1]):null;if(quantity!==null&&(quantity<1||quantity>500))return {error:'Số lượng cần từ 1 đến 500 thùng. Anh/chị vui lòng kiểm tra lại.'};const product=PRODUCTS.find(p=>p.keys.some(k=>text.includes(norm(k))));const previous=/(lan truoc|nhu cu|don cu|dat lai)/.test(text);const code=product?.code||(previous?c.favourite:null);const diffAddr=/(giao (den|toi|ve)\s+|doi dia chi|dia chi khac)/.test(text);const phone=message.match(/(?:\+84|0)\d[\d\s.\-]{8,14}/);if(diffAddr||phone)return {error:'Bạn đang đề nghị thay đổi địa chỉ hoặc SĐT. Đơn này không được tự động áp dụng chiết khấu riêng. Vui lòng liên hệ cửa hàng để xác minh và duyệt thủ công.'};if(!code||!PRODUCTS.some(p=>p.code===code))return {error:'Mình chưa xác định chắc chắn loại nước. Bạn cho biết dung tích 350ml, 500ml hay 5L nhé.'};if(quantity===null&&!previous)return {error:'Bạn muốn đặt bao nhiêu thùng? Ví dụ: “10 thùng nước 5L”.'};return {code,qty:quantity||(previous?10:0)};}
 function quote(code,qty){const p=PRODUCTS.find(p=>p.code===code),c=customer(),discount=c.discount,ship=c.ship,subtotal=Math.round(qty*p.price*(100-discount)/100),shipping=Math.round(subtotal*ship/100);return {profileId:c.id,code,qty,discount,ship,unitPrice:Math.round(p.price*(100-discount)/100),subtotal,shipping,total:subtotal+shipping,product:p.name,phone:c.phone,address:c.address,name:c.name,nonce:Math.random().toString(36).slice(2)}}
-function showQuote(q){const box=document.createElement('div');box.className='quote';box.innerHTML='<h3>🧾 Đơn hàng dự kiến — CHƯA TẠO</h3>'+`<div class="line"><span>Khách</span><strong>${esc(q.name)}</strong></div><div class="line"><span>Hàng</span><strong>${esc(q.qty)} thùng</strong></div><div class="mini">${esc(q.product)}</div><div class="line"><span>Đơn giá sau CK ${esc(q.discount)}%</span><strong>${money(q.unitPrice)}</strong></div><div class="line"><span>Tiền hàng</span><strong>${money(q.subtotal)}</strong></div><div class="line"><span>Vận chuyển (${esc(q.ship)}%)</span><strong>${money(q.shipping)}</strong></div><hr><div class="line"><span>Tổng cộng</span><strong class="total">${money(q.total)}</strong></div><div class="mini">Giao: ${esc(q.address)} — ${esc(q.phone)}</div><p class="small">Chỉ khi xác nhận mới lưu đơn THỬ. Không gửi đến production.</p>`;const b=document.createElement('button');b.className='btn primary';b.textContent='✓ Xác nhận đơn THỬ';b.addEventListener('click',()=>confirmOrder(q,b));box.appendChild(b);$('messages').appendChild(box);bottom()}
+function showQuote(q){const box=document.createElement('div');box.className='quote';box.innerHTML='<h3>🧾 Đơn hàng dự kiến — CHƯA TẠO</h3>'+`<div class="line"><span>Khách</span><strong>${esc(q.name)}</strong></div><div class="line"><span>Hàng</span><strong>${esc(q.qty)} ${esc(q.unit||"thùng")}</strong></div><div class="mini">${esc(q.product)}</div><div class="line"><span>Đơn giá sau CK ${esc(q.discount)}%</span><strong>${money(q.unitPrice)}</strong></div><div class="line"><span>Tiền hàng</span><strong>${money(q.subtotal)}</strong></div><div class="line"><span>Vận chuyển (${esc(q.ship)}%)</span><strong>${money(q.shipping)}</strong></div><hr><div class="line"><span>Tổng cộng</span><strong class="total">${money(q.total)}</strong></div><div class="mini">Giao: ${esc(q.address)} — ${esc(q.phone)}</div><p class="small">Chỉ khi xác nhận mới lưu đơn THỬ. Không gửi đến production.</p>`;const b=document.createElement('button');b.className='btn primary';b.textContent='✓ Xác nhận đơn THỬ';b.addEventListener('click',()=>confirmOrder(q,b));box.appendChild(b);$('messages').appendChild(box);bottom()}
 async function confirmOrder(q,button){if(serverMode){button.disabled=true;button.textContent='Đang lưu đơn thử...';try{const res=await serverPost('/api/confirm',{token:serverToken,quoteId:q.quoteId,requestId:'demo-'+q.quoteId});const o=res.order;button.textContent='Đã xác nhận';msg('Đã tạo đơn THỬ '+o.ref+'. Chưa chuyển tới Minh Satori thật. Trạng thái: Chờ thanh toán.');showInvoice(o);const link=document.createElement('a');link.className='btn';link.textContent='⬇ Tải PDF tự động';link.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);link.target='_blank';link.rel='noopener';link.setAttribute('download',o.ref+'.pdf');$('messages').appendChild(link);bottom();draft=null;}catch(e){button.disabled=false;button.textContent='Xác nhận đơn THỬ';msg('Không ghi được đơn: '+e.message,'note')}return;}if(!draft||draft.nonce!==q.nonce||draft.profileId!==customer().id){msg('Báo giá đã thay đổi, vui lòng yêu cầu lại.');return}const c=customer();if(c.id!==q.profileId||c.discount!==q.discount||c.ship!==q.ship||c.address!==q.address||c.phone!==q.phone){msg('Cấu hình khách đã đổi nên không thể chốt theo báo giá cũ. Vui lòng đặt lại.');draft=null;return;}const key='MSATORI_SANDBOX_DEMO_ONLY';try{localOrders=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(localOrders))localOrders=[]}catch(e){localOrders=[]}let saved=localOrders.find(o=>o.nonce===q.nonce);if(!saved){saved={...q,ref:'TEST-'+String(Date.now()),createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};localOrders.push(saved);try{localStorage.setItem(key,JSON.stringify(localOrders))}catch(e){msg('Không thể lưu localStorage; đơn thử chỉ tồn tại trong phiên này.','note')}}button.disabled=true;button.textContent='Đã xác nhận';msg(`Đã tạo đơn THỬ ${saved.ref}. Trạng thái: Chờ thanh toán. Chưa gửi website thật và chưa phát sinh yêu cầu giao hàng.`);showInvoice(saved);draft=null}
 async function send(text){const message=String(text||'').trim();if(!message||sending)return;msg(message,'user');$('messageInput').value='';if(message.length>500){msg('Tin nhắn quá dài.');return;}if(serverMode){sending=true;const sendButton=$('sendForm').querySelector('button');sendButton.disabled=true;$('messages').setAttribute('aria-busy','true');msg('Đang kiểm tra yêu cầu đặt nước...','note');const loading=$('messages').lastElementChild;try{const res=await serverPost('/api/message',{token:serverToken,message});if(res.message)msg(res.message);if(res.quote){draft=res.quote;showQuote(res.quote)}}catch(e){msg('AI chưa xử lý được: '+e.message+' Không có đơn nào được tạo.','note')}finally{loading.remove();sending=false;sendButton.disabled=false;$('messages').removeAttribute('aria-busy')}return;}const r=matchRequest(message);if(r.error){msg(r.error);return;}draft=quote(r.code,r.qty);msg(`Mình đã hiểu yêu cầu: ${draft.qty} thùng ${draft.product}. Bạn kiểm tra báo giá và địa chỉ bên dưới rồi xác nhận nhé.`);showQuote(draft)}
 function showInvoice(o){$('printPaper').innerHTML=`<h2>MINH SATORI</h2><div class="muted">PHIẾU XÁC NHẬN ĐƠN HÀNG • ${esc(o.ref)}</div><div class="warn">ĐƠN THỬ NGHIỆM — KHÔNG CÓ GIÁ TRỊ THANH TOÁN / GIAO HÀNG</div><p><b>Khách hàng:</b> ${esc(o.name)}<br><b>Điện thoại:</b> ${esc(o.phone)}<br><b>Địa chỉ:</b> ${esc(o.address)}<br><b>Ngày:</b> ${esc(new Date(o.createdAt).toLocaleString('vi-VN'))}<br><b>Trạng thái:</b> ${esc(o.status)}</p><table><tr><th>Sản phẩm</th><th>SL</th><th>Đơn giá</th><th>Thành tiền</th></tr><tr><td>${esc(o.product)}<br><small>Chiết khấu ${esc(o.discount)}%</small></td><td>${o.qty}</td><td>${money(o.unitPrice)}</td><td>${money(o.subtotal)}</td></tr><tr><td colspan="3">Vận chuyển</td><td>${money(o.shipping)}</td></tr></table><div class="total">Tổng: ${money(o.total)}</div><p class="muted">Phiếu tạo tại bản demo độc lập. Hệ thống production không được truy cập.</p>`;$('invoice').style.display='block'}
@@ -65,6 +150,74 @@ $('copy').addEventListener('click',async()=>{const link='file-demo://customer/'+
 $('reset').addEventListener('click',()=>{try{localStorage.removeItem('MSATORI_SANDBOX_DEMO_ONLY')}catch(e){}selectProfile(current);msg('Đã xóa các đơn THỬ trên thiết bị này.', 'note')});
 $('printInvoice').addEventListener('click',()=>window.print());$('closeInvoice').addEventListener('click',()=>{$('invoice').style.display='none'});
 $('toggleSettings').addEventListener('click',()=>{$('panel').classList.toggle('open');$('toggleSettings').textContent=$('panel').classList.contains('open')?'Đóng cấu hình':'Mở cấu hình'});
+
+let catalogItems=[],currentBrand='ALL',selectedProduct=null;
+function filteredCatalog(){
+ const query=norm($('catalogSearch').value).trim();
+ return catalogItems.filter(p=>(currentBrand==='ALL'||p.brand===currentBrand)&&
+  (!query||norm([p.name,p.code,p.spec,p.brand].join(' ')).includes(query)));
+}
+function renderCatalogue(){
+ const items=filteredCatalog(),list=$('catalogItems');
+ $('catalogDescription').textContent=catalogItems.length+' sản phẩm • Satori / Hikari / Juice • chọn để đặt hàng';
+ list.textContent='';
+ if(!items.length){const empty=document.createElement('div');empty.className='catalog-empty';empty.textContent='Không tìm thấy sản phẩm phù hợp';list.append(empty);return;}
+ for(const p of items){
+  const btn=document.createElement('button');btn.type='button';btn.className='catalog-item';btn.dataset.code=p.code;
+  const emoji=document.createElement('span');emoji.className='catalog-icon';emoji.textContent=p.brand==='JUICE'?'🧃':'💧';
+  const title=document.createElement('span');title.className='catalog-label';title.textContent=p.name;
+  const desc=document.createElement('small');desc.textContent=p.code+' · '+p.spec+' · ĐVT: '+p.unit;title.append(desc);
+  const arrow=document.createElement('span');arrow.className='catalog-arrow';arrow.textContent='›';
+  btn.append(emoji,title,arrow);btn.addEventListener('click',()=>chooseProduct(p));
+  list.append(btn);
+ }
+}
+function chooseProduct(p){
+ selectedProduct=p;$('selectedProductName').textContent=p.name+' • '+p.unit;
+ $('selectedQuantity').value=1;$('productSelection').classList.add('active');
+ $('addProductMessage').disabled=false;
+}
+function closeCatalog(){
+ $('catalogBackdrop').classList.remove('open');document.body.style.overflow='';
+ $('allProductsButton').focus();
+}
+async function openCatalog(){
+ $('catalogBackdrop').classList.add('open');document.body.style.overflow='hidden';
+ $('catalogSearch').value='';currentBrand='ALL';$('productSelection').classList.remove('active');
+ for(const b of $('catalogFilters').querySelectorAll('button'))b.classList.toggle('active',b.dataset.brand==='ALL');
+ if(!catalogItems.length && serverMode){
+  try{
+   const res=await fetch('/api/catalogue',{cache:'no-store'});
+   const data=await res.json();if(!res.ok||!data.ok||!Array.isArray(data.products))throw new Error('Không tải được danh mục');
+   catalogItems=data.products;
+  }catch(e){
+   $('catalogDescription').textContent='Lỗi tải danh mục. Thử mở lại sau.';
+   msg('Chưa lấy được danh mục sản phẩm. Vui lòng thử lại.','note');
+  }
+ }
+ if(!catalogItems.length&&!serverMode)catalogItems=PRODUCTS.map(x=>({code:x.code,name:x.name,unit:'Thùng',brand:'SATORI',spec:'Bản xem thử offline'}));
+ renderCatalogue();$('catalogSearch').focus();
+}
+$('allProductsButton').addEventListener('click',openCatalog);
+$('catalogClose').addEventListener('click',closeCatalog);
+$('catalogBackdrop').addEventListener('click',e=>{if(e.target===$('catalogBackdrop'))closeCatalog()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('catalogBackdrop').classList.contains('open'))closeCatalog()});
+$('catalogSearch').addEventListener('input',renderCatalogue);
+$('catalogFilters').addEventListener('click',e=>{
+ const b=e.target.closest('button[data-brand]');if(!b)return;
+ currentBrand=b.dataset.brand;
+ for(const x of $('catalogFilters').querySelectorAll('button'))x.classList.toggle('active',x===b);
+ $('productSelection').classList.remove('active');renderCatalogue();
+});
+$('addProductMessage').addEventListener('click',()=>{
+ if(!selectedProduct)return;
+ const qty=Number($('selectedQuantity').value);
+ if(!Number.isSafeInteger(qty)||qty<1||qty>500){$('selectedQuantity').focus();return}
+ const message='Cho tôi '+qty+' '+selectedProduct.unit+' '+selectedProduct.name;
+ $('messageInput').value=message;
+ closeCatalog();$('messageInput').focus(); // Customer must still tap send and confirm quote.
+});
+
 if(serverMode){const id=serverToken==='demo-b'?'B':'A';fetch('/api/session?token='+encodeURIComponent(serverToken)).then(r=>r.json()).then(d=>{if(!d.ok)throw new Error('Link khách không hợp lệ');Object.assign(FIXTURES[id],d.profile);$('panel').style.display='none';$('chatSubtitle').textContent='Nhận diện đơn nhanh • quy tắc + Gemini Free Tier';$('messages').innerHTML='';current=id;selectProfile(id);msg(d.aiConfigured?'AI Gemini đã cấu hình. Bộ xử lý quy tắc luôn sẵn sàng.':'Đặt nước miễn phí đang hoạt động bằng bộ nhận diện quy tắc. Gemini AI sẽ bổ sung khi được kết nối.','note');document.querySelector('.footnote').textContent='Khách và đơn đều là dữ liệu thử. Đơn lưu riêng trên sandbox; dữ liệu có thể mất khi sandbox khởi động lại. Không gửi đến Minh Satori production.'}).catch(e=>msg(e.message,'note'))}else{current=firstActiveProfile();selectProfile(current);}
 })();
 </script>
