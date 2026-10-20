@@ -144,8 +144,11 @@ object SatoriSupplierSpreadsheet {
         nodes(name).firstOrNull()?.textContent.orEmpty()
     private fun column(reference: String): Int {
         val letters = reference.takeWhile { it.isLetter() }.uppercase()
-        if (letters.isEmpty()) return -1
-        return letters.fold(0) { acc, c -> acc * 26 + (c - 'A' + 1) } - 1
+        if (letters.isEmpty() || letters.length > 3 || letters.any { it !in 'A'..'Z' })
+            return -1
+        // Excel columns are limited to XFD; never overflow Int on hostile refs.
+        val index = letters.fold(0) { acc, c -> acc * 26 + (c - 'A' + 1) } - 1
+        return index.takeIf { it in 0..16383 } ?: -1
     }
     private fun rowNumber(reference: String): Int =
         reference.dropWhile { it.isLetter() }.toIntOrNull()?.minus(1) ?: -1
@@ -160,19 +163,22 @@ object SatoriSupplierSpreadsheet {
                 count++
                 require(count <= 200) { "Bảng Excel chứa quá nhiều tệp con." }
                 val filename = entry.name.replace('\\', '/')
-                // Only read known OOXML worksheet/shared-string entries.
-                if (filename == "xl/sharedStrings.xml" ||
-                    Regex("""xl/worksheets/sheet\d+\.xml""").matches(filename)) {
-                    val out = java.io.ByteArrayOutputStream()
-                    val buffer = ByteArray(8192)
-                    while (true) {
-                        val read = stream.read(buffer)
-                        if (read < 0) break
-                        expanded += read
-                        require(expanded <= MAX_EXPANDED) { "Bảng Excel giải nén vượt 20 MB." }
-                        out.write(buffer, 0, read)
-                    }
-                    entries[filename] = out.toByteArray()
+                // Count ALL expanded bytes, including ignored ZIP members.
+                // closeEntry() silently drains discarded files otherwise.
+                val selected = filename == "xl/sharedStrings.xml" ||
+                    Regex("""xl/worksheets/sheet\d+\.xml""").matches(filename)
+                val target = if (selected) java.io.ByteArrayOutputStream() else null
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val read = stream.read(buffer)
+                    if (read < 0) break
+                    expanded += read
+                    require(expanded <= MAX_EXPANDED) { "Bảng Excel giải nén vượt 20 MB." }
+                    target?.write(buffer, 0, read)
+                }
+                if (selected) {
+                    require(filename !in entries) { "Bảng Excel chứa tệp XML trùng tên." }
+                    entries[filename] = target!!.toByteArray()
                 }
                 stream.closeEntry()
             }
@@ -194,8 +200,9 @@ object SatoriSupplierSpreadsheet {
             val columns = rows.getOrPut(idx) { mutableMapOf() }
             r.nodes("c").forEach { c ->
                 val col = column(c.getAttribute("r"))
-                require(col < MAX_COLUMNS) { "Bảng kê có quá nhiều cột." }
-                if (col < 0) return@forEach
+                require(col in 0 until MAX_COLUMNS) {
+                    "Bảng kê có cột Excel sai hoặc vượt giới hạn."
+                }
                 val raw = when (c.getAttribute("t")) {
                     "s" -> shared.getOrNull(c.text("v").toIntOrNull() ?: -1).orEmpty()
                     "inlineStr" -> c.nodes("is").firstOrNull()?.nodes("t")
@@ -212,8 +219,10 @@ object SatoriSupplierSpreadsheet {
             if (range.size != 2) return@forEach
             val c0 = column(range[0]); val c1 = column(range[1])
             val r0 = rowNumber(range[0]); val r1 = rowNumber(range[1])
-            if (c0 < 0 || c1 >= MAX_COLUMNS || r0 < 0 || r1 >= MAX_ROWS ||
-                c1 < c0 || r1 < r0 || (c1 - c0 + 1) * (r1 - r0 + 1) > 5000) return@forEach
+            if (c0 < 0 || c1 < 0 || c0 >= MAX_COLUMNS || c1 >= MAX_COLUMNS ||
+                r0 < 0 || r1 < 0 || r0 >= MAX_ROWS || r1 >= MAX_ROWS ||
+                c1 < c0 || r1 < r0 || (c1 - c0 + 1) * (r1 - r0 + 1) > 5000)
+                throw IllegalArgumentException("Ô gộp Excel không hợp lệ hoặc quá lớn.")
             val value = rows[r0]?.get(c0).orEmpty()
             if (value.isBlank()) return@forEach
             for (r in r0..r1) for (c in c0..c1) {
