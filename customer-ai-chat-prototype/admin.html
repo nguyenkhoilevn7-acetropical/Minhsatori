@@ -85,7 +85,7 @@ button:disabled{opacity:.55}
  <button type="button" id="createFakeOrder">＋ Tạo đơn TEST & thử chuông</button>
 </div>
 <p id="fakeOrderResult" role="status" class="hint"></p>
-<p><button type="button" id="enableOrderBell" class="secondary">🔕 Bật chuông & thông báo</button> <button type="button" id="refreshOrders" class="secondary">↻ Kiểm tra đơn mới</button> <button type="button" id="markOrdersSeen" class="secondary">Đã xem tất cả</button></p>
+<p><button type="button" id="enableOrderBell" class="secondary">🔕 Bật chuông & thông báo</button> <button type="button" id="testBellSound" class="secondary">🔊 Nghe thử</button> <button type="button" id="refreshOrders" class="secondary">↻ Kiểm tra đơn mới</button> <button type="button" id="markOrdersSeen" class="secondary">Đã xem tất cả</button></p>
 <p id="orderAlert" role="status" aria-live="polite" class="hint">Đang chờ đăng nhập quản trị.</p>
 <div id="newOrders" aria-label="Danh sách đơn đã xác nhận"></div>
 <button id="showMoreOrders" type="button" class="secondary" hidden>Xem thêm đơn</button>
@@ -265,6 +265,7 @@ $('createFakeOrder').onclick=async()=>{
  button.disabled=true;$('fakeOrderResult').textContent='Đang tạo bill giả để kiểm tra chuông...';
  const requestId='test-'+(typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.floor(Math.random()*1e9));
  try{
+  if(knownOrderRefs===null)knownOrderRefs=new Set();
   const data=await request('/api/admin/create-test-order','POST',{fixture:'demo-a',requestId});
   $('fakeOrderResult').textContent='✓ Đã tạo '+data.order.ref+' — '+money(data.order.total)+'đ (giả).';
   await refreshOrderInbox();
@@ -272,6 +273,11 @@ $('createFakeOrder').onclick=async()=>{
  finally{button.disabled=false}
 };
 
+$('testBellSound').onclick=()=>{
+ if(!bellEnabled){$('orderAlert').textContent='Bấm Bật chuông & thông báo trước để kiểm tra âm thanh.';return}
+ ringForNewOrder();
+ $('orderAlert').textContent='🔊 Đã phát thử chuông. Nếu chưa nghe, kiểm tra âm lượng media trên Samsung.';
+};
 $('refreshOrders').onclick=()=>refreshOrderInbox();
 $('showMoreOrders').onclick=()=>{showAllOrderCards=!showAllOrderCards;renderOrderInbox(mostRecentOrderList)};
 $('markOrdersSeen').onclick=()=>{
