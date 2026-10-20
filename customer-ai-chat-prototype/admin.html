@@ -24,6 +24,14 @@ button.secondary{background:#25435e;border:1px solid #527391}button.danger{backg
 <p class="hint">Mã chỉ giữ trong bộ nhớ trình duyệt khi trang đang mở, không lưu vào máy. Không gửi mã cho khách.</p>
 <button id="login">Mở quản lý</button> <span id="authState" class="hint"></span><p id="error" role="alert"></p></section>
 <div id="workspace" hidden>
+<section class="card" aria-labelledby="ordersHeading">
+<h2 id="ordersHeading">🔔 Đơn hàng mới <span id="newOrderCount">0</span></h2>
+<p class="hint">Thông báo khi khách xác nhận đơn THỬ qua Gemini; tự kiểm tra mỗi 10 giây khi trang Admin đang mở. Đơn production chưa đồng bộ.</p>
+<p><button type="button" id="enableOrderBell" class="secondary">🔕 Bật chuông & thông báo</button> <button type="button" id="refreshOrders" class="secondary">↻ Kiểm tra đơn mới</button> <button type="button" id="markOrdersSeen" class="secondary">Đã xem tất cả</button></p>
+<p id="orderAlert" role="status" aria-live="polite" class="hint">Đang chờ đăng nhập quản trị.</p>
+<div id="newOrders" aria-label="Danh sách đơn đã xác nhận"></div>
+</section>
+
 <section class="card"><h2>Tạo link riêng cho khách thử</h2><p class="hint">Mỗi link chỉ thuộc một hồ sơ. Thông tin khách và chiết khấu được kiểm tra ở máy chủ, không lấy từ tin nhắn AI.</p>
 <form id="create">
 <label for="customerSearch">Chọn khách đã có (sandbox)</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
@@ -112,6 +120,93 @@ for(const id of ['name','phone']){
  });
 }
 
+// Owner-only live inbox: initial load establishes baseline without a false alarm.
+let knownOrderRefs=null,unseenOrderRefs=new Set(),orderPollBusy=false;
+let bellEnabled=false,orderAudio=null;
+const BASE_TITLE=document.title;
+const formatOrderTime=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}):'Không rõ giờ'};
+function ringForNewOrder(){
+ if(!bellEnabled)return;
+ try{
+  const Context=window.AudioContext||window.webkitAudioContext;
+  if(!Context)return;
+  if(!orderAudio)orderAudio=new Context();
+  if(orderAudio.state!=='running')return;
+  [0,0.21].forEach((delay,i)=>{
+   const oscillator=orderAudio.createOscillator(),gain=orderAudio.createGain();
+   oscillator.type='sine';oscillator.frequency.value=i?990:784;
+   gain.gain.setValueAtTime(0.0001,orderAudio.currentTime+delay);
+   gain.gain.exponentialRampToValueAtTime(0.21,orderAudio.currentTime+delay+0.025);
+   gain.gain.exponentialRampToValueAtTime(0.0001,orderAudio.currentTime+delay+0.18);
+   oscillator.connect(gain);gain.connect(orderAudio.destination);
+   oscillator.start(orderAudio.currentTime+delay);oscillator.stop(orderAudio.currentTime+delay+0.20);
+  });
+ }catch{}
+}
+function announceOrders(newOnes){
+ const text=newOnes.length+' đơn THỬ mới đã được xác nhận.';
+ $('orderAlert').textContent='🔔 '+text;
+ ringForNewOrder();
+ try{
+  if(bellEnabled&&typeof Notification!=='undefined'&&Notification.permission==='granted'){
+   const newest=newOnes[0];
+   new Notification('Minh Satori • '+text,{body:newest.ref+' • '+money(newest.total)+'đ • Mở trang Admin để xem chi tiết',tag:'minh-satori-test-order-'+newest.ref});
+  }
+ }catch{}
+}
+function renderOrderInbox(orders){
+ $('newOrderCount').textContent=String(unseenOrderRefs.size);
+ document.title=(unseenOrderRefs.size?'('+unseenOrderRefs.size+') ':'')+BASE_TITLE;
+ const root=$('newOrders');root.replaceChildren();
+ if(!orders.length){const p=document.createElement('p');p.className='hint';p.textContent='Chưa có đơn thử nào được xác nhận.';root.append(p);return}
+ for(const o of orders){
+  const card=document.createElement('article');card.className='customer';
+  const heading=document.createElement('strong');heading.textContent=(unseenOrderRefs.has(o.ref)?'🔔 MỚI • ':'')+o.ref+' • '+money(o.total)+'đ';
+  const customer=document.createElement('p');customer.className='hint';customer.textContent='Khách: '+o.name+' • '+o.phone+' • '+formatOrderTime(o.createdAt);
+  const info=document.createElement('p');info.textContent=(o.items?.length?o.items.map(x=>x.product+' × '+x.qty+' '+(x.unit||'thùng')).join(' | '):(o.product+' × '+o.qty))+' • '+(o.status||'Chờ thanh toán');
+  const address=document.createElement('p');address.className='hint';address.textContent='Giao: '+(o.address||'Chưa có địa chỉ')+(o.deliveryNote?' • Lưu ý: '+o.deliveryNote:'');
+  card.append(heading,customer,info,address);root.append(card);
+ }
+}
+async function refreshOrderInbox(){
+ if(!secret||$('workspace').hidden||orderPollBusy)return;
+ orderPollBusy=true;
+ try{
+  const data=await request('/api/admin/new-orders');
+  const current=new Set(data.orders.map(o=>o.ref));
+  if(knownOrderRefs!==null){
+   const added=data.orders.filter(o=>!knownOrderRefs.has(o.ref));
+   if(added.length){
+    for(const order of added)unseenOrderRefs.add(order.ref);
+    announceOrders(added);
+   }
+  }else{
+   $('orderAlert').textContent='Đang theo dõi • '+data.total+' đơn THỬ đã có, kiểm tra mỗi 10 giây.';
+  }
+  knownOrderRefs=current;
+  renderOrderInbox(data.orders);
+ }catch(e){$('orderAlert').textContent='Chưa đọc được đơn mới: '+e.message}
+ finally{orderPollBusy=false}
+}
+$('refreshOrders').onclick=()=>refreshOrderInbox();
+$('markOrdersSeen').onclick=()=>{
+ unseenOrderRefs.clear();$('orderAlert').textContent='Đã đánh dấu xem các thông báo mới.';
+ $('newOrderCount').textContent='0';document.title=BASE_TITLE;
+ refreshOrderInbox();
+};
+$('enableOrderBell').onclick=async()=>{
+ bellEnabled=!bellEnabled;
+ $('enableOrderBell').textContent=bellEnabled?'🔔 Tắt chuông':'🔕 Bật chuông & thông báo';
+ if(!bellEnabled){$('orderAlert').textContent='Đã tắt chuông; danh sách đơn vẫn tự cập nhật.';return}
+ try{const Context=window.AudioContext||window.webkitAudioContext;if(Context){if(!orderAudio)orderAudio=new Context();await orderAudio.resume()}}catch{}
+ if(typeof Notification!=='undefined'&&Notification.permission==='default'){
+  try{await Notification.requestPermission()}catch{}
+ }
+ $('orderAlert').textContent='Đã bật chuông trong trang Admin. Thông báo hệ thống phụ thuộc quyền trình duyệt, và không phải thông báo push khi đã đóng trang.';
+};
+setInterval(()=>{if(secret&&!$('workspace').hidden)refreshOrderInbox()},10000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshOrderInbox()});
+
 async function load(){
  await loadRequests();
  const data=await request('/api/admin/customers');
@@ -191,7 +286,7 @@ $('restoreSandboxBackup').onclick=async()=>{
 
 function showNewLink(url){lastLink=url;$('newLink').hidden=false;$('linkText').textContent=url;$('result').textContent='Đã tạo link riêng. Nhớ lưu hoặc gửi cho khách THỬ.'}
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
- secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
+ secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load();await refreshOrderInbox()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
  const b=$('createButton');b.disabled=true;
  if(selectedCustomerId){$('error').textContent='Khách đã có. Không tạo thêm hồ sơ trùng.';b.disabled=true;return}
