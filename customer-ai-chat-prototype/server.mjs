@@ -11,7 +11,8 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
-import {parseOrder,parseRules,geminiConfigured} from './free-parser.mjs';
+import {parseOrder,parseRules,geminiConfigured,identityChange} from './free-parser.mjs';
+import {parseMultiOrder} from './multi-order.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
@@ -43,6 +44,21 @@ function normalizeDeliveryNote(value){if(value==null)return '';if(typeof value!=
 function makeQuote(token,profile,sku,qty){
  if(!productFor(sku)||!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
  const product=productFor(sku);const unitPrice=money(product.listPrice*(1-profile.discount/100));const subtotal=qty*unitPrice;const shipping=money(subtotal*profile.ship/100);const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku,qty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,unitPrice,product:product.name,code:product.code,unit:product.unit,spec:product.spec,listPrice:product.listPrice,subtotal,shipping,total:subtotal+shipping,expiresAt:Date.now()+10*60_000,token};quotes.set(q.quoteId,q);return q;
+}
+function makeMultiQuote(token,profile,requestedItems){
+ if(!Array.isArray(requestedItems)||requestedItems.length<2||requestedItems.length>6)return null;
+ const totalQty=requestedItems.reduce((sum,x)=>sum+x.qty,0);
+ if(totalQty>500||totalQty<2)return null;
+ const items=requestedItems.map(({sku,qty})=>{
+  const product=productFor(sku);
+  if(!product||!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
+  const unitPrice=money(product.listPrice*(1-profile.discount/100));
+  return {sku:product.code,code:product.code,product:product.name,unit:product.unit,spec:product.spec,qty,listPrice:product.listPrice,discount:profile.discount,unitPrice,subtotal:money(qty*unitPrice)};
+ });
+ if(items.some(x=>!x))return null;
+ const subtotal=items.reduce((sum,x)=>sum+x.subtotal,0),shipping=money(subtotal*profile.ship/100);
+ const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku:'MULTI',qty:totalQty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,product:items.length+' loại sản phẩm',unit:'đơn vị',items,subtotal,shipping,total:subtotal+shipping,expiresAt:Date.now()+10*60_000,token};
+ quotes.set(q.quoteId,q);return q;
 }
 function saveOrdersAtomic(){const data=JSON.stringify([...orders.values()],null,2);const tmp=DATA_FILE+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(tmp,data,{mode:0o600});fs.renameSync(tmp,DATA_FILE)}
 async function generatePdf(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_pdf.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,300)||'PDF_ERROR')));proc.stdin.end(JSON.stringify(o))})}
@@ -99,6 +115,19 @@ const server=http.createServer(async(req,res)=>{
   if(delivery.clarification){
    sessions.set(token,{pendingDeliveryMessage:parsedMessage,expiresAt:Date.now()+5*60_000});
    return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'DELIVERY_TIME',message:delivery.clarification});
+  }
+  // Every listed item must be understood; never silently drop a second SKU.
+  if(/\b(khong dat|huy don|dung giao|thoi khong|chua dat)\b/.test(normalized))return reply(res,200,{ok:true,message:'Đã hiểu, mình chưa lập báo giá hay tạo đơn nào.'});
+  const multi=parseMultiOrder(parsedMessage,c);
+  if(multi){
+   if(identityChange(parsedMessage,c))return reply(res,200,{ok:true,needsHuman:true,message:'Thay đổi địa chỉ, số điện thoại hoặc người nhận cần cửa hàng xác minh thủ công.'});
+   if(multi.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,message:multi.message});
+   const quote=makeMultiQuote(token,c,multi.items);
+   if(!quote)return fail(res,400,'INVALID_QUANTITY','Số lượng hoặc quy cách của đơn nhiều sản phẩm chưa hợp lệ');
+   quote.deliveryNote=normalizeDeliveryNote(delivery.deliveryNote);
+   quote.requestedDeliveryAt=delivery.requestedDeliveryAt;
+   sessions.delete(token);
+   return reply(res,200,{ok:true,sandbox:true,parserSource:multi.source,message:'Đã tự hiểu đủ '+quote.items.length+' loại sản phẩm và lời dặn. Bạn kiểm tra toàn bộ báo giá rồi xác nhận nhé.',quote});
   }
   const parsed=await parseOrder(parsedMessage,c);
   if(parsed.needsHuman)return reply(res,200,{ok:true,needsHuman:true,message:'Yêu cầu thay đổi người nhận, địa chỉ hoặc số điện thoại phải được cửa hàng xác minh trước khi áp dụng giá riêng.'});
