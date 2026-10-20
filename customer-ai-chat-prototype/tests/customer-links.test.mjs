@@ -11,6 +11,7 @@ const proc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...proces
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const req=async(p,method='GET',data,auth)=>{const res=await fetch(origin+p,{method,headers:{...(data?{'content-type':'application/json'}:{}),...(auth?{authorization:'Bearer '+auth}:{})},body:data?JSON.stringify(data):undefined});const raw=await res.arrayBuffer();let json;try{json=JSON.parse(Buffer.from(raw).toString('utf8'))}catch{}return {status:res.status,data:json,bytes:Buffer.from(raw)}};
 let tests=0;const ok=(cond,message)=>{assert.ok(cond,message);tests++};
+let cloneProc=null,cloneTemp=null;
 try{
  let live=false;for(let i=0;i<100;i++){try{const h=await req('/health');if(h.status===200){live=true;break}}catch{}await wait(90)}
  ok(live,'sandbox started');
@@ -44,6 +45,27 @@ try{
  const persisted=readFileSync(path.join(temp,'orders.json'),'utf8');
  ok(!persisted.includes(token),'confirmed test order never saves private bearer customer token');
  ok(JSON.parse(persisted)[0].requestId==='KH-SANDBOX-'+creation.data.customer.id.slice('KH-SANDBOX-'.length)+'|customer-c-test-123','idempotency key uses only internal customer ID');
+ const noBackup=await req('/api/admin/sandbox-backup');
+ ok(noBackup.status===401,'anonymous cannot download sandbox backup');
+ const backup=await req('/api/admin/sandbox-backup','GET',undefined,admin);
+ ok(backup.status===200&&backup.data.snapshot.profiles.length===1&&backup.data.snapshot.orders.length===1,'admin can export profiles and confirmed test orders');
+ ok(!JSON.stringify(backup.data).includes(token),'backup contains only hashed customer credentials');
+ // A fresh, empty sandbox can restore the owner-downloaded file; no production writes.
+ cloneTemp=mkdtempSync(path.join(tmpdir(),'satori-restore-sandbox-'));
+ const clonePort=port+1200,cloneOrigin='http://127.0.0.1:'+clonePort;
+ cloneProc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(clonePort),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:cloneTemp,CUSTOMER_LINKS_ADMIN_TOKEN:admin+' \\n',GEMINI_API_KEY:''},stdio:'ignore'});
+ const cloneReq=async(url,method='GET',body,auth)=>{const response=await fetch(cloneOrigin+url,{method,headers:{...(body?{'content-type':'application/json'}:{}),...(auth?{authorization:'Bearer '+auth}:{})},body:body?JSON.stringify(body):undefined});return {status:response.status,data:await response.json()}};
+ let cloneReady=false;for(let i=0;i<100;i++){try{const h=await cloneReq('/health');if(h.status===200){cloneReady=true;break}}catch{}await wait(60)}
+ ok(cloneReady,'fresh restore sandbox starts');
+ const modified=structuredClone(backup.data);modified.snapshot.orders[0].total+=1;
+ const tampered=await cloneReq('/api/admin/sandbox-backup','POST',{confirmation:'RESTORE_TEST_ONLY',archive:modified},admin);
+ ok(tampered.status===400,'tampered backup checksum rejected');
+ const restored=await cloneReq('/api/admin/sandbox-backup','POST',{confirmation:'RESTORE_TEST_ONLY',archive:backup.data},admin);
+ ok(restored.status===200&&restored.data.restoredProfiles===1&&restored.data.restoredOrders===1,'valid backup restores empty sandbox only');
+ const clonedHistory=await cloneReq('/api/history?token='+encodeURIComponent(token));
+ ok(clonedHistory.status===200&&clonedHistory.data.count===1,'restored customer hash and order history match old link');
+ const repeatRestore=await cloneReq('/api/admin/sandbox-backup','POST',{confirmation:'RESTORE_TEST_ONLY',archive:backup.data},admin);
+ ok(repeatRestore.status===409,'restore never overwrites existing sandbox records');
  const history=await req('/api/history?token='+encodeURIComponent(token));
  ok(history.data.count===1&&history.data.orders[0].ref===confirm.data.order.ref,'history includes only own invoice');
  ok(history.data.orders[0].deliveryNote==='Giao sau 3 giờ, gọi trước khi đến','notes visible in own history');
@@ -66,4 +88,4 @@ try{
  const blocked=await req('/api/history?token='+encodeURIComponent(newToken));
  ok(revoke.status===200&&blocked.status===404,'revoke blocks previously active link');
  console.log('Customer link tests PASS '+tests+'/'+tests);
-}finally{proc.kill();rmSync(temp,{recursive:true,force:true})}
+}finally{proc.kill();if(cloneProc)cloneProc.kill();rmSync(temp,{recursive:true,force:true});if(cloneTemp)rmSync(cloneTemp,{recursive:true,force:true})}
