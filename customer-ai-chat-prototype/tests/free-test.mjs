@@ -98,8 +98,13 @@ try {
  test(r.body.ok&&!r.body.quote,'other greeting does not place order');
  const denied=await post('/api/confirm',{token:'demo-b',quoteId:quoteA.quoteId,requestId:'free-cross-0001'});
  test(denied.status===409,'cross-profile quote blocked');
- const confirmed=await post('/api/confirm',{token:'demo-a',quoteId:quoteA.quoteId,requestId:'free-confirm-0001'});
+ const longNote=await post('/api/confirm',{token:'demo-a',quoteId:quoteA.quoteId,requestId:'free-long-note-001',deliveryNote:'x'.repeat(301)});
+ test(longNote.status===400&&longNote.body.error==='INVALID_DELIVERY_NOTE','delivery note longer than 300 characters rejected before order creation');
+ const confirmed=await post('/api/confirm',{token:'demo-a',quoteId:quoteA.quoteId,requestId:'free-confirm-0001',deliveryNote:'Giao sau 2 giờ'});
  test(confirmed.body.order?.status==='Chờ thanh toán','explicit confirmation creates unpaid test order');
+ test(confirmed.body.order?.deliveryNote==='Giao sau 2 giờ','delivery note saved unchanged on confirmed order');
+ const noteHistory=await get('/api/history?token=demo-a');
+ test(noteHistory.body.orders.some(o=>o.ref===confirmed.body.order.ref&&o.deliveryNote==='Giao sau 2 giờ'),'delivery note visible only in owning customer history');
  const again=await post('/api/confirm',{token:'demo-a',quoteId:quoteA.quoteId,requestId:'free-confirm-0001'});
  test(again.body.duplicate===true,'repeat request does not create second order');
  test((await get('/health')).body.orders===1,'only one order persisted');
