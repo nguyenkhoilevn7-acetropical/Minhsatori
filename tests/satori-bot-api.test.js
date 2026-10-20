@@ -136,6 +136,19 @@ issuer.email='staff@example.com';
 assert.equal(mobile('mobile.snapshot').ok,true);
 assert.equal(mobile('mobile.snapshot').data.allowedActions.includes('orders.create'),false);
 assert.equal(mobile('mobile.trash').error.code,'FORBIDDEN');
+// A staff role that can delete but cannot create/edit must not be able to
+// restore a deleted invoice. Restoring revives a financial record (write).
+props.SATORI_ANDROID_STAFF_PERMISSIONS_JSON=JSON.stringify({
+ 'staff@example.com':['orders:read','orders:delete']
+});
+assert.equal(mobile('mobile.snapshot').data.allowedActions.includes('orders.restore'),false);
+assert.equal(mobile('orders.restore',{}).error.code,'FORBIDDEN');
+props.SATORI_ANDROID_STAFF_PERMISSIONS_JSON=JSON.stringify({
+ 'staff@example.com':['orders:read','orders:write']
+});
+assert.equal(mobile('mobile.snapshot').data.allowedActions.includes('orders.restore'),true);
+assert.equal(mobile('mobile.snapshot').data.allowedActions.includes('orders.delete'),false);
+assert.equal(mobile('mobile.trash').error.code,'FORBIDDEN');
 issuer.email='owner@example.com';
 const createdMobile=mobile('orders.create',{expectedRevision:20,requestId:'phone-order-001',
   confirmedNewCustomer:true,order:{name:'Android Test Customer',location:'Cát Lái 101',phone:'0909988999',
