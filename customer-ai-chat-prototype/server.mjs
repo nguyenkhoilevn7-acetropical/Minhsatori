@@ -109,8 +109,13 @@ const server=http.createServer(async(req,res)=>{
    }
   }
 
-  const explicitChange=/(giao (den|toi|ve) (dia chi|noi|cho) khac|doi dia chi|dia chi moi|so dien thoai moi|sdt moi|doi nguoi nhan|nguoi nhan khac)/.test(normalized);
-  if(explicitChange)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu đổi người nhận, số điện thoại hoặc địa chỉ. Cửa hàng cần xác minh và duyệt thủ công; không tự áp dụng chiết khấu riêng.'});
+  // One link = one approved recipient + phone + address. Never update from chat.
+  const explicitChange=/(giao (den|toi|ve) (dia chi|noi|cho) khac|doi dia chi|dia chi moi|thay dia chi|chuyen dia chi|so dien thoai moi|doi so dien thoai|thay so dien thoai|sdt moi|doi nguoi nhan|nguoi nhan khac|doi ten nguoi nhan)/.test(normalized);
+  if(explicitChange||identityChange(message,c)||identityChange(parsedMessage,c)){
+   const request=customerLinks.logChangeRequest(c,message);
+   sessions.delete(token);
+   return reply(res,200,{ok:true,needsHuman:true,changeRequestId:request.id,message:'Đã ghi nhận yêu cầu thay đổi thông tin và đưa vào danh sách chờ người quản trị xem xét. Link hiện tại vẫn giữ nguyên người nhận, số điện thoại và địa chỉ cũ. Cửa hàng sẽ liên hệ sau khi kiểm tra; chưa tạo hoặc thay đổi đơn.'});
+  }
   const delivery=extractDeliveryIntent(parsedMessage,new Date());
   if(delivery.clarification){
    sessions.set(token,{pendingDeliveryMessage:parsedMessage,expiresAt:Date.now()+5*60_000});
