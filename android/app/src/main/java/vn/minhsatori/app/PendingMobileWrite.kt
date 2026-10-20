@@ -32,7 +32,8 @@ data class PendingMobileWrite(
                 snapshot.confirmedWrite(action, requestId) != null
             "payments.markCustomerPaid" -> snapshot.invoices.singleOrNull {
                 it.id == p.optString("id") && it.number == p.optString("invoiceNo") &&
-                    it.total == p.optLong("amount", -1) && it.customerHasPaid && !it.isExcluded
+                    it.total == p.optLong("amount", -1) && it.customerHasPaid &&
+                    it.paymentRequestId == requestId && !it.isExcluded
             } != null
             "orders.delete" -> {
                 val entries = trash?.optJSONArray("orders")
