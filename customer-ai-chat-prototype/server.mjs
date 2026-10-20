@@ -113,6 +113,8 @@ const server=http.createServer(async(req,res)=>{
   const explicitChange=/(giao (den|toi|ve) (dia chi|noi|cho) khac|doi dia chi|dia chi moi|thay dia chi|chuyen dia chi|so dien thoai moi|doi so dien thoai|thay so dien thoai|sdt moi|doi nguoi nhan|nguoi nhan khac|doi ten nguoi nhan)/.test(normalized);
   if(explicitChange||identityChange(message,c)||identityChange(parsedMessage,c)){
    const request=customerLinks.logChangeRequest(c,message);
+   // A previous draft to the old destination should not be confirmed after a change request.
+   for(const [quoteId,quote] of quotes)if(quote.token===token)quotes.delete(quoteId);
    sessions.delete(token);
    return reply(res,200,{ok:true,needsHuman:true,changeRequestId:request.id,message:'Đã ghi nhận yêu cầu thay đổi thông tin và đưa vào danh sách chờ người quản trị xem xét. Link hiện tại vẫn giữ nguyên người nhận, số điện thoại và địa chỉ cũ. Cửa hàng sẽ liên hệ sau khi kiểm tra; chưa tạo hoặc thay đổi đơn.'});
   }
