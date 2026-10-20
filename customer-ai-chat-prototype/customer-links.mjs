@@ -6,6 +6,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import {readOnlyReady} from './satori-readonly.mjs';
 
 const now=()=>new Date().toISOString();
 const hash=token=>crypto.createHash('sha256').update(token).digest('hex');
@@ -74,7 +75,7 @@ export function makeCustomerLinks(dataDir){
   const p=url.pathname;
   if(!p.startsWith('/api/admin/customers')&&!p.startsWith('/api/admin/change-requests')&&p!=='/api/admin/status')return false;
   if(!authorized(req)) {no(res,401,'ADMIN_AUTH_REQUIRED','Đăng nhập quản trị riêng mới được quản lý liên kết khách.');return true}
-  if(p==='/api/admin/status'&&req.method==='GET'){api(res,200,{ok:true,sandbox:true,customerLinks:true,pendingChangeRequests:pendingCount()});return true}
+  if(p==='/api/admin/status'&&req.method==='GET'){api(res,200,{ok:true,sandbox:true,customerLinks:true,pendingChangeRequests:pendingCount(),integration:{readOnlyTransportConfigured:readOnlyReady(),readOnlyTransportVerified:false,liveCatalogueSync:false,liveCustomerSync:false,permanentStorage:false,customerOTP:false,realPaymentQR:false,vatPolicyApproved:false}});return true}
   if(p==='/api/admin/change-requests'&&req.method==='GET'){
    api(res,200,{ok:true,sandbox:true,pendingCount:pendingCount(),requests:changeRequests.slice(0,100)});return true;
   }
