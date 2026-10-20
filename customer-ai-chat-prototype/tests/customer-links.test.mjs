@@ -97,5 +97,23 @@ try{
  const revoke=await req('/api/admin/customers/'+id+'/revoke','POST',{},admin);
  const blocked=await req('/api/history?token='+encodeURIComponent(newToken));
  ok(revoke.status===200&&blocked.status===404,'revoke blocks previously active link');
+ const fakeUnauth=await req('/api/admin/create-test-order','POST',{fixture:'demo-a',requestId:'test-bell-one-001'});
+ ok(fakeUnauth.status===401,'anonymous users cannot create fake bell orders');
+ const fakeWrong=await req('/api/admin/create-test-order','POST',{fixture:'production',requestId:'test-bell-one-001'},admin);
+ ok(fakeWrong.status===400,'fake-order endpoint refuses real or unknown profiles');
+ const fakeBadId=await req('/api/admin/create-test-order','POST',{fixture:'demo-a',requestId:'bad'},admin);
+ ok(fakeBadId.status===400,'fake-order endpoint requires safe idempotency ID');
+ const fakeRequest={fixture:'demo-a',requestId:'test-bell-one-001'};
+ const fakeCreated=await req('/api/admin/create-test-order','POST',fakeRequest,admin);
+ ok(fakeCreated.status===201&&fakeCreated.data.order?.ownerTest===true,'owner can create one fake order for notification testing');
+ ok(fakeCreated.data.order.total===Math.round(98000*.8)+Math.round(Math.round(98000*.8)*.08),'fake order uses server pricing with no VAT and no real bank');
+ const fakeRepeat=await req('/api/admin/create-test-order','POST',fakeRequest,admin);
+ ok(fakeRepeat.status===200&&fakeRepeat.data.duplicate===true&&fakeRepeat.data.order.ref===fakeCreated.data.order.ref,'double-tap does not create duplicate test orders');
+ const inboxBell=await req('/api/admin/new-orders','GET',undefined,admin);
+ ok(inboxBell.status===200&&inboxBell.data.total===2&&inboxBell.data.orders.some(o=>o.ref===fakeCreated.data.order.ref&&/TEST CHUÔNG/.test(o.deliveryNote)),'fake order appears in live bell inbox once');
+ const customerAHistory=await req('/api/history?token=demo-a');
+ ok(customerAHistory.data.orders.length===1&&customerAHistory.data.orders[0].ref===fakeCreated.data.order.ref,'fake order visible in approved demo-A history');
+ const crossFake=await req('/api/invoice/'+fakeCreated.data.order.ref+'?token=demo-b');
+ ok(crossFake.status===404,'fake order PDF inaccessible to another demo customer');
  console.log('Customer link tests PASS '+tests+'/'+tests);
 }finally{proc.kill();if(cloneProc)cloneProc.kill();rmSync(temp,{recursive:true,force:true});if(cloneTemp)rmSync(cloneTemp,{recursive:true,force:true})}
