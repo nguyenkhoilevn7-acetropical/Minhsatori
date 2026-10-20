@@ -205,6 +205,13 @@ const restoredMobile=mobile('orders.restore',{expectedRevision:23,requestId:'pho
   id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
   expectedTotal:215000,confirmed:true});
 assert.equal(restoredMobile.data.restored,true);
+// A durable mobile payment is invalid without BOTH invoice identity and total.
+assert.equal(mobile('payments.markCustomerPaid',{expectedRevision:24,
+  invoiceNo:mobileNo,amount:215000,confirmed:true,
+  requestId:'missing-id-payment-001'}).error.code,'ORDER_CHANGED');
+assert.equal(mobile('payments.markCustomerPaid',{expectedRevision:24,
+  id:mobileId,invoiceNo:mobileNo,confirmed:true,
+  requestId:'missing-amount-payment-001'}).error.code,'INVALID_AMOUNT');
 // A stale or forged invoice ID must never mark a different order paid,
 // even when invoice number, amount and other fields happen to match.
 assert.equal(mobile('payments.markCustomerPaid',{expectedRevision:24,
@@ -241,7 +248,7 @@ data={revision:70,updatedAt:'2026-10-19T00:00:00Z',values:{
     date:'19/10/2026',total:25000,items:[{product:'Satori 350 ml',qty:1,unitPrice:25000}]}]),
   satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}};
 const payment=mobile('payments.markCustomerPaid',{
-  expectedRevision:70,invoiceNo:700,amount:25000,confirmed:true,
+  expectedRevision:70,id:700,invoiceNo:700,amount:25000,confirmed:true,
   requestId:'vendor-paid-customer-001'});
 assert.equal(payment.ok,true);
 assert.equal(payment.data.order.status,'Đã TT Satori');
@@ -249,7 +256,7 @@ assert.ok(JSON.parse(data.values.satori_orders_v15)[0].customerPaidAt);
 assert.equal(JSON.parse(data.values.satori_orders_v15)[0].apiPaymentRequestId,'vendor-paid-customer-001');
 assert.equal(call('debt.summary').data.due,0);
 assert.equal(mobile('payments.markCustomerPaid',{
-  expectedRevision:70,invoiceNo:700,amount:25000,confirmed:true
+  expectedRevision:70,id:700,invoiceNo:700,amount:25000,confirmed:true
 }).data.alreadyPaid,true);
 assert.equal(data.revision,71);
 assert.equal(backs,priorBackups+1);
