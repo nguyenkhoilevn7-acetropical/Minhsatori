@@ -49,7 +49,10 @@ async function openAIParse(message){
     input:[{role:'user',content:message}],text:{format:{type:'json_schema',name:'order_intent_v1',strict:true,schema:SCHEMA}}})});
   if(!response.ok){
    const detail=await response.json().catch(()=>null);
-   const code=detail?.error?.code;
+   const code=detail?.error?.code||detail?.error?.type;
+   const hint=String(detail?.error?.message||detail?.message||'');
+   if(/insufficient[_ ]quota|billing[_ ]hard[_ ]limit|exceeded your current quota|run out of credits|credit balance|no balance left/i.test(String(code)+' '+hint))return {error:'OPENAI_INSUFFICIENT_QUOTA'};
+   if(/rate[_ ]limit[_ ]exceeded|rate limit reached|requests per min|tokens per min/i.test(String(code)+' '+hint))return {error:'OPENAI_RATE_LIMIT_EXCEEDED'};
    const allowed=['insufficient_quota','rate_limit_exceeded','invalid_api_key','model_not_found'];
    return {error:allowed.includes(code)?'OPENAI_'+code.toUpperCase():'OPENAI_HTTP_'+response.status};
   }
