@@ -329,6 +329,31 @@ class SatoriModelsTest {
         assertEquals(650000L, parsed.total)
     }
 
+    @Test
+    fun verifiesCustomerPaymentAfterLostHttpResponseWithoutAnotherWrite() {
+        val orders = JSONArray()
+            .put(JSONObject().put("id", 100).put("invoiceNo", 6001)
+                .put("name", "Khách đã thu tiền")
+                .put("status", "Đã thanh toán").put("total", 650000L))
+            .put(JSONObject().put("id", 101).put("invoiceNo", 6002)
+                .put("name", "Khách TT Satori")
+                .put("status", "Đã TT Satori").put("total", 700000L)
+                .put("customerPaidAt", "2026-10-20T00:00:00Z"))
+            .put(JSONObject().put("id", 102).put("invoiceNo", 6003)
+                .put("name", "Khách chưa thu tiền")
+                .put("status", "Chưa thanh toán").put("total", 650000L))
+        val data = SatoriData.fromDriveState(JSONObject()
+            .put("revision", 101)
+            .put("values", JSONObject().put("satori_orders_v15", orders.toString()))
+            .toString())
+        assertEquals("6001", data.confirmedCustomerPayment("6001", 650000L)?.number)
+        assertEquals("6002", data.confirmedCustomerPayment("6002", 700000L)?.number)
+        assertNull(data.confirmedCustomerPayment("6001", 650001L))
+        assertNull(data.confirmedCustomerPayment("6003", 650000L))
+        assertNull(data.confirmedCustomerPayment("6004", 650000L))
+        assertNull(data.confirmedCustomerPayment("", 650000L))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun refusesSnapshotWithoutRevision() {
         SatoriData.fromDriveState("""{"values":{"satori_orders_v15":"[]"}}""")
