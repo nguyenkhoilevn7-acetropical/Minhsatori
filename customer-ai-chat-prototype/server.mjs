@@ -43,7 +43,7 @@ function normalizeDeliveryNote(value){if(value==null)return '';if(typeof value!=
 // Pricing, discounts, identity and persistence are server-owned; AI only parses messages.
 function makeQuote(token,profile,sku,qty){
  if(!productFor(sku)||!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
- const product=productFor(sku);const unitPrice=money(product.listPrice*(1-profile.discount/100));const subtotal=qty*unitPrice;const shipping=money(subtotal*profile.ship/100);const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku,qty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,unitPrice,product:product.name,code:product.code,unit:product.unit,spec:product.spec,listPrice:product.listPrice,subtotal,shipping,total:subtotal+shipping,expiresAt:Date.now()+10*60_000,token};quotes.set(q.quoteId,q);return q;
+ const product=productFor(sku);const unitPrice=money(product.listPrice*(1-profile.discount/100));const subtotal=qty*unitPrice;const shipping=money(subtotal*profile.ship/100);const vatRate=profile.vatRate??0;const vatAmount=money(subtotal*vatRate/100);const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku,qty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,unitPrice,product:product.name,code:product.code,unit:product.unit,spec:product.spec,listPrice:product.listPrice,subtotal,shipping,vatRate,vatAmount,total:subtotal+shipping+vatAmount,expiresAt:Date.now()+10*60_000,token};quotes.set(q.quoteId,q);return q;
 }
 function makeMultiQuote(token,profile,requestedItems){
  if(!Array.isArray(requestedItems)||requestedItems.length<2||requestedItems.length>6)return null;
@@ -56,8 +56,8 @@ function makeMultiQuote(token,profile,requestedItems){
   return {sku:product.code,code:product.code,product:product.name,unit:product.unit,spec:product.spec,qty,listPrice:product.listPrice,discount:profile.discount,unitPrice,subtotal:money(qty*unitPrice)};
  });
  if(items.some(x=>!x))return null;
- const subtotal=items.reduce((sum,x)=>sum+x.subtotal,0),shipping=money(subtotal*profile.ship/100);
- const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku:'MULTI',qty:totalQty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,product:items.length+' loại sản phẩm',unit:'đơn vị',items,subtotal,shipping,total:subtotal+shipping,expiresAt:Date.now()+10*60_000,token};
+ const subtotal=items.reduce((sum,x)=>sum+x.subtotal,0),shipping=money(subtotal*profile.ship/100),vatRate=profile.vatRate??0,vatAmount=money(subtotal*vatRate/100);
+ const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku:'MULTI',qty:totalQty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,product:items.length+' loại sản phẩm',unit:'đơn vị',items,subtotal,shipping,vatRate,vatAmount,total:subtotal+shipping+vatAmount,expiresAt:Date.now()+10*60_000,token};
  quotes.set(q.quoteId,q);return q;
 }
 function saveOrdersAtomic(){const data=JSON.stringify([...orders.values()],null,2);const tmp=DATA_FILE+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(tmp,data,{mode:0o600});fs.renameSync(tmp,DATA_FILE)}
@@ -78,7 +78,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method==='GET'&&p==='/api/session'){
   const token=url.searchParams.get('token')||'';const c=getProfile(token);if(!c)return fail(res,404,'LINK_INVALID','Liên kết không hợp lệ');
-  return reply(res,200,{ok:true,sandbox:true,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship}})
+  return reply(res,200,{ok:true,sandbox:true,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship,vatRate:c.vatRate??0}})
  }
  if(req.method==='POST'&&p==='/api/message'){
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
@@ -161,7 +161,7 @@ const server=http.createServer(async(req,res)=>{
   const key=String(b.requestId||'');if(!/^[a-z0-9-]{8,80}$/i.test(key))return fail(res,400,'BAD_REQUEST_ID','Thiếu mã chống gửi trùng');
   const idemKey=token+'|'+key;if(idempotency.has(idemKey))return reply(res,200,{ok:true,duplicate:true,order:orders.get(idempotency.get(idemKey))});
   const q=quotes.get(b.quoteId);if(!q||q.token!==token||q.expiresAt<Date.now())return fail(res,409,'QUOTE_EXPIRED','Báo giá hết hạn hoặc không thuộc khách này');
-  if(q.profileId!==c.id||q.discount!==c.discount||q.ship!==c.ship||q.address!==c.address||q.phone!==c.phone)return fail(res,409,'PROFILE_CHANGED','Thông tin khách đã thay đổi, cần lập lại báo giá');
+  if(q.profileId!==c.id||q.discount!==c.discount||q.ship!==c.ship||q.vatRate!==(c.vatRate??0)||q.address!==c.address||q.phone!==c.phone)return fail(res,409,'PROFILE_CHANGED','Thông tin khách đã thay đổi, cần lập lại báo giá');
   let deliveryNote;
   try{deliveryNote=normalizeDeliveryNote(b?.deliveryNote??q.deliveryNote)}catch{return fail(res,400,'INVALID_DELIVERY_NOTE','Lưu ý giao hàng phải là văn bản tối đa 300 ký tự')}
   const o={...q,deliveryNote,ref:'TEST-'+crypto.randomBytes(5).toString('hex').toUpperCase(),requestId:idemKey,createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};
