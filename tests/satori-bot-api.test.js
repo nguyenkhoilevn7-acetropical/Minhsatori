@@ -206,8 +206,15 @@ const restoredMobile=mobile('orders.restore',{expectedRevision:23,requestId:'pho
   expectedTotal:215000,confirmed:true});
 assert.equal(restoredMobile.data.restored,true);
 const markedMobile=mobile('payments.markCustomerPaid',{expectedRevision:24,
-  invoiceNo:mobileNo,amount:215000,confirmed:true});
+  invoiceNo:mobileNo,amount:215000,confirmed:true,requestId:'phone-payment-001'});
 assert.equal(markedMobile.data.order.status,'Đã thanh toán');
+assert.equal(markedMobile.data.order.apiPaymentRequestId,'phone-payment-001');
+// A second device seeing a paid bill cannot change attribution to its own ID.
+const otherDevice=mobile('payments.markCustomerPaid',{expectedRevision:24,
+  invoiceNo:mobileNo,amount:215000,confirmed:true,requestId:'other-device-payment-002'});
+assert.equal(otherDevice.data.alreadyPaid,true);
+assert.equal(otherDevice.data.order.apiPaymentRequestId,'phone-payment-001');
+assert.equal(JSON.parse(data.values.satori_orders_v15).find(o=>o.invoiceNo===mobileNo).apiPaymentRequestId,'phone-payment-001');
 assert.equal(mobile('orders.delete',{expectedRevision:25,requestId:'phone-delete-002',
   id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
   expectedTotal:215000,confirmed:true}).error.code,'PAID_ORDER_PROTECTED');
@@ -225,10 +232,12 @@ data={revision:70,updatedAt:'2026-10-19T00:00:00Z',values:{
     date:'19/10/2026',total:25000,items:[{product:'Satori 350 ml',qty:1,unitPrice:25000}]}]),
   satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}};
 const payment=mobile('payments.markCustomerPaid',{
-  expectedRevision:70,invoiceNo:700,amount:25000,confirmed:true});
+  expectedRevision:70,invoiceNo:700,amount:25000,confirmed:true,
+  requestId:'vendor-paid-customer-001'});
 assert.equal(payment.ok,true);
 assert.equal(payment.data.order.status,'Đã TT Satori');
 assert.ok(JSON.parse(data.values.satori_orders_v15)[0].customerPaidAt);
+assert.equal(JSON.parse(data.values.satori_orders_v15)[0].apiPaymentRequestId,'vendor-paid-customer-001');
 assert.equal(call('debt.summary').data.due,0);
 assert.equal(mobile('payments.markCustomerPaid',{
   expectedRevision:70,invoiceNo:700,amount:25000,confirmed:true
