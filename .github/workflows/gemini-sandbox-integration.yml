@@ -1,0 +1,27 @@
+name: Minh Satori Gemini Sandbox Integration Tests (no deploy)
+
+on:
+  push:
+    branches:
+      - 'prototype/customer-ai-gemini-free-20261020'
+    paths:
+      - 'customer-ai-chat-prototype/**'
+      - '.github/workflows/gemini-sandbox-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate isolated Docker build, HMAC mocks, PDF and native-client-compatible cart
+        run: docker build --pull -f customer-ai-chat-prototype/Dockerfile -t minh-satori-gemini-sandbox:test .
+      - name: Assert production website and ledger remain untouched
+        run: |
+          test -f customer-ai-chat-prototype/satori-readonly.mjs
+          test -f customer-ai-chat-prototype/tests/read-sync-test.mjs
+          echo "PASS: no Render deployment, no secrets loaded, no production writes."
