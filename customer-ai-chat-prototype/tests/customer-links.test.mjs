@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 const here=path.dirname(fileURLToPath(import.meta.url)),root=path.dirname(here),temp=mkdtempSync(path.join(tmpdir(),'satori-customer-links-'));
 const admin='ADMIN_TEST_ONLY_0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ+/=';
 const port=30500+Math.floor(Math.random()*1000),origin='http://127.0.0.1:'+port;
-const proc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(port),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:temp,CUSTOMER_LINKS_ADMIN_TOKEN:admin+' \n',GEMINI_API_KEY:''},stdio:'ignore'});
+const proc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(port),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:temp,CUSTOMER_LINKS_ADMIN_TOKEN:admin+' \n',GEMINI_API_KEY:'',SATORI_READ_ENDPOINT:'',SATORI_READ_KEY_ID:'',SATORI_READ_HMAC_SECRET:''},stdio:'ignore'});
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const req=async(p,method='GET',data,auth)=>{const res=await fetch(origin+p,{method,headers:{...(data?{'content-type':'application/json'}:{}),...(auth?{authorization:'Bearer '+auth}:{})},body:data?JSON.stringify(data):undefined});const raw=await res.arrayBuffer();let json;try{json=JSON.parse(Buffer.from(raw).toString('utf8'))}catch{}return {status:res.status,data:json,bytes:Buffer.from(raw)}};
 let tests=0;const ok=(cond,message)=>{assert.ok(cond,message);tests++};
