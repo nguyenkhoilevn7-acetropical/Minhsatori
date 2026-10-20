@@ -23,5 +23,9 @@ for(const [needle,description] of [
  ["serverPost('/api/confirm'","customer confirmation before new order"]
 ])assert.ok(html.includes(needle),description);
 assert.ok(html.trim().endsWith('</html>'),'complete HTML document');
+assert.ok(html.includes('id="printInvoice" href="#" download hidden>⬇ Tải PDF về máy'),'invoice modal uses a direct-download anchor');
+assert.ok(!html.includes('window.print()'),'invoice download never invokes browser print dialog');
+assert.ok(!html.includes("link.target='_blank'"),'confirmation download does not open an extra tab');
+assert.ok(html.includes("download.href='/api/invoice/'"),'history links use direct PDF endpoint');
 assert.ok(!html.includes('GEMINI_API_KEY'),'never inline API secrets');
-console.log('PASS 14/14 iMessage UI structure and JavaScript syntax smoke checks');
+console.log('PASS 18/18 iMessage and PDF download UI structure and JavaScript syntax smoke checks');
