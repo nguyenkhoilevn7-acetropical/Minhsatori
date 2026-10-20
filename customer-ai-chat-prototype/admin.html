@@ -8,8 +8,8 @@ header{display:flex;align-items:center;gap:10px;margin-bottom:18px}header a{colo
 h1{font-size:23px;margin:8px 0}h2{font-size:19px;margin:0 0 10px}.card{background:#172844;border:1px solid #304765;border-radius:20px;padding:18px;margin:14px 0;box-shadow:0 9px 25px #0002}
 small,.hint{color:#b9cbe0;font-size:13px;line-height:1.5}.warning{padding:12px;border-radius:12px;background:#393019;border:1px solid #776027;color:#ffe29c}
 label{display:block;font-weight:600;font-size:13px;margin:12px 0 5px}
-input{background:#0e1c33;border:1px solid #42607f;border-radius:12px;padding:12px;color:#fff;width:100%;font:inherit}
-input:focus{outline:2px solid #8ac7fd}button{border:0;background:#1d96b4;color:#fff;border-radius:13px;padding:12px 16px;font-weight:700;min-height:45px;cursor:pointer}
+input,select{background:#0e1c33;border:1px solid #42607f;border-radius:12px;padding:12px;color:#fff;width:100%;font:inherit}
+input:focus,select:focus{outline:2px solid #8ac7fd}.suggestions{display:grid;gap:7px;margin:10px 0}.suggestions button{text-align:left;background:#25435e;border:1px solid #527391;width:100%;font-weight:500}.selected{color:#abf0c9;font-size:13px;margin:9px 0}button{border:0;background:#1d96b4;color:#fff;border-radius:13px;padding:12px 16px;font-weight:700;min-height:45px;cursor:pointer}
 button.secondary{background:#25435e;border:1px solid #527391}button.danger{background:#76344a}button:disabled{opacity:.6;cursor:wait}
 .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:120px}
 .customer{padding:15px 0;border-top:1px solid #314967}.customer strong{display:block}.customer .row>*{min-width:110px}
@@ -26,10 +26,17 @@ button.secondary{background:#25435e;border:1px solid #527391}button.danger{backg
 <div id="workspace" hidden>
 <section class="card"><h2>Tạo link riêng cho khách thử</h2><p class="hint">Mỗi link chỉ thuộc một hồ sơ. Thông tin khách và chiết khấu được kiểm tra ở máy chủ, không lấy từ tin nhắn AI.</p>
 <form id="create">
+<label for="customerSearch">Chọn khách đã có (sandbox)</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
+<p id="customerHelp" class="hint">Chọn hồ sơ từ gợi ý để tự điền thông tin. Chỉ tìm trong khách thử đã lưu; khách website thật sẽ kết nối sau.</p>
+<select id="existingCustomer" aria-label="Chọn khách đã có"><option value="">— Chọn khách có sẵn —</option></select>
+<div id="customerSuggestions" class="suggestions" aria-live="polite"></div>
+<p id="selectedCustomer" class="selected" role="status"></p>
+<button type="button" id="newCustomer" class="secondary">+ Nhập khách mới</button>
 <label for="name">Tên khách</label><input id="name" required minlength="2" maxlength="120" placeholder="Khách Demo C">
 <label for="phone">Số điện thoại thử</label><input id="phone" required maxlength="30" type="tel" placeholder="000 000 0003">
 <label for="address">Địa chỉ giao hàng thử</label><input id="address" required maxlength="300" placeholder="789 Đường Mẫu, TP.HCM">
-<div class="row"><div><label for="discount">Chiết khấu (%)</label><input id="discount" required type="number" min="0" max="70" step="1" value="20"></div><div><label for="ship">Phí giao hàng (%)</label><input id="ship" required type="number" min="0" max="30" step="1" value="8"></div></div>
+<div class="row"><div><label for="discount">Chiết khấu (%)</label><input id="discount" required type="number" min="0" max="70" step="1" value="20"></div><div><label for="ship">Phí giao hàng (%)</label><input id="ship" required type="number" min="0" max="30" step="1" value="8"></div><div><label for="vatRate">Thuế VAT (%)</label><select id="vatRate"><option value="0">0% — chưa áp dụng</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div></div>
+<p class="hint">VAT thử nghiệm tính trên tiền hàng sau chiết khấu, không tính phí giao. Thuế suất thật phải kiểm tra theo từng mặt hàng trước khi sử dụng.</p>
 <p><button type="submit" id="createButton">+ Tạo link khách</button></p></form>
 <div id="result" role="status"></div><div id="newLink" hidden><p class="hint">Sao chép ngay link này để chia sẻ. Mất link thì tạo lại; link cũ sẽ hết hiệu lực.</p><div id="linkText" class="link"></div><button id="copyLink" type="button">Sao chép link để gửi Zalo</button></div>
 </section>
@@ -40,7 +47,7 @@ button.secondary{background:#25435e;border:1px solid #527391}button.danger{backg
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-let secret='',lastLink='';
+let secret='',lastLink='',customerProfiles=[],selectedCustomerId='';
 const clearError=()=>{$('error').textContent='';$('result').textContent=''};
 async function request(path,method='GET',payload){
  const r=await fetch(path,{method,headers:{'Authorization':'Bearer '+secret,...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'});
@@ -48,9 +55,62 @@ async function request(path,method='GET',payload){
  return data;
 }
 const money=n=>Number(n).toLocaleString('vi-VN');
+const normalized=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/đ/g,'d').replace(/\s+/g,' ').trim();
+const digits=s=>String(s||'').replace(/\D/g,'');
+function matchesCustomer(c,query){
+ const q=normalized(query),p=digits(query);
+ return (q.length>=2&&normalized(c.name).includes(q))||(p.length>=3&&digits(c.phone).includes(p));
+}
+function showMatches(query){
+ const root=$('customerSuggestions');root.textContent='';
+ if(!String(query||'').trim())return;
+ const found=customerProfiles.filter(c=>matchesCustomer(c,query)).slice(0,8);
+ if(!found.length){root.textContent='Không có khách thử phù hợp. Có thể nhập khách mới.';return}
+ for(const c of found){
+  const b=document.createElement('button');b.type='button';b.className='secondary';
+  b.textContent=c.name+' • '+c.phone+' • '+c.address;
+  b.onclick=()=>chooseCustomer(c);root.append(b);
+ }
+}
+function chooseCustomer(c){
+ selectedCustomerId=c.id;$('existingCustomer').value=c.id;
+ $('name').value=c.name;$('phone').value=c.phone;$('address').value=c.address;
+ $('discount').value=c.discount;$('ship').value=c.ship;$('vatRate').value=c.vatRate??0;
+ $('customerSearch').value=c.name+' • '+c.phone;
+ $('customerSuggestions').textContent='';
+ $('selectedCustomer').textContent='✓ Đã chọn hồ sơ: '+c.name+'. Không tạo trùng khách. Quản lý link trong danh sách bên dưới.';
+ $('createButton').disabled=true;$('createButton').textContent='Đã chọn khách có sẵn';
+}
+function clearCustomerSelection(){
+ selectedCustomerId='';$('existingCustomer').value='';$('customerSearch').value='';
+ $('create').reset();$('customerSuggestions').textContent='';$('selectedCustomer').textContent='';
+ $('createButton').disabled=false;$('createButton').textContent='+ Tạo link khách';
+}
+$('newCustomer').onclick=clearCustomerSelection;
+$('existingCustomer').onchange=()=>{const c=customerProfiles.find(x=>x.id===$('existingCustomer').value);if(c)chooseCustomer(c);else clearCustomerSelection()};
+$('customerSearch').addEventListener('input',e=>showMatches(e.target.value));
+for(const id of ['name','phone']){
+ $(id).addEventListener('input',e=>{
+  if(selectedCustomerId)return;
+  const value=e.target.value.trim();showMatches(value);
+  const exact=customerProfiles.filter(c=>id==='name'?normalized(c.name)===normalized(value):digits(c.phone)===digits(value));
+  if(exact.length===1&&value.length>3){
+   const c=exact[0];
+   for(const key of ['name','phone','address'])if(!$(key).value.trim())$(key).value=c[key];
+   $('selectedCustomer').textContent='Tìm thấy '+c.name+'. Chọn hồ sơ trong gợi ý để xác nhận đúng khách.';
+  }
+ });
+}
+
 async function load(){
  await loadRequests();
  const data=await request('/api/admin/customers');
+ customerProfiles=data.customers;
+ const select=$('existingCustomer'),previous=selectedCustomerId;
+ select.replaceChildren(new Option('— Chọn khách có sẵn —',''));
+ for(const c of customerProfiles){select.add(new Option(c.name+' • '+c.phone,c.id))}
+ if(previous&&customerProfiles.some(c=>c.id===previous))select.value=previous;
+ if(!selectedCustomerId)showMatches($('customerSearch').value);
  const list=$('list');list.textContent='';
  if(!data.customers.length){list.textContent='Chưa có hồ sơ mới. Tạo một khách GIẢ để kiểm thử.';return}
  for(const c of data.customers){
@@ -96,8 +156,9 @@ $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if
  secret=code;$('login').disabled=true;try{await request('/api/admin/status');$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
  const b=$('createButton');b.disabled=true;
- const payload={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),discount:Number($('discount').value),ship:Number($('ship').value)};
- try{const data=await request('/api/admin/customers','POST',payload);showNewLink(data.customerLink);$('create').reset();await load()}catch(err){$('error').textContent=err.message}finally{b.disabled=false}};
+ if(selectedCustomerId){$('error').textContent='Khách đã có. Không tạo thêm hồ sơ trùng.';b.disabled=true;return}
+ const payload={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),discount:Number($('discount').value),ship:Number($('ship').value),vatRate:Number($('vatRate').value)};
+ try{const data=await request('/api/admin/customers','POST',payload);showNewLink(data.customerLink);clearCustomerSelection();await load()}catch(err){$('error').textContent=err.message}finally{b.disabled=false}};
 $('copyLink').onclick=async()=>{try{await navigator.clipboard.writeText(lastLink);$('result').textContent='Đã sao chép link để gửi cho khách thử.'}catch(e){$('result').textContent='Không tự sao chép được. Anh giữ lâu để chọn và sao chép link ở trên.'}};
 })();
 </script></body></html>
