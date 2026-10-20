@@ -31,7 +31,22 @@ const FIXTURES=Object.freeze({
 const sessions=new Map(),quotes=new Map(),orders=new Map(),idempotency=new Map(),rate=new Map();
 const geminiProbe={status:'not_run',elapsedMs:null};
 function safeJSON(s){try{return JSON.parse(s)}catch{return null}}
-if(fs.existsSync(DATA_FILE))for(const o of safeJSON(fs.readFileSync(DATA_FILE,'utf8'))||[]){if(o?.ref&&o.sandbox)orders.set(o.ref,o);if(o?.requestId)idempotency.set(o.requestId,o.ref)}
+// Backward-compatibility scrub: older TEST orders embedded the opaque customer URL
+// credential into requestId. Replace it with a stable internal profile ID instead.
+let scrubbedLegacyRequestIds=false;
+if(fs.existsSync(DATA_FILE))for(const o of safeJSON(fs.readFileSync(DATA_FILE,'utf8'))||[]){
+ if(!o?.ref||!o.sandbox)continue;
+ if(typeof o.requestId==='string'&&typeof o.profileId==='string'){
+  const separator=o.requestId.lastIndexOf('|');
+  if(separator>0){
+   const suffix=o.requestId.slice(separator+1);
+   const safeKey=o.profileId+'|'+suffix;
+   if(o.requestId!==safeKey){o.requestId=safeKey;scrubbedLegacyRequestIds=true}
+  }
+ }
+ orders.set(o.ref,o);
+ if(o.requestId)idempotency.set(o.requestId,o.ref);
+}
 function reply(res,status,obj){const body=JSON.stringify(obj);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'"});res.end(body)}
 function fail(res,status,code,message){reply(res,status,{ok:false,error:code,message})}
 function getProfile(token){return Object.hasOwn(FIXTURES,token)?FIXTURES[token]:customerLinks.getProfile(token)}
@@ -61,6 +76,7 @@ function makeMultiQuote(token,profile,requestedItems){
  quotes.set(q.quoteId,q);return q;
 }
 function saveOrdersAtomic(){const data=JSON.stringify([...orders.values()],null,2);const tmp=DATA_FILE+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(tmp,data,{mode:0o600});fs.renameSync(tmp,DATA_FILE)}
+if(scrubbedLegacyRequestIds)saveOrdersAtomic();
 async function generatePdf(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_pdf.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,300)||'PDF_ERROR')));proc.stdin.end(JSON.stringify(o))})}
 async function generateQrPng(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_qr.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,200)||'QR_ERROR')));proc.stdin.end(JSON.stringify(o))})}
 function sendHtml(res){const html=fs.readFileSync(path.join(HERE,'index.html'));res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"});res.end(html)}
@@ -160,7 +176,8 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='POST'&&p==='/api/confirm'){
   const b=await bodyJSON(req),token=b?.token,c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không có quyền');
   const key=String(b.requestId||'');if(!/^[a-z0-9-]{8,80}$/i.test(key))return fail(res,400,'BAD_REQUEST_ID','Thiếu mã chống gửi trùng');
-  const idemKey=token+'|'+key;if(idempotency.has(idemKey))return reply(res,200,{ok:true,duplicate:true,order:orders.get(idempotency.get(idemKey))});
+  // Idempotency may persist to disk. NEVER use the raw customer link token here.
+  const idemKey=c.id+'|'+key;if(idempotency.has(idemKey))return reply(res,200,{ok:true,duplicate:true,order:orders.get(idempotency.get(idemKey))});
   const q=quotes.get(b.quoteId);if(!q||q.token!==token||q.expiresAt<Date.now())return fail(res,409,'QUOTE_EXPIRED','Báo giá hết hạn hoặc không thuộc khách này');
   if(q.profileId!==c.id||q.discount!==c.discount||q.ship!==c.ship||q.vatRate!==(c.vatRate??0)||q.address!==c.address||q.phone!==c.phone)return fail(res,409,'PROFILE_CHANGED','Thông tin khách đã thay đổi, cần lập lại báo giá');
   let deliveryNote;
