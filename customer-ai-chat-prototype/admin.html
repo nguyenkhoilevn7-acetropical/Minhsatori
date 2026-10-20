@@ -62,8 +62,14 @@ button:disabled{opacity:.55}
  .test-order-bar button{width:100%;white-space:normal}
  .card>p>button{margin-bottom:6px}
 }
+.admin-branded-header{display:flex;align-items:center;gap:14px;min-height:55px}
+.admin-brand{display:inline-flex;align-items:center;gap:9px}
+.admin-brand img{width:46px;height:46px;object-fit:contain;background:white;border:1px solid #dfe7ef;border-radius:12px;box-shadow:0 3px 13px #163f6b14}
+.admin-brand strong{font-weight:800;color:#164b7b;font-size:15px;letter-spacing:.15px}
+.admin-brand small{color:#8595a8;font-size:10px}
+@media(max-width:640px){.admin-brand img{width:39px;height:39px}.admin-brand strong{font-size:12px}.admin-branded-header a{font-size:12px}}
 </style></head><body><main>
-<header><a href="/c/demo-a">← Chat thử</a><strong>MINH SATORI • SANDBOX</strong></header>
+<header class="admin-branded-header"><a href="/c/demo-a">← Chat thử</a><span class="admin-brand"><img src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="46" height="46"><strong>MINH SATORI <small>• SANDBOX</small></strong></span></header>
 <h1>Quản lý link khách hàng</h1>
 <p class="warning"><b>Chỉ dùng thông tin GIẢ.</b> Đây là bản thử nghiệm trên Render Free, dữ liệu có thể mất sau khi dịch vụ khởi động lại. Chưa đồng bộ hoặc bảo vệ xác thực khách thật với website Minh Satori.</p>
 <section class="card" id="loginCard"><h2>Đăng nhập quản trị thử</h2>
