@@ -18,6 +18,25 @@ export function makeCustomerLinks(dataDir){
  const filename=path.join(dataDir,'customer-links-SANDBOX.json');
  let profiles=[];
  try{const loaded=JSON.parse(fs.readFileSync(filename,'utf8'));if(Array.isArray(loaded))profiles=loaded.filter(x=>x&&typeof x.id==='string'&&typeof x.tokenHash==='string')}catch{}
+ const requestsFile=path.join(dataDir,'customer-change-requests-SANDBOX.json');
+ let changeRequests=[];
+ try{const loaded=JSON.parse(fs.readFileSync(requestsFile,'utf8'));if(Array.isArray(loaded))changeRequests=loaded.filter(x=>x&&typeof x.id==='string'&&typeof x.profileId==='string').slice(0,500)}catch{}
+ const saveRequests=()=>{
+  const tmp=requestsFile+'.'+crypto.randomUUID()+'.tmp';
+  fs.writeFileSync(tmp,JSON.stringify(changeRequests,null,2),{mode:0o600});
+  fs.renameSync(tmp,requestsFile);
+ };
+ const pendingCount=()=>changeRequests.filter(x=>x.status==='pending').length;
+ // Customer chat NEVER changes an existing link's identity, phone or address.
+ // Record a request in an owner-only inbox for manual review instead.
+ const logChangeRequest=(profile,message)=>{
+  const raw=String(message||'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,500);
+  const recent=changeRequests.find(x=>x.profileId===profile.id&&x.message===raw&&x.status==='pending'&&Date.now()-Date.parse(x.requestedAt)<120000);
+  if(recent)return recent;
+  const request={id:crypto.randomUUID(),profileId:profile.id,customerName:profile.name,approvedName:profile.name,approvedPhone:profile.phone,approvedAddress:profile.address,message:raw,requestedAt:now(),status:'pending',reviewedAt:null};
+  changeRequests.unshift(request);changeRequests=changeRequests.slice(0,500);
+  saveRequests();return request;
+ };
  const save=()=>{
   const tmp=filename+'.'+crypto.randomUUID()+'.tmp';
   fs.writeFileSync(tmp,JSON.stringify(profiles,null,2),{mode:0o600});
@@ -47,9 +66,19 @@ export function makeCustomerLinks(dataDir){
  };
  const handleAdmin=async(req,res,url,bodyJSON)=>{
   const p=url.pathname;
-  if(!p.startsWith('/api/admin/customers')&&p!=='/api/admin/status')return false;
+  if(!p.startsWith('/api/admin/customers')&&!p.startsWith('/api/admin/change-requests')&&p!=='/api/admin/status')return false;
   if(!authorized(req)) {no(res,401,'ADMIN_AUTH_REQUIRED','Đăng nhập quản trị riêng mới được quản lý liên kết khách.');return true}
-  if(p==='/api/admin/status'&&req.method==='GET'){api(res,200,{ok:true,sandbox:true,customerLinks:true});return true}
+  if(p==='/api/admin/status'&&req.method==='GET'){api(res,200,{ok:true,sandbox:true,customerLinks:true,pendingChangeRequests:pendingCount()});return true}
+  if(p==='/api/admin/change-requests'&&req.method==='GET'){
+   api(res,200,{ok:true,sandbox:true,pendingCount:pendingCount(),requests:changeRequests.slice(0,100)});return true;
+  }
+  const requestAction=/^\/api\/admin\/change-requests\/([0-9a-f-]{36})\/review$/.exec(p);
+  if(requestAction&&req.method==='POST'){
+   const entry=changeRequests.find(x=>x.id===requestAction[1]);
+   if(!entry){no(res,404,'NOT_FOUND','Không tìm thấy yêu cầu thay đổi');return true}
+   entry.status='reviewed';entry.reviewedAt=now();saveRequests();
+   api(res,200,{ok:true,request:entry,pendingCount:pendingCount(),notice:'Đã đánh dấu xem. Không có thay đổi nào được áp dụng cho thông tin khách hoặc link.'});return true;
+  }
   if(p==='/api/admin/customers'&&req.method==='GET'){
    api(res,200,{ok:true,sandbox:true,customers:profiles.map(publicProfile)});return true;
   }
@@ -90,5 +119,5 @@ export function makeCustomerLinks(dataDir){
    .map(o=>({ref:o.ref,createdAt:o.createdAt,product:o.product||'',qty:o.qty||0,unit:o.unit||'thùng',items:Array.isArray(o.items)?o.items:[],total:o.total||0,status:o.status||'Chưa thanh toán',deliveryNote:o.deliveryNote||'',hasPdf:true}));
   api(res,200,{ok:true,sandbox:true,profileId:c.id,timezone:'Asia/Ho_Chi_Minh',count:list.length,orders:list,notice:'Dữ liệu chỉ là bản thử, không phải lịch sử hóa đơn website thật.'});
  };
- return {getProfile,handleAdmin,history};
+ return {getProfile,handleAdmin,history,logChangeRequest};
 }
