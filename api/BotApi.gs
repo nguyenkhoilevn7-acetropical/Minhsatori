@@ -37,7 +37,7 @@ function state(){
 }
 function rows(s){var x=JSON.parse(s.values[ORDER_KEY]);need(Array.isArray(x),'INVALID_STATE','Dữ liệu hóa đơn hỏng');return x;}
 function version(s,p){need(Number.isInteger(p.expectedRevision),'REVISION_REQUIRED','Thiếu expectedRevision');need(s.revision===p.expectedRevision,'REVISION_CONFLICT','Dữ liệu vừa được cập nhật, hãy đọc lại');}
-function visible(o){return {id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',updatedAt:o.updatedAt||null,deliveryDate:o.deliveryDate||null};}
+function visible(o){return {id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,apiPaymentRequestId:o.apiPaymentRequestId||'',shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',updatedAt:o.updatedAt||null,deliveryDate:o.deliveryDate||null};}
 function iso(date){
  var m=String(date||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
  var d=new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
@@ -238,9 +238,15 @@ function markPaid(s,all,p){
  // response must not turn a successful payment into a revision conflict.
  need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần xác nhận thực nhận tiền');
  if(p.amount!==undefined)need(money(p.amount)===money(old.total),'TOTAL_MISMATCH','Tiền thanh toán không khớp');
+ // Mobile callers supply a durable requestId; legacy Bot callers may omit it.
+ // Never attribute another device's payment to this request after a lost reply.
+ var paymentRequestId=p.requestId==null?'':String(p.requestId);
+ if(paymentRequestId)need(/^[a-zA-Z0-9_-]{8,100}$/.test(paymentRequestId),
+  'INVALID_REQUEST','Mã xác nhận thanh toán không hợp lệ');
  if(paid(old))return {modified:false,result:{order:visible(old),alreadyPaid:true}};
  version(s,p);
  var updated=Object.assign({},old,{customerPaidAt:new Date().toISOString(),updatedAt:Date.now()});
+ if(paymentRequestId)updated.apiPaymentRequestId=paymentRequestId;
  if(updated.status!=='Đã TT Satori')updated.status='Đã thanh toán';
  all[all.indexOf(old)]=updated;return {modified:true,result:{order:visible(updated),alreadyPaid:false}};
 }
