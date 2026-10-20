@@ -1,6 +1,6 @@
 /* Mock Gemini REST API: tests never call Google, use real credentials, or charge money. */
 import assert from 'node:assert/strict';
-import {parseOrder,parseRules,geminiConfigured} from '../free-parser.mjs';
+import {parseOrder,parseRules,geminiConfigured,sanitizedGeminiOrder} from '../free-parser.mjs';
 const profile={id:'FAKE',name:'Fake customer',phone:'000 000 0001',favourite:'S5L',lastQty:10,uniqueFavourite:true};
 process.env.GEMINI_API_KEY='GEMINI_MOCK_SECRET_NOT_REAL';
 process.env.GEMINI_FREE_TIER_ONLY='true';
@@ -9,12 +9,15 @@ let calls=0,checks=0;const check=(bool,label)=>{assert.ok(bool,label);checks++};
 const original=globalThis.fetch,phrase='Cho tôi 1 tá thùng Satori 5L';
 check(geminiConfigured(),'Gemini enabled only for explicit free-tier project');
 check(parseRules(phrase,profile).needMoreDetails,'unusual quantity requires AI');
+check(sanitizedGeminiOrder(phrase,profile).includes('Satori'),'Gemini receives public product and dozen phrase only');
+check(sanitizedGeminiOrder('Cho tôi 1 tá thùng Satori 5L, đổi số điện thoại 0911989890',profile)==='', 'customer phone change never leaves server');
 globalThis.fetch=async(url,options)=>{
  calls++;
  check(String(url).includes('/v1beta/models/gemini-3.5-flash-lite:generateContent'),'correct Gemini endpoint');
  check(options.headers['x-goog-api-key']==='GEMINI_MOCK_SECRET_NOT_REAL','server-only key header');
  const body=JSON.parse(options.body);
  check(body.generationConfig.responseMimeType==='application/json','JSON response requested');
+ check(!body.contents[0].parts[0].text.includes('Fake customer')&&!body.contents[0].parts[0].text.includes('000 000 0001'),'no customer name or phone sent to Gemini');
  return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:'{"intent":"order","sku":"S5L","qty":12,"use_last_order":false,"address_change":false,"receiver_or_phone_change":false}'}]}}]})};
 };
 try{
