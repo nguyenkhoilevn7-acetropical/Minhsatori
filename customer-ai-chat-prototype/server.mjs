@@ -14,6 +14,7 @@ import {spawn} from 'node:child_process';
 import {parseOrder,parseRules,geminiConfigured} from './free-parser.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
+import {extractDeliveryIntent} from './delivery-intent.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
@@ -74,7 +75,11 @@ const server=http.createServer(async(req,res)=>{
   // It never changes another customer's profile, discount, or price.
   const previous=sessions.get(token);
   let parsedMessage=message;
-  if(previous&&previous.expiresAt>Date.now()){
+  if(previous?.pendingDeliveryMessage&&previous.expiresAt>Date.now()&&/^(?:(?:sau|luc|vao)\\s+)?\\d{1,2}\\s*(?:gio|h|tieng)\\s*(?:chieu|sang|trua|toi|dem|nua)$/i.test(normalized.trim())){
+   const answer=normalized.trim();
+   const suffix=/\\bnua$/.test(answer)?'giao sau '+answer.replace(/^sau\\s+/,''):'giao sau '+answer.replace(/^(luc|vao|sau)\\s+/,'');
+   parsedMessage=previous.pendingDeliveryMessage.replace(/(?:giao|ship)\\s+sau\\s+\\d{1,2}\\s*(?:giờ|gio|h)\\b/iu,suffix);
+  }else if(previous&&previous.expiresAt>Date.now()){
    const onlySku=normalized.trim().match(/^(?:nuoc\s+|loai\s+)?(5\s*l|500\s*ml|350\s*ml)$/);
    const onlyQty=normalized.trim().match(/^(\d{1,4})(?:\s*(?:thung|thg|t))?$/);
    if(onlySku&&previous.qty>0)parsedMessage='Cho '+previous.qty+' thùng nước '+onlySku[1];
@@ -90,6 +95,11 @@ const server=http.createServer(async(req,res)=>{
 
   const explicitChange=/(giao (den|toi|ve) (dia chi|noi|cho) khac|doi dia chi|dia chi moi|so dien thoai moi|sdt moi|doi nguoi nhan|nguoi nhan khac)/.test(normalized);
   if(explicitChange)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu đổi người nhận, số điện thoại hoặc địa chỉ. Cửa hàng cần xác minh và duyệt thủ công; không tự áp dụng chiết khấu riêng.'});
+  const delivery=extractDeliveryIntent(parsedMessage,new Date());
+  if(delivery.clarification){
+   sessions.set(token,{pendingDeliveryMessage:parsedMessage,expiresAt:Date.now()+5*60_000});
+   return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'DELIVERY_TIME',message:delivery.clarification});
+  }
   const parsed=await parseOrder(parsedMessage,c);
   if(parsed.needsHuman)return reply(res,200,{ok:true,needsHuman:true,message:'Yêu cầu thay đổi người nhận, địa chỉ hoặc số điện thoại phải được cửa hàng xác minh trước khi áp dụng giá riêng.'});
   if(parsed.address_change||parsed.receiver_or_phone_change)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu thay địa chỉ, SĐT hoặc người nhận. Mức chiết khấu riêng sẽ không được áp dụng tự động; cửa hàng cần kiểm tra thủ công.'});
@@ -105,6 +115,8 @@ const server=http.createServer(async(req,res)=>{
    return reply(res,200,{ok:true,needMoreDetails:true,message:fields?.reason==='UNSUPPORTED'?'Sản phẩm này chưa có trong danh mục Minh Satori. Bạn vui lòng chọn trong Tất cả sản phẩm.':!sku||parsed.reason==='PRODUCT_AMBIGUOUS'?'Bạn muốn đặt sản phẩm nào? Có thể chọn Premium 450ml, Hikari, Satori hoặc xem Tất cả sản phẩm.':'Bạn muốn đặt bao nhiêu '+(productFor(sku)?.unit||'đơn vị')+'?'});
   }
   const quote=makeQuote(token,c,sku,qty);if(!quote)return fail(res,400,'INVALID_QUANTITY','Chỉ chấp nhận tối đa 500 thùng một đơn');
+  quote.deliveryNote=normalizeDeliveryNote(delivery.deliveryNote);
+  quote.requestedDeliveryAt=delivery.requestedDeliveryAt;
   sessions.delete(token);
   return reply(res,200,{ok:true,sandbox:true,parserSource:parsed.source||'rules',message:'Mình đã lập báo giá theo cấu hình khách THỬ. Bạn xem lại và xác nhận nhé.',quote});
  }
@@ -115,7 +127,7 @@ const server=http.createServer(async(req,res)=>{
   const q=quotes.get(b.quoteId);if(!q||q.token!==token||q.expiresAt<Date.now())return fail(res,409,'QUOTE_EXPIRED','Báo giá hết hạn hoặc không thuộc khách này');
   if(q.profileId!==c.id||q.discount!==c.discount||q.ship!==c.ship||q.address!==c.address||q.phone!==c.phone)return fail(res,409,'PROFILE_CHANGED','Thông tin khách đã thay đổi, cần lập lại báo giá');
   let deliveryNote;
-  try{deliveryNote=normalizeDeliveryNote(b?.deliveryNote)}catch{return fail(res,400,'INVALID_DELIVERY_NOTE','Lưu ý giao hàng phải là văn bản tối đa 300 ký tự')}
+  try{deliveryNote=normalizeDeliveryNote(b?.deliveryNote??q.deliveryNote)}catch{return fail(res,400,'INVALID_DELIVERY_NOTE','Lưu ý giao hàng phải là văn bản tối đa 300 ký tự')}
   const o={...q,deliveryNote,ref:'TEST-'+crypto.randomBytes(5).toString('hex').toUpperCase(),requestId:idemKey,createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};
   delete o.token; // Do not write the bearer link credential into invoice/order storage.
   orders.set(o.ref,o);idempotency.set(idemKey,o.ref);saveOrdersAtomic();quotes.delete(q.quoteId);
