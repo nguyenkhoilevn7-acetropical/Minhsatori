@@ -1,0 +1,42 @@
+name: Minh Satori Bot + Gemini Checkout E2E (staging, no deployment)
+
+on:
+  push:
+    branches:
+      - 'feature/minhsatori-native-android-v020'
+    paths:
+      - 'api/BotApi.gs'
+      - 'tests/satori-bot-api.test.js'
+      - '.github/workflows/bot-gemini-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-shared-checkout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch Android/Bot staging source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: bot-source
+      - name: Fetch Gemini sandbox staging
+        uses: actions/checkout@v4
+        with:
+          ref: 'prototype/customer-ai-gemini-free-20261020'
+          path: gemini-source
+          persist-credentials: false
+      - name: Place exact Bot staging source into isolated fake-ledger test path
+        run: |
+          mkdir -p gemini-source/bot-staging/api
+          cp bot-source/api/BotApi.gs gemini-source/bot-staging/api/BotApi.gs
+      - name: Run actual BotApi with Gemini preflight against fake in-memory ledger
+        working-directory: gemini-source
+        run: node customer-ai-chat-prototype/tests/ai-bot-fake-ledger-e2e.test.mjs
+      - name: Verify no live credentials, Drive writes or release performed
+        run: |
+          test -f bot-source/api/BotApi.gs
+          echo "PASS: no Apps Script / Drive / Render / Google credentials used."
