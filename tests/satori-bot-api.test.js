@@ -205,13 +205,22 @@ const restoredMobile=mobile('orders.restore',{expectedRevision:23,requestId:'pho
   id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
   expectedTotal:215000,confirmed:true});
 assert.equal(restoredMobile.data.restored,true);
+// A stale or forged invoice ID must never mark a different order paid,
+// even when invoice number, amount and other fields happen to match.
+assert.equal(mobile('payments.markCustomerPaid',{expectedRevision:24,
+  id:'not-the-current-invoice',invoiceNo:mobileNo,amount:215000,
+  confirmed:true,requestId:'wrong-id-payment-001'}).error.code,'ORDER_CHANGED');
+assert.equal(writes,earlierWriteCount+4);
 const markedMobile=mobile('payments.markCustomerPaid',{expectedRevision:24,
-  invoiceNo:mobileNo,amount:215000,confirmed:true,requestId:'phone-payment-001'});
+  id:mobileId,invoiceNo:mobileNo,amount:215000,confirmed:true,requestId:'phone-payment-001'});
 assert.equal(markedMobile.data.order.status,'Đã thanh toán');
 assert.equal(markedMobile.data.order.apiPaymentRequestId,'phone-payment-001');
 // A second device seeing a paid bill cannot change attribution to its own ID.
 const otherDevice=mobile('payments.markCustomerPaid',{expectedRevision:24,
-  invoiceNo:mobileNo,amount:215000,confirmed:true,requestId:'other-device-payment-002'});
+  id:mobileId,invoiceNo:mobileNo,amount:215000,confirmed:true,requestId:'other-device-payment-002'});
+assert.equal(mobile('payments.markCustomerPaid',{expectedRevision:24,
+  id:'stale-id',invoiceNo:mobileNo,amount:215000,
+  confirmed:true,requestId:'bad-paid-retry-003'}).error.code,'ORDER_CHANGED');
 assert.equal(otherDevice.data.alreadyPaid,true);
 assert.equal(otherDevice.data.order.apiPaymentRequestId,'phone-payment-001');
 assert.equal(JSON.parse(data.values.satori_orders_v15).find(o=>o.invoiceNo===mobileNo).apiPaymentRequestId,'phone-payment-001');
