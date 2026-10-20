@@ -1,0 +1,39 @@
+name: Minh Satori AI-Web-Android Fake Ledger E2E (staging, no deploy)
+
+on:
+  push:
+    branches:
+      - 'prototype/customer-ai-gemini-free-20261020'
+    paths:
+      - 'customer-ai-chat-prototype/tests/ai-bot-fake-ledger-e2e.test.mjs'
+      - 'customer-ai-chat-prototype/checkout-preflight.mjs'
+      - '.github/workflows/unified-satori-fake-ledger-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verified-fake-ledger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Read Gemini checkout preflight from isolated staging branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read actual Apps Script Bot API from Android staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: 'feature/minhsatori-native-android-v020'
+          path: bot-staging
+          persist-credentials: false
+      - name: Prove E2E quote, one fake invoice, retry and cross-device conflict
+        run: |
+          node --version
+          node customer-ai-chat-prototype/tests/ai-bot-fake-ledger-e2e.test.mjs
+      - name: Verify production branch and credentials were not used
+        run: |
+          test -f bot-staging/api/BotApi.gs
+          test -f customer-ai-chat-prototype/checkout-preflight.mjs
+          echo "PASS: isolated Google Apps Script VM + fake Drive ledger; no network, tokens, cloud writes or deploy."
