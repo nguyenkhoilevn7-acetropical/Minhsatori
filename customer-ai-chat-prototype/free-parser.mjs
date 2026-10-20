@@ -1,6 +1,5 @@
 /* SANDBOX: rule-first Vietnamese order parser, optional Gemini Developer API Free Tier. Never touches price or customer identity. */
 const SKUS=new Set(['S5L','S500','S350']);
-const MODEL='@cf/meta/llama-3.2-3b-instruct';
 const words={mot:1,hai:2,ba:3,bon:4,tu:4,nam:5,lam:5,sau:6,bay:7,tam:8,chin:9,muoi:10};
 const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\s+/g,' ').trim();
 function hints(s){const a=[];if(/\b5\s*(?:l|lit|liter)\b/.test(s))a.push('S5L');if(/\b500\s*ml\b/.test(s))a.push('S500');if(/\b350\s*ml\b/.test(s))a.push('S350');return a;}
