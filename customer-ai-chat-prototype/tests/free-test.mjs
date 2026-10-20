@@ -77,7 +77,7 @@ try {
  r=await post('/api/message',{token:'demo-a',message:'Cho tôi 10 thùng trà mãng cầu'});
  test(r.body.needMoreDetails&&!r.body.quote,'unsupported product must clarify');
  r=await post('/api/message',{token:'demo-a',message:'Cho tôi 10 thùng 5L và 3 thùng 500ml'});
- test(r.body.needMoreDetails&&!r.body.quote,'multi-SKU request not silently truncated');
+ test(r.body.quote?.items?.length===2&&r.body.quote.items[0].qty===10&&r.body.quote.items[1].qty===3,'multi-SKU quote contains both products instead of truncating');
  r=await post('/api/message',{token:'demo-a',message:'Cho 10 thùng 5L giao đến địa chỉ khác'});
  test(r.body.needsHuman&&!r.body.quote,'changed address blocks automatic quote');
  r=await post('/api/message',{token:'demo-a',message:'Cho 10 thùng 5L gọi số 0901234567'});
@@ -130,6 +130,32 @@ try {
  test(ambiguousTime.body.needMoreDetails&&ambiguousTime.body.clarificationType==='DELIVERY_TIME','ambiguous hour asks for only missing detail');
  const timeReply=await post('/api/message',{token:'demo-b',message:'2 giờ chiều'});
  test(timeReply.body.quote?.qty===10&&timeReply.body.quote?.deliveryNote?.includes('14:00'),'short time clarification retains product and quantity');
+
+
+ const mixed=await post('/api/message',{token:'demo-b',message:'Cho 10 thùng Satori 500ml và 5 thùng Hikari 500ml, giao sau 2 giờ chiều, nhớ gọi trước khi giao'});
+ test(mixed.body.quote?.items?.length===2,'two products resolved from one message');
+ test(mixed.body.quote.items[0].qty===10&&mixed.body.quote.items[1].qty===5,'each line has correct quantity');
+ const expectedMixed=mixed.body.quote.items.reduce((s,x)=>s+x.unitPrice*x.qty,0);
+ test(mixed.body.quote.subtotal===expectedMixed,'multiple lines priced server-side with customer discount');
+ test(mixed.body.quote.total===expectedMixed+Math.round(expectedMixed*.08),'shipping calculated once on order subtotal');
+ test(mixed.body.quote.deliveryNote.includes('14:00')&&mixed.body.quote.deliveryNote.includes('gọi trước'),'delivery request survives multi-item parsing');
+ const mixedConfirmation=await post('/api/confirm',{token:'demo-b',quoteId:mixed.body.quote.quoteId,requestId:'multi-items-0001'});
+ test(mixedConfirmation.body.order?.items?.length===2,'confirmed sandbox order persists both lines');
+ const mixedHistory=await get('/api/history?token=demo-b');
+ test(mixedHistory.body.orders.some(o=>o.ref===mixedConfirmation.body.order.ref&&o.items?.length===2),'history includes both product lines');
+ const mixedPDF=await fetch(base+'/api/invoice/'+mixedConfirmation.body.order.ref+'?token=demo-b');
+ const mixedBytes=Buffer.from(await mixedPDF.arrayBuffer());
+ test(mixedPDF.status===200&&mixedBytes.subarray(0,4).toString()==='%PDF'&&mixedBytes.length>30000,'multi-item PDF successfully rendered with original logo');
+ r=await post('/api/message',{token:'demo-b',message:'Cho 10 thùng Satori 500ml và 3 thùng trà sữa'});
+ test(r.body.needMoreDetails&&!r.body.quote,'unknown second product never silently discarded');
+ r=await post('/api/message',{token:'demo-b',message:'Cho 10 thùng Satori 500ml và 3 thùng nước 5L'});
+ test(r.body.needMoreDetails&&!r.body.quote,'ambiguous second product never silently guessed');
+ r=await post('/api/message',{token:'demo-b',message:'Cho 10 thùng Satori 500ml và 3 thùng Hikari 500ml giao cho chị Lan'});
+ test(r.body.needsHuman&&!r.body.quote,'multi-product identity change requires human verification');
+ r=await post('/api/message',{token:'demo-b',message:'Cho 10 thùng Satori 500ml và 3 thùng Hikari 500ml gọi số 0901234567'});
+ test(r.body.needsHuman&&!r.body.quote,'multi-product phone change never bypasses customer verification');
+ r=await post('/api/message',{token:'demo-b',message:'Không đặt 10 thùng Satori 500ml và 3 thùng Hikari 500ml'});
+ test(!r.body.quote,'negated multi-product message does not generate a quote');
 
  console.log('PASS '+tests+'/'+tests+' FREE sandbox integration checks; PDF '+bytes.length+' bytes; no paid model invoked');
 }catch(e){console.error('FAILED: '+e.message);console.error('SERVER LOG: '+output);process.exitCode=1}
