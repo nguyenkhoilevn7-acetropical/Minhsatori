@@ -42,6 +42,15 @@ button.secondary{background:#25435e;border:1px solid #527391}button.danger{backg
 </section>
 <section class="card"><h2>🔔 Yêu cầu đổi thông tin khách <span id="changeCount">0</span></h2><p class="hint">Chỉ ghi nhận yêu cầu đổi số điện thoại, địa chỉ hoặc người nhận. Không tự áp dụng thay đổi vào link. Danh sách tự tải lại khi anh đang mở trang quản trị.</p><p><button id="refreshChanges" class="secondary" type="button">Kiểm tra yêu cầu</button></p><div id="changeList" role="status"></div></section>
 <section class="card"><h2>Danh sách hồ sơ đã tạo</h2><p class="hint">Thu hồi link sẽ ngăn truy cập mới nhưng giữ lịch sử đơn thử. Đổi link sẽ vô hiệu hóa link cũ.</p><div id="list"></div></section>
+<section class="card"><h2>💾 Sao lưu & khôi phục sandbox</h2>
+<p class="hint">Render Free không lưu dữ liệu lâu dài. Anh hãy tải bản sao lưu sau khi thêm khách hoặc tạo đơn thử. Tệp có thông tin khách và đơn THỬ, không có mã bí mật hay link khách dạng rõ. Chỉ giữ ở nơi an toàn, không gửi lên chat hoặc GitHub.</p>
+<button type="button" id="downloadSandboxBackup" class="secondary">⬇ Tải bản sao lưu JSON</button>
+<label for="restoreSandboxFile">Chọn tệp sao lưu để khôi phục</label>
+<input id="restoreSandboxFile" type="file" accept="application/json,.json">
+<p class="hint">Chỉ khôi phục khi sandbox đang trống, không ghi đè dữ liệu đang có. Không kết nối hay khôi phục dữ liệu production.</p>
+<button type="button" id="restoreSandboxBackup" class="secondary">Khôi phục dữ liệu THỬ</button>
+<p id="backupState" role="status" class="hint"></p>
+</section>
 </div>
 </main><script>
 (function(){
@@ -151,6 +160,34 @@ async function loadRequests(){
 }
 $('refreshChanges').onclick=()=>loadRequests().catch(e=>{$('error').textContent=e.message});
 setInterval(()=>{if(secret&&!$('workspace').hidden)loadRequests().catch(()=>{})},30000);
+$('downloadSandboxBackup').onclick=async()=>{
+ const b=$('downloadSandboxBackup');b.disabled=true;$('backupState').textContent='Đang tạo bản sao lưu thử...';
+ try{
+  const data=await request('/api/admin/sandbox-backup');
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const link=document.createElement('a'),uri=URL.createObjectURL(blob);
+  link.href=uri;link.download='minh-satori-SANDBOX-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(uri),30000);
+  $('backupState').textContent='Đã tạo bản sao lưu THỬ. Kiểm tra thư mục Tải xuống trên điện thoại.';
+ }catch(e){$('backupState').textContent='Lỗi sao lưu: '+e.message}
+ finally{b.disabled=false}
+};
+$('restoreSandboxBackup').onclick=async()=>{
+ const file=$('restoreSandboxFile').files?.[0];
+ if(!file){$('backupState').textContent='Chọn tệp sao lưu JSON trước.';return}
+ if(file.size>1_900_000){$('backupState').textContent='Tệp quá lớn để khôi phục an toàn.';return}
+ if(!confirm('Chỉ khôi phục dữ liệu THỬ khi sandbox đang trống. Không ghi đè dữ liệu hiện có. Tiếp tục?'))return;
+ const b=$('restoreSandboxBackup');b.disabled=true;$('backupState').textContent='Đang kiểm tra tệp sao lưu...';
+ try{
+  const archive=JSON.parse(await file.text());
+  const result=await request('/api/admin/sandbox-backup','POST',{confirmation:'RESTORE_TEST_ONLY',archive});
+  $('backupState').textContent='Đã khôi phục '+result.restoredProfiles+' khách thử và '+result.restoredOrders+' bill thử.';
+  await load();
+ }catch(e){$('backupState').textContent='Chưa khôi phục: '+e.message}
+ finally{b.disabled=false}
+};
+
 function showNewLink(url){lastLink=url;$('newLink').hidden=false;$('linkText').textContent=url;$('result').textContent='Đã tạo link riêng. Nhớ lưu hoặc gửi cho khách THỬ.'}
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
  secret=code;$('login').disabled=true;try{await request('/api/admin/status');$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
