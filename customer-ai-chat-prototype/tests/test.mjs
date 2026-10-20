@@ -32,6 +32,8 @@ try{
  const healthy2=await get('/health');check(healthy2.body.orders===1,'Only 1 local sandbox order');
  const pdf=await fetch(origin+'/api/invoice/'+confirm.body.order.ref+'?token=demo-a');const buf=Buffer.from(await pdf.arrayBuffer());
  check(pdf.status===200&&buf.subarray(0,4).toString()==='%PDF','Generated Unicode PDF');
+ check(pdf.headers.get('content-disposition')?.startsWith('attachment; filename="TEST-')===true,'PDF downloads as attachment without print dialog');
+ check(pdf.headers.get('content-type')==='application/pdf','PDF download response has correct MIME type');
  const denied=await fetch(origin+'/api/invoice/'+confirm.body.order.ref+'?token=demo-b');check(denied.status===404,'Cross-customer PDF access denied');
  const html=await fetch(origin+'/c/demo-a');const page=await html.text();
  check(html.status===200&&page.includes('Minh Satori')&&page.includes('serverMode'),'Customer link serves responsive chat page');
