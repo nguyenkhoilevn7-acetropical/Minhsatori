@@ -15,24 +15,83 @@ button.secondary{background:#25435e;border:1px solid #527391}button.danger{backg
 .customer{padding:15px 0;border-top:1px solid #314967}.customer strong{display:block}.customer .row>*{min-width:110px}
 .link{overflow-wrap:anywhere;font-size:13px;color:#c1f9e5;background:#0b1a2b;padding:11px;border-radius:9px;margin:12px 0}#result,#error{white-space:pre-wrap;overflow-wrap:anywhere}#error{color:#ffaaa8}#result{color:#abf0c9}
 [hidden]{display:none!important}@media(max-width:540px){.card{padding:14px}h1{font-size:20px}}
+
+/* Compact iOS-inspired admin (no third-party assets, responsive Samsung-safe). */
+:root{color-scheme:light;background:#f4f6fb;color:#19283b;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif}
+body{background:linear-gradient(180deg,#f2f7ff,#f6f7fa 280px);padding:16px 12px;color:#19283b}
+main{max-width:1024px;padding-bottom:42px}
+header{justify-content:space-between;margin-bottom:9px;color:#134674}
+header a{color:#1762b6;font-weight:650}
+h1{font-size:clamp(21px,3.5vw,29px);letter-spacing:-.55px;margin:6px 0 12px}
+h2{color:#1b3554;letter-spacing:-.3px}
+.card{background:#fff;border:1px solid #e3e9f1;border-radius:19px;padding:20px;margin:12px 0;box-shadow:0 8px 26px rgba(32,60,102,.065)}
+.hint,small{color:#68798e}
+.warning{background:#fff9eb;border:1px solid #f1ddae;color:#94631e;padding:9px 12px;font-size:12px;margin:8px 0 13px}
+label{color:#354b65}
+input,select{background:#f8faff;border:1px solid #d4dfec;color:#19283b;min-height:45px}
+input:focus,select:focus{outline:2px solid #82b8fb}
+button{background:#087bfa;color:#fff;border-radius:12px;font-size:14px;min-height:44px;padding:10px 14px}
+button.secondary{background:#eff5fd;color:#23598c;border:1px solid #d4e1f0}
+button.danger{background:#fbeff1;color:#a63245;border:1px solid #f2ccd3}
+button:disabled{opacity:.55}
+.suggestions button{background:#f2f7fd;border:1px solid #d9e5f4;color:#235381}
+.selected{color:#176d58}
+.customer{border-top:1px solid #e6ebf2}
+.link{background:#f3f8fd;color:#0b6a63}
+#result{color:#176d58}#error{color:#b6283b}
+.admin-tabs{position:sticky;top:0;z-index:4;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;white-space:nowrap;padding:8px 4px;background:rgba(246,248,252,.96);border-bottom:1px solid #e0e7f1;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.admin-tabs::-webkit-scrollbar{display:none}
+.admin-tab{flex:1 0 auto;min-height:43px;background:transparent;color:#6c7d90;font-weight:700;border-radius:13px}
+.admin-tab.active{background:#fff;color:#0575ec;box-shadow:0 2px 10px #24456c18;border:1px solid #dbe8fb}
+.test-order-bar{display:flex;justify-content:space-between;gap:16px;align-items:center;background:#f0f7ff;border:1px solid #d7e7ff;border-radius:16px;padding:14px;margin:13px 0}
+.test-order-bar p{margin:4px 0 0}
+.test-order-bar button{white-space:nowrap}
+#newOrderCount{display:inline-grid;place-items:center;background:#eaf2ff;color:#086de0;border-radius:99px;min-width:30px;height:28px;padding:0 7px;font-size:14px}
+#newOrders .customer{background:#fbfdff;border:1px solid #e2eaf5;border-radius:12px;margin:8px 0;padding:13px}
+#newOrders .customer p{margin:5px 0}
+#showMoreOrders{width:100%;margin-top:10px}
+@media(max-width:640px){
+ body{padding:9px 10px}
+ .card{padding:15px;border-radius:16px}
+ header strong{font-size:11px}
+ h1{font-size:21px}
+ h2{font-size:17px}
+ .admin-tabs{margin:0 -10px;padding:8px 10px;gap:5px;top:0}
+ .admin-tab{padding:9px 10px;font-size:13px}
+ .test-order-bar{flex-direction:column;align-items:stretch;padding:12px}
+ .test-order-bar button{width:100%;white-space:normal}
+ .card>p>button{margin-bottom:6px}
+}
 </style></head><body><main>
 <header><a href="/c/demo-a">← Chat thử</a><strong>MINH SATORI • SANDBOX</strong></header>
 <h1>Quản lý link khách hàng</h1>
 <p class="warning"><b>Chỉ dùng thông tin GIẢ.</b> Đây là bản thử nghiệm trên Render Free, dữ liệu có thể mất sau khi dịch vụ khởi động lại. Chưa đồng bộ hoặc bảo vệ xác thực khách thật với website Minh Satori.</p>
-<section class="card"><h2>Đăng nhập quản trị thử</h2>
+<section class="card" id="loginCard"><h2>Đăng nhập quản trị thử</h2>
 <label for="access">Mã quản trị trên Render (không nằm trong đường link)</label><input id="access" type="password" autocomplete="off" placeholder="Nhập mã quản trị thử">
 <p class="hint">Mã chỉ giữ trong bộ nhớ trình duyệt khi trang đang mở, không lưu vào máy. Không gửi mã cho khách.</p>
 <button id="login">Mở quản lý</button> <span id="authState" class="hint"></span><p id="error" role="alert"></p></section>
 <div id="workspace" hidden>
-<section class="card" aria-labelledby="ordersHeading">
+<nav class="admin-tabs" aria-label="Chức năng quản trị">
+ <button type="button" class="admin-tab active" data-admin-tab="orders" aria-pressed="true">🔔 Đơn hàng</button>
+ <button type="button" class="admin-tab" data-admin-tab="customers" aria-pressed="false">👥 Khách hàng</button>
+ <button type="button" class="admin-tab" data-admin-tab="changes" aria-pressed="false">📬 Yêu cầu</button>
+ <button type="button" class="admin-tab" data-admin-tab="settings" aria-pressed="false">⚙️ Cài đặt</button>
+</nav>
+<section class="card" id="orderPanel" data-tab-panel="orders" aria-labelledby="ordersHeading">
 <h2 id="ordersHeading">🔔 Đơn hàng mới <span id="newOrderCount">0</span></h2>
-<p class="hint">Thông báo khi khách xác nhận đơn THỬ qua Gemini; tự kiểm tra mỗi 10 giây khi trang Admin đang mở. Đơn production chưa đồng bộ.</p>
+<p class="hint">Chỉ thông báo đơn TEST đã xác nhận • Tự cập nhật khoảng 10 giây/lần khi Admin mở.</p>
+<div class="test-order-bar">
+ <div><strong>Kiểm tra chuông ngay</strong><p class="hint">Tạo 1 bill giả: Khách Demo A, 1 thùng Satori 500ml. Không thu tiền, không giao hàng.</p></div>
+ <button type="button" id="createFakeOrder">＋ Tạo đơn TEST & thử chuông</button>
+</div>
+<p id="fakeOrderResult" role="status" class="hint"></p>
 <p><button type="button" id="enableOrderBell" class="secondary">🔕 Bật chuông & thông báo</button> <button type="button" id="refreshOrders" class="secondary">↻ Kiểm tra đơn mới</button> <button type="button" id="markOrdersSeen" class="secondary">Đã xem tất cả</button></p>
 <p id="orderAlert" role="status" aria-live="polite" class="hint">Đang chờ đăng nhập quản trị.</p>
 <div id="newOrders" aria-label="Danh sách đơn đã xác nhận"></div>
+<button id="showMoreOrders" type="button" class="secondary" hidden>Xem thêm đơn</button>
 </section>
 
-<section class="card"><h2>Tạo link riêng cho khách thử</h2><p class="hint">Mỗi link chỉ thuộc một hồ sơ. Thông tin khách và chiết khấu được kiểm tra ở máy chủ, không lấy từ tin nhắn AI.</p>
+<section class="card" data-tab-panel="customers" hidden><h2>Tạo link riêng cho khách thử</h2><p class="hint">Mỗi link chỉ thuộc một hồ sơ. Thông tin khách và chiết khấu được kiểm tra ở máy chủ, không lấy từ tin nhắn AI.</p>
 <form id="create">
 <label for="customerSearch">Chọn khách đã có (sandbox)</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
 <p id="customerHelp" class="hint">Chọn hồ sơ từ gợi ý để tự điền thông tin. Chỉ tìm trong khách thử đã lưu; khách website thật sẽ kết nối sau.</p>
@@ -48,10 +107,10 @@ button.secondary{background:#25435e;border:1px solid #527391}button.danger{backg
 <p><button type="submit" id="createButton">+ Tạo link khách</button></p></form>
 <div id="result" role="status"></div><div id="newLink" hidden><p class="hint">Sao chép ngay link này để chia sẻ. Mất link thì tạo lại; link cũ sẽ hết hiệu lực.</p><div id="linkText" class="link"></div><button id="copyLink" type="button">Sao chép link để gửi Zalo</button></div>
 </section>
-<section class="card"><h2>Trạng thái kết nối website thật</h2><p class="hint">Đây là bảng kiểm tra điều kiện triển khai chính thức, không phải dữ liệu sản xuất. Không nhập mã API hoặc thông tin bí mật vào phần này.</p><div id="integrationStatus" role="status">Đăng nhập để kiểm tra trạng thái.</div></section>
-<section class="card"><h2>🔔 Yêu cầu đổi thông tin khách <span id="changeCount">0</span></h2><p class="hint">Chỉ ghi nhận yêu cầu đổi số điện thoại, địa chỉ hoặc người nhận. Không tự áp dụng thay đổi vào link. Danh sách tự tải lại khi anh đang mở trang quản trị.</p><p><button id="refreshChanges" class="secondary" type="button">Kiểm tra yêu cầu</button></p><div id="changeList" role="status"></div></section>
-<section class="card"><h2>Danh sách hồ sơ đã tạo</h2><p class="hint">Thu hồi link sẽ ngăn truy cập mới nhưng giữ lịch sử đơn thử. Đổi link sẽ vô hiệu hóa link cũ.</p><div id="list"></div></section>
-<section class="card"><h2>💾 Sao lưu & khôi phục sandbox</h2>
+<section class="card" data-tab-panel="settings" hidden><h2>Trạng thái kết nối website thật</h2><p class="hint">Đây là bảng kiểm tra điều kiện triển khai chính thức, không phải dữ liệu sản xuất. Không nhập mã API hoặc thông tin bí mật vào phần này.</p><div id="integrationStatus" role="status">Đăng nhập để kiểm tra trạng thái.</div></section>
+<section class="card" data-tab-panel="changes" hidden><h2>🔔 Yêu cầu đổi thông tin khách <span id="changeCount">0</span></h2><p class="hint">Chỉ ghi nhận yêu cầu đổi số điện thoại, địa chỉ hoặc người nhận. Không tự áp dụng thay đổi vào link. Danh sách tự tải lại khi anh đang mở trang quản trị.</p><p><button id="refreshChanges" class="secondary" type="button">Kiểm tra yêu cầu</button></p><div id="changeList" role="status"></div></section>
+<section class="card" data-tab-panel="customers" hidden><h2>Danh sách hồ sơ đã tạo</h2><p class="hint">Thu hồi link sẽ ngăn truy cập mới nhưng giữ lịch sử đơn thử. Đổi link sẽ vô hiệu hóa link cũ.</p><div id="list"></div></section>
+<section class="card" data-tab-panel="settings" hidden><h2>💾 Sao lưu & khôi phục sandbox</h2>
 <p class="hint">Render Free không lưu dữ liệu lâu dài. Anh hãy tải bản sao lưu sau khi thêm khách hoặc tạo đơn thử. Tệp có thông tin khách và đơn THỬ, không có mã bí mật hay link khách dạng rõ. Chỉ giữ ở nơi an toàn, không gửi lên chat hoặc GitHub.</p>
 <button type="button" id="downloadSandboxBackup" class="secondary">⬇ Tải bản sao lưu JSON</button>
 <label for="restoreSandboxFile">Chọn tệp sao lưu để khôi phục</label>
@@ -67,6 +126,17 @@ button.secondary{background:#25435e;border:1px solid #527391}button.danger{backg
 const $=id=>document.getElementById(id);
 let secret='',lastLink='',customerProfiles=[],selectedCustomerId='';
 const clearError=()=>{$('error').textContent='';$('result').textContent=''};
+// Horizontal navigation: only show the chosen dashboard section.
+function showAdminTab(name){
+ for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
+ for(const b of document.querySelectorAll('[data-admin-tab]')){
+  const active=b.dataset.adminTab===name;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
+ }
+ if(name==='orders')refreshOrderInbox();
+ window.scrollTo({top:0,behavior:'instant'});
+}
+for(const b of document.querySelectorAll('[data-admin-tab]'))b.onclick=()=>showAdminTab(b.dataset.adminTab);
+
 async function request(path,method='GET',payload){
  const r=await fetch(path,{method,headers:{'Authorization':'Bearer '+secret,...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'});
  const data=await r.json();if(r.status===401)throw new Error('Mã quản trị không khớp hoặc chưa được Render áp dụng. Kiểm tra biến CUSTOMER_LINKS_ADMIN_TOKEN (không phải GEMINI_API_KEY), sau đó Save và Deploy sandbox. Không gửi mã qua chat.');if(!r.ok||!data.ok)throw new Error(data.message||'Không thể kết nối quản trị');
@@ -122,6 +192,7 @@ for(const id of ['name','phone']){
 
 // Owner-only live inbox: initial load establishes baseline without a false alarm.
 let knownOrderRefs=null,unseenOrderRefs=new Set(),orderPollBusy=false;
+let showAllOrderCards=false,mostRecentOrderList=[];
 let bellEnabled=false,orderAudio=null;
 const BASE_TITLE=document.title;
 const formatOrderTime=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}):'Không rõ giờ'};
@@ -158,8 +229,9 @@ function renderOrderInbox(orders){
  $('newOrderCount').textContent=String(unseenOrderRefs.size);
  document.title=(unseenOrderRefs.size?'('+unseenOrderRefs.size+') ':'')+BASE_TITLE;
  const root=$('newOrders');root.replaceChildren();
+ mostRecentOrderList=orders;const shown=showAllOrderCards?orders:orders.slice(0,5);$('showMoreOrders').hidden=orders.length<=5;$('showMoreOrders').textContent=showAllOrderCards?'Thu gọn danh sách':'Xem thêm '+(orders.length-5)+' đơn';
  if(!orders.length){const p=document.createElement('p');p.className='hint';p.textContent='Chưa có đơn thử nào được xác nhận.';root.append(p);return}
- for(const o of orders){
+ for(const o of shown){
   const card=document.createElement('article');card.className='customer';
   const heading=document.createElement('strong');heading.textContent=(unseenOrderRefs.has(o.ref)?'🔔 MỚI • ':'')+o.ref+' • '+money(o.total)+'đ';
   const customer=document.createElement('p');customer.className='hint';customer.textContent='Khách: '+o.name+' • '+o.phone+' • '+formatOrderTime(o.createdAt);
@@ -188,7 +260,20 @@ async function refreshOrderInbox(){
  }catch(e){$('orderAlert').textContent='Chưa đọc được đơn mới: '+e.message}
  finally{orderPollBusy=false}
 }
+$('createFakeOrder').onclick=async()=>{
+ const button=$('createFakeOrder');if(button.disabled)return;
+ button.disabled=true;$('fakeOrderResult').textContent='Đang tạo bill giả để kiểm tra chuông...';
+ const requestId='test-'+(typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.floor(Math.random()*1e9));
+ try{
+  const data=await request('/api/admin/create-test-order','POST',{fixture:'demo-a',requestId});
+  $('fakeOrderResult').textContent='✓ Đã tạo '+data.order.ref+' — '+money(data.order.total)+'đ (giả).';
+  await refreshOrderInbox();
+ }catch(e){$('fakeOrderResult').textContent='Không tạo được đơn thử: '+e.message}
+ finally{button.disabled=false}
+};
+
 $('refreshOrders').onclick=()=>refreshOrderInbox();
+$('showMoreOrders').onclick=()=>{showAllOrderCards=!showAllOrderCards;renderOrderInbox(mostRecentOrderList)};
 $('markOrdersSeen').onclick=()=>{
  unseenOrderRefs.clear();$('orderAlert').textContent='Đã đánh dấu xem các thông báo mới.';
  $('newOrderCount').textContent='0';document.title=BASE_TITLE;
@@ -286,7 +371,7 @@ $('restoreSandboxBackup').onclick=async()=>{
 
 function showNewLink(url){lastLink=url;$('newLink').hidden=false;$('linkText').textContent=url;$('result').textContent='Đã tạo link riêng. Nhớ lưu hoặc gửi cho khách THỬ.'}
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
- secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load();await refreshOrderInbox()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
+ secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load();$('loginCard').hidden=true;showAdminTab('orders');await refreshOrderInbox()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
  const b=$('createButton');b.disabled=true;
  if(selectedCustomerId){$('error').textContent='Khách đã có. Không tạo thêm hồ sơ trùng.';b.disabled=true;return}
