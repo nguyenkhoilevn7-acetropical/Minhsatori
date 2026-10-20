@@ -92,6 +92,8 @@ const adminChecks=[
  ["$('createButton').disabled=true","guard against duplicate selected customer creation"],
  ['vatRate:Number','VAT sent in admin form'],
  ['id="vatRate"','VAT rate selector'],
+ ['id="checkSourceReadonly"','read-only source integration control'],
+ ["request('/api/admin/source-check')",'HMAC-only integration readiness probe'],
  ['id="downloadSandboxBackup"','owner backup download button'],
  ['id="restoreSandboxFile"','owner upload backup file selector'],
  ['id="restoreSandboxBackup"','guarded restore control'],
