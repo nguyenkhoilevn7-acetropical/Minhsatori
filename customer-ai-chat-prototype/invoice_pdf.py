@@ -8,6 +8,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.colors import HexColor, Color
 from reportlab.lib.utils import simpleSplit
+from reportlab.lib.utils import ImageReader
 
 o = json.load(sys.stdin)
 if not o.get('sandbox') or not str(o.get('ref', '')).startswith('TEST-'):
@@ -91,13 +92,20 @@ c.drawCentredString(0,0,'SANDBOX')
 c.restoreState()
 
 left=37;rightedge=W-37
-text(left,H-53,'HỘ KINH DOANH MINH SATORI',13,True,C_BLUE)
-text(left,H-69,'Mã số thuế: 075087004222',7.7)
-text(left,H-82,'Hotline: 0903 772 980',7.7)
-text(left,H-95,'Địa chỉ: Số 96/41 Tôn Đản, Phường Khánh Hội, TP. Hồ Chí Minh',7)
+logo_path=os.path.join(os.path.dirname(os.path.abspath(__file__)),'assets','logo-satori.jpg')
+if os.path.isfile(logo_path):
+    # The image is shipped with the app, not fetched from an external URL.
+    try:
+        c.drawImage(ImageReader(logo_path),left,H-111,width=63,height=63,preserveAspectRatio=True,anchor='c',mask='auto')
+    except Exception as exc:
+        raise SystemExit('Cannot embed official logo: '+str(exc))
+text(left+70,H-53,'HỘ KINH DOANH MINH SATORI',11,True,C_BLUE)
+text(left+70,H-69,'Mã số thuế: 075087004222',7.7)
+text(left+70,H-82,'Hotline: 0903 772 980',7.7)
+text(left+70,H-95,'96/41 Tôn Đản, Phường Khánh Hội, TP. Hồ Chí Minh',6.6)
 right(rightedge,H-53,'PHIẾU XUẤT HÓA ĐƠN — BẢN THỬ',10.2,True)
 right(rightedge,H-72,str(o['ref']),12.5,True,C_BLUE)
-try:when=datetime.datetime.fromisoformat(o.get('createdAt','').replace('Z','+00:00')).strftime('%d/%m/%Y')
+try:when=datetime.datetime.fromisoformat(o.get('createdAt','').replace('Z','+00:00')).astimezone(datetime.timezone(datetime.timedelta(hours=7))).strftime('%H:%M:%S %d/%m/%Y')
 except Exception:when='Ngày thử nghiệm'
 right(rightedge,H-86,when,7.7)
 right(rightedge,H-101,'Chưa thanh toán',7.7)
@@ -109,6 +117,11 @@ y=H-152
 y=wrapped(left,y,'Khách hàng: '+str(o.get('name','')),510,8.1)
 y=wrapped(left,y,'Điện thoại: '+str(o.get('phone','')),510,8.1)
 y=wrapped(left,y,'Địa chỉ giao: '+str(o.get('address','')),510,8.1)
+if o.get('deliveryNote'):
+    y-=3
+    text(left,y,'LƯU Ý GIAO HÀNG (CHỜ XÁC NHẬN):',8.2,True,C_BLUE)
+    y=wrapped(left,y-13,str(o['deliveryNote']),500,8,leading=12)
+    y-=5
 y=wrapped(left,y,'Mã số thuế: Không có',510,8.1)
 top=min(y-20,H-224)
 
