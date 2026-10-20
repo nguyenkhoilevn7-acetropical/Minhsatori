@@ -39,6 +39,7 @@ const SCHEMA={type:'object',additionalProperties:false,properties:{intent:{type:
 async function openAIParse(message){
  const key=String(process.env.OPENAI_API_KEY||'').trim();
  if(!key)return {error:'AI_NOT_CONFIGURED'};
+ if(/[^\x21-\x7e]/.test(key))return {error:'AI_KEY_FORMAT_INVALID'};
  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12500);
  try{
   const response=await fetch('https://api.openai.com/v1/responses',{
@@ -46,13 +47,22 @@ async function openAIParse(message){
    body:JSON.stringify({model:MODEL,store:false,max_output_tokens:650,
     instructions:'Bạn là bộ bóc tách Ý ĐỊNH ĐẶT HÀNG trong tiếng Việt của Minh Satori. Chỉ xuất dữ liệu có cấu trúc. Không tính tiền, không chọn mức chiết khấu, không xác nhận tạo đơn. SKU: S5L = nước tinh khiết 5L, S500 = 500ml, S350 = 350ml. Nếu không chắc loại hàng thì sku unknown. "Như lần trước" => use_last_order true. Nếu tin nhắn yêu cầu thay địa chỉ, số điện thoại hoặc người nhận thì đánh dấu true, kể cả nếu thông tin không đầy đủ. Nếu không rõ lượng thì qty=0. Không được đoán giá.',
     input:[{role:'user',content:message}],text:{format:{type:'json_schema',name:'order_intent_v1',strict:true,schema:SCHEMA}}})});
-  if(!response.ok)return {error:'OPENAI_HTTP_'+response.status};
+  if(!response.ok){
+   const detail=await response.json().catch(()=>null);
+   const code=detail?.error?.code;
+   const allowed=['insufficient_quota','rate_limit_exceeded','invalid_api_key','model_not_found'];
+   return {error:allowed.includes(code)?'OPENAI_'+code.toUpperCase():'OPENAI_HTTP_'+response.status};
+  }
   const data=await response.json();
   const txt=(data.output||[]).flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('');
   if(!txt)return {error:'EMPTY_AI_OUTPUT'};
   const parsed=safeJSON(txt);if(!parsed||!['order','other'].includes(parsed.intent))return {error:'INVALID_AI_OUTPUT'};
   return parsed;
- }catch(err){return {error:err.name==='AbortError'?'AI_TIMEOUT':'AI_REQUEST_ERROR'}}finally{clearTimeout(timer)}
+ }catch(err){
+  const code=err?.cause?.code||err?.code;
+  const allowed=['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ENETUNREACH','ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT','UND_ERR_SOCKET','ERR_INVALID_CHAR','ERR_INVALID_HTTP_TOKEN','CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE'];
+  return {error:err.name==='AbortError'?'AI_TIMEOUT':allowed.includes(code)?'AI_NETWORK_'+code:'AI_REQUEST_ERROR'}
+ }finally{clearTimeout(timer)}
 }
 function makeQuote(token,profile,sku,qty){
  if(!PRODUCTS[sku]||!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
@@ -78,7 +88,7 @@ const server=http.createServer(async(req,res)=>{
   const explicitChange=/(giao (den|toi|ve) (dia chi|noi|cho) khac|doi dia chi|dia chi moi|so dien thoai moi|sdt moi|doi nguoi nhan|nguoi nhan khac)/.test(normalized);
   if(explicitChange)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu đổi người nhận, số điện thoại hoặc địa chỉ. Cửa hàng cần xác minh và duyệt thủ công; không tự áp dụng chiết khấu riêng.'});
   const parsed=await openAIParse(message);
-  if(parsed.error)return fail(res,503,parsed.error,'OpenAI chưa sẵn sàng. Không tạo đơn và không áp dụng giá khi AI gặp lỗi.');
+  if(parsed.error)return fail(res,503,parsed.error,'OpenAI chưa sẵn sàng ('+parsed.error+'). Không tạo đơn và không áp dụng giá khi AI gặp lỗi.');
   if(parsed.address_change||parsed.receiver_or_phone_change)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu thay địa chỉ, SĐT hoặc người nhận. Mức chiết khấu riêng sẽ không được áp dụng tự động; cửa hàng cần kiểm tra thủ công.'});
   if(parsed.intent!=='order')return reply(res,200,{ok:true,message:'Mình có thể hỗ trợ đặt nước. Bạn muốn đặt loại 350ml, 500ml hay 5L và bao nhiêu thùng?'});
   const sku=parsed.sku!=='unknown'?parsed.sku:(parsed.use_last_order||c.uniqueFavourite)?c.favourite:null, qty=parsed.qty>0?parsed.qty:parsed.use_last_order?c.lastQty:0;
