@@ -202,6 +202,38 @@ const server=http.createServer(async(req,res)=>{
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
   if(!rateLimit(req,token))return fail(res,429,'RATE_LIMIT','Bạn đã gửi quá nhiều tin nhắn, vui lòng thử lại sau');
   const message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
+  // The catalogue basket is an explicit request, not an invitation for AI to
+  // guess which selected item to omit. Product codes, prices and VAT are server-owned.
+  // The human-readable message is still displayed to the customer before submission.
+  if(b?.cartItems!==undefined){
+   if(!Array.isArray(b.cartItems)||b.cartItems.length<1||b.cartItems.length>6)
+    return fail(res,400,'CART_ITEM_LIMIT','Một đơn chọn từ 1 đến tối đa 6 loại sản phẩm.');
+   const unique=new Set(),requested=[];
+   let totalQty=0;
+   for(const item of b.cartItems){
+    if(!item||typeof item!=='object'||Array.isArray(item)||
+       typeof item.code!=='string'||!/^TP-\d{5}$/.test(item.code)||
+       !Number.isSafeInteger(item.qty)||item.qty<1||item.qty>500||
+       !productFor(item.code)||unique.has(item.code))
+      return fail(res,400,'INVALID_CART','Giỏ hàng có mã sản phẩm, số lượng hoặc mặt hàng trùng không hợp lệ.');
+    unique.add(item.code);totalQty+=item.qty;requested.push({sku:item.code,qty:item.qty});
+   }
+   if(totalQty>500)return fail(res,400,'CART_QUANTITY_LIMIT','Tổng số lượng không vượt quá 500 đơn vị.');
+   // Customer identity and approved delivery destination are never editable via
+   // a free-text message. Reject attempts to attach an address or phone change.
+   if(identityChange(message,c))return reply(res,200,{ok:true,needsHuman:true,message:'Thay đổi người nhận, địa chỉ hoặc số điện thoại cần cửa hàng xác minh trước khi tạo báo giá.'});
+   const expected='Cho tôi đặt một đơn gồm:\n'+requested.map(x=>{
+    const p=productFor(x.sku);return '- '+x.qty+' '+p.unit+' '+p.name+' (Mã '+p.code+')';
+   }).join('\n');
+   if(message!==expected)return fail(res,400,'CART_MESSAGE_MISMATCH','Tin nhắn đã thay đổi. Hãy chọn lại giỏ hàng hoặc gửi yêu cầu bằng chat.');
+   const quote=requested.length===1?
+    makeQuote(token,c,requested[0].sku,requested[0].qty):
+    makeMultiQuote(token,c,requested);
+   if(!quote)return fail(res,400,'CART_QUOTE_FAILED','Chưa lập được báo giá đầy đủ cho giỏ hàng.');
+   quote.deliveryNote='';
+   sessions.delete(token);
+   return reply(res,200,{ok:true,sandbox:true,parserSource:'catalogue-cart',message:'Đã nhận đủ '+requested.length+' loại sản phẩm trong một đơn. Bạn kiểm tra toàn bộ báo giá và xác nhận nhé.',quote});
+  }
   const normalized=message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
   // Treat "thêm 3 thùng nữa" as an edit request, not a new independent order.
   if(/\bthem\b.*\b(nua|vao don)\b/.test(normalized))return reply(res,200,{ok:true,needMoreDetails:true,message:'Bạn muốn tăng số lượng của báo giá đang xem hay tạo đơn mới? Vui lòng nói rõ loại nước và tổng số thùng trước khi xác nhận.'});
