@@ -581,7 +581,7 @@ class NativeMainActivity : AppCompatActivity() {
         label(tile, "◆", 15f, true, accent)
         label(tile, title, 14f, true, white, 9)
         label(tile, subtitle, 11f, false, muted, 6)
-        row.addView(tile, LinearLayout.LayoutParams(0, -1, 1f).apply {
+        row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
     }
