@@ -28,6 +28,39 @@ function readState_() {
   }
   return state;
 }
+/* One-time server-side setup. Run only inside isolated test Apps Script project.
+ * This intentionally never sets any production Drive file ID.
+ * After this, set SATORI_ANDROID_ALLOWED_CLIENT_IDS_JSON in Project Settings
+ * to the EXACT Android OAuth 2.0 Client ID array copied from Google Cloud.
+ */
+function setupMobileSandbox() {
+  var owner = Session.getEffectiveUser().getEmail();
+  if (!owner || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(owner)) {
+    throw new Error('Could not identify Google account. Set SATORI_ANDROID_OWNER_EMAIL manually.');
+  }
+  var props = PropertiesService.getScriptProperties();
+  var current = props.getProperty('STATE_FILE_ID');
+  if (current && current !== SATORI_MOBILE_SANDBOX_FILE_ID) {
+    throw new Error('Refusing to overwrite an existing non-sandbox STATE_FILE_ID');
+  }
+  props.setProperty('STATE_FILE_ID', SATORI_MOBILE_SANDBOX_FILE_ID);
+  props.setProperty('SATORI_ANDROID_OWNER_EMAIL', owner.toLowerCase());
+  var snapshot = readState_();
+  Logger.log('SANDBOX CONFIGURED: owner=' + owner +
+    ', revision=' + snapshot.revision + ', data=FAKE_ONLY');
+}
+
+function doGet() {
+  var props = PropertiesService.getScriptProperties();
+  return ContentService.createTextOutput(JSON.stringify({
+    ok: true, service: 'MinhSatori Android Mobile API',
+    environment: 'SANDBOX_FAKE_ONLY',
+    stateConfigured: props.getProperty('STATE_FILE_ID') === SATORI_MOBILE_SANDBOX_FILE_ID,
+    ownerConfigured: !!props.getProperty('SATORI_ANDROID_OWNER_EMAIL'),
+    oauthConfigured: !!props.getProperty('SATORI_ANDROID_ALLOWED_CLIENT_IDS_JSON')
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
 /* PART 1: Accounting core (read-only calculations) */
 
 (function(root){
