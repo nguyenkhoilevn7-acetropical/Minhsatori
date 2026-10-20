@@ -10,13 +10,15 @@ jobs:
   signed-release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      SATORI_ANDROID_KEYSTORE_BASE64: ${{ secrets.SATORI_ANDROID_KEYSTORE_BASE64 }}
-      SATORI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.SATORI_ANDROID_KEYSTORE_PASSWORD }}
-      SATORI_ANDROID_KEY_ALIAS: ${{ secrets.SATORI_ANDROID_KEY_ALIAS }}
-      SATORI_ANDROID_KEY_PASSWORD: ${{ secrets.SATORI_ANDROID_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      - name: Verify release identity checks
+        run: python3 -m unittest discover -s android/tools -p 'test_*.py' -v
+      - name: Require pinned public release certificate before loading secrets
+        env:
+          RELEASE_CERT_SHA256: ${{ vars.SATORI_ANDROID_SIGNING_CERT_SHA256 }}
+        run: |
+          python3 -c 'import os,re; assert re.fullmatch(r"[0-9a-fA-F]{64}", os.environ["RELEASE_CERT_SHA256"]), "Set SATORI_ANDROID_SIGNING_CERT_SHA256 to the stable release certificate SHA-256 (64 hex characters)"'
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -35,8 +37,14 @@ jobs:
           gradle-version: '8.9'
       - name: Load private, persistent signing key from GitHub Secrets
         shell: bash
+        env:
+          SATORI_ANDROID_KEYSTORE_BASE64: ${{ secrets.SATORI_ANDROID_KEYSTORE_BASE64 }}
+          SATORI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.SATORI_ANDROID_KEYSTORE_PASSWORD }}
+          SATORI_ANDROID_KEY_ALIAS: ${{ secrets.SATORI_ANDROID_KEY_ALIAS }}
+          SATORI_ANDROID_KEY_PASSWORD: ${{ secrets.SATORI_ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          umask 077
           test -n "$SATORI_ANDROID_KEYSTORE_BASE64" || { echo "Missing signing keystore secret"; exit 1; }
           test -n "$SATORI_ANDROID_KEYSTORE_PASSWORD" || { echo "Missing signing password secret"; exit 1; }
           test -n "$SATORI_ANDROID_KEY_ALIAS" || { echo "Missing signing alias secret"; exit 1; }
@@ -45,22 +53,30 @@ jobs:
           chmod 600 "$RUNNER_TEMP/satori-release.jks"
           echo "SATORI_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/satori-release.jks" >> "$GITHUB_ENV"
       - name: Test and build signed RELEASE APK
-        run: gradle -p android :app:testDebugUnitTest :app:assembleRelease --no-daemon --stacktrace
+        env:
+          SATORI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.SATORI_ANDROID_KEYSTORE_PASSWORD }}
+          SATORI_ANDROID_KEY_ALIAS: ${{ secrets.SATORI_ANDROID_KEY_ALIAS }}
+          SATORI_ANDROID_KEY_PASSWORD: ${{ secrets.SATORI_ANDROID_KEY_PASSWORD }}
+        run: gradle -p android :app:testDebugUnitTest :app:testReleaseUnitTest :app:assembleRelease --no-daemon
       - name: Validate release package, version and signing certificate
         shell: bash
+        env:
+          RELEASE_CERT_SHA256: ${{ vars.SATORI_ANDROID_SIGNING_CERT_SHA256 }}
         run: |
           set -euo pipefail
           APK="android/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee /tmp/satori-release-badging.txt
-          grep -F "package: name='vn.minhsatori.app' versionCode='8' versionName='0.3.1'" /tmp/satori-release-badging.txt
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
-          sha256sum "$APK"
+          python3 android/tools/verify_release.py "$APK" \
+            --build-tools "$ANDROID_HOME/build-tools/35.0.0" \
+            --certificate-sha256 "$RELEASE_CERT_SHA256" \
+            --report android/app/build/outputs/apk/release/release-verification.json
       - name: Upload signed APK for Samsung acceptance test
         uses: actions/upload-artifact@v4
         with:
           name: MinhSatori-Samsung-Native-v0.3.1-SIGNED-RELEASE
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/apk/release/release-verification.json
           if-no-files-found: error
           retention-days: 30
       - name: Always remove private signing key from runner

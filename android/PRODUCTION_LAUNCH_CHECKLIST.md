@@ -39,6 +39,8 @@
 
 ### Manual signed-release build (implemented on staging, not yet activated)
 
+- Pin the stable signing certificate's SHA-256 (64 hex characters, no colons) in repository **Actions Variable** `SATORI_ANDROID_SIGNING_CERT_SHA256`. This is a public certificate fingerprint, not a key or password. The release workflow refuses a missing/mismatched pin, an Android debug certificate, a debuggable APK or incorrect package/version. It runs debug and release unit tests and attaches `release-verification.json` containing APK SHA-256 and public certificate SHA-1/SHA-256 for Google Android OAuth registration. Never change this pin merely to bypass a failed verification; recover the original stable key instead.
+
 - GitHub Actions: `.github/workflows/android-release-apk.yml`, **workflow_dispatch only** (never creates a release automatically).
 - Provision one stable Android release signing keystore offline and store its base64 representation in the protected Actions secret `SATORI_ANDROID_KEYSTORE_BASE64`. Configure `SATORI_ANDROID_KEYSTORE_PASSWORD`, `SATORI_ANDROID_KEY_ALIAS`, and `SATORI_ANDROID_KEY_PASSWORD` as protected secrets. Do not paste their values into chat, issues or GitHub source files.
 - After all staging checks pass, an authorized maintainer may run the workflow. It refuses to continue when any signing secret is absent; builds `assembleRelease`, validates `vn.minhsatori.app` and v0.3.1 using aapt, verifies APK signing with apksigner, computes SHA256 and uploads the signed APK artifact for acceptance testing.
