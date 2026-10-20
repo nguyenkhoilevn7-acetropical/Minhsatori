@@ -14,6 +14,11 @@ object MobileWriteOutcome {
     fun requiresReconciliation(error: Throwable): Boolean =
         error !is MobileApiError || error.apiCode !in rejectedBeforeCommit
 
+    // The server may answer alreadyPaid when ANOTHER phone paid the bill.
+    // Without exact request-ID proof that is not evidence our pending payment committed.
+    fun acceptsServerSuccess(action: String, alreadyPaid: Boolean, exactProof: Boolean): Boolean =
+        action != "payments.markCustomerPaid" || !alreadyPaid || exactProof
+
     // A rejected retry (e.g. expired token) says nothing about whether an earlier
     // attempt committed. Keep that journal until there is authoritative proof.
     fun mayDiscardAfterRejection(error: Throwable, hadPendingBeforeSend: Boolean): Boolean =
