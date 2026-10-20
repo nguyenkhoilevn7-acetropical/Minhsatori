@@ -71,7 +71,7 @@ const server=http.createServer(async(req,res)=>{
     const item=productFor(previous.sku);
     parsedMessage='Cho '+onlyQty[1]+' '+item.unit+' '+item.name;
    }
-   if(!onlyQty&&previous.qty>0&&/^(?:nuoc\\s+)?(?:satori\\s+)?(?:premium(?:\\s*450\\s*ml)?|350\\s*ml|500\\s*ml|1500\\s*ml|5\\s*l\\s+(?:co|khong)\\s+voi|mang\\s+cau|oi\\s+hong|hikari\\s+500\\s*ml)$/i.test(normalized.trim())){
+   if(!onlyQty&&previous.qty>0&&/^(?:nuoc\s+)?(?:satori\s+)?(?:premium(?:\s*450\s*ml)?|350\s*ml|500\s*ml|1500\s*ml|5\s*l\s+(?:co|khong)\s+voi|mang\s+cau|oi\s+hong|hikari\s+500\s*ml)$/i.test(normalized.trim())){
     const found=resolveProduct(message,c);
     if(found.sku&&productFor(found.sku))parsedMessage='Cho '+previous.qty+' '+productFor(found.sku).unit+' '+productFor(found.sku).name;
    }
