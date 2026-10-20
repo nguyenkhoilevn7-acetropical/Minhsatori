@@ -7,11 +7,13 @@ on:
     paths:
       - "api/**"
       - "tests/satori-bot-api.test.js"
+      - "tests/bot-api-restore.cjs"
       - ".github/workflows/satori-bot-api-tests.yml"
   pull_request:
     paths:
       - "api/**"
       - "tests/satori-bot-api.test.js"
+      - "tests/bot-api-restore.cjs"
 permissions:
   contents: read
 jobs:
@@ -25,3 +27,5 @@ jobs:
           node-version: "22"
       - name: Offline HMAC, money, invoice, backup and delete tests
         run: node tests/satori-bot-api.test.js
+      - name: Offline restore and trash compatibility tests from main
+        run: node tests/bot-api-restore.cjs
