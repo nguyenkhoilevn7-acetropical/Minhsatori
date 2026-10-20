@@ -2,6 +2,13 @@ name: Minh Satori Android Release APK (manual, signing secrets required)
 
 on:
   workflow_dispatch:
+  # Branch-only acceptance build: the workflow is intentionally not on main.
+  # A maintainer explicitly commits this request file AFTER reviewing CI/staging.
+  push:
+    branches:
+      - 'feature/minhsatori-native-android-v020'
+    paths:
+      - 'android/release-request.json'
 
 permissions:
   contents: read
