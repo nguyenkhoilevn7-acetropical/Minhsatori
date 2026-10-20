@@ -118,7 +118,9 @@ function handle(e){
       }
       var bin=JSON.parse(state.values.satori_trash_bin_v15||'[]');
       return json({ok:true,action:action,revision:state.revision,data:{
-       orders:bin.filter(function(t){return t&&t.order}).slice(0,100).map(function(t){
+       orders:bin.filter(function(t){var now=Date.now();return t&&t.order&&
+        Number.isFinite(t.deletedAt)&&t.deletedAt<=now&&now-t.deletedAt<30*86400000&&
+        (!t.expiresAt||t.expiresAt>now)}).slice(0,100).map(function(t){
         return {id:t.order.id,invoiceNo:t.order.invoiceNo,name:t.order.name,
         total:t.order.total,deletedAt:t.deletedAt,expiresAt:t.expiresAt,
         deleteRequestId:t.apiDeleteRequestId||''};

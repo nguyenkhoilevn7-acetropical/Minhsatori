@@ -190,6 +190,17 @@ assert.equal(deletedMobile.data.deleted,true);
 assert.equal(mobile('mobile.trash').data.orders.some(x=>x.invoiceNo===mobileNo),true);
 assert.equal(mobile('mobile.trash').data.orders.find(x=>x.invoiceNo===mobileNo).deleteRequestId,
   'phone-delete-001','restart recovery must prove the same delete request, not just a missing invoice');
+const currentMobileBin=data.values.satori_trash_bin_v15;
+const oldMobileBin=JSON.parse(currentMobileBin);
+oldMobileBin.push({order:{id:'expired-mobile-test',invoiceNo:99901},deletedAt:Date.now()-31*86400000});
+oldMobileBin.push({order:{id:'future-mobile-test',invoiceNo:99902},deletedAt:Date.now()+86400000});
+oldMobileBin.push({order:{id:'invalid-mobile-test',invoiceNo:99903},deletedAt:'invalid'});
+data.values.satori_trash_bin_v15=JSON.stringify(oldMobileBin);
+const beforeMobileTrashRead=JSON.stringify(data);
+assert.equal(mobile('mobile.trash').data.orders.some(x=>x.invoiceNo>=99901),false,
+  'native trash must apply the same 30-day restore window as Bot API');
+assert.equal(JSON.stringify(data),beforeMobileTrashRead,'trash reads must not purge or rewrite records');
+data.values.satori_trash_bin_v15=currentMobileBin;
 const restoredMobile=mobile('orders.restore',{expectedRevision:23,requestId:'phone-restore-001',
   id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
   expectedTotal:215000,confirmed:true});
