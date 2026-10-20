@@ -234,6 +234,12 @@ function markPaid(s,all,p){
  var match=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo});
  need(match.length===1&&active(match[0]),'INVALID_ORDER','Hóa đơn không duy nhất hoặc đã hủy');
  var old=match[0];
+ // Native callers bind the customer's payment to an exact invoice ID as well
+ // as invoice number. Legacy ChatGPT Bot calls can omit ID for compatibility.
+ if(p.id!==undefined&&p.id!==null){
+  need(String(old.id)===String(p.id),'ORDER_CHANGED',
+    'Hóa đơn đã thay đổi ID; tải lại trước khi xác nhận thanh toán');
+ }
  // Verify confirmation and amount even on a repeated request. A lost mobile
  // response must not turn a successful payment into a revision conflict.
  need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần xác nhận thực nhận tiền');
