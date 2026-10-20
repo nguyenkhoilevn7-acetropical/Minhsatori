@@ -46,8 +46,21 @@ console.log('PASS 5/5 invoice preview QR, totals and mobile layout safeguards');
 assert.ok(pdfSource.includes('ROW_FONT_SIZE=9.5'),'All PDF row cells share product-name font size');
 assert.ok(pdfSource.includes('widths=[24,156,40,29,69,38,74,91]'),'PDF amount column has sufficient width');
 console.log('PASS 6/6 uniform product-row font and variable row-height regression checks');
+for(const [needle,label] of [
+ ['class="brand-logo" src="/assets/logo-satori.jpg"','genuine logo in customer top brand'],
+ ['class="chat-satori-logo" src="/assets/logo-satori.jpg"','genuine Satori logo in chat header'],
+ ['class="history-trigger"','visible history action outside chat text'],
+ ['id="historyExcel"','customer Excel export'],
+ ['id="historyMonth"','month grouping control'],
+ ['id="historySearch"','history product or bill search'],
+ ['function historyDateKey(iso)','history groups by Vietnam-local calendar day'],
+ ['function renderHistory()','organized and filtered history timeline'],
+ ["'/api/history.xlsx?token='",'authorized Excel download URL']
+])assert.ok(html.includes(needle),label);
+console.log('PASS 9/9 customer logo, timeline and export UI tests');
 console.log('PASS 26/26 iMessage, automatic delivery notes and PDF UI structure smoke checks');
 const adminHtml=fs.readFileSync(path.join(root,'admin.html'),'utf8');
+assert.ok(adminHtml.includes('class="admin-brand"')&&adminHtml.includes('src="/assets/logo-satori.jpg"'),'genuine Satori logo visible in Admin');
 const adminScript=adminHtml.match(/<script>([\s\S]*?)<\/script>/);
 assert.ok(adminScript,'Admin inline script exists');
 new vm.Script(adminScript[1],{filename:'customer-admin-inline.js'});
