@@ -46,7 +46,7 @@ try {
  test(r.body.quote?.qty===20,'premium price repeat stable');
 
  const quoteA=r.body.quote;
- r=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng Satori 5L'});
+ r=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng Satori 5L có vòi'});
  test(r.body.quote?.total===772200,'server computes correct B quote');
  r=await post('/api/message',{token:'demo-a',message:'Cho tôi mười thùng nước 5L'});
  test(r.body.quote?.total===950400,'Vietnamese numeric words');
