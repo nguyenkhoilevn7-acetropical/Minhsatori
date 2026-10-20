@@ -126,6 +126,11 @@ try {
  test(autoHistory.body.orders.some(o=>o.ref===autoConfirmed.body.order.ref&&o.deliveryNote.includes('14:00')),'automatic note stays with own invoice history');
  const deniedAuto=await fetch(base+'/api/invoice/'+autoConfirmed.body.order.ref+'?token=demo-a');
  test(deniedAuto.status===404,'auto-filled delivery note does not weaken cross-customer PDF permissions');
+ const ambiguousTime=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng Satori 500ml, giao sau 2 giờ'});
+ test(ambiguousTime.body.needMoreDetails&&ambiguousTime.body.clarificationType==='DELIVERY_TIME','ambiguous hour asks for only missing detail');
+ const timeReply=await post('/api/message',{token:'demo-b',message:'2 giờ chiều'});
+ test(timeReply.body.quote?.qty===10&&timeReply.body.quote?.deliveryNote?.includes('14:00'),'short time clarification retains product and quantity');
+
  console.log('PASS '+tests+'/'+tests+' FREE sandbox integration checks; PDF '+bytes.length+' bytes; no paid model invoked');
 }catch(e){console.error('FAILED: '+e.message);console.error('SERVER LOG: '+output);process.exitCode=1}
 finally{proc.kill();rmSync(data,{recursive:true,force:true})}
