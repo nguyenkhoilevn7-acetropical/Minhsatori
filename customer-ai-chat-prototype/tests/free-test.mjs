@@ -104,6 +104,7 @@ try {
  const bytes=Buffer.from(await pdf.arrayBuffer());
  test(pdf.status===200&&bytes.subarray(0,4).toString()==='%PDF','generated test PDF');
  test(bytes.includes(Buffer.from('/Subtype /Image')),'PDF contains the embedded Satori logo');
+ test((bytes.toString('latin1').match(/\/Subtype\s*\/Image/g)||[]).length>=2,'PDF embeds both the Satori logo and a unique sandbox QR image');
  const logo=await fetch(base+'/assets/logo-satori.jpg');
  const logoBytes=Buffer.from(await logo.arrayBuffer());
  test(logo.status===200&&logo.headers.get('content-type')==='image/jpeg'&&logoBytes.length>500,'original Satori logo accessible in sandbox');
