@@ -97,6 +97,29 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
 .history-item a{display:inline-block;margin-top:8px;padding:9px 14px;border-radius:10px;background:#167f9e;color:#fff;text-decoration:none;font-weight:700;font-size:13px}
 .history-empty{padding:26px 8px;color:#bcd0e5;text-align:center}
 @media(min-width:700px){.history-backdrop{align-items:center}.history-sheet{border-radius:22px;max-height:85dvh}}
+
+/* Mobile-friendly customer preview aligned with the sandbox A4 PDF invoice. */
+.paper{max-width:920px}
+.paper .invoice-heading{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #066b9d;padding-bottom:18px}
+.paper .invoice-heading h2{font-size:19px;color:#066b9d}
+.paper .invoice-heading p{margin:7px 0 0;font-size:12px;line-height:1.75}
+.paper .invoice-meta{display:flex;flex-direction:column;text-align:right;gap:5px;flex-shrink:0;font-size:12px}
+.paper .invoice-meta strong{font-size:14px}
+.paper .invoice-meta b{font-size:17px;color:#066b9d}
+.paper .invoice-customer h3,.paper .invoice-payment h3{color:#066b9d;font-size:14px;margin:20px 0 7px}
+.paper .invoice-customer p,.paper .invoice-payment p{margin:0;line-height:1.85;font-size:13px;overflow-wrap:anywhere}
+.paper .invoice-table-wrap{max-width:100%;overflow-x:auto;margin-top:17px}
+.paper .invoice-table-wrap table{min-width:720px;margin:0;font-size:12px;table-layout:auto}
+.paper .invoice-table-wrap th{background:#066b9d;color:white;font-size:11px;white-space:nowrap}
+.paper .invoice-table-wrap th,.paper .invoice-table-wrap td{padding:10px 6px;text-align:left;border:1px solid #cad8e4}
+.paper .invoice-table-wrap th:nth-child(n+4),.paper .invoice-table-wrap td:nth-child(n+4){text-align:right}
+.paper .invoice-bottom{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:16px}
+.paper .invoice-summary{padding-top:18px}
+.paper .invoice-summary>div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;font-size:13px}
+.paper .invoice-summary .invoice-grand{border-top:1px solid #cad8e4;font-size:15px;color:#066b9d;font-weight:800}
+.paper .invoice-note{border-top:1px solid #cad8e4;margin-top:26px;padding-top:12px;color:#586677;font-size:12px}
+#invoice [hidden]{display:none!important}
+@media(max-width:650px){.paper .invoice-heading{flex-direction:column}.paper .invoice-meta{text-align:left}.paper .invoice-bottom{grid-template-columns:1fr}.paper .invoice-summary{padding-top:0}.paper .invoice-table-wrap table{min-width:720px}}
 </style>
 </head>
 <body>
@@ -152,7 +175,31 @@ function quote(code,qty){const p=PRODUCTS.find(p=>p.code===code),c=customer(),di
 function showQuote(q){const box=document.createElement('div');box.className='quote';box.innerHTML='<h3>🧾 Đơn hàng dự kiến — CHƯA TẠO</h3>'+`<div class="line"><span>Khách</span><strong>${esc(q.name)}</strong></div><div class="line"><span>Hàng</span><strong>${esc(q.qty)} ${esc(q.unit||"thùng")}</strong></div><div class="mini">${esc(q.product)}</div><div class="line"><span>Đơn giá sau CK ${esc(q.discount)}%</span><strong>${money(q.unitPrice)}</strong></div><div class="line"><span>Tiền hàng</span><strong>${money(q.subtotal)}</strong></div><div class="line"><span>Vận chuyển (${esc(q.ship)}%)</span><strong>${money(q.shipping)}</strong></div><hr><div class="line"><span>Tổng cộng</span><strong class="total">${money(q.total)}</strong></div><div class="mini">Giao: ${esc(q.address)} — ${esc(q.phone)}</div><p class="small">Chỉ khi xác nhận mới lưu đơn THỬ. Không gửi đến production.</p>`;const b=document.createElement('button');b.className='btn primary';b.textContent='✓ Xác nhận đơn THỬ';b.addEventListener('click',()=>confirmOrder(q,b));box.appendChild(b);$('messages').appendChild(box);bottom()}
 async function confirmOrder(q,button){if(serverMode){button.disabled=true;button.textContent='Đang lưu đơn thử...';try{const res=await serverPost('/api/confirm',{token:serverToken,quoteId:q.quoteId,requestId:'demo-'+q.quoteId});const o=res.order;button.textContent='Đã xác nhận';msg('Đã tạo đơn THỬ '+o.ref+'. Chưa chuyển tới Minh Satori thật. Trạng thái: Chờ thanh toán.');showInvoice(o);const link=document.createElement('a');link.className='btn';link.textContent='⬇ Tải PDF về máy';link.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);link.setAttribute('download',o.ref+'.pdf');$('messages').appendChild(link);bottom();draft=null;}catch(e){button.disabled=false;button.textContent='Xác nhận đơn THỬ';msg('Không ghi được đơn: '+e.message,'note')}return;}if(!draft||draft.nonce!==q.nonce||draft.profileId!==customer().id){msg('Báo giá đã thay đổi, vui lòng yêu cầu lại.');return}const c=customer();if(c.id!==q.profileId||c.discount!==q.discount||c.ship!==q.ship||c.address!==q.address||c.phone!==q.phone){msg('Cấu hình khách đã đổi nên không thể chốt theo báo giá cũ. Vui lòng đặt lại.');draft=null;return;}const key='MSATORI_SANDBOX_DEMO_ONLY';try{localOrders=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(localOrders))localOrders=[]}catch(e){localOrders=[]}let saved=localOrders.find(o=>o.nonce===q.nonce);if(!saved){saved={...q,ref:'TEST-'+String(Date.now()),createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};localOrders.push(saved);try{localStorage.setItem(key,JSON.stringify(localOrders))}catch(e){msg('Không thể lưu localStorage; đơn thử chỉ tồn tại trong phiên này.','note')}}button.disabled=true;button.textContent='Đã xác nhận';msg(`Đã tạo đơn THỬ ${saved.ref}. Trạng thái: Chờ thanh toán. Chưa gửi website thật và chưa phát sinh yêu cầu giao hàng.`);showInvoice(saved);draft=null}
 async function send(text){const message=String(text||'').trim();if(!message||sending)return;msg(message,'user');$('messageInput').value='';if(message.length>500){msg('Tin nhắn quá dài.');return;}if(serverMode){sending=true;const sendButton=$('sendForm').querySelector('button');sendButton.disabled=true;$('messages').setAttribute('aria-busy','true');msg('Đang kiểm tra yêu cầu đặt nước...','note');const loading=$('messages').lastElementChild;try{const res=await serverPost('/api/message',{token:serverToken,message});if(res.message)msg(res.message);if(res.quote){draft=res.quote;showQuote(res.quote)}}catch(e){msg('AI chưa xử lý được: '+e.message+' Không có đơn nào được tạo.','note')}finally{loading.remove();sending=false;sendButton.disabled=false;$('messages').removeAttribute('aria-busy')}return;}const r=matchRequest(message);if(r.error){msg(r.error);return;}draft=quote(r.code,r.qty);msg(`Mình đã hiểu yêu cầu: ${draft.qty} thùng ${draft.product}. Bạn kiểm tra báo giá và địa chỉ bên dưới rồi xác nhận nhé.`);showQuote(draft)}
-function showInvoice(o){$('printPaper').innerHTML=`<h2>MINH SATORI</h2><div class="muted">PHIẾU XÁC NHẬN ĐƠN HÀNG • ${esc(o.ref)}</div><div class="warn">ĐƠN THỬ NGHIỆM — KHÔNG CÓ GIÁ TRỊ THANH TOÁN / GIAO HÀNG</div><p><b>Khách hàng:</b> ${esc(o.name)}<br><b>Điện thoại:</b> ${esc(o.phone)}<br><b>Địa chỉ:</b> ${esc(o.address)}<br><b>Ngày:</b> ${esc(new Date(o.createdAt).toLocaleString('vi-VN'))}<br><b>Trạng thái:</b> ${esc(o.status)}</p><table><tr><th>Sản phẩm</th><th>SL</th><th>Đơn giá</th><th>Thành tiền</th></tr><tr><td>${esc(o.product)}<br><small>Chiết khấu ${esc(o.discount)}%</small></td><td>${o.qty}</td><td>${money(o.unitPrice)}</td><td>${money(o.subtotal)}</td></tr><tr><td colspan="3">Vận chuyển</td><td>${money(o.shipping)}</td></tr></table><div class="total">Tổng: ${money(o.total)}</div><p class="muted">Phiếu tạo tại bản demo độc lập. Hệ thống production không được truy cập.</p>`;const download=$('printInvoice');if(serverMode&&o.ref){download.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);download.download=o.ref+'.pdf';download.hidden=false;download.style.display='inline-flex'}else{download.removeAttribute('href');download.hidden=true;download.style.display='none'}$('invoice').style.display='block'}
+function showInvoice(o){
+ const listPrice=Number(o.listPrice??o.unitPrice)||0;
+ const unit=esc(o.unit||'thùng');
+ $('printPaper').innerHTML=`
+  <header class="invoice-heading"><div>
+   <h2>HỘ KINH DOANH MINH SATORI</h2>
+   <p>Mã số thuế: 075087004222<br>Hotline: 0903 772 980<br>96/41 Tôn Đản, Phường Khánh Hội, TP. Hồ Chí Minh</p>
+  </div><div class="invoice-meta"><strong>PHIẾU XUẤT HÓA ĐƠN — BẢN THỬ</strong><b>${esc(o.ref)}</b><span>${dateVN(o.createdAt)}</span><span>${esc(o.status||'Chờ thanh toán')}</span></div></header>
+  <div class="warn">SANDBOX — ĐƠN THỬ NGHIỆM, KHÔNG CÓ GIÁ TRỊ THANH TOÁN / GIAO HÀNG</div>
+  <section class="invoice-customer"><h3>THÔNG TIN KHÁCH HÀNG</h3><p><b>Khách hàng:</b> ${esc(o.name)}<br><b>Điện thoại:</b> ${esc(o.phone)}<br><b>Địa chỉ giao:</b> ${esc(o.address)}<br><b>Ngày giờ đặt:</b> ${dateVN(o.createdAt)}<br><b>Mã số thuế:</b> Không có</p></section>
+  <div class="invoice-table-wrap"><table aria-label="Chi tiết đơn hàng">
+   <thead><tr><th>STT</th><th>Tên sản phẩm</th><th>ĐVT</th><th>SL</th><th>Giá niêm yết</th><th>CK (%)</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead>
+   <tbody><tr><td>1</td><td>${esc(o.product)}</td><td>${unit}</td><td>${esc(o.qty)}</td><td>${money(listPrice)}</td><td>${esc(o.discount)}%</td><td>${money(o.unitPrice)}</td><td>${money(o.subtotal)}</td></tr></tbody>
+  </table></div>
+  <div class="invoice-bottom"><section class="invoice-payment"><h3>THÔNG TIN THANH TOÁN</h3><p>Ngân hàng: KHÔNG ÁP DỤNG (SANDBOX)<br>Số tài khoản: Không hiển thị trong bản thử<br>Nội dung: ${esc(o.ref)}</p></section>
+  <section class="invoice-summary"><div><span>Tổng tiền hàng</span><b>${money(o.subtotal)}</b></div><div><span>Phí vận chuyển</span><b>${money(o.shipping)}</b></div><div><span>Thuế VAT (0%)</span><b>0 đ</b></div><div class="invoice-grand"><strong>TỔNG THANH TOÁN</strong><strong>${money(o.total)}</strong></div></section></div>
+  <p class="invoice-note">Phiếu thử nghiệm. Không gửi tới hệ thống production, không có giá trị thanh toán hoặc giao hàng.</p>`;
+ const download=$('printInvoice');
+ if(serverMode&&o.ref){
+  download.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);
+  download.download=o.ref+'.pdf';download.hidden=false;download.style.display='inline-flex';
+ }else{download.removeAttribute('href');download.hidden=true;download.style.display='none'}
+ $('invoice').style.display='block';
+}
+
 $('sendForm').addEventListener('submit',e=>{e.preventDefault();send($('messageInput').value)});
 $('messageInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('sendForm').requestSubmit()}});
 document.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>send(b.dataset.msg)));
