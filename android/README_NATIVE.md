@@ -1,8 +1,8 @@
-# Minh Satori Android v0.3.0 — Native thử nghiệm, CHƯA phát hành live
+# Minh Satori Android v0.3.1 — Native thử nghiệm, CHƯA phát hành live
 
 **Checkpoint khôi phục khi ChatGPT bị treo:** xem [`RESUME_HANDOFF_2026-10-19.md`](RESUME_HANDOFF_2026-10-19.md) trong cùng nhánh Android để biết tiến độ đã xác minh và công việc còn thiếu.
 
-## Những gì đã có trong mã v0.3.0
+## Những gì đã có trong mã v0.3.1
 Màn hình Android native không mở Chrome; đọc hóa đơn và công nợ, xuất và chia sẻ PDF, lên đơn mới, sửa đơn, thanh toán, xóa mềm, khôi phục. Nút ghi chỉ bật khi Google xác thực và server trả allowedActions. Thao tác ghi dùng revision, backup và requestId, không ghi trực tiếp Drive, không chứa secret HMAC trong APK. Bản Android mới đã sửa trường hợp thanh toán lặp, trạng thái Đã TT Satori, hóa đơn Đã hủy và cố gắng xác minh đơn được lưu khi mất phản hồi.
 
 ## Điều kiện bắt buộc trước khi triển khai cho kinh doanh
@@ -14,6 +14,12 @@ Màn hình Android native không mở Chrome; đọc hóa đơn và công nợ, 
 6. Thử trên Samsung thật: đăng nhập, lưu đơn, PDF tiếng Việt, Zalo/Messenger, mạng ngắt giữa lúc gửi, cập nhật trên website và đọc qua ChatGPT. Khi đó mới cân nhắc phát hành production.
 
 **Trạng thái hiện tại:** bản APK debug và test CI không chứng minh Google OAuth, Apps Script Mobile API hoặc Zalo đã chạy trên Samsung. Không merge/phát hành live nếu chưa kiểm tra các điều kiện trên.
+
+## Bản vá an toàn 2026-10-20
+
+- Khi nhân viên nhập/dán sai số lượng hoặc đơn giá, Android không được crash: trường nhập được kiểm tra, các phép nhân/cộng tổng tiền dùng phép tính chống tràn số. Ngày giao phải là ngày thực tế theo định dạng YYYY-MM-DD. Có unit tests riêng.
+- Đã hợp nhất trên **nhánh thử nghiệm** những thay đổi của main, bao gồm website, ghi chú và ChatGPT tìm/khôi phục hóa đơn trong thùng rác. **Không thay đổi dữ liệu production** và chưa gộp PR #9 vào main.
+- GitHub PR #9 còn DRAFT cho đến khi Apps Script Mobile API, Android OAuth, private signing key và kiểm thử trên Samsung được xác minh. Xem [PRODUCTION_LAUNCH_CHECKLIST.md](PRODUCTION_LAUNCH_CHECKLIST.md).
 
 ----
 
@@ -49,7 +55,7 @@ gradle -p android :app:testDebugUnitTest :app:assembleDebug --no-daemon
 
 APK nằm tại `android/app/build/outputs/apk/debug/app-debug.apk`.
 GitHub workflow `.github/workflows/android-apk.yml` xuất artifact
-`MinhSatori-Samsung-Native-v0.3.0-debug` (debug only).
+`MinhSatori-Samsung-Native-v0.3.1-debug` (debug only).
 
 ### Kết nối Google API trên Android
 
