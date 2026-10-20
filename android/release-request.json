@@ -1,0 +1,9 @@
+{
+  "purpose": "staging-signed-release-acceptance",
+  "package": "vn.minhsatori.app",
+  "version": "0.3.2",
+  "versionCode": 9,
+  "branch": "feature/minhsatori-native-android-v020",
+  "scope": "GitHub Actions build artifact only; no deployment, no production data writes",
+  "requestedOn": "2026-10-20"
+}
