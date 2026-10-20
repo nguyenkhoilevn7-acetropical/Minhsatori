@@ -16,6 +16,7 @@ import {parseMultiOrder} from './multi-order.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
+import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
@@ -50,7 +51,7 @@ if(fs.existsSync(DATA_FILE))for(const o of safeJSON(fs.readFileSync(DATA_FILE,'u
 function reply(res,status,obj){const body=JSON.stringify(obj);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'"});res.end(body)}
 function fail(res,status,code,message){reply(res,status,{ok:false,error:code,message})}
 function getProfile(token){return Object.hasOwn(FIXTURES,token)?FIXTURES[token]:customerLinks.getProfile(token)}
-async function bodyJSON(req){const chunks=[];let size=0;for await(const buf of req){size+=buf.length;if(size>8_192)throw new Error('PAYLOAD_TOO_LARGE');chunks.push(buf)}return safeJSON(Buffer.concat(chunks).toString('utf8'))}
+async function bodyJSON(req,maxBytes=8_192){const chunks=[];let size=0;for await(const buf of req){size+=buf.length;if(size>maxBytes)throw new Error('PAYLOAD_TOO_LARGE');chunks.push(buf)}return safeJSON(Buffer.concat(chunks).toString('utf8'))}
 function rateLimit(req,token){const now=Date.now();const key=(req.socket.remoteAddress||'localhost')+'|'+token;const list=(rate.get(key)||[]).filter(t=>now-t<60000);if(list.length>=20)return false;list.push(now);rate.set(key,list);return true}
 function money(v){return Math.round(v)}
 function normalizeDeliveryNote(value){if(value==null)return '';if(typeof value!=='string'||value.length>300)throw new Error('INVALID_DELIVERY_NOTE');return value.replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim()}
@@ -87,6 +88,26 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
  if(req.method==='GET'&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&p==='/admin'){const html=fs.readFileSync(path.join(HERE,'admin.html'));res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
+ // Download on owner's device: backup contains sandbox TEST data and hashed links only.
+ // Restore is deliberately refused unless the entire sandbox is empty.
+ if(p==='/api/admin/sandbox-backup'&&(req.method==='GET'||req.method==='POST')){
+  if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị viên thử nghiệm mới được sao lưu hoặc khôi phục.');
+  if(req.method==='GET'){
+   const state=customerLinks.exportState();
+   return reply(res,200,createSandboxBackup({...state,orders:[...orders.values()].map(o=>structuredClone(o))}));
+  }
+  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length){
+   return fail(res,409,'SANDBOX_NOT_EMPTY','Chỉ khôi phục khi sandbox trống; không ghi đè khách hoặc đơn hiện có.');
+  }
+  const body=await bodyJSON(req,2_000_000);
+  if(body?.confirmation!=='RESTORE_TEST_ONLY')return fail(res,400,'RESTORE_CONFIRMATION_REQUIRED','Cần xác nhận khôi phục dữ liệu THỬ.');
+  let state;
+  try{state=verifySandboxBackup(body.archive)}catch{return fail(res,400,'INVALID_SANDBOX_BACKUP','Tệp sao lưu thử không hợp lệ hoặc đã bị sửa.')}
+  customerLinks.restoreState(state);
+  for(const o of state.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
+  saveOrdersAtomic();
+  return reply(res,200,{ok:true,sandbox:true,restoredProfiles:state.profiles.length,restoredOrders:state.orders.length,message:'Đã khôi phục dữ liệu thử, không tác động production.'});
+ }
  if(await customerLinks.handleAdmin(req,res,url,bodyJSON))return;
  if(req.method==='GET'&&p==='/api/history')return customerLinks.history(res,url.searchParams.get('token')||'',orders,FIXTURES);
  if(req.method==='GET'&&p==='/api/catalogue'){
