@@ -128,5 +128,15 @@ export function makeCustomerLinks(dataDir){
    .map(o=>({ref:o.ref,createdAt:o.createdAt,product:o.product||'',qty:o.qty||0,unit:o.unit||'thùng',items:Array.isArray(o.items)?o.items:[],total:o.total||0,status:o.status||'Chưa thanh toán',deliveryNote:o.deliveryNote||'',hasPdf:true}));
   api(res,200,{ok:true,sandbox:true,profileId:c.id,timezone:'Asia/Ho_Chi_Minh',count:list.length,orders:list,notice:'Dữ liệu chỉ là bản thử, không phải lịch sử hóa đơn website thật.'});
  };
- return {getProfile,handleAdmin,history,logChangeRequest};
+ const exportState=()=>({profiles:structuredClone(profiles),changeRequests:structuredClone(changeRequests)});
+ const restoreState=state=>{
+  if(profiles.length||changeRequests.length)throw Error('SANDBOX_NOT_EMPTY');
+  if(!state||!Array.isArray(state.profiles)||!Array.isArray(state.changeRequests))throw Error('INVALID_SANDBOX_BACKUP');
+  profiles=structuredClone(state.profiles);
+  changeRequests=structuredClone(state.changeRequests);
+  try{save();saveRequests()}catch(error){
+   profiles=[];changeRequests=[];throw error;
+  }
+ };
+ return {getProfile,handleAdmin,history,logChangeRequest,adminAuthorized:authorized,exportState,restoreState};
 }
