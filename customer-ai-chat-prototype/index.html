@@ -235,6 +235,13 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
 .cart-compose{width:100%;border:0;border-radius:13px;background:#087aff;color:#fff;padding:13px 10px;font-size:14px;font-weight:750}
 .cart-compose:disabled{opacity:.5}
 @media(max-width:760px){.catalog-sheet{height:96dvh;max-height:96dvh}.cart-list{max-height:116px}.catalog-item{padding:10px 5px}.cart-compose{min-height:46px}}
+/* Distinct accessible chat bubbles: Satori AI blue, customer turquoise; no grey bubbles. */
+.messages .bubble.assistant{background:linear-gradient(145deg,#1166c3,#1479d6);color:#fff;border:1px solid #0f5db5;box-shadow:0 4px 13px #0a57ad20;border-bottom-left-radius:5px;font-weight:480}
+.messages .bubble.user{background:linear-gradient(135deg,#087e73,#06968a);color:#fff;border:1px solid #04786f;box-shadow:0 4px 13px #007c7020;border-bottom-right-radius:5px;font-weight:480}
+.messages .bubble.assistant::before{content:"SATORI AI";display:block;margin-bottom:5px;color:#e1efff;font-size:10px;letter-spacing:.8px;font-weight:800;line-height:1.25}
+.messages .bubble.user::before{content:"BẠN";display:block;margin-bottom:5px;color:#e2fff9;font-size:10px;letter-spacing:.8px;font-weight:800;line-height:1.25}
+.messages .bubble.assistant,.messages .bubble.user{font-size:15.5px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:760px){.messages .bubble.assistant,.messages .bubble.user{max-width:89%;padding:12px 14px}}
 </style>
 </head>
 <body>
