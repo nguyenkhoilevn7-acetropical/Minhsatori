@@ -54,6 +54,20 @@ assert.equal(call('orders.create',input).data.order.invoiceNo,1);
 assert.equal(backs,1);assert.equal(data.revision,2);
 assert.equal(call('orders.create',input).data.duplicate,true);
 assert.equal(backs,1);
+const tamperedRetry={...input,order:{...input.order,
+ items:[{product:'Satori 500 ml',qty:3,unitPrice:10000}],total:30000}};
+assert.equal(call('orders.create',tamperedRetry).error.code,'REQUEST_ID_CONFLICT',
+ 'same request ID with modified quantity and amount must be rejected');
+assert.equal(call('orders.create',{...input,order:{...input.order,location:'Another delivery location'}}).error.code,
+ 'REQUEST_ID_CONFLICT','same request ID cannot be reused for another delivery address');
+assert.equal(call('orders.create',{...input,order:{...input.order,phone:'0912345678'}}).error.code,
+ 'REQUEST_ID_CONFLICT','same request ID cannot be reused for another recipient phone');
+assert.equal(call('orders.create',{...input,order:{...input.order,items:[{product:'Satori 500 ml',qty:2,unitPrice:11000}],total:22000}}).error.code,
+ 'REQUEST_ID_CONFLICT','same request ID cannot silently change a unit price');
+assert.equal(call('orders.create',{...input,order:{...input.order,deliveryNote:'Different note'}}).error.code,
+ 'REQUEST_ID_CONFLICT','same request ID cannot silently change delivery notes');
+assert.equal(backs,1,'reused mutated intent must never create a new Drive backup');
+assert.equal(data.revision,2,'reused mutated intent must never change Drive revision');
 assert.equal(call('orders.create',{...input,requestId:'create-00002'}).error.code,'REVISION_CONFLICT');
 assert.equal(call('orders.create',{...input,requestId:'create-00003',expectedRevision:2,order:{...input.order,total:30000}}).error.code,'TOTAL_MISMATCH');
 assert.equal(call('orders.list',{query:'Test Customer'}).data.totalMatches,1);
