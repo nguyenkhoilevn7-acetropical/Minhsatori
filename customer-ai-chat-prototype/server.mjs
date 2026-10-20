@@ -79,6 +79,21 @@ function makeMultiQuote(token,profile,requestedItems){
 function saveOrdersAtomic(){const data=JSON.stringify([...orders.values()],null,2);const tmp=DATA_FILE+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(tmp,data,{mode:0o600});fs.renameSync(tmp,DATA_FILE)}
 if(scrubbedLegacyRequestIds)saveOrdersAtomic();
 async function generatePdf(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_pdf.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,300)||'PDF_ERROR')));proc.stdin.end(JSON.stringify(o))})}
+async function generateHistoryExcel(customerOrders){
+ return new Promise((resolve,reject)=>{
+  const proc=spawn('python3',[path.join(HERE,'history_excel.py')],{stdio:['pipe','pipe','pipe']});
+  const out=[],err=[];let size=0;
+  proc.stdout.on('data',d=>{size+=d.length;if(size>12_000_000)proc.kill();else out.push(d)});
+  proc.stderr.on('data',d=>err.push(d));
+  proc.on('error',reject);
+  proc.on('close',code=>code===0&&size<=12_000_000?resolve(Buffer.concat(out)):reject(new Error('EXCEL_GENERATION_FAILED')));
+  proc.stdin.end(JSON.stringify(customerOrders));
+ });
+}
+function vnOrderMonth(iso){
+ const millis=Date.parse(iso||'');
+ return Number.isFinite(millis)?new Date(millis+7*60*60*1000).toISOString().slice(0,7):'';
+}
 async function generateQrPng(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_qr.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,200)||'QR_ERROR')));proc.stdin.end(JSON.stringify(o))})}
 function sendHtml(res){const html=fs.readFileSync(path.join(HERE,'index.html'));res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"});res.end(html)}
 const server=http.createServer(async(req,res)=>{
@@ -150,6 +165,30 @@ const server=http.createServer(async(req,res)=>{
    orders:latest,notice:'Đơn thử đã xác nhận; không chứa hóa đơn production.'});
  }
  if(await customerLinks.handleAdmin(req,res,url,bodyJSON))return;
+ if(req.method==='GET'&&p==='/api/history.xlsx'){
+  const token=url.searchParams.get('token')||'',profile=getProfile(token);
+  if(!profile)return fail(res,404,'LINK_INVALID','Không có quyền xuất lịch sử đơn hàng.');
+  const month=url.searchParams.get('month')||'';
+  if(month&&!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month))
+   return fail(res,400,'BAD_MONTH','Tháng xuất Excel không hợp lệ.');
+  const all=[...orders.values()].filter(o=>o?.sandbox===true&&o.profileId===profile.id&&(!month||vnOrderMonth(o.createdAt)===month))
+   .sort((a,b)=>Date.parse(b.createdAt||0)-Date.parse(a.createdAt||0));
+  if(all.length>1500)return fail(res,413,'HISTORY_TOO_LARGE','Quá nhiều đơn trong một lần xuất; hãy lọc theo tháng.');
+  // Send only the scoped test-order fields to the spreadsheet generator.
+  const rows=all.map(o=>({
+   sandbox:true,ref:o.ref,createdAt:o.createdAt,name:o.name,product:o.product,items:o.items,
+   qty:o.qty,unit:o.unit,unitPrice:o.unitPrice,discount:o.discount,total:o.total,
+   shipping:o.shipping,vatAmount:o.vatAmount,status:o.status,deliveryNote:o.deliveryNote
+  }));
+  try{
+   const file=await generateHistoryExcel(rows);
+   res.writeHead(200,{'content-type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'content-disposition':'attachment; filename="Satori_Lich_su_don_hang'+(month?'-'+month:'')+'.xlsx"',
+    'cache-control':'private, no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'});
+   res.end(file);
+  }catch{return fail(res,503,'EXCEL_FAILED','Không xuất được Excel thử; vui lòng thử lại.')}
+  return;
+ }
  if(req.method==='GET'&&p==='/api/history')return customerLinks.history(res,url.searchParams.get('token')||'',orders,FIXTURES);
  if(req.method==='GET'&&p==='/api/catalogue'){
   const profile=getProfile(url.searchParams.get('token')||'');if(!profile)return fail(res,403,'DEMO_LINK_REQUIRED','Chỉ hiển thị giá riêng trong link khách thử hợp lệ');
