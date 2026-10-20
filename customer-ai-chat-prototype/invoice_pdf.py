@@ -138,22 +138,24 @@ for i,lab in enumerate(headers):
     c.setFillColor(HexColor('#FFFFFF'))
     c.drawCentredString((x1+x2)/2,top-18,lab)
 c.setStrokeColor(C_BORDER);c.setLineWidth(.55)
-for x in xs:c.line(x,top-rowh*2,x,top)
-c.line(left,top-rowh*2,rightedge,top-rowh*2)
-product=str(o.get('product',''))
-name_lines=simpleSplit(product,'MSVN',7.1,widths[1]-10)[:2]
-dataY=top-rowh-13.5
-text(left+widths[0]/2-2,dataY,'1',7)
-for ii,line in enumerate(name_lines):
-    text(xs[1]+4,dataY-ii*10,line,7.1)
-unit=str(o.get('unit') or 'Thùng')
-text(xs[2]+3,dataY,unit,7)
-right(xs[4]-4,dataY,str(int(o.get('qty') or 0)),7.1)
-right(xs[5]-4,dataY,fmt(o.get('listPrice',o.get('unitPrice',0))),7)
-right(xs[6]-3,dataY,str(o.get('discount',0))+'%',7)
-right(xs[7]-3,dataY,fmt(o.get('unitPrice',0)),7)
-right(xs[8]-4,dataY,fmt(o.get('subtotal',0)),7.1)
-below=top-rowh*2-18
+rows=o.get('items') if isinstance(o.get('items'),list) and o.get('items') else [o]
+if len(rows)>6: raise SystemExit('Too many product rows for sandbox PDF')
+table_bottom=top-rowh*(len(rows)+1)
+for x in xs:c.line(x,table_bottom,x,top)
+c.line(left,top-rowh,rightedge,top-rowh)
+for idx,item in enumerate(rows):
+    dataY=top-rowh*(idx+1)-13.5
+    name_lines=simpleSplit(str(item.get('product','')),'MSVN',7.1,widths[1]-10)[:2]
+    text(left+widths[0]/2-2,dataY,str(idx+1),7)
+    for ii,line in enumerate(name_lines):text(xs[1]+4,dataY-ii*10,line,7.1)
+    text(xs[2]+3,dataY,str(item.get('unit') or 'Thùng'),7)
+    right(xs[4]-4,dataY,str(int(item.get('qty') or 0)),7.1)
+    right(xs[5]-4,dataY,fmt(item.get('listPrice',item.get('unitPrice',0))),7)
+    right(xs[6]-3,dataY,str(item.get('discount',o.get('discount',0)))+'%',7)
+    right(xs[7]-3,dataY,fmt(item.get('unitPrice',0)),7)
+    right(xs[8]-4,dataY,fmt(item.get('subtotal',0)),7.1)
+    c.line(left,top-rowh*(idx+2),rightedge,top-rowh*(idx+2))
+below=table_bottom-18
 
 text(left,below,'THÔNG TIN THANH TOÁN',8.7,True,C_BLUE)
 text(left,below-16,'Ngân hàng: KHÔNG ÁP DỤNG (SANDBOX)',7.4)
