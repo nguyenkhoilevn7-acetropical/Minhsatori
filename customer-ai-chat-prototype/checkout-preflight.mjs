@@ -14,6 +14,8 @@ export function preflightCheckout({revision,requestId,customer,source,lines,
  if(!int(revision,1,1e9))fail('SOURCE_REVISION_REQUIRED');
  if(typeof requestId!=='string'||!/^[a-zA-Z0-9_-]{8,100}$/.test(requestId))fail('INVALID_REQUEST_ID');
  if(!customer||customer.verifiedByServer!==true||!customer.profileId||
+    !customer.sourceReference||customer.sourceReference.id==null||
+    !int(customer.sourceReference.invoiceNo,1,1e9)||
     typeof customer.name!=='string'||customer.name.trim().length<2||
     typeof customer.location!=='string'||customer.location.trim().length<5||
     typeof customer.phone!=='string'||!/^[0-9+() .-]{8,30}$/.test(customer.phone))
@@ -52,7 +54,7 @@ export function preflightCheckout({revision,requestId,customer,source,lines,
   payload:{
    requestId,expectedRevision:revision,
    confirmedNewCustomer:false,
-   customerRef:customer.profileId,
+   customerRef:{id:customer.sourceReference.id,invoiceNo:customer.sourceReference.invoiceNo},
    order:{name:customer.name,phone:customer.phone,location:customer.location,
      items,shippingAmount,vatAmount,total,
      deliveryNote:String(customer.deliveryNote||'').slice(0,1000)}
