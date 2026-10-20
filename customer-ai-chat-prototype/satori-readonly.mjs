@@ -5,7 +5,7 @@
  * No writes, no bulk customer export and never to the browser/Gemini.
  */
 import crypto from 'node:crypto';
-const permitted=new Set(['system.status','orders.list','customers.search']);
+const permitted=new Set(['system.status','catalogue.list','orders.list','customers.search']);
 export function readOnlyReady(){
  return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(String(process.env.SATORI_READ_ENDPOINT||'').trim()) &&
  /^[A-Za-z0-9_-]{3,64}$/.test(String(process.env.SATORI_READ_KEY_ID||'')) &&
@@ -24,7 +24,7 @@ export async function readMinhSatori(action,payload={}){
  }
  if(action==='orders.list'&&!String(payload.query||'').trim())throw Error('BULK_ORDER_EXPORT_DENIED');
  const safePayload={...payload};
- if(action!=='system.status')safePayload.limit=Math.min(20,Math.max(1,Number(payload.limit)||10));
+ if(action!=='system.status'&&action!=='catalogue.list')safePayload.limit=Math.min(20,Math.max(1,Number(payload.limit)||10));
  const keyId=String(process.env.SATORI_READ_KEY_ID),secret=String(process.env.SATORI_READ_HMAC_SECRET);
  const timestamp=Date.now(),nonce=crypto.randomBytes(18).toString('hex');
  const msg=[keyId,timestamp,nonce,action,JSON.stringify(safePayload)].join('\n');
