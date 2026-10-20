@@ -113,7 +113,7 @@ button:disabled{opacity:.55}
 <p><button type="submit" id="createButton">+ Tạo link khách</button></p></form>
 <div id="result" role="status"></div><div id="newLink" hidden><p class="hint">Sao chép ngay link này để chia sẻ. Mất link thì tạo lại; link cũ sẽ hết hiệu lực.</p><div id="linkText" class="link"></div><button id="copyLink" type="button">Sao chép link để gửi Zalo</button></div>
 </section>
-<section class="card" data-tab-panel="settings" hidden><h2>Trạng thái kết nối website thật</h2><p class="hint">Đây là bảng kiểm tra điều kiện triển khai chính thức, không phải dữ liệu sản xuất. Không nhập mã API hoặc thông tin bí mật vào phần này.</p><div id="integrationStatus" role="status">Đăng nhập để kiểm tra trạng thái.</div></section>
+<section class="card" data-tab-panel="settings" hidden><h2>Trạng thái kết nối website thật</h2><p class="hint">Đây là bảng kiểm tra điều kiện triển khai chính thức, không phải dữ liệu sản xuất. Không nhập mã API hoặc thông tin bí mật vào phần này.</p><div id="integrationStatus" role="status">Đăng nhập để kiểm tra trạng thái.</div><p><button type="button" class="secondary" id="checkSourceReadonly">Kiểm tra API nguồn • CHỈ ĐỌC</button></p><p id="sourceReadResult" class="hint" role="status">Không sao chép khách hàng hoặc hóa đơn thật vào sandbox.</p></section>
 <section class="card" data-tab-panel="changes" hidden><h2>🔔 Yêu cầu đổi thông tin khách <span id="changeCount">0</span></h2><p class="hint">Chỉ ghi nhận yêu cầu đổi số điện thoại, địa chỉ hoặc người nhận. Không tự áp dụng thay đổi vào link. Danh sách tự tải lại khi anh đang mở trang quản trị.</p><p><button id="refreshChanges" class="secondary" type="button">Kiểm tra yêu cầu</button></p><div id="changeList" role="status"></div></section>
 <section class="card" data-tab-panel="customers" hidden><h2>Danh sách hồ sơ đã tạo</h2><p class="hint">Thu hồi link sẽ ngăn truy cập mới nhưng giữ lịch sử đơn thử. Đổi link sẽ vô hiệu hóa link cũ.</p><div id="list"></div></section>
 <section class="card" data-tab-panel="settings" hidden><h2>💾 Sao lưu & khôi phục sandbox</h2>
@@ -133,6 +133,17 @@ const $=id=>document.getElementById(id);
 let secret='',lastLink='',customerProfiles=[],selectedCustomerId='';
 const clearError=()=>{$('error').textContent='';$('result').textContent=''};
 // Horizontal navigation: only show the chosen dashboard section.
+$('checkSourceReadonly').onclick=async()=>{
+ const b=$('checkSourceReadonly');b.disabled=true;
+ $('sourceReadResult').textContent='Đang kiểm tra kết nối HMAC chỉ đọc…';
+ try{
+  const d=await request('/api/admin/source-check');
+  $('sourceReadResult').textContent='Nguồn đọc đã đối chiếu: revision '+d.revision+
+   ', số hóa đơn '+d.invoiceCount+', danh mục '+d.catalogueCount+
+   ' sản phẩm. Chưa cho phép ghi hoặc đồng bộ khách thật.';
+ }catch(e){$('sourceReadResult').textContent='Chưa đủ điều kiện đồng bộ: '+e.message}
+ finally{b.disabled=false}
+};
 function showAdminTab(name){
  for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
  for(const b of document.querySelectorAll('[data-admin-tab]')){
