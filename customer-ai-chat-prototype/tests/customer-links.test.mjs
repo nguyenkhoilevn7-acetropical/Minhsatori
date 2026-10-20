@@ -17,6 +17,7 @@ try{
  ok(live,'sandbox started');
  let denied=await req('/api/admin/customers');ok(denied.status===401,'anonymous admin denied');
  const adminCheck=await req('/api/admin/status','GET',undefined,admin);ok(adminCheck.status===200&&adminCheck.data.ok,'base64 admin token survives pasted env whitespace');
+ ok(adminCheck.data.integration?.liveCustomerSync===false&&adminCheck.data.integration?.permanentStorage===false,'admin status never claims unbuilt customer sync or durable storage');
  denied=await req('/api/admin/customers','POST',{name:'Fake Customer'});ok(denied.status===401,'anonymous create denied');
  const creation=await req('/api/admin/customers','POST',{name:'Khách Giả C',phone:'000 000 0003',address:'789 Đường Giả Lập, TP.HCM',discount:25,ship:8,vatRate:8},admin);
  ok(creation.status===201&&creation.data.ok,'admin can create sandbox customer');
