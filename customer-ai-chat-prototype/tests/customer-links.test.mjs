@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -80,6 +80,24 @@ try{
  ok(history.data.count===1&&history.data.orders[0].ref===confirm.data.order.ref,'history includes only own invoice');
  ok(history.data.orders[0].deliveryNote==='Giao sau 3 giờ, gọi trước khi đến','notes visible in own history');
  ok(!Number.isNaN(Date.parse(history.data.orders[0].createdAt)),'history includes exact order timestamp');
+ const ownXlsxResponse=await fetch(origin+'/api/history.xlsx?token='+encodeURIComponent(token));
+ const ownXlsx=Buffer.from(await ownXlsxResponse.arrayBuffer());
+ ok(ownXlsxResponse.status===200&&ownXlsx.subarray(0,2).toString()==='PK'&&ownXlsxResponse.headers.get('content-type')?.includes('spreadsheetml.sheet'),'owner can download an actual XLSX workbook');
+ const unzip=spawnSync('python3',['-c',"import sys,zipfile,io,xml.etree.ElementTree as ET; z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())); s=z.read('xl/worksheets/sheet1.xml'); ET.fromstring(s); print(s.decode('utf-8'))"],{input:ownXlsx,encoding:'utf8'});
+ ok(unzip.status===0&&unzip.stdout.includes(confirm.data.order.ref)&&unzip.stdout.includes('Satori 500ml'),'XLSX contains correctly formatted bill and product cells');
+ ok(unzip.stdout.includes('Giao sau 3 giờ')&&!unzip.stdout.includes(token),'XLSX contains delivery note but no customer URL credential');
+ const wrongMonth=await req('/api/history.xlsx?token='+encodeURIComponent(token)+'&month=garbage');
+ ok(wrongMonth.status===400,'invalid Excel date filter is rejected');
+ const month=new Date(Date.parse(confirm.data.order.createdAt)+7*60*60*1000).toISOString().slice(0,7);
+ const monthly=await fetch(origin+'/api/history.xlsx?token='+encodeURIComponent(token)+'&month='+month);
+ ok(monthly.status===200&&monthly.headers.get('content-disposition')?.includes(month),'customer export supports Vietnam-local month filter');
+ const anonExcel=await req('/api/history.xlsx');
+ ok(anonExcel.status===404,'anonymous spreadsheet export denied');
+ const otherCustomerExcel=await fetch(origin+'/api/history.xlsx?token=demo-a');
+ const otherBytes=Buffer.from(await otherCustomerExcel.arrayBuffer());
+ const otherZip=spawnSync('python3',['-c',"import sys,zipfile,io; print(zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())).read('xl/worksheets/sheet1.xml').decode('utf-8'))"],{input:otherBytes,encoding:'utf8'});
+ ok(otherCustomerExcel.status===200&&otherZip.status===0&&!otherZip.stdout.includes(confirm.data.order.ref),'customer A XLSX cannot include customer C order');
+
  const other=await req('/api/history?token=demo-a');
  ok(other.status===200&&other.data.count===0,'customer A cannot see customer C history');
  const cross=await req('/api/invoice/'+confirm.data.order.ref+'?token=demo-a');
