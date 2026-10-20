@@ -244,7 +244,7 @@ class AiSandboxActivity : AppCompatActivity() {
                 quantity.isEnabled = checked
                 if (checked && controls.count { it.first.isChecked } > 6) {
                     check.isChecked = false
-                    android.widget.Toast.makeText(this, "Tối đa 6 loại sản phẩm.", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(this@AiSandboxActivity, "Tối đa 6 loại sản phẩm.", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
             layout.addView(check)
