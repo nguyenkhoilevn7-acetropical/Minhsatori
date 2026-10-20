@@ -37,3 +37,21 @@ assert.ok(html.includes('invoice-delivery-note'),'invoice preview displays deliv
 assert.ok(html.includes('/assets/logo-satori.jpg'),'original logo displayed on invoice');
 assert.ok(!html.includes('GEMINI_API_KEY'),'never inline API secrets');
 console.log('PASS 26/26 iMessage, automatic delivery notes and PDF UI structure smoke checks');
+const adminHtml=fs.readFileSync(path.join(root,'admin.html'),'utf8');
+const adminScript=adminHtml.match(/<script>([\s\S]*?)<\/script>/);
+assert.ok(adminScript,'Admin inline script exists');
+new vm.Script(adminScript[1],{filename:'customer-admin-inline.js'});
+const adminChecks=[
+ ['id="existingCustomer"','customer dropdown'],
+ ['id="customerSearch"','customer name or phone lookup'],
+ ['id="customerSuggestions"','accessible matches'],
+ ['function chooseCustomer(c)','existing customer autofill'],
+ ['id="newCustomer"','new customer mode'],
+ ["$('createButton').disabled=true","guard against duplicate selected customer creation"],
+ ['vatRate:Number','VAT sent in admin form'],
+ ['id="vatRate"','VAT rate selector']
+];
+for(const [needle,label] of adminChecks)assert.ok(adminHtml.includes(needle),label);
+assert.ok(html.includes('q.vatAmount??0'),'quote displays server-calculated VAT');
+assert.ok(html.includes('o.vatAmount??0'),'invoice preview displays VAT');
+console.log('PASS '+(adminChecks.length+3)+'/'+(adminChecks.length+3)+' admin search and VAT UI checks');
