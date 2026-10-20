@@ -11,7 +11,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
-import {parseOrder,geminiConfigured} from './free-parser.mjs';
+import {parseOrder,parseRules,geminiConfigured} from './free-parser.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
@@ -59,15 +59,40 @@ const server=http.createServer(async(req,res)=>{
   if(!rateLimit(req,token))return fail(res,429,'RATE_LIMIT','Bạn đã gửi quá nhiều tin nhắn, vui lòng thử lại sau');
   const message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
   const normalized=message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
+  // Treat "thêm 3 thùng nữa" as an edit request, not a new independent order.
+  if(/\bthem\b.*\b(nua|vao don)\b/.test(normalized))return reply(res,200,{ok:true,needMoreDetails:true,message:'Bạn muốn tăng số lượng của báo giá đang xem hay tạo đơn mới? Vui lòng nói rõ loại nước và tổng số thùng trước khi xác nhận.'});
+  // A short answer to a clarification is merged with the *previous sandbox question*.
+  // It never changes another customer's profile, discount, or price.
+  const previous=sessions.get(token);
+  let parsedMessage=message;
+  if(previous&&previous.expiresAt>Date.now()){
+   const onlySku=normalized.trim().match(/^(?:nuoc\s+|loai\s+)?(5\s*l|500\s*ml|350\s*ml)$/);
+   const onlyQty=normalized.trim().match(/^(\d{1,4})\s*(?:thung|thg|t)$/);
+   if(onlySku&&previous.qty>0)parsedMessage='Cho '+previous.qty+' thùng nước '+onlySku[1];
+   if(onlyQty&&previous.sku!=='unknown'){
+    const type=previous.sku==='S5L'?'5L':previous.sku==='S500'?'500ml':'350ml';
+    parsedMessage='Cho '+onlyQty[1]+' thùng nước '+type;
+   }
+  }
+
   const explicitChange=/(giao (den|toi|ve) (dia chi|noi|cho) khac|doi dia chi|dia chi moi|so dien thoai moi|sdt moi|doi nguoi nhan|nguoi nhan khac)/.test(normalized);
   if(explicitChange)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu đổi người nhận, số điện thoại hoặc địa chỉ. Cửa hàng cần xác minh và duyệt thủ công; không tự áp dụng chiết khấu riêng.'});
-  const parsed=await parseOrder(message,c);
+  const parsed=await parseOrder(parsedMessage,c);
   if(parsed.needsHuman)return reply(res,200,{ok:true,needsHuman:true,message:'Yêu cầu thay đổi người nhận, địa chỉ hoặc số điện thoại phải được cửa hàng xác minh trước khi áp dụng giá riêng.'});
   if(parsed.address_change||parsed.receiver_or_phone_change)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu thay địa chỉ, SĐT hoặc người nhận. Mức chiết khấu riêng sẽ không được áp dụng tự động; cửa hàng cần kiểm tra thủ công.'});
   if(parsed.intent!=='order')return reply(res,200,{ok:true,message:'Mình có thể hỗ trợ đặt nước. Bạn muốn đặt loại 350ml, 500ml hay 5L và bao nhiêu thùng?'});
   const sku=parsed.sku!=='unknown'?parsed.sku:(parsed.use_last_order||c.uniqueFavourite)?c.favourite:null, qty=parsed.qty>0?parsed.qty:parsed.use_last_order?c.lastQty:0;
-  if(!sku||qty<1)return reply(res,200,{ok:true,needMoreDetails:true,message:'Mình chưa xác định đủ loại nước và số thùng. Bạn vui lòng cho biết rõ nhé.'});
+  if(!sku||qty<1){
+   const fields=parseRules(parsedMessage,c);
+   if(fields?.intent==='order'&&!fields.needsHuman&&fields.reason!=='UNSUPPORTED'&&fields.reason!=='MULTI_SKU'){
+    const savedSku=fields.sku&&fields.sku!=='unknown'?fields.sku:'unknown';
+    const savedQty=Number.isSafeInteger(fields.qty)&&fields.qty>0?fields.qty:0;
+    if(savedSku!=='unknown'||savedQty>0)sessions.set(token,{sku:savedSku,qty:savedQty,expiresAt:Date.now()+5*60_000});
+   }
+   return reply(res,200,{ok:true,needMoreDetails:true,message:qty<1?'Bạn muốn đặt bao nhiêu thùng?': 'Bạn muốn đặt loại 5L, 500ml hay 350ml?'});
+  }
   const quote=makeQuote(token,c,sku,qty);if(!quote)return fail(res,400,'INVALID_QUANTITY','Chỉ chấp nhận tối đa 500 thùng một đơn');
+  sessions.delete(token);
   return reply(res,200,{ok:true,sandbox:true,parserSource:parsed.source||'rules',message:'Mình đã lập báo giá theo cấu hình khách THỬ. Bạn xem lại và xác nhận nhé.',quote});
  }
  if(req.method==='POST'&&p==='/api/confirm'){
