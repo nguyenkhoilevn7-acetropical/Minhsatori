@@ -41,6 +41,9 @@ try{
  const confirm=await req('/api/confirm','POST',{token,quoteId:message.data.quote.quoteId,requestId:'customer-c-test-123',deliveryNote:'Giao sau 3 giờ, gọi trước khi đến'});
  ok(confirm.status===200&&confirm.data.order?.ref,'created sandbox invoice');
  ok(confirm.data.order.vatRate===8&&confirm.data.order.vatAmount===message.data.quote.vatAmount,'VAT persisted in confirmed order');
+ const persisted=readFileSync(path.join(temp,'orders.json'),'utf8');
+ ok(!persisted.includes(token),'confirmed test order never saves private bearer customer token');
+ ok(JSON.parse(persisted)[0].requestId==='KH-SANDBOX-'+creation.data.customer.id.slice('KH-SANDBOX-'.length)+'|customer-c-test-123','idempotency key uses only internal customer ID');
  const history=await req('/api/history?token='+encodeURIComponent(token));
  ok(history.data.count===1&&history.data.orders[0].ref===confirm.data.order.ref,'history includes only own invoice');
  ok(history.data.orders[0].deliveryNote==='Giao sau 3 giờ, gọi trước khi đến','notes visible in own history');
