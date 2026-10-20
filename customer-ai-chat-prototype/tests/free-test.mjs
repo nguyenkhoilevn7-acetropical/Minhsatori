@@ -25,6 +25,7 @@ try {
  let r=await post('/api/message',{token:'demo-a',message:'Cho tôi 10 thùng Satori 5L'});
  test(r.body.quote?.total===950400,'server computes correct A quote');
  test(r.body.parserSource==='rules','simple order uses no paid inference');
+ const quoteA=r.body.quote;
  const cat=await get('/api/catalogue');
  test(cat.body.count===20&&cat.body.products.length===20,'all official 20 products available');
  test(cat.body.products.some(x=>x.code==='TP-00051'&&/Premium/i.test(x.name)),'Premium SKU available');
@@ -45,7 +46,6 @@ try {
  r=await post('/api/message',{token:'demo-b',message:'Cho tôi 20 thùng premium'});
  test(r.body.quote?.qty===20,'premium price repeat stable');
 
- const quoteA=r.body.quote;
  r=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng Satori 5L có vòi'});
  test(r.body.quote?.total===772200,'server computes correct B quote');
  r=await post('/api/message',{token:'demo-a',message:'Cho tôi mười thùng nước 5L'});
@@ -58,7 +58,8 @@ try {
  test(r.body.needMoreDetails&&!r.body.quote,'ambiguous B must clarify');
  r=await post('/api/message',{token:'demo-b',message:'premium'});
  test(r.body.quote?.code==='TP-00051'&&r.body.quote?.qty===10,'premium follow-up completes pending 10 cartons');
-
+ r=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng nước'});
+ test(r.body.needMoreDetails&&!r.body.quote,'B asks again before a different product');
  r=await post('/api/message',{token:'demo-b',message:'500ml'});
  test(r.body.quote?.qty===10&&r.body.quote?.sku==='S500'&&r.body.quote?.total===687960,'B replies 500ml, retaining 10 cartons and B discount');
 
