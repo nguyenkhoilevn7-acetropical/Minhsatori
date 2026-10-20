@@ -142,7 +142,9 @@ def provision(directory):
             print('Đã lưu GitHub Actions Secret:', name, flush=True)
         readback = {item['name'] for item in json.loads(
             github(gh, 'secret', 'list', '--repo', REPO, '--json', 'name'))}
-        if not SECRET_NAMES.issubset(readback) or github(gh, 'variable', 'get', PIN, '--repo', REPO) != digest:
+        verified_pin = github(gh, 'variable', 'get', PIN, '--repo', REPO,
+                              '--json', 'value', '--jq', '.value')
+        if not SECRET_NAMES.issubset(readback) or verified_pin.lower() != digest:
             raise RuntimeError('Chưa xác minh đủ cấu hình ký. Giữ nguyên khóa cục bộ và chạy lại.')
         public = {'package': 'vn.minhsatori.app', 'certificateSha256': digest,
                   'certificateSha1': hashlib.sha1(certificate).hexdigest()}
