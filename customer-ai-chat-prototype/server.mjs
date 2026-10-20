@@ -84,14 +84,14 @@ const server=http.createServer(async(req,res)=>{
   if(parsed.address_change||parsed.receiver_or_phone_change)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu thay địa chỉ, SĐT hoặc người nhận. Mức chiết khấu riêng sẽ không được áp dụng tự động; cửa hàng cần kiểm tra thủ công.'});
   if(parsed.intent!=='order')return reply(res,200,{ok:true,message:'Mình có thể hỗ trợ đủ 20 sản phẩm Satori, Hikari và Juice. Bạn muốn đặt loại nào và bao nhiêu thùng, bình hoặc lốc?'});
   const sku=parsed.sku!=='unknown'?parsed.sku:(parsed.use_last_order||c.uniqueFavourite)?c.favourite:null, qty=parsed.qty>0?parsed.qty:parsed.use_last_order?c.lastQty:0;
-  if(!sku||qty<1){
+  if(parsed.needMoreDetails||!sku||qty<1){
    const fields=parseRules(parsedMessage,c);
    if(fields?.intent==='order'&&!fields.needsHuman&&fields.reason!=='UNSUPPORTED'&&fields.reason!=='MULTI_SKU'){
     const savedSku=fields.sku&&fields.sku!=='unknown'?fields.sku:'unknown';
     const savedQty=Number.isSafeInteger(fields.qty)&&fields.qty>0?fields.qty:0;
     if(savedSku!=='unknown'||savedQty>0)sessions.set(token,{sku:savedSku,qty:savedQty,expiresAt:Date.now()+5*60_000});
    }
-   return reply(res,200,{ok:true,needMoreDetails:true,message:!sku?'Bạn muốn đặt sản phẩm nào? Có thể nói Premium 450ml, Hikari, Satori 500ml hoặc loại khác trong danh mục.': 'Bạn muốn đặt bao nhiêu '+(productFor(sku)?.unit||'đơn vị')+'?'});
+   return reply(res,200,{ok:true,needMoreDetails:true,message:fields?.reason==='UNSUPPORTED'?'Sản phẩm này chưa có trong danh mục Minh Satori. Bạn vui lòng chọn trong Tất cả sản phẩm.':!sku||parsed.reason==='PRODUCT_AMBIGUOUS'?'Bạn muốn đặt sản phẩm nào? Có thể chọn Premium 450ml, Hikari, Satori hoặc xem Tất cả sản phẩm.':'Bạn muốn đặt bao nhiêu '+(productFor(sku)?.unit||'đơn vị')+'?'});
   }
   const quote=makeQuote(token,c,sku,qty);if(!quote)return fail(res,400,'INVALID_QUANTITY','Chỉ chấp nhận tối đa 500 thùng một đơn');
   sessions.delete(token);
