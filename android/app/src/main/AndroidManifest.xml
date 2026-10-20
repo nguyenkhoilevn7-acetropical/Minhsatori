@@ -9,6 +9,7 @@
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/Theme.MinhSatori"
         android:supportsRtl="true">
+        <activity android:name=".AiSandboxActivity" android:exported="false" />
         <activity
             android:name=".NativeMainActivity"
             android:exported="true"
