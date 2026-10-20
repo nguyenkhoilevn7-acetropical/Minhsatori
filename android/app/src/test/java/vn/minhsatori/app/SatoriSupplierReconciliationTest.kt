@@ -188,4 +188,46 @@ class SatoriSupplierReconciliationTest {
             fail("legacy Excel is intentionally unsupported")
         } catch (_: IllegalArgumentException) { /* correct */ }
     }
+
+    @Test fun xlsxRejectsIgnoredEntriesOverExpansionLimit() {
+        val output = ByteArrayOutputStream()
+        ZipOutputStream(output).use { zip ->
+            zip.putNextEntry(ZipEntry("xl/worksheets/sheet1.xml"))
+            zip.write("<worksheet><sheetData><row r=\"1\"><c r=\"A1\"><v>1</v></c></row></sheetData></worksheet>".toByteArray())
+            zip.closeEntry()
+            // A tiny compressed ZIP can expand into an ignored 21 MB member.
+            // Ignoring that ZIP member MUST NOT bypass the expansion limit.
+            zip.putNextEntry(ZipEntry("xl/media/compressed.bin"))
+            val buf = ByteArray(8192)
+            repeat(21 * 1024 * 1024 / buf.size) { zip.write(buf) }
+            zip.closeEntry()
+        }
+        assertTrue(output.size() < 1024 * 1024)
+        assertThrows(IllegalArgumentException::class.java) {
+            SatoriSupplierSpreadsheet.open("hostile.xlsx", output.toByteArray())
+        }
+    }
+
+    @Test fun invalidAndOversizedColumnNamesMustNotBeIgnored() {
+        val invalid = "<worksheet><sheetData><row r=\"1\">" +
+            "<c r=\"ZZZZZZZZZ1\"><v>950400</v></c></row></sheetData></worksheet>"
+        assertThrows(IllegalArgumentException::class.java) {
+            SatoriSupplierSpreadsheet.open("bad-column.xlsx", xlsxFixture(invalid))
+        }
+        val outsideLimit = "<worksheet><sheetData><row r=\"1\">" +
+            "<c r=\"XFD1\"><v>950400</v></c></row></sheetData></worksheet>"
+        assertThrows(IllegalArgumentException::class.java) {
+            SatoriSupplierSpreadsheet.open("wide-column.xlsx", xlsxFixture(outsideLimit))
+        }
+    }
+
+    @Test fun invalidMergedCellRangeIsNotSilentlySkipped() {
+        val x = "<worksheet><sheetData><row r=\"1\">" +
+            "<c r=\"A1\"><v>950400</v></c></row></sheetData>" +
+            "<mergeCells><mergeCell ref=\"A1:ZZZZZZZZ9\"/></mergeCells></worksheet>"
+        assertThrows(IllegalArgumentException::class.java) {
+            SatoriSupplierSpreadsheet.open("bad-merge.xlsx", xlsxFixture(x))
+        }
+    }
+
 }
