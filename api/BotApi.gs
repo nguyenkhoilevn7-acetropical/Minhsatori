@@ -276,7 +276,7 @@ function read(s,action,p){
   var codes={};
   var products=catalogue.map(function(item){
     need(item&&typeof item==='object'&&!Array.isArray(item)&&
-      /^TP-\\d{5}$/.test(item.code||'')&&!codes[item.code],
+      /^TP-[0-9]{5}$/.test(item.code||'')&&!codes[item.code],
       'INVALID_CATALOGUE','Mã sản phẩm trùng hoặc không hợp lệ');
     var name=String(item.name||'').trim(),unit=String(item.unit||'').trim(),
       listPrice=Number(item.listPrice),standardPrice=Number(item.unitPrice);
