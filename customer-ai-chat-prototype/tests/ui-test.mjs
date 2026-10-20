@@ -68,6 +68,16 @@ const adminChecks=[
  ['id="enableOrderBell"','optional sound and browser notifications'],
  ['id="refreshOrders"','manual order inbox refresh'],
  ['id="markOrdersSeen"','clear unread order badges'],
+ ['id="createFakeOrder"','one-click fake order button'],
+ ['id="fakeOrderResult"','test-order result status'],
+ ['id="testBellSound"','direct audio bell test'],
+ ['id="showMoreOrders"','compact five-order list toggle'],
+ ['data-admin-tab="orders"','horizontal orders tab'],
+ ['data-admin-tab="customers"','horizontal customer tab'],
+ ['data-admin-tab="changes"','horizontal requests tab'],
+ ['data-admin-tab="settings"','horizontal settings tab'],
+ ["request('/api/admin/create-test-order'",'authenticated fake-order request'],
+ ["document.querySelectorAll('[data-tab-panel]')",'only selected Admin panel is shown'],
  ["request('/api/admin/new-orders')",'authenticated 10-second inbox poll'],
  ["document.addEventListener('visibilitychange'",'refresh on returning to Admin tab']
 ];
