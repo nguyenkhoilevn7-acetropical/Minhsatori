@@ -138,9 +138,14 @@ $('checkSourceReadonly').onclick=async()=>{
  $('sourceReadResult').textContent='Đang kiểm tra kết nối HMAC chỉ đọc…';
  try{
   const d=await request('/api/admin/source-check');
-  $('sourceReadResult').textContent='Nguồn đọc đã đối chiếu: revision '+d.revision+
-   ', số hóa đơn '+d.invoiceCount+', danh mục '+d.catalogueCount+
-   ' sản phẩm. Chưa cho phép ghi hoặc đồng bộ khách thật.';
+  const parity=d.catalogueParity||{};
+  $('sourceReadResult').textContent='Nguồn Drive revision '+d.revision+
+   ' • '+d.invoiceCount+' hóa đơn • '+d.catalogueCount+' sản phẩm. '+
+   (parity.exactlyMatched?'✓ '+parity.matchedCount+' sản phẩm trùng bản AI hiện tại.':
+    '⚠ Chênh lệch bảng giá: '+(parity.changedCodes||[]).length+
+    ' giá/tên thay đổi; '+(parity.missingCodes||[]).length+' thiếu; '+
+    (parity.extraCodes||[]).length+' thừa. Cần đồng bộ lại trước khi bán.')+
+   ' Chỉ đọc: chưa cho phép ghi đơn hoặc đồng bộ khách thật.';
  }catch(e){$('sourceReadResult').textContent='Chưa đủ điều kiện đồng bộ: '+e.message}
  finally{b.disabled=false}
 };
