@@ -12,6 +12,8 @@ const hash=token=>crypto.createHash('sha256').update(token).digest('hex');
 const newToken=()=>crypto.randomBytes(32).toString('base64url');
 const safeText=(s,max)=>typeof s==='string'?s.trim().slice(0,max):'';
 const numberIn=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
+const VAT_RATES=new Set([0,5,8,10]);
+const normalizedPhone=s=>String(s||'').replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0');
 // Accept printable, space-free secrets (including standard base64 + / =), not just base64url.
 const bearer=header=>{
  const match=/^Bearer ([\x21-\x7e]{32,256})$/.exec(String(header||''));
@@ -62,7 +64,7 @@ export function makeCustomerLinks(dataDir){
   res.end(JSON.stringify(object));
  };
  const no=(res,status,error,message)=>api(res,status,{ok:false,error,message});
- const publicProfile=p=>({id:p.id,name:p.name,phone:p.phone,address:p.address,discount:p.discount,ship:p.ship,enabled:p.enabled,createdAt:p.createdAt,updatedAt:p.updatedAt});
+ const publicProfile=p=>({id:p.id,name:p.name,phone:p.phone,address:p.address,discount:p.discount,ship:p.ship,vatRate:p.vatRate??0,enabled:p.enabled,createdAt:p.createdAt,updatedAt:p.updatedAt});
  const link=(req,token)=>{
   // Host is derived from the trusted Render service rather than untrusted Host headers.
   const origin=process.env.CUSTOMER_LINKS_ORIGIN||'https://minh-satori-customer-ai-gemini.onrender.com';
@@ -90,15 +92,18 @@ export function makeCustomerLinks(dataDir){
    if(profiles.length>=250){no(res,409,'DEMO_LIMIT','Bản thử nghiệm chỉ hỗ trợ 250 hồ sơ.');return true}
    const b=await bodyJSON(req);
    const name=safeText(b?.name,120),phone=safeText(b?.phone,30),address=safeText(b?.address,300);
-   const discount=Number(b?.discount),ship=Number(b?.ship);
-   if(name.length<2||phone.length<8||address.length<5||!numberIn(discount,0,70)||!numberIn(ship,0,30)){
+   const discount=Number(b?.discount),ship=Number(b?.ship),vatRate=Number(b?.vatRate??0);
+   if(name.length<2||phone.length<8||address.length<5||!numberIn(discount,0,70)||!numberIn(ship,0,30)||!VAT_RATES.has(vatRate)){
     no(res,400,'INVALID_PROFILE','Nhập đủ tên, số điện thoại, địa chỉ và chiết khấu (0–70%), phí vận chuyển (0–30%).');return true;
    }
    if(!/^[+\d\s().-]{8,30}$/.test(phone)){
     no(res,400,'INVALID_PHONE','Số điện thoại không hợp lệ.');return true;
    }
+   if(profiles.some(x=>normalizedPhone(x.phone)===normalizedPhone(phone))){
+    no(res,409,'DUPLICATE_CUSTOMER','Số điện thoại đã thuộc một khách thử. Hãy chọn khách đã có thay vì tạo trùng.');return true;
+   }
    const token=newToken();
-   const c={id:'KH-SANDBOX-'+crypto.randomUUID(),name,phone,address,discount,ship,enabled:true,tokenHash:hash(token),createdAt:now(),updatedAt:now(),favourite:null,lastQty:0,uniqueFavourite:false};
+   const c={id:'KH-SANDBOX-'+crypto.randomUUID(),name,phone,address,discount,ship,vatRate,enabled:true,tokenHash:hash(token),createdAt:now(),updatedAt:now(),favourite:null,lastQty:0,uniqueFavourite:false};
    profiles.unshift(c);save();
    api(res,201,{ok:true,sandbox:true,customer:publicProfile(c),customerLink:link(req,token),notice:'Chỉ dùng với dữ liệu giả. Sao chép link ngay; hệ thống không lưu token dạng rõ.'});return true;
   }
