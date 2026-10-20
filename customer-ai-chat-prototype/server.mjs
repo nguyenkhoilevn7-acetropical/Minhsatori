@@ -1,7 +1,8 @@
 /**
  * Minh Satori Customer AI Chat — entirely isolated SANDBOX server.
  * ZERO imports or writes to real Minh Satori Drive / Apps Script / GitHub production.
- * Node 20+, built-in modules only. Optional OPENAI_API_KEY for the ONLY AI provider.
+ * Node 20+, built-in modules only. Rule-first, optional Cloudflare Workers AI Free.
+ * Work's original OpenAI build remains untouched on its separate GitHub branch.
  */
 import http from 'node:http';
 import fs from 'node:fs';
@@ -10,10 +11,11 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
+import {parseOrder,cfConfigured} from './free-parser.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
-const MODEL=process.env.OPENAI_MODEL||'gpt-5-mini';
+const MODEL='@cf/meta/llama-3.2-3b-instruct';
 const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'minh-satori-customer-chat-SANDBOX'));
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
@@ -35,38 +37,7 @@ function getProfile(token){return Object.hasOwn(FIXTURES,token)?FIXTURES[token]:
 async function bodyJSON(req){const chunks=[];let size=0;for await(const buf of req){size+=buf.length;if(size>8_192)throw new Error('PAYLOAD_TOO_LARGE');chunks.push(buf)}return safeJSON(Buffer.concat(chunks).toString('utf8'))}
 function rateLimit(req,token){const now=Date.now();const key=(req.socket.remoteAddress||'localhost')+'|'+token;const list=(rate.get(key)||[]).filter(t=>now-t<60000);if(list.length>=20)return false;list.push(now);rate.set(key,list);return true}
 function money(v){return Math.round(v)}
-const SCHEMA={type:'object',additionalProperties:false,properties:{intent:{type:'string',enum:['order','other']},sku:{type:'string',enum:['S5L','S500','S350','unknown']},qty:{type:'integer'},use_last_order:{type:'boolean'},receiver_or_phone_change:{type:'boolean'},address_change:{type:'boolean'},clarification:{type:'string'}},required:['intent','sku','qty','use_last_order','receiver_or_phone_change','address_change','clarification']};
-async function openAIParse(message){
- const key=String(process.env.OPENAI_API_KEY||'').trim();
- if(!key)return {error:'AI_NOT_CONFIGURED'};
- if(/[^\x21-\x7e]/.test(key))return {error:'AI_KEY_FORMAT_INVALID'};
- const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12500);
- try{
-  const response=await fetch('https://api.openai.com/v1/responses',{
-   method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},signal:controller.signal,
-   body:JSON.stringify({model:MODEL,store:false,max_output_tokens:650,
-    instructions:'Bạn là bộ bóc tách Ý ĐỊNH ĐẶT HÀNG trong tiếng Việt của Minh Satori. Chỉ xuất dữ liệu có cấu trúc. Không tính tiền, không chọn mức chiết khấu, không xác nhận tạo đơn. SKU: S5L = nước tinh khiết 5L, S500 = 500ml, S350 = 350ml. Nếu không chắc loại hàng thì sku unknown. "Như lần trước" => use_last_order true. Nếu tin nhắn yêu cầu thay địa chỉ, số điện thoại hoặc người nhận thì đánh dấu true, kể cả nếu thông tin không đầy đủ. Nếu không rõ lượng thì qty=0. Không được đoán giá.',
-    input:[{role:'user',content:message}],text:{format:{type:'json_schema',name:'order_intent_v1',strict:true,schema:SCHEMA}}})});
-  if(!response.ok){
-   const detail=await response.json().catch(()=>null);
-   const code=detail?.error?.code||detail?.error?.type;
-   const hint=String(detail?.error?.message||detail?.message||'');
-   if(/insufficient[_ ]quota|billing[_ ]hard[_ ]limit|exceeded your current quota|run out of credits|credit balance|no balance left/i.test(String(code)+' '+hint))return {error:'OPENAI_INSUFFICIENT_QUOTA'};
-   if(/rate[_ ]limit[_ ]exceeded|rate limit reached|requests per min|tokens per min/i.test(String(code)+' '+hint))return {error:'OPENAI_RATE_LIMIT_EXCEEDED'};
-   const safeCode=typeof code==='string'&&/^[a-z_]{1,64}$/.test(code)?code.toUpperCase():null;
-   return {error:safeCode?'OPENAI_'+safeCode:'OPENAI_HTTP_'+response.status+(detail?'_UNCLASSIFIED_JSON':'_NON_JSON')};
-  }
-  const data=await response.json();
-  const txt=(data.output||[]).flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('');
-  if(!txt)return {error:'EMPTY_AI_OUTPUT'};
-  const parsed=safeJSON(txt);if(!parsed||!['order','other'].includes(parsed.intent))return {error:'INVALID_AI_OUTPUT'};
-  return parsed;
- }catch(err){
-  const code=err?.cause?.code||err?.code;
-  const allowed=['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ENETUNREACH','ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT','UND_ERR_SOCKET','ERR_INVALID_CHAR','ERR_INVALID_HTTP_TOKEN','CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE'];
-  return {error:err.name==='AbortError'?'AI_TIMEOUT':allowed.includes(code)?'AI_NETWORK_'+code:'AI_REQUEST_ERROR'}
- }finally{clearTimeout(timer)}
-}
+// Pricing, discounts, identity and persistence are server-owned; AI only parses messages.
 function makeQuote(token,profile,sku,qty){
  if(!PRODUCTS[sku]||!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
  const product=PRODUCTS[sku];const unitPrice=money(product.listPrice*(1-profile.discount/100));const subtotal=qty*unitPrice;const shipping=money(subtotal*profile.ship/100);const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku,qty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,unitPrice,product:product.name,subtotal,shipping,total:subtotal+shipping,expiresAt:Date.now()+10*60_000,token};quotes.set(q.quoteId,q);return q;
@@ -77,11 +48,11 @@ function sendHtml(res){const html=fs.readFileSync(path.join(HERE,'index.html'));
 const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
- if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,aiProvider:'OpenAI only',aiConfigured:!!String(process.env.OPENAI_API_KEY||'').trim(),model:MODEL,orders:orders.size});
+ if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,aiProvider:'Cloudflare Workers AI Free (optional) + rules',aiConfigured:cfConfigured(),rulesReady:true,model:MODEL,orders:orders.size});
  if(req.method==='GET'&&/^\/c\/demo-[ab]$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&p==='/api/session'){
   const token=url.searchParams.get('token')||'';const c=getProfile(token);if(!c)return fail(res,404,'LINK_INVALID','Liên kết không hợp lệ');
-  return reply(res,200,{ok:true,sandbox:true,provider:'OpenAI',aiConfigured:!!String(process.env.OPENAI_API_KEY||'').trim(),profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship}})
+  return reply(res,200,{ok:true,sandbox:true,provider:'Cloudflare + rules',aiConfigured:cfConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship}})
  }
  if(req.method==='POST'&&p==='/api/message'){
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
@@ -90,14 +61,14 @@ const server=http.createServer(async(req,res)=>{
   const normalized=message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
   const explicitChange=/(giao (den|toi|ve) (dia chi|noi|cho) khac|doi dia chi|dia chi moi|so dien thoai moi|sdt moi|doi nguoi nhan|nguoi nhan khac)/.test(normalized);
   if(explicitChange)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu đổi người nhận, số điện thoại hoặc địa chỉ. Cửa hàng cần xác minh và duyệt thủ công; không tự áp dụng chiết khấu riêng.'});
-  const parsed=await openAIParse(message);
-  if(parsed.error)return fail(res,503,parsed.error,'OpenAI chưa sẵn sàng ('+parsed.error+'). Không tạo đơn và không áp dụng giá khi AI gặp lỗi.');
+  const parsed=await parseOrder(message,c);
+  if(parsed.needsHuman)return reply(res,200,{ok:true,needsHuman:true,message:'Yêu cầu thay đổi người nhận, địa chỉ hoặc số điện thoại phải được cửa hàng xác minh trước khi áp dụng giá riêng.'});
   if(parsed.address_change||parsed.receiver_or_phone_change)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu thay địa chỉ, SĐT hoặc người nhận. Mức chiết khấu riêng sẽ không được áp dụng tự động; cửa hàng cần kiểm tra thủ công.'});
   if(parsed.intent!=='order')return reply(res,200,{ok:true,message:'Mình có thể hỗ trợ đặt nước. Bạn muốn đặt loại 350ml, 500ml hay 5L và bao nhiêu thùng?'});
   const sku=parsed.sku!=='unknown'?parsed.sku:(parsed.use_last_order||c.uniqueFavourite)?c.favourite:null, qty=parsed.qty>0?parsed.qty:parsed.use_last_order?c.lastQty:0;
   if(!sku||qty<1)return reply(res,200,{ok:true,needMoreDetails:true,message:'Mình chưa xác định đủ loại nước và số thùng. Bạn vui lòng cho biết rõ nhé.'});
   const quote=makeQuote(token,c,sku,qty);if(!quote)return fail(res,400,'INVALID_QUANTITY','Chỉ chấp nhận tối đa 500 thùng một đơn');
-  return reply(res,200,{ok:true,sandbox:true,message:'Mình đã lập báo giá theo cấu hình khách THỬ. Bạn xem lại và xác nhận nhé.',quote});
+  return reply(res,200,{ok:true,sandbox:true,parserSource:parsed.source||'rules',message:'Mình đã lập báo giá theo cấu hình khách THỬ. Bạn xem lại và xác nhận nhé.',quote});
  }
  if(req.method==='POST'&&p==='/api/confirm'){
   const b=await bodyJSON(req),token=b?.token,c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không có quyền');
@@ -118,4 +89,4 @@ const server=http.createServer(async(req,res)=>{
  return fail(res,404,'NOT_FOUND','Không có đường dẫn này');
  }catch(err){return fail(res,err.message==='PAYLOAD_TOO_LARGE'?413:500,'SERVER_ERROR','Lỗi xử lý yêu cầu thử nghiệm')}
 });
-server.listen(PORT,HOST,()=>console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider OpenAI | production untouched'));
+server.listen(PORT,HOST,()=>console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Cloudflare Free + rules | production untouched'));
