@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.MinhSatori" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="colorPrimary">@color/satori_teal</item>
-        <item name="colorPrimaryDark">@color/satori_teal</item>
+        <item name="colorPrimary">@color/satori_primary</item>
+        <item name="colorPrimaryDark">@color/satori_header</item>
         <item name="colorAccent">@color/satori_teal</item>
-        <item name="android:statusBarColor">@color/satori_teal</item>
+        <item name="android:statusBarColor">@color/satori_header</item>
         <item name="android:navigationBarColor">@color/satori_background</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowActionModeOverlay">true</item>
     </style>
 </resources>
