@@ -57,6 +57,25 @@ for(const [needle,label] of [
  ['function renderHistory()','organized and filtered history timeline'],
  ["'/api/history.xlsx?token='",'authorized Excel download URL']
 ])assert.ok(html.includes(needle),label);
+for(const [needle,label] of [
+ ['id="cartFooter"','basket summary stays in catalogue drawer'],
+ ['id="cartCount"','selected product counter'],
+ ['id="cartList"','several different products can coexist in basket'],
+ ['id="clearCart"','clear basket control'],
+ ['id="composeCart"','compose one complete message'],
+ ["const cart=new Map()",'SKU-keyed basket preserves earlier selections'],
+ ["cart.set(selectedProduct.code",'adding another item does not replace previous items'],
+ ["const message='Cho tôi đặt một đơn gồm:",'one natural-language chat message lists all lines'],
+ ["{cartItems:pendingCartItems}",'structured SKU cart accompanies human-readable message'],
+ ["cartTotalQty()+qty>500",'basket total quantity capped'],
+ ["cart.size>=6",'basket distinct product limit'],
+ ["cart.delete(item.code)",'individual item can be removed'],
+ ["const useCart=pendingCartMessage===message",'edited messages cannot retain stale structured cart'],
+ [".messages .bubble.assistant{background:linear-gradient(145deg,#1166c3,#1479d6);color:#fff",'assistant bubble uses readable blue'],
+ [".messages .bubble.user{background:linear-gradient(135deg,#087e73,#06968a);color:#fff",'customer bubble uses readable teal'],
+ [".messages .bubble.assistant::before{content:\"SATORI AI\"",'blue bubble explicitly identifies AI']
+])assert.ok(html.includes(needle),label);
+console.log('PASS 16/16 multi-select basket and distinct bubble-color UI checks');
 console.log('PASS 9/9 customer logo, timeline and export UI tests');
 console.log('PASS 26/26 iMessage, automatic delivery notes and PDF UI structure smoke checks');
 const adminHtml=fs.readFileSync(path.join(root,'admin.html'),'utf8');
