@@ -6,6 +6,7 @@ globalThis.fetch=async (url,opts)=>{
  const input=JSON.parse(opts.body).input?.[0]?.content||'';
  if(input==='__test_network__')throw Object.assign(new Error('SECRET_SENTINEL_DO_NOT_EXPOSE'),{cause:{code:'ENOTFOUND'}});
  if(input==='__test_unknown__')throw new Error('SECRET_SENTINEL_DO_NOT_EXPOSE');
+ if(input==='__test_quota_message__')return {ok:false,status:429,json:async()=>({error:{message:'You exceeded your current quota. SECRET_SENTINEL_DO_NOT_EXPOSE'}})};
  if(input==='__test_quota__')return {ok:false,status:429,json:async()=>({error:{code:'insufficient_quota',message:'SECRET_SENTINEL_DO_NOT_EXPOSE'}})};
  const norm=input.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
  const change=/giao den|dia chi khac|doi dia chi|sdt moi|so dien thoai moi/.test(norm);
