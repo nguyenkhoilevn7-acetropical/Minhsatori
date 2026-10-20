@@ -26,9 +26,13 @@ try {
  test(r.body.quote?.total===950400,'server computes correct A quote');
  test(r.body.parserSource==='rules','simple order uses no paid inference');
  const quoteA=r.body.quote;
- const cat=await get('/api/catalogue');
+ const cat=await get('/api/catalogue?token=demo-a');
  test(cat.body.count===20&&cat.body.products.length===20,'all official 20 products available');
  test(cat.body.products.some(x=>x.code==='TP-00051'&&/Premium/i.test(x.name)),'Premium SKU available');
+ test(cat.body.products.find(x=>x.code==='TP-00051').unitPrice===Math.round(137963*.8),'A product drawer shows calculated 20% demo discount');
+ const catB=await get('/api/catalogue?token=demo-b');
+ test(catB.body.products.find(x=>x.code==='TP-00051').unitPrice===Math.round(137963*.65),'B product drawer shows calculated 35% demo discount');
+ test((await get('/api/catalogue')).status===403,'prices not shown without demo customer link');
  r=await post('/api/message',{token:'demo-b',message:'Cho anh 20 thùng premium'});
  test(r.body.quote?.code==='TP-00051'&&r.body.quote?.qty===20,'B premium request resolved with quantity 20');
  test(r.body.quote?.listPrice===137963&&r.body.quote?.discount===35,'premium pricing matches official default and B policy');
