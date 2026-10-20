@@ -209,7 +209,12 @@ assert.equal(createdMobile.data.order.deliveryNote,'Shipper gửi hóa đơn có
 assert.equal(mobile('orders.create',{expectedRevision:20,requestId:'phone-order-001',
   confirmedNewCustomer:true,order:{name:'Android Test Customer',location:'Cát Lái 101',phone:'0909988999',
   items:[{product:'Satori 350 ml',qty:2,unitPrice:65000}],
-  shippingAmount:20000,total:150000}}).data.duplicate,true);
+  shippingAmount:20000,total:150000,deliveryNote:'Shipper gửi hóa đơn có giá.'}}).data.duplicate,true);
+assert.equal(mobile('orders.create',{expectedRevision:20,requestId:'phone-order-001',
+  confirmedNewCustomer:true,order:{name:'Android Test Customer',location:'Cát Lái 101',phone:'0909988999',
+  items:[{product:'Satori 350 ml',qty:2,unitPrice:65000}],
+  shippingAmount:20000,total:150000}}).error.code,'REQUEST_ID_CONFLICT',
+  'retry with missing delivery note must be rejected rather than duplicating an order');
 let mobileId=createdMobile.data.order.id,mobileNo=createdMobile.data.order.invoiceNo;
 const edit=mobile('orders.update',{expectedRevision:21,requestId:'phone-update-001',
   id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
