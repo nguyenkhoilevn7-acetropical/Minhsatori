@@ -1278,7 +1278,10 @@ class NativeMainActivity : AppCompatActivity() {
                     lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                     lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
                 }
-                if (result.isSuccess || proved) {
+                val alreadyPaid = result.getOrNull()?.optJSONObject("data")
+                    ?.optBoolean("alreadyPaid", false) == true
+                if ((result.isSuccess &&
+                        MobileWriteOutcome.acceptsServerSuccess(action, alreadyPaid, proved)) || proved) {
                     finishPendingWrite(pending)
                     if (latest == null) {
                         snapshot = null
@@ -1291,7 +1294,7 @@ class NativeMainActivity : AppCompatActivity() {
                     if (!pendingStorageError) statusMessage = message
                     Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                     completed(true, message)
-                } else if (MobileWriteOutcome.mayDiscardAfterRejection(
+                } else if (result.isFailure && MobileWriteOutcome.mayDiscardAfterRejection(
                         result.exceptionOrNull()!!, prior != null)) {
                     finishPendingWrite(pending)
                     statusMessage = "Server từ chối yêu cầu: " +
@@ -1302,7 +1305,10 @@ class NativeMainActivity : AppCompatActivity() {
                     dataSource = ""
                     completed(false, statusMessage)
                 } else {
-                    statusMessage = "Chưa xác minh được kết quả trước đó. Đã giữ bản chờ mã hóa, " +
+                    statusMessage = if (result.isSuccess && alreadyPaid)
+                        "Hóa đơn đã thanh toán nhưng chưa xác minh được chính yêu cầu của máy này. " +
+                            "Giữ bản chờ an toàn, không ghi tiền thêm. Cần đối chiếu giao dịch."
+                    else "Chưa xác minh được kết quả trước đó. Đã giữ bản chờ mã hóa, " +
                         "khóa ghi mới và giữ nguyên mã chống trùng kể cả khi đóng app."
                     val error = result.exceptionOrNull()
                     if (error is MobileApiError && error.apiCode in setOf("AUTH_FAILED", "FORBIDDEN")) {
