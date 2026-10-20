@@ -53,7 +53,7 @@ try{
  check(reuseDifferentId.status===409,'Consumed quote cannot be created again under another request ID');
  const invalidPdf=await fetch(origin+'/api/invoice/TEST-INVALID?token=demo-a');
  check(invalidPdf.status===404,'Invalid invoice id denied');
- for(const [message,expected] of [['__test_network__','AI_NETWORK_ENOTFOUND'],['__test_unknown__','AI_REQUEST_ERROR'],['__test_quota__','OPENAI_INSUFFICIENT_QUOTA']]){
+ for(const [message,expected] of [['__test_network__','AI_NETWORK_ENOTFOUND'],['__test_unknown__','AI_REQUEST_ERROR'],['__test_quota__','OPENAI_INSUFFICIENT_QUOTA'],['__test_quota_message__','OPENAI_INSUFFICIENT_QUOTA']]){
   const r=await post('/api/message',{token:'demo-a',message});
   check(r.status===503&&r.body.error===expected&&!JSON.stringify(r.body).includes('SECRET_SENTINEL'),'Safe diagnostic '+expected);
  }
