@@ -36,6 +36,14 @@
 - Sign a release build using the stable private keystore. Distribute the tested APK/release, version and SHA256; ensure upgrades preserve installation identity.
 - Only when every gate above passes can the release be called ready to use. A GitHub Actions debug build passing Gradle is **not** proof of login, live writes or Zalo sharing on Samsung.
 
+
+### Manual signed-release build (implemented on staging, not yet activated)
+
+- GitHub Actions: `.github/workflows/android-release-apk.yml`, **workflow_dispatch only** (never creates a release automatically).
+- Provision one stable Android release signing keystore offline and store its base64 representation in the protected Actions secret `SATORI_ANDROID_KEYSTORE_BASE64`. Configure `SATORI_ANDROID_KEYSTORE_PASSWORD`, `SATORI_ANDROID_KEY_ALIAS`, and `SATORI_ANDROID_KEY_PASSWORD` as protected secrets. Do not paste their values into chat, issues or GitHub source files.
+- After all staging checks pass, an authorized maintainer may run the workflow. It refuses to continue when any signing secret is absent; builds `assembleRelease`, validates `vn.minhsatori.app` and v0.3.1 using aapt, verifies APK signing with apksigner, computes SHA256 and uploads the signed APK artifact for acceptance testing.
+- **No private keystore has been created or configured in this chat; a signed release has NOT yet been built.** Register the corresponding signing SHA-1 and Android OAuth client in Google Cloud before real staff sign-in.
+
 ## Current evidence
 
 - As of the 2026-10-20 read-only check: live Bot API `system.status` reported revision **105**, **113** invoices. This count is a snapshot and should be rechecked before release.
