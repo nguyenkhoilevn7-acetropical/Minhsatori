@@ -13,6 +13,7 @@ import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {parseOrder,parseRules,geminiConfigured} from './free-parser.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
+import {makeCustomerLinks} from './customer-links.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
@@ -20,6 +21,7 @@ const MODEL='gemini-3.5-flash-lite';
 const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'minh-satori-customer-chat-SANDBOX'));
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
+const customerLinks=makeCustomerLinks(DATA_DIR);
 const FIXTURES=Object.freeze({
  'demo-a':{id:'KH-DEMO-A',name:'Khách Demo A',phone:'000 000 0001',address:'123 Đường Thử Nghiệm, TP.HCM',discount:20,ship:8,favourite:'S5L',lastQty:10,uniqueFavourite:true},
  'demo-b':{id:'KH-DEMO-B',name:'Khách Demo B',phone:'000 000 0002',address:'456 Đường Mẫu, TP.HCM',discount:35,ship:8,favourite:'S500',lastQty:5,uniqueFavourite:false}
@@ -30,7 +32,7 @@ function safeJSON(s){try{return JSON.parse(s)}catch{return null}}
 if(fs.existsSync(DATA_FILE))for(const o of safeJSON(fs.readFileSync(DATA_FILE,'utf8'))||[]){if(o?.ref&&o.sandbox)orders.set(o.ref,o);if(o?.requestId)idempotency.set(o.requestId,o.ref)}
 function reply(res,status,obj){const body=JSON.stringify(obj);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'"});res.end(body)}
 function fail(res,status,code,message){reply(res,status,{ok:false,error:code,message})}
-function getProfile(token){return Object.hasOwn(FIXTURES,token)?FIXTURES[token]:null}
+function getProfile(token){return Object.hasOwn(FIXTURES,token)?FIXTURES[token]:customerLinks.getProfile(token)}
 async function bodyJSON(req){const chunks=[];let size=0;for await(const buf of req){size+=buf.length;if(size>8_192)throw new Error('PAYLOAD_TOO_LARGE');chunks.push(buf)}return safeJSON(Buffer.concat(chunks).toString('utf8'))}
 function rateLimit(req,token){const now=Date.now();const key=(req.socket.remoteAddress||'localhost')+'|'+token;const list=(rate.get(key)||[]).filter(t=>now-t<60000);if(list.length>=20)return false;list.push(now);rate.set(key,list);return true}
 function money(v){return Math.round(v)}
@@ -46,7 +48,10 @@ const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
  if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
- if(req.method==='GET'&&/^\/c\/demo-[ab]$/.test(p))return sendHtml(res);
+ if(req.method==='GET'&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(p))return sendHtml(res);
+ if(req.method==='GET'&&p==='/admin'){const html=fs.readFileSync(path.join(HERE,'admin.html'));res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
+ if(await customerLinks.handleAdmin(req,res,url,bodyJSON))return;
+ if(req.method==='GET'&&p==='/api/history')return customerLinks.history(res,url.searchParams.get('token')||'',orders,FIXTURES);
  if(req.method==='GET'&&p==='/api/catalogue'){
   const profile=getProfile(url.searchParams.get('token')||'');if(!profile)return fail(res,403,'DEMO_LINK_REQUIRED','Chỉ hiển thị giá riêng trong link khách thử hợp lệ');
   return reply(res,200,{ok:true,sandbox:true,source:'official-default-snapshot',catalogueSync:'snapshot_only',count:CATALOGUE.length,products:CATALOGUE.map(item=>({code:item.code,name:item.name,brand:item.brand,unit:item.unit,spec:item.spec,listPrice:item.listPrice,discount:profile.discount,unitPrice:money(item.listPrice*(1-profile.discount/100))}))});
@@ -107,12 +112,14 @@ const server=http.createServer(async(req,res)=>{
   const q=quotes.get(b.quoteId);if(!q||q.token!==token||q.expiresAt<Date.now())return fail(res,409,'QUOTE_EXPIRED','Báo giá hết hạn hoặc không thuộc khách này');
   if(q.profileId!==c.id||q.discount!==c.discount||q.ship!==c.ship||q.address!==c.address||q.phone!==c.phone)return fail(res,409,'PROFILE_CHANGED','Thông tin khách đã thay đổi, cần lập lại báo giá');
   const o={...q,ref:'TEST-'+crypto.randomBytes(5).toString('hex').toUpperCase(),requestId:idemKey,createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};
+  delete o.token; // Do not write the bearer link credential into invoice/order storage.
   orders.set(o.ref,o);idempotency.set(idemKey,o.ref);saveOrdersAtomic();quotes.delete(q.quoteId);
   return reply(res,200,{ok:true,duplicate:false,order:o});
  }
  if(req.method==='GET'&&p.startsWith('/api/invoice/')){
   const ref=decodeURIComponent(p.slice('/api/invoice/'.length)),token=url.searchParams.get('token'),o=orders.get(ref);
-  if(!o||o.token!==token)return fail(res,404,'NOT_FOUND','Không tìm thấy hóa đơn thử');
+  const c=getProfile(token);
+  if(!o||!c||o.profileId!==c.id)return fail(res,404,'NOT_FOUND','Không tìm thấy hóa đơn thử');
   try{const buf=await generatePdf(o);res.writeHead(200,{'content-type':'application/pdf','content-disposition':'attachment; filename="'+o.ref+'.pdf"','cache-control':'no-store','x-content-type-options':'nosniff'});res.end(buf)}catch(err){return fail(res,503,'PDF_FAILED','Không tạo được PDF. Kiểm tra python3, reportlab và font tiếng Việt.')}
   return;
  }
