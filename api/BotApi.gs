@@ -247,8 +247,16 @@ function markPaid(s,all,p){
  // Mobile callers supply a durable requestId; legacy Bot callers may omit it.
  // Never attribute another device's payment to this request after a lost reply.
  var paymentRequestId=p.requestId==null?'':String(p.requestId);
- if(paymentRequestId)need(/^[a-zA-Z0-9_-]{8,100}$/.test(paymentRequestId),
-  'INVALID_REQUEST','Mã xác nhận thanh toán không hợp lệ');
+ if(paymentRequestId){
+  need(/^[a-zA-Z0-9_-]{8,100}$/.test(paymentRequestId),
+   'INVALID_REQUEST','Mã xác nhận thanh toán không hợp lệ');
+  // Native requests must be bound to the invoice ID and the exact amount.
+  // Historic Bot requests without requestId retain their original contract.
+  need(p.id!==undefined&&p.id!==null&&String(p.id)===String(old.id),
+   'ORDER_CHANGED','Thiếu hoặc không khớp ID hóa đơn để xác nhận thanh toán');
+  need(p.amount!==undefined,'INVALID_AMOUNT',
+   'Ứng dụng phải gửi chính xác tổng tiền hóa đơn');
+ }
  if(paid(old))return {modified:false,result:{order:visible(old),alreadyPaid:true}};
  version(s,p);
  var updated=Object.assign({},old,{customerPaidAt:new Date().toISOString(),updatedAt:Date.now()});
