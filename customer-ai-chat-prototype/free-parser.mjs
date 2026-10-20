@@ -4,7 +4,7 @@ const SKUS=new Set(['S5L','S500','S350',...CATALOGUE.map(p=>p.code)]);
 const words={mot:1,hai:2,ba:3,bon:4,tu:4,nam:5,lam:5,sau:6,bay:7,tam:8,chin:9,muoi:10};
 const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\s+/g,' ').trim();
 function hints(s,profile={}){const r=resolveProduct(s,profile);return r.sku?[r.sku]:[]}
-function qty(s){let m=s.match(/\b(\d{1,4})\s*(?:thung|thg|t)(?=\s|$|[.,!?;])/);if(m)return Number(m[1]);m=s.match(/\b(muoi\s+(?:mot|hai|ba|bon|nam|lam|sau|bay|tam|chin)|hai\s+muoi|ba\s+muoi|mot|hai|ba|bon|tu|nam|lam|sau|bay|tam|chin|muoi)\s+(?:thung|thg)\b/);if(!m)return 0;const p=m[1].split(' ');return p[0]==='muoi'&&p[1]?10+words[p[1]]:p[1]==='muoi'?10*words[p[0]]:words[p[0]]||0;}
+function qty(s){let m=s.match(/\b(\d{1,4})\s*(?:thung|thg|t|binh|loc)(?=\s|$|[.,!?;])/);if(m)return Number(m[1]);m=s.match(/\b(muoi\s+(?:mot|hai|ba|bon|nam|lam|sau|bay|tam|chin)|hai\s+muoi|ba\s+muoi|mot|hai|ba|bon|tu|nam|lam|sau|bay|tam|chin|muoi)\s+(?:thung|thg|binh|loc)\b/);if(!m)return 0;const p=m[1].split(' ');return p[0]==='muoi'&&p[1]?10+words[p[1]]:p[1]==='muoi'?10*words[p[0]]:words[p[0]]||0;}
 const last=s=>/\b(nhu lan truoc|don cu|don truoc|dat lai|nhu cu|nhu moi khi)\b/.test(s);
 const unsupported=s=>/\b(tra sua|tra mang cau|ca phe|coffee|bia|tra nho|sua tuoi)\b/.test(s);
 export function identityChange(message,profile={}){
