@@ -449,6 +449,14 @@ class NativeMainActivity : AppCompatActivity() {
             topMargin = dp(16)
         })
 
+        // Staging-only native AI Chat. Shares the Gemini TEST API with the web portal;
+        // never reads or writes the real Drive ledger from this route.
+        button(content, "✦ AI CHAT • THỬ NGHIỆM (CHUNG API WEBSITE)") {
+            startActivity(Intent(this, AiSandboxActivity::class.java))
+        }
+        label(content, "AI Chat này dùng dữ liệu mẫu Demo A. Chưa đồng bộ khách và giá thật.",
+            11f, false, muted, 4)
+
         if (isLoading) {
             label(content, "Đang đồng bộ dữ liệu…", 12f, true, cyan, 12)
         }
