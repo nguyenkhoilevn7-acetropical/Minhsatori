@@ -18,8 +18,8 @@ const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'mi
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
 const FIXTURES=Object.freeze({
- 'demo-a':{id:'KH-DEMO-A',name:'Khách Demo A',phone:'000 000 0001',address:'123 Đường Thử Nghiệm, TP.HCM',discount:20,ship:8,favourite:'S5L',lastQty:10},
- 'demo-b':{id:'KH-DEMO-B',name:'Khách Demo B',phone:'000 000 0002',address:'456 Đường Mẫu, TP.HCM',discount:35,ship:8,favourite:'S500',lastQty:5}
+ 'demo-a':{id:'KH-DEMO-A',name:'Khách Demo A',phone:'000 000 0001',address:'123 Đường Thử Nghiệm, TP.HCM',discount:20,ship:8,favourite:'S5L',lastQty:10,uniqueFavourite:true},
+ 'demo-b':{id:'KH-DEMO-B',name:'Khách Demo B',phone:'000 000 0002',address:'456 Đường Mẫu, TP.HCM',discount:35,ship:8,favourite:'S500',lastQty:5,uniqueFavourite:false}
 });
 const PRODUCTS=Object.freeze({
  S5L:{name:'Nước tinh khiết Satori 5L có vòi',listPrice:110000},
@@ -81,7 +81,7 @@ const server=http.createServer(async(req,res)=>{
   if(parsed.error)return fail(res,503,parsed.error,'OpenAI chưa sẵn sàng. Không tạo đơn và không áp dụng giá khi AI gặp lỗi.');
   if(parsed.address_change||parsed.receiver_or_phone_change)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu thay địa chỉ, SĐT hoặc người nhận. Mức chiết khấu riêng sẽ không được áp dụng tự động; cửa hàng cần kiểm tra thủ công.'});
   if(parsed.intent!=='order')return reply(res,200,{ok:true,message:'Mình có thể hỗ trợ đặt nước. Bạn muốn đặt loại 350ml, 500ml hay 5L và bao nhiêu thùng?'});
-  const sku=parsed.sku!=='unknown'?parsed.sku:parsed.use_last_order?c.favourite:null, qty=parsed.qty>0?parsed.qty:parsed.use_last_order?c.lastQty:0;
+  const sku=parsed.sku!=='unknown'?parsed.sku:(parsed.use_last_order||c.uniqueFavourite)?c.favourite:null, qty=parsed.qty>0?parsed.qty:parsed.use_last_order?c.lastQty:0;
   if(!sku||qty<1)return reply(res,200,{ok:true,needMoreDetails:true,message:'Mình chưa xác định đủ loại nước và số thùng. Bạn vui lòng cho biết rõ nhé.'});
   const quote=makeQuote(token,c,sku,qty);if(!quote)return fail(res,400,'INVALID_QUANTITY','Chỉ chấp nhận tối đa 500 thùng một đơn');
   return reply(res,200,{ok:true,sandbox:true,message:'Mình đã lập báo giá theo cấu hình khách THỬ. Bạn xem lại và xác nhận nhé.',quote});
