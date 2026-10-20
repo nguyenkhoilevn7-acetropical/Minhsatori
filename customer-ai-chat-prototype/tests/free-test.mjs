@@ -108,6 +108,11 @@ try {
  const logo=await fetch(base+'/assets/logo-satori.jpg');
  const logoBytes=Buffer.from(await logo.arrayBuffer());
  test(logo.status===200&&logo.headers.get('content-type')==='image/jpeg'&&logoBytes.length>500,'original Satori logo accessible in sandbox');
+ const qr=await fetch(base+'/api/invoice-qr/'+confirmed.body.order.ref+'?token=demo-a');
+ const qrBytes=Buffer.from(await qr.arrayBuffer());
+ test(qr.status===200&&qr.headers.get('content-type')==='image/png'&&qrBytes.subarray(0,8).toString('hex')==='89504e470d0a1a0a','per-bill QR preview returns a real PNG');
+ const qrDenied=await fetch(base+'/api/invoice-qr/'+confirmed.body.order.ref+'?token=demo-b');
+ test(qrDenied.status===404,'other customer cannot fetch invoice QR');
  const wrongPdf=await fetch(base+'/api/invoice/'+confirmed.body.order.ref+'?token=demo-b');
  test(wrongPdf.status===404,'other profile cannot download PDF');
  const auto=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng nước Satori 500ml và giao sau 2 giờ chiều, nhớ gọi trước khi giao'});
@@ -115,6 +120,9 @@ try {
  test(auto.body.quote?.deliveryNote?.includes('14:00')&&auto.body.quote?.deliveryNote?.includes('gọi trước'),'single message auto-extracts delivery time and extra notes');
  const autoConfirmed=await post('/api/confirm',{token:'demo-b',quoteId:auto.body.quote.quoteId,requestId:'auto-note-001'});
  test(autoConfirmed.body.order?.deliveryNote===auto.body.quote.deliveryNote,'auto-filled instruction persists without manual retyping');
+ const qr2=await fetch(base+'/api/invoice-qr/'+autoConfirmed.body.order.ref+'?token=demo-b');
+ const qr2Bytes=Buffer.from(await qr2.arrayBuffer());
+ test(qr2.status===200&&!qrBytes.equals(qr2Bytes),'different orders produce different payment-reference QR content');
  const autoHistory=await get('/api/history?token=demo-b');
  test(autoHistory.body.orders.some(o=>o.ref===autoConfirmed.body.order.ref&&o.deliveryNote.includes('14:00')),'automatic note stays with own invoice history');
  const deniedAuto=await fetch(base+'/api/invoice/'+autoConfirmed.body.order.ref+'?token=demo-a');
