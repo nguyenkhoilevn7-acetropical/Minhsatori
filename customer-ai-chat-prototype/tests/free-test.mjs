@@ -111,6 +111,10 @@ try {
  const pdf=await fetch(base+'/api/invoice/'+confirmed.body.order.ref+'?token=demo-a');
  const bytes=Buffer.from(await pdf.arrayBuffer());
  test(pdf.status===200&&bytes.subarray(0,4).toString()==='%PDF','generated test PDF');
+ test(bytes.includes(Buffer.from('/Subtype /Image')),'PDF contains the embedded Satori logo');
+ const logo=await fetch(base+'/assets/logo-satori.jpg');
+ const logoBytes=Buffer.from(await logo.arrayBuffer());
+ test(logo.status===200&&logo.headers.get('content-type')==='image/jpeg'&&logoBytes.length>500,'original Satori logo accessible in sandbox');
  const wrongPdf=await fetch(base+'/api/invoice/'+confirmed.body.order.ref+'?token=demo-b');
  test(wrongPdf.status===404,'other profile cannot download PDF');
  console.log('PASS '+tests+'/'+tests+' FREE sandbox integration checks; PDF '+bytes.length+' bytes; no paid model invoked');
