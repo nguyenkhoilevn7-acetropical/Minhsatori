@@ -18,6 +18,7 @@ import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
+import {checkCatalogueParity} from './catalogue-parity.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
@@ -120,12 +121,16 @@ const server=http.createServer(async(req,res)=>{
       !Array.isArray(catalogue.data?.products)||catalogue.data.products.length<1||
       catalogue.data?.source!=='drive-ledger:satori_catalogue_v15')
      return fail(res,409,'SOURCE_REVISION_MISMATCH','Dữ liệu nguồn chưa cùng revision hoặc chưa có bảng giá chuẩn trên Drive.');
+   const parity=checkCatalogueParity(catalogue.data.products,CATALOGUE);
    return reply(res,200,{ok:true,sandbox:true,readOnly:true,
      revision:status.revision,invoiceCount:status.data?.orders??null,
      catalogueCount:catalogue.data.products.length,
      catalogueSource:catalogue.data.source,
-     customerSync:false,checkoutEnabled:false,
-     message:'Đã xác minh quyền đọc và cùng revision. CHƯA kích hoạt đồng bộ khách, giá riêng hoặc ghi đơn thật.'});
+     catalogueParity:{exactlyMatched:parity.exactlyMatched,matchedCount:parity.matchedCount,
+       sourceCount:parity.sourceCount,missingCodes:parity.missingCodes,
+       extraCodes:parity.extraCodes,changedCodes:parity.changedCodes},
+     catalogueLiveSync:false,customerSync:false,checkoutEnabled:false,
+     message:'Đã đối chiếu nguồn Drive chỉ đọc. Chưa bật tự động đồng bộ giá, khách hoặc tạo đơn thật.'});
   }catch{
    return fail(res,503,'SOURCE_PROBE_FAILED','Chưa kết nối được nguồn chuẩn qua quyền chỉ đọc. Không thay đổi dữ liệu.');
   }
