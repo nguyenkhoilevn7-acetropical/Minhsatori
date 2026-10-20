@@ -59,7 +59,10 @@ const adminChecks=[
  ['id="newCustomer"','new customer mode'],
  ["$('createButton').disabled=true","guard against duplicate selected customer creation"],
  ['vatRate:Number','VAT sent in admin form'],
- ['id="vatRate"','VAT rate selector']
+ ['id="vatRate"','VAT rate selector'],
+ ['id="downloadSandboxBackup"','owner backup download button'],
+ ['id="restoreSandboxFile"','owner upload backup file selector'],
+ ['id="restoreSandboxBackup"','guarded restore control']
 ];
 for(const [needle,label] of adminChecks)assert.ok(adminHtml.includes(needle),label);
 assert.ok(html.includes('q.vatAmount??0'),'quote displays server-calculated VAT');
