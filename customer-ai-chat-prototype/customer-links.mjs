@@ -14,7 +14,7 @@ const safeText=(s,max)=>typeof s==='string'?s.trim().slice(0,max):'';
 const numberIn=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
 // Accept printable, space-free secrets (including standard base64 + / =), not just base64url.
 const bearer=header=>{
- const match=/^Bearer ([\\x21-\\x7e]{32,256})$/.exec(String(header||''));
+ const match=/^Bearer ([\x21-\x7e]{32,256})$/.exec(String(header||''));
  return match?.[1]||'';
 };
 
