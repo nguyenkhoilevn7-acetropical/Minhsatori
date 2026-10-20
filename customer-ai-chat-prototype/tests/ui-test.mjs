@@ -37,7 +37,13 @@ assert.ok(html.includes('invoice-delivery-note'),'invoice preview displays deliv
 assert.ok(html.includes('/assets/logo-satori.jpg'),'original logo displayed on invoice');
 assert.ok(!html.includes('GEMINI_API_KEY'),'never inline API secrets');
 for(const [needle,label] of [['data-label="Thành tiền"','mobile product totals have label'],['.invoice-table-wrap table{width:100%;min-width:0;table-layout:fixed','wide preview grid fits paper'],['/api/invoice-qr/','QR image fetched from protected sandbox server'],['invoice-signatures','sale and receiving signatures match reference form'],['moneyInWords(o.total)','invoice preview includes amount in Vietnamese words']])assert.ok(html.includes(needle),label);
+const pdfSource=fs.readFileSync(path.join(root,'invoice_pdf.py'),'utf8');
+assert.ok(pdfSource.includes('NAME_FONT_SIZE=9.5'),'PDF product names must render at 9.5pt');
+assert.ok(pdfSource.includes('row_heights=[max(39,14+NAME_LINE_HEIGHT*len(lines))'),'PDF product rows must expand for wrapped names');
+assert.ok(html.includes('td:nth-child(2){font-size:14px;font-weight:650'),'Desktop product names must remain readable');
+assert.ok(html.includes('td:nth-child(2){font-size:16px;font-weight:650'),'Samsung mobile product names must remain readable');
 console.log('PASS 5/5 invoice preview QR, totals and mobile layout safeguards');
+console.log('PASS 4/4 larger product-name font and variable row-height regression checks');
 console.log('PASS 26/26 iMessage, automatic delivery notes and PDF UI structure smoke checks');
 const adminHtml=fs.readFileSync(path.join(root,'admin.html'),'utf8');
 const adminScript=adminHtml.match(/<script>([\s\S]*?)<\/script>/);
