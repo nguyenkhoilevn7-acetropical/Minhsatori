@@ -8757,6 +8757,28 @@ window.SatoriRecon = (() => {
 })();
 </script>
     <script src="satori-bot-live.js?v=20261019" defer></script>
+<!-- AI CUSTOMER PORTAL — staging preview only. No real customer or order data is sent. -->
+<script>
+(() => {
+  'use strict';
+  // This explicit preview flag is disabled for ordinary visitors.
+  // Production must later use server-verified customer identity + source revision.
+  const params = new URLSearchParams(location.search);
+  if (params.get('satoriAiSandboxPreview') !== '1') return;
+  const url = 'https://minh-satori-customer-ai-gemini.onrender.com/c/demo-a';
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  a.textContent = '✦ AI CHAT SATORI • SANDBOX';
+  a.setAttribute('aria-label', 'Mở bản thử AI Satori, không kết nối hóa đơn thật');
+  Object.assign(a.style, {
+    position:'fixed',right:'14px',bottom:'76px',zIndex:'9999',padding:'12px 17px',
+    borderRadius:'999px',font:'700 13px system-ui',color:'#ffffff',
+    background:'linear-gradient(110deg,#1366c8,#078c89)',
+    boxShadow:'0 6px 22px rgba(0,40,90,.3)',textDecoration:'none'
+  });
+  document.body.appendChild(a);
+})();
+</script>
 </body>
 </html>
 
