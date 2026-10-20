@@ -40,7 +40,9 @@ try{
  const lastB=await post('/api/message',{token:'demo-b',message:'Cho tôi đặt lại đơn lần trước'});
  check(lastB.body.quote?.qty===5&&lastB.body.quote?.sku==='S500','B last order resolves only from B fixture');
  const noType=await post('/api/message',{token:'demo-a',message:'Cho tôi 10 thùng nước'});
- check(noType.body.needMoreDetails&&!noType.body.quote,'Ambiguous type must ask, not guess');
+ check(noType.body.quote?.sku==='S5L'&&noType.body.quote?.total===950400,'A can infer one unique historical product but not guess price');
+ const ambiguousB=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng nước'});
+ check(ambiguousB.body.needMoreDetails&&!ambiguousB.body.quote,'If several historical products exist, ask which product');
  const noQty=await post('/api/message',{token:'demo-a',message:'Cho tôi nước Satori 5L'});
  check(noQty.body.needMoreDetails&&!noQty.body.quote,'Ambiguous quantity must ask, not guess');
  const tooMany=await post('/api/message',{token:'demo-a',message:'Cho tôi 501 thùng Satori 5L'});
