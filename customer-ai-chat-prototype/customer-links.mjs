@@ -12,7 +12,11 @@ const hash=token=>crypto.createHash('sha256').update(token).digest('hex');
 const newToken=()=>crypto.randomBytes(32).toString('base64url');
 const safeText=(s,max)=>typeof s==='string'?s.trim().slice(0,max):'';
 const numberIn=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
-const bearer=(header)=>/^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(String(header||''))?.[1]||'';
+// Accept printable, space-free secrets (including standard base64 + / =), not just base64url.
+const bearer=header=>{
+ const match=/^Bearer ([\\x21-\\x7e]{32,256})$/.exec(String(header||''));
+ return match?.[1]||'';
+};
 
 export function makeCustomerLinks(dataDir){
  const filename=path.join(dataDir,'customer-links-SANDBOX.json');
@@ -48,7 +52,7 @@ export function makeCustomerLinks(dataDir){
   return profiles.find(x=>x.enabled&&x.tokenHash===h)||null;
  };
  const authorized=req=>{
-  const expected=process.env.CUSTOMER_LINKS_ADMIN_TOKEN||'';
+  const expected=(process.env.CUSTOMER_LINKS_ADMIN_TOKEN||'').trim();
   const supplied=bearer(req.headers.authorization);
   if(expected.length<32||!supplied)return false;
   return crypto.timingSafeEqual(Buffer.from(hash(supplied)),Buffer.from(hash(expected)));
