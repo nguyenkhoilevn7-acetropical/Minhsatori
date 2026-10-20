@@ -5,9 +5,9 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const here=path.dirname(fileURLToPath(import.meta.url)),root=path.dirname(here),temp=mkdtempSync(path.join(tmpdir(),'satori-customer-links-'));
-const admin='ADMIN_TEST_ONLY_0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const admin='ADMIN_TEST_ONLY_0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ+/=';
 const port=30500+Math.floor(Math.random()*1000),origin='http://127.0.0.1:'+port;
-const proc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(port),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:temp,CUSTOMER_LINKS_ADMIN_TOKEN:admin,GEMINI_API_KEY:''},stdio:'ignore'});
+const proc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(port),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:temp,CUSTOMER_LINKS_ADMIN_TOKEN:admin+' \n',GEMINI_API_KEY:''},stdio:'ignore'});
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const req=async(p,method='GET',data,auth)=>{const res=await fetch(origin+p,{method,headers:{...(data?{'content-type':'application/json'}:{}),...(auth?{authorization:'Bearer '+auth}:{})},body:data?JSON.stringify(data):undefined});const raw=await res.arrayBuffer();let json;try{json=JSON.parse(Buffer.from(raw).toString('utf8'))}catch{}return {status:res.status,data:json,bytes:Buffer.from(raw)}};
 let tests=0;const ok=(cond,message)=>{assert.ok(cond,message);tests++};
@@ -15,6 +15,7 @@ try{
  let live=false;for(let i=0;i<100;i++){try{const h=await req('/health');if(h.status===200){live=true;break}}catch{}await wait(90)}
  ok(live,'sandbox started');
  let denied=await req('/api/admin/customers');ok(denied.status===401,'anonymous admin denied');
+ const adminCheck=await req('/api/admin/status','GET',undefined,admin);ok(adminCheck.status===200&&adminCheck.data.ok,'base64 admin token survives pasted env whitespace');
  denied=await req('/api/admin/customers','POST',{name:'Fake Customer'});ok(denied.status===401,'anonymous create denied');
  const creation=await req('/api/admin/customers','POST',{name:'Khách Giả C',phone:'000 000 0003',address:'789 Đường Giả Lập, TP.HCM',discount:25,ship:8},admin);
  ok(creation.status===201&&creation.data.ok,'admin can create sandbox customer');
