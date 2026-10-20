@@ -37,7 +37,7 @@ Owner-run helper: `android/tools/provision_release_signing.py`. It is prepared f
 4. It writes only four Actions Secrets in `nguyenkhoilevn7-acetropical/Minhsatori` and the public variable `SATORI_ANDROID_SIGNING_CERT_SHA256`; verifies their names and certificate pin; prints only public certificate SHA-1/SHA-256. Locally created CLI authentication is logged out when done; this removes local credentials, not the account's OAuth grant.
 5. Keep a private backup of both `minhsatori-release.jks` and `signing-credentials.json`. Cloud Shell home storage alone is not an indefinite backup. Do not put these files in chat, GitHub source, public artifacts or shared folders.
 
-The helper's key-protection unit tests run without network or credentials. Owner execution, actual Secrets writes and recovery of the resulting signing key still require verification; do not claim those operations have already happened.
+The helper's key-protection tests run without network or credentials. Two integration cases use real temporary JDK signing keys with a mocked GitHub interface, verifying reruns and interrupted uploads retain the same key and do not print private values. Owner execution, actual Secrets writes and recovery of the resulting signing key still require verification; do not claim those operations have already happened.
 
 The helper does not modify main, deploy Apps Script, create a release or write invoices. Configure Android OAuth for the public signing SHA-1/package and complete sandbox gates before a production launch. The manual release workflow validates the pinned signer, rejects debug APKs and emits `release-verification.json` with public certificates and APK SHA-256.
 

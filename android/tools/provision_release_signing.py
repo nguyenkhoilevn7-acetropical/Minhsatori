@@ -2,6 +2,7 @@
 """Run by the owner in their own Cloud Shell. Never prints private signing values."""
 import argparse
 import base64
+import fcntl
 import hashlib
 import json
 import os
@@ -166,7 +167,13 @@ def main():
         target = args.directory.expanduser().absolute()
         if any((parent / '.git').exists() for parent in [target, *target.parents]):
             raise RuntimeError('Thư mục khóa phải nằm ngoài mọi kho Git.')
-        provision(target)
+        if target.is_symlink():
+            raise RuntimeError('Thư mục lưu khóa không được là liên kết.')
+        target.mkdir(parents=True, mode=0o700, exist_ok=True)
+        target.chmod(0o700)
+        with (target / 'provision.lock').open('a') as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            provision(target)
     except (Exception, KeyboardInterrupt) as error:
         # No subprocess payload, token, credential JSON or signing password in errors.
         message = str(error) if isinstance(error, RuntimeError) else 'Chưa hoàn tất. Giữ nguyên bộ khóa đã tạo để tiếp tục; không tạo khóa mới.'
