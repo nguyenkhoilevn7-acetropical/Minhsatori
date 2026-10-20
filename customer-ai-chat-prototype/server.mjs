@@ -17,6 +17,7 @@ import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
+import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
@@ -103,6 +104,32 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
  if(req.method==='GET'&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&p==='/admin'){const html=fs.readFileSync(path.join(HERE,'admin.html'));res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
+ // This route probes source-of-truth sync READINESS only. Admin-authenticated,
+ // no catalogue/customer/order records returned and never any production writes.
+ if(req.method==='GET'&&p==='/api/admin/source-check'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần đăng nhập quản trị để kiểm tra kết nối.');
+  if(!rateLimit(req,'admin-source-read'))
+   return fail(res,429,'RATE_LIMIT','Chỉ kiểm tra kết nối với khoảng cách phù hợp.');
+  if(!readOnlyReady())
+   return fail(res,503,'READ_ONLY_NOT_CONFIGURED','Chưa cấu hình khóa HMAC chỉ đọc trên Render.');
+  try{
+   const status=await readMinhSatori('system.status');
+   const catalogue=await readMinhSatori('catalogue.list');
+   if(!Number.isSafeInteger(status.revision)||status.revision!==catalogue.revision||
+      !Array.isArray(catalogue.data?.products)||catalogue.data.products.length<1||
+      catalogue.data?.source!=='drive-ledger:satori_catalogue_v15')
+     return fail(res,409,'SOURCE_REVISION_MISMATCH','Dữ liệu nguồn chưa cùng revision hoặc chưa có bảng giá chuẩn trên Drive.');
+   return reply(res,200,{ok:true,sandbox:true,readOnly:true,
+     revision:status.revision,invoiceCount:status.data?.orders??null,
+     catalogueCount:catalogue.data.products.length,
+     catalogueSource:catalogue.data.source,
+     customerSync:false,checkoutEnabled:false,
+     message:'Đã xác minh quyền đọc và cùng revision. CHƯA kích hoạt đồng bộ khách, giá riêng hoặc ghi đơn thật.'});
+  }catch{
+   return fail(res,503,'SOURCE_PROBE_FAILED','Chưa kết nối được nguồn chuẩn qua quyền chỉ đọc. Không thay đổi dữ liệu.');
+  }
+ }
  // Download on owner's device: backup contains sandbox TEST data and hashed links only.
  // Restore is deliberately refused unless the entire sandbox is empty.
  if(p==='/api/admin/sandbox-backup'&&(req.method==='GET'||req.method==='POST')){
