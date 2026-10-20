@@ -567,37 +567,104 @@ class NativeMainActivity : AppCompatActivity() {
         dashboardMode = false
     }
 
+    private fun actionTile(row: LinearLayout, title: String, subtitle: String,
+                           accent: Int = cyan, click: () -> Unit) {
+        val tile = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(14), dp(12), dp(14))
+            background = panelBackground()
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { click() }
+            contentDescription = title + ". " + subtitle
+        }
+        label(tile, "◆", 15f, true, accent)
+        label(tile, title, 14f, true, white, 9)
+        label(tile, subtitle, 11f, false, muted, 6)
+        row.addView(tile, LinearLayout.LayoutParams(0, -1, 1f).apply {
+            marginEnd = dp(5)
+        })
+    }
+
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
-        if (canWrite) button(parent, "+ LÊN ĐƠN MỚI", true) { launchEditor() }
-        button(parent, "BẢNG GIÁ SATORI · " + data.products.size + " sản phẩm (CHỈ XEM)") {
+        label(parent, "QUẢN LÝ NHANH", 12f, true, cyan, 19)
+        val row1 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(9), 0, 0)
+        }
+        actionTile(row1, "Hóa đơn", data.invoices.size.toString() + " hóa đơn",
+            Color.rgb(96, 165, 250)) {
+            activeTab = 1
+            render()
+        }
+        actionTile(row1, "Khách hàng", "Hồ sơ & địa chỉ",
+            Color.rgb(94, 234, 212)) {
+            activeTab = 2
+            render()
+        }
+        parent.addView(row1)
+        val row2 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(10), 0, 0)
+        }
+        actionTile(row2, "Công nợ", "Theo dõi cần thu",
+            Color.rgb(253, 186, 116)) {
+            activeTab = 3
+            render()
+        }
+        actionTile(row2, "Lên đơn", if (canWrite) "Tạo hóa đơn mới" else "Cần kết nối API",
+            Color.rgb(196, 181, 253)) {
+            activeTab = 4
+            render()
+        }
+        parent.addView(row2)
+
+        label(parent, "CÔNG CỤ KINH DOANH", 12f, true, cyan, 23)
+        val tools1 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(10), 0, 0)
+        }
+        actionTile(tools1, "Bảng giá Satori", data.products.size.toString() + " sản phẩm") {
             showCatalogue(data)
         }
-        button(parent, "SỔ KẾ TOÁN · TRA CỨU (CHỈ XEM)") {
+        actionTile(tools1, "Sổ kế toán", "Tra cứu & đối chiếu",
+            Color.rgb(196, 181, 253)) {
             showLedger(data)
         }
-        button(parent, "TRÍ NHỚ AI · " + data.customerMemory.size + " HỒ SƠ (CHỈ XEM)") {
+        parent.addView(tools1)
+        val tools2 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(10), 0, 0)
+        }
+        actionTile(tools2, "Trí nhớ AI", data.customerMemory.size.toString() + " hồ sơ",
+            Color.rgb(94, 234, 212)) {
             showCustomerMemory(data)
         }
-        button(parent, "ĐỐI CHIẾU HAI BẢN GIÁ · (CHỈ XEM)") {
+        actionTile(tools2, "Đối chiếu giá", "Kiểm tra trùng đơn",
+            Color.rgb(253, 186, 116)) {
             showPriceComparison(data)
         }
-        button(parent, "ĐỐI CHIẾU BẢNG KÊ SATORI · XLSX/CSV (CHỈ XEM)") {
+        parent.addView(tools2)
+        button(parent, "ĐỐI CHIẾU BẢNG KÊ SATORI  •  XLSX / CSV") {
             supplierStatementPicker.launch(arrayOf(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "text/csv", "text/plain", "application/octet-stream"
             ))
         }
-        section(parent, "Kho hóa đơn · " + data.invoices.size,
-            data.activeCount.toString() + " bản ghi tính doanh thu; các bản 'Không Tính' " +
-                "không cộng trùng.")
-        section(parent, "Công nợ cần thu · " + data.outstandingCount + " hóa đơn",
-            SatoriData.money(data.outstandingAmount) + " (ước tính theo trạng thái khách " +
-                "thanh toán; không đồng nghĩa với Đã TT Satori).")
-        label(parent, "ĐƠN GẦN ĐÂY", 14f, true, teal, 15)
-        data.invoices.take(12).forEach { invoice ->
-            section(parent, "#" + invoice.number + " · " + invoice.customer,
-                invoice.displayDate + " · " + SatoriData.money(invoice.total) + " · " +
-                    invoice.status) { openInvoice(invoice) }
+        section(parent, "Cần thu từ khách hàng",
+            data.outstandingCount.toString() + " hóa đơn  •  " +
+            SatoriData.money(data.outstandingAmount) +
+            "\nTrạng thái thanh toán Satori không đồng nghĩa khách đã thanh toán.")
+
+        label(parent, "HÓA ĐƠN GẦN ĐÂY", 12f, true, cyan, 21)
+        if (data.invoices.isEmpty()) {
+            section(parent, "Chưa có hóa đơn", "Đồng bộ lại hoặc tạo hóa đơn trong sandbox.")
+        } else {
+            data.invoices.take(10).forEach { invoice ->
+                section(parent, "#" + invoice.number + "  •  " + invoice.customer,
+                    invoice.displayDate + "  •  " + SatoriData.money(invoice.total) +
+                        "  •  " + invoice.status) { openInvoice(invoice) }
+            }
         }
     }
 
