@@ -28,6 +28,13 @@ class MobileWriteOutcomeTest {
         }
     }
 
+    @Test fun paymentPreviouslyRecordedByAnotherDeviceIsNotMySuccess() {
+        assertFalse(MobileWriteOutcome.acceptsServerSuccess("payments.markCustomerPaid", true, false))
+        assertTrue(MobileWriteOutcome.acceptsServerSuccess("payments.markCustomerPaid", true, true))
+        assertTrue(MobileWriteOutcome.acceptsServerSuccess("payments.markCustomerPaid", false, false))
+        assertTrue(MobileWriteOutcome.acceptsServerSuccess("orders.create", true, false))
+    }
+
     @Test fun rejectedRetryDoesNotEraseAnEarlierUncertainOperation() {
         for (code in listOf("AUTH_FAILED", "FORBIDDEN", "REVISION_CONFLICT", "ORDER_CHANGED")) {
             val error = MobileApiError(code, "test")
