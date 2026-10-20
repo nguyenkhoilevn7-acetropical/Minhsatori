@@ -44,7 +44,7 @@ let secret='',lastLink='';
 const clearError=()=>{$('error').textContent='';$('result').textContent=''};
 async function request(path,method='GET',payload){
  const r=await fetch(path,{method,headers:{'Authorization':'Bearer '+secret,...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'});
- const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.message||'Không thể kết nối quản trị');
+ const data=await r.json();if(r.status===401)throw new Error('Mã quản trị không khớp hoặc chưa được Render áp dụng. Kiểm tra biến CUSTOMER_LINKS_ADMIN_TOKEN (không phải GEMINI_API_KEY), sau đó Save và Deploy sandbox. Không gửi mã qua chat.');if(!r.ok||!data.ok)throw new Error(data.message||'Không thể kết nối quản trị');
  return data;
 }
 const money=n=>Number(n).toLocaleString('vi-VN');
