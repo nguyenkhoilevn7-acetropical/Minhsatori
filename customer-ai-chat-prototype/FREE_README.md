@@ -1,25 +1,39 @@
-# Minh Satori Customer AI Chat — Cloudflare Workers AI FREE sandbox
+# Minh Satori Customer AI Chat — Gemini Free sandbox
 
-This independent branch forks the **Work OpenAI sandbox branch** `prototype/customer-ai-chat-sandbox-20261020`. DO NOT merge it into `main` or change its existing Render service. Work's GPT implementation and secrets stay untouched.
+**Sandbox only.** This branch is a fork of `prototype/customer-ai-cloudflare-free-20261020`; Work's OpenAI branch `prototype/customer-ai-chat-sandbox-20261020` and its Render service are untouched. No deployments to `main`, no Apps Script, no Google Drive or real invoices used.
 
-## Behavior (actual code)
+## Design
 
-1. Only fabricated profiles `demo-a` (20%) and `demo-b` (35%) exist. Links are intentionally public; DO NOT issue them to actual customers.
-2. Rule-first Vietnamese interpreter handles familiar SKUs, item count, last order, and address/phone changes. Server computes price and shipping from its trusted fixture, never from AI.
-3. For phrases the rules cannot fully resolve, optional Cloudflare Workers AI Free `@cf/meta/llama-3.2-3b-instruct` tries to extract intent. Model-proposed product is revalidated; if not explicit or uniquely known, the system asks for clarification. If AI is unavailable, credentials are missing, the daily local cap is reached, or Cloudflare's Free neuron quota is exhausted, rule parsing continues; the system never calls OpenAI.
-4. Clients must review quote and confirm once. Sandbox PDF shows WATERMARK and uses fake profile data. The store is ephemeral `orders.json` isolated from Google Drive and Apps Script production.
-5. The draft PDF means **order confirmation**, never payment confirmation.
+- Rule-first, Vietnamese natural-language parser for familiar Satori SKUs. Only complex/unclear inputs call Gemini, when API Free Tier is enabled.
+- Google Gemini model: `gemini-3.5-flash-lite`, via `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent`. Structured JSON intent only; **never** prices or discounts.
+- Trusted sandbox fixtures: fake customers A (20%) and B (35%). Server computes shipping/total; supports one-time confirmation and PDF, protects cross-profile access. No production data integration.
+- When Gemini key is absent, daily local cap is reached, API returns 429, or Google is unavailable, system uses deterministic rules and requests clarification instead of guessing.
+- Key kept in Render server environment only; no API key exposed in browser or URL. `GEMINI_FREE_TIER_ONLY=true` is an **operator assertion**, NOT a verification of Google Cloud billing status. A key itself cannot reveal if the project has billing enabled.
+- **No automatic paid tier or fallback**. Keep Google AI Studio / Google Cloud project unlinked from billing, verify the project is explicitly **Free Tier**, and use an account-specific daily API cap. When quota is exhausted the model becomes unavailable; rules continue. Never assume subscription to Gemini consumer app covers Developer API calls.
+- Google says Free Tier submitted data may be used to improve its products. **Use invented profiles and messages in this sandbox only.** Do not send actual customer personal information or real orders to the free-tier AI.
 
-## Setup
+## Server env
 
-Run local `node server.mjs` with Node 22, Python 3, `reportlab` and a system-installed Vietnamese-capable font. To enable Cloudflare AI on a separate Free **Render** service, add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` to **Render service environment only**; also `CF_DAILY_CALL_LIMIT=100`. Never reveal the token in GitHub/chat, and never reuse the Work OpenAI API key. Configure a Cloudflare Workers Free account with Workers AI access; it may require Cloudflare account verification. No Cloudflare plugin is connected to ChatGPT, so the owner or Work must enter these secrets via a private browser session. No token is needed to test rules.
+```txt
+GEMINI_API_KEY=<configure directly as Render secret; NEVER commit/share in chat>
+GEMINI_FREE_TIER_ONLY=true
+GEMINI_DAILY_CALL_LIMIT=50
+DEMO_BIND=0.0.0.0
+NODE_ENV=production
+```
 
-Default model: `@cf/meta/llama-3.2-3b-instruct`. Official REST endpoint `POST https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}`. Cloudflare Workers AI Free includes 10,000 neurons/day. On Free plan it rejects AI calls past that budget; it cannot guarantee unlimited free inference. Enable no auto-upgrade/billed AI resources.
+Without all of `GEMINI_API_KEY` and `GEMINI_FREE_TIER_ONLY=true`, the app still works by free rules. No need to configure an OpenAI key, and Cloudflare is never contacted on this branch.
 
-For isolated Render Docker deployment set repository to `nguyenkhoilevn7-acetropical/Minhsatori`, branch `prototype/customer-ai-cloudflare-free-20261020`, context `.`, Dockerfile `customer-ai-chat-prototype/Dockerfile`, plan `Free`, region Singapore, autoDeploy **off**. Dockerfile runs offline rule/PDF integration and mocked Cloudflare quota tests **on every build**. Follow deployment status/logs, then use `/c/demo-a` and `/c/demo-b`.
+## Test and deployment
 
-Do not store paid API keys, actual invoices, phone numbers or production data in this sandbox. Before live release, add permanent storage, rate limits by verified customer identity, OTP on new device, price-policy management and an audited payment lifecycle. Free Render instances can restart and lose the ephemeral demo data. Tests never authorize live orders.
+Dockerfile: `customer-ai-chat-prototype/Dockerfile` with repository root as build context; Render Free, Singapore, separate new service, autodeploy OFF. Docker runs `tests/free-test.mjs` and `tests/free-ai-test.mjs` without real external calls before releasing image. Verify no true Gemini API test occurred until key installed.
 
-## Reversal
+Demo URL paths: `/c/demo-a`, `/c/demo-b`. Test quoting 950,400 and 772,200 VND; changing identity/address should not apply discount; double confirmation must not create two orders; PDF is watermarked SANDBOX and should never be interpreted as paid. Files in the Free Render instance are ephemeral, so never use for real orders.
 
-Work GPT remains at `prototype/customer-ai-chat-sandbox-20261020` and Render `srv-dbbca5uq1p3s73c31910`. The FREE branch and its proposed separate Render service can be deleted or suspended without affecting Work's sandbox.
+**Before real release:** persistent storage, verified OTP on new device, admin-authorized immutable customer discount policies, careful auditing, true PDF statement-of-order vs tax invoice, replay protection across instances, proper concurrency/lock and production isolation checks, real Gemini latency and accuracy tests.
+
+## Preserved builds
+
+- Work OpenAI: branch `prototype/customer-ai-chat-sandbox-20261020` / Render `srv-dbbca5uq1p3s73c31910`
+- Cloudflare Free: branch `prototype/customer-ai-cloudflare-free-20261020` / Render `srv-dbbd69vf3r2c738f3afg`
+- Minh Satori production: GitHub `main` and live Apps Script/Drive: **not modified**.
