@@ -145,8 +145,10 @@ def fit_center(cx,y,value,available,size=7,min_size=5):
     c.setFont('MSVN-B',size)
     c.setFillColor(C_DARK)
     c.drawCentredString(cx,y,value)
-names=[simpleSplit(str(item.get('product','')),'MSVN',7.1,widths[1]-10) or [''] for item in rows]
-row_heights=[max(29,12+11*len(lines)) for lines in names]
+NAME_FONT_SIZE=9.5
+NAME_LINE_HEIGHT=13
+names=[simpleSplit(str(item.get('product','')),'MSVN',NAME_FONT_SIZE,widths[1]-10) or [''] for item in rows]
+row_heights=[max(39,14+NAME_LINE_HEIGHT*len(lines)) for lines in names]
 rowh=29
 table_bottom=top-rowh-sum(row_heights)
 if table_bottom<100: raise SystemExit('Product table too tall for A4')
@@ -166,7 +168,7 @@ for idx,item in enumerate(rows):
     row_bottom=row_top-row_heights[idx]
     dataY=row_top-17
     fit_center((xs[0]+xs[1])/2,dataY,str(idx+1),widths[0]-5,7)
-    for ii,line in enumerate(names[idx]):text(xs[1]+5,dataY-ii*11,line,7.1)
+    for ii,line in enumerate(names[idx]):text(xs[1]+5,dataY-ii*NAME_LINE_HEIGHT,line,NAME_FONT_SIZE)
     unit=str(item.get('unit') or 'Thùng')
     unit_size=7.0
     while unit_size>5 and pdfmetrics.stringWidth(unit,'MSVN',unit_size)>widths[2]-7:unit_size-=0.2
