@@ -36,8 +36,16 @@ try {
  test(r.body.quote?.total===950400,'unique frequent item inferred for A');
  r=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng nước'});
  test(r.body.needMoreDetails&&!r.body.quote,'ambiguous B must clarify');
+ r=await post('/api/message',{token:'demo-b',message:'500ml'});
+ test(r.body.quote?.qty===10&&r.body.quote?.sku==='S500'&&r.body.quote?.total===687960,'B replies 500ml, retaining 10 cartons and B discount');
+
  r=await post('/api/message',{token:'demo-a',message:'Cho tôi nước 5L'});
  test(r.body.needMoreDetails&&!r.body.quote,'missing quantity must clarify');
+ r=await post('/api/message',{token:'demo-a',message:'10 thùng'});
+ test(r.body.quote?.total===950400&&r.body.quote?.sku==='S5L','A replies only quantity after product clarification');
+ r=await post('/api/message',{token:'demo-a',message:'Thêm 3 thùng nữa'});
+ test(r.body.needMoreDetails&&!r.body.quote,'Add-on request not silently converted into a separate invoice');
+
  r=await post('/api/message',{token:'demo-a',message:'Cho tôi 10 thùng trà mãng cầu'});
  test(r.body.needMoreDetails&&!r.body.quote,'unsupported product must clarify');
  r=await post('/api/message',{token:'demo-a',message:'Cho tôi 10 thùng 5L và 3 thùng 500ml'});
