@@ -49,6 +49,7 @@ async function request(path,method='GET',payload){
 }
 const money=n=>Number(n).toLocaleString('vi-VN');
 async function load(){
+ await loadRequests();
  const data=await request('/api/admin/customers');
  const list=$('list');list.textContent='';
  if(!data.customers.length){list.textContent='Chưa có hồ sơ mới. Tạo một khách GIẢ để kiểm thử.';return}
