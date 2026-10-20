@@ -51,6 +51,13 @@ class NativeMainActivity : AppCompatActivity() {
     private val pale = Color.rgb(243, 247, 250)
     private val gold = Color.rgb(180, 83, 9)
     private val white = Color.WHITE
+    private var dashboardMode = false
+    private val ink = Color.rgb(226, 232, 240)
+    private val softInk = Color.rgb(148, 163, 184)
+    private val cyan = Color.rgb(103, 232, 249)
+    private val night = Color.rgb(2, 6, 23)
+    private val surface = Color.rgb(15, 23, 42)
+    private val indigo = Color.rgb(30, 58, 138)
     private var activeTab = 0
     private var accessToken: String? = null
     private var snapshot: SatoriSnapshot? = null
@@ -240,29 +247,52 @@ class NativeMainActivity : AppCompatActivity() {
 
     private fun label(parent: LinearLayout, content: String, size: Float = 14f,
                       isBold: Boolean = false, color: Int = dark, marginTop: Int = 0): TextView {
+        val actualColor = if (!dashboardMode) color else when (color) {
+            dark -> ink
+            muted -> softInk
+            teal -> cyan
+            gold -> Color.rgb(251, 191, 36)
+            else -> color
+        }
         val view = TextView(this).apply {
             text = content
             textSize = size
-            setTextColor(color)
+            setTextColor(actualColor)
             if (isBold) setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(marginTop), 0, 0)
+            includeFontPadding = false
         }
         parent.addView(view)
         return view
     }
 
+    private fun panelBackground(color: Int = surface, radius: Int = 16): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radius).toFloat()
+            setStroke(dp(1), Color.rgb(42, 59, 86))
+        }
+
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
                        click: () -> Unit) {
         val b = Button(this).apply {
             this.text = text
-            textSize = 13f
+            textSize = 12.5f
             isAllCaps = false
-            setTextColor(if (main) white else teal)
-            background = background(if (main) teal else Color.rgb(224, 242, 247), 10)
+            letterSpacing = 0.015f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(if (main) white else if (dashboardMode) cyan else teal)
+            background = if (main && dashboardMode) {
+                GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(Color.rgb(37, 99, 235), Color.rgb(8, 145, 178))).apply {
+                    cornerRadius = dp(12).toFloat()
+                }
+            } else if (dashboardMode) panelBackground(Color.rgb(19, 37, 64), 12)
+              else background(if (main) teal else Color.rgb(224, 242, 247), 10)
             setOnClickListener { click() }
         }
-        parent.addView(b, LinearLayout.LayoutParams(-1, dp(48)).apply {
-            topMargin = dp(9)
+        parent.addView(b, LinearLayout.LayoutParams(-1, dp(if (dashboardMode) 46 else 48)).apply {
+            topMargin = dp(if (dashboardMode) 8 else 9)
         })
     }
 
@@ -270,44 +300,94 @@ class NativeMainActivity : AppCompatActivity() {
                         click: (() -> Unit)? = null) {
         val frame = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(13))
-            background = background(white)
+            setPadding(dp(16), dp(14), dp(16), dp(15))
+            background = if (dashboardMode) panelBackground() else background(white)
             if (click != null) {
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { click() }
             }
         }
-        label(frame, title, 15f, true)
-        label(frame, detail, 12f, false, muted, 5)
+        label(frame, title, 14.5f, true)
+        label(frame, detail, 12f, false, muted, 6)
         parent.addView(frame, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(8)
+            topMargin = dp(9)
         })
     }
 
+    private fun metricTile(parent: LinearLayout, title: String, value: String,
+                           accent: Int = cyan) {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(14), dp(12), dp(14))
+            background = panelBackground(surface)
+        }
+        label(box, title, 11.5f, false, muted)
+        label(box, value, 18f, true, accent, 7)
+        parent.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply {
+            marginEnd = dp(5)
+        })
+    }
+
+    private fun showConnectionSettings() {
+        val items = arrayOf(
+            "Cài đặt Mobile API (Sandbox)",
+            "Đăng nhập Google / Đồng bộ API",
+            "Google Drive — chỉ xem",
+            "Chọn file dữ liệu thủ công — chỉ xem"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Kết nối Minh Satori")
+            .setMessage("Chỉ dùng Mobile API sandbox khi chưa kiểm thử production. " +
+                "Chế độ Drive/file chỉ đọc, không thể ghi hóa đơn.")
+            .setItems(items) { _, choice ->
+                when (choice) {
+                    0 -> configureMobileApi()
+                    1 -> {
+                        if (apiEndpoint == null) configureMobileApi()
+                        else if (accessToken == null) connectGoogle()
+                        else refreshFromMobileApi()
+                    }
+                    2 -> {
+                        getPreferences(MODE_PRIVATE).edit()
+                            .putBoolean("google_drive_auto_read", true).apply()
+                        if (accessToken == null) connectGoogle() else refreshFromDrive()
+                    }
+                    else -> {
+                        if (fileUri != null) refreshFromPicker()
+                        else filePicker.launch(arrayOf("text/plain", "application/json"))
+                    }
+                }
+            }
+            .setNegativeButton("Đóng", null).show()
+    }
+
     private fun render() {
+        dashboardMode = true
         val shell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(pale)
+            setBackgroundColor(night)
         }
         setContentView(shell)
-        val scroll = ScrollView(this).apply { isFillViewport = true }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(20), dp(16), dp(20))
+            setPadding(dp(16), dp(15), dp(16), dp(24))
         }
         scroll.addView(content)
         shell.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        // Use the website's original logo and slate-to-blue brand banner.
-        // Cosmetic only: do not alter account permissions or invoice calculations.
+        // Web brand parity: midnight header, cyan gradient and original Satori logo.
         val brand = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(15), dp(15), dp(15), dp(15))
             background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(Color.rgb(15, 23, 42), Color.rgb(30, 58, 138))).apply {
-                cornerRadius = dp(16).toFloat()
+                intArrayOf(Color.rgb(15, 23, 42), indigo, Color.rgb(8, 89, 121))).apply {
+                cornerRadius = dp(18).toFloat()
             }
         }
         val brandLogo = ImageView(this).apply {
@@ -318,106 +398,148 @@ class NativeMainActivity : AppCompatActivity() {
             clipToOutline = true
             contentDescription = "Logo Minh Satori"
         }
-        brand.addView(brandLogo, LinearLayout.LayoutParams(dp(48), dp(48)))
+        brand.addView(brandLogo, LinearLayout.LayoutParams(dp(46), dp(46)))
         val brandText = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), 0, 0, 0)
+            setPadding(dp(11), 0, 0, 0)
         }
-        label(brandText, "MINH SATORI", 17f, true, Color.WHITE)
-        label(brandText, "Hóa đơn · Sổ kế toán · Google Drive", 11f,
-            false, Color.rgb(186, 230, 253), 3)
+        label(brandText, "MINH SATORI", 19f, true, white)
+        label(brandText, "HÓA ĐƠN  •  SỔ KẾ TOÁN", 10f,
+            false, Color.rgb(186, 230, 253), 5)
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
+        val options = TextView(this).apply {
+            text = "⚙"
+            textSize = 23f
+            gravity = Gravity.CENTER
+            setTextColor(white)
+            contentDescription = "Cài đặt kết nối"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { showConnectionSettings() }
+        }
+        brand.addView(options, LinearLayout.LayoutParams(dp(42), dp(46)))
         content.addView(brand, LinearLayout.LayoutParams(-1, -2))
-        label(content, listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn")[
-            activeTab], 27f, true, dark, 13)
-        label(content, "Minh Satori v" + BuildConfig.VERSION_NAME +
-            " · ứng dụng Android", 12f, false, muted, 5)
-        val connected = snapshot != null
-        val snapshotInfo = snapshot
-        val status = if (connected) {
-            "Đã đọc " + (if (dataSource.isBlank()) "Drive" else dataSource) +
-                " · Revision " + snapshotInfo!!.revision +
-                " · " + snapshotInfo.invoices.size + " hóa đơn"
-        } else statusMessage
-        label(content, status, 13f, true, if (connected) teal else gold, 12)
-        if (connected) {
-            label(content, "Drive cập nhật: " + snapshotInfo!!.updatedAt +
-                (if (lastReadAt.isBlank()) "" else " · Đọc lúc " + lastReadAt),
-                11f, false, muted, 4)
+
+        val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn")
+        label(content, pages[activeTab], 25f, true, white, 22)
+        label(content, "MINH SATORI  •  ANDROID " + BuildConfig.VERSION_NAME,
+            10.5f, true, cyan, 6)
+
+        val data = snapshot
+        val connected = data != null
+        val info = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(13))
+            background = panelBackground(if (connected) Color.rgb(8, 47, 53)
+                  else Color.rgb(48, 35, 24))
         }
+        label(info, if (connected) "●  ĐÃ ĐỒNG BỘ DỮ LIỆU" else "●  CHƯA KẾT NỐI DỮ LIỆU",
+            12f, true, if (connected) Color.rgb(94, 234, 212)
+                else Color.rgb(253, 186, 116))
+        label(info, if (connected)
+            (dataSource.ifBlank { "Nguồn dữ liệu" } + "  •  Revision " +
+                data!!.revision + "  •  " + data.invoices.size + " hóa đơn")
+            else "Chỉ có thể xem dữ liệu hoặc lên đơn khi nguồn được kết nối.",
+            12f, false, if (connected) Color.rgb(153, 246, 228)
+                else Color.rgb(254, 215, 170), 5)
+        if (connected && lastReadAt.isNotBlank()) {
+            label(info, "Cập nhật lúc " + lastReadAt, 11f, false, muted, 5)
+        }
+        content.addView(info, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(16)
+        })
 
-        if (isLoading) label(content, "Đang đọc dữ liệu Drive…",
-            13f, true, teal, 8)
-
-        button(content, if (apiEndpoint == null) "KÍCH HOẠT KẾT NỐI LÊN ĐƠN" else
-            if (accessToken == null) "ĐĂNG NHẬP GOOGLE ĐỂ LÊN ĐƠN" else
-            "ĐỒNG BỘ MINH SATORI", true) {
-            when {
-                apiEndpoint == null -> configureMobileApi()
-                accessToken == null -> connectGoogle()
-                else -> refreshFromMobileApi()
+        if (isLoading) {
+            label(content, "Đang đồng bộ dữ liệu…", 12f, true, cyan, 12)
+        }
+        if (data == null) {
+            val welcome = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(18), dp(20), dp(18), dp(17))
+                background = panelBackground(Color.rgb(19, 37, 64))
             }
-        }
-        if (apiEndpoint != null) {
-            label(content, if (canWrite) "Đã xác thực tài khoản · Được phép lên đơn" else
-                "Chưa xác thực kết nối ghi đơn. Không thể lưu cho tới khi API hoạt động.",
-                12f, true, if (canWrite) teal else gold, 8)
-        }
-        if (apiEndpoint == null) {
-            button(content, if (preferGoogleDrive())
-                "LÀM MỚI DỮ LIỆU BẰNG GOOGLE (CHỈ XEM)" else
-                "KẾT NỐI GOOGLE DRIVE (CHỈ XEM · TỰ ĐỒNG BỘ)") {
+            label(welcome, "Quản lý kinh doanh trong một ứng dụng", 20f, true, white)
+            label(welcome, "Hóa đơn • Khách hàng • Công nợ • Bảng giá • PDF",
+                12f, false, Color.rgb(186, 230, 253), 11)
+            label(welcome, "Bản cài thử này chưa liên kết API. Dữ liệu thật được bảo vệ " +
+                "và sẽ không được sửa cho đến khi kết nối được xác minh.",
+                12f, false, muted, 12)
+            content.addView(welcome, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(13)
+            })
+            button(content, if (apiEndpoint == null) "KẾT NỐI MINH SATORI" else
+                if (accessToken == null) "ĐĂNG NHẬP GOOGLE" else
+                "ĐỒNG BỘ MOBILE API", true) {
+                when {
+                    apiEndpoint == null -> configureMobileApi()
+                    accessToken == null -> connectGoogle()
+                    else -> refreshFromMobileApi()
+                }
+            }
+            button(content, "XEM GOOGLE DRIVE (CHỈ ĐỌC)") {
                 getPreferences(MODE_PRIVATE).edit()
                     .putBoolean("google_drive_auto_read", true).apply()
                 if (accessToken == null) connectGoogle() else refreshFromDrive()
             }
-            if (preferGoogleDrive()) label(content,
-                "Đã chọn chế độ Google Drive. Khi app đang mở, " +
-                    "dữ liệu sẽ làm mới khoảng mỗi 2 phút sau khi cấp quyền. " +
-                    "Không tự cập nhật từ file Drive được chọn thủ công.",
-                12f, false, muted, 7)
+            val metrics = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(16), 0, 0)
+            }
+            metricTile(metrics, "HÓA ĐƠN", "—")
+            metricTile(metrics, "CÔNG NỢ", "—")
+            content.addView(metrics)
+            section(content, "Bắt đầu sử dụng",
+                "1  Kết nối API sandbox được cấp phép.\n" +
+                "2  Đăng nhập tài khoản Google thử nghiệm.\n" +
+                "3  Đồng bộ để xem hóa đơn, khách hàng và công nợ.\n\n" +
+                "Nếu chưa có API, chỉ nên chọn Google Drive ở chế độ xem.")
+        } else {
+            if (activeTab == 0) {
+                val stats = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, dp(14), 0, 0)
+                }
+                metricTile(stats, "HÓA ĐƠN", data.invoices.size.toString())
+                metricTile(stats, "CẦN THU", data.outstandingCount.toString(),
+                    Color.rgb(253, 186, 116))
+                content.addView(stats)
+            }
+            if (activeTab == 4 && canWrite) {
+                button(content, "+ TẠO ĐƠN HÀNG", true) { launchEditor() }
+            }
+            when (activeTab) {
+                0 -> renderOverview(content, data)
+                1 -> renderInvoices(content, data)
+                2 -> renderCustomers(content, data)
+                3 -> renderDebt(content, data)
+                else -> renderNewOrderInfo(content)
+            }
+            button(content, if (dataSource == "Minh Satori API") "LÀM MỚI DỮ LIỆU"
+                    else "CÀI ĐẶT KẾT NỐI") {
+                if (dataSource == "Minh Satori API") refreshFromMobileApi()
+                else showConnectionSettings()
+            }
         }
-        button(content, "CÀI ĐẶT LIÊN KẾT API") { configureMobileApi() }
-        if (pendingStorageError) label(content,
-            "Không đọc được bản lưu thao tác đang chờ. Ghi đơn đang khóa; cần kiểm tra dữ liệu trước khi xử lý.",
-            13f, true, gold, 8)
+        if (pendingStorageError) section(content, "CẦN KIỂM TRA DỮ LIỆU ĐANG CHỜ",
+            "Không đọc được bản lưu thao tác. Đã khóa ghi để phòng trùng đơn.")
         pendingWrite?.let { pending ->
-            label(content, "Có một thao tác chưa xác minh. App đã giữ bản mã hóa và tạm khóa thao tác ghi mới.",
-                13f, true, gold, 8)
-            if (!pendingStorageError && pending.belongsTo(apiEndpoint.orEmpty(), actorId) &&
-                hasServerAction(pending.action)) {
-                button(content, "KIỂM TRA / TIẾP TỤC THAO TÁC ĐANG CHỜ") { reviewPendingWrite(pending) }
-            } else label(content, "Kết nối đúng API và tài khoản đã gửi thao tác để tiếp tục.",
-                12f, false, muted, 4)
-        }
-        button(content, if (fileUri == null) "ĐỌC FILE DRIVE (CHỈ XEM)" else
-            "LÀM MỚI FILE DRIVE (CHỈ XEM)") {
-            if (fileUri != null) refreshFromPicker()
-            else filePicker.launch(arrayOf("text/plain", "application/json"))
-        }
-
-        if (snapshotInfo == null) {
-            section(content, "KẾT NỐI ĐỂ LÊN ĐƠN TRỰC TIẾP",
-                "1. Kích hoạt đường dẫn Mobile API đã được chủ sở hữu triển khai.\n" +
-                "2. Đăng nhập Google trên Android.\n" +
-                "3. Hệ thống xác thực tài khoản và đồng bộ đơn từ Drive.\n\n" +
-                "Nếu API chưa kích hoạt, có thể chọn file Drive chỉ để kiểm tra dữ liệu.")
-            section(content, "An toàn dữ liệu",
-                "App không ghi trực tiếp lên file JSON. Mọi lần lưu cần server " +
-                "xác thực, kiểm tra revision và sao lưu.")
-        } else when (activeTab) {
-            0 -> renderOverview(content, snapshotInfo)
-            1 -> renderInvoices(content, snapshotInfo)
-            2 -> renderCustomers(content, snapshotInfo)
-            3 -> renderDebt(content, snapshotInfo)
-            else -> renderNewOrderInfo(content)
+            section(content, "CÓ THAO TÁC CHƯA XÁC MINH",
+                "Ứng dụng tạm khóa ghi mới để đảm bảo an toàn.") {
+                if (!pendingStorageError &&
+                    pending.belongsTo(apiEndpoint.orEmpty(), actorId) &&
+                    hasServerAction(pending.action)) {
+                    reviewPendingWrite(pending)
+                } else {
+                    Toast.makeText(this, "Kết nối lại đúng API và tài khoản đã gửi thao tác.",
+                        Toast.LENGTH_LONG).show()
+                }
+            }
         }
 
-        // Always display all five tabs without horizontal scrolling.
         val tabs = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.rgb(15, 23, 42))
-            setPadding(dp(4), dp(6), dp(4), dp(6))
+            setBackgroundColor(Color.rgb(8, 18, 37))
+            setPadding(dp(5), dp(8), dp(5), dp(8))
         }
         listOf("Tổng quan", "Hóa đơn", "Khách", "Công nợ", "Lên đơn").forEachIndexed { i, name ->
             val chip = TextView(this).apply {
@@ -426,21 +548,23 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
                 maxLines = 2
                 setPadding(dp(2), dp(8), dp(2), dp(8))
-                setTextColor(if (activeTab == i) Color.WHITE else
-                    Color.rgb(203, 213, 225))
-                background = background(if (activeTab == i)
-                    Color.rgb(3, 105, 161) else Color.rgb(30, 41, 59), 10)
+                setTextColor(if (activeTab == i) white else softInk)
+                setTypeface(typeface, if (activeTab == i) Typeface.BOLD else Typeface.NORMAL)
+                background = if (activeTab == i)
+                    GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                        intArrayOf(Color.rgb(37, 99, 235), Color.rgb(8, 145, 178))).apply {
+                        cornerRadius = dp(12).toFloat()
+                    }
+                    else background(Color.rgb(8, 18, 37), 12)
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Mở mục " + name
-                setOnClickListener {
-                    activeTab = i
-                    render()
-                }
+                setOnClickListener { activeTab = i; render() }
             }
             tabs.addView(chip, LinearLayout.LayoutParams(0, dp(48), 1f))
         }
         shell.addView(tabs)
+        dashboardMode = false
     }
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
