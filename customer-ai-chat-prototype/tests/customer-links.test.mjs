@@ -53,7 +53,7 @@ try{
  // A fresh, empty sandbox can restore the owner-downloaded file; no production writes.
  cloneTemp=mkdtempSync(path.join(tmpdir(),'satori-restore-sandbox-'));
  const clonePort=port+1200,cloneOrigin='http://127.0.0.1:'+clonePort;
- cloneProc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(clonePort),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:cloneTemp,CUSTOMER_LINKS_ADMIN_TOKEN:admin+' \\n',GEMINI_API_KEY:''},stdio:'ignore'});
+ cloneProc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(clonePort),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:cloneTemp,CUSTOMER_LINKS_ADMIN_TOKEN:admin+' ',GEMINI_API_KEY:''},stdio:'ignore'});
  const cloneReq=async(url,method='GET',body,auth)=>{const response=await fetch(cloneOrigin+url,{method,headers:{...(body?{'content-type':'application/json'}:{}),...(auth?{authorization:'Bearer '+auth}:{})},body:body?JSON.stringify(body):undefined});return {status:response.status,data:await response.json()}};
  let cloneReady=false;for(let i=0;i<100;i++){try{const h=await cloneReq('/health');if(h.status===200){cloneReady=true;break}}catch{}await wait(60)}
  ok(cloneReady,'fresh restore sandbox starts');
