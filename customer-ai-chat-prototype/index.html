@@ -132,6 +132,41 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
 .paper .invoice-note{border-top:1px solid #cad8e4;margin-top:26px;padding-top:12px;color:#586677;font-size:12px}
 #invoice [hidden]{display:none!important}
 @media(max-width:650px){.paper .invoice-heading{flex-direction:column}.paper .invoice-meta{text-align:left}.paper .invoice-bottom{grid-template-columns:1fr}.paper .invoice-summary{padding-top:0}.paper .invoice-table-wrap table{min-width:720px}}
+
+/* Invoice remains fully readable on Samsung and on A4-like desktop previews. */
+.paper .invoice-table-wrap{width:100%;max-width:100%;overflow:visible}
+.paper .invoice-table-wrap table{width:100%;min-width:0;table-layout:fixed;font-variant-numeric:tabular-nums}
+.paper .invoice-table-wrap th,.paper .invoice-table-wrap td{padding:8px 3px;font-size:clamp(8px,1.05vw,11px);line-height:1.38;overflow-wrap:anywhere;vertical-align:middle}
+.paper .invoice-table-wrap th:nth-child(1){width:5%}
+.paper .invoice-table-wrap th:nth-child(2){width:32%}
+.paper .invoice-table-wrap th:nth-child(3){width:7%}
+.paper .invoice-table-wrap th:nth-child(4){width:5%}
+.paper .invoice-table-wrap th:nth-child(5){width:13%}
+.paper .invoice-table-wrap th:nth-child(6){width:8%}
+.paper .invoice-table-wrap th:nth-child(7){width:14%}
+.paper .invoice-table-wrap th:nth-child(8){width:16%}
+.paper .invoice-table-wrap td:nth-child(n+4){white-space:nowrap;overflow-wrap:normal}
+.paper .invoice-qr{display:flex;align-items:center;gap:12px;margin:12px 0 0}
+.paper .invoice-qr img{flex:none;border:1px solid #d7e3ed;padding:3px;background:white;width:102px;height:102px;object-fit:contain}
+.paper .invoice-qr figcaption{font-size:10px;line-height:1.6;color:#536879}
+.paper .invoice-words{margin-top:25px;font-size:12px;font-style:italic;line-height:1.55}
+.paper .invoice-signatures{display:grid;grid-template-columns:1fr 1fr;gap:22px;text-align:center;margin-top:26px}
+.paper .invoice-signatures>div{min-height:105px;display:flex;flex-direction:column;align-items:center}
+.paper .invoice-signatures strong{font-size:12px}
+.paper .invoice-signatures p{margin:2px 0 0;font-size:11px}
+.paper .invoice-signatures b{margin-top:auto;font-size:12px}
+@media(max-width:740px){
+ .paper .invoice-table-wrap table,.paper .invoice-table-wrap tbody,.paper .invoice-table-wrap tr,.paper .invoice-table-wrap td{display:block;width:100%;min-width:0}
+ .paper .invoice-table-wrap thead{display:none}
+ .paper .invoice-table-wrap tbody{display:grid;gap:12px}
+ .paper .invoice-table-wrap tr{border:1px solid #c7d9e8;border-radius:8px;overflow:hidden}
+ .paper .invoice-table-wrap td{display:flex;gap:12px;justify-content:space-between;align-items:start;white-space:normal!important;text-align:right!important;overflow-wrap:anywhere;padding:8px 12px;font-size:12px}
+ .paper .invoice-table-wrap td:nth-child(even){background:#f3f8fc}
+ .paper .invoice-table-wrap td::before{content:attr(data-label);font-weight:700;min-width:110px;text-align:left;color:#35536a}
+ .paper .invoice-table-wrap td:nth-child(8){font-weight:800;color:#066b9d}
+ .paper .invoice-signatures{gap:8px}
+ .paper .invoice-signatures strong,.paper .invoice-signatures b{font-size:10px}
+}
 </style>
 </head>
 <body>
@@ -196,9 +231,27 @@ const notice=document.createElement('small');notice.textContent=q.deliveryNote?'
 noteBlock.append(label,notice);box.append(noteBlock,b);$('messages').appendChild(box);bottom()}
 async function confirmOrder(q,button){const deliveryNote=(button.closest('.quote')?.querySelector('textarea.delivery-note')?.value||'').trim();if(deliveryNote.length>300){msg('Lưu ý chỉ được tối đa 300 ký tự.','note');return}if(serverMode){button.disabled=true;button.textContent='Đang lưu đơn thử...';try{const res=await serverPost('/api/confirm',{token:serverToken,quoteId:q.quoteId,requestId:'demo-'+q.quoteId,deliveryNote});const o=res.order;button.textContent='Đã xác nhận';msg('Đã tạo đơn THỬ '+o.ref+'. Chưa chuyển tới Minh Satori thật. Trạng thái: Chờ thanh toán.');showInvoice(o);const link=document.createElement('a');link.className='btn';link.textContent='⬇ Tải PDF về máy';link.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);link.setAttribute('download',o.ref+'.pdf');$('messages').appendChild(link);bottom();draft=null;}catch(e){button.disabled=false;button.textContent='Xác nhận đơn THỬ';msg('Không ghi được đơn: '+e.message,'note')}return;}if(!draft||draft.nonce!==q.nonce||draft.profileId!==customer().id){msg('Báo giá đã thay đổi, vui lòng yêu cầu lại.');return}const c=customer();if(c.id!==q.profileId||c.discount!==q.discount||c.ship!==q.ship||c.address!==q.address||c.phone!==q.phone){msg('Cấu hình khách đã đổi nên không thể chốt theo báo giá cũ. Vui lòng đặt lại.');draft=null;return;}const key='MSATORI_SANDBOX_DEMO_ONLY';try{localOrders=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(localOrders))localOrders=[]}catch(e){localOrders=[]}let saved=localOrders.find(o=>o.nonce===q.nonce);if(!saved){saved={...q,deliveryNote,ref:'TEST-'+String(Date.now()),createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};localOrders.push(saved);try{localStorage.setItem(key,JSON.stringify(localOrders))}catch(e){msg('Không thể lưu localStorage; đơn thử chỉ tồn tại trong phiên này.','note')}}button.disabled=true;button.textContent='Đã xác nhận';msg(`Đã tạo đơn THỬ ${saved.ref}. Trạng thái: Chờ thanh toán. Chưa gửi website thật và chưa phát sinh yêu cầu giao hàng.`);showInvoice(saved);draft=null}
 async function send(text){const message=String(text||'').trim();if(!message||sending)return;msg(message,'user');$('messageInput').value='';if(message.length>500){msg('Tin nhắn quá dài.');return;}if(serverMode){sending=true;const sendButton=$('sendForm').querySelector('button');sendButton.disabled=true;$('messages').setAttribute('aria-busy','true');msg('Đang kiểm tra yêu cầu đặt nước...','note');const loading=$('messages').lastElementChild;try{const res=await serverPost('/api/message',{token:serverToken,message});if(res.message)msg(res.message);if(res.quote){draft=res.quote;showQuote(res.quote)}}catch(e){msg('AI chưa xử lý được: '+e.message+' Không có đơn nào được tạo.','note')}finally{loading.remove();sending=false;sendButton.disabled=false;$('messages').removeAttribute('aria-busy')}return;}const r=matchRequest(message);if(r.error){msg(r.error);return;}draft=quote(r.code,r.qty);msg(`Mình đã hiểu yêu cầu: ${draft.qty} thùng ${draft.product}. Bạn kiểm tra báo giá và địa chỉ bên dưới rồi xác nhận nhé.`);showQuote(draft)}
+function moneyInWords(value){
+ let num=Math.round(Number(value)||0);if(num<=0)return 'Không đồng';
+ if(num>=1000000000000)return 'Số tiền lớn';
+ const digit=['không','một','hai','ba','bốn','năm','sáu','bảy','tám','chín'];
+ function triple(n,full){
+  const h=Math.floor(n/100),t=Math.floor(n/10)%10,u=n%10,p=[];
+  if(h)p.push(digit[h],'trăm');else if(full)p.push('không','trăm');
+  if(t>1){p.push(digit[t],'mươi');if(u===1)p.push('mốt');else if(u===5)p.push('lăm');else if(u)p.push(digit[u]);}
+  else if(t===1){p.push('mười');if(u===5)p.push('lăm');else if(u)p.push(digit[u]);}
+  else if(u){if(h||full)p.push('lẻ');p.push(digit[u]);}
+  return p.join(' ');
+ }
+ const groups=[];while(num){groups.push(num%1000);num=Math.floor(num/1000);}
+ const label=['','nghìn','triệu','tỷ'],out=[];
+ for(let i=groups.length-1;i>=0;i--){if(!groups[i])continue;out.push(triple(groups[i],i<groups.length-1&&groups[i]<100));if(label[i])out.push(label[i]);}
+ const result=out.join(' ');return result.charAt(0).toUpperCase()+result.slice(1)+' đồng chẵn';
+}
 function showInvoice(o){
  const invoiceItems=Array.isArray(o.items)&&o.items.length?o.items:[o];
- const invoiceRows=invoiceItems.map((item,i)=>`<tr><td>${i+1}</td><td>${esc(item.product)}</td><td>${esc(item.unit||'thùng')}</td><td>${esc(item.qty)}</td><td>${money(Number(item.listPrice??item.unitPrice)||0)}</td><td>${esc(item.discount??o.discount)}%</td><td>${money(item.unitPrice)}</td><td>${money(item.subtotal)}</td></tr>`).join('');
+ const invoiceRows=invoiceItems.map((item,i)=>`<tr><td data-label="STT">${i+1}</td><td data-label="Tên sản phẩm">${esc(item.product)}</td><td data-label="ĐVT">${esc(item.unit||'thùng')}</td><td data-label="SL">${esc(item.qty)}</td><td data-label="Giá niêm yết">${money(Number(item.listPrice??item.unitPrice)||0)}</td><td data-label="CK (%)">${esc(item.discount??o.discount)}%</td><td data-label="Đơn giá">${money(item.unitPrice)}</td><td data-label="Thành tiền">${money(item.subtotal)}</td></tr>`).join('');
+ const qrHtml=serverMode&&o.ref?'<figure class="invoice-qr"><img loading="eager" src="/api/invoice-qr/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken)+'" alt="QR tra cứu đơn thử '+esc(o.ref)+'" width="128" height="128"><figcaption>Mã QR riêng: '+esc(o.ref)+'<br><b>KHÔNG CHUYỂN KHOẢN</b></figcaption></figure>':'';
  $('printPaper').innerHTML=`
   <header class="invoice-heading"><div>
    <div class="invoice-brand"><img src="/assets/logo-satori.jpg" alt="Logo Satori" width="56" height="56"><h2>HỘ KINH DOANH MINH SATORI</h2></div>
@@ -211,8 +264,10 @@ function showInvoice(o){
    <thead><tr><th>STT</th><th>Tên sản phẩm</th><th>ĐVT</th><th>SL</th><th>Giá niêm yết</th><th>CK (%)</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead>
    <tbody>${invoiceRows}</tbody>
   </table></div>
-  <div class="invoice-bottom"><section class="invoice-payment"><h3>THÔNG TIN THANH TOÁN</h3><p>Ngân hàng: KHÔNG ÁP DỤNG (SANDBOX)<br>Số tài khoản: Không hiển thị trong bản thử<br>Nội dung: ${esc(o.ref)}</p></section>
+  <div class="invoice-bottom"><section class="invoice-payment"><h3>THÔNG TIN THANH TOÁN</h3><p>Ngân hàng: KHÔNG ÁP DỤNG (SANDBOX)<br>Số tài khoản: Không hiển thị trong bản thử<br>Chủ tài khoản: HKD MINH SATORI<br>Nội dung: ${esc(o.ref)}</p>${qrHtml}</section>
   <section class="invoice-summary"><div><span>Tổng tiền hàng</span><b>${money(o.subtotal)}</b></div><div><span>Phí vận chuyển</span><b>${money(o.shipping)}</b></div><div><span>Thuế VAT (${esc(o.vatRate??0)}%)</span><b>${money(o.vatAmount??0)}</b></div><div class="invoice-grand"><strong>TỔNG THANH TOÁN</strong><strong>${money(o.total)}</strong></div></section></div>
+  <p class="invoice-words"><b>Số tiền bằng chữ:</b> ${esc(moneyInWords(o.total))}</p>
+  <div class="invoice-signatures"><div><strong>ĐẠI DIỆN BÊN BÁN</strong><p>(Ký, ghi rõ họ tên)</p><b>HKD MINH SATORI</b></div><div><strong>ĐẠI DIỆN BÊN MUA / NGƯỜI NHẬN</strong><p>(Ký, ghi rõ họ tên)</p><b>${esc(o.name)}</b></div></div>
   <p class="invoice-note">Phiếu thử nghiệm. Không gửi tới hệ thống production, không có giá trị thanh toán hoặc giao hàng.</p>`;
  const download=$('printInvoice');
  if(serverMode&&o.ref){
