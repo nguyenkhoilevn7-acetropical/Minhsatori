@@ -171,11 +171,51 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
  .paper .invoice-signatures{gap:8px}
  .paper .invoice-signatures strong,.paper .invoice-signatures b{font-size:10px}
 }
+/* Satori branded customer pages and comfortable history on Samsung. */
+.brand-logo,.chat-satori-logo,.history-brand img{object-fit:contain;background:#fff;border:1px solid #dce5ef;border-radius:13px;flex-shrink:0;box-shadow:0 2px 9px #103e7620}
+.brand-logo{width:48px;height:48px}
+.chat-satori-logo{width:44px;height:44px}
+.chat-head .chat-title{min-width:0;flex:1}
+.chat-head .chat-title h2{overflow-wrap:anywhere}
+.history-trigger{flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;background:#e7f1ff;color:#0766c7;border:1px solid #bfddff;font-size:13px;font-weight:750;padding:10px 12px;min-height:44px;white-space:nowrap}
+.history-trigger:hover{background:#d9ebff}
+.history-backdrop{background:#10243c9c}
+.history-sheet{background:#fff;color:#1d2d42;border:1px solid #e3e9f2;box-shadow:0 15px 50px #0a182e40}
+.history-head{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #e7eef5;padding:0 0 14px;margin-bottom:12px}
+.history-head h2{font-size:19px;color:#17385c}
+.history-brand{display:flex;align-items:center;gap:11px;min-width:0}
+.history-brand img{width:39px;height:39px}
+.history-brand .mini{color:#75869b;margin:0}
+.history-close{background:#eff3f9;color:#66778d}
+.history-tools{display:grid;grid-template-columns:1fr 1.5fr;gap:10px;margin:10px 0}
+.history-tools label{font-size:12px;color:#677990;font-weight:700}
+.history-tools input,.history-tools select{display:block;width:100%;margin-top:5px;min-height:43px;border:1px solid #d5e2ef;background:#f8fbff;color:#183750;border-radius:12px;font-size:15px;padding:9px 11px}
+.history-excel{display:block;text-decoration:none;text-align:center;font-weight:750;background:#0b7b72;color:white;padding:12px 14px;border-radius:13px;margin:12px 0}
+.history-caution{font-size:11px;line-height:1.45;color:#79879a}
+.history-month{margin-top:16px}
+.history-month h3{font-size:15px;color:#0d609d;margin:9px 0}
+.history-day{background:#f8fbff;border:1px solid #e4edf6;border-radius:14px;padding:10px;margin:9px 0}
+.history-day h4{margin:3px 0 8px;color:#506d8a;font-size:13px}
+.history-item{background:#fff;color:#21344b;border:1px solid #e1eaf2;box-shadow:0 3px 8px #23456d0a;border-radius:12px;padding:12px;margin:9px 0}
+.history-item h3{color:#156cc8;font-size:14px;margin:0 0 8px}
+.history-item p{color:#596d82;line-height:1.6;font-size:12px;margin:5px 0}
+.history-item a{background:#e9f4ff;color:#0864c0;border:1px solid #c9dff8}
+.history-empty{color:#708197}
+@media(max-width:760px){
+ .chat-head{gap:8px}
+ .chat-satori-logo{width:39px;height:39px}
+ .chat-head .chat-title h2{font-size:14px;line-height:1.3}
+ .chat-head .chat-title p{font-size:11px}
+ .history-trigger{font-size:12px;min-height:42px;padding:8px 9px;white-space:normal;text-align:center;max-width:113px}
+ .history-sheet{height:94dvh;max-height:94dvh;border-radius:19px 19px 0 0;padding:15px}
+ .history-tools{grid-template-columns:1fr}
+ .history-head h2{font-size:17px}
+}
 </style>
 </head>
 <body>
 <div class="app">
-<header class="top"><div class="brand"><div class="logo">S</div><div><h1>Minh Satori • Customer AI Chat</h1><p>Nguyên mẫu an toàn — độc lập với dữ liệu thật</p></div></div><span class="pill">DEMO • KHÔNG GHI PRODUCTION</span></header>
+<header class="top"><div class="brand"><img class="brand-logo" src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="48" height="48"><div><h1>Minh Satori • Customer AI Chat</h1><p>Nguyên mẫu an toàn — độc lập với dữ liệu thật</p></div></div><span class="pill">DEMO • KHÔNG GHI PRODUCTION</span></header>
 <div class="layout">
 <aside class="card panel" id="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><h2>Cấu hình khách thử</h2><button class="btn toggle" id="toggleSettings">Mở cấu hình</button></div><p class="helper">Mọi thông tin bên dưới đều là giả lập. Đây không phải màn hình quản trị có xác thực.</p><div class="settings-body">
 <div class="field"><label for="customer">Hồ sơ khách</label><select id="customer"><option value="A">KH-DEMO-A • Chiết khấu 20%</option><option value="B">KH-DEMO-B • Chiết khấu 35%</option></select></div>
@@ -186,9 +226,9 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
 <div class="actions"><button class="btn primary" id="apply">Cập nhật cấu hình thử</button><button class="btn alt" id="copy">Sao chép link</button><button class="btn" id="reset">Xóa đơn thử</button></div>
 <div class="info"><b>Lưu ý bảo mật:</b> Link này chỉ mô phỏng định danh. Bản thật phải dùng token ngẫu nhiên lưu băm ở server, kiểm tra người nhận và có xác minh số điện thoại khi cần. Không nhúng tên, SĐT, địa chỉ hay Gemini API key vào URL.</div>
 </div></aside>
-<main class="card chat"><div class="chat-head"><div class="bot">✦</div><div><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><div class="status">Chế độ thử an toàn</div></div>
+<main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button></div>
 <div class="messages" id="messages" aria-live="polite"></div>
-<div class="chips" aria-label="Gợi ý sản phẩm"><button class="chip catalog-entry" type="button" id="allProductsButton">☷ Tất cả sản phẩm</button><button class="chip" type="button" id="historyButton">🧾 Lịch sử hóa đơn</button><button class="chip" data-msg="Cho tôi 10 thùng nước Satori 500ml">500ml</button><button class="chip" data-msg="Cho tôi 10 thùng nước Satori 5L có vòi">5 lít</button><button class="chip" data-msg="Cho tôi 10 thùng nước ép mãng cầu Satori Juice">Mãng cầu</button><button class="chip" data-msg="Cho tôi 10 thùng nước ép ổi hồng Satori Juice">Ổi hồng</button><button class="chip" data-msg="Cho tôi 10 thùng Premium 450ml">Premium</button><button class="chip" data-msg="Cho tôi đặt lại đơn lần trước">Đặt lại đơn cũ</button></div>
+<div class="chips" aria-label="Gợi ý sản phẩm"><button class="chip catalog-entry" type="button" id="allProductsButton">☷ Tất cả sản phẩm</button><button class="chip" data-msg="Cho tôi 10 thùng nước Satori 500ml">500ml</button><button class="chip" data-msg="Cho tôi 10 thùng nước Satori 5L có vòi">5 lít</button><button class="chip" data-msg="Cho tôi 10 thùng nước ép mãng cầu Satori Juice">Mãng cầu</button><button class="chip" data-msg="Cho tôi 10 thùng nước ép ổi hồng Satori Juice">Ổi hồng</button><button class="chip" data-msg="Cho tôi 10 thùng Premium 450ml">Premium</button><button class="chip" data-msg="Cho tôi đặt lại đơn lần trước">Đặt lại đơn cũ</button></div>
 <form class="composer" id="sendForm"><textarea id="messageInput" maxlength="500" rows="2" placeholder="Nhắn: Cho tôi 10 thùng nước 5L..." aria-label="Nhập yêu cầu đặt hàng"></textarea><button type="submit" class="btn primary">Gửi ➤</button></form>
 </main></div>
 <p class="footnote">Dữ liệu và giá chỉ để thử nghiệm. AI GPT thật, tạo PDF tự động phía server, gửi thông báo và đồng bộ đơn hàng sẽ được kích hoạt sau khi backend staging được cấp cấu hình. Không có yêu cầu nào ở trang này gửi đến Minh Satori production.</p>
@@ -200,7 +240,12 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
  <div class="catalog-items" id="catalogItems" role="list"></div>
  <div id="productSelection"><strong id="selectedProductName"></strong><div class="selection-controls"><input inputmode="numeric" type="number" id="selectedQuantity" min="1" max="500" value="1" aria-label="Số lượng"><button id="addProductMessage" type="button">Viết tin nhắn đặt hàng ➜</button></div></div>
  </div></section>
-<section id="historyBackdrop" class="history-backdrop" role="dialog" aria-modal="true" aria-label="Lịch sử hóa đơn"><div class="history-sheet"><header class="history-head"><h2>🧾 Lịch sử hóa đơn</h2><button type="button" id="historyClose" class="history-close" aria-label="Đóng">×</button></header><p class="mini">Hiển thị riêng theo hồ sơ khách. Thời gian đặt theo giờ Việt Nam (UTC+7). Đây là dữ liệu thử, chưa lấy hóa đơn thật từ website.</p><div id="historyItems" aria-live="polite"></div></div></section>
+<section id="historyBackdrop" class="history-backdrop" role="dialog" aria-modal="true" aria-label="Lịch sử đơn hàng của bạn"><div class="history-sheet">
+ <header class="history-head"><div class="history-brand"><img src="/assets/logo-satori.jpg" alt="Satori" width="39" height="39"><div><h2>Lịch sử đặt hàng</h2><p id="historyCount" class="mini">Đơn hàng của riêng bạn • giờ Việt Nam</p></div></div><button type="button" id="historyClose" class="history-close" aria-label="Đóng">×</button></header>
+ <div class="history-tools"><label>Tháng <select id="historyMonth" aria-label="Lọc theo tháng"><option value="">Tất cả thời gian</option></select></label><label>Tìm theo mã hoặc sản phẩm<input type="search" id="historySearch" placeholder="Nhập mã đơn hoặc tên nước..." aria-label="Tìm lịch sử theo mã đơn hoặc sản phẩm"></label></div>
+ <a id="historyExcel" class="history-excel" href="#" download="Satori_Lich_su_don_hang.xlsx">📊 Xuất Excel (.xlsx)</a>
+ <p class="history-caution">Dữ liệu hiện chỉ gồm đơn THỬ lưu trên Gemini sandbox. Chưa kết nối lịch sử hóa đơn website thật; dữ liệu thử trên Render Free có thể mất khi triển khai lại.</p>
+ <div id="historyItems" aria-live="polite"></div></div></section>
 <section id="invoice" class="invoice" aria-label="Phiếu xác nhận đơn thử"><div class="paper" id="printPaper"></div><div class="paper-btns"><button class="btn" id="closeInvoice">Đóng</button><a class="btn primary" id="printInvoice" href="#" download hidden>⬇ Tải PDF về máy</a></div></section>
 <script>
 (function(){'use strict';
