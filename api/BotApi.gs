@@ -8,7 +8,7 @@ var SatoriBotApi=(function(){
 'use strict';
 var ORDER_KEY='satori_orders_v15';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
- 'debt.summary':'debt:read','customers.search':'customers:read','orders.create':'orders:write','orders.update':'orders:write','orders.delete':'orders:delete','orders.restore':'orders:delete',
+ 'debt.summary':'debt:read','customers.search':'customers:read','orders.create':'orders:write','orders.update':'orders:write','orders.delete':'orders:delete','orders.restore':'orders:write','trash.list':'orders:read',
  'payments.markCustomerPaid':'payments:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
@@ -203,26 +203,31 @@ function updateOrder(s,all,p){
  all[all.indexOf(old)]=next;return {modified:true,result:{order:visible(next),duplicate:false}};
 }
 function restoreOrder(s,all,p){
- need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần xác nhận khôi phục hóa đơn');
- var req=String(p.requestId||'');
- need(/^[a-zA-Z0-9_-]{8,100}$/.test(req),'INVALID_REQUEST','Thiếu requestId');
- var existing=all.find(function(o){return o.apiRestoreRequestId===req});
- if(existing)return {modified:false,result:{order:visible(existing),duplicate:true}};
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Chưa xác nhận khôi phục hóa đơn');
+ need(/^[a-zA-Z0-9_-]{8,100}$/.test(String(p.requestId||'')),'INVALID_REQUEST','Thiếu requestId chống khôi phục lặp');
+ var previous=all.find(function(o){return o.apiRestoreRequestId===p.requestId});
+ if(previous){
+  need(String(previous.id)===String(p.id)&&Number(previous.invoiceNo)===p.invoiceNo,'REUSED_REQUEST_ID','Mã yêu cầu đã dùng cho hóa đơn khác');
+  return {modified:false,result:{restored:true,duplicate:true,order:visible(previous)}};
+ }
  version(s,p);
+ need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0&&p.id!==undefined,'INVALID_ORDER','Cần số hóa đơn và ID');
+ need(String(p.expectedName||'').trim().length>=2&&Number.isFinite(p.expectedTotal),'CONFIRMATION_REQUIRED','Cần tên khách và tổng tiền xác nhận');
  var trash=JSON.parse(s.values.satori_trash_bin_v15||'[]');
- var match=trash.filter(function(t){return t.order&&Number(t.order.invoiceNo)===p.invoiceNo&&String(t.order.id)===String(p.id)});
- need(match.length===1,'NOT_FOUND','Không tìm thấy hóa đơn trong thùng rác');
- var record=match[0],old=record.order;
- need((!record.expiresAt||Number(record.expiresAt)>Date.now()),'EXPIRED','Đơn đã hết thời hạn 30 ngày');
- need(norm(old.name)===norm(p.expectedName)&&Number(old.total)===Number(p.expectedTotal),
-   'ORDER_CHANGED','Tên hoặc số tiền không khớp');
- need(!all.some(function(o){return String(o.id)===String(old.id)||Number(o.invoiceNo)===Number(old.invoiceNo)}),
-   'ORDER_CONFLICT','Mã hóa đơn đã tồn tại');
- var next=Object.assign({},old,{apiRestoreRequestId:req,updatedAt:Date.now()});
- trash.splice(trash.indexOf(record),1);
- all.unshift(next);
- return {modified:true,extras:{satori_trash_bin_v15:JSON.stringify(trash)},
-    result:{restored:true,order:visible(next)}};
+ need(Array.isArray(trash),'INVALID_STATE','Dữ liệu thùng rác hỏng');
+ var found=trash.filter(function(t){return t.order&&String(t.order.id)===String(p.id)&&Number(t.order.invoiceNo)===p.invoiceNo});
+ need(found.length===1,'TRASH_NOT_FOUND','Hóa đơn không còn trong thùng rác hoặc mã không duy nhất');
+ var item=found[0],o=item.order,now=Date.now();
+ need(Number.isFinite(item.deletedAt)&&item.deletedAt<=now&&now-item.deletedAt<30*86400000&&(!item.expiresAt||item.expiresAt>now),'TRASH_EXPIRED','Hóa đơn đã hết thời hạn khôi phục 30 ngày');
+ need(norm(o.name)===norm(p.expectedName)&&Number(o.total)===p.expectedTotal,'ORDER_CHANGED','Tên khách hoặc tổng tiền đã thay đổi');
+ need(!all.some(function(v){return String(v.id)===String(o.id)||Number(v.invoiceNo)===p.invoiceNo}),'RESTORE_CONFLICT','Trùng ID hoặc số hóa đơn đang có; không ghi đè');
+ need(!all.some(function(v){return v.apiRequestId===p.requestId})&&!trash.some(function(t){return t.apiDeleteRequestId===p.requestId||t.order&&(t.order.apiRequestId===p.requestId||t.order.apiRestoreRequestId===p.requestId)}),'REUSED_REQUEST_ID','Mã yêu cầu đã dùng cho thao tác khác');
+ var restored=Object.assign({},o,{apiRestoreRequestId:p.requestId,updatedAt:now});
+ all.unshift(restored);trash.splice(trash.indexOf(item),1);
+ var deleted=JSON.parse(s.values.satori_deleted_invoice_nos||'[]');
+ need(Array.isArray(deleted),'INVALID_STATE','Dữ liệu số hóa đơn đã xóa hỏng');
+ deleted=deleted.filter(function(n){return Number(n)!==p.invoiceNo});
+ return {modified:true,extras:{satori_trash_bin_v15:JSON.stringify(trash),satori_deleted_invoice_nos:JSON.stringify(deleted)},result:{restored:true,duplicate:false,order:visible(restored)}};
 }
 function markPaid(s,all,p){
  need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Thiếu số hóa đơn');
@@ -241,7 +246,15 @@ function markPaid(s,all,p){
 }
 function read(s,action,p){
  var all=rows(s);
- if(action==='system.status')return {revision:s.revision,updatedAt:s.updatedAt,orders:all.length};
+ if(action==='trash.list'){
+  var now=Date.now(),bin=JSON.parse(s.values.satori_trash_bin_v15||'[]');
+  need(Array.isArray(bin),'INVALID_STATE','Dữ liệu thùng rác hỏng');
+  var q=norm(p.query||'');
+  var candidates=bin.filter(function(t){return t.order&&Number.isFinite(t.deletedAt)&&t.deletedAt<=now&&now-t.deletedAt<30*86400000&&(!t.expiresAt||t.expiresAt>now)});
+  if(q)candidates=candidates.filter(function(t){var o=t.order;return [o.invoiceNo,o.name,o.phone,o.location].some(function(v){return norm(v).includes(q)})});
+  return {revision:s.revision,totalMatches:candidates.length,invoices:candidates.slice(0,Math.min(100,Math.max(1,Number(p.limit)||30))).map(function(t){return {order:visible(t.order),deletedAt:t.deletedAt,expiresAt:t.expiresAt||t.deletedAt+30*86400000}})};
+ }
+  if(action==='system.status')return {revision:s.revision,updatedAt:s.updatedAt,orders:all.length};
  if(action==='customers.search')return {revision:s.revision,profiles:searchProfiles(all,p)};
  var found=select(all,p);
  if(action==='orders.list')return {revision:s.revision,totalMatches:found.length,orders:found.slice(0,Math.min(100,Math.max(1,Number(p.limit)||30))).map(visible)};
