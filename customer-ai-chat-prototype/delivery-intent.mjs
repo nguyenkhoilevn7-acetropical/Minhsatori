@@ -11,7 +11,7 @@ function vietnamTime(date){
 function tailOfDelivery(message){
  const str=String(message||'').trim();
  // Keep the customer's original spelling and diacritics.
- const found=str.match(/(?:\b(?:giao|ship)\s+(?:sau|lúc|luc|vào|vao|trước|truoc|tầm|tam|khoảng|khoang|từ|tu|buổi|buoi)|\b(?:ghi chú|ghi chu|lưu ý|luu y|nhớ|nho|gọi trước|goi truoc|để ở|de o|không bấm|khong bam))[^]{0,280}$/iu);
+ const found=str.match(/(?:\b(?:giao(?:\s+hàng)?|ship)\s+(?:sau|lúc|luc|vào|vao|trước|truoc|tầm|tam|khoảng|khoang|từ|tu|buổi|buoi)|\b(?:ghi chú|ghi chu|lưu ý|luu y|nhớ|nho|gọi trước|goi truoc|để ở|de o|không bấm|khong bam))[^]{0,280}$/iu);
  return (found?.[0]||'').replace(/^[,;\s]+|[,;\s]+$/g,'').slice(0,300);
 }
 export function extractDeliveryIntent(message,now=new Date()){
@@ -29,13 +29,14 @@ export function extractDeliveryIntent(message,now=new Date()){
   let hour=Number(clock[1]);const minute=Number(clock[2]??clock[3]??0);const period=clock[4];
   if(hour>23||minute>59)return {deliveryNote:'',requestedDeliveryAt:null,clarification:'Giờ giao chưa hợp lệ. Anh/chị vui lòng ghi rõ, ví dụ 14:00 hoặc 2 giờ chiều.',source:'rules'};
   if(!period&&hour<=12)return {deliveryNote:'',requestedDeliveryAt:null,clarification:'Anh/chị muốn giao sau '+hour+' giờ chiều (giờ cố định) hay sau '+hour+' tiếng nữa tính từ bây giờ?',source:'rules'};
-  if(period==='chieu'||period==='toi'||period==='dem'){if(hour<12)hour+=12}
+  if(period==='dem'&&hour===12)hour=0;
+  else if(period==='chieu'||period==='toi'||period==='dem'){if(hour<12)hour+=12}
   if(period==='trua'&&hour<11)hour+=12;
   if(period==='sang'&&hour===12)hour=0;
   if(hour>23)return {deliveryNote:'',requestedDeliveryAt:null,clarification:'Anh/chị vui lòng ghi rõ giờ giao từ 00:00 đến 23:59.',source:'rules'};
   const label=String(hour).padStart(2,'0')+':'+String(minute).padStart(2,'0');
   const relation=/(?:giao|ship)\s+truoc/.test(n)?'trước':/(?:giao|ship)\s+(?:luc|vao|tam|khoang)/.test(n)?'vào khoảng':'sau';
-  return {deliveryNote:'Khách yêu cầu giao '+relation+' '+label+' (giờ Việt Nam; cửa hàng xác nhận).'+extraNote(tail),requestedDeliveryAt:null,clarification:null,source:'rules'};
+  return {deliveryNote:'Khách yêu cầu giao '+relation+' '+label+( /\b(?:ngay mai|mai)\b/.test(n)?' ngày mai':/\b(?:hom nay)\b/.test(n)?' hôm nay':'')+' (giờ Việt Nam; cửa hàng xác nhận).'+extraNote(tail),requestedDeliveryAt:null,clarification:null,source:'rules'};
  }
  return {deliveryNote:tail,requestedDeliveryAt:null,clarification:null,source:'rules'};
 }
