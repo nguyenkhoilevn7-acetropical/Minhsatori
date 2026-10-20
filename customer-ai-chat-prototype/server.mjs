@@ -62,6 +62,7 @@ function makeMultiQuote(token,profile,requestedItems){
 }
 function saveOrdersAtomic(){const data=JSON.stringify([...orders.values()],null,2);const tmp=DATA_FILE+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(tmp,data,{mode:0o600});fs.renameSync(tmp,DATA_FILE)}
 async function generatePdf(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_pdf.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,300)||'PDF_ERROR')));proc.stdin.end(JSON.stringify(o))})}
+async function generateQrPng(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_qr.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,200)||'QR_ERROR')));proc.stdin.end(JSON.stringify(o))})}
 function sendHtml(res){const html=fs.readFileSync(path.join(HERE,'index.html'));res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"});res.end(html)}
 const server=http.createServer(async(req,res)=>{
  try{
@@ -168,6 +169,17 @@ const server=http.createServer(async(req,res)=>{
   delete o.token; // Do not write the bearer link credential into invoice/order storage.
   orders.set(o.ref,o);idempotency.set(idemKey,o.ref);saveOrdersAtomic();quotes.delete(q.quoteId);
   return reply(res,200,{ok:true,duplicate:false,order:o});
+ }
+ if(req.method==='GET'&&p.startsWith('/api/invoice-qr/')){
+  const ref=decodeURIComponent(p.slice('/api/invoice-qr/'.length)),token=url.searchParams.get('token'),o=orders.get(ref);
+  const c=getProfile(token);
+  if(!o||!c||o.profileId!==c.id)return fail(res,404,'NOT_FOUND','Không tìm thấy QR hóa đơn thử');
+  try{
+   const buf=await generateQrPng(o);
+   res.writeHead(200,{'content-type':'image/png','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'});
+   res.end(buf);
+  }catch{return fail(res,503,'QR_FAILED','Không tạo được mã QR thử')}
+  return;
  }
  if(req.method==='GET'&&p.startsWith('/api/invoice/')){
   const ref=decodeURIComponent(p.slice('/api/invoice/'.length)),token=url.searchParams.get('token'),o=orders.get(ref);
