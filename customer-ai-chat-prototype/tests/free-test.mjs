@@ -150,11 +150,11 @@ try {
  test(r.body.needMoreDetails&&!r.body.quote,'unknown second product never silently discarded');
  r=await post('/api/message',{token:'demo-b',message:'Cho 10 thùng Satori 500ml và 3 thùng nước 5L'});
  test(r.body.needMoreDetails&&!r.body.quote,'ambiguous second product never silently guessed');
- r=await post('/api/message',{token:'demo-b',message:'Cho 10 thùng Satori 500ml và 3 thùng Hikari 500ml giao cho chị Lan'});
+ r=await post('/api/message',{token:'demo-a',message:'Cho 10 thùng Satori 500ml và 3 thùng Hikari 500ml giao cho chị Lan'});
  test(r.body.needsHuman&&!r.body.quote,'multi-product identity change requires human verification');
- r=await post('/api/message',{token:'demo-b',message:'Cho 10 thùng Satori 500ml và 3 thùng Hikari 500ml gọi số 0901234567'});
+ r=await post('/api/message',{token:'demo-a',message:'Cho 10 thùng Satori 500ml và 3 thùng Hikari 500ml gọi số 0901234567'});
  test(r.body.needsHuman&&!r.body.quote,'multi-product phone change never bypasses customer verification');
- r=await post('/api/message',{token:'demo-b',message:'Không đặt 10 thùng Satori 500ml và 3 thùng Hikari 500ml'});
+ r=await post('/api/message',{token:'demo-a',message:'Không đặt 10 thùng Satori 500ml và 3 thùng Hikari 500ml'});
  test(!r.body.quote,'negated multi-product message does not generate a quote');
 
  console.log('PASS '+tests+'/'+tests+' FREE sandbox integration checks; PDF '+bytes.length+' bytes; no paid model invoked');
