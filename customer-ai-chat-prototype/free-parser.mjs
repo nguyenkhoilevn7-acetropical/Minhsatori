@@ -9,12 +9,12 @@ const last=s=>/\b(nhu lan truoc|don cu|don truoc|dat lai|nhu cu|nhu moi khi)\b/.
 const unsupported=s=>/\b(tra sua|tra mang cau|ca phe|coffee|bia|tra nho|sua tuoi)\b/.test(s);
 export function identityChange(message,profile={}){
  const s=norm(message);
- if(/\b(doi dia chi|dia chi moi|chuyen dia chi|nguoi nhan khac|doi nguoi nhan|doi sdt|sdt moi|so dien thoai moi|giao sang|giao cho nguoi khac|giao den dia chi khac|giao ve dia chi khac|dia chi khac)\b/.test(s))return true;
+ if(/\b(doi dia chi|dia chi moi|chuyen dia chi|nguoi nhan khac|doi nguoi nhan|doi sdt|sdt moi|so dien thoai moi|doi so dien thoai|thay so dien thoai|thay sdt|chuyen so dien thoai|so lien lac moi|thay nguoi nhan|doi ten nguoi nhan|cap nhat dia chi|thay dia chi|doi noi giao|giao sang|giao cho nguoi khac|giao den dia chi khac|giao ve dia chi khac|dia chi khac)\b/.test(s))return true;
  if(/\b(giao|ship|gui)\s+(?:den|toi|ve)\s+\d{2,5}\s+\w/.test(s))return true;
  if(/\b(giao cho|ship cho|nguoi nhan la|ten nguoi nhan|giao den nha|giao toi nha)\s+(?:anh|chi|co|bac|ban|em)\s+[a-z]{2,}/.test(s))return true;
  if(/\b(giao|ship|gui)\s+(?:den|toi|ve)\s+(?:nha|cho)\s+(?!toi\b|minh\b|cu\b)[a-z]{2,}/.test(s))return true;
  const known=String(profile.phone||'').replace(/\D/g,'');
- return (s.match(/(?:\+?84|0)\d{8,10}\b/g)||[]).some(v=>{const p=v.replace(/\D/g,'');return p!==known&&'0'+p.replace(/^84/,'')!==known});
+ return (s.match(/(?:\+?84|0)(?:[\s.()-]*\d){8,10}(?!\d)/g)||[]).some(v=>{const p=v.replace(/\D/g,'');return p!==known&&'0'+p.replace(/^84/,'')!==known});
 }
 export function parseRules(message,profile={}){
  const s=norm(message),h=hints(s,profile),selection=resolveProduct(s,profile),reuse=last(s);
