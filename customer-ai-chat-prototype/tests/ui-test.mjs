@@ -62,7 +62,14 @@ const adminChecks=[
  ['id="vatRate"','VAT rate selector'],
  ['id="downloadSandboxBackup"','owner backup download button'],
  ['id="restoreSandboxFile"','owner upload backup file selector'],
- ['id="restoreSandboxBackup"','guarded restore control']
+ ['id="restoreSandboxBackup"','guarded restore control'],
+ ['id="newOrders"','live Admin confirmed-order inbox'],
+ ['id="newOrderCount"','order alert count'],
+ ['id="enableOrderBell"','optional sound and browser notifications'],
+ ['id="refreshOrders"','manual order inbox refresh'],
+ ['id="markOrdersSeen"','clear unread order badges'],
+ ["request('/api/admin/new-orders')",'authenticated 10-second inbox poll'],
+ ["document.addEventListener('visibilitychange'",'refresh on returning to Admin tab']
 ];
 for(const [needle,label] of adminChecks)assert.ok(adminHtml.includes(needle),label);
 assert.ok(html.includes('q.vatAmount??0'),'quote displays server-calculated VAT');
