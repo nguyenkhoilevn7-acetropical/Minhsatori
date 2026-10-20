@@ -1,7 +1,7 @@
 /**
  * Minh Satori Customer AI Chat — entirely isolated SANDBOX server.
  * ZERO imports or writes to real Minh Satori Drive / Apps Script / GitHub production.
- * Node 20+, built-in modules only. Rule-first, optional Cloudflare Workers AI Free.
+ * Node 20+, built-in modules only. Rule-first, optional Gemini Developer API Free Tier.
  * Work's original OpenAI build remains untouched on its separate GitHub branch.
  */
 import http from 'node:http';
@@ -11,11 +11,11 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
-import {parseOrder,cfConfigured} from './free-parser.mjs';
+import {parseOrder,geminiConfigured} from './free-parser.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
-const MODEL='@cf/meta/llama-3.2-3b-instruct';
+const MODEL='gemini-3.5-flash-lite';
 const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'minh-satori-customer-chat-SANDBOX'));
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
@@ -48,11 +48,11 @@ function sendHtml(res){const html=fs.readFileSync(path.join(HERE,'index.html'));
 const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
- if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,aiProvider:'Cloudflare Workers AI Free (optional) + rules',aiConfigured:cfConfigured(),rulesReady:true,model:MODEL,orders:orders.size});
+ if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size});
  if(req.method==='GET'&&/^\/c\/demo-[ab]$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&p==='/api/session'){
   const token=url.searchParams.get('token')||'';const c=getProfile(token);if(!c)return fail(res,404,'LINK_INVALID','Liên kết không hợp lệ');
-  return reply(res,200,{ok:true,sandbox:true,provider:'Cloudflare + rules',aiConfigured:cfConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship}})
+  return reply(res,200,{ok:true,sandbox:true,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship}})
  }
  if(req.method==='POST'&&p==='/api/message'){
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
@@ -89,4 +89,4 @@ const server=http.createServer(async(req,res)=>{
  return fail(res,404,'NOT_FOUND','Không có đường dẫn này');
  }catch(err){return fail(res,err.message==='PAYLOAD_TOO_LARGE'?413:500,'SERVER_ERROR','Lỗi xử lý yêu cầu thử nghiệm')}
 });
-server.listen(PORT,HOST,()=>console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Cloudflare Free + rules | production untouched'));
+server.listen(PORT,HOST,()=>console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched'));
