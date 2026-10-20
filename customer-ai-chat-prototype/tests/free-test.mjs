@@ -31,7 +31,7 @@ try {
  r=await post('/api/message',{token:'demo-b',message:'Cho anh 20 thùng premium'});
  test(r.body.quote?.code==='TP-00051'&&r.body.quote?.qty===20,'B premium request resolved with quantity 20');
  test(r.body.quote?.listPrice===137963&&r.body.quote?.discount===35,'premium pricing matches official default and B policy');
- test(r.body.quote?.total===Math.round(137963*.65)*20*1.08,'premium payable sum derived on server');
+ test(r.body.quote?.total===Math.round(137963*.65)*20+Math.round(Math.round(137963*.65)*20*.08),'premium payable sum derived on server');
  r=await post('/api/message',{token:'demo-b',message:'Cho tôi 5 thùng Hikari 500ml'});
  test(r.body.quote?.code==='TP-00081'&&r.body.quote?.qty===5,'Hikari 500ml correctly recognized');
  r=await post('/api/message',{token:'demo-b',message:'Đặt 3 thùng nước ép mãng cầu'});
