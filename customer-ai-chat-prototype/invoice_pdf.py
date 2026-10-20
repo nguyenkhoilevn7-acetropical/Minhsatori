@@ -121,14 +121,14 @@ top=min(y-20,H-224)
 
 # A4 product grid. Fit every money value into its own cell; never clip the last digit.
 # Column sum is exactly the printable A4 width (521 points).
-widths=[24,178,40,27,69,38,74,71]
+widths=[24,156,40,29,69,38,74,91]
 xs=[left]
 for w in widths: xs.append(xs[-1]+w)
 assert sum(widths)==521 and xs[-1]<=rightedge
 headers=['STT','Tên sản phẩm','ĐVT','SL','Giá niêm yết','CK (%)','Đơn giá','Thành tiền']
 rows=o.get('items') if isinstance(o.get('items'),list) and o.get('items') else [o]
 if len(rows)>6: raise SystemExit('Too many product rows for sandbox PDF')
-def fit_right(x,y,value,available,size=7,min_size=5.1,bold=False):
+def fit_right(x,y,value,available,size=9.5,min_size=9.5,bold=False):
     value=str(value)
     face='MSVN-B' if bold else 'MSVN'
     while size>min_size and pdfmetrics.stringWidth(value,face,size)>available:
@@ -146,16 +146,18 @@ def fit_center(cx,y,value,available,size=7,min_size=5):
     c.setFillColor(C_DARK)
     c.drawCentredString(cx,y,value)
 NAME_FONT_SIZE=9.5
+ROW_FONT_SIZE=9.5
 NAME_LINE_HEIGHT=13
 names=[simpleSplit(str(item.get('product','')),'MSVN',NAME_FONT_SIZE,widths[1]-10) or [''] for item in rows]
-row_heights=[max(39,14+NAME_LINE_HEIGHT*len(lines)) for lines in names]
+units=[simpleSplit(str(item.get('unit') or 'Thùng'),'MSVN',ROW_FONT_SIZE,widths[2]-7) or [''] for item in rows]
+row_heights=[max(39,14+NAME_LINE_HEIGHT*max(len(name_lines),len(unit_lines))) for name_lines,unit_lines in zip(names,units)]
 rowh=29
 table_bottom=top-rowh-sum(row_heights)
 if table_bottom<100: raise SystemExit('Product table too tall for A4')
 c.setFillColor(C_BLUE)
 c.rect(left,top-rowh,sum(widths),rowh,stroke=0,fill=1)
 for i,lab in enumerate(headers):
-    face='MSVN-B';size=6.45
+    face='MSVN-B';size=8.0
     while size>5 and pdfmetrics.stringWidth(lab,face,size)>widths[i]-5: size-=0.15
     c.setFont(face,size)
     c.setFillColor(HexColor('#FFFFFF'))
@@ -167,17 +169,14 @@ row_top=top-rowh
 for idx,item in enumerate(rows):
     row_bottom=row_top-row_heights[idx]
     dataY=row_top-17
-    fit_center((xs[0]+xs[1])/2,dataY,str(idx+1),widths[0]-5,7)
+    fit_center((xs[0]+xs[1])/2,dataY,str(idx+1),widths[0]-5,ROW_FONT_SIZE)
     for ii,line in enumerate(names[idx]):text(xs[1]+5,dataY-ii*NAME_LINE_HEIGHT,line,NAME_FONT_SIZE)
-    unit=str(item.get('unit') or 'Thùng')
-    unit_size=7.0
-    while unit_size>5 and pdfmetrics.stringWidth(unit,'MSVN',unit_size)>widths[2]-7:unit_size-=0.2
-    text(xs[2]+4,dataY,unit,unit_size)
-    fit_right(xs[4]-5,dataY,str(int(item.get('qty') or 0)),widths[3]-9,7)
-    fit_right(xs[5]-5,dataY,fmt(item.get('listPrice',item.get('unitPrice',0))),widths[4]-9,7)
-    fit_right(xs[6]-5,dataY,str(item.get('discount',o.get('discount',0))),widths[5]-9,7)
-    fit_right(xs[7]-5,dataY,fmt(item.get('unitPrice',0)),widths[6]-9,7)
-    fit_right(xs[8]-6,dataY,fmt(item.get('subtotal',0)),widths[7]-10,7.1)
+    for ii,line in enumerate(units[idx]):text(xs[2]+4,dataY-ii*NAME_LINE_HEIGHT,line,ROW_FONT_SIZE)
+    fit_right(xs[4]-5,dataY,str(int(item.get('qty') or 0)),widths[3]-9,ROW_FONT_SIZE)
+    fit_right(xs[5]-5,dataY,fmt(item.get('listPrice',item.get('unitPrice',0))),widths[4]-9,ROW_FONT_SIZE)
+    fit_right(xs[6]-5,dataY,str(item.get('discount',o.get('discount',0)))+'%',widths[5]-9,ROW_FONT_SIZE)
+    fit_right(xs[7]-5,dataY,fmt(item.get('unitPrice',0)),widths[6]-9,ROW_FONT_SIZE)
+    fit_right(xs[8]-6,dataY,fmt(item.get('subtotal',0)),widths[7]-10,ROW_FONT_SIZE)
     c.line(left,row_bottom,rightedge,row_bottom)
     row_top=row_bottom
 below=table_bottom-18
