@@ -16,7 +16,7 @@ for(const [needle,description] of [
  ['id="catalogFilters"','brand filters'],
  ['id="catalogItems"','product item list'],
  ['id="selectedQuantity"','quantity selector'],
- ["fetch('/api/catalogue'","server-driven product list"],
+ ["fetch('/api/catalogue?token='","server-driven product list"],
  ['bubble.user','iMessage-style user messages'],
  ['.bubble.assistant','assistant message styling'],
  ['@media(max-width:760px)','mobile CSS'],
