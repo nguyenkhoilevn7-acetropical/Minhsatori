@@ -27,4 +27,13 @@ class MobileWriteOutcomeTest {
             assertFalse(code, MobileWriteOutcome.requiresReconciliation(MobileApiError(code, "test")))
         }
     }
+
+    @Test fun rejectedRetryDoesNotEraseAnEarlierUncertainOperation() {
+        for (code in listOf("AUTH_FAILED", "FORBIDDEN", "REVISION_CONFLICT", "ORDER_CHANGED")) {
+            val error = MobileApiError(code, "test")
+            assertFalse(MobileWriteOutcome.mayDiscardAfterRejection(error, true))
+            assertTrue(MobileWriteOutcome.mayDiscardAfterRejection(error, false))
+        }
+        assertFalse(MobileWriteOutcome.mayDiscardAfterRejection(IOException("lost reply"), false))
+    }
 }

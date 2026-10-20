@@ -62,6 +62,10 @@ class NativeMainActivity : AppCompatActivity() {
     private var lastReadAt = ""
     private var apiEndpoint: String? = null
     private var allowedActions: Set<String> = emptySet()
+    private var actorId = ""
+    private lateinit var pendingStore: PendingWriteStore
+    private var pendingWrite: PendingMobileWrite? = null
+    private var pendingStorageError = false
     // Owner opt-in: Google read-only access replaces repeated manual Drive file selection.
     // Poll only while the app is foregrounded, and only after successful authorization.
     private val syncHandler = Handler(Looper.getMainLooper())
@@ -82,9 +86,11 @@ class NativeMainActivity : AppCompatActivity() {
             syncHandler.postDelayed(this, syncIntervalMs)
         }
     }
-    private fun canAction(action: String): Boolean =
+    private fun hasServerAction(action: String): Boolean =
         apiEndpoint != null && accessToken != null &&
-            dataSource == "Minh Satori API" && allowedActions.contains(action)
+            actorId.isNotBlank() && dataSource == "Minh Satori API" && allowedActions.contains(action)
+    private fun canAction(action: String): Boolean = hasServerAction(action) &&
+        (action !in PendingMobileWrite.ACTIONS || (pendingWrite == null && !pendingStorageError))
     private val canWrite: Boolean get() = canAction("orders.create")
 
     private val filePicker = registerForActivityResult(
@@ -176,6 +182,14 @@ class NativeMainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingStore = PendingWriteStore(this)
+        runCatching { pendingStore.load() }.fold(
+            onSuccess = { pendingWrite = it },
+            onFailure = {
+                pendingStorageError = true
+                statusMessage = "Không mở được thao tác đang chờ. Đã khóa ghi để tránh mất hoặc trùng đơn."
+            }
+        )
         fileUri = getPreferences(MODE_PRIVATE).getString("drive_file_uri", null)?.let {
             Uri.parse(it)
         }
@@ -213,7 +227,7 @@ class NativeMainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         syncHandler.removeCallbacks(syncTick)
-        // Never persist OAuth access tokens or cached customer data to disk.
+        // OAuth tokens/snapshots stay in memory; only the encrypted pending write survives.
         accessToken = null
         snapshot = null
         super.onDestroy()
@@ -364,6 +378,18 @@ class NativeMainActivity : AppCompatActivity() {
                 12f, false, muted, 7)
         }
         button(content, "CÀI ĐẶT LIÊN KẾT API") { configureMobileApi() }
+        if (pendingStorageError) label(content,
+            "Không đọc được bản lưu thao tác đang chờ. Ghi đơn đang khóa; cần kiểm tra dữ liệu trước khi xử lý.",
+            13f, true, gold, 8)
+        pendingWrite?.let { pending ->
+            label(content, "Có một thao tác chưa xác minh. App đã giữ bản mã hóa và tạm khóa thao tác ghi mới.",
+                13f, true, gold, 8)
+            if (!pendingStorageError && pending.belongsTo(apiEndpoint.orEmpty(), actorId) &&
+                hasServerAction(pending.action)) {
+                button(content, "KIỂM TRA / TIẾP TỤC THAO TÁC ĐANG CHỜ") { reviewPendingWrite(pending) }
+            } else label(content, "Kết nối đúng API và tài khoản đã gửi thao tác để tiếp tục.",
+                12f, false, muted, 4)
+        }
         button(content, if (fileUri == null) "ĐỌC FILE DRIVE (CHỈ XEM)" else
             "LÀM MỚI FILE DRIVE (CHỈ XEM)") {
             if (fileUri != null) refreshFromPicker()
@@ -1008,6 +1034,7 @@ class NativeMainActivity : AppCompatActivity() {
                         val p = JSONObject()
                             .put("expectedRevision", snapshot?.revision ?: -1)
                             .put("invoiceNo", invoice.number.toInt())
+                            .put("id", invoice.id)
                             .put("amount", invoice.total)
                             .put("confirmed", true)
                         executeWrite("payments.markCustomerPaid", p) { success, _ ->
@@ -1094,6 +1121,7 @@ class NativeMainActivity : AppCompatActivity() {
                     return@setOnClickListener
                 }
                 apiEndpoint = MobileApiClient.endpoint(this)
+                actorId = ""
                 // Previously loaded file snapshots are read-only until verified API connects.
                 dataSource = ""
                 snapshot = null
@@ -1118,16 +1146,27 @@ class NativeMainActivity : AppCompatActivity() {
         render()
         Thread {
             val outcome = runCatching { MobileApiClient.snapshot(endpoint, token) }
+            val pending = pendingWrite
+            val trash = if (outcome.isSuccess && pending != null &&
+                pending.belongsTo(endpoint, outcome.getOrThrow().actorId) &&
+                pending.action == "orders.delete" &&
+                outcome.getOrThrow().allowedActions.contains("mobile.trash"))
+                runCatching { MobileApiClient.trash(endpoint, token) }.getOrNull() else null
             runOnUiThread {
                 isLoading = false
                 outcome.fold(
                     onSuccess = {
                         snapshot = it.snapshot
                         allowedActions = it.allowedActions
+                        actorId = it.actorId
                         dataSource = "Minh Satori API"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
                         statusMessage = "Đã kết nối quyền lên đơn."
+                        if (pending != null && pending.belongsTo(endpoint, it.actorId)) {
+                            if (pending.confirmedIn(it.snapshot, trash)) finishPendingWrite(pending)
+                            else statusMessage = "Đã đồng bộ; còn thao tác đang chờ cần kiểm tra hoặc gửi lại đúng yêu cầu cũ."
+                        }
                     },
                     onFailure = {
                         snapshot = null
@@ -1147,6 +1186,37 @@ class NativeMainActivity : AppCompatActivity() {
         }.start()
     }
 
+    private fun finishPendingWrite(pending: PendingMobileWrite): Boolean {
+        return runCatching { pendingStore.clear(pending) }.fold(
+            onSuccess = { if (pendingWrite == pending) pendingWrite = null; true },
+            onFailure = {
+                pendingStorageError = true
+                statusMessage = "Đã nhận kết quả nhưng chưa cập nhật được bản chờ. Ghi mới vẫn khóa để tránh trùng."
+                false
+            }
+        )
+    }
+
+    private fun reviewPendingWrite(pending: PendingMobileWrite) {
+        if (isLoading || !pending.belongsTo(apiEndpoint.orEmpty(), actorId) ||
+            !hasServerAction(pending.action) || pendingStorageError) return
+        val p = pending.payload
+        val order = p.optJSONObject("order")
+        val description = if (order != null)
+            order.optString("name") + " · " + SatoriData.money(order.optLong("total"))
+        else "Hóa đơn #" + p.optString("invoiceNo")
+        AlertDialog.Builder(this)
+            .setTitle("Tiếp tục thao tác đang chờ")
+            .setMessage(description + "\n\nApp sẽ gửi lại nguyên yêu cầu cũ, giữ mã chống trùng và revision. " +
+                "Nếu dữ liệu đã thay đổi, server sẽ yêu cầu kiểm tra lại. " +
+                "Anh nên đồng bộ trước để kiểm tra thao tác đã hoàn tất chưa.")
+            .setNegativeButton("Đồng bộ kiểm tra") { _, _ -> refreshFromMobileApi() }
+            .setNeutralButton("Đóng", null)
+            .setPositiveButton("GỬI LẠI YÊU CẦU CŨ") { _, _ ->
+                executeWrite(pending.action, p) { _, _ -> }
+            }.show()
+    }
+
     private fun executeWrite(
         action: String,
         payload: JSONObject,
@@ -1154,111 +1224,96 @@ class NativeMainActivity : AppCompatActivity() {
     ) {
         val endpoint = apiEndpoint
         val token = accessToken
-        if (!canAction(action) || endpoint == null || token == null || isLoading) {
-            completed(false, "Tài khoản chưa được cấp quyền thực hiện lệnh này.")
+        val prior = pendingWrite
+        val contents = JSONObject(payload.toString())
+        if (!contents.has("requestId")) contents.put("requestId",
+            UUID.randomUUID().toString().replace("-", ""))
+        val exactRetry = prior?.matches(endpoint.orEmpty(), actorId, action, contents) == true
+        if (!hasServerAction(action) || endpoint == null || token == null || isLoading ||
+            pendingStorageError || (prior != null && !exactRetry)) {
+            completed(false, "Cần đúng tài khoản, quyền và kết quả thao tác đang chờ trước khi ghi mới.")
             return
         }
+        val pending = prior ?: PendingMobileWrite(endpoint, actorId, action,
+            contents.toString(), System.currentTimeMillis())
+        pendingWrite = pending
         isLoading = true
-        statusMessage = "Đang gửi " + action + " lên Minh Satori…"
+        statusMessage = "Đang lưu an toàn và gửi thao tác Minh Satori…"
         render()
         Thread {
-            val writeResult = runCatching {
-                MobileApiClient.request(endpoint, token, action, payload,
+            // Flush encrypted journal BEFORE sending any request. A failed disk/key
+            // operation must never fall back to sending without process-death recovery.
+            val stored = runCatching { pendingStore.save(pending) }
+            if (stored.isFailure) {
+                runOnUiThread {
+                    isLoading = false
+                    pendingStorageError = true
+                    statusMessage = "Không lưu được bản chờ an toàn. Chưa gửi yêu cầu lên server."
+                    completed(false, statusMessage)
+                    render()
+                }
+                return@Thread
+            }
+            val result = runCatching {
+                MobileApiClient.request(endpoint, token, action, pending.payload,
                     UUID.randomUUID().toString().replace("-", ""))
             }
-            val latest = if (writeResult.isSuccess) runCatching {
-                MobileApiClient.snapshot(endpoint, token)
-            } else null
-            val requestId = payload.optString("requestId")
-            // A timeout is not proof that the server rejected the write.
-            // Read the authoritative ledger and find the same durable
-            // requestId instead of sending a second write.
-            // COMMIT_UNVERIFIED and generic server exceptions can occur AFTER
-            // file.setContent succeeds. Treat these just like a lost reply.
-            val uncertainTransport = writeResult.exceptionOrNull()?.let {
+            val uncertain = result.exceptionOrNull()?.let {
                 MobileWriteOutcome.requiresReconciliation(it)
             } ?: false
-            val canVerifyFromSnapshot = (requestId.isNotBlank() &&
-                action in setOf("orders.create", "orders.update", "orders.restore")) ||
-                action == "payments.markCustomerPaid"
-            val recovery = if (uncertainTransport && canVerifyFromSnapshot)
-                runCatching { MobileApiClient.snapshot(endpoint, token) } else null
+            val latest = if (result.isSuccess || uncertain)
+                runCatching { MobileApiClient.snapshot(endpoint, token) }.getOrNull() else null
+            val trash = if (uncertain && action == "orders.delete" && latest != null &&
+                latest.allowedActions.contains("mobile.trash"))
+                runCatching { MobileApiClient.trash(endpoint, token) }.getOrNull() else null
+            val proved = latest != null && pending.belongsTo(endpoint, latest.actorId) &&
+                pending.confirmedIn(latest.snapshot, trash)
             runOnUiThread {
                 isLoading = false
-                writeResult.fold(
-                    onSuccess = { reply ->
-                        if (latest?.isSuccess == true) {
-                            snapshot = latest.getOrNull()?.snapshot
-                            allowedActions = latest.getOrNull()?.allowedActions ?: emptySet()
-                            dataSource = "Minh Satori API"
-                            lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
-                        } else {
-                            // A confirmed write must never be reported as a failed write.
-                            snapshot = null
-                            allowedActions = emptySet()
-                            dataSource = ""
-                            statusMessage = "Server đã xử lý lệnh. Không xác minh được đồng bộ; hãy kết nối lại trước thao tác tiếp."
-                        }
-                        val changed = reply.optJSONObject("data")?.optJSONObject("order")
-                        val invoiceNo = changed?.optString("invoiceNo").orEmpty()
-                        val answer = if (invoiceNo.isNotBlank())
-                            "Thành công: Hóa đơn #" + invoiceNo else "Server xác nhận thành công."
-                        Toast.makeText(this, answer, Toast.LENGTH_LONG).show()
-                        completed(true, answer)
-                    },
-                    onFailure = { e ->
-                        val recovered = recovery?.getOrNull()
-                        val committed = recovered?.snapshot?.confirmedWrite(action, requestId)
-                        val confirmedPaid = if (action == "payments.markCustomerPaid") {
-                            recovered?.snapshot?.confirmedCustomerPayment(
-                                payload.optString("invoiceNo"),
-                                payload.optLong("amount", -1L)
-                            )
-                        } else null
-                        if (recovered != null) {
-                            snapshot = recovered.snapshot
-                            allowedActions = recovered.allowedActions
-                            dataSource = "Minh Satori API"
-                            lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
-                        }
-                        if (committed != null) {
-                            val info = "Đã xác minh hóa đơn #" + committed.number +
-                                " đã được lưu trước khi mất kết nối."
-                            statusMessage = info
-                            Toast.makeText(this, info, Toast.LENGTH_LONG).show()
-                            completed(true, info)
-                        } else if (confirmedPaid != null) {
-                            val info = "Đã đối chiếu hóa đơn #" + confirmedPaid.number +
-                                ": trạng thái khách thanh toán đã được lưu. Không ghi lần nữa."
-                            statusMessage = info
-                            Toast.makeText(this, info, Toast.LENGTH_LONG).show()
-                            completed(true, info)
-                        } else {
-                            val info = (e.message ?: "Không rõ lỗi")
-                            // A later write may still commit AFTER the recovery snapshot
-                            // was read. Even a successful refresh without an exact match
-                            // does NOT prove that the operation failed.
-                            if (uncertainTransport) {
-                                snapshot = null
-                                allowedActions = emptySet()
-                                dataSource = ""
-                                statusMessage = "Chưa xác minh được kết quả thao tác. " +
-                                    "Tạm khóa ghi để tránh trùng đơn/thanh toán; hãy kiểm tra " +
-                                    "hóa đơn trên hệ thống và đồng bộ lại trước khi tiếp tục."
-                            } else {
-                                statusMessage = "Không thể hoàn tất yêu cầu: " + info
-                            }
-                            if (e is MobileApiError && (e.apiCode == "REVISION_CONFLICT" ||
-                                    e.apiCode == "PROFILE_CHANGED" ||
-                                    e.apiCode == "ORDER_CHANGED")) {
-                                Toast.makeText(this,
-                                    "Dữ liệu đã thay đổi trên máy khác. Tải lại trước khi tiếp tục.",
-                                    Toast.LENGTH_LONG).show()
-                            }
-                            completed(false, statusMessage)
-                        }
+                if (latest != null && pending.belongsTo(endpoint, latest.actorId)) {
+                    snapshot = latest.snapshot
+                    allowedActions = latest.allowedActions
+                    actorId = latest.actorId
+                    dataSource = "Minh Satori API"
+                    lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+                    lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
+                }
+                if (result.isSuccess || proved) {
+                    finishPendingWrite(pending)
+                    if (latest == null) {
+                        snapshot = null
+                        allowedActions = emptySet()
+                        dataSource = ""
                     }
-                )
+                    val message = if (proved && result.isFailure)
+                        "Đã xác minh thao tác được lưu trước khi mất kết nối. Không ghi thêm lần nữa."
+                    else "Server xác nhận thành công."
+                    if (!pendingStorageError) statusMessage = message
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                    completed(true, message)
+                } else if (MobileWriteOutcome.mayDiscardAfterRejection(
+                        result.exceptionOrNull()!!, prior != null)) {
+                    finishPendingWrite(pending)
+                    statusMessage = "Server từ chối yêu cầu: " +
+                        (result.exceptionOrNull()?.message ?: "Cần kiểm tra dữ liệu.")
+                    // Never reuse a stale snapshot after any rejected operation.
+                    snapshot = null
+                    allowedActions = emptySet()
+                    dataSource = ""
+                    completed(false, statusMessage)
+                } else {
+                    statusMessage = "Chưa xác minh được kết quả trước đó. Đã giữ bản chờ mã hóa, " +
+                        "khóa ghi mới và giữ nguyên mã chống trùng kể cả khi đóng app."
+                    val error = result.exceptionOrNull()
+                    if (error is MobileApiError && error.apiCode in setOf("AUTH_FAILED", "FORBIDDEN")) {
+                        accessToken = null
+                        actorId = ""
+                        allowedActions = emptySet()
+                        dataSource = ""
+                        statusMessage += " Cần đăng nhập Google lại để tiếp tục đối chiếu."
+                    }
+                    completed(false, statusMessage)
+                }
                 render()
             }
         }.start()
@@ -1387,6 +1442,9 @@ class NativeMainActivity : AppCompatActivity() {
                 render()
                 return
             }
+            actorId = ""
+            allowedActions = emptySet()
+            dataSource = ""
             accessToken = token
             if (apiEndpoint != null) refreshFromMobileApi() else refreshFromDrive()
         }

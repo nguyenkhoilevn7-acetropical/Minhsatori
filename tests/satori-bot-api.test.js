@@ -103,7 +103,8 @@ context.UrlFetchApp={fetch(url,options){
   }else if(url==='https://www.googleapis.com/oauth2/v3/userinfo'){
     const bearer=options&&options.headers&&options.headers.Authorization;
     if(bearer!=='Bearer valid-owner-oauth-access-token')status=401;
-    obj={email:issuer.email,email_verified:true,sub:'google-owner-test'};
+    obj={email:issuer.email,email_verified:true,
+      sub:issuer.subject===undefined?'google-sub:'+issuer.email:issuer.subject};
   }else throw Error('Unexpected URL in isolated test');
   return {getResponseCode:()=>status,getContentText:()=>JSON.stringify(obj)};
 }};
@@ -115,6 +116,12 @@ function mobile(action,payload={},overrides={}){
     postData:{contents:JSON.stringify(body)}}).text);
 }
 const firstMobile=mobile('mobile.snapshot');console.log('MOBILE smoke:',JSON.stringify(firstMobile));assert.equal(firstMobile.data.revision,20);
+assert.equal(firstMobile.data.actorId,'google-sub:owner@example.com');
+assert.equal(mobile('mobile.snapshot',{}, {actorId:'spoofed-client-identity'}).data.actorId,
+  'google-sub:owner@example.com','outbox identity must come from verified Google userinfo, never the phone');
+issuer.subject='';
+assert.equal(mobile('mobile.snapshot').error.code,'AUTH_FAILED');
+delete issuer.subject;
 const earlierWriteCount=writes;
 assert.equal(mobile('orders.create',{expectedRevision:20,requestId:'phone-order-001',
   confirmedNewCustomer:true,order:{name:'Android Test Customer',location:'Cát Lái 101',phone:'0909988999',
@@ -181,6 +188,8 @@ const deletedMobile=mobile('orders.delete',{expectedRevision:22,requestId:'phone
   expectedTotal:215000,confirmed:true});
 assert.equal(deletedMobile.data.deleted,true);
 assert.equal(mobile('mobile.trash').data.orders.some(x=>x.invoiceNo===mobileNo),true);
+assert.equal(mobile('mobile.trash').data.orders.find(x=>x.invoiceNo===mobileNo).deleteRequestId,
+  'phone-delete-001','restart recovery must prove the same delete request, not just a missing invoice');
 const restoredMobile=mobile('orders.restore',{expectedRevision:23,requestId:'phone-restore-001',
   id:mobileId,invoiceNo:mobileNo,expectedName:'Android Test Customer',
   expectedTotal:215000,confirmed:true});

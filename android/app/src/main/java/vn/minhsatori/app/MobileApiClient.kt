@@ -137,13 +137,15 @@ object MobileApiClient {
         val allowed = data.optJSONArray("allowedActions")
             ?: throw IOException("Server chưa cấp danh sách quyền. Hãy cập nhật Mobile API.")
         val actions = (0 until allowed.length()).map { allowed.getString(it) }.toSet()
-        return MobileSnapshot(SatoriData.fromDriveState(data.toString()), actions)
+        val actor = data.optString("actorId")
+        if (actor.isBlank()) throw IOException("Server chưa hỗ trợ định danh khôi phục thao tác. Cần cập nhật Mobile API.")
+        return MobileSnapshot(SatoriData.fromDriveState(data.toString()), actions, actor)
     }
 
     fun trash(endpoint: String, token: String): JSONObject =
         request(endpoint, token, "mobile.trash").getJSONObject("data")
 }
 
-data class MobileSnapshot(val snapshot: SatoriSnapshot, val allowedActions: Set<String>)
+data class MobileSnapshot(val snapshot: SatoriSnapshot, val allowedActions: Set<String>, val actorId: String)
 
 class MobileApiError(val apiCode: String, override val message: String) : IOException(message)

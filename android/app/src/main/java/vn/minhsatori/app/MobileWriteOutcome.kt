@@ -13,4 +13,9 @@ object MobileWriteOutcome {
 
     fun requiresReconciliation(error: Throwable): Boolean =
         error !is MobileApiError || error.apiCode !in rejectedBeforeCommit
+
+    // A rejected retry (e.g. expired token) says nothing about whether an earlier
+    // attempt committed. Keep that journal until there is authoritative proof.
+    fun mayDiscardAfterRejection(error: Throwable, hadPendingBeforeSend: Boolean): Boolean =
+        !hadPendingBeforeSend && !requiresReconciliation(error)
 }

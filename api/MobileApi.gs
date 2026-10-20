@@ -62,6 +62,8 @@ function verifyOwner(accessToken){
  var profile=JSON.parse(profileResponse.getContentText());
  need(profile.email_verified===true,'FORBIDDEN','Tài khoản Google chưa xác minh email');
  var email=String(profile.email||'').trim().toLowerCase();
+ need(typeof profile.sub==='string'&&profile.sub.length>0&&profile.sub.length<=200,
+      'AUTH_FAILED','Không xác minh được định danh tài khoản Google');
  var ownerAccess=email===owner;
  var staff={};
  try{staff=JSON.parse(config.getProperty('SATORI_ANDROID_STAFF_PERMISSIONS_JSON')||'{}')}
@@ -112,13 +114,14 @@ function handle(e){
         }
         return json({ok:true,action:action,revision:state.revision,
          data:{revision:state.revision,updatedAt:state.updatedAt,
-          allowedActions:allowedActions,values:values}});
+          actorId:verified.subject,allowedActions:allowedActions,values:values}});
       }
       var bin=JSON.parse(state.values.satori_trash_bin_v15||'[]');
       return json({ok:true,action:action,revision:state.revision,data:{
        orders:bin.filter(function(t){return t&&t.order}).slice(0,100).map(function(t){
         return {id:t.order.id,invoiceNo:t.order.invoiceNo,name:t.order.name,
-        total:t.order.total,deletedAt:t.deletedAt,expiresAt:t.expiresAt};
+        total:t.order.total,deletedAt:t.deletedAt,expiresAt:t.expiresAt,
+        deleteRequestId:t.apiDeleteRequestId||''};
        })}});
     }finally{lock.releaseLock()}
   }
