@@ -17,14 +17,31 @@ android {
 
     buildFeatures { buildConfig = true }
 
+    signingConfigs {
+        create("satoriRelease") {
+            // A stable keystore must be supplied by protected CI secrets or a secure
+            // local environment; never place private keys in source control.
+            val filePath = System.getenv("SATORI_ANDROID_KEYSTORE_FILE")
+            if (!filePath.isNullOrBlank()) {
+                storeFile = file(filePath)
+                storePassword = System.getenv("SATORI_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("SATORI_ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("SATORI_ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false
         }
         getByName("release") {
             isMinifyEnabled = false
-            // Release signing must be configured with a private, persistent keystore.
-            // The CI publishes DEBUG builds for testing only.
+            // If signing secrets are absent, do not automatically sign using debug.
+            // The release workflow refuses to build without the private keystore.
+            if (!System.getenv("SATORI_ANDROID_KEYSTORE_FILE").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("satoriRelease")
+            }
         }
     }
 
