@@ -27,6 +27,19 @@ export function parseRules(message,profile={}){
  if(!SKUS.has(sku)||!Number.isSafeInteger(n)||n<1)return {intent:'order',sku:SKUS.has(sku)?sku:'unknown',qty:Number.isSafeInteger(n)&&n>0?n:0,needMoreDetails:true,reason:'UNCLEAR',source:'rules'};
  return {intent:'order',sku,qty:n,source:'rules'};
 }
+// Strict allowlist: only a numerical quantity phrase and a public product name ever
+// leave the server for the Gemini Free Tier. No raw customer message is transmitted.
+export function sanitizedGeminiOrder(message,profile={}){
+ if(identityChange(message,profile))return '';
+ const s=norm(message);
+ const quantity=s.match(/\b((?:\d{1,2}|mot|hai|ba|bon|nam)\s+ta)\s+(?:thung|binh|loc)\b/);
+ if(!quantity)return '';
+ const hit=resolveProduct(message,profile);
+ if(hit.ambiguous||!hit.sku)return '';
+ const product=productFor(hit.sku);
+ if(!product)return '';
+ return 'Cho toi '+quantity[1]+' thung '+product.name;
+}
 // Only sends a small, non-identifying customer message; API key stays on server.
 // NOTE: Only use keys from verified Gemini API Free Tier projects. Keys don't indicate billing tier.
 export function geminiConfigured(){return !!String(process.env.GEMINI_API_KEY||'').trim() && process.env.GEMINI_FREE_TIER_ONLY==='true'}
@@ -69,7 +82,9 @@ export async function parseOrder(message,profile={}){
  const rule=parseRules(message,profile);
  if(rule?.needsHuman||['UNSUPPORTED','MULTI_SKU','PRODUCT_AMBIGUOUS'].includes(rule?.reason)||(rule&&!rule.needMoreDetails))return rule;
  if(!geminiConfigured())return rule||{intent:'other',sku:'unknown',qty:0,source:'rules'};
- const ai=await callGemini(message);
+ const sanitized=sanitizedGeminiOrder(message,profile);
+ if(!sanitized)return rule||{intent:'other',sku:'unknown',qty:0,source:'rules'};
+ const ai=await callGemini(sanitized);
  if(!ai)return rule||{intent:'other',sku:'unknown',qty:0,source:'rules'};
  if(ai.address_change||ai.receiver_or_phone_change)return {intent:'order',sku:'unknown',qty:0,needsHuman:true,source:'gemini'};
  if(ai.intent!=='order')return {...ai,source:'gemini'};
