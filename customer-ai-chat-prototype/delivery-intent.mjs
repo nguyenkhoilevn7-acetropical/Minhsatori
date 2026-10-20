@@ -24,7 +24,7 @@ export function extractDeliveryIntent(message,now=new Date()){
   const when=new Date(now.getTime()+h*3600000);
   return {deliveryNote:'Khách yêu cầu giao sau '+h+' giờ nữa (không sớm hơn '+vietnamTime(when)+', giờ Việt Nam).'+extraNote(tail),requestedDeliveryAt:when.toISOString(),clarification:null,source:'rules'};
  }
- const clock=n.match(/\b(?:giao(?: hang)?|ship)\s+(?:sau|luc|vao|truoc|tam|khoang|tu)\s+(\d{1,2})(?:\s*(?:gio|h)(?:\s*(\d{1,2})\s*phut)?|:(\d{1,2}))?\s*(sang|trua|chieu|toi|dem)?\b/);
+ const clock=n.match(/\b(?:giao(?: hang)?|ship)\s+(?:sau|luc|vao|truoc|tam|khoang|tu)\s+(\d{1,2})(?:\s*(?:gio|h)(?:\s*(\d{1,2})(?:\s*phut)?)?|:(\d{1,2}))?\s*(sang|trua|chieu|toi|dem)?\b/);
  if(clock){
   let hour=Number(clock[1]);const minute=Number(clock[2]??clock[3]??0);const period=clock[4];
   if(hour>23||minute>59)return {deliveryNote:'',requestedDeliveryAt:null,clarification:'Giờ giao chưa hợp lệ. Anh/chị vui lòng ghi rõ, ví dụ 14:00 hoặc 2 giờ chiều.',source:'rules'};
