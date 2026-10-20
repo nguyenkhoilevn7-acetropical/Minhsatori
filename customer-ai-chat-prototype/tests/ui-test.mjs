@@ -27,5 +27,10 @@ assert.ok(html.includes('id="printInvoice" href="#" download hidden>⬇ Tải PD
 assert.ok(!html.includes('window.print()'),'invoice download never invokes browser print dialog');
 assert.ok(!html.includes("link.target='_blank'"),'confirmation download does not open an extra tab');
 assert.ok(html.includes("download.href='/api/invoice/'"),'history links use direct PDF endpoint');
+assert.ok(html.includes('delivery-note-block'),'delivery instructions field appears before order confirmation');
+assert.ok(html.includes('for(const hours of [2,3])'),'quick options for 2 and 3 hours');
+assert.ok(html.includes('deliveryNote});const o=res.order;'),'delivery note sent with confirmation');
+assert.ok(html.includes('invoice-delivery-note'),'invoice preview displays delivery note');
+assert.ok(html.includes('/assets/logo-satori.jpg'),'original logo displayed on invoice');
 assert.ok(!html.includes('GEMINI_API_KEY'),'never inline API secrets');
-console.log('PASS 18/18 iMessage and PDF download UI structure and JavaScript syntax smoke checks');
+console.log('PASS 23/23 iMessage, delivery notes and PDF UI structure smoke checks');
