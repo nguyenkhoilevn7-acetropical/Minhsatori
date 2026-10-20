@@ -122,6 +122,17 @@ data class SatoriSnapshot(
             }
         }
     }
+
+    // After the customer-payment HTTP reply is lost, validate the exact invoice
+    // and amount from an authoritative refreshed snapshot. This confirms the
+    // payment state, not which device triggered it; never resend a new payment.
+    fun confirmedCustomerPayment(invoiceNo: String, amount: Long): SatoriInvoice? {
+        if (invoiceNo.isBlank() || amount < 0L) return null
+        return invoices.singleOrNull { invoice ->
+            invoice.number == invoiceNo && invoice.total == amount &&
+                invoice.customerHasPaid && !invoice.isExcluded
+        }
+    }
 }
 
 object SatoriData {
