@@ -117,6 +117,15 @@ try {
  test(logo.status===200&&logo.headers.get('content-type')==='image/jpeg'&&logoBytes.length>500,'original Satori logo accessible in sandbox');
  const wrongPdf=await fetch(base+'/api/invoice/'+confirmed.body.order.ref+'?token=demo-b');
  test(wrongPdf.status===404,'other profile cannot download PDF');
+ const auto=await post('/api/message',{token:'demo-b',message:'Cho tôi 10 thùng nước Satori 500ml và giao sau 2 giờ chiều, nhớ gọi trước khi giao'});
+ test(auto.body.quote?.sku==='S500'&&auto.body.quote?.qty===10,'single message extracts product and quantity');
+ test(auto.body.quote?.deliveryNote?.includes('14:00')&&auto.body.quote?.deliveryNote?.includes('gọi trước'),'single message auto-extracts delivery time and extra notes');
+ const autoConfirmed=await post('/api/confirm',{token:'demo-b',quoteId:auto.body.quote.quoteId,requestId:'auto-note-001'});
+ test(autoConfirmed.body.order?.deliveryNote===auto.body.quote.deliveryNote,'auto-filled instruction persists without manual retyping');
+ const autoHistory=await get('/api/history?token=demo-b');
+ test(autoHistory.body.orders.some(o=>o.ref===autoConfirmed.body.order.ref&&o.deliveryNote.includes('14:00')),'automatic note stays with own invoice history');
+ const deniedAuto=await fetch(base+'/api/invoice/'+autoConfirmed.body.order.ref+'?token=demo-a');
+ test(deniedAuto.status===404,'auto-filled delivery note does not weaken cross-customer PDF permissions');
  console.log('PASS '+tests+'/'+tests+' FREE sandbox integration checks; PDF '+bytes.length+' bytes; no paid model invoked');
 }catch(e){console.error('FAILED: '+e.message);console.error('SERVER LOG: '+output);process.exitCode=1}
 finally{proc.kill();rmSync(data,{recursive:true,force:true})}
