@@ -34,6 +34,10 @@ try{
  ok(!saved.includes(token),'only hash stored in registry');
  const session=await req('/api/session?token='+encodeURIComponent(token));
  ok(session.data.profile.name==='Khách Giả C'&&session.data.profile.discount===25,'assigned discount and name from server');
+ const publicInbox=await req('/api/admin/new-orders');
+ ok(publicInbox.status===401,'new-order inbox cannot be read without owner authentication');
+ const inboxBefore=await req('/api/admin/new-orders','GET',undefined,admin);
+ ok(inboxBefore.status===200&&inboxBefore.data.total===0,'owner inbox excludes unconfirmed quotations');
  const empty=await req('/api/history?token='+encodeURIComponent(token));
  ok(empty.status===200&&empty.data.orders.length===0,'new customer has empty history');
  const message=await req('/api/message','POST',{token,message:'Cho tôi 10 thùng Satori 500ml'});
@@ -43,6 +47,11 @@ try{
  const confirm=await req('/api/confirm','POST',{token,quoteId:message.data.quote.quoteId,requestId:'customer-c-test-123',deliveryNote:'Giao sau 3 giờ, gọi trước khi đến'});
  ok(confirm.status===200&&confirm.data.order?.ref,'created sandbox invoice');
  ok(confirm.data.order.vatRate===8&&confirm.data.order.vatAmount===message.data.quote.vatAmount,'VAT persisted in confirmed order');
+ const inboxAfter=await req('/api/admin/new-orders','GET',undefined,admin);
+ ok(inboxAfter.status===200&&inboxAfter.data.total===1,'owner inbox detects one confirmed order');
+ ok(inboxAfter.data.orders[0].ref===confirm.data.order.ref&&inboxAfter.data.orders[0].name==='Khách Giả C','owner inbox shows correct customer and bill reference');
+ ok(inboxAfter.data.orders[0].total===confirm.data.order.total&&inboxAfter.data.orders[0].deliveryNote==='Giao sau 3 giờ, gọi trước khi đến','owner notification contains correct amount and delivery note');
+ ok(!JSON.stringify(inboxAfter.data).includes(token)&&!JSON.stringify(inboxAfter.data).includes('customer-c-test-123'),'admin feed does not leak link token or request key');
  const persisted=readFileSync(path.join(temp,'orders.json'),'utf8');
  ok(!persisted.includes(token),'confirmed test order never saves private bearer customer token');
  ok(JSON.parse(persisted)[0].requestId==='KH-SANDBOX-'+creation.data.customer.id.slice('KH-SANDBOX-'.length)+'|customer-c-test-123','idempotency key uses only internal customer ID');
