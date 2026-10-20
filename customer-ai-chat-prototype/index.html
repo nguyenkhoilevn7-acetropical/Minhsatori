@@ -211,6 +211,30 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
  .history-tools{grid-template-columns:1fr}
  .history-head h2{font-size:17px}
 }
+/* Multi-SKU catalogue cart: selection stays open, supports edit/remove and one message. */
+.catalog-sheet{height:min(91dvh,850px)}
+.catalog-items{min-height:110px}
+.catalog-item.in-cart{background:#edf8ff}
+.catalog-item .catalog-added{font-size:12px;font-weight:800;color:#0870d0;background:#d6ebff;border-radius:999px;padding:4px 8px;white-space:nowrap}
+#productSelection{padding:10px 14px;border-top:1px solid #dce8f3;background:#f4f9ff;flex:none}
+.cart-footer{padding:10px 14px max(13px,env(safe-area-inset-bottom));border-top:1px solid #dce7f3;background:#fff;flex:none;box-shadow:0 -4px 18px #1d53800c}
+.cart-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cart-heading strong{font-size:13px;color:#175889}
+#cartCount{color:#077adc}
+.cart-clear{border:0;background:#f7f0f0;color:#aa4453;border-radius:10px;padding:7px 10px;font-size:12px}
+.cart-list{max-height:153px;overflow-y:auto;margin:7px 0;overscroll-behavior:contain}
+.cart-empty{display:block;font-size:12px;color:#728499;padding:9px 0}
+.cart-row{display:grid;grid-template-columns:minmax(0,1fr) 66px 35px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #eef2f7}
+.cart-row:last-child{border-bottom:0}
+.cart-name{font-size:12px;font-weight:650;color:#1b344f;line-height:1.3;overflow-wrap:anywhere}
+.cart-name small{display:block;color:#71859c;font-weight:400}
+.cart-qty{width:65px;min-height:39px;border-radius:9px;border:1px solid #c7dbed;padding:6px;font-size:16px;color:#1a354f;background:white}
+.cart-remove{height:38px;width:35px;border:0;border-radius:10px;background:#fff1f1;color:#b2464d;font-weight:800;font-size:20px}
+.cart-feedback{font-size:11px;color:#7a5b16;min-height:0;margin:4px 0}
+.cart-feedback:empty{display:none}
+.cart-compose{width:100%;border:0;border-radius:13px;background:#087aff;color:#fff;padding:13px 10px;font-size:14px;font-weight:750}
+.cart-compose:disabled{opacity:.5}
+@media(max-width:760px){.catalog-sheet{height:96dvh;max-height:96dvh}.cart-list{max-height:116px}.catalog-item{padding:10px 5px}.cart-compose{min-height:46px}}
 </style>
 </head>
 <body>
@@ -238,7 +262,13 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
  <input class="catalog-search" type="search" id="catalogSearch" placeholder="Tìm sản phẩm, dung tích, mã hàng..." aria-label="Tìm kiếm sản phẩm">
  <div class="catalog-filters" id="catalogFilters"><button class="catalog-filter active" type="button" data-brand="ALL">Tất cả</button><button class="catalog-filter" type="button" data-brand="SATORI">Satori</button><button class="catalog-filter" type="button" data-brand="HIKARI">Hikari</button><button class="catalog-filter" type="button" data-brand="JUICE">Juice</button></div>
  <div class="catalog-items" id="catalogItems" role="list"></div>
- <div id="productSelection"><strong id="selectedProductName"></strong><div class="selection-controls"><input inputmode="numeric" type="number" id="selectedQuantity" min="1" max="500" value="1" aria-label="Số lượng"><button id="addProductMessage" type="button">Viết tin nhắn đặt hàng ➜</button></div></div>
+ <div id="productSelection" aria-label="Thêm sản phẩm đã chọn"><strong id="selectedProductName"></strong><div class="selection-controls"><input inputmode="numeric" type="number" id="selectedQuantity" min="1" max="500" value="1" aria-label="Số lượng thêm"><button id="addProductMessage" type="button">＋ Thêm vào giỏ</button></div></div>
+ <div class="cart-footer" id="cartFooter" aria-live="polite">
+  <div class="cart-heading"><strong>🛒 Giỏ chọn nhiều sản phẩm <span id="cartCount">0/6</span></strong><button id="clearCart" type="button" class="cart-clear">Xóa giỏ</button></div>
+  <div id="cartList" class="cart-list"><span class="cart-empty">Chọn sản phẩm phía trên để thêm vào cùng một đơn.</span></div>
+  <p id="cartFeedback" class="cart-feedback" role="status"></p>
+  <button type="button" id="composeCart" class="cart-compose" disabled>Soạn tin nhắn đầy đủ (0 món) →</button>
+ </div>
  </div></section>
 <section id="historyBackdrop" class="history-backdrop" role="dialog" aria-modal="true" aria-label="Lịch sử đơn hàng của bạn"><div class="history-sheet">
  <header class="history-head"><div class="history-brand"><img src="/assets/logo-satori.jpg" alt="Satori" width="39" height="39"><div><h2>Lịch sử đặt hàng</h2><p id="historyCount" class="mini">Đơn hàng của riêng bạn • giờ Việt Nam</p></div></div><button type="button" id="historyClose" class="history-close" aria-label="Đóng">×</button></header>
@@ -279,7 +309,12 @@ note.placeholder='AI tự điền lời dặn từ tin nhắn; bấm vào đây 
 const notice=document.createElement('small');notice.textContent=q.deliveryNote?'✓ Đã tự hiểu lời dặn từ tin nhắn. Anh/chị xem lại và sửa nếu muốn. Giờ giao vẫn chờ cửa hàng xác nhận.':'Có thể ghi thêm lời dặn tại đây. Giờ giao vẫn chờ cửa hàng xác nhận.';
 noteBlock.append(label,notice);box.append(noteBlock,b);$('messages').appendChild(box);bottom()}
 async function confirmOrder(q,button){const deliveryNote=(button.closest('.quote')?.querySelector('textarea.delivery-note')?.value||'').trim();if(deliveryNote.length>300){msg('Lưu ý chỉ được tối đa 300 ký tự.','note');return}if(serverMode){button.disabled=true;button.textContent='Đang lưu đơn thử...';try{const res=await serverPost('/api/confirm',{token:serverToken,quoteId:q.quoteId,requestId:'demo-'+q.quoteId,deliveryNote});const o=res.order;button.textContent='Đã xác nhận';msg('Đã tạo đơn THỬ '+o.ref+'. Chưa chuyển tới Minh Satori thật. Trạng thái: Chờ thanh toán.');showInvoice(o);const link=document.createElement('a');link.className='btn';link.textContent='⬇ Tải PDF về máy';link.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);link.setAttribute('download',o.ref+'.pdf');$('messages').appendChild(link);bottom();draft=null;}catch(e){button.disabled=false;button.textContent='Xác nhận đơn THỬ';msg('Không ghi được đơn: '+e.message,'note')}return;}if(!draft||draft.nonce!==q.nonce||draft.profileId!==customer().id){msg('Báo giá đã thay đổi, vui lòng yêu cầu lại.');return}const c=customer();if(c.id!==q.profileId||c.discount!==q.discount||c.ship!==q.ship||c.address!==q.address||c.phone!==q.phone){msg('Cấu hình khách đã đổi nên không thể chốt theo báo giá cũ. Vui lòng đặt lại.');draft=null;return;}const key='MSATORI_SANDBOX_DEMO_ONLY';try{localOrders=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(localOrders))localOrders=[]}catch(e){localOrders=[]}let saved=localOrders.find(o=>o.nonce===q.nonce);if(!saved){saved={...q,deliveryNote,ref:'TEST-'+String(Date.now()),createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};localOrders.push(saved);try{localStorage.setItem(key,JSON.stringify(localOrders))}catch(e){msg('Không thể lưu localStorage; đơn thử chỉ tồn tại trong phiên này.','note')}}button.disabled=true;button.textContent='Đã xác nhận';msg(`Đã tạo đơn THỬ ${saved.ref}. Trạng thái: Chờ thanh toán. Chưa gửi website thật và chưa phát sinh yêu cầu giao hàng.`);showInvoice(saved);draft=null}
-async function send(text){const message=String(text||'').trim();if(!message||sending)return;msg(message,'user');$('messageInput').value='';if(message.length>500){msg('Tin nhắn quá dài.');return;}if(serverMode){sending=true;const sendButton=$('sendForm').querySelector('button');sendButton.disabled=true;$('messages').setAttribute('aria-busy','true');msg('Đang kiểm tra yêu cầu đặt nước...','note');const loading=$('messages').lastElementChild;try{const res=await serverPost('/api/message',{token:serverToken,message});if(res.message)msg(res.message);if(res.quote){draft=res.quote;showQuote(res.quote)}}catch(e){msg('AI chưa xử lý được: '+e.message+' Không có đơn nào được tạo.','note')}finally{loading.remove();sending=false;sendButton.disabled=false;$('messages').removeAttribute('aria-busy')}return;}const r=matchRequest(message);if(r.error){msg(r.error);return;}draft=quote(r.code,r.qty);msg(`Mình đã hiểu yêu cầu: ${draft.qty} thùng ${draft.product}. Bạn kiểm tra báo giá và địa chỉ bên dưới rồi xác nhận nhé.`);showQuote(draft)}
+async function send(text){const message=String(text||'').trim();if(!message||sending)return;msg(message,'user');$('messageInput').value='';if(message.length>500){msg('Tin nhắn quá dài.');return;}if(serverMode){sending=true;const sendButton=$('sendForm').querySelector('button');sendButton.disabled=true;$('messages').setAttribute('aria-busy','true');msg('Đang kiểm tra yêu cầu đặt nước...','note');const loading=$('messages').lastElementChild;try{const useCart=pendingCartMessage===message&&Array.isArray(pendingCartItems);
+ const payload={token:serverToken,message,...(useCart?{cartItems:pendingCartItems}: {})};
+ const res=await serverPost('/api/message',payload);
+ if(res.message)msg(res.message);
+ if(res.quote){draft=res.quote;showQuote(res.quote);if(useCart){pendingCartItems=null;pendingCartMessage=null;cart.clear();updateCart();}}
+ }catch(e){msg('AI chưa xử lý được: '+e.message+' Không có đơn nào được tạo.','note')}finally{loading.remove();sending=false;sendButton.disabled=false;$('messages').removeAttribute('aria-busy')}return;}const r=matchRequest(message);if(r.error){msg(r.error);return;}draft=quote(r.code,r.qty);msg(`Mình đã hiểu yêu cầu: ${draft.qty} thùng ${draft.product}. Bạn kiểm tra báo giá và địa chỉ bên dưới rồi xác nhận nhé.`);showQuote(draft)}
 function moneyInWords(value){
  let num=Math.round(Number(value)||0);if(num<=0)return 'Không đồng';
  if(num>=1000000000000)return 'Số tiền lớn';
@@ -337,6 +372,7 @@ $('closeInvoice').addEventListener('click',()=>{$('invoice').style.display='none
 $('toggleSettings').addEventListener('click',()=>{$('panel').classList.toggle('open');$('toggleSettings').textContent=$('panel').classList.contains('open')?'Đóng cấu hình':'Mở cấu hình'});
 
 let catalogItems=[],currentBrand='ALL',selectedProduct=null;
+const cart=new Map();let pendingCartMessage=null,pendingCartItems=null;
 const dateVN=value=>{
  if(typeof value!=='string'||!/[T ]\d{2}:\d{2}/.test(value))return value?'Ngày '+value+' • chưa lưu giờ đặt':'Chưa có ngày giờ';
  const dt=new Date(value);if(!Number.isFinite(dt.getTime()))return 'Chưa có ngày giờ';
@@ -447,25 +483,51 @@ function filteredCatalog(){
  return catalogItems.filter(p=>(currentBrand==='ALL'||p.brand===currentBrand)&&
   (!query||norm([p.name,p.code,p.spec,p.brand].join(' ')).includes(query)));
 }
+function cartTotalQty(){return [...cart.values()].reduce((sum,item)=>sum+item.qty,0)}
+function cartSnapshot(){return [...cart.values()].map(x=>({code:x.code,qty:x.qty}))}
+function updateCart(){
+ const root=$('cartList');root.replaceChildren();
+ $('cartCount').textContent=cart.size+'/6 • '+cartTotalQty()+' đơn vị';
+ $('clearCart').disabled=cart.size===0;
+ $('composeCart').disabled=cart.size===0;
+ $('composeCart').textContent='Soạn tin nhắn đầy đủ ('+cart.size+' món) →';
+ if(!cart.size){const label=document.createElement('span');label.className='cart-empty';label.textContent='Chọn từng sản phẩm để thêm vào cùng một đơn.';root.append(label)}
+ for(const item of cart.values()){
+  const row=document.createElement('div');row.className='cart-row';
+  const name=document.createElement('div');name.className='cart-name';name.textContent=item.name;
+  const unit=document.createElement('small');unit.textContent=item.code+' • '+item.unit;name.append(unit);
+  const input=document.createElement('input');input.type='number';input.min='1';input.max='500';input.value=item.qty;input.className='cart-qty';input.inputMode='numeric';input.setAttribute('aria-label','Số lượng '+item.name);
+  input.addEventListener('change',()=>{
+   const qty=Number(input.value);
+   if(!Number.isSafeInteger(qty)||qty<1||qty>500||cartTotalQty()-item.qty+qty>500){input.value=item.qty;$('cartFeedback').textContent='Số lượng phải từ 1 đến 500, tổng không quá 500.';return}
+   cart.set(item.code,{...item,qty});pendingCartMessage=null;pendingCartItems=null;$('cartFeedback').textContent='';updateCart();renderCatalogue();
+  });
+  const remove=document.createElement('button');remove.type='button';remove.className='cart-remove';remove.textContent='×';remove.setAttribute('aria-label','Bỏ '+item.name);
+  remove.addEventListener('click',()=>{cart.delete(item.code);pendingCartMessage=null;pendingCartItems=null;updateCart();renderCatalogue()});
+  row.append(name,input,remove);root.append(row);
+ }
+}
 function renderCatalogue(){
  const items=filteredCatalog(),list=$('catalogItems');
- $('catalogDescription').textContent=catalogItems.length+' sản phẩm • giá mẫu theo hồ sơ thử • chưa đồng bộ production';
- list.textContent='';
+ $('catalogDescription').textContent=catalogItems.length+' sản phẩm • có thể chọn tối đa 6 loại • giá thử, chưa đồng bộ production';
+ list.replaceChildren();
  if(!items.length){const empty=document.createElement('div');empty.className='catalog-empty';empty.textContent='Không tìm thấy sản phẩm phù hợp';list.append(empty);return;}
  for(const p of items){
-  const btn=document.createElement('button');btn.type='button';btn.className='catalog-item';btn.dataset.code=p.code;
+  const btn=document.createElement('button');btn.type='button';btn.className='catalog-item'+(cart.has(p.code)?' in-cart':'');btn.dataset.code=p.code;
   const emoji=document.createElement('span');emoji.className='catalog-icon';emoji.textContent=p.brand==='JUICE'?'🧃':'💧';
   const title=document.createElement('span');title.className='catalog-label';title.textContent=p.name;
   const desc=document.createElement('small');desc.textContent=p.code+' · '+p.spec+' · '+p.unit+' · Giá mẫu sau CK '+money(p.unitPrice||0)+' (niêm yết '+money(p.listPrice||0)+')';title.append(desc);
-  const arrow=document.createElement('span');arrow.className='catalog-arrow';arrow.textContent='›';
+  const arrow=document.createElement('span');arrow.className=cart.has(p.code)?'catalog-added':'catalog-arrow';arrow.textContent=cart.has(p.code)?'Đã chọn ×'+cart.get(p.code).qty:'＋';
   btn.append(emoji,title,arrow);btn.addEventListener('click',()=>chooseProduct(p));
   list.append(btn);
  }
 }
 function chooseProduct(p){
- selectedProduct=p;$('selectedProductName').textContent=p.name+' • '+p.unit;
+ selectedProduct=p;$('selectedProductName').textContent='Thêm '+p.name+' • '+p.unit;
  $('selectedQuantity').value=1;$('productSelection').classList.add('active');
  $('addProductMessage').disabled=false;
+ $('cartFeedback').textContent='';
+ $('selectedQuantity').focus();
 }
 function closeCatalog(){
  $('catalogBackdrop').classList.remove('open');document.body.style.overflow='';
@@ -474,6 +536,7 @@ function closeCatalog(){
 async function openCatalog(){
  $('catalogBackdrop').classList.add('open');document.body.style.overflow='hidden';
  $('catalogSearch').value='';currentBrand='ALL';$('productSelection').classList.remove('active');
+ updateCart();
  for(const b of $('catalogFilters').querySelectorAll('button'))b.classList.toggle('active',b.dataset.brand==='ALL');
  if(!catalogItems.length && serverMode){
   try{
@@ -502,11 +565,32 @@ $('catalogFilters').addEventListener('click',e=>{
 $('addProductMessage').addEventListener('click',()=>{
  if(!selectedProduct)return;
  const qty=Number($('selectedQuantity').value);
- if(!Number.isSafeInteger(qty)||qty<1||qty>500){$('selectedQuantity').focus();return}
- const message='Cho tôi '+qty+' '+selectedProduct.unit+' '+selectedProduct.name;
- $('messageInput').value=message;
- closeCatalog();$('messageInput').focus(); // Customer must still tap send and confirm quote.
+ if(!Number.isSafeInteger(qty)||qty<1||qty>500){$('cartFeedback').textContent='Chọn số lượng từ 1 đến 500.';$('selectedQuantity').focus();return}
+ const old=cart.get(selectedProduct.code),count=old?.qty||0;
+ if((!old&&cart.size>=6)||cartTotalQty()+qty>500||count+qty>500){
+  $('cartFeedback').textContent='Một đơn tối đa 6 loại sản phẩm và tổng cộng 500 đơn vị.';return
+ }
+ cart.set(selectedProduct.code,{code:selectedProduct.code,name:selectedProduct.name,unit:selectedProduct.unit,qty:count+qty});
+ pendingCartMessage=null;pendingCartItems=null;
+ $('cartFeedback').textContent='✓ Đã thêm '+qty+' '+selectedProduct.unit+' '+selectedProduct.name+'. Bạn có thể chọn tiếp các sản phẩm khác.';
+ selectedProduct=null;$('productSelection').classList.remove('active');updateCart();renderCatalogue();
 });
+$('clearCart').addEventListener('click',()=>{
+ cart.clear();pendingCartMessage=null;pendingCartItems=null;selectedProduct=null;
+ $('productSelection').classList.remove('active');$('cartFeedback').textContent='Đã xóa giỏ chọn thử.';
+ updateCart();renderCatalogue();
+});
+$('composeCart').addEventListener('click',()=>{
+ if(!cart.size)return;
+ const items=[...cart.values()];
+ const message='Cho tôi đặt một đơn gồm:\n'+items.map(x=>'- '+x.qty+' '+x.unit+' '+x.name+' (Mã '+x.code+')').join('\n');
+ if(message.length>500){$('cartFeedback').textContent='Tin nhắn quá dài. Vui lòng chia bớt sản phẩm.';return}
+ pendingCartMessage=message;pendingCartItems=cartSnapshot();
+ $('messageInput').value=message;
+ closeCatalog();$('messageInput').focus();
+ // One editable message with ALL lines. Customer still taps Send then confirms quote.
+});
+
 
 if(serverMode){const id=serverToken==='demo-b'?'B':'A';fetch('/api/session?token='+encodeURIComponent(serverToken)).then(r=>r.json()).then(d=>{if(!d.ok)throw new Error('Link khách không hợp lệ');Object.assign(FIXTURES[id],d.profile);$('panel').style.display='none';$('chatSubtitle').textContent='Nhận diện đơn nhanh • quy tắc + Gemini Free Tier';$('messages').innerHTML='';current=id;selectProfile(id);msg(d.aiConfigured?'AI Gemini đã cấu hình. Bộ xử lý quy tắc luôn sẵn sàng.':'Đặt nước miễn phí đang hoạt động bằng bộ nhận diện quy tắc. Gemini AI sẽ bổ sung khi được kết nối.','note');document.querySelector('.footnote').textContent='Khách và đơn đều là dữ liệu thử. Đơn lưu riêng trên sandbox; dữ liệu có thể mất khi sandbox khởi động lại. Không gửi đến Minh Satori production.'}).catch(e=>msg(e.message,'note'))}else{current=firstActiveProfile();selectProfile(current);}
 })();
