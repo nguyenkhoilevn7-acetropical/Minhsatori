@@ -23,7 +23,7 @@ export function parseRules(message,profile={}){
  if(!/\b(dat|mua|lay|cho|can|giao|them|gui|order|thung|nhu lan truoc|nhu cu)\b/.test(s))return null;
  const n=qty(s)||(reuse?Number(profile.lastQty||0):0);
  const sku=h[0]||((reuse||profile.uniqueFavourite)?profile.favourite:null);
- if(!SKUS.has(sku)||!Number.isSafeInteger(n)||n<1)return {intent:'order',sku:'unknown',qty:0,needMoreDetails:true,reason:'UNCLEAR',source:'rules'};
+ if(!SKUS.has(sku)||!Number.isSafeInteger(n)||n<1)return {intent:'order',sku:SKUS.has(sku)?sku:'unknown',qty:Number.isSafeInteger(n)&&n>0?n:0,needMoreDetails:true,reason:'UNCLEAR',source:'rules'};
  return {intent:'order',sku,qty:n,source:'rules'};
 }
 // Only sends a small, non-identifying customer message; API key stays on server.
