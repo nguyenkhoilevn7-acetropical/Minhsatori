@@ -108,6 +108,21 @@ const server=http.createServer(async(req,res)=>{
   saveOrdersAtomic();
   return reply(res,200,{ok:true,sandbox:true,restoredProfiles:state.profiles.length,restoredOrders:state.orders.length,message:'Đã khôi phục dữ liệu thử, không tác động production.'});
  }
+ // Owner-only order inbox, updated by the client while Admin is open.
+ // Never include link tokens or the private idempotency request key in responses.
+ if(req.method==='GET'&&p==='/api/admin/new-orders'){
+  if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Đăng nhập quản trị để xem đơn hàng mới.');
+  const all=[...orders.values()].filter(o=>o?.sandbox&&o.ref&&o.profileId);
+  all.sort((a,b)=>Date.parse(b.createdAt||0)-Date.parse(a.createdAt||0));
+  const latest=all.slice(0,80).map(o=>({
+   ref:o.ref,createdAt:o.createdAt,name:o.name,phone:o.phone,address:o.address,
+   status:o.status,product:o.product,qty:o.qty,
+   items:Array.isArray(o.items)?o.items.map(i=>({product:i.product,qty:i.qty,unit:i.unit})):[],
+   total:o.total,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||''
+  }));
+  return reply(res,200,{ok:true,sandbox:true,confirmedOnly:true,total:all.length,
+   orders:latest,notice:'Đơn thử đã xác nhận; không chứa hóa đơn production.'});
+ }
  if(await customerLinks.handleAdmin(req,res,url,bodyJSON))return;
  if(req.method==='GET'&&p==='/api/history')return customerLinks.history(res,url.searchParams.get('token')||'',orders,FIXTURES);
  if(req.method==='GET'&&p==='/api/catalogue'){
