@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY customer-ai-chat-prototype/ ./
-RUN node --check server.mjs && node --check free-parser.mjs && node tests/free-test.mjs && node tests/free-ai-test.mjs
+RUN node --check server.mjs && node --check free-parser.mjs && node tests/free-test.mjs && node tests/free-ai-test.mjs && node tests/ui-test.mjs
 ENV NODE_ENV=production DEMO_BIND=0.0.0.0
 EXPOSE 8787
 CMD ["node", "server.mjs"]
