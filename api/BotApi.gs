@@ -8,7 +8,7 @@ var SatoriBotApi=(function(){
 'use strict';
 var ORDER_KEY='satori_orders_v15';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
- 'debt.summary':'debt:read','customers.search':'customers:read','orders.create':'orders:write','orders.update':'orders:write','orders.delete':'orders:delete','orders.restore':'orders:write','trash.list':'orders:read',
+ 'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write','orders.update':'orders:write','orders.delete':'orders:delete','orders.restore':'orders:write','trash.list':'orders:read',
  'payments.markCustomerPaid':'payments:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
@@ -266,6 +266,32 @@ function markPaid(s,all,p){
 }
 function read(s,action,p){
  var all=rows(s);
+ if(action==='catalogue.list'){
+  // Fail closed: a browser-local catalogue is not the authoritative shared ledger.
+  need(typeof s.values.satori_catalogue_v15==='string','CATALOGUE_NOT_PERSISTED',
+    'Bảng giá chưa được lưu đồng bộ trên Drive');
+  var catalogue=JSON.parse(s.values.satori_catalogue_v15);
+  need(Array.isArray(catalogue)&&catalogue.length>0&&catalogue.length<=200,
+    'INVALID_CATALOGUE','Danh mục lưu trữ không hợp lệ');
+  var codes={};
+  var products=catalogue.map(function(item){
+    need(item&&typeof item==='object'&&!Array.isArray(item)&&
+      /^TP-\\d{5}$/.test(item.code||'')&&!codes[item.code],
+      'INVALID_CATALOGUE','Mã sản phẩm trùng hoặc không hợp lệ');
+    var name=String(item.name||'').trim(),unit=String(item.unit||'').trim(),
+      listPrice=Number(item.listPrice),standardPrice=Number(item.unitPrice);
+    need(name.length>=2&&name.length<=160&&unit.length>=1&&unit.length<=40&&
+      Number.isSafeInteger(listPrice)&&listPrice>=0&&listPrice<=1e9&&
+      Number.isSafeInteger(standardPrice)&&standardPrice>=0&&standardPrice<=1e9,
+      'INVALID_CATALOGUE','Thông tin hoặc giá sản phẩm không hợp lệ');
+    codes[item.code]=true;
+    return {code:item.code,name:name,brand:String(item.brand||'').slice(0,40),
+      spec:String(item.spec||'').slice(0,120),unit:unit,listPrice:listPrice,
+      standardUnitPrice:standardPrice,standardDiscountPercent:Number(item.discountPercent||0)};
+  });
+  return {revision:s.revision,updatedAt:s.updatedAt,products:products,
+    source:'drive-ledger:satori_catalogue_v15',total:products.length};
+ }
  if(action==='trash.list'){
   var now=Date.now(),bin=JSON.parse(s.values.satori_trash_bin_v15||'[]');
   need(Array.isArray(bin),'INVALID_STATE','Dữ liệu thùng rác hỏng');
