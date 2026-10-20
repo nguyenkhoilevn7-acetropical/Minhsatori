@@ -29,6 +29,7 @@ const PRODUCTS=Object.freeze({
  S350:{name:'Nước tinh khiết Satori 350ml',listPrice:88000}
 });
 const sessions=new Map(),quotes=new Map(),orders=new Map(),idempotency=new Map(),rate=new Map();
+const geminiProbe={status:'not_run',elapsedMs:null};
 function safeJSON(s){try{return JSON.parse(s)}catch{return null}}
 if(fs.existsSync(DATA_FILE))for(const o of safeJSON(fs.readFileSync(DATA_FILE,'utf8'))||[]){if(o?.ref&&o.sandbox)orders.set(o.ref,o);if(o?.requestId)idempotency.set(o.requestId,o.ref)}
 function reply(res,status,obj){const body=JSON.stringify(obj);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'"});res.end(body)}
@@ -48,7 +49,7 @@ function sendHtml(res){const html=fs.readFileSync(path.join(HERE,'index.html'));
 const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
- if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size});
+ if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
  if(req.method==='GET'&&/^\/c\/demo-[ab]$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&p==='/api/session'){
   const token=url.searchParams.get('token')||'';const c=getProfile(token);if(!c)return fail(res,404,'LINK_INVALID','Liên kết không hợp lệ');
@@ -114,4 +115,23 @@ const server=http.createServer(async(req,res)=>{
  return fail(res,404,'NOT_FOUND','Không có đường dẫn này');
  }catch(err){return fail(res,err.message==='PAYLOAD_TOO_LARGE'?413:500,'SERVER_ERROR','Lỗi xử lý yêu cầu thử nghiệm')}
 });
-server.listen(PORT,HOST,()=>console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched'));
+server.listen(PORT,HOST,()=>{
+ console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched');
+ // One test with fake words only, no customer data, no stored orders, no API key printed.
+ // This is intentionally an actual Gemini API call, and consumes at most one Free Tier request per deployment.
+ if(!geminiConfigured()){
+  geminiProbe.status='missing_key_or_free_tier_flag';
+  console.log('GEMINI_SANDBOX_PROBE missing_key_or_free_tier_flag');
+ }else {
+  geminiProbe.status='running';
+  setTimeout(async()=>{
+   const started=performance.now();
+   try {
+    const r=await parseOrder('Cho tôi 1 tá thùng nước Satori 5L',FIXTURES['demo-a']);
+    geminiProbe.elapsedMs=Math.round(performance.now()-started);
+    geminiProbe.status=r.source==='gemini'&&r.qty===12&&r.sku==='S5L'?'passed':'not_verified';
+   }catch{geminiProbe.status='failed';geminiProbe.elapsedMs=Math.round(performance.now()-started)}
+   console.log('GEMINI_SANDBOX_PROBE '+geminiProbe.status+' '+geminiProbe.elapsedMs+'ms');
+  },500);
+ }
+});
