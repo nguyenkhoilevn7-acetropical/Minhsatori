@@ -110,6 +110,32 @@ const server=http.createServer(async(req,res)=>{
  }
  // Owner-only order inbox, updated by the client while Admin is open.
  // Never include link tokens or the private idempotency request key in responses.
+ // One-click TEST bell order. This endpoint only ever uses built-in fake profiles.
+ // Repeated taps with the same requestId return the original order, never duplicate.
+ if(req.method==='POST'&&p==='/api/admin/create-test-order'){
+  if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị thử mới được tạo đơn mô phỏng.');
+  const b=await bodyJSON(req),fixture=b?.fixture,requestId=b?.requestId;
+  if(!['demo-a','demo-b'].includes(fixture)||typeof requestId!=='string'||!/^[a-z0-9-]{8,80}$/i.test(requestId)){
+   return fail(res,400,'INVALID_TEST_ORDER','Chỉ được tạo đơn TEST với khách mẫu và mã chống trùng hợp lệ.');
+  }
+  const profile=FIXTURES[fixture],key=profile.id+'|'+requestId;
+  if(idempotency.has(key))return reply(res,200,{ok:true,sandbox:true,duplicate:true,order:orders.get(idempotency.get(key))});
+  // The same server-side pricing engine used by the customer quotation.
+  const q=makeQuote(fixture,profile,'S500',1);
+  if(!q)return fail(res,503,'TEST_QUOTE_FAILED','Không tạo được báo giá thử.');
+  const o={...q,ref:'TEST-'+crypto.randomBytes(5).toString('hex').toUpperCase(),
+   deliveryNote:'ĐƠN TEST CHUÔNG - KHÔNG GIAO HÀNG, KHÔNG THANH TOÁN',
+   requestId:key,createdAt:new Date().toISOString(),status:'Chờ thanh toán',
+   ownerTest:true,sandbox:true};
+  delete o.token;
+  orders.set(o.ref,o);idempotency.set(key,o.ref);
+  try{saveOrdersAtomic()}catch{
+   orders.delete(o.ref);idempotency.delete(key);quotes.delete(q.quoteId);
+   return fail(res,503,'TEST_STORAGE_FAILED','Không lưu được đơn TEST, vui lòng thử lại.');
+  }
+  quotes.delete(q.quoteId);
+  return reply(res,201,{ok:true,sandbox:true,duplicate:false,order:{ref:o.ref,total:o.total,createdAt:o.createdAt,ownerTest:true}});
+ }
  if(req.method==='GET'&&p==='/api/admin/new-orders'){
   if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Đăng nhập quản trị để xem đơn hàng mới.');
   const all=[...orders.values()].filter(o=>o?.sandbox&&o.ref&&o.profileId);
