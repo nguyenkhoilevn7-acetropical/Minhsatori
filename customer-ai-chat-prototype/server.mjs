@@ -243,7 +243,8 @@ const server=http.createServer(async(req,res)=>{
    ref:o.ref,createdAt:o.createdAt,name:o.name,phone:o.phone,address:o.address,
    status:o.status,product:o.product,qty:o.qty,
    items:Array.isArray(o.items)?o.items.map(i=>({product:i.product,qty:i.qty,unit:i.unit})):[],
-   total:o.total,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||''
+   total:o.total,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',
+   amendedAt:o.amendedAt||null,amendmentVersion:o.amendmentVersion||0
   }));
   return reply(res,200,{ok:true,sandbox:true,confirmedOnly:true,total:all.length,
    orders:latest,notice:'Đơn thử đã xác nhận; không chứa hóa đơn production.'});
