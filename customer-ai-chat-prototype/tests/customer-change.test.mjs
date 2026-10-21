@@ -27,10 +27,12 @@ try{
  const quote=await api('/api/message','POST',{token:'demo-a',message:'Cho 10 thùng Satori 5L có vòi'});
  check(!!quote.data.quote?.quoteId,'original authorized quote created');
  let changed=await api('/api/message','POST',{token:'demo-a',message:'Tôi muốn đổi số điện thoại sang 090 123 4567'});
- check(changed.data.needsHuman&&!changed.data.quote&&!!changed.data.changeRequestId,'phone change request recorded without order');
+ check(changed.data.needConfirmation&&changed.data.contactPolicy==='PHONE_AWAITING_CONFIRMATION'&&!changed.data.quote,'phone change requires explicit chat confirmation');
+ changed=await api('/api/message','POST',{token:'demo-a',message:'Xác nhận đổi SĐT'});
+ check(changed.data.needsHuman&&changed.data.verificationRequired&&!!changed.data.requestId,'confirmed phone update is queued for owner verification, not auto-applied');
  check((await api('/api/confirm','POST',{token:'demo-a',quoteId:quote.data.quote.quoteId,requestId:'old-quote-001'})).status===409,'previous quote invalidated on change request');
  changed=await api('/api/message','POST',{token:'demo-a',message:'Giao hàng đến 789 đường Nguyễn Văn Linh thay cho địa chỉ cũ'});
- check(changed.data.needsHuman&&!changed.data.quote,'alternate delivery location blocked');
+ check(changed.data.needsHuman&&!changed.data.quote&&changed.data.message.includes('anh Nguyên')&&changed.data.message.includes('anh Minh'),'address change redirects customer to named staff');
  changed=await api('/api/message','POST',{token:'demo-a',message:'Cho 5 thùng Hikari 500ml giao cho chị Lan'});
  check(changed.data.needsHuman&&!changed.data.quote,'recipient change blocks mixed order');
  const after=await api('/api/session?token=demo-a');
