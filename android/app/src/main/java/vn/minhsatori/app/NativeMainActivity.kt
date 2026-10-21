@@ -479,12 +479,6 @@ class NativeMainActivity : AppCompatActivity() {
         button(content, "✦ AI CHAT • ĐẦY ĐỦ CHỨC NĂNG WEBSITE") {
             startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "customer"))
         }
-        // Retain the isolated native preview as a fallback while completing
-        // parity tests; it never replaces the authoritative web customer UI.
-        if (activeTab == 0) button(content, "Chat native (bản thử kỹ thuật)") {
-            startActivity(Intent(this, AiSandboxActivity::class.java))
-        }
-
         if (isLoading) {
             label(content, "Đang đồng bộ dữ liệu…", 12f, true, cyan, 12)
         }
