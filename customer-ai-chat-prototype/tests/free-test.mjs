@@ -50,6 +50,10 @@ try {
     trial.body.quote?.qty===10&&trial.body.quote?.unit==='Thùng',
     'explicit Satori brand resolves safely: '+msg);
  }
+ const mixedUnbranded=await post('/api/message',{token:'demo-a',
+  message:'Cho 10 thùng nước suối 500 và 3 thùng nước ép mãng cầu'});
+ test(mixedUnbranded.body.clarificationType==='COMPOUND_BRAND_500'&&
+   !mixedUnbranded.body.quote,'unknown 500ml brand never causes partial multi-SKU quote');
  for (const [question,kind] of [
    ['Giá nước suối 500ml bao nhiêu?', 'price'],
    ['Chiết khấu bao nhiêu?', 'discount'],
