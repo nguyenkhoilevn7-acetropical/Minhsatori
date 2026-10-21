@@ -33,7 +33,12 @@ assert.ok(html.includes('.chat-head{position:sticky;top:0;z-index:5}'),
 assert.ok(html.includes('id="printInvoice" href="#" download hidden>⬇ Tải PDF về máy'),'invoice modal uses a direct-download anchor');
 assert.ok(!html.includes('window.print()'),'invoice download never invokes browser print dialog');
 assert.ok(!html.includes("link.target='_blank'"),'confirmation download does not open an extra tab');
-assert.ok(html.includes("download.href='/api/invoice/'"),'history links use direct PDF endpoint');
+assert.ok(html.includes("download.href=pdfUrl"),'history download points to server PDF endpoint');
+assert.ok(html.includes('id="viewInvoice" href="#" target="_blank" rel="noopener noreferrer" hidden>👁 Xem PDF'),
+ 'invoice modal exposes a safe View PDF action');
+assert.ok(html.includes("view.href=pdfUrl+'&view=1'"),'invoice View PDF uses inline mode');
+assert.ok(html.includes("view.target='_blank';view.rel='noopener noreferrer'"),
+ 'history View PDF opens independently with noopener and noreferrer');
 assert.ok(html.includes('delivery-note-block'),'delivery instructions field appears before order confirmation');
 assert.ok(html.includes('invoiceItems.map'),'all product lines appear in invoice preview');
 assert.ok(html.includes('q.items'),'quote supports multiple product lines');
