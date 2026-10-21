@@ -449,13 +449,41 @@ class NativeMainActivity : AppCompatActivity() {
             topMargin = dp(16)
         })
 
-        // Staging-only native AI Chat. Shares the Gemini TEST API with the web portal;
-        // never reads or writes the real Drive ledger from this route.
-        button(content, "✦ AI CHAT • THỬ NGHIỆM (CHUNG API WEBSITE)") {
+        // One customer-facing storefront, one server-side price/discount engine.
+        // This sandbox owner hero delegates all cart, invoice and customer-link
+        // workflows to the same UI the customer opens from the shared link.
+        if (activeTab == 0) {
+            val hero = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(14), dp(16), dp(16))
+                background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                    intArrayOf(Color.rgb(18, 48, 86), Color.rgb(7, 87, 116))).apply {
+                    cornerRadius = dp(18).toFloat()
+                }
+            }
+            label(hero, "BÁN HÀNG VỚI SATORI AI", 20f, true, white)
+            label(hero, "Tạo link riêng • Giá và chiết khấu theo khách • Đặt hàng trực tiếp",
+                12f, false, Color.rgb(202, 239, 249), 7)
+            button(hero, "＋ TẠO LINK CHO KHÁCH", true) {
+                startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
+            }
+            button(hero, "XEM TRẢI NGHIỆM ĐẶT HÀNG") {
+                startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "customer"))
+            }
+            content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(14)
+            })
+            label(content, "SANDBOX: quản lý link yêu cầu mã quản trị riêng. Chỉ dữ liệu DEMO, chưa nhận đơn thật.",
+                11f, false, muted, 6)
+        }
+        button(content, "✦ AI CHAT • ĐẦY ĐỦ CHỨC NĂNG WEBSITE") {
+            startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "customer"))
+        }
+        // Retain the isolated native preview as a fallback while completing
+        // parity tests; it never replaces the authoritative web customer UI.
+        if (activeTab == 0) button(content, "Chat native (bản thử kỹ thuật)") {
             startActivity(Intent(this, AiSandboxActivity::class.java))
         }
-        label(content, "AI Chat này dùng dữ liệu mẫu Demo A. Chưa đồng bộ khách và giá thật.",
-            11f, false, muted, 4)
 
         if (isLoading) {
             label(content, "Đang đồng bộ dữ liệu…", 12f, true, cyan, 12)
