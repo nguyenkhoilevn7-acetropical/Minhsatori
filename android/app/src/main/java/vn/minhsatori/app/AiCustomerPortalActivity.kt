@@ -58,6 +58,14 @@ class AiCustomerPortalActivity : AppCompatActivity() {
         // controls stay visible while editing quantity on Samsung phones.
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         val ownerMode = intent.getStringExtra("mode") == "admin"
+        val suppliedCustomerUrl = intent.getStringExtra("customer_url")
+        val customerUrl = if (ownerMode || suppliedCustomerUrl == null) null
+            else AiSandboxContract.customerPortalUrl(suppliedCustomerUrl)
+        if (!ownerMode && suppliedCustomerUrl != null && customerUrl == null) {
+            toast("Link Gemini không hợp lệ hoặc không thuộc máy chủ Satori.")
+            finish()
+            return
+        }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.rgb(246, 249, 252))
@@ -139,14 +147,25 @@ class AiCustomerPortalActivity : AppCompatActivity() {
         // Downloads are only initiated by the user clicking a download link on
         // the trusted website. Browser takes ownership of its own save dialog.
         view.setDownloadListener(DownloadListener { url, _, _, _, _ ->
-            if (sameSandbox(url)) {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            } else toast("Đã chặn địa chỉ tải tệp không thuộc Sandbox.")
+            if (!sameSandbox(url)) {
+                toast("Đã chặn địa chỉ tải tệp không thuộc Sandbox.")
+            } else {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                        addCategory(Intent.CATEGORY_BROWSABLE)
+                    })
+                } catch (_: android.content.ActivityNotFoundException) {
+                    toast("Không có ứng dụng phù hợp để mở tệp. Hãy thử Chrome.")
+                } catch (_: SecurityException) {
+                    toast("Ứng dụng không có quyền mở trình tải tệp.")
+                }
+            }
         })
         root.addView(view, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
-        val path = if (ownerMode) "/admin" else "/c/" + AiSandboxContract.PUBLIC_FIXTURE
-        view.loadUrl(AiSandboxContract.BASE_URL + path)
+        val initialUrl = if (ownerMode) AiSandboxContract.BASE_URL + "/admin"
+            else customerUrl ?: AiSandboxContract.BASE_URL + "/c/" + AiSandboxContract.PUBLIC_FIXTURE
+        view.loadUrl(initialUrl)
     }
 
     @Deprecated("Deprecated in Java")
