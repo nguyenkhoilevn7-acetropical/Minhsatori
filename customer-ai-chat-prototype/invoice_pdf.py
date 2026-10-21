@@ -109,6 +109,8 @@ c.line(left,H-114,rightedge,H-114)
 text(left,H-135,'THÔNG TIN KHÁCH HÀNG',9,True,C_BLUE)
 y=H-152
 y=wrapped(left,y,'Khách hàng: '+str(o.get('name','')),510,8.1)
+if o.get('recipient') and o.get('recipient')!=o.get('name'):
+    y=wrapped(left,y,'Người nhận: '+str(o.get('recipient')),510,8.1)
 y=wrapped(left,y,'Điện thoại: '+str(o.get('phone','')),510,8.1)
 y=wrapped(left,y,'Địa chỉ giao: '+str(o.get('address','')),510,8.1)
 if o.get('deliveryNote'):
@@ -227,7 +229,7 @@ text(left+79,sigY-74,'HKD MINH SATORI',8,True,C_BLUE)
 cx=W/2+71
 text(cx,sigY,'ĐẠI DIỆN BÊN MUA / NGƯỜI NHẬN',7.8,True)
 text(cx+29,sigY-13,'(Ký, ghi rõ họ tên)',7.2)
-wrapped(cx+24,sigY-74,o.get('name','Khách thử'),175,8,True)
+wrapped(cx+24,sigY-74,o.get('recipient') or o.get('name','Khách thử'),175,8,True)
 if sigY-74<=49:
     raise SystemExit('Invoice signature overlaps A4 footer')
 text(left,45,'SANDBOX — Phiếu thử nghiệm, không có giá trị thanh toán hoặc giao hàng.',7.3,True,C_GRAY)
