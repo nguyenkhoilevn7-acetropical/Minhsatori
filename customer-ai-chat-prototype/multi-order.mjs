@@ -47,8 +47,11 @@ export function parseMultiOrder(message,profile={}){
  const text=fold(message);
  const matches=[...text.matchAll(ANCHORS)].map(m=>({
   start:m.index+m[1].length,end:m.index+m[0].length,quantity:countOf(m[2]),
-  unit:m[3]||null
- }));
+  unit:m[3]||null,rawQuantity:m[2]
+ })).filter(m=>!(
+  /^(?:350|500|1500)$/.test(m.rawQuantity)&&!m.unit&&
+  /\b(?:nuoc|suoi|satori|hikari)\s*$/.test(text.slice(Math.max(0,m.start-25),m.start))
+ ));
  // Catch ALL explicit quantity+unit phrases, including unrecognized products.
  // Otherwise "10 Satori 500ml, 3 trà sữa" could silently create only a partial order.
  const broad=[...text.matchAll(/(?:^|[^a-z0-9-])(\d{1,3}|muoi|mot|hai|ba|bon|nam)\s*(?:thung|thg|binh|loc|chai|lon|ly)\s+(?=[a-z])/g)];
