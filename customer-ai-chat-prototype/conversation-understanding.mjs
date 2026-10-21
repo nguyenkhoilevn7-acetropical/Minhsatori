@@ -15,6 +15,11 @@ export function ambiguousWater500(msg){
  const qty=Number(m?.[1]);
  return m&&Number.isSafeInteger(qty)&&qty>=1&&qty<=500?{qty}:null;
 }
+export function ambiguousWater500InComposite(message){
+ const clauses=fold(message).split(/\s*[,;]\s*|\s+(?:va|voi)\s+/);
+ if(clauses.length<2)return false;
+ return clauses.some(x=>ambiguousWater500(x.replace(/^(?:them|bo sung|cong them)\s+/,'').trim()));
+}
 export function brandAnswer(msg){
  const m=fold(msg).replace(/[.!?]+$/,'').match(/^(?:nuoc\s+)?(?:hang\s+)?(satori|hikari)(?:\s+500(?:\s*ml)?)?$/);
  return m?{sku:m[1]==='satori'?'TP-00003':'TP-00081',brand:m[1]}:null;
