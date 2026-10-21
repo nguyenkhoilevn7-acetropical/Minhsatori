@@ -33,19 +33,22 @@ try {
  const catB=await get('/api/catalogue?token=demo-b');
  test(catB.body.products.find(x=>x.code==='TP-00051').unitPrice===Math.round(137963*.65),'B product drawer shows calculated 35% demo discount');
  test((await get('/api/catalogue')).status===403,'prices not shown without demo customer link');
- // Natural Vietnamese mobile chat: common shorthand still maps to the
- // known 500ml SKU and displays server-priced cartons before confirmation.
- for (const msg of ['10 suối 500ml', '10 suối 500ml satori', '10 nước suối 500ml']) {
-   const shortOrder=await post('/api/message',{token:'demo-a',message:msg});
-   test(shortOrder.status===200 && shortOrder.body.quote?.code==='TP-00003'
-      && shortOrder.body.quote?.qty===10 && shortOrder.body.quote?.unit==='Thùng',
-      'short-form Vietnamese water order: '+msg);
+ // Unbranded 500ml must ask for the brand and retain quantity across turns.
+ for(const msg of ['10 suối 500ml','10 nước suối 500ml','10 suối 500','10 nước suối 500']){
+  const question=await post('/api/message',{token:'demo-a',message:msg});
+  test(question.status===200&&question.body.clarificationType==='BRAND_500'&&
+    question.body.choices?.length===2&&!question.body.quote,
+    'short-form requires brand clarification: '+msg);
+  const selected=await post('/api/message',{token:'demo-a',message:'Satori'});
+  test(selected.status===200&&selected.body.quote?.code==='TP-00003'&&
+    selected.body.quote?.qty===10&&selected.body.quote?.unit==='Thùng',
+    'follow-up single brand restores all 10 units in same quote: '+msg);
  }
- for (const msg of ['10 suối 500', '10 nước suối 500', '10 suối 500 satori']) {
-   const trial=await post('/api/message',{token:'demo-a',message:msg});
-   test(trial.status===200 && trial.body.quote?.code==='TP-00003' &&
-     trial.body.quote?.qty===10 && trial.body.quote?.unit==='Thùng',
-     'safe no-ml 500 shorthand: '+msg);
+ for(const msg of ['10 suối 500ml satori','10 suối 500 satori']){
+  const trial=await post('/api/message',{token:'demo-a',message:msg});
+  test(trial.status===200&&trial.body.quote?.code==='TP-00003'&&
+    trial.body.quote?.qty===10&&trial.body.quote?.unit==='Thùng',
+    'explicit Satori brand resolves safely: '+msg);
  }
  for (const [question,kind] of [
    ['Giá nước suối 500ml bao nhiêu?', 'price'],
