@@ -272,11 +272,16 @@ internal class AiSandboxInvoiceUi(private val activity: AppCompatActivity) {
             ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
                 PdfRenderer(descriptor).use { renderer ->
                     require(renderer.pageCount in 1..30) { "PDF có số trang không hợp lệ." }
-                    val targetWidth = minOf(
+                    val preferredWidth = minOf(
                         activity.resources.displayMetrics.widthPixels - dp(32), 1000
                     ).coerceAtLeast(320)
+                    var remainingBytes = PdfPreviewBudget.MAX_TOTAL_BITMAP_BYTES
                     for (index in 0 until renderer.pageCount) {
                         renderer.openPage(index).use { page ->
+                            val targetWidth = PdfPreviewBudget.widthForPage(
+                                page.width, page.height, renderer.pageCount - index,
+                                remainingBytes, preferredWidth
+                            )
                             val scale = targetWidth.toFloat() / page.width.toFloat()
                             val height = (page.height.toFloat() * scale).toInt().coerceAtLeast(1)
                             require(height <= 2800) { "Trang PDF quá lớn." }
@@ -287,6 +292,7 @@ internal class AiSandboxInvoiceUi(private val activity: AppCompatActivity) {
                                     Matrix().apply { postScale(scale, scale) },
                                     PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                                 pages.add(bitmap)
+                                remainingBytes -= bitmap.byteCount.toLong()
                             } catch (err: Exception) {
                                 bitmap.recycle()
                                 throw err
