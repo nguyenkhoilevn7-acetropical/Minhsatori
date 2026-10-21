@@ -5303,9 +5303,11 @@
         }
         function rememberSavedInvoicePdf(order) {
             lastSavedPdfOrder=JSON.parse(JSON.stringify(order));lastSavedPdfFormSignature=pdfFormSignature();
-            prepareInvoicePdf(lastSavedPdfOrder).then(()=>{
-                if(typeof window.satoriArchiveSavedInvoicePdf==='function')window.satoriArchiveSavedInvoicePdf(lastSavedPdfOrder).catch(e=>console.warn('Chưa lưu PDF lên Drive:',e.message));
-            }).catch(e=>console.warn('Chưa chuẩn bị PDF:',e.message));
+            // Persist the archive queue immediately. Waiting for PDF rendering here can
+            // lose the archival request if the owner closes the tab during rendering.
+            if(typeof window.satoriArchiveSavedInvoicePdf==='function')
+                window.satoriArchiveSavedInvoicePdf(lastSavedPdfOrder).catch(e=>console.warn('Chưa xếp hàng lưu PDF lên Drive:',e.message));
+            prepareInvoicePdf(lastSavedPdfOrder).catch(e=>console.warn('Chưa chuẩn bị PDF:',e.message));
         }
         function scheduleInvoicePdfPreparation() {
             if(!window.invoicePdfPreparationReady || pdfBuildingDraft)return;
