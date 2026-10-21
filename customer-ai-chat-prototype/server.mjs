@@ -19,7 +19,7 @@ import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificatio
 import {parseCustomerMessage,splitOrderAndNote,waterAnswer,finishWater,deliveryAnswer} from './order-with-notes.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct,fold} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
-import {listLocations,chosenLocation,matchLocation} from './delivery-locations.mjs';
+import {listLocations,chosenLocation,matchLocation,foldLocation} from './delivery-locations.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
@@ -441,6 +441,23 @@ const server=http.createServer(async(req,res)=>{
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
   if(!rateLimit(req,token))return fail(res,429,'RATE_LIMIT','Bạn đã gửi quá nhiều tin nhắn, vui lòng thử lại sau');
   let message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
+  // Only approved, unambiguous destinations may be selected by name in chat.
+  const locationHit=matchLocation(c,message);
+  if(locationHit.status==='ambiguous')
+   return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'DELIVERY_LOCATION',
+    draft:draftStore.read(token),message:'Có nhiều điểm giao trùng tên. Anh/chị chọn trong Tất cả địa chỉ ạ.'});
+  if(locationHit.status==='matched'&&listLocations(c).length>1){
+   const oldDraft=draftStore.read(token);
+   if(oldDraft.locationId!==locationHit.location.id){
+    if(b.expectedRevision!==oldDraft.revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi. Hãy tải lại trước khi chọn địa chỉ.');
+    const updated=draftStore.mutate(token,[{action:'destination',locationId:locationHit.location.id}],oldDraft.revision);
+    b.expectedRevision=updated.revision;invalidateQuotes(token);
+   }
+   const label=foldLocation(locationHit.location.label),spoken=foldLocation(message);
+   if([label,'giao '+label,'giao ve '+label,'ship '+label].includes(spoken))
+    return reply(res,200,{ok:true,sandbox:true,draft:draftStore.read(token),
+     message:'Đã chọn '+locationHit.location.label+'. Anh/chị muốn đặt sản phẩm nào ạ?'});
+  }
 
   // Block identity changes locally BEFORE any Gemini or order write.
   const ci=contactIntent(message);
