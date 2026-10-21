@@ -6,7 +6,7 @@ process.env.GEMINI_API_KEY='FAKE_PROVIDER_KEY_FOR_LOCAL_TEST_ONLY_2026';
 process.env.GEMINI_FREE_TIER_ONLY='true';
 process.env.GEMINI_DAILY_CALL_LIMIT='20';
 const profile={id:'DEMO-FAKE',name:'Client FAKE',phone:'000 000 0001',
- address:'123 Fake Street',discount:20,uniqueFavourite:false};
+ address:'123 Fake Street',discount:20,uniqueFavourite:true,favourite:'S5L'};
 const original=globalThis.fetch;
 let calls=0;
 function aiReply(intent,sku='unknown',qty=0){
@@ -34,6 +34,11 @@ try {
  assert.equal(r.sku,'S5L');
  assert.equal(r.qty,12);
  assert.equal(r.source,'gemini');
+ const ambiguous=await parseOrder('Cho tôi một tá thùng Satori 5L',
+   {...profile,uniqueFavourite:false,favourite:null});
+ assert.equal(ambiguous.needMoreDetails,true,
+  '5L with no spout still requires clarification for an unknown customer');
+
  r=await parseOrder('Em muốn so sánh ổi hồng với mãng cầu để uống ở quán',profile);
  assert.equal(r.intent,'product_question');
  r=await parseOrder('Mùa này nên đi du lịch ở đâu?',profile);
