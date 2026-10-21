@@ -347,6 +347,27 @@ const server=http.createServer(async(req,res)=>{
   const profile=getProfile(url.searchParams.get('token')||'');if(!profile)return fail(res,403,'DEMO_LINK_REQUIRED','Chỉ hiển thị giá riêng trong link khách thử hợp lệ');
   return reply(res,200,{ok:true,sandbox:true,source:'official-default-snapshot',catalogueSync:'snapshot_only',count:CATALOGUE.length,products:CATALOGUE.map(item=>({code:item.code,name:item.name,brand:item.brand,unit:item.unit,spec:item.spec,listPrice:item.listPrice,discount:profile.discount,unitPrice:money(item.listPrice*(1-profile.discount/100))}))});
  }
+ if(p==='/api/draft'&&(req.method==='GET'||req.method==='POST')){
+  const body=req.method==='POST'?await bodyJSON(req):null;
+  const token=req.method==='GET'?url.searchParams.get('token'):body?.token;
+  const profile=getProfile(token);
+  if(!profile)return fail(res,403,'INVALID_LINK','Không có quyền xem hoặc sửa giỏ hàng này.');
+  if(req.method==='GET')return reply(res,200,{ok:true,sandbox:true,draft:draftStore.read(token)});
+  if(!rateLimit(req,'draft|'+profile.id))return fail(res,429,'RATE_LIMIT','Bạn thao tác quá nhanh, vui lòng thử lại.');
+  if(body?.action==='quote'){
+   if(body.expectedRevision!==draftStore.read(token).revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi, cần tải lại.');
+   const quote=currentBasketQuote(token,profile);
+   if(!quote)return fail(res,400,'EMPTY_CART','Giỏ hàng hiện chưa có sản phẩm.');
+   return reply(res,200,{ok:true,sandbox:true,draft:draftStore.read(token),quote,message:'Đây là báo giá chung mới nhất của tất cả sản phẩm.'});
+  }
+  if(!['add','set','subtract','remove','clear'].includes(body?.action))
+   return fail(res,400,'INVALID_CART','Thao tác giỏ hàng không hợp lệ.');
+  let draft;
+  try{draft=draftStore.mutate(token,[{action:body.action,code:body.code,qty:body.qty}],body.expectedRevision)}
+  catch(err){return draftFailure(res,err)}
+  invalidateQuotes(token);
+  return reply(res,200,{ok:true,sandbox:true,draft,message:'Đã lưu vào cùng một giỏ hàng.'});
+ }
  if(req.method==='GET'&&p==='/api/session'){
   const token=url.searchParams.get('token')||'';const c=getProfile(token);if(!c)return fail(res,404,'LINK_INVALID','Liên kết không hợp lệ');
   return reply(res,200,{ok:true,sandbox:true,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship,vatRate:c.vatRate??0}})
