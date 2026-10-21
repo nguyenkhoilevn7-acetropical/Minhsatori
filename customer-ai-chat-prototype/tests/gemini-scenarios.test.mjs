@@ -49,6 +49,10 @@ try {
  assert.notEqual(r.needMoreDetails,false,'no unverified model SKU becomes a confirmed order');
  assert.equal(r.intent,'order');
  assert.ok(r.qty===0||r.needMoreDetails,'does not hallucinate price');
+ assert.ok(sanitizedGeminiOrder('So sánh nước cho quán nhỏ',profile),
+  'quán shop is not assumed to be a numbered district');
+ assert.equal(sanitizedGeminiOrder('Giao đến quận 7',profile),'',
+  'specific district/address is never sent to Gemini');
  assert.equal(sanitizedGeminiOrder('Đổi địa chỉ giao tới 123 Lê Lợi',profile),'');
  assert.equal(sanitizedGeminiOrder('Giao cho tôi số 0912345678',profile),'');
  assert.ok(calls>=4);
