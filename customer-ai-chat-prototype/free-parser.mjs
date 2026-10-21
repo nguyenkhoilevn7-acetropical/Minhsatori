@@ -63,7 +63,8 @@ export function sanitizedGeminiOrder(message,profile={}) {
  const s=norm(text);
  if(!text || /[\w.+-]+@[\w.-]+\.[a-z]{2,}/i.test(text) ||
      /(?:\+?84|0)(?:[\s.()-]*\d){8,10}(?!\d)/.test(text) ||
-     /\b(?:dia chi|phuong|quan|duong|hem|ngo|so nha|so dien thoai|sdt|nguoi nhan|ten khach|email|mat khau)\b/.test(s) ||
+     /\b(?:dia chi|phuong|duong|hem|ngo|so nha|so dien thoai|sdt|nguoi nhan|ten khach|email|mat khau)\b/.test(s) ||
+     /\bquan\s+\d{1,2}\b/.test(s) ||
      /\b\d{5,}\b/.test(s))return '';
  return text.replace(/[\r\n\t]+/g,' ').slice(0,240);
 }
