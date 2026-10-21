@@ -137,10 +137,14 @@ export function parseColloquialBasket(message,profile={}){
     return {needMoreDetails:true,reason:'UNIT_UNSUPPORTED',message:'Nước 5 lít phải chọn thùng hoặc bình; không tự đổi chai hay lốc thành thùng.'};
    const spout=/\b(?:khong|ko|k)\s+voi\b/.test(name)?'without':
     /\bco\s+voi\b/.test(name)?'with':null;
+   const favourite=profile.uniqueFavourite===true?productFor(profile.favourite):null;
    if(qty&&spoken&&spout){
     const sku=spout==='with'?(spoken==='thung'?'TP-00136':'TP-00142'):
      (spoken==='thung'?'TP-00135':'TP-00143');
     items.push({sku,qty});
+   }else if(qty&&spoken&&!spout&&favourite?.name.includes('5L')&&fold(favourite.unit)===spoken){
+    // Only explicitly verified single-SKU preference may fill an omitted tap.
+    items.push({sku:favourite.code,qty});
    }else missing.push({kind:'FIVE_LITRE',qty,unit:spoken,spout,label:'nước suối Satori 5 lít'});
    continue;
   }
