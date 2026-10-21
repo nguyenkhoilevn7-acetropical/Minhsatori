@@ -277,9 +277,13 @@ class NativeMainActivity : AppCompatActivity() {
                        click: () -> Unit) {
         val b = Button(this).apply {
             this.text = text
-            textSize = 12.5f
+            textSize = 12f
             isAllCaps = false
-            letterSpacing = 0.015f
+            letterSpacing = 0f
+            minHeight = dp(40)
+            minimumHeight = dp(40)
+            setPadding(dp(9), 0, dp(9), 0)
+            stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(if (main) white else if (dashboardMode) cyan else teal)
             background = if (main && dashboardMode) {
@@ -291,8 +295,8 @@ class NativeMainActivity : AppCompatActivity() {
               else background(if (main) teal else Color.rgb(224, 242, 247), 10)
             setOnClickListener { click() }
         }
-        parent.addView(b, LinearLayout.LayoutParams(-1, dp(if (dashboardMode) 46 else 48)).apply {
-            topMargin = dp(if (dashboardMode) 8 else 9)
+        parent.addView(b, LinearLayout.LayoutParams(-1, dp(if (dashboardMode) 41 else 43)).apply {
+            topMargin = dp(6)
         })
     }
 
@@ -300,7 +304,7 @@ class NativeMainActivity : AppCompatActivity() {
                         click: (() -> Unit)? = null) {
         val frame = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(15))
+            setPadding(dp(12), dp(10), dp(12), dp(10))
             background = if (dashboardMode) panelBackground() else background(white)
             if (click != null) {
                 isClickable = true
@@ -308,10 +312,10 @@ class NativeMainActivity : AppCompatActivity() {
                 setOnClickListener { click() }
             }
         }
-        label(frame, title, 14.5f, true)
-        label(frame, detail, 12f, false, muted, 6)
+        label(frame, title, 13.5f, true)
+        label(frame, detail, 11.5f, false, muted, 4)
         parent.addView(frame, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(9)
+            topMargin = dp(6)
         })
     }
 
@@ -375,7 +379,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(15), dp(16), dp(24))
+            setPadding(dp(12), dp(10), dp(12), dp(16))
         }
         scroll.addView(content)
         shell.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -384,7 +388,7 @@ class NativeMainActivity : AppCompatActivity() {
         val brand = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(15), dp(15), dp(15), dp(15))
+            setPadding(dp(12), dp(10), dp(12), dp(10))
             background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                 intArrayOf(Color.rgb(15, 23, 42), indigo, Color.rgb(8, 89, 121))).apply {
                 cornerRadius = dp(18).toFloat()
@@ -421,7 +425,7 @@ class NativeMainActivity : AppCompatActivity() {
         content.addView(brand, LinearLayout.LayoutParams(-1, -2))
 
         val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn")
-        label(content, pages[activeTab], 25f, true, white, 22)
+        label(content, pages[activeTab], 20f, true, white, 12)
         label(content, "MINH SATORI  •  ANDROID " + BuildConfig.VERSION_NAME,
             10.5f, true, cyan, 6)
 
@@ -429,7 +433,7 @@ class NativeMainActivity : AppCompatActivity() {
         val connected = data != null
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(13))
+            setPadding(dp(12), dp(9), dp(12), dp(9))
             background = panelBackground(if (connected) Color.rgb(8, 47, 53)
                   else Color.rgb(48, 35, 24))
         }
@@ -446,7 +450,7 @@ class NativeMainActivity : AppCompatActivity() {
             label(info, "Cập nhật lúc " + lastReadAt, 11f, false, muted, 5)
         }
         content.addView(info, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(16)
+            topMargin = dp(10)
         })
 
         // One customer-facing storefront, one server-side price/discount engine.
@@ -1237,6 +1241,11 @@ class NativeMainActivity : AppCompatActivity() {
         if (invoice.deliveryNote.isNotBlank()) {
             label(content, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, gold, 14)
             label(content, invoice.deliveryNote, 13f, true, dark, 4)
+        }
+        // The first invoice action must show the actual A4 PDF in this app.
+        // Never implicitly download when the user only chooses View.
+        button(content, "👁 XEM HÓA ĐƠN PDF", true) {
+            NativeInvoicePdf.preview(this, invoice)
         }
         var invoiceDialog: AlertDialog? = null
         if (invoice.canEditOrDelete || invoice.canMarkCustomerPaid) {
