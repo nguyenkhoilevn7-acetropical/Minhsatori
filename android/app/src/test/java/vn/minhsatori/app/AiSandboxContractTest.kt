@@ -16,6 +16,22 @@ class AiSandboxContractTest {
         assertFalse(AiSandboxContract.validTestRef(""))
     }
 
+    @Test fun sandboxInvoiceLinksAreStrictlyFakeAndPinned() {
+        assertTrue(AiSandboxContract.validTestRef("TEST-37675B3D00"))
+        assertEquals(
+            "/api/invoice/TEST-37675B3D00?token=demo-a",
+            AiSandboxContract.sandboxPdfPath("TEST-37675B3D00"))
+        for (ref in listOf(
+            "", "101", "TEST-../admin", "TEST-aabbccddee", "TEST-37675B3D00/other",
+            "TEST-37675B3D00?token=evil", "TEST-37675B3D0"
+        )) {
+            assertFalse("reject " + ref, AiSandboxContract.validTestRef(ref))
+            assertThrows(IllegalArgumentException::class.java) {
+                AiSandboxContract.sandboxPdfPath(ref)
+            }
+        }
+    }
+
     @Test fun pinnedHttpsHostOnly() {
         assertTrue(AiSandboxContract.validEndpoint(AiSandboxContract.BASE_URL))
         for (url in listOf(
