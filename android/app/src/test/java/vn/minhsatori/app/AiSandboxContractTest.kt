@@ -8,6 +8,14 @@ class AiSandboxContractTest {
     private fun line(code: String="TP-00003", n: Int=2)=
         AiSandboxContract.Line(code, "Nước tinh khiết Satori 500ml", "Thùng", n)
 
+    @Test fun acceptsOnlySandboxInvoiceReferenceForPdf() {
+        assertTrue(AiSandboxContract.validTestRef("TEST-012345ABCD"))
+        assertFalse(AiSandboxContract.validTestRef("1234"))
+        assertFalse(AiSandboxContract.validTestRef("TEST-../../api"))
+        assertFalse(AiSandboxContract.validTestRef("TEST-abcdef1234"))
+        assertFalse(AiSandboxContract.validTestRef(""))
+    }
+
     @Test fun pinnedHttpsHostOnly() {
         assertTrue(AiSandboxContract.validEndpoint(AiSandboxContract.BASE_URL))
         for (url in listOf(
