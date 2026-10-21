@@ -331,12 +331,13 @@ class AiSandboxActivity : AppCompatActivity() {
             .setMessage("Chỉ tạo TEST invoice trên Render sandbox, KHÔNG ghi vào website hoặc Drive thật.")
             .setNegativeButton("Hủy", null)
             .setPositiveButton("Tạo TEST") { _, _ ->
-                quotedId = null
                 val body = JSONObject().put("token", AiSandboxContract.PUBLIC_FIXTURE)
                     .put("quoteId", id).put("requestId", key)
                 runTask({ request("/api/confirm", body) }, { result ->
                     val order = result.optJSONObject("order")
                     if (order != null && AiSandboxContract.validTestRef(order.optString("ref"))) {
+                        quotedId = null
+                        confirmRequestId = null
                         addBubble("Đã tạo hóa đơn TEST; khung bên dưới có Xem, Tải PDF và Chia sẻ.")
                         transcript.addView(invoiceUi.invoiceCard(order),
                             LinearLayout.LayoutParams(-1, -2).apply {
