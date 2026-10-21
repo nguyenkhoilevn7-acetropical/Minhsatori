@@ -35,12 +35,30 @@ assert.ok(html.includes(':is(.cart-clear,.cart-remove,.inline-cart-remove){backg
 assert.ok(html.includes('button:focus-visible,.btn:focus-visible,.chip:focus-visible'),
  'keyboard focus remains visible on blue buttons');
 
+assert.ok(html.includes('id="catalogLaunch"')&&html.includes('catalog-purchase-row')&&
+ html.includes("meta.textContent=p.unit+' · Giá: '+money(p.unitPrice||0)")&&
+ html.includes("const controls=stepper(p.code,cart.get(p.code)?.qty||0);"),
+ 'priced full catalogue gives +/- and quantity for each thùng product');
+assert.ok(html.includes("catalogItems=data.products.filter(p=>p.unit==='Thùng');")&&
+ html.includes("catalogItems=json.products.filter(p=>p.unit==='Thùng');"),
+ 'retail binh SKUs hidden on storefront and inline search');
+assert.ok(html.includes('id="suggestionsToggle"')&&html.includes('id="suggestionsList" class="suggestions-list" hidden')&&
+ html.includes('suggestion-compact-chip')&&html.includes("section.hidden=suggestions.length===0||toggle.getAttribute('aria-expanded')!=='true';"),
+ 'frequent purchases are one collapsed button and a compact chip row only on click');
+assert.ok(html.includes('.server-mode .quick-cart #quickCartCount{grid-column:1/-1;grid-row:1!important')&&
+ html.includes('.server-mode .quick-cart #quickCartNew{grid-column:1;grid-row:2!important'),
+ 'new basket button never overlaps count, including Samsung narrow screens');
+assert.ok(html.includes("$('quickCartQuote').hidden=inlineCartCollapsed;")&&
+ html.includes('.server-mode .quick-cart #inlineCartLines[hidden],.server-mode .quick-cart #quickCartQuote[hidden]{display:none!important'),
+ 'collapse genuinely hides rows and quote, and reopen restores them');
+
 assert.ok(html.includes('class="shop-hero"') && html.includes('id="heroShopCta"'),
  'mobile customer shop CTA present in shared storefront');
-assert.ok(html.includes("$('heroShopCta').addEventListener('click',openInlineSearch);"),
- 'shop CTA opens searchable products in chat, not an overlay');
-assert.ok(html.includes("$('allProductsButton').addEventListener('click',openInlineSearch);"),
- 'product link uses the same compact inline search');
+assert.ok(html.includes("$('heroShopCta').addEventListener('click',openCatalog);"),
+ 'shop CTA opens a catalogue with all products and per-item quantity controls');
+assert.ok(html.includes("$('allProductsButton').addEventListener('click',openCatalog);")&&
+ html.includes("$('catalogLaunch').addEventListener('click',openCatalog);"),
+ 'both All Products actions open priced catalogue');
 for(const label of ['id="suggestionsInline"','id="suggestionsList"','id="inlineProductSearch"',
  'id="inlineSearchInput"','id="inlineCartLines"','function renderPersonalizedSuggestions()',
  'function renderInlineProducts()','function stepper(code,current)',
