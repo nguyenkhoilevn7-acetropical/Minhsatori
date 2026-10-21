@@ -19,6 +19,7 @@ import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
+import {parseAmendment,isAmendmentIntent,isConfirmAmend,isCancelAmend,appendDeliveryNote,latestEditableOrder,normAmend} from './order-amend.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
@@ -33,6 +34,54 @@ const FIXTURES=Object.freeze({
 });
 const sessions=new Map(),quotes=new Map(),orders=new Map(),idempotency=new Map(),rate=new Map();
 const geminiProbe={status:'not_run',elapsedMs:null};
+const pendingAmends=new Map(); // profileId -> expiring unconfirmed customer proposal
+const MAX_AMEND_AGE_MS=5*60_000;
+function amendedReply(o,duplicate=false){
+ return {ok:true,sandbox:true,amended:true,duplicate,order:o,
+  message:'Đã cập nhật ghi chú giao hàng của hóa đơn '+o.ref+'. Không tạo đơn mới. Giờ giao vẫn cần cửa hàng xác nhận.'};
+}
+function applyAmendment(res,profile,proposalId){
+ const last=latestEditableOrder(orders,profile.id);
+ if(!last.order)return fail(res,409,last.reason,'Đơn vừa đặt không còn đủ điều kiện sửa tự động; vui lòng liên hệ cửa hàng.');
+ const order=last.order;
+ if(order.lastAmendmentId===proposalId&&/^[0-9a-f-]{36}$/.test(proposalId)){
+  return reply(res,200,amendedReply(order,true));
+ }
+ const p=pendingAmends.get(profile.id);
+ if(!p||p.id!==proposalId||p.expiresAt<Date.now()||p.ref!==order.ref)
+  return fail(res,409,'AMENDMENT_EXPIRED','Đề xuất sửa đã hết hạn hoặc đơn mới đã được tạo.');
+ if(order.amendmentVersion!==p.version||order.deliveryNote!==p.previousNote)
+  return fail(res,409,'AMENDMENT_CHANGED','Ghi chú đã thay đổi, hãy yêu cầu AI kiểm tra lại.');
+ if(order.deliveryNote===p.newNote)return fail(res,409,'NOTHING_TO_UPDATE','Nội dung ghi chú không có thay đổi.');
+ const updated={...order,deliveryNote:p.newNote,amendmentVersion:(order.amendmentVersion||0)+1,
+   amendedAt:new Date().toISOString(),lastAmendmentId:p.id};
+ orders.set(order.ref,updated);
+ try{saveOrdersAtomic()}catch{
+  orders.set(order.ref,order);
+  return fail(res,503,'AMENDMENT_SAVE_FAILED','Chưa lưu được thay đổi. Hóa đơn vẫn giữ nội dung cũ.');
+ }
+ pendingAmends.delete(profile.id);
+ return reply(res,200,amendedReply(updated));
+}
+function proposeAmendment(res,c,note){
+ const latest=latestEditableOrder(orders,c.id);
+ if(!latest.order)return reply(res,200,{ok:true,sandbox:true,needsHuman:true,
+  message:latest.reason==='NO_RECENT_ORDER'?'Bạn chưa có hóa đơn TEST đã xác nhận để sửa.':
+  'Đơn gần nhất đã quá 24 giờ hoặc không còn ở trạng thái chờ thanh toán. Cửa hàng cần xác minh trước khi sửa.'});
+ const order=latest.order;
+ let nextNote;
+ try{nextNote=normalizeDeliveryNote(appendDeliveryNote(order.deliveryNote||'',note))}
+ catch{return reply(res,200,{ok:true,needsHuman:true,message:'Ghi chú mới cộng ghi chú cũ vượt quá 300 ký tự. Vui lòng liên hệ cửa hàng để điều chỉnh.'})}
+ if(nextNote===order.deliveryNote)return reply(res,200,{ok:true,message:'Hóa đơn '+order.ref+' đã có ghi chú này, không cần sửa thêm.'});
+ const proposal={id:crypto.randomUUID(),ref:order.ref,profileId:c.id,previousNote:order.deliveryNote||'',
+  newNote:nextNote,version:order.amendmentVersion||0,expiresAt:Date.now()+MAX_AMEND_AGE_MS};
+ pendingAmends.set(c.id,proposal);
+ return reply(res,200,{ok:true,sandbox:true,editProposal:{
+  proposalId:proposal.id,ref:proposal.ref,previousNote:proposal.previousNote,
+  newNote:proposal.newNote,expiresAt:new Date(proposal.expiresAt).toISOString(),
+  total:order.total,status:order.status},
+  message:'Bạn có muốn sửa hóa đơn '+order.ref+' và bổ sung lưu ý giao hàng như dưới đây không? Hóa đơn chưa thay đổi; chỉ lưu khi bạn xác nhận.'});
+}
 function safeJSON(s){try{return JSON.parse(s)}catch{return null}}
 // Backward-compatibility scrub: older TEST orders embedded the opaque customer URL
 // credential into requestId. Replace it with a stable internal profile ID instead.
@@ -230,10 +279,51 @@ const server=http.createServer(async(req,res)=>{
   const token=url.searchParams.get('token')||'';const c=getProfile(token);if(!c)return fail(res,404,'LINK_INVALID','Liên kết không hợp lệ');
   return reply(res,200,{ok:true,sandbox:true,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship,vatRate:c.vatRate??0}})
  }
+ if(req.method==='POST'&&p==='/api/order-amend/confirm'){
+  const b=await bodyJSON(req),c=getProfile(b?.token);
+  if(!c)return fail(res,403,'INVALID_LINK','Không có quyền sửa hóa đơn này.');
+  if(!rateLimit(req,'amend|'+c.id))return fail(res,429,'RATE_LIMIT','Bạn đã xác nhận quá nhiều lần.');
+  const proposalId=b?.proposalId;
+  if(typeof proposalId!=='string'||!/^[0-9a-f-]{36}$/.test(proposalId))
+   return fail(res,400,'INVALID_AMENDMENT','Mã đề xuất sửa không hợp lệ.');
+  if(b?.confirmed!==true)return fail(res,400,'CONFIRMATION_REQUIRED','Cần xác nhận rõ ràng trước khi sửa hóa đơn.');
+  return applyAmendment(res,c,proposalId);
+ }
  if(req.method==='POST'&&p==='/api/message'){
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
   if(!rateLimit(req,token))return fail(res,429,'RATE_LIMIT','Bạn đã gửi quá nhiều tin nhắn, vui lòng thử lại sau');
   const message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
+  // Once the customer confirmed a TEST bill, a later delivery message is an
+  // amendment proposal. It NEVER mutates invoice, price or recipient on parse.
+  const pending=pendingAmends.get(c.id);
+  if(pending&&pending.expiresAt<=Date.now())pendingAmends.delete(c.id);
+  else if(pending&&!b?.cartItems&&isConfirmAmend(message))
+   return applyAmendment(res,c,pending.id);
+  else if(pending&&!b?.cartItems&&isCancelAmend(message)){
+   pendingAmends.delete(c.id);
+   return reply(res,200,{ok:true,amendmentCancelled:true,message:'Đã hủy đề xuất sửa. Hóa đơn vẫn giữ nguyên.'});
+  }
+  // Clarification is bound to the latest eligible bill and expires with its
+  // original amendment request. Never silently infer 14:00 from "hai giờ".
+  const clarify=pendingAmends.get(c.id);
+  const normalizedAnswer=normAmend(message);
+  if(clarify?.clarify&&clarify.expiresAt>Date.now()&&!b?.cartItems&&
+     /^(?:(?:sau|luc|vao)\s+)?\d{1,2}\s*(?:gio|h|tieng)\s*(?:chieu|sang|trua|toi|dem|nua)$/i.test(normalizedAnswer)){
+   const requested=clarify.rawRequest.replace(/(?:hai|2)\s*(?:giờ|gio|h)(?![\p{L}\p{N}])/iu,message.trim());
+   const parsed=parseAmendment(requested);
+   if(parsed?.note)return proposeAmendment(res,c,parsed.note);
+   return reply(res,200,{ok:true,needMoreDetails:true,message:parsed?.clarification||'Bạn vui lòng nói rõ giờ giao.'});
+  }
+  if(b?.cartItems===undefined&&isAmendmentIntent(message)){
+   if(identityChange(message,c))return reply(res,200,{ok:true,needsHuman:true,message:'Thay đổi địa chỉ, số điện thoại hoặc người nhận cần cửa hàng xác minh; hóa đơn chưa được sửa.'});
+   const parsed=parseAmendment(message);
+   if(parsed?.clarification){
+    pendingAmends.set(c.id,{id:crypto.randomUUID(),clarify:true,rawRequest:message,
+     expiresAt:Date.now()+MAX_AMEND_AGE_MS});
+    return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'AMENDMENT_DELIVERY_TIME',message:parsed.clarification});
+   }
+   if(parsed?.note)return proposeAmendment(res,c,parsed.note);
+  }
   // The catalogue basket is an explicit request, not an invitation for AI to
   // guess which selected item to omit. Product codes, prices and VAT are server-owned.
   // The human-readable message is still displayed to the customer before submission.
@@ -350,6 +440,7 @@ const server=http.createServer(async(req,res)=>{
   const o={...q,deliveryNote,ref:'TEST-'+crypto.randomBytes(5).toString('hex').toUpperCase(),requestId:idemKey,createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};
   delete o.token; // Do not write the bearer link credential into invoice/order storage.
   orders.set(o.ref,o);idempotency.set(idemKey,o.ref);saveOrdersAtomic();quotes.delete(q.quoteId);
+  pendingAmends.delete(c.id); // New confirmed invoice supersedes any earlier amendment proposal.
   return reply(res,200,{ok:true,duplicate:false,order:o});
  }
  if(req.method==='GET'&&p.startsWith('/api/invoice-qr/')){
