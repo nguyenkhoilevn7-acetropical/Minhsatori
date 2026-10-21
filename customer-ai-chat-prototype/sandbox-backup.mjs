@@ -6,8 +6,8 @@ const FORMAT='minh-satori-sandbox-backup';
 const digest=x=>crypto.createHash('sha256').update(JSON.stringify(x),'utf8').digest('hex');
 const isObj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const fail=()=>{throw new Error('INVALID_SANDBOX_BACKUP')};
-export function createSandboxBackup({profiles,changeRequests,orders,drafts=[]}){
- const snapshot={format:FORMAT,version:1,exportedAt:new Date().toISOString(),sandbox:true,profiles,changeRequests,orders,drafts};
+export function createSandboxBackup({profiles,changeRequests,orders,drafts=[],phrases=[]}){
+ const snapshot={format:FORMAT,version:1,exportedAt:new Date().toISOString(),sandbox:true,profiles,changeRequests,orders,drafts,phrases};
  return {ok:true,sandbox:true,snapshot,checksum:digest(snapshot)};
 }
 export function verifySandboxBackup(archive){
@@ -56,8 +56,22 @@ export function verifySandboxBackup(archive){
   }
   if(units>MAX_UNITS)fail();
  }
+ const phrases=s.phrases===undefined?[]:s.phrases;
+ if(!Array.isArray(phrases)||phrases.length>1500)fail();
+ const seenPhrases=new Set(),counts=new Map();
+ for(const p of phrases){
+  if(!isObj(p)||Object.hasOwn(p,'token')||!/^([a-f0-9]{64})$/.test(p.key)||
+     typeof p.alias!=='string'||!/^[a-z0-9 ]{4,42}$/.test(p.alias)||
+     typeof p.code!=='string'||!productFor(p.code)||productFor(p.code).code!==p.code||
+     !Number.isSafeInteger(p.updatedAt)||p.updatedAt<1||p.updatedAt>Date.now()+60000)fail();
+  const id=p.key+'|'+p.alias;
+  if(seenPhrases.has(id))fail();
+  seenPhrases.add(id);
+  counts.set(p.key,(counts.get(p.key)||0)+1);
+  if(counts.get(p.key)>20)fail();
+ }
  for(const r of s.changeRequests){
   if(!isObj(r)||typeof r.id!=='string'||r.id.length>80||!ids.has(r.profileId)||!['pending','reviewed'].includes(r.status)||typeof r.message!=='string'||r.message.length>500)fail();
  }
- return {profiles:structuredClone(s.profiles),changeRequests:structuredClone(s.changeRequests),orders:structuredClone(s.orders),drafts:structuredClone(drafts)};
+ return {profiles:structuredClone(s.profiles),changeRequests:structuredClone(s.changeRequests),orders:structuredClone(s.orders),drafts:structuredClone(drafts),phrases:structuredClone(phrases)};
 }

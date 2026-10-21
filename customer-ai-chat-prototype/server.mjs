@@ -25,6 +25,7 @@ import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
 import {getGeminiVersionStatus} from './version-status.mjs';
 import {parseAmendment,isAmendmentIntent,isConfirmAmend,isCancelAmend,appendDeliveryNote,latestEditableOrder,normAmend} from './order-amend.mjs';
+import {ADDRESS_REPLY,ambiguousWater500,ambiguousWater500InComposite,brandAnswer,contactIntent,phoneConfirm,phoneCancel,maskPhone,trainingProposal,trainingConfirm,trainingCancel,trainingForget,makeCustomerPhraseMemory} from './conversation-understanding.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
@@ -40,6 +41,8 @@ const FIXTURES=Object.freeze({
 });
 const sessions=new Map(),quotes=new Map(),orders=new Map(),idempotency=new Map(),rate=new Map();
 const draftStore=makeDraftStore({filePath:path.join(DATA_DIR,'drafts-SANDBOX.json'),onChange:()=>driveWorker?.schedule()});
+const phraseMemory=makeCustomerPhraseMemory(DATA_DIR);
+const pendingBrands=new Map(),pendingPhones=new Map(),pendingTeaching=new Map();
 const geminiProbe={status:'not_run',elapsedMs:null};
 const pendingAmends=new Map(); // profileId -> expiring unconfirmed customer proposal
 const MAX_AMEND_AGE_MS=5*60_000;
@@ -174,7 +177,7 @@ if(scrubbedLegacyRequestIds)saveOrdersAtomic();
 // The first verified backup upload must be confirmed before a Render redeploy.
 driveWorker=makeDriveBackupWorker(()=>createSandboxBackup({
  ...customerLinks.exportState(),orders:[...orders.values()].map(o=>structuredClone(o)),
- drafts:draftStore.snapshot()}));
+ drafts:draftStore.snapshot(),phrases:phraseMemory.snapshot()}));
 async function generatePdf(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_pdf.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,300)||'PDF_ERROR')));proc.stdin.end(JSON.stringify(o))})}
 async function generateHistoryExcel(customerOrders){
  return new Promise((resolve,reject)=>{
@@ -243,9 +246,9 @@ const server=http.createServer(async(req,res)=>{
   if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị viên thử nghiệm mới được sao lưu hoặc khôi phục.');
   if(req.method==='GET'){
    const state=customerLinks.exportState();
-   return reply(res,200,createSandboxBackup({...state,orders:[...orders.values()].map(o=>structuredClone(o)),drafts:draftStore.snapshot()}));
+   return reply(res,200,createSandboxBackup({...state,orders:[...orders.values()].map(o=>structuredClone(o)),drafts:draftStore.snapshot(),phrases:phraseMemory.snapshot()}));
   }
-  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length||draftStore.snapshot().length){
+  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length||draftStore.snapshot().length||phraseMemory.snapshot().length){
    return fail(res,409,'SANDBOX_NOT_EMPTY','Chỉ khôi phục khi sandbox trống; không ghi đè khách hoặc đơn hiện có.');
   }
   const body=await bodyJSON(req,2_000_000);
@@ -254,6 +257,7 @@ const server=http.createServer(async(req,res)=>{
   try{state=verifySandboxBackup(body.archive)}catch{return fail(res,400,'INVALID_SANDBOX_BACKUP','Tệp sao lưu thử không hợp lệ hoặc đã bị sửa.')}
   customerLinks.restoreState(state);
   draftStore.restore(state.drafts||[]);
+  phraseMemory.restore(state.phrases||[]);
   for(const o of state.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   return reply(res,200,{ok:true,sandbox:true,restoredProfiles:state.profiles.length,restoredOrders:state.orders.length,message:'Đã khôi phục dữ liệu thử, không tác động production.'});
@@ -271,7 +275,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p==='/api/admin/drive-backup/restore'&&req.method==='POST'){
   if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị thử được khôi phục.');
-  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length||draftStore.snapshot().length)
+  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length||draftStore.snapshot().length||phraseMemory.snapshot().length)
    return fail(res,409,'SANDBOX_NOT_EMPTY','Sandbox chưa trống; không tự ghi đè hoặc hợp nhất.');
   const body=await bodyJSON(req);
   if(body?.confirmation!=='RESTORE_DRIVE_TEST_ONLY')
@@ -281,6 +285,7 @@ const server=http.createServer(async(req,res)=>{
   catch{return fail(res,503,'DRIVE_RESTORE_INVALID','Bản sao không thể xác minh và giải mã; chưa sửa dữ liệu.')}
   customerLinks.restoreState(state);
   draftStore.restore(state.drafts||[]);
+  phraseMemory.restore(state.phrases||[]);
   for(const o of state.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   return reply(res,200,{ok:true,sandbox:true,restoredProfiles:state.profiles.length,
@@ -408,7 +413,88 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='POST'&&p==='/api/message'){
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
   if(!rateLimit(req,token))return fail(res,429,'RATE_LIMIT','Bạn đã gửi quá nhiều tin nhắn, vui lòng thử lại sau');
-  const message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
+  let message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
+
+  // Block identity changes locally BEFORE any Gemini or order write.
+  const ci=contactIntent(message);
+  if(ci?.address){pendingPhones.delete(token);invalidateQuotes(token);
+   const request=customerLinks.logChangeRequest(c,message);
+   return reply(res,200,{ok:true,needsHuman:true,changeRequestId:request.id,
+   contactPolicy:'ADDRESS_REQUIRES_STAFF',draft:draftStore.read(token),message:ADDRESS_REPLY});}
+  if(ci?.phone&&!phoneConfirm(message)){
+   if(!ci.phoneNumber){pendingPhones.set(token,{needsNumber:true,expiresAt:Date.now()+600_000});
+    return reply(res,200,{ok:true,needMoreDetails:true,
+    contactPolicy:'PHONE_NEEDS_NUMBER',message:'Anh/chị vui lòng gửi số điện thoại mới gồm 10 chữ số. Em chưa thay đổi số đang lưu.'});}
+   pendingPhones.set(token,{phone:ci.phoneNumber,expiresAt:Date.now()+600_000});
+   return reply(res,200,{ok:true,needConfirmation:true,verificationRequired:true,
+    contactPolicy:'PHONE_AWAITING_CONFIRMATION',message:'Đã nhận số mới '+maskPhone(ci.phoneNumber)+
+    '. Vui lòng trả lời "Xác nhận đổi SĐT" để gửi yêu cầu xác minh. Chưa có thông tin nào được thay đổi.'});
+  }
+  const pp=pendingPhones.get(token);
+  if(pp?.needsNumber&&pp.expiresAt>Date.now()){
+   const digits=String(message).replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0');
+   if(/^0\d{9}$/.test(digits)){
+    pendingPhones.set(token,{phone:digits,expiresAt:Date.now()+600_000});
+    return reply(res,200,{ok:true,needConfirmation:true,verificationRequired:true,
+     contactPolicy:'PHONE_AWAITING_CONFIRMATION',
+     message:'Đã nhận số mới '+maskPhone(digits)+'. Hãy trả lời "Xác nhận đổi SĐT" để gửi yêu cầu xác minh.'});
+   }
+  }
+  if(pp&&pp.expiresAt>Date.now()&&phoneCancel(message)){
+   pendingPhones.delete(token);return reply(res,200,{ok:true,contactPolicy:'PHONE_CANCELLED',
+    message:'Đã hủy yêu cầu đổi số, thông tin giữ nguyên.'});
+  }
+  if(pp&&pp.expiresAt>Date.now()&&phoneConfirm(message)){
+   pendingPhones.delete(token);invalidateQuotes(token);
+   const request=customerLinks.logChangeRequest(c,'PHONE_CHANGE_VERIFICATION_REQUIRED:'+pp.phone);
+   return reply(res,200,{ok:true,needsHuman:true,verificationRequired:true,
+    contactPolicy:'PHONE_PENDING_VERIFICATION',requestId:request.id,
+    message:'Yêu cầu số mới '+maskPhone(pp.phone)+' đã gửi quản trị viên để xác minh. Chưa đổi số trong hóa đơn hoặc dữ liệu khách.'});
+  }
+  if(pp&&pp.expiresAt<=Date.now())pendingPhones.delete(token);
+  // Only a confirmed, customer-specific nickname becomes durable memory.
+  const forgetAlias=trainingForget(message);
+  if(forgetAlias){
+   phraseMemory.forget(token,forgetAlias);driveWorker?.schedule();
+   return reply(res,200,{ok:true,training:'FORGOTTEN',
+    message:'Đã bỏ cách gọi "'+forgetAlias+'" khỏi bộ nhớ riêng của khách này.'});
+  }
+  const teaching=trainingProposal(message);
+  if(teaching?.invalid)return reply(res,200,{ok:true,needMoreDetails:true,training:'INVALID_ALIAS',message:teaching.message});
+  if(teaching?.code){
+   pendingTeaching.set(token,{...teaching,expiresAt:Date.now()+600_000});
+   return reply(res,200,{ok:true,needConfirmation:true,training:'AWAITING_CONFIRMATION',
+    message:'Em hiểu "'+teaching.alias+'" là '+teaching.label+' (mã '+teaching.code+
+    '). Anh/chị trả lời "Xác nhận" để ghi nhớ riêng cho lần sau, hoặc "Hủy".'});
+  }
+  const learn=pendingTeaching.get(token);
+  if(learn&&learn.expiresAt>Date.now()&&(trainingConfirm(message)||trainingCancel(message))){
+   pendingTeaching.delete(token);
+   if(trainingCancel(message))return reply(res,200,{ok:true,training:'CANCELLED',message:'Đã hủy; em chưa ghi nhớ.'});
+   try{phraseMemory.remember(token,learn);driveWorker?.schedule();
+    return reply(res,200,{ok:true,training:'SAVED',message:'Đã ghi nhớ "'+learn.alias+'" tương ứng '+learn.code+' cho riêng khách này.'});
+   }catch{return fail(res,400,'PHRASE_MEMORY_FAILED','Không lưu được cách gọi mới, hóa đơn và giỏ hàng giữ nguyên.')}
+  }
+  if(learn&&learn.expiresAt<=Date.now())pendingTeaching.delete(token);
+  const pendingBrand=pendingBrands.get(token);
+  const brand=pendingBrand&&pendingBrand.expiresAt>Date.now()?brandAnswer(message):null;
+  if(brand){
+   pendingBrands.delete(token);
+   message='Cho '+pendingBrand.qty+' thùng '+brand.brand+' 500ml';
+  }else{
+   const uncertain=ambiguousWater500(message);
+   if(uncertain){
+    pendingBrands.set(token,{qty:uncertain.qty,expiresAt:Date.now()+600_000});
+    return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'BRAND_500',
+     choices:[{label:'Satori 500ml',code:'TP-00003'},{label:'Hikari 500ml',code:'TP-00081'}],
+     draft:draftStore.read(token),message:'Em hiểu '+uncertain.qty+
+     ' thùng nước suối 500ml. Anh/chị muốn Satori hay Hikari? Chỉ cần trả lời hãng; chưa thêm sản phẩm vào giỏ.'});
+   }
+   message=phraseMemory.expand(token,message);
+   if(ambiguousWater500InComposite(message))
+    return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'COMPOUND_BRAND_500',
+     draft:draftStore.read(token),message:'Trong đơn có nước suối 500ml chưa rõ Satori hay Hikari. Anh/chị vui lòng ghi rõ hãng và gửi lại nguyên danh sách sản phẩm. Em chưa thêm bất cứ sản phẩm nào để tránh sót đơn.'});
+  }
   // Existing basket always wins, even when an older browser omits the new opt-in.
   const existing=draftStore.read(token);
   if(existing.items.length&&b?.cartItems!==undefined)return fail(res,409,'DRAFT_ACTIVE','Giỏ hiện có sản phẩm. Vui lòng tải lại trang để tiếp tục chung một giỏ.');
@@ -646,7 +732,7 @@ function bootstrapEncryptedTestSnapshot(){
  const encoded=process.env.GEMINI_SANDBOX_BOOTSTRAP_ENCRYPTED_B64||'';
  if(!encoded)return;
  const state=customerLinks.exportState();
- if(orders.size||state.profiles.length||state.changeRequests.length||draftStore.snapshot().length){
+ if(orders.size||state.profiles.length||state.changeRequests.length||draftStore.snapshot().length||phraseMemory.snapshot().length){
   console.info('SANDBOX_BOOTSTRAP_EXISTING_STATE_PRESERVED');
   return;
  }
@@ -669,6 +755,7 @@ function bootstrapEncryptedTestSnapshot(){
   if(!Number.isFinite(stamp)||age<0||age>90*60_000)throw Error('STALE_BOOTSTRAP');
   customerLinks.restoreState(restored);
   draftStore.restore(restored.drafts||[]);
+  phraseMemory.restore(restored.phrases||[]);
   for(const o of restored.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   console.info('SANDBOX_BOOTSTRAP_RESTORED','orders='+restored.orders.length,

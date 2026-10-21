@@ -27,10 +27,12 @@ try{
  const quote=await api('/api/message','POST',{token:'demo-a',message:'Cho 10 thùng Satori 5L có vòi'});
  check(!!quote.data.quote?.quoteId,'original authorized quote created');
  let changed=await api('/api/message','POST',{token:'demo-a',message:'Tôi muốn đổi số điện thoại sang 090 123 4567'});
- check(changed.data.needsHuman&&!changed.data.quote&&!!changed.data.changeRequestId,'phone change request recorded without order');
+ check(changed.data.needConfirmation&&changed.data.contactPolicy==='PHONE_AWAITING_CONFIRMATION'&&!changed.data.quote,'phone change requires explicit chat confirmation');
+ changed=await api('/api/message','POST',{token:'demo-a',message:'Xác nhận đổi SĐT'});
+ check(changed.data.needsHuman&&changed.data.verificationRequired&&!!changed.data.requestId,'confirmed phone update is queued for owner verification, not auto-applied');
  check((await api('/api/confirm','POST',{token:'demo-a',quoteId:quote.data.quote.quoteId,requestId:'old-quote-001'})).status===409,'previous quote invalidated on change request');
  changed=await api('/api/message','POST',{token:'demo-a',message:'Giao hàng đến 789 đường Nguyễn Văn Linh thay cho địa chỉ cũ'});
- check(changed.data.needsHuman&&!changed.data.quote,'alternate delivery location blocked');
+ check(changed.data.needsHuman&&!changed.data.quote&&changed.data.message.includes('anh Nguyên')&&changed.data.message.includes('anh Minh'),'address change redirects customer to named staff');
  changed=await api('/api/message','POST',{token:'demo-a',message:'Cho 5 thùng Hikari 500ml giao cho chị Lan'});
  check(changed.data.needsHuman&&!changed.data.quote,'recipient change blocks mixed order');
  const after=await api('/api/session?token=demo-a');
@@ -52,6 +54,21 @@ try{
  const cAfter=await api('/api/session?token='+encodeURIComponent(token));
  check(changed.data.needsHuman&&!changed.data.quote,'real-form private token cannot self-edit details');
  check(cAfter.data.profile.name===cBefore.data.profile.name&&cAfter.data.profile.phone===cBefore.data.profile.phone&&cAfter.data.profile.address===cBefore.data.profile.address,'private link recipient, phone, address remain unchanged');
+ // Explicit phone change: chatbot accepts a number, staff verifies independently,
+ // address and historical invoices remain immutable.
+ let phoneStep=await api('/api/message','POST',{token,message:'Em muốn đổi số điện thoại'});
+ check(phoneStep.data.contactPolicy==='PHONE_NEEDS_NUMBER','chat supports a multi-turn phone edit');
+ phoneStep=await api('/api/message','POST',{token,message:'0901234567'});
+ check(phoneStep.data.contactPolicy==='PHONE_AWAITING_CONFIRMATION','number alone advances only a pending request');
+ phoneStep=await api('/api/message','POST',{token,message:'Xác nhận đổi SĐT'});
+ check(phoneStep.data.contactPolicy==='PHONE_PENDING_VERIFICATION'&&!!phoneStep.data.requestId,'chat cannot self-approve phone');
+ const pathApprove='/api/admin/change-requests/'+phoneStep.data.requestId+'/approve-phone';
+ check((await api(pathApprove,'POST',{verifiedExternally:true,confirmation:'APPROVE_VERIFIED_PHONE_CHANGE'})).status===401,'non-owner cannot approve change');
+ check((await api(pathApprove,'POST',{verifiedExternally:false,confirmation:'APPROVE_VERIFIED_PHONE_CHANGE'},true)).status===400,'owner must acknowledge independent verification');
+ const approved=await api(pathApprove,'POST',{verifiedExternally:true,confirmation:'APPROVE_VERIFIED_PHONE_CHANGE'},true);
+ check(approved.data.phoneUpdated===true,'verified admin may update only phone');
+ const updatedProfile=await api('/api/session?token='+encodeURIComponent(token));
+ check(updatedProfile.data.profile.phone==='0901234567'&&updatedProfile.data.profile.address===cBefore.data.profile.address,'only approved phone updates; address stays locked');
  const records=JSON.parse(readFileSync(path.join(dir,'customer-change-requests-SANDBOX.json'),'utf8'));
  check(records.some(x=>x.profileId===cBefore.data.profile.id),'change request persisted separately from customer profile');
  const html=readFileSync(path.join(root,'admin.html'),'utf8');
