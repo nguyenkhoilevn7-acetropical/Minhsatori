@@ -1,6 +1,7 @@
 /** Versioned TEST-ONLY data export/import. Never touches Drive or production. */
 import crypto from 'node:crypto';
-import {productFor,MAX_LINES,MAX_UNITS} from './unified-draft.mjs';
+import {productFor} from './catalogue.mjs';
+import {MAX_LINES,MAX_UNITS} from './unified-draft.mjs';
 const FORMAT='minh-satori-sandbox-backup';
 const digest=x=>crypto.createHash('sha256').update(JSON.stringify(x),'utf8').digest('hex');
 const isObj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
