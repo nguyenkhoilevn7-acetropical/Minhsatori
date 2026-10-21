@@ -113,6 +113,13 @@ button:disabled{opacity:.55}
 <p><button type="submit" id="createButton">+ Tạo link khách</button></p></form>
 <div id="result" role="status"></div><div id="newLink" hidden><p class="hint">Sao chép ngay link này để chia sẻ. Mất link thì tạo lại; link cũ sẽ hết hiệu lực.</p><div id="linkText" class="link"></div><button id="copyLink" type="button">Sao chép link để gửi Zalo</button></div>
 </section>
+<section class="card" data-tab-panel="settings" hidden>
+<h2>🔄 Phiên bản hệ thống</h2>
+<p class="hint">Kiểm tra Gemini đang chạy và bản mới nhất trên GitHub; chỉ đối chiếu, không tự triển khai.</p>
+<pre id="versionStatus" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;color:inherit">Chưa kiểm tra phiên bản.</pre>
+<p><button id="checkSystemVersion" type="button" class="secondary">↻ Kiểm tra phiên bản</button></p>
+<p class="hint">Cập nhật xử lý Gemini trên server không cần cài lại APK nếu API tương thích. Thay đổi giao diện hoặc mã Android phải phát hành APK mới. Đồng bộ hóa đơn thật là phép kiểm tra riêng.</p>
+</section>
 <section class="card" data-tab-panel="settings" hidden><h2>Trạng thái kết nối website thật</h2><p class="hint">Đây là bảng kiểm tra điều kiện triển khai chính thức, không phải dữ liệu sản xuất. Không nhập mã API hoặc thông tin bí mật vào phần này.</p><div id="integrationStatus" role="status">Đăng nhập để kiểm tra trạng thái.</div><p><button type="button" class="secondary" id="checkSourceReadonly">Kiểm tra API nguồn • CHỈ ĐỌC</button></p><p id="sourceReadResult" class="hint" role="status">Không sao chép khách hàng hoặc hóa đơn thật vào sandbox.</p></section>
 <section class="card" data-tab-panel="changes" hidden><h2>🔔 Yêu cầu đổi thông tin khách <span id="changeCount">0</span></h2><p class="hint">Chỉ ghi nhận yêu cầu đổi số điện thoại, địa chỉ hoặc người nhận. Không tự áp dụng thay đổi vào link. Danh sách tự tải lại khi anh đang mở trang quản trị.</p><p><button id="refreshChanges" class="secondary" type="button">Kiểm tra yêu cầu</button></p><div id="changeList" role="status"></div></section>
 <section class="card" data-tab-panel="customers" hidden><h2>Danh sách hồ sơ đã tạo</h2><p class="hint">Thu hồi link sẽ ngăn truy cập mới nhưng giữ lịch sử đơn thử. Đổi link sẽ vô hiệu hóa link cũ.</p><div id="list"></div></section>
@@ -141,6 +148,26 @@ const $=id=>document.getElementById(id);
 let secret='',lastLink='',customerProfiles=[],selectedCustomerId='';
 const clearError=()=>{$('error').textContent='';$('result').textContent=''};
 // Horizontal navigation: only show the chosen dashboard section.
+async function refreshVersionStatus(){
+ const button=$('checkSystemVersion');
+ if(!secret)return;
+ button.disabled=true;$('versionStatus').textContent='Đang đối chiếu phiên bản…';
+ try{
+  const d=await request('/api/admin/version-status');
+  const g=d.gemini||{},short=x=>x?String(x).slice(0,12):'Chưa xác minh';
+  const state=g.state==='up_to_date'?'GitHub và bản đang chạy khớp':
+   g.state==='update_available'?'Có bản mới trên GitHub chưa triển khai':'Chưa xác minh được';
+  $('versionStatus').textContent=[
+   'Gemini đang chạy: '+short(g.deployedCommit),
+   'Gemini mới nhất trên GitHub: '+short(g.githubCommit),
+   'Trạng thái: '+state,
+   'Website production: chưa xác minh đồng bộ end-to-end',
+   'Android APK: cần kiểm tra riêng bản đã cài'
+  ].join(String.fromCharCode(10));
+ }catch(e){$('versionStatus').textContent='Không xác minh được phiên bản: '+e.message}
+ finally{button.disabled=false}
+}
+$('checkSystemVersion').onclick=refreshVersionStatus;
 $('checkSourceReadonly').onclick=async()=>{
  const b=$('checkSourceReadonly');b.disabled=true;
  $('sourceReadResult').textContent='Đang kiểm tra kết nối HMAC chỉ đọc…';
@@ -163,9 +190,11 @@ function showAdminTab(name){
   const active=b.dataset.adminTab===name;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
  }
  if(name==='orders')refreshOrderInbox();
+ if(name==='settings')refreshVersionStatus();
  window.scrollTo({top:0,behavior:'instant'});
 }
 for(const b of document.querySelectorAll('[data-admin-tab]'))b.onclick=()=>showAdminTab(b.dataset.adminTab);
+setInterval(()=>{if(secret&&!$('workspace').hidden&&document.querySelector('[data-tab-panel="settings"]:not([hidden])'))refreshVersionStatus()},120000);
 
 async function request(path,method='GET',payload){
  const r=await fetch(path,{method,headers:{'Authorization':'Bearer '+secret,...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'});
