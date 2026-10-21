@@ -1503,6 +1503,10 @@ class NativeMainActivity : AppCompatActivity() {
         val contents = JSONObject(payload.toString())
         if (!contents.has("requestId")) contents.put("requestId",
             UUID.randomUUID().toString().replace("-", ""))
+        if (SatoriOrderValidation.requiresTestLedger(action, contents)) {
+            completed(false, "Đơn TEST phải chuyển sang môi trường thử, không được lưu vào sổ hóa đơn thật.")
+            return
+        }
         val exactRetry = prior?.matches(endpoint.orEmpty(), actorId, action, contents) == true
         if (!hasServerAction(action) || endpoint == null || token == null || isLoading ||
             pendingStorageError || (prior != null && !exactRetry)) {
