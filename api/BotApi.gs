@@ -484,7 +484,25 @@ function read(s,action,p){
  }
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
+// Production ledger contains real invoices only. A TEST-marked request may
+// be written solely through a separately authenticated sandbox endpoint and
+// storage file; never copy it into satori_orders_v15 or increment its revision.
+function hasTestMarker(p){
+ if(!p||typeof p!=='object')return false;
+ var target=p.order&&typeof p.order==='object'?p.order:{};
+ function flag(v){return v===true||typeof v==='string'&&/^(test|testing|sandbox|test_only|test-only)$/i.test(v.trim());}
+ function tagged(v){return Array.isArray(v)&&v.some(flag);}
+ function markedNote(v){return typeof v==='string'&&/^\\s*(?:\\[TEST\\]|TEST\\s*ONLY\\b|SANDBOX\\s*ONLY\\b)/i.test(v);}
+ return flag(p.isTest)||flag(p.test)||flag(p.testMode)||flag(p.environment)||flag(p.mode)||
+  flag(target.isTest)||flag(target.test)||flag(target.testMode)||flag(target.environment)||
+  flag(target.mode)||flag(target.orderType)||flag(target.status)||
+  tagged(p.tags)||tagged(target.tags)||
+  markedNote(p.note)||markedNote(target.note)||markedNote(target.deliveryNote)||
+  markedNote(target.name);
+}
 function write(s,action,p){
+ need(!hasTestMarker(p),'TEST_ORDER_REQUIRES_SANDBOX',
+   'Đơn TEST phải lưu trong kho thử nghiệm riêng; chưa được phép ghi vào sổ hóa đơn thật');
  var all=rows(s),result=action==='pricing.approve'?approveAIPricing(s,all,p):action==='orders.create'||action==='orders.create.ai'?create(s,all,p,action==='orders.create.ai'):action==='orders.update'?updateOrder(s,all,p):action==='orders.restore'?restoreOrder(s,all,p):action==='orders.delete'?removeOrder(s,all,p):markPaid(s,all,p);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
