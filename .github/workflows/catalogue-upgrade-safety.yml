@@ -1,0 +1,32 @@
+name: Minh Satori Catalogue Upgrade Safety (no deploy)
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'tests/catalogue-upgrade-preservation.test.js'
+      - '.github/workflows/catalogue-upgrade-safety.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'tests/catalogue-upgrade-preservation.test.js'
+      - '.github/workflows/catalogue-upgrade-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preserve-owner-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Offline regression - never reset owner catalogue on UI upgrades
+        run: node tests/catalogue-upgrade-preservation.test.js
+      - name: Assert no deployment, no real ledger writes
+        run: echo "PASS read-only CI; no Drive, Render or Apps Script secrets"

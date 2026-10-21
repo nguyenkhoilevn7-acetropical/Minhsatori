@@ -2611,14 +2611,14 @@
         const STORAGE_KEY = 'satori_orders_v15';
         const SYNC_URL_KEY = 'satori_apps_script_url';
 
-        // Auto-migration & reset cache if old version detected
+        // Upgrading the UI is not permission to overwrite prices configured by
+        // the owner. Preserve the current v15 catalogue until authenticated,
+        // revision-checked Drive sync is deployed and verified separately.
         if (localStorage.getItem('satori_app_version') !== APP_VERSION) {
             localStorage.removeItem('satori_catalogue_v11');
             localStorage.removeItem('satori_catalogue_v12');
             localStorage.removeItem('satori_catalogue_v13');
             localStorage.removeItem('satori_catalogue_v14');
-            localStorage.removeItem('satori_catalogue_v15');
-            localStorage.setItem(CATALOGUE_STORAGE_KEY, JSON.stringify(DEFAULT_CATALOGUE));
             localStorage.setItem('satori_app_version', APP_VERSION);
         }
 
@@ -6700,7 +6700,7 @@
             refreshCatalogueMap();
             renderItemsForm();
             calculateTotals();
-            showModal("Đã Lưu Bảng Giá!", "Bảng giá 20 sản phẩm đã được cập nhật thành công.");
+            showModal("Đã lưu trên thiết bị này", "Bảng giá được lưu trong trình duyệt hiện tại. Chưa đồng bộ tự động lên Google Drive, Gemini hoặc Android. Không dùng giá đã sửa để lập đơn thật trên thiết bị khác cho đến khi đồng bộ nguồn chuẩn được xác minh.");
         }
 
         function resetCatalogueToDefault() {
