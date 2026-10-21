@@ -696,6 +696,7 @@ async function addSuggestedItem(code) {
  if(!await ensureCatalog())return;
  const item=catalogItems.find(x=>x.code===code);
  if(!item){msg('Mặt hàng đang chọn chưa có trong danh mục. Hãy mở Tất cả sản phẩm.','note');return;}
+ if(serverMode){if(await changeSharedDraft('add',code,1))msg('Đã cộng '+item.name+' vào giỏ chung. Có thể nhắn thêm sản phẩm hoặc chọn tiếp.','note');return;}
  const old=cart.get(code),qty=old?.qty||0;
  if((!old&&cart.size>=6)||cartTotalQty()>=500||qty>=500){
   msg('Một hóa đơn có tối đa 6 loại và 500 đơn vị. Anh/chị hãy mở giỏ để điều chỉnh.','note');return;
@@ -727,13 +728,14 @@ function updateCart(){
   const name=document.createElement('div');name.className='cart-name';name.textContent=item.name;
   const unit=document.createElement('small');unit.textContent=item.code+' • '+item.unit;name.append(unit);
   const input=document.createElement('input');input.type='number';input.min='1';input.max='500';input.value=item.qty;input.className='cart-qty';input.inputMode='numeric';input.setAttribute('aria-label','Số lượng '+item.name);
-  input.addEventListener('change',()=>{
+  input.addEventListener('change',async()=>{
    const qty=Number(input.value);
    if(!Number.isSafeInteger(qty)||qty<1||qty>500||cartTotalQty()-item.qty+qty>500){input.value=item.qty;$('cartFeedback').textContent='Số lượng phải từ 1 đến 500, tổng không quá 500.';return}
+   if(serverMode){await changeSharedDraft('set',item.code,qty);return}
    cart.set(item.code,{...item,qty});pendingCartMessage=null;pendingCartItems=null;$('cartFeedback').textContent='';updateCart();renderCatalogue();
   });
   const remove=document.createElement('button');remove.type='button';remove.className='cart-remove';remove.textContent='×';remove.setAttribute('aria-label','Bỏ '+item.name);
-  remove.addEventListener('click',()=>{cart.delete(item.code);pendingCartMessage=null;pendingCartItems=null;updateCart();renderCatalogue()});
+  remove.addEventListener('click',async()=>{if(serverMode){await changeSharedDraft('remove',item.code);return}cart.delete(item.code);pendingCartMessage=null;pendingCartItems=null;updateCart();renderCatalogue()});
   row.append(name,input,remove);root.append(row);
  }
 }
@@ -793,10 +795,11 @@ $('catalogFilters').addEventListener('click',e=>{
  for(const x of $('catalogFilters').querySelectorAll('button'))x.classList.toggle('active',x===b);
  $('productSelection').classList.remove('active');renderCatalogue();
 });
-$('addProductMessage').addEventListener('click',()=>{
+$('addProductMessage').addEventListener('click',async()=>{
  if(!selectedProduct)return;
  const qty=Number($('selectedQuantity').value);
  if(!Number.isSafeInteger(qty)||qty<1||qty>500){$('cartFeedback').textContent='Chọn số lượng từ 1 đến 500.';$('selectedQuantity').focus();return}
+ if(serverMode){const item=selectedProduct;const changed=await changeSharedDraft('add',item.code,qty);if(changed){$('cartFeedback').textContent='✓ Đã thêm vào giỏ chung. Bạn có thể tiếp tục nhắn tin hoặc chọn thêm món.';selectedProduct=null;$('productSelection').classList.remove('active');}return;}
  const old=cart.get(selectedProduct.code),count=old?.qty||0;
  if((!old&&cart.size>=6)||cartTotalQty()+qty>500||count+qty>500){
   $('cartFeedback').textContent='Một đơn tối đa 6 loại sản phẩm và tổng cộng 500 đơn vị.';return
@@ -806,7 +809,8 @@ $('addProductMessage').addEventListener('click',()=>{
  $('cartFeedback').textContent='✓ Đã thêm '+qty+' '+selectedProduct.unit+' '+selectedProduct.name+'. Bạn có thể chọn tiếp các sản phẩm khác.';
  selectedProduct=null;$('productSelection').classList.remove('active');updateCart();renderCatalogue();
 });
-$('clearCart').addEventListener('click',()=>{
+$('clearCart').addEventListener('click',async()=>{
+ if(serverMode){if(await changeSharedDraft('clear')){$('cartFeedback').textContent='Đã xóa toàn bộ giỏ hàng chưa xác nhận.';selectedProduct=null;}return;}
  cart.clear();pendingCartMessage=null;pendingCartItems=null;selectedProduct=null;
  $('productSelection').classList.remove('active');$('cartFeedback').textContent='Đã xóa giỏ chọn thử.';
  updateCart();renderCatalogue();
@@ -814,11 +818,13 @@ $('clearCart').addEventListener('click',()=>{
 $('quickCartEdit').addEventListener('click',openCatalog);
 $('quickCartQuote').addEventListener('click',()=> {
  if(!cart.size)return;
+ if(serverMode){sharedQuote();return;}
  $('composeCart').click();
  // Use one editable structured message. Never call /api/confirm from a chip.
 });
 $('composeCart').addEventListener('click',()=>{
  if(!cart.size)return;
+ if(serverMode){sharedQuote();return;}
  const items=[...cart.values()];
  const message='Cho tôi đặt một đơn gồm:\n'+items.map(x=>'- '+x.qty+' '+x.unit+' '+x.name+' (Mã '+x.code+')').join('\n');
  if(message.length>500){$('cartFeedback').textContent='Tin nhắn quá dài. Vui lòng chia bớt sản phẩm.';return}
