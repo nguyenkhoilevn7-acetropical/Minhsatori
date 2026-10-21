@@ -61,7 +61,7 @@ assert.ok(html.includes("catalogItems=data.products;")&&
  html.includes("meta.textContent=p.unit+' · Giá: '+money(p.unitPrice||0)+' / '+p.unit.toLowerCase();"),
  'all official product units visible with correct per-unit prices, including 5L bình and thùng');
 assert.ok(html.includes('id="suggestionsToggle"')&&html.includes('id="suggestionsList" class="suggestions-list" hidden')&&
- html.includes('suggestion-compact-chip')&&html.includes("section.hidden=suggestions.length===0||toggle.getAttribute('aria-expanded')!=='true';"),
+ html.includes('suggestion-compact-chip')&&html.includes("section.hidden=toggle.getAttribute('aria-expanded')!=='true';"),
  'frequent purchases are one collapsed button and a compact chip row only on click');
 assert.ok(html.includes('.server-mode .quick-cart #quickCartCount{grid-column:1/-1;grid-row:1!important')&&
  html.includes('.server-mode .quick-cart #quickCartNew{grid-column:1;grid-row:2!important'),
