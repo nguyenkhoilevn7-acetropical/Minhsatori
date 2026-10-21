@@ -41,6 +41,28 @@ try {
       && shortOrder.body.quote?.qty===10 && shortOrder.body.quote?.unit==='Thùng',
       'short-form Vietnamese water order: '+msg);
  }
+ for (const msg of ['10 suối 500', '10 nước suối 500', '10 suối 500 satori']) {
+   const trial=await post('/api/message',{token:'demo-a',message:msg});
+   test(trial.status===200 && trial.body.quote?.code==='TP-00003' &&
+     trial.body.quote?.qty===10 && trial.body.quote?.unit==='Thùng',
+     'safe no-ml 500 shorthand: '+msg);
+ }
+ for (const [question,kind] of [
+   ['Giá nước suối 500ml bao nhiêu?', 'price'],
+   ['Chiết khấu bao nhiêu?', 'discount'],
+   ['Thuế VAT tính sao?', 'vat'],
+   ['Phí ship bao nhiêu?', 'shipping'],
+   ['Thời gian giao hàng bao lâu?', 'delivery'],
+   ['Đơn của tôi đã thanh toán chưa?', 'order_status'],
+   ['Xin chào shop', 'greeting']
+ ]) {
+   const answer=await post('/api/message',{token:'demo-a',message:question});
+   test(answer.status===200 && answer.body.intent===kind && !answer.body.quote,
+     'verified sales FAQ without accidental new quote: '+kind);
+ }
+ const factualB=await post('/api/message',{token:'demo-b',message:'Giá Satori 500ml bao nhiêu?'});
+ test(factualB.body.message.includes('35%')&&!factualB.body.message.includes('20%'),
+   'B price answer always uses its own approved discount');
  r=await post('/api/message',{token:'demo-b',message:'Cho anh 20 thùng premium'});
  test(r.body.quote?.code==='TP-00051'&&r.body.quote?.qty===20,'B premium request resolved with quantity 20');
  test(r.body.quote?.listPrice===137963&&r.body.quote?.discount===35,'premium pricing matches official default and B policy');
