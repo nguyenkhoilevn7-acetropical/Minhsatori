@@ -54,6 +54,9 @@ class AiCustomerPortalActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(10, 24, 44)
+        // The system IME must resize this activity so sticky catalog/cart
+        // controls stay visible while editing quantity on Samsung phones.
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         val ownerMode = intent.getStringExtra("mode") == "admin"
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
