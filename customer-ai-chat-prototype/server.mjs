@@ -471,7 +471,7 @@ const server=http.createServer(async(req,res)=>{
   const ref=decodeURIComponent(p.slice('/api/invoice/'.length)),token=url.searchParams.get('token'),o=orders.get(ref);
   const c=getProfile(token);
   if(!o||!c||o.profileId!==c.id)return fail(res,404,'NOT_FOUND','Không tìm thấy hóa đơn thử');
-  try{const buf=await generatePdf(o);res.writeHead(200,{'content-type':'application/pdf','content-disposition':'attachment; filename="'+o.ref+'.pdf"','cache-control':'no-store','x-content-type-options':'nosniff'});res.end(buf)}catch(err){return fail(res,503,'PDF_FAILED','Không tạo được PDF. Kiểm tra python3, reportlab và font tiếng Việt.')}
+  try{const buf=await generatePdf(o);const disposition=url.searchParams.get('view')==='1'?'inline':'attachment';res.writeHead(200,{'content-type':'application/pdf','content-disposition':disposition+'; filename="'+o.ref+'.pdf"','cache-control':'private, no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'});res.end(buf)}catch(err){return fail(res,503,'PDF_FAILED','Không tạo được PDF. Kiểm tra python3, reportlab và font tiếng Việt.')}
   return;
  }
  return fail(res,404,'NOT_FOUND','Không có đường dẫn này');
