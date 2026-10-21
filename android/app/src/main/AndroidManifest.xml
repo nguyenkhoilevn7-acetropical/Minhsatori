@@ -11,6 +11,7 @@
         android:theme="@style/Theme.MinhSatori"
         android:supportsRtl="true">
         <activity android:name=".AiSandboxActivity" android:exported="false" />
+        <activity android:name=".AiCustomerPortalActivity" android:exported="false" />
         <activity
             android:name=".NativeMainActivity"
             android:exported="true"
