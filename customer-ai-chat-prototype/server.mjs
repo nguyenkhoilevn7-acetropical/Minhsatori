@@ -25,6 +25,7 @@ import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
 import {getGeminiVersionStatus} from './version-status.mjs';
 import {parseAmendment,isAmendmentIntent,isConfirmAmend,isCancelAmend,appendDeliveryNote,latestEditableOrder,normAmend} from './order-amend.mjs';
+import {ADDRESS_REPLY,ambiguousWater500,brandAnswer,contactIntent,phoneConfirm,phoneCancel,maskPhone,trainingProposal,trainingConfirm,trainingCancel,trainingForget,makeCustomerPhraseMemory} from './conversation-understanding.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
@@ -40,6 +41,8 @@ const FIXTURES=Object.freeze({
 });
 const sessions=new Map(),quotes=new Map(),orders=new Map(),idempotency=new Map(),rate=new Map();
 const draftStore=makeDraftStore({filePath:path.join(DATA_DIR,'drafts-SANDBOX.json'),onChange:()=>driveWorker?.schedule()});
+const phraseMemory=makeCustomerPhraseMemory(DATA_DIR);
+const pendingBrands=new Map(),pendingPhones=new Map(),pendingTeaching=new Map();
 const geminiProbe={status:'not_run',elapsedMs:null};
 const pendingAmends=new Map(); // profileId -> expiring unconfirmed customer proposal
 const MAX_AMEND_AGE_MS=5*60_000;
@@ -174,7 +177,7 @@ if(scrubbedLegacyRequestIds)saveOrdersAtomic();
 // The first verified backup upload must be confirmed before a Render redeploy.
 driveWorker=makeDriveBackupWorker(()=>createSandboxBackup({
  ...customerLinks.exportState(),orders:[...orders.values()].map(o=>structuredClone(o)),
- drafts:draftStore.snapshot()}));
+ drafts:draftStore.snapshot(),phrases:phraseMemory.snapshot()}));
 async function generatePdf(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_pdf.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,300)||'PDF_ERROR')));proc.stdin.end(JSON.stringify(o))})}
 async function generateHistoryExcel(customerOrders){
  return new Promise((resolve,reject)=>{
@@ -243,9 +246,9 @@ const server=http.createServer(async(req,res)=>{
   if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị viên thử nghiệm mới được sao lưu hoặc khôi phục.');
   if(req.method==='GET'){
    const state=customerLinks.exportState();
-   return reply(res,200,createSandboxBackup({...state,orders:[...orders.values()].map(o=>structuredClone(o)),drafts:draftStore.snapshot()}));
+   return reply(res,200,createSandboxBackup({...state,orders:[...orders.values()].map(o=>structuredClone(o)),drafts:draftStore.snapshot(),phrases:phraseMemory.snapshot()}));
   }
-  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length||draftStore.snapshot().length){
+  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length||draftStore.snapshot().length||phraseMemory.snapshot().length){
    return fail(res,409,'SANDBOX_NOT_EMPTY','Chỉ khôi phục khi sandbox trống; không ghi đè khách hoặc đơn hiện có.');
   }
   const body=await bodyJSON(req,2_000_000);
@@ -254,6 +257,7 @@ const server=http.createServer(async(req,res)=>{
   try{state=verifySandboxBackup(body.archive)}catch{return fail(res,400,'INVALID_SANDBOX_BACKUP','Tệp sao lưu thử không hợp lệ hoặc đã bị sửa.')}
   customerLinks.restoreState(state);
   draftStore.restore(state.drafts||[]);
+  phraseMemory.restore(state.phrases||[]);
   for(const o of state.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   return reply(res,200,{ok:true,sandbox:true,restoredProfiles:state.profiles.length,restoredOrders:state.orders.length,message:'Đã khôi phục dữ liệu thử, không tác động production.'});
@@ -271,7 +275,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p==='/api/admin/drive-backup/restore'&&req.method==='POST'){
   if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị thử được khôi phục.');
-  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length||draftStore.snapshot().length)
+  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length||draftStore.snapshot().length||phraseMemory.snapshot().length)
    return fail(res,409,'SANDBOX_NOT_EMPTY','Sandbox chưa trống; không tự ghi đè hoặc hợp nhất.');
   const body=await bodyJSON(req);
   if(body?.confirmation!=='RESTORE_DRIVE_TEST_ONLY')
@@ -281,6 +285,7 @@ const server=http.createServer(async(req,res)=>{
   catch{return fail(res,503,'DRIVE_RESTORE_INVALID','Bản sao không thể xác minh và giải mã; chưa sửa dữ liệu.')}
   customerLinks.restoreState(state);
   draftStore.restore(state.drafts||[]);
+  phraseMemory.restore(state.phrases||[]);
   for(const o of state.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   return reply(res,200,{ok:true,sandbox:true,restoredProfiles:state.profiles.length,
@@ -646,7 +651,7 @@ function bootstrapEncryptedTestSnapshot(){
  const encoded=process.env.GEMINI_SANDBOX_BOOTSTRAP_ENCRYPTED_B64||'';
  if(!encoded)return;
  const state=customerLinks.exportState();
- if(orders.size||state.profiles.length||state.changeRequests.length||draftStore.snapshot().length){
+ if(orders.size||state.profiles.length||state.changeRequests.length||draftStore.snapshot().length||phraseMemory.snapshot().length){
   console.info('SANDBOX_BOOTSTRAP_EXISTING_STATE_PRESERVED');
   return;
  }
@@ -669,6 +674,7 @@ function bootstrapEncryptedTestSnapshot(){
   if(!Number.isFinite(stamp)||age<0||age>90*60_000)throw Error('STALE_BOOTSTRAP');
   customerLinks.restoreState(restored);
   draftStore.restore(restored.drafts||[]);
+  phraseMemory.restore(restored.phrases||[]);
   for(const o of restored.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   console.info('SANDBOX_BOOTSTRAP_RESTORED','orders='+restored.orders.length,
