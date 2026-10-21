@@ -206,7 +206,7 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
   if(!c){no(res,404,'LINK_INVALID','Không có quyền xem lịch sử hóa đơn');return}
   const list=[...orders.values()].filter(o=>o&&o.sandbox&&(o.profileId===c.id||(!o.profileId&&o.token===token)))
    .sort((a,b)=>Date.parse(b.createdAt||0)-Date.parse(a.createdAt||0))
-   .map(o=>({ref:o.ref,createdAt:o.createdAt,product:o.product||'',qty:o.qty||0,unit:o.unit||'thùng',items:Array.isArray(o.items)?o.items:[],total:o.total||0,status:o.status||'Chưa thanh toán',deliveryNote:o.deliveryNote||'',hasPdf:true}));
+   .map(o=>({ref:o.ref,createdAt:o.createdAt,product:o.product||'',qty:o.qty||0,unit:o.unit||'thùng',items:Array.isArray(o.items)?o.items:[],total:o.total||0,status:o.status||'Chưa thanh toán',deliveryNote:o.deliveryNote||'',recipient:o.recipient||o.name,locationLabel:o.locationLabel||null,deliveryLocationId:o.deliveryLocationId||null,hasPdf:true}));
   api(res,200,{ok:true,sandbox:true,profileId:c.id,timezone:'Asia/Ho_Chi_Minh',count:list.length,orders:list,notice:'Dữ liệu chỉ là bản thử, không phải lịch sử hóa đơn website thật.'});
  };
  const exportState=()=>({profiles:structuredClone(profiles),changeRequests:structuredClone(changeRequests)});
