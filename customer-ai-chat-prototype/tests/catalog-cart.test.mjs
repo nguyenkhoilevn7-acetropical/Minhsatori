@@ -36,6 +36,13 @@ try{
  check(confirmed.status===200&&confirmed.body.order?.items?.length===3,'three lines persist within one TEST invoice');
  const pdf=await fetch(base+'/api/invoice/'+confirmed.body.order.ref+'?token=demo-a');
  check(pdf.status===200&&(await pdf.arrayBuffer()).byteLength>30000,'3-line invoice PDF generated');
+ check(pdf.headers.get('content-disposition')?.startsWith('attachment;'),'default PDF keeps download behavior');
+ const preview=await fetch(base+'/api/invoice/'+confirmed.body.order.ref+'?token=demo-a&view=1');
+ check(preview.status===200&&preview.headers.get('content-type')==='application/pdf'&&
+  preview.headers.get('content-disposition')?.startsWith('inline;')&&
+  (await preview.arrayBuffer()).byteLength>30000,'authenticated inline PDF preview displays all 3 products');
+ const forbiddenPreview=await fetch(base+'/api/invoice/'+confirmed.body.order.ref+'?token=demo-b&view=1');
+ check(forbiddenPreview.status===404,'other customer cannot preview an invoice PDF');
  const single=await requestCart([select('TP-00003',4)]);
  check(single.status===200&&single.body.quote?.qty===4&&single.body.quote?.code==='TP-00003','single-product basket remains supported');
  const cart6=[select('TP-00003',1),select('TP-00081',2),select('TP-00056',3),
