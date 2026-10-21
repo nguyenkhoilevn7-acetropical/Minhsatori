@@ -7,6 +7,10 @@ on:
     paths:
       - 'customer-ai-chat-prototype/**'
       - '.github/workflows/gemini-sandbox-integration.yml'
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/**'
+      - '.github/workflows/gemini-sandbox-integration.yml'
   workflow_dispatch:
 
 permissions:
