@@ -400,6 +400,40 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 /* Deleting a cart line is not an ordinary blue add action. */
 :is(.cart-clear,.cart-remove,.inline-cart-remove){background:#fff0f1;color:#ac3346;border:1px solid #ecb2bd}
 :is(.cart-clear,.cart-remove,.inline-cart-remove):hover:not(:disabled){background:#fbd9de;color:#8c1931}
+
+/* Mobile chat-first layout: purchase UI stays compact unless actively opened. */
+.catalog-launch-bar{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px;
+ padding:8px 12px;background:#f3f8ff;border-bottom:1px solid #dbe8f5}
+.catalog-launch-bar button{min-height:42px;background:#0867d5;color:#fff;border:1px solid #075aba;
+ border-radius:11px;font-size:12.5px;font-weight:750;padding:8px 7px;white-space:normal;line-height:1.25}
+.catalog-launch-bar button[hidden]{display:none!important}
+.catalog-launch-bar:has(#suggestionsToggle[hidden]){grid-template-columns:1fr}
+.server-mode .quick-cart{display:grid;grid-template-columns:minmax(0,1fr) auto;
+ grid-template-rows:auto auto auto auto;gap:6px 9px;padding:8px 11px;min-width:0}
+.server-mode .quick-cart #quickCartCount{grid-column:1/-1;grid-row:1!important;margin:0!important;
+ font-size:12px;line-height:1.4;overflow-wrap:anywhere;min-width:0;white-space:normal}
+.server-mode .quick-cart #quickCartNew{grid-column:1;grid-row:2!important;justify-self:start;
+ background:#0867d5!important;color:white!important;border-color:#0867d5!important}
+.server-mode .quick-cart #quickCartEdit{grid-column:2;grid-row:2!important;justify-self:end}
+.server-mode .quick-cart #inlineCartLines{grid-column:1/-1;grid-row:3;min-width:0}
+.server-mode .quick-cart #quickCartQuote{grid-column:1/-1;grid-row:4}
+.server-mode .quick-cart #inlineCartLines[hidden],.server-mode .quick-cart #quickCartQuote[hidden]{display:none!important}
+.suggestions-inline[hidden],.suggestions-list[hidden]{display:none!important}
+.suggestions-inline{padding:6px 12px 8px;max-height:72px;overflow:hidden;border-bottom:1px solid #dbe8f5}
+.suggestions-heading{margin:0 0 3px}
+.suggestions-heading small{font-size:10px;color:#42647e}
+.suggestions-list{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;padding:4px 1px;max-height:44px}
+.suggestion-compact-chip{flex:0 0 auto;max-width:178px;min-height:32px;padding:5px 9px;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#e5f1ff;color:#075bac;
+ border:1px solid #96c8ff;border-radius:99px;font-size:11px;font-weight:700}
+.catalog-purchase-row{display:grid;grid-template-columns:34px minmax(0,1fr) 122px;
+ align-items:center;gap:8px;min-height:75px;padding:9px 6px!important}
+.catalog-purchase-row .catalog-label{min-width:0;line-height:1.3;overflow-wrap:anywhere;font-size:13px}
+.catalog-purchase-row .catalog-label small{white-space:normal;color:#38597b;line-height:1.35;font-size:11px;margin-top:5px}
+.catalog-purchase-row .catalog-quantity-controls{width:122px;min-width:0}
+.catalog-purchase-row button{touch-action:manipulation}
+@media(max-width:390px){.catalog-purchase-row{grid-template-columns:27px minmax(0,1fr) 108px;gap:5px}
+ .catalog-purchase-row .catalog-quantity-controls{width:108px;grid-template-columns:29px minmax(0,1fr) 29px}}
 </style>
 </head>
 <body>
@@ -416,6 +450,13 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 <div class="info"><b>Lưu ý bảo mật:</b> Link này chỉ mô phỏng định danh. Bản thật phải dùng token ngẫu nhiên lưu băm ở server, kiểm tra người nhận và có xác minh số điện thoại khi cần. Không nhúng tên, SĐT, địa chỉ hay Gemini API key vào URL.</div>
 </div></aside>
 <main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><button type="button" id="productsToggle" aria-controls="secondaryTools" aria-expanded="false">Sản phẩm &amp; gợi ý ▾</button><button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button></div>
+<div class="catalog-launch-bar">
+<button id="catalogLaunch" type="button" aria-haspopup="dialog" aria-controls="catalogBackdrop">🛍 Tất cả sản phẩm</button>
+<button id="suggestionsToggle" type="button" aria-controls="suggestionsList" aria-expanded="false" hidden>✨ Gợi ý mua nhanh ▾</button>
+</div>
+<section class="suggestions-inline" id="suggestionsInline" aria-label="Gợi ý mặt hàng thường mua" hidden>
+<div class="suggestions-heading"><small id="suggestionsCaption">Các sản phẩm thường mua — chạm tên để mở danh sách</small></div>
+<div id="suggestionsList" class="suggestions-list" hidden></div></section>
 <section class="shop-hero" aria-label="Bắt đầu mua nước Satori">
  <div class="shop-hero-copy"><strong>Đặt nước nhanh • Đúng giá riêng của bạn</strong>
  <small>Chọn mặt hàng, chỉnh số lượng, kiểm tra hóa đơn rồi xác nhận.</small></div>
@@ -423,9 +464,7 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
  </section>
  <div class="messages" id="messages" aria-live="polite"></div>
 <div class="secondary-tools" id="secondaryTools" hidden aria-label="Sản phẩm và gợi ý tùy chọn">
-<section class="suggestions-inline" id="suggestionsInline" aria-label="Sản phẩm thường mua của khách" hidden>
-<div class="suggestions-heading"><strong>✨ Mua nhanh theo thói quen</strong><small id="suggestionsCaption">Gợi ý riêng từ lịch sử đơn THỬ</small></div>
-<div id="suggestionsList" class="suggestions-list"></div></section>
+
 <section class="inline-product-search" id="inlineProductSearch" hidden aria-label="Tìm và thêm sản phẩm ngay trong chat">
 <div class="inline-search-head"><strong>🔎 Tìm thêm sản phẩm</strong><button type="button" id="inlineSearchClose" aria-label="Đóng tìm kiếm">×</button></div>
 <input type="search" id="inlineSearchInput" placeholder="Tên nước, dung tích, Satori, Hikari..." aria-label="Tìm thêm sản phẩm">
@@ -653,22 +692,35 @@ async function loadPersonalizedSuggestions(){
 }
 function renderPersonalizedSuggestions(){
  if(!serverMode)return;
- const section=$('suggestionsInline'),list=$('suggestionsList');list.replaceChildren();
- section.hidden=personalizedSuggestions.length===0;
- for(const p of personalizedSuggestions){
-  if(!p?.code||!p?.name)continue;
-  const tile=document.createElement('div');tile.className='suggestion-tile';
-  const name=document.createElement('span');name.className='suggestion-name';name.textContent=p.name;name.title=p.name;
-  const meta=document.createElement('span');meta.className='suggestion-meta';
-  meta.textContent=p.orderCount>0?'Đã mua '+p.orderCount+' lần · '+money(p.unitPrice):p.reason+' · '+money(p.unitPrice);
-  tile.append(name,meta,stepper(p.code,cart.get(p.code)?.qty||0));list.append(tile);
+ const section=$('suggestionsInline'),list=$('suggestionsList'),toggle=$('suggestionsToggle');
+ list.replaceChildren();
+ // This is an optional compact horizontal row, NEVER large cards on the chat.
+ const suggestions=personalizedSuggestions.filter(p=>p?.code&&p?.name&&p.unit!=='Bình').slice(0,7);
+ toggle.hidden=suggestions.length===0;
+ section.hidden=suggestions.length===0||toggle.getAttribute('aria-expanded')!=='true';
+ list.hidden=section.hidden;
+ for(const p of suggestions){
+  const chip=document.createElement('button');chip.type='button';chip.className='suggestion-compact-chip';
+  chip.title=p.name+' · '+money(p.unitPrice||0)+'/thùng';
+  chip.textContent='＋ '+p.name.replace(/^Nước (?:ép|tinh khiết)\s+/iu,'').replace(/Satori Juice\s*/iu,'').slice(0,24);
+  chip.addEventListener('click',()=>addSuggestedItem(p.code));
+  list.append(chip);
  }
- $('suggestionsCaption').textContent=personalizedSuggestions.some(p=>p.orderCount>0)?'Theo lịch sử mua của riêng bạn':'Mặt hàng dành cho bạn';
+ $('suggestionsCaption').textContent='Chọn tên sản phẩm để thêm 1 thùng vào giỏ';
 }
+$('suggestionsToggle').addEventListener('click',()=>{
+ const opened=$('suggestionsToggle').getAttribute('aria-expanded')==='true';
+ $('suggestionsToggle').setAttribute('aria-expanded',String(!opened));
+ $('suggestionsToggle').textContent=opened?'✨ Gợi ý mua nhanh ▾':'✨ Ẩn gợi ý ▴';
+ renderPersonalizedSuggestions();
+});
 function renderInlineCart(){
  if(!serverMode)return;
  const root=$('inlineCartLines');root.replaceChildren();root.hidden=inlineCartCollapsed;
  $('quickCartEdit').textContent=inlineCartCollapsed?'Mở giỏ':'Thu gọn';
+ $('quickCartEdit').setAttribute('aria-expanded',String(!inlineCartCollapsed));
+ $('quickCartEdit').setAttribute('aria-controls','inlineCartLines');
+ $('quickCartQuote').hidden=inlineCartCollapsed;
  for(const item of cart.values()){
   const row=document.createElement('div');row.className='inline-cart-row';
   const title=document.createElement('span');title.textContent=item.name;title.title=item.name;
@@ -876,7 +928,7 @@ async function ensureCatalog() {
    const resp=await fetch('/api/catalogue?token='+encodeURIComponent(serverToken),{cache:'no-store'});
    const json=await resp.json();
    if(!resp.ok||!json.ok||!Array.isArray(json.products))throw Error('Không thể mở danh mục.');
-   catalogItems=json.products;
+   catalogItems=json.products.filter(p=>p.unit==='Thùng');
    return true;
   }catch(err){msg('Chưa tải được danh mục sản phẩm: '+err.message,'note');return false;}
  }
@@ -954,17 +1006,27 @@ function updateCart(){
 }
 function renderCatalogue(){
  const items=filteredCatalog(),list=$('catalogItems');
- $('catalogDescription').textContent=catalogItems.length+' sản phẩm • có thể chọn tối đa 6 loại • giá thử, chưa đồng bộ production';
+ $('catalogDescription').textContent=catalogItems.length+' mặt hàng bán theo thùng · Giá đã trừ CK, chưa VAT và phí giao';
  list.replaceChildren();
- if(!items.length){const empty=document.createElement('div');empty.className='catalog-empty';empty.textContent='Không tìm thấy sản phẩm phù hợp';list.append(empty);return;}
+ if(!items.length){const empty=document.createElement('div');empty.className='catalog-empty';empty.textContent='Không có mặt hàng phù hợp';list.append(empty);return}
  for(const p of items){
-  const btn=document.createElement('button');btn.type='button';btn.className='catalog-item'+(cart.has(p.code)?' in-cart':'');btn.dataset.code=p.code;
-  const emoji=document.createElement('span');emoji.className='catalog-icon';emoji.textContent=p.brand==='JUICE'?'🧃':'💧';
-  const title=document.createElement('span');title.className='catalog-label';title.textContent=p.name;
-  const desc=document.createElement('small');desc.textContent=p.code+' · '+p.spec+' · '+p.unit+' · Giá mẫu sau CK '+money(p.unitPrice||0)+' (niêm yết '+money(p.listPrice||0)+')';title.append(desc);
-  const arrow=document.createElement('span');arrow.className=cart.has(p.code)?'catalog-added':'catalog-arrow';arrow.textContent=cart.has(p.code)?'Đã chọn ×'+cart.get(p.code).qty:'＋';
-  btn.append(emoji,title,arrow);btn.addEventListener('click',()=>chooseProduct(p));
-  list.append(btn);
+  if(serverMode){
+   const row=document.createElement('div');row.className='catalog-item catalog-purchase-row'+(cart.has(p.code)?' in-cart':'');
+   row.dataset.code=p.code;
+   const emoji=document.createElement('span');emoji.className='catalog-icon';emoji.textContent=p.brand==='JUICE'?'🧃':'💧';
+   const title=document.createElement('div');title.className='catalog-label';title.textContent=p.name;
+   const meta=document.createElement('small');meta.textContent=p.unit+' · Giá: '+money(p.unitPrice||0)+' / thùng';title.append(meta);
+   const controls=stepper(p.code,cart.get(p.code)?.qty||0);
+   controls.classList.add('catalog-quantity-controls');controls.setAttribute('aria-label','Chọn số lượng '+p.name);
+   row.append(emoji,title,controls);list.append(row);
+  }else{
+   const btn=document.createElement('button');btn.type='button';btn.className='catalog-item'+(cart.has(p.code)?' in-cart':'');btn.dataset.code=p.code;
+   const emoji=document.createElement('span');emoji.className='catalog-icon';emoji.textContent=p.brand==='JUICE'?'🧃':'💧';
+   const title=document.createElement('span');title.className='catalog-label';title.textContent=p.name;
+   const desc=document.createElement('small');desc.textContent=p.code+' · '+p.spec+' · '+p.unit+' · Giá mẫu sau CK '+money(p.unitPrice||0)+' (niêm yết '+money(p.listPrice||0)+')';title.append(desc);
+   const arrow=document.createElement('span');arrow.className=cart.has(p.code)?'catalog-added':'catalog-arrow';arrow.textContent=cart.has(p.code)?'Đã chọn ×'+cart.get(p.code).qty:'＋';
+   btn.append(emoji,title,arrow);btn.addEventListener('click',()=>chooseProduct(p));list.append(btn);
+  }
  }
 }
 function chooseProduct(p){
@@ -976,7 +1038,7 @@ function chooseProduct(p){
 }
 function closeCatalog(){
  $('catalogBackdrop').classList.remove('open');document.body.style.overflow='';
- $('allProductsButton').focus();
+ $('catalogLaunch').focus();
 }
 async function openCatalog(){
  $('catalogBackdrop').classList.add('open');document.body.style.overflow='hidden';
@@ -987,7 +1049,7 @@ async function openCatalog(){
   try{
    const res=await fetch('/api/catalogue?token='+encodeURIComponent(serverToken),{cache:'no-store'});
    const data=await res.json();if(!res.ok||!data.ok||!Array.isArray(data.products))throw new Error('Không tải được danh mục');
-   catalogItems=data.products;
+   catalogItems=data.products.filter(p=>p.unit==='Thùng');
   }catch(e){
    $('catalogDescription').textContent='Lỗi tải danh mục. Thử mở lại sau.';
    msg('Chưa lấy được danh mục sản phẩm. Vui lòng thử lại.','note');
@@ -1003,8 +1065,9 @@ $('productsToggle').addEventListener('click',()=>{
  $('productsToggle').textContent=opening?'Đóng sản phẩm ▴':'Sản phẩm & gợi ý ▾';
  if(!opening)$('inlineProductSearch').hidden=true;
 });
-$('allProductsButton').addEventListener('click',openInlineSearch);
-$('heroShopCta').addEventListener('click',openInlineSearch);
+$('allProductsButton').addEventListener('click',openCatalog);
+$('catalogLaunch').addEventListener('click',openCatalog);
+$('heroShopCta').addEventListener('click',openCatalog);
 $('inlineSearchClose').addEventListener('click',()=>{$('inlineProductSearch').hidden=true});
 $('inlineSearchInput').addEventListener('input',renderInlineProducts);
 $('catalogClose').addEventListener('click',closeCatalog);
