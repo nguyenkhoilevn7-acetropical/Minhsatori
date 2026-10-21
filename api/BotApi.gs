@@ -492,7 +492,7 @@ function hasTestMarker(p){
  var target=p.order&&typeof p.order==='object'?p.order:{};
  function flag(v){return v===true||typeof v==='string'&&/^(test|testing|sandbox|test_only|test-only)$/i.test(v.trim());}
  function tagged(v){return Array.isArray(v)&&v.some(flag);}
- function markedNote(v){return typeof v==='string'&&/^\\s*(?:\\[TEST\\]|TEST\\s*ONLY\\b|SANDBOX\\s*ONLY\\b)/i.test(v);}
+ function markedNote(v){return typeof v==='string'&&/^\s*(?:\[TEST\]|TEST\s*ONLY\b|SANDBOX\s*ONLY\b)/i.test(v);}
  return flag(p.isTest)||flag(p.test)||flag(p.testMode)||flag(p.environment)||flag(p.mode)||
   flag(target.isTest)||flag(target.test)||flag(target.testMode)||flag(target.environment)||
   flag(target.mode)||flag(target.orderType)||flag(target.status)||
