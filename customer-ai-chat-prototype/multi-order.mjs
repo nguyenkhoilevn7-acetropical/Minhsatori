@@ -161,7 +161,7 @@ export function parseColloquialBasket(message,profile={}){
   if(!row)return null; // Unsupported item/mismatched explicit unit: never partial.
   items.push(row);
  }
- if(!grouped&&!missing.length)return null; // Keep legacy single-SKU parser.
+ // Single 5L shorthand with a confirmed tap variant is also a valid carton order.
  if(missing.length>1)return {needMoreDetails:true,reason:'MULTIPLE_UNKNOWN',
   message:'Có nhiều mặt hàng chưa rõ số lượng hoặc quy cách. Vui lòng gửi rõ từng món; giỏ chưa thay đổi.'};
  const merged=[];
