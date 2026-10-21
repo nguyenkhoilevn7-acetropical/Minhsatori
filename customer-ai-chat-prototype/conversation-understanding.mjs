@@ -140,6 +140,6 @@ export function syntheticOrderCases(){
  for(const name of products)for(const qty of counts)for(const verb of verbs)
   cases.push({text:(verb+' '+qty+' thùng '+name).trim(),qty,kind:'synthetic-order'});
  for(const qty of [1,5,10,20,50])for(const verb of ['Cho tôi','Anh lấy','Cần',''])
-  cases.push({text:(verb+' '+qty+' thùng nước suối 500').trim(),qty,kind:'synthetic-order',sku:'TP-00003'});
+  cases.push({text:(verb+' '+qty+' thùng nước suối 500').trim(),qty,kind:'synthetic-order',sku:'S500'});
  return cases;
 }
