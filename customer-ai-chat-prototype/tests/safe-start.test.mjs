@@ -46,7 +46,8 @@ async function checkCase(label,encoded,shouldMaintain,port){
    assert.equal(health.code,'BOOTSTRAP_RECOVERY_REQUIRED');
    const status=await (await fetch(origin+'/api/recovery-status')).json();
    assert.equal(status.ready,false);
-   for(const pathName of ['/','/admin','/c/demo-a']){
+   assert.ok(['verifying','failed','empty_verified','missing'].includes(status.archiveBackup),'recovery status is visible without secrets');
+   for(const pathName of ['/','/admin','/admin/','/admin?source=smartphone','/c/demo-a']){
     const r=await fetch(origin+pathName);
     assert.equal(r.status,503,'all human interfaces blocked: '+pathName);
     assert.match(await r.text(),/bảo trì/);
