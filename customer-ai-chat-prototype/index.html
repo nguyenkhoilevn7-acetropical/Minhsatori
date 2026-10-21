@@ -695,13 +695,13 @@ function renderPersonalizedSuggestions(){
  const section=$('suggestionsInline'),list=$('suggestionsList'),toggle=$('suggestionsToggle');
  list.replaceChildren();
  // This is an optional compact horizontal row, NEVER large cards on the chat.
- const suggestions=personalizedSuggestions.filter(p=>p?.code&&p?.name&&p.unit!=='Bình').slice(0,7);
+ const suggestions=personalizedSuggestions.filter(p=>p?.code&&p?.name).slice(0,7);
  toggle.hidden=suggestions.length===0;
  section.hidden=suggestions.length===0||toggle.getAttribute('aria-expanded')!=='true';
  list.hidden=section.hidden;
  for(const p of suggestions){
   const chip=document.createElement('button');chip.type='button';chip.className='suggestion-compact-chip';
-  chip.title=p.name+' · '+money(p.unitPrice||0)+'/thùng';
+  chip.title=p.name+' · '+money(p.unitPrice||0)+'/'+(p.unit||'đơn vị');
   chip.textContent='＋ '+p.name.replace(/^Nước (?:ép|tinh khiết)\s+/iu,'').replace(/Satori Juice\s*/iu,'').slice(0,24);
   chip.addEventListener('click',()=>addSuggestedItem(p.code));
   list.append(chip);
@@ -928,7 +928,7 @@ async function ensureCatalog() {
    const resp=await fetch('/api/catalogue?token='+encodeURIComponent(serverToken),{cache:'no-store'});
    const json=await resp.json();
    if(!resp.ok||!json.ok||!Array.isArray(json.products))throw Error('Không thể mở danh mục.');
-   catalogItems=json.products.filter(p=>p.unit==='Thùng');
+   catalogItems=json.products;
    return true;
   }catch(err){msg('Chưa tải được danh mục sản phẩm: '+err.message,'note');return false;}
  }
@@ -960,7 +960,7 @@ async function addSuggestedItem(code) {
  if(!await ensureCatalog())return;
  const item=catalogItems.find(x=>x.code===code);
  if(!item){msg('Mặt hàng đang chọn chưa có trong danh mục. Hãy mở Tất cả sản phẩm.','note');return;}
- if(serverMode){if(await changeSharedDraft('add',code,1))msg('Đã cộng '+item.name+' vào giỏ chung. Có thể nhắn thêm sản phẩm hoặc chọn tiếp.','note');return;}
+ if(serverMode){if(await changeSharedDraft('add',code,1))msg('Đã thêm 1 '+item.unit.toLowerCase()+' '+item.name+' vào giỏ.','note');return;}
  const old=cart.get(code),qty=old?.qty||0;
  if((!old&&cart.size>=6)||cartTotalQty()>=500||qty>=500){
   msg('Một hóa đơn có tối đa 6 loại và 500 đơn vị. Anh/chị hãy mở giỏ để điều chỉnh.','note');return;
@@ -1006,7 +1006,7 @@ function updateCart(){
 }
 function renderCatalogue(){
  const items=filteredCatalog(),list=$('catalogItems');
- $('catalogDescription').textContent=catalogItems.length+' mặt hàng bán theo thùng · Giá đã trừ CK, chưa VAT và phí giao';
+ $('catalogDescription').textContent=catalogItems.length+' sản phẩm theo đúng quy cách Thùng / Bình / Lốc · Giá sau CK, chưa VAT và phí giao';
  list.replaceChildren();
  if(!items.length){const empty=document.createElement('div');empty.className='catalog-empty';empty.textContent='Không có mặt hàng phù hợp';list.append(empty);return}
  for(const p of items){
@@ -1015,7 +1015,7 @@ function renderCatalogue(){
    row.dataset.code=p.code;
    const emoji=document.createElement('span');emoji.className='catalog-icon';emoji.textContent=p.brand==='JUICE'?'🧃':'💧';
    const title=document.createElement('div');title.className='catalog-label';title.textContent=p.name;
-   const meta=document.createElement('small');meta.textContent=p.unit+' · Giá: '+money(p.unitPrice||0)+' / thùng';title.append(meta);
+   const meta=document.createElement('small');meta.textContent=p.unit+' · Giá: '+money(p.unitPrice||0)+' / '+p.unit.toLowerCase();title.append(meta);
    const controls=stepper(p.code,cart.get(p.code)?.qty||0);
    controls.classList.add('catalog-quantity-controls');controls.setAttribute('aria-label','Chọn số lượng '+p.name);
    row.append(emoji,title,controls);list.append(row);
@@ -1049,7 +1049,7 @@ async function openCatalog(){
   try{
    const res=await fetch('/api/catalogue?token='+encodeURIComponent(serverToken),{cache:'no-store'});
    const data=await res.json();if(!res.ok||!data.ok||!Array.isArray(data.products))throw new Error('Không tải được danh mục');
-   catalogItems=data.products.filter(p=>p.unit==='Thùng');
+   catalogItems=data.products;
   }catch(e){
    $('catalogDescription').textContent='Lỗi tải danh mục. Thử mở lại sau.';
    msg('Chưa lấy được danh mục sản phẩm. Vui lòng thử lại.','note');
