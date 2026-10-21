@@ -43,6 +43,27 @@ function needsMore(description,resolved){
  message:'Em đã nhận '+resolved.length+' loại rõ quy cách. Riêng "'+description.slice(0,70)+
  '" em chưa xác định chính xác sản phẩm hoặc đơn vị. Anh/chị nói rõ tên, dung tích và số lượng món này nhé; em chưa tạo bill.'};
 }
+// A structured model may segment a long sentence, but only this catalogue-backed
+// local validator may resolve each *verbatim* fragment into a billable line.
+export function parseOneClause(message,profile={}){
+ const n=fold(message),matches=[...n.matchAll(ANCHORS)];
+ if(matches.length!==1)return null;
+ const m=matches[0],quantity=countOf(m[2]),spoken=m[3]==='thg'?'thung':m[3];
+ if(!Number.isSafeInteger(quantity)||quantity<1||quantity>500)return null;
+ const description=cleanDescription(withoutDelivery(n.slice(m.index+m[0].length)));
+ const product=resolution(description,profile);
+ if(!product||(spoken&&spoken!==fold(product.unit)))return null;
+ return {sku:product.code,qty:quantity};
+}
+export function looksCompoundOrder(message){
+ const n=fold(message);
+ const obvious=/\b(?:va|voi|cung|them)\b/.test(n)||/[,;\n]/.test(n);
+ if(!obvious)return false;
+ // Mixed natural ordering like "10 ổi hồng, me thì 3 thùng" must not
+ // degrade into an apparently complete one-product invoice.
+ return /(?:\b(?:oi hong|mang cau|man cau|me|satori|hikari|juice|nuoc|premium)\b.{0,25}\b(?:\d{1,3}|mot|hai|ba|muoi)\s*(?:thung|thg|binh|loc|chai)\b)/.test(n)||
+ /(?:\b\d{1,3}\s*(?:thung|thg|binh|loc|chai)\b.*\b\d{1,3}\s*(?:thung|thg|binh|loc|chai)\b)/.test(n);
+}
 export function parseMultiOrder(message,profile={}){
  const text=fold(message);
  const matches=[...text.matchAll(ANCHORS)].map(m=>({
