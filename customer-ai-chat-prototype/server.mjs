@@ -486,6 +486,19 @@ const server=http.createServer(async(req,res)=>{
     return reply(res,200,{ok:true,needsHuman:true,changeRequestId:request.id,
      draft:draftStore.read(token),message:'Đổi địa chỉ, người nhận hoặc số điện thoại phải được cửa hàng xác minh. Giỏ hàng chưa thay đổi.'});
    }
+   // Resolve all listed products before running single-item followups.
+   // No partial checkout: one sentence is committed to one revisioned TEST basket.
+   const compound=parseMultiOrder(message,c);
+   if(compound?.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,
+    draft:draftStore.read(token),message:compound.message});
+   if(compound?.items){
+    const deliveryAll=extractDeliveryIntent(message,new Date());
+    if(deliveryAll.clarification)return reply(res,200,{ok:true,needMoreDetails:true,
+     draft:draftStore.read(token),clarificationType:'DELIVERY_TIME',message:deliveryAll.clarification});
+    return applyChatBasket(res,token,c,
+     compound.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
+     revision,compound.source,deliveryAll);
+   }
    const edit=contextualDraftEdit(message,c,draftStore.read(token));
    if(edit?.clarification)return reply(res,200,{ok:true,needMoreDetails:true,draft:draftStore.read(token),message:edit.clarification});
    if(edit?.changes)return applyChatBasket(res,token,c,edit.changes,revision,'basket-followup');
