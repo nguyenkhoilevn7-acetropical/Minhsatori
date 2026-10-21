@@ -454,6 +454,11 @@ const server=http.createServer(async(req,res)=>{
   const normalized=message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
   // Treat "thêm 3 thùng nữa" as an edit request, not a new independent order.
   if(unified){
+   if(identityChange(message,c)){
+    const request=customerLinks.logChangeRequest(c,message);
+    return reply(res,200,{ok:true,needsHuman:true,changeRequestId:request.id,
+     draft:draftStore.read(token),message:'Đổi địa chỉ, người nhận hoặc số điện thoại phải được cửa hàng xác minh. Giỏ hàng chưa thay đổi.'});
+   }
    const edit=contextualDraftEdit(message,c,draftStore.read(token));
    if(edit?.clarification)return reply(res,200,{ok:true,needMoreDetails:true,draft:draftStore.read(token),message:edit.clarification});
    if(edit?.changes)return applyChatBasket(res,token,c,edit.changes,revision,'basket-followup');
