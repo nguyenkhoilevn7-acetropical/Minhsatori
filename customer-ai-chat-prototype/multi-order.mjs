@@ -51,7 +51,7 @@ export function parseMultiOrder(message,profile={}){
  }));
  // Catch ALL explicit quantity+unit phrases, including unrecognized products.
  // Otherwise "10 Satori 500ml, 3 trà sữa" could silently create only a partial order.
- const broad=[...text.matchAll(/(?:^|[^a-z0-9-])(\\d{1,3}|muoi|mot|hai|ba|bon|nam)\\s*(?:thung|thg|binh|loc|chai|lon|ly)\\s+(?=[a-z])/g)];
+ const broad=[...text.matchAll(/(?:^|[^a-z0-9-])(\d{1,3}|muoi|mot|hai|ba|bon|nam)\s*(?:thung|thg|binh|loc|chai|lon|ly)\s+(?=[a-z])/g)];
  if(matches.length<2){
   if(matches.length&&broad.length>matches.length)
    return needsMore('món chưa có trong danh mục / chưa rõ quy cách',[]);
