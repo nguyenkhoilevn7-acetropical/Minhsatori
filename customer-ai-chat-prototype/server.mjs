@@ -16,7 +16,8 @@ import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
 import {customerSuggestions} from './customer-suggestions.mjs';
 import {businessReply} from './business-reply.mjs';
 import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificationBasket,waterClarificationAnswer,parseColloquialBasket,colloquialQuestion,completeColloquialFollowup} from './multi-order.mjs';
-import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
+import {parseCustomerMessage,splitOrderAndNote,waterAnswer,finishWater,deliveryAnswer} from './order-with-notes.mjs';
+import {CATALOGUE,productFor,productList,resolveProduct,fold} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
@@ -42,7 +43,7 @@ const FIXTURES=Object.freeze({
 const sessions=new Map(),quotes=new Map(),orders=new Map(),idempotency=new Map(),rate=new Map();
 const draftStore=makeDraftStore({filePath:path.join(DATA_DIR,'drafts-SANDBOX.json'),onChange:()=>driveWorker?.schedule()});
 const phraseMemory=makeCustomerPhraseMemory(DATA_DIR);
-const pendingBrands=new Map(),pendingPhones=new Map(),pendingTeaching=new Map(),pendingWaterOrders=new Map(),pendingColloquial=new Map();
+const pendingBrands=new Map(),pendingPhones=new Map(),pendingTeaching=new Map(),pendingWaterOrders=new Map(),pendingColloquial=new Map(),pendingMixedOrders=new Map();
 const geminiProbe={status:'not_run',elapsedMs:null};
 const pendingAmends=new Map(); // profileId -> expiring unconfirmed customer proposal
 const MAX_AMEND_AGE_MS=5*60_000;
@@ -163,18 +164,16 @@ function currentBasketQuote(token,profile){
  invalidateQuotes(token);
  const items=draft.items.map(x=>({sku:x.code,qty:x.qty}));
  const q=items.length===1?makeQuote(token,profile,items[0].sku,items[0].qty):makeMultiQuote(token,profile,items);
- if(q)q.draftRevision=draft.revision;
+ if(q){q.draftRevision=draft.revision;q.deliveryNote=draft.deliveryNote||'';q.requestedDeliveryAt=draft.requestedDeliveryAt||null;}
  return q;
 }
 function applyChatBasket(res,token,profile,changes,revision,source,delivery){
  let draft;
- try{draft=draftStore.mutate(token,changes,revision)}catch(e){return draftFailure(res,e)}
+ try{draft=draftStore.mutate(token,changes,revision,delivery)}catch(e){return draftFailure(res,e)}
  const quote=currentBasketQuote(token,profile);
  if(!quote)return fail(res,400,'CART_QUOTE_FAILED','Chưa tạo được báo giá cho giỏ hàng.');
- if(delivery){
-  quote.deliveryNote=normalizeDeliveryNote(delivery.deliveryNote);
-  quote.requestedDeliveryAt=delivery.requestedDeliveryAt;
- }
+ // currentBasketQuote reads persistent delivery notes directly from the draft.
+ // Do not reset the note when a later add/quantity edit has no delivery text.
  sessions.delete(token);
  return reply(res,200,{ok:true,sandbox:true,parserSource:source,draft,quote,
   message:'Đã cập nhật cùng một giỏ: '+draft.items.length+' loại / '+draft.items.reduce((n,x)=>n+x.qty,0)+' đơn vị. Chưa tạo bill; bạn xác nhận báo giá cuối cùng một lần nhé.'});
@@ -485,6 +484,62 @@ const server=http.createServer(async(req,res)=>{
   }
   if(learn&&learn.expiresAt<=Date.now())pendingTeaching.delete(token);
 
+  // Keep all products + instructions together while resolving ambiguity.
+  // This state never writes a SKU or delivery note until every missing field
+  // is confirmed; it is scoped to the customer token and draft revision.
+  const waitingMixed=pendingMixedOrders.get(token);
+  if(waitingMixed){
+   if(waitingMixed.expiresAt<Date.now())pendingMixedOrders.delete(token);
+   else if(/^(?:huy|thoi|khong dat|huy yeu cau)$/i.test(fold(message))){
+    pendingMixedOrders.delete(token);
+    return reply(res,200,{ok:true,clarificationCancelled:true,draft:draftStore.read(token),
+     message:'Đã hủy yêu cầu chưa xác nhận. Giỏ hàng vẫn giữ nguyên.'});
+   }else{
+    let completed=null;
+    if(waitingMixed.water){
+     const answer=waterAnswer(message);
+     if(answer)completed=finishWater(waitingMixed,answer);
+    }else if(waitingMixed.delivery?.clarification){
+     const answer=deliveryAnswer(waitingMixed.noteText,message);
+     if(answer)completed={...waitingMixed,delivery:answer,kind:'order'};
+    }
+    if(completed?.kind==='clarify'){
+     pendingMixedOrders.set(token,{...waitingMixed,water:completed.water});
+     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'MIXED_WATER',
+      draft:draftStore.read(token),message:completed.water.brand?
+       'Em giữ '+completed.water.qty+' thùng '+completed.water.brand+
+        '. Anh/chị xác nhận dung tích 350ml, 500ml hay 1500ml?':
+       'Em vẫn giữ đủ các món và lưu ý. Nước suối hãng Satori hay Hikari ạ?'});
+    }
+    if(completed?.kind==='order'){
+     if(completed.delivery?.clarification){
+      pendingMixedOrders.set(token,{...waitingMixed,items:completed.items,water:null});
+      return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'MIXED_DELIVERY',
+       draft:draftStore.read(token),message:completed.delivery.clarification+
+        ' Em vẫn giữ toàn bộ sản phẩm, chưa cộng vào giỏ.'});
+     }
+     const current=draftStore.read(token);
+     if(current.revision!==waitingMixed.revision||b?.expectedRevision!==current.revision){
+      pendingMixedOrders.delete(token);
+      return fail(res,409,'DRAFT_CONFLICT','Giỏ hàng đã thay đổi. Vui lòng tải lại và xác nhận đơn.');
+     }
+     pendingMixedOrders.delete(token);
+     return applyChatBasket(res,token,c,completed.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
+      current.revision,'mixed-order-and-notes',completed.delivery);
+    }
+    if(completed?.kind==='invalid')return reply(res,200,{ok:true,needMoreDetails:true,
+     draft:draftStore.read(token),message:completed.message});
+    // One short follow-up is not a new purchase. Never create a bill from
+    // "suối 500ml", "Satori" or "14:00" when a previous order is pending.
+    if(!/^(?:cho|anh lay|chi lay|them|dat|mua|lay)\s+\d/i.test(fold(message)))
+     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:waitingMixed.water?'MIXED_WATER':'MIXED_DELIVERY',
+      draft:draftStore.read(token),message:waitingMixed.water?
+       'Anh/chị cho em biết hãng và dung tích nước suối, ví dụ “Satori 500ml”. Em chưa thêm sản phẩm nào từ yêu cầu này.':
+       'Anh/chị xác nhận giờ giao, ví dụ “2 giờ chiều” hoặc “2 tiếng nữa”. Em chưa thêm sản phẩm nào từ yêu cầu này.'});
+    pendingMixedOrders.delete(token); // User started a new complete order.
+   }
+  }
+
   const waitingColloquial=pendingColloquial.get(token);
   if(waitingColloquial){
    if(waitingColloquial.expiresAt<=Date.now())pendingColloquial.delete(token);
@@ -564,6 +619,54 @@ const server=http.createServer(async(req,res)=>{
      ' thùng nước suối 500ml. Anh/chị muốn Satori hay Hikari? Chỉ cần trả lời hãng; chưa thêm sản phẩm vào giỏ.'});
    }
    message=phraseMemory.expand(token,message);
+   // Split the order from "Lưu ý" BEFORE any generic Gemini, edit, or
+   // first-SKU parser. This prevents lost products and hallucinated 5L SKUs.
+   if(b?.unifiedDraft===true){
+    const candidate=parseCustomerMessage(message,c);
+    // Existing product-only clarification remains backward-compatible;
+    // intercept only mixed product+delivery instructions or note-only chats.
+    const mixed=candidate?.noteText||(candidate?.kind==='invalid'&&splitOrderAndNote(message).noteText)?candidate:null;
+    if(mixed?.kind==='invalid')return reply(res,200,{ok:true,needMoreDetails:true,
+     draft:draftStore.read(token),message:mixed.message});
+    if(mixed?.kind==='note-only'){
+     if(identityChange(message,c))return reply(res,200,{ok:true,needsHuman:true,
+      message:'Đổi địa chỉ hoặc người nhận cần liên hệ anh Nguyên hoặc anh Minh.'});
+     const draft=draftStore.read(token);
+     if(b?.expectedRevision!==draft.revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ đã thay đổi. Hãy tải lại.');
+     if(mixed.delivery?.clarification)return reply(res,200,{ok:true,needMoreDetails:true,
+      draft,clarificationType:'DELIVERY_TIME',message:mixed.delivery.clarification});
+     const finalNote=normalizeDeliveryNote(mixed.delivery?.deliveryNote||mixed.noteText);
+     let updated;
+     try{updated=draftStore.mutate(token,[{action:'note',note:finalNote,
+      requestedDeliveryAt:mixed.delivery?.requestedDeliveryAt||null}],draft.revision)}
+     catch(err){return draftFailure(res,err)}
+     invalidateQuotes(token);
+     const quote=currentBasketQuote(token,c);
+     return reply(res,200,{ok:true,draft:updated,...(quote?{quote}:{}),parserSource:'delivery-note-only',
+      message:'Em đã ghi nhận lưu ý: '+finalNote+'. '+(quote?'Mời xem lại báo giá của giỏ hiện tại.':
+       'Giỏ chưa có sản phẩm; em sẽ giữ lưu ý này cho đơn thử tiếp theo.')});
+    }
+    if(mixed?.kind==='order'){
+     if(identityChange(message,c))return reply(res,200,{ok:true,needsHuman:true,
+      message:'Để thay đổi địa chỉ giao hàng, vui lòng liên hệ anh Nguyên hoặc anh Minh.'});
+     const draft=draftStore.read(token);
+     if(b.expectedRevision!==draft.revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi; hãy tải lại.');
+     if(mixed.water||mixed.delivery?.clarification){
+      pendingMixedOrders.set(token,{...mixed,revision:draft.revision,expiresAt:Date.now()+600_000});
+      const list=mixed.items.map(x=>x.qty+' '+productFor(x.sku).unit.toLowerCase()+' '+productFor(x.sku).name);
+      if(mixed.water)list.unshift(mixed.water.qty+' thùng nước suối (chưa rõ loại)');
+      return reply(res,200,{ok:true,needMoreDetails:true,
+       clarificationType:mixed.water?'MIXED_WATER':'MIXED_DELIVERY',draft,
+       pendingItems:mixed.items,
+       message:'Em nhận đủ: '+list.join(', ')+
+        (mixed.noteText?'. Lưu ý: '+mixed.noteText:'')+'. '+
+        (mixed.water?'Anh/chị muốn nước suối Satori hay Hikari, dung tích bao nhiêu ml?':
+         mixed.delivery.clarification)+' Em chưa cộng hàng nào từ yêu cầu này.'});
+     }
+     return applyChatBasket(res,token,c,mixed.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
+      draft.revision,'mixed-order-and-notes',mixed.delivery);
+    }
+   }
    // New conversational cart semantics are opt-in; legacy quote-only clients
    // must keep their historical no-draft behavior and pricing tests.
    const colloquial=b?.unifiedDraft===true?parseColloquialBasket(message,c):null;
@@ -839,7 +942,7 @@ const server=http.createServer(async(req,res)=>{
   return;
  }
  return fail(res,404,'NOT_FOUND','Không có đường dẫn này');
- }catch(err){return fail(res,err.message==='PAYLOAD_TOO_LARGE'?413:500,'SERVER_ERROR','Lỗi xử lý yêu cầu thử nghiệm')}
+ }catch(err){if(process.env.NODE_ENV==='test')console.error('SANDBOX_TEST_SERVER_ERROR',String(err?.stack||err).slice(0,800));return fail(res,err.message==='PAYLOAD_TOO_LARGE'?413:500,'SERVER_ERROR','Lỗi xử lý yêu cầu thử nghiệm')}
 });
 // TEST-ONLY one-time encrypted rescue for a confirmed pre-deploy snapshot.
 // Never inject plaintext or secret keys in code, browser, chat or logs.

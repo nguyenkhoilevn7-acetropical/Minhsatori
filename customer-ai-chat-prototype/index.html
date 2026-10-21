@@ -338,6 +338,13 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
 .server-mode .quick-cart{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center;padding:6px 10px}
 .server-mode .quick-cart span{font-size:12px;min-width:0}
 .server-mode .quick-cart #quickCartEdit{grid-column:2;grid-row:1;min-height:29px}
+.server-mode .quick-cart #quickCartNew{grid-column:1;grid-row:1;justify-self:start;min-height:29px;padding:4px 8px;
+ background:#c9e1ff!important;color:#084b90!important;border:1px solid #a6cfff!important}
+.server-mode .quick-cart #quickCartCount{grid-column:1/-1;grid-row:1;margin-right:160px}
+@media(max-width:520px){.server-mode .quick-cart #quickCartCount{grid-row:auto;margin-right:0}
+ .server-mode .quick-cart #quickCartNew{grid-column:1;grid-row:2}
+ .server-mode .quick-cart #quickCartEdit{grid-column:2;grid-row:2}}
+
 .server-mode .quick-cart #inlineCartLines{grid-column:1/-1;max-height:113px;overflow-y:auto;display:grid;gap:3px}
 .server-mode .quick-cart #inlineCartLines[hidden]{display:none}
 .server-mode .quick-cart #quickCartQuote{grid-column:1/-1;min-height:36px;font-weight:720}
@@ -435,7 +442,7 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 </div>
 <div class="quick-cart" id="quickCart" hidden aria-live="polite">
 <span id="quickCartCount">Giỏ hàng chung • 0 món</span>
-<button type="button" id="quickCartEdit">Thu gọn giỏ</button>
+<button type="button" id="quickCartEdit">Thu gọn giỏ</button><button type="button" id="quickCartNew" aria-label="Xóa giỏ thử hiện tại và bắt đầu đơn mới">Giỏ mới</button>
 <div class="inline-cart-lines" id="inlineCartLines" aria-label="Điều chỉnh giỏ hàng ngay trong chat"></div>
 <button type="button" id="quickCartQuote">Xem tổng & xác nhận →</button>
 </div>
@@ -483,14 +490,14 @@ let current='A',draft=null,localOrders=[];
 const serverMode=/^https?:$/.test(location.protocol)&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(location.pathname);
 function isolatedDemoToken(bare){
  if(!/^demo-[ab]$/.test(bare))return bare; // Real customer links unchanged.
- const key='MINH_SATORI_ANON_DEMO_VISITOR_V2_'+bare;
+ const key='MINH_SATORI_ANON_DEMO_TAB_V3_'+bare;
  let id='';
- try{id=localStorage.getItem(key)||''}catch{}
+ try{id=sessionStorage.getItem(key)||''}catch{}
  if(!/^[a-f0-9]{32}$/.test(id)){
   id=Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
-  try{localStorage.setItem(key,id)}catch{}
+  try{sessionStorage.setItem(key,id)}catch{}
  }
- return bare+'~'+id; // Separate demo basket for each browser, not a public shared draft.
+ return bare+'~'+id; // Dedicated, private browser-tab TEST cart, no previous ghost items.
 }
 const serverToken=serverMode?isolatedDemoToken(location.pathname.split('/').pop()):null;
 let sending=false,draftBusy=false,draftRevision=0,activeQuoteId=null;
@@ -1030,6 +1037,13 @@ $('clearCart').addEventListener('click',async()=>{
  $('productSelection').classList.remove('active');$('cartFeedback').textContent='Đã xóa giỏ chọn thử.';
  updateCart();renderCatalogue();
 });
+$('quickCartNew').addEventListener('click',async()=>{
+ if(!serverMode)return;
+ if(!confirm('Bắt đầu một giỏ THỬ mới? Các món và lưu ý trong giỏ hiện tại sẽ bị xóa. Hóa đơn đã xác nhận không thay đổi.'))return;
+ if(await changeSharedDraft('clear')){
+  deactivateQuotes();msg('Giỏ thử mới đã trống. Anh/chị hãy kiểm tra tên và số lượng trước khi xác nhận hóa đơn.','note');
+ }
+});
 $('quickCartEdit').addEventListener('click',()=>{if(!serverMode){openCatalog();return;}inlineCartCollapsed=!inlineCartCollapsed;renderInlineCart()});
 $('quickCartQuote').addEventListener('click',()=> {
  if(!cart.size)return;
@@ -1050,7 +1064,7 @@ $('composeCart').addEventListener('click',()=>{
 });
 
 
-if(serverMode){const id=serverToken==='demo-b'?'B':'A';fetch('/api/session?token='+encodeURIComponent(serverToken)).then(r=>r.json()).then(d=>{if(!d.ok)throw new Error('Link khách không hợp lệ');Object.assign(FIXTURES[id],d.profile);$('panel').style.display='none';$('chatSubtitle').textContent='Nhận diện đơn nhanh • quy tắc + Gemini Free Tier';$('messages').innerHTML='';current=id;selectProfile(id);msg(d.aiConfigured?'AI Gemini đã cấu hình. Bộ xử lý quy tắc luôn sẵn sàng.':'Đặt nước miễn phí đang hoạt động bằng bộ nhận diện quy tắc. Gemini AI sẽ bổ sung khi được kết nối.','note');document.querySelector('.footnote').textContent='Khách và đơn đều là dữ liệu thử. Giỏ hàng dùng chung máy chủ và được sao lưu mã hóa; đây chưa phải dữ liệu Minh Satori production.';return restoreDraft().then(loadPersonalizedSuggestions)}).catch(e=>msg(e.message,'note'))}else{current=firstActiveProfile();selectProfile(current);}
+if(serverMode){const id=serverToken?.startsWith('demo-b')?'B':'A';fetch('/api/session?token='+encodeURIComponent(serverToken)).then(r=>r.json()).then(d=>{if(!d.ok)throw new Error('Link khách không hợp lệ');Object.assign(FIXTURES[id],d.profile);$('panel').style.display='none';$('chatSubtitle').textContent='Nhận diện đơn nhanh • quy tắc + Gemini Free Tier';$('messages').innerHTML='';current=id;selectProfile(id);msg(d.aiConfigured?'AI Gemini đã cấu hình. Bộ xử lý quy tắc luôn sẵn sàng.':'Đặt nước miễn phí đang hoạt động bằng bộ nhận diện quy tắc. Gemini AI sẽ bổ sung khi được kết nối.','note');document.querySelector('.footnote').textContent='Khách và đơn đều là dữ liệu thử. Giỏ hàng dùng chung máy chủ và được sao lưu mã hóa; đây chưa phải dữ liệu Minh Satori production.';return restoreDraft().then(loadPersonalizedSuggestions)}).catch(e=>msg(e.message,'note'))}else{current=firstActiveProfile();selectProfile(current);}
 })();
 </script>
 </body></html>
