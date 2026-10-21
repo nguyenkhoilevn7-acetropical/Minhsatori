@@ -63,12 +63,15 @@ function applyAmendment(res,profile,proposalId){
  pendingAmends.delete(profile.id);
  return reply(res,200,amendedReply(updated));
 }
-function proposeAmendment(res,c,note){
+function proposeAmendment(res,c,note,sourceMessage=''){
  const latest=latestEditableOrder(orders,c.id);
  if(!latest.order)return reply(res,200,{ok:true,sandbox:true,needsHuman:true,
   message:latest.reason==='NO_RECENT_ORDER'?'Bạn chưa có hóa đơn TEST đã xác nhận để sửa.':
   'Đơn gần nhất đã quá 24 giờ hoặc không còn ở trạng thái chờ thanh toán. Cửa hàng cần xác minh trước khi sửa.'});
  const order=latest.order;
+ const typedRef=String(sourceMessage).match(/TEST-[0-9A-F]{10}/i)?.[0]?.toUpperCase();
+ if(typedRef&&typedRef!==order.ref)return reply(res,200,{ok:true,needsHuman:true,
+  message:'Mã hóa đơn bạn nhắc tới không phải đơn vừa đặt. Để tránh sửa nhầm đơn, vui lòng liên hệ cửa hàng xác minh.'});
  let nextNote;
  try{nextNote=normalizeDeliveryNote(appendDeliveryNote(order.deliveryNote||'',note))}
  catch{return reply(res,200,{ok:true,needsHuman:true,message:'Ghi chú mới cộng ghi chú cũ vượt quá 300 ký tự. Vui lòng liên hệ cửa hàng để điều chỉnh.'})}
@@ -311,7 +314,7 @@ const server=http.createServer(async(req,res)=>{
      /^(?:(?:sau|luc|vao)\s+)?\d{1,2}\s*(?:gio|h|tieng)\s*(?:chieu|sang|trua|toi|dem|nua)$/i.test(normalizedAnswer)){
    const requested=clarify.rawRequest.replace(/(?:hai|2)\s*(?:giờ|gio|h)(?![\p{L}\p{N}])/iu,message.trim());
    const parsed=parseAmendment(requested);
-   if(parsed?.note)return proposeAmendment(res,c,parsed.note);
+   if(parsed?.note)return proposeAmendment(res,c,parsed.note,requested);
    return reply(res,200,{ok:true,needMoreDetails:true,message:parsed?.clarification||'Bạn vui lòng nói rõ giờ giao.'});
   }
   if(b?.cartItems===undefined&&isAmendmentIntent(message)){
@@ -322,7 +325,7 @@ const server=http.createServer(async(req,res)=>{
      expiresAt:Date.now()+MAX_AMEND_AGE_MS});
     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'AMENDMENT_DELIVERY_TIME',message:parsed.clarification});
    }
-   if(parsed?.note)return proposeAmendment(res,c,parsed.note);
+   if(parsed?.note)return proposeAmendment(res,c,parsed.note,message);
   }
   // The catalogue basket is an explicit request, not an invitation for AI to
   // guess which selected item to omit. Product codes, prices and VAT are server-owned.
