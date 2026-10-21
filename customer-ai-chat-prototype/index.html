@@ -480,7 +480,7 @@ function showAmendment(proposal){
  no.addEventListener('click',()=>{yes.disabled=true;no.disabled=true;send('Không sửa')});
  actions.append(yes,no);box.append(before,after,info,actions);$('messages').append(box);bottom();
 }
-async function confirmOrder(q,button){if(serverMode&&(draftBusy||q.quoteId!==activeQuoteId)){msg('Báo giá này đã cũ. Vui lòng xem báo giá của giỏ hàng hiện tại.','note');return;}const deliveryNote=(button.closest('.quote')?.querySelector('textarea.delivery-note')?.value||'').trim();if(deliveryNote.length>300){msg('Lưu ý chỉ được tối đa 300 ký tự.','note');return}if(serverMode){button.disabled=true;button.textContent='Đang lưu đơn thử...';try{const res=await serverPost('/api/confirm',{token:serverToken,quoteId:q.quoteId,requestId:'demo-'+q.quoteId,deliveryNote});const o=res.order;button.textContent='Đã xác nhận';msg('Đã tạo một bill THỬ '+o.ref+' cho toàn bộ giỏ hàng. Chưa chuyển tới Minh Satori thật. Trạng thái: Chờ thanh toán.');deactivateQuotes();await restoreDraft().catch(()=>{cart.clear();updateCart();});showInvoice(o);const link=document.createElement('a');link.className='btn';link.textContent='⬇ Tải PDF về máy';link.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);link.setAttribute('download',o.ref+'.pdf');$('messages').appendChild(link);bottom();draft=null;}catch(e){button.disabled=false;button.textContent='Xác nhận đơn THỬ';msg('Không ghi được đơn: '+e.message,'note')}return;}if(!draft||draft.nonce!==q.nonce||draft.profileId!==customer().id){msg('Báo giá đã thay đổi, vui lòng yêu cầu lại.');return}const c=customer();if(c.id!==q.profileId||c.discount!==q.discount||c.ship!==q.ship||c.address!==q.address||c.phone!==q.phone){msg('Cấu hình khách đã đổi nên không thể chốt theo báo giá cũ. Vui lòng đặt lại.');draft=null;return;}const key='MSATORI_SANDBOX_DEMO_ONLY';try{localOrders=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(localOrders))localOrders=[]}catch(e){localOrders=[]}let saved=localOrders.find(o=>o.nonce===q.nonce);if(!saved){saved={...q,deliveryNote,ref:'TEST-'+String(Date.now()),createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};localOrders.push(saved);try{localStorage.setItem(key,JSON.stringify(localOrders))}catch(e){msg('Không thể lưu localStorage; đơn thử chỉ tồn tại trong phiên này.','note')}}button.disabled=true;button.textContent='Đã xác nhận';msg(`Đã tạo đơn THỬ ${saved.ref}. Trạng thái: Chờ thanh toán. Chưa gửi website thật và chưa phát sinh yêu cầu giao hàng.`);showInvoice(saved);draft=null}
+async function confirmOrder(q,button){if(serverMode&&(draftBusy||q.quoteId!==activeQuoteId)){msg('Báo giá này đã cũ. Vui lòng xem báo giá của giỏ hàng hiện tại.','note');return;}const deliveryNote=(button.closest('.quote')?.querySelector('textarea.delivery-note')?.value||'').trim();if(deliveryNote.length>300){msg('Lưu ý chỉ được tối đa 300 ký tự.','note');return}if(serverMode){button.disabled=true;button.textContent='Đang lưu đơn thử...';try{const res=await serverPost('/api/confirm',{token:serverToken,quoteId:q.quoteId,requestId:'demo-'+q.quoteId,deliveryNote});const o=res.order;button.textContent='Đã xác nhận';msg('Đã tạo một bill THỬ '+o.ref+' cho toàn bộ giỏ hàng. Chưa chuyển tới Minh Satori thật. Trạng thái: Chờ thanh toán.');deactivateQuotes();await restoreDraft().catch(()=>{cart.clear();updateCart();});loadPersonalizedSuggestions();showInvoice(o);const link=document.createElement('a');link.className='btn';link.textContent='⬇ Tải PDF về máy';link.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);link.setAttribute('download',o.ref+'.pdf');$('messages').appendChild(link);bottom();draft=null;}catch(e){button.disabled=false;button.textContent='Xác nhận đơn THỬ';msg('Không ghi được đơn: '+e.message,'note')}return;}if(!draft||draft.nonce!==q.nonce||draft.profileId!==customer().id){msg('Báo giá đã thay đổi, vui lòng yêu cầu lại.');return}const c=customer();if(c.id!==q.profileId||c.discount!==q.discount||c.ship!==q.ship||c.address!==q.address||c.phone!==q.phone){msg('Cấu hình khách đã đổi nên không thể chốt theo báo giá cũ. Vui lòng đặt lại.');draft=null;return;}const key='MSATORI_SANDBOX_DEMO_ONLY';try{localOrders=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(localOrders))localOrders=[]}catch(e){localOrders=[]}let saved=localOrders.find(o=>o.nonce===q.nonce);if(!saved){saved={...q,deliveryNote,ref:'TEST-'+String(Date.now()),createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};localOrders.push(saved);try{localStorage.setItem(key,JSON.stringify(localOrders))}catch(e){msg('Không thể lưu localStorage; đơn thử chỉ tồn tại trong phiên này.','note')}}button.disabled=true;button.textContent='Đã xác nhận';msg(`Đã tạo đơn THỬ ${saved.ref}. Trạng thái: Chờ thanh toán. Chưa gửi website thật và chưa phát sinh yêu cầu giao hàng.`);showInvoice(saved);draft=null}
 async function send(text){const message=String(text||'').trim();if(!message||sending||draftBusy)return;msg(message,'user');$('messageInput').value='';if(message.length>500){msg('Tin nhắn quá dài.');return;}if(serverMode){sending=true;const sendButton=$('sendForm').querySelector('button');sendButton.disabled=true;$('messages').setAttribute('aria-busy','true');msg('Đang kiểm tra yêu cầu đặt nước...','note');const loading=$('messages').lastElementChild;try{const useCart=pendingCartMessage===message&&Array.isArray(pendingCartItems);
  const payload={token:serverToken,message,unifiedDraft:true,expectedRevision:draftRevision,...(useCart?{cartItems:pendingCartItems}: {})};
  const res=await serverPost('/api/message',payload);
@@ -555,6 +555,60 @@ $('toggleSettings').addEventListener('click',()=>{$('panel').classList.toggle('o
 
 let catalogItems=[],currentBrand='ALL',selectedProduct=null;
 const cart=new Map();let pendingCartMessage=null,pendingCartItems=null;
+
+let personalizedSuggestions=[],inlineCartCollapsed=false;
+function stepper(code,current){
+ const el=document.createElement('div');el.className='suggestion-steps';
+ const minus=document.createElement('button');minus.type='button';minus.textContent='−';minus.disabled=current<1;minus.setAttribute('aria-label','Bớt một sản phẩm');
+ const count=document.createElement('input');count.type='number';count.min='0';count.max='500';count.inputMode='numeric';count.value=current;count.setAttribute('aria-label','Số lượng sản phẩm');
+ const plus=document.createElement('button');plus.type='button';plus.textContent='＋';plus.setAttribute('aria-label','Thêm một sản phẩm');
+ minus.addEventListener('click',()=>{if(current>0)changeSharedDraft(current===1?'remove':'subtract',code,current===1?null:1)});
+ plus.addEventListener('click',()=>changeSharedDraft('add',code,1));
+ count.addEventListener('change',async()=>{
+  const qty=Number(count.value);
+  if(!Number.isSafeInteger(qty)||qty<0||qty>500){count.value=current;return}
+  if(qty===current)return;
+  await changeSharedDraft(qty===0?'remove':'set',code,qty===0?null:qty);
+ });
+ el.append(minus,count,plus);return el;
+}
+async function loadPersonalizedSuggestions(){
+ if(!serverMode)return;
+ try{
+  const r=await fetch('/api/suggestions?token='+encodeURIComponent(serverToken),{cache:'no-store'});
+  const d=await r.json();if(!r.ok||!d.ok||!Array.isArray(d.suggestions))throw Error('Không tải được gợi ý');
+  personalizedSuggestions=d.suggestions;renderPersonalizedSuggestions();
+ }catch(e){personalizedSuggestions=[];$('suggestionsInline').hidden=true;msg('Gợi ý riêng chưa tải được. Anh/chị vẫn có thể đặt hàng bằng chat.','note')}
+}
+function renderPersonalizedSuggestions(){
+ if(!serverMode)return;
+ const section=$('suggestionsInline'),list=$('suggestionsList');list.replaceChildren();
+ section.hidden=personalizedSuggestions.length===0;
+ for(const p of personalizedSuggestions){
+  if(!p?.code||!p?.name)continue;
+  const tile=document.createElement('div');tile.className='suggestion-tile';
+  const name=document.createElement('span');name.className='suggestion-name';name.textContent=p.name;name.title=p.name;
+  const meta=document.createElement('span');meta.className='suggestion-meta';
+  meta.textContent=p.orderCount>0?'Đã mua '+p.orderCount+' lần · '+money(p.unitPrice):p.reason+' · '+money(p.unitPrice);
+  tile.append(name,meta,stepper(p.code,cart.get(p.code)?.qty||0));list.append(tile);
+ }
+ $('suggestionsCaption').textContent=personalizedSuggestions.some(p=>p.orderCount>0)?'Theo lịch sử mua của riêng bạn':'Mặt hàng dành cho bạn';
+}
+function renderInlineCart(){
+ if(!serverMode)return;
+ const root=$('inlineCartLines');root.replaceChildren();root.hidden=inlineCartCollapsed;
+ $('quickCartEdit').textContent=inlineCartCollapsed?'Mở giỏ':'Thu gọn';
+ for(const item of cart.values()){
+  const row=document.createElement('div');row.className='inline-cart-row';
+  const title=document.createElement('span');title.textContent=item.name;title.title=item.name;
+  const controls=stepper(item.code,item.qty);
+  const remove=document.createElement('button');remove.type='button';remove.className='inline-cart-remove';remove.textContent='×';remove.setAttribute('aria-label','Bỏ '+item.name);
+  remove.addEventListener('click',()=>changeSharedDraft('remove',item.code));
+  row.append(title,controls,remove);root.append(row);
+ }
+ renderPersonalizedSuggestions();
+}
+
 
 function renderSharedDraft(data){
  if(!data||!Number.isSafeInteger(data.revision)||!Array.isArray(data.items))return;
@@ -753,6 +807,7 @@ function updateCart(){
  $('clearCart').disabled=cart.size===0;
  $('composeCart').disabled=cart.size===0;
  $('composeCart').textContent='Soạn tin nhắn đầy đủ ('+cart.size+' món) →';
+ if(serverMode)renderInlineCart();
  if(!cart.size){const label=document.createElement('span');label.className='cart-empty';label.textContent='Chọn từng sản phẩm để thêm vào cùng một đơn.';root.append(label)}
  for(const item of cart.values()){
   const row=document.createElement('div');row.className='cart-row';
@@ -846,7 +901,7 @@ $('clearCart').addEventListener('click',async()=>{
  $('productSelection').classList.remove('active');$('cartFeedback').textContent='Đã xóa giỏ chọn thử.';
  updateCart();renderCatalogue();
 });
-$('quickCartEdit').addEventListener('click',openCatalog);
+$('quickCartEdit').addEventListener('click',()=>{if(!serverMode){openCatalog();return;}inlineCartCollapsed=!inlineCartCollapsed;renderInlineCart()});
 $('quickCartQuote').addEventListener('click',()=> {
  if(!cart.size)return;
  if(serverMode){sharedQuote();return;}
@@ -866,7 +921,7 @@ $('composeCart').addEventListener('click',()=>{
 });
 
 
-if(serverMode){const id=serverToken==='demo-b'?'B':'A';fetch('/api/session?token='+encodeURIComponent(serverToken)).then(r=>r.json()).then(d=>{if(!d.ok)throw new Error('Link khách không hợp lệ');Object.assign(FIXTURES[id],d.profile);$('panel').style.display='none';$('chatSubtitle').textContent='Nhận diện đơn nhanh • quy tắc + Gemini Free Tier';$('messages').innerHTML='';current=id;selectProfile(id);msg(d.aiConfigured?'AI Gemini đã cấu hình. Bộ xử lý quy tắc luôn sẵn sàng.':'Đặt nước miễn phí đang hoạt động bằng bộ nhận diện quy tắc. Gemini AI sẽ bổ sung khi được kết nối.','note');document.querySelector('.footnote').textContent='Khách và đơn đều là dữ liệu thử. Đơn lưu riêng trên sandbox; dữ liệu có thể mất khi sandbox khởi động lại. Không gửi đến Minh Satori production.';return restoreDraft()}).catch(e=>msg(e.message,'note'))}else{current=firstActiveProfile();selectProfile(current);}
+if(serverMode){const id=serverToken==='demo-b'?'B':'A';fetch('/api/session?token='+encodeURIComponent(serverToken)).then(r=>r.json()).then(d=>{if(!d.ok)throw new Error('Link khách không hợp lệ');Object.assign(FIXTURES[id],d.profile);$('panel').style.display='none';$('chatSubtitle').textContent='Nhận diện đơn nhanh • quy tắc + Gemini Free Tier';$('messages').innerHTML='';current=id;selectProfile(id);msg(d.aiConfigured?'AI Gemini đã cấu hình. Bộ xử lý quy tắc luôn sẵn sàng.':'Đặt nước miễn phí đang hoạt động bằng bộ nhận diện quy tắc. Gemini AI sẽ bổ sung khi được kết nối.','note');document.querySelector('.footnote').textContent='Khách và đơn đều là dữ liệu thử. Đơn lưu riêng trên sandbox; dữ liệu có thể mất khi sandbox khởi động lại. Không gửi đến Minh Satori production.';return restoreDraft().then(loadPersonalizedSuggestions)}).catch(e=>msg(e.message,'note'))}else{current=firstActiveProfile();selectProfile(current);}
 })();
 </script>
 </body></html>
