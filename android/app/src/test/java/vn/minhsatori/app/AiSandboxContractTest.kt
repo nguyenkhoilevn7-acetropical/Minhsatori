@@ -32,6 +32,23 @@ class AiSandboxContractTest {
         }
     }
 
+    @Test fun embeddedCustomerAndOwnerPortalNeverOpenThirdPartyHosts() {
+        assertTrue(AiSandboxContract.validPortalNavigation(
+            "https://minh-satori-customer-ai-gemini.onrender.com/admin"))
+        assertTrue(AiSandboxContract.validPortalNavigation(
+            "https://minh-satori-customer-ai-gemini.onrender.com/c/demo-a"))
+        assertTrue(AiSandboxContract.validPortalNavigation(
+            "https://minh-satori-customer-ai-gemini.onrender.com/c/opaqueTest?foo=bar"))
+        for (target in listOf(
+            "http://minh-satori-customer-ai-gemini.onrender.com/admin",
+            "https://minh-satori-customer-ai-gemini.onrender.com.evil.example/c/demo-a",
+            "https://user@minh-satori-customer-ai-gemini.onrender.com/admin",
+            "https://minh-satori-customer-ai-gemini.onrender.com:8443/admin",
+            "file:///data/local/tmp/secrets", "javascript:alert(1)", null
+        )) assertFalse("block target " + target,
+            AiSandboxContract.validPortalNavigation(target))
+    }
+
     @Test fun pinnedHttpsHostOnly() {
         assertTrue(AiSandboxContract.validEndpoint(AiSandboxContract.BASE_URL))
         for (url in listOf(
