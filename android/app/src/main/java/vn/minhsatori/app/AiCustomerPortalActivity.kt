@@ -139,9 +139,19 @@ class AiCustomerPortalActivity : AppCompatActivity() {
         // Downloads are only initiated by the user clicking a download link on
         // the trusted website. Browser takes ownership of its own save dialog.
         view.setDownloadListener(DownloadListener { url, _, _, _, _ ->
-            if (sameSandbox(url)) {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            } else toast("Đã chặn địa chỉ tải tệp không thuộc Sandbox.")
+            if (!sameSandbox(url)) {
+                toast("Đã chặn địa chỉ tải tệp không thuộc Sandbox.")
+            } else {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                        addCategory(Intent.CATEGORY_BROWSABLE)
+                    })
+                } catch (_: android.content.ActivityNotFoundException) {
+                    toast("Không có ứng dụng phù hợp để mở tệp. Hãy thử Chrome.")
+                } catch (_: SecurityException) {
+                    toast("Ứng dụng không có quyền mở trình tải tệp.")
+                }
+            }
         })
         root.addView(view, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
