@@ -15,7 +15,7 @@ import {parseOrder,parseRules,parseComplexOrderWithGemini,geminiConfigured,ident
 import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
 import {customerSuggestions} from './customer-suggestions.mjs';
 import {businessReply} from './business-reply.mjs';
-import {parseMultiOrder,looksCompoundOrder,parseWaterClarificationBasket,waterClarificationAnswer} from './multi-order.mjs';
+import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificationBasket,waterClarificationAnswer,parseColloquialBasket,colloquialQuestion,completeColloquialFollowup} from './multi-order.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
@@ -42,7 +42,7 @@ const FIXTURES=Object.freeze({
 const sessions=new Map(),quotes=new Map(),orders=new Map(),idempotency=new Map(),rate=new Map();
 const draftStore=makeDraftStore({filePath:path.join(DATA_DIR,'drafts-SANDBOX.json'),onChange:()=>driveWorker?.schedule()});
 const phraseMemory=makeCustomerPhraseMemory(DATA_DIR);
-const pendingBrands=new Map(),pendingPhones=new Map(),pendingTeaching=new Map(),pendingWaterOrders=new Map();
+const pendingBrands=new Map(),pendingPhones=new Map(),pendingTeaching=new Map(),pendingWaterOrders=new Map(),pendingColloquial=new Map();
 const geminiProbe={status:'not_run',elapsedMs:null};
 const pendingAmends=new Map(); // profileId -> expiring unconfirmed customer proposal
 const MAX_AMEND_AGE_MS=5*60_000;
@@ -485,6 +485,33 @@ const server=http.createServer(async(req,res)=>{
   }
   if(learn&&learn.expiresAt<=Date.now())pendingTeaching.delete(token);
 
+  const waitingColloquial=pendingColloquial.get(token);
+  if(waitingColloquial){
+   if(waitingColloquial.expiresAt<=Date.now())pendingColloquial.delete(token);
+   else{
+    const resolved=completeColloquialFollowup(waitingColloquial,message);
+    if(resolved){
+     if(resolved.pending){
+      pendingColloquial.set(token,{...resolved.pending,revision:waitingColloquial.revision,expiresAt:waitingColloquial.expiresAt});
+      return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'COLLOQUIAL_PRODUCT',
+       draft:draftStore.read(token),message:resolved.message});
+     }
+     if(resolved.items){
+      const current=draftStore.read(token);
+      if(current.revision!==waitingColloquial.revision||(b?.unifiedDraft===true&&b.expectedRevision!==current.revision)){
+       pendingColloquial.delete(token);
+       return fail(res,409,'DRAFT_CONFLICT','Giỏ đã thay đổi. Tải lại trước khi gửi thêm.');
+      }
+      pendingColloquial.delete(token);
+      return applyChatBasket(res,token,c,resolved.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
+       current.revision,resolved.source);
+     }
+     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'COLLOQUIAL_PRODUCT',
+      draft:draftStore.read(token),message:resolved.message});
+    }
+    pendingColloquial.delete(token);
+   }
+  }
   // Multi-turn clarifications are scoped to one browser token + basket revision.
   // Never add an incomplete phrase or a subset of a complex message.
   const pendingWater=pendingWaterOrders.get(token);
@@ -537,6 +564,26 @@ const server=http.createServer(async(req,res)=>{
      ' thùng nước suối 500ml. Anh/chị muốn Satori hay Hikari? Chỉ cần trả lời hãng; chưa thêm sản phẩm vào giỏ.'});
    }
    message=phraseMemory.expand(token,message);
+   // New conversational cart semantics are opt-in; legacy quote-only clients
+   // must keep their historical no-draft behavior and pricing tests.
+   const colloquial=b?.unifiedDraft===true?parseColloquialBasket(message,c):null;
+   if(colloquial?.pending){
+    const draft=draftStore.read(token);
+    if(b?.unifiedDraft===true&&b?.expectedRevision!==draft.revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi, cần tải lại.');
+    pendingColloquial.set(token,{...colloquial.pending,revision:draft.revision,expiresAt:Date.now()+600_000});
+    const known=colloquial.pending.items.map(x=>x.qty+' '+productFor(x.sku).unit.toLowerCase()+' '+productFor(x.sku).name).join(', ');
+    return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'COLLOQUIAL_PRODUCT',
+     draft,message:'Em đã hiểu '+(known?known+', ':'')+colloquial.pending.missing.label+'. '+
+      colloquialQuestion(colloquial.pending.missing)});
+   }
+   if(colloquial?.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,
+    draft:draftStore.read(token),message:colloquial.message});
+   if(colloquial?.items){
+    const draft=draftStore.read(token);
+    if(b?.unifiedDraft===true&&b?.expectedRevision!==draft.revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi, cần tải lại.');
+    return applyChatBasket(res,token,c,colloquial.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
+     draft.revision,colloquial.source);
+   }
    const incomplete=parseWaterClarificationBasket(message,c);
    if(incomplete?.pending){
     const draft=draftStore.read(token);
@@ -655,6 +702,9 @@ const server=http.createServer(async(req,res)=>{
      compound.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
      revision,compound.source,deliveryAll);
    }
+   const single=parseOneClause(message,c);
+   if(single)return applyChatBasket(res,token,c,[{action:'add',code:single.sku,qty:single.qty}],
+    revision,'catalogue-short-product');
    const edit=contextualDraftEdit(message,c,draftStore.read(token));
    if(edit?.clarification)return reply(res,200,{ok:true,needMoreDetails:true,draft:draftStore.read(token),message:edit.clarification});
    if(edit?.changes)return applyChatBasket(res,token,c,edit.changes,revision,'basket-followup');

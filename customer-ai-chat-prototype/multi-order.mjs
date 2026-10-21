@@ -98,6 +98,131 @@ export function parseWaterClarificationBasket(message,profile={}){
  return {needMoreDetails:true,reason:'WATER_REQUIRES_BRAND_OR_SIZE',
   pending:{items,water:missing},source:'clarify-water-with-full-basket'};
 }
+
+/**
+ * Parse colloquial Vietnamese *whole messages* using the real catalogue.
+ * Unitless, unambiguous juice aliases map to their only listed package SKU.
+ * Five-litre water needs an explicit packaging + tap choice and quantity.
+ * The caller must never persist pending partial lines.
+ */
+export function parseColloquialBasket(message,profile={}){
+ const text=fold(message).replace(/\b5\s*(?:lit|liter)\b/g,'5l');
+ const chunks=text.split(/\s*[,;\n]\s*|\s+(?:va|voi)\s+/u).map(x=>x.trim()).filter(Boolean);
+ if(!chunks.length||chunks.length>6)return null;
+ // Information-seeking questions are never order intents. Keep existing
+ // price/discount/VAT/payment/shipping FAQ behavior unchanged.
+ if(/\b(?:gia|bao nhieu|chiet khau|vat|phi ship|thanh toan|da tra|bao lau|thoi gian giao|lich su|xin chao)\b/.test(text))
+  return null;
+ const grouped=chunks.length>1;
+ // Existing single-product parsing owns all quantified/sales phrases.
+ // This new flow owns a single utterance ONLY when it describes the 5L capacity
+ // without an order quantity; 10t and 10 thùng are order quantities, not 5L.
+ if(!grouped&&(!/\b5\s*l\b/.test(text)||/^(?:cho|lay|mua|dat|can)\b/.test(text)||/\b(?:\d{1,3}|mot|hai|ba|muoi)\s*(?:thung|thg|t|binh|loc|chai)\b/.test(text)))return null;
+ const items=[],missing=[];
+ const intro=/^(?:(?:cho|lay|dat|mua|them|can|order)\s+(?:(?:toi|anh|chi|em|minh)\s+)?|(?:anh|chi|em|toi|minh)\s+(?:lay|dat|mua|cho|can)\s+|bo\s+sung\s+)*/u;
+ const numeric=new RegExp('^('+COUNT+')(?:\\s+('+UNIT+'))?\\s+(.+)$','u');
+ for(const part of chunks){
+  const clause=part.replace(intro,'').trim();
+  const m=clause.match(numeric);
+  const qty=m?countOf(m[1]):null,spoken=m?.[2]==='thg'?'thung':m?.[2]||null;
+  const name=m?m[3].trim():clause;
+  // Do not infer Satori from "suối 500": Hikari 500ml also exists.
+  // Defer this specific two-brand ambiguity to the brand-clarification flow.
+  if(/^(?:(?:nuoc\s+)?suoi)\s+500(?:\s*ml)?$/.test(name))return null;
+  const five=/^(?:(?:(?:nuoc\s+)?suoi|nuoc\s+tinh\s+khiet|nuoc|satori)\s+)?5\s*l(?:\s+(?:co|khong|ko|k)\s+voi)?$/u.test(name);
+  if(five){
+   if(qty!==null&&(!Number.isSafeInteger(qty)||qty<1||qty>500))
+    return {needMoreDetails:true,reason:'INVALID_QUANTITY',message:'Số lượng cần từ 1 đến 500.'};
+   if(spoken&&!['thung','binh'].includes(spoken))
+    return {needMoreDetails:true,reason:'UNIT_UNSUPPORTED',message:'Nước 5 lít phải chọn thùng hoặc bình; không tự đổi chai hay lốc thành thùng.'};
+   const spout=/\b(?:khong|ko|k)\s+voi\b/.test(name)?'without':
+    /\bco\s+voi\b/.test(name)?'with':null;
+   const favourite=profile.uniqueFavourite===true?productFor(profile.favourite):null;
+   if(qty&&spoken&&spout){
+    const sku=spout==='with'?(spoken==='thung'?'TP-00136':'TP-00142'):
+     (spoken==='thung'?'TP-00135':'TP-00143');
+    items.push({sku,qty});
+   }else if(qty&&spoken&&!spout&&!/^(?:them|bo sung|cong them)\b/.test(text)&&
+       favourite?.name.includes('5L')&&fold(favourite.unit)===spoken){
+    // Only explicitly verified single-SKU preference may fill an omitted tap.
+    items.push({sku:favourite.code,qty});
+   }else missing.push({kind:'FIVE_LITRE',qty,unit:spoken,spout,label:'nước suối Satori 5 lít'});
+   continue;
+  }
+  if(!m){
+   const known=resolution(name,profile);
+   if(!known)return null;
+   missing.push({kind:'MISSING_QUANTITY',sku:known.code,qty:null,label:known.name});
+   continue;
+  }
+  if(!Number.isSafeInteger(qty)||qty<1||qty>500)
+   return {needMoreDetails:true,reason:'INVALID_QUANTITY',message:'Số lượng cần từ 1 đến 500.'};
+  const row=parseOneClause(clause,profile);
+  if(!row)return null; // Unsupported item/mismatched explicit unit: never partial.
+  items.push(row);
+ }
+ if(!grouped&&!missing.length)return null; // Keep legacy single-SKU parser.
+ if(missing.length>1)return {needMoreDetails:true,reason:'MULTIPLE_UNKNOWN',
+  message:'Có nhiều mặt hàng chưa rõ số lượng hoặc quy cách. Vui lòng gửi rõ từng món; giỏ chưa thay đổi.'};
+ const merged=[];
+ for(const it of items){
+  const old=merged.find(x=>x.sku===it.sku);
+  if(old)old.qty+=it.qty;else merged.push({...it});
+ }
+ if(merged.length>6||merged.some(x=>x.qty>500)||merged.reduce((n,x)=>n+x.qty,0)>500)
+  return {needMoreDetails:true,reason:'CART_LIMIT',message:'Tối đa 6 sản phẩm và 500 đơn vị.'};
+ if(missing.length)return {needMoreDetails:true,reason:'COLLOQUIAL_CLARIFICATION',
+  pending:{items:merged,missing:missing[0]},source:'catalogue-colloquial'};
+ return {items:merged,source:'catalogue-colloquial'};
+}
+export function colloquialQuestion(m){
+ if(m.kind==='MISSING_QUANTITY')return 'Em hiểu '+m.label+
+  '. Anh/chị muốn bao nhiêu '+productFor(m.sku).unit.toLowerCase()+'? Các món khác em đã giữ, chưa cập nhật giỏ.';
+ const asks=[];
+ if(!m.qty)asks.push('bao nhiêu');
+ if(!m.unit)asks.push('thùng hay bình');
+ if(!m.spout)asks.push('có vòi hay không vòi');
+ return 'Em hiểu nước suối Satori 5 lít. Anh/chị cho biết '+asks.join(', ')+
+  ' (ví dụ "2 thùng có vòi"). Em chưa cộng vào giỏ.';
+}
+export function completeColloquialFollowup(pending,message){
+ if(!pending||!Array.isArray(pending.items)||!pending.missing)return null;
+ const text=fold(message).replace(/\b5\s*(?:lit|liter)\b/g,'5l'),m=pending.missing;
+ let updated={...m};
+ if(m.kind==='FIVE_LITRE'){
+  const re=new RegExp('^('+COUNT+')(?:\\s+(thung|binh))?(?:\\s+(?:satori\\s+)?5\\s*l)?(?:\\s+((?:co|khong|ko|k)\\s+voi))?$','u');
+  const spoken=text.match(re),variant=text.match(/^(?:(thung|binh)\s+)?((?:co|khong|ko|k)\s+voi)$/);
+  if(!spoken&&!variant)return null;
+  const qty=spoken?countOf(spoken[1]):null;
+  if(qty!==null&&(!Number.isSafeInteger(qty)||qty<1||qty>500))return null;
+  const tap=spoken?.[3]||variant?.[2]||'';
+  updated={...m,qty:qty||m.qty,unit:spoken?.[2]||variant?.[1]||m.unit,
+   spout:tap?(/^(khong|ko|k)\b/.test(tap)?'without':'with'):m.spout};
+ }else if(m.kind==='MISSING_QUANTITY'){
+  const count=text.match(new RegExp('^('+COUNT+')(?:\\s+('+UNIT+'))?$','u'));
+  if(!count)return null;
+  const qty=countOf(count[1]),unit=count[2]==='thg'?'thung':count[2];
+  const p=productFor(m.sku);
+  if(!p||!Number.isSafeInteger(qty)||qty<1||qty>500||(unit&&unit!==fold(p.unit)))return null;
+  updated={...m,qty};
+ }else return null;
+ if(!updated.qty||(updated.kind==='FIVE_LITRE'&&(!updated.unit||!updated.spout)))
+  return {needMoreDetails:true,pending:{...pending,missing:updated},message:colloquialQuestion(updated)};
+ let sku=updated.sku;
+ if(updated.kind==='FIVE_LITRE')
+  sku=updated.spout==='with'?(updated.unit==='thung'?'TP-00136':'TP-00142'):
+   (updated.unit==='thung'?'TP-00135':'TP-00143');
+ const merged=[];
+ for(const it of [...pending.items,{sku,qty:updated.qty}]){
+  if(!productFor(it.sku))return null;
+  const old=merged.find(x=>x.sku===it.sku);
+  if(old)old.qty+=it.qty;else merged.push({...it});
+ }
+ if(merged.length>6||merged.some(x=>x.qty>500)||merged.reduce((a,b)=>a+b.qty,0)>500)
+  return {needMoreDetails:true,message:'Giỏ không vượt quá 6 sản phẩm và 500 đơn vị.'};
+ return {items:merged,source:'clarified-colloquial'};
+}
+
 export function waterClarificationAnswer(message){
  const n=fold(message).replace(/[.!?]+$/,'').trim();
  if(!/^(?:satori|hikari|350|500|1500|ml|\s)+$/.test(n))return null;
