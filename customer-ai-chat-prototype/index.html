@@ -434,6 +434,12 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 .catalog-purchase-row button{touch-action:manipulation}
 @media(max-width:390px){.catalog-purchase-row{grid-template-columns:27px minmax(0,1fr) 108px;gap:5px}
  .catalog-purchase-row .catalog-quantity-controls{width:108px;grid-template-columns:29px minmax(0,1fr) 29px}}
+/* Compact branch picker stays outside the message scroller on narrow phones. */
+.locations-panel{padding:9px;max-height:39dvh;overflow-y:auto;border-bottom:1px solid #d9e5ef;background:#f4f9ff;display:grid;gap:7px}
+.locations-panel[hidden]{display:none}
+.locations-panel button{display:block;width:100%;text-align:left;border-radius:12px;background:#fff;padding:10px;border:1px solid #cbdbe9;color:#193c58;font:inherit;overflow-wrap:anywhere}
+.locations-panel button[aria-pressed="true"]{border:2px solid #1383c8;background:#e8f5ff}
+#locationsToggle{border-radius:12px;background:#ecf7ff;border:1px solid #b8d7eb;padding:9px;font-weight:700;color:#125a83}
 </style>
 </head>
 <body>
@@ -451,9 +457,10 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 </div></aside>
 <main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><button type="button" id="productsToggle" aria-controls="secondaryTools" aria-expanded="false">Sản phẩm &amp; gợi ý ▾</button><button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button></div>
 <div class="catalog-launch-bar">
-<button id="catalogLaunch" type="button" aria-haspopup="dialog" aria-controls="catalogBackdrop">🛍 Tất cả sản phẩm</button>
+<button id="catalogLaunch" type="button" aria-haspopup="dialog" aria-controls="catalogBackdrop">🛍 Tất cả sản phẩm</button><button id="locationsToggle" type="button" aria-expanded="false" aria-controls="locationsPanel" hidden>📍 Tất cả địa chỉ</button>
 <button id="suggestionsToggle" type="button" aria-controls="suggestionsList" aria-expanded="false" hidden>✨ Gợi ý mua nhanh ▾</button>
 </div>
+<section id="locationsPanel" class="locations-panel" aria-label="Tất cả địa chỉ giao của đại lý" hidden></section>
 <section class="suggestions-inline" id="suggestionsInline" aria-label="Gợi ý mặt hàng thường mua" hidden>
 <div class="suggestions-heading"><small id="suggestionsCaption">Các sản phẩm thường mua — chạm tên để mở danh sách</small></div>
 <div id="suggestionsList" class="suggestions-list" hidden></div></section>
@@ -540,6 +547,7 @@ function isolatedDemoToken(bare){
 }
 const serverToken=serverMode?isolatedDemoToken(location.pathname.split('/').pop()):null;
 let sending=false,draftBusy=false,draftRevision=0,activeQuoteId=null;
+ let deliveryLocations=[],selectedLocationId=null;
 if(serverMode)document.body.classList.add('server-mode');
 else document.getElementById('secondaryTools').hidden=false;
 async function serverPost(route,obj){const r=await fetch(route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});const data=await r.json();if(!data.ok)throw new Error(data.message||data.error||'Lỗi máy chủ');return data;}
@@ -563,7 +571,9 @@ function showQuote(q){deactivateQuotes();const box=document.createElement('div')
 const products=Array.isArray(q.items)&&q.items.length?q.items:[{product:q.product,unit:q.unit||'thùng',qty:q.qty,listPrice:q.listPrice,unitPrice:q.unitPrice,subtotal:q.subtotal,discount:q.discount}];
 const lines=products.map((item,i)=>'<div class="line"><strong>'+(i+1)+'. '+esc(item.product)+'</strong><span>'+esc(item.qty)+' '+esc(item.unit)+'</span></div><div class="line"><span>Đơn giá sau CK '+esc(q.discount)+'%</span><strong>'+money(item.unitPrice)+'</strong></div><div class="line"><span>Thành tiền</span><strong>'+money(item.subtotal)+'</strong></div>').join('');
 box.innerHTML='<h3>🧾 Đơn hàng dự kiến — CHƯA TẠO</h3>'+'<div class="line"><span>Khách</span><strong>'+esc(q.name)+'</strong></div>'+lines+'<hr><div class="line"><span>Tổng tiền hàng</span><strong>'+money(q.subtotal)+'</strong></div><div class="line"><span>Vận chuyển ('+esc(q.ship)+'%)</span><strong>'+money(q.shipping)+'</strong></div><div class="line"><span>VAT ('+esc(q.vatRate??0)+'%)</span><strong>'+money(q.vatAmount??0)+'</strong></div><hr><div class="line"><span>Tổng cộng</span><strong class="total">'+money(q.total)+'</strong></div><div class="mini">Giao: '+esc(q.address)+' — '+esc(q.phone)+'</div><p class="small">Chỉ khi xác nhận mới lưu đơn THỬ. Không gửi đến production.</p>';
-const b=document.createElement('button');b.className='btn primary';b.textContent='✓ Xác nhận đơn THỬ';b.addEventListener('click',()=>confirmOrder(q,b));const noteBlock=document.createElement('div');noteBlock.className='delivery-note-block';
+const b=document.createElement('button');b.className='btn primary';b.textContent=q.locationRequired?'Chọn địa chỉ trước':'✓ Xác nhận đơn THỬ';
+ if(q.locationRequired)b.disabled=true;
+ b.addEventListener('click',()=>confirmOrder(q,b));const noteBlock=document.createElement('div');noteBlock.className='delivery-note-block';
 const label=document.createElement('label');label.className='delivery-note-label';label.textContent='📝 Lưu ý giao hàng (không bắt buộc)';
 const note=document.createElement('textarea');note.className='delivery-note';note.maxLength=300;note.rows=2;
 note.placeholder='AI tự điền lời dặn từ tin nhắn; bấm vào đây nếu cần sửa';note.value=q.deliveryNote||'';note.setAttribute('aria-label','Lưu ý giao hàng đã được tự động nhận diện, có thể chỉnh sửa');label.appendChild(note);
@@ -714,6 +724,37 @@ $('suggestionsToggle').addEventListener('click',()=>{
  $('suggestionsToggle').textContent=opened?'✨ Gợi ý mua nhanh ▾':'✨ Ẩn gợi ý ▴';
  renderPersonalizedSuggestions();
 });
+function renderLocations(){
+ if(!serverMode)return;
+ const toggle=$('locationsToggle'),panel=$('locationsPanel');
+ toggle.hidden=deliveryLocations.length<2;
+ if(toggle.hidden){panel.hidden=true;return}
+ const selected=deliveryLocations.find(x=>x.id===selectedLocationId);
+ toggle.textContent=selected?'📍 '+selected.label+' ▾':'📍 Tất cả địa chỉ — chọn điểm giao ▾';
+ panel.replaceChildren();
+ for(const loc of deliveryLocations){
+  const item=document.createElement('button');item.type='button';
+  item.setAttribute('aria-pressed',String(selectedLocationId===loc.id));
+  item.textContent=loc.label+' · '+loc.recipient+' · '+loc.phone+' · '+loc.address;
+  item.addEventListener('click',async()=>{
+   item.disabled=true;
+   const done=await orderedDraftJob(async()=>{
+    try{
+     const result=await serverPost('/api/draft',{token:serverToken,action:'destination',locationId:loc.id,expectedRevision:draftRevision});
+     renderSharedDraft(result.draft);deactivateQuotes();
+     msg('Đã chọn nơi giao: '+loc.label+'.','note');return true;
+    }catch(err){msg('Chưa chọn được điểm giao: '+err.message,'note');await restoreDraft().catch(()=>{});return false}
+   });
+   item.disabled=false;
+   if(done){panel.hidden=true;toggle.setAttribute('aria-expanded','false');if(cart.size)sharedQuote()}
+  });
+  panel.append(item);
+ }
+}
+$('locationsToggle').addEventListener('click',()=>{
+ const panel=$('locationsPanel'),opening=panel.hidden;panel.hidden=!opening;
+ $('locationsToggle').setAttribute('aria-expanded',String(opening));
+});
 function renderInlineCart(){
  if(!serverMode)return;
  const root=$('inlineCartLines');root.replaceChildren();root.hidden=inlineCartCollapsed;
@@ -736,6 +777,8 @@ function renderInlineCart(){
 function renderSharedDraft(data){
  if(!data||!Number.isSafeInteger(data.revision)||!Array.isArray(data.items))return;
  draftRevision=data.revision;
+ selectedLocationId=data.locationId||null;
+ renderLocations();
  cart.clear();
  for(const item of data.items){
   if(!item||!item.code||!Number.isSafeInteger(item.qty))continue;
@@ -1127,7 +1170,7 @@ $('composeCart').addEventListener('click',()=>{
 });
 
 
-if(serverMode){const id=serverToken?.startsWith('demo-b')?'B':'A';fetch('/api/session?token='+encodeURIComponent(serverToken)).then(r=>r.json()).then(d=>{if(!d.ok)throw new Error('Link khách không hợp lệ');Object.assign(FIXTURES[id],d.profile);$('panel').style.display='none';$('chatSubtitle').textContent='Nhận diện đơn nhanh • quy tắc + Gemini Free Tier';$('messages').innerHTML='';current=id;selectProfile(id);msg(d.aiConfigured?'AI Gemini đã cấu hình. Bộ xử lý quy tắc luôn sẵn sàng.':'Đặt nước miễn phí đang hoạt động bằng bộ nhận diện quy tắc. Gemini AI sẽ bổ sung khi được kết nối.','note');document.querySelector('.footnote').textContent='Khách và đơn đều là dữ liệu thử. Giỏ hàng dùng chung máy chủ và được sao lưu mã hóa; đây chưa phải dữ liệu Minh Satori production.';return restoreDraft().then(loadPersonalizedSuggestions)}).catch(e=>msg(e.message,'note'))}else{current=firstActiveProfile();selectProfile(current);}
+if(serverMode){const id=serverToken?.startsWith('demo-b')?'B':'A';fetch('/api/session?token='+encodeURIComponent(serverToken)).then(r=>r.json()).then(d=>{if(!d.ok)throw new Error('Link khách không hợp lệ');Object.assign(FIXTURES[id],d.profile);deliveryLocations=Array.isArray(d.profile.locations)?d.profile.locations:[];renderLocations();$('panel').style.display='none';$('chatSubtitle').textContent='Nhận diện đơn nhanh • quy tắc + Gemini Free Tier';$('messages').innerHTML='';current=id;selectProfile(id);msg(d.aiConfigured?'AI Gemini đã cấu hình. Bộ xử lý quy tắc luôn sẵn sàng.':'Đặt nước miễn phí đang hoạt động bằng bộ nhận diện quy tắc. Gemini AI sẽ bổ sung khi được kết nối.','note');document.querySelector('.footnote').textContent='Khách và đơn đều là dữ liệu thử. Giỏ hàng dùng chung máy chủ và được sao lưu mã hóa; đây chưa phải dữ liệu Minh Satori production.';return restoreDraft().then(loadPersonalizedSuggestions)}).catch(e=>msg(e.message,'note'))}else{current=firstActiveProfile();selectProfile(current);}
 })();
 </script>
 </body></html>
