@@ -183,10 +183,10 @@ export function colloquialQuestion(m){
  if(!m.unit)missing.push('bình lẻ hay thùng (4 bình)');
  if(!m.spout)missing.push('có vòi hay không vòi');
  if(missing.length===1&&missing[0]==='có vòi hay không vòi')
-  return m.qty+' '+m.unit+' Satori 5L: có vòi hay không vòi ạ?';
+  return m.qty+' '+m.unit+' Satori 5 lít: có vòi hay không vòi ạ?';
  if(missing.length===1&&missing[0]==='bình lẻ hay thùng (4 bình)')
-  return 'Satori 5L: anh/chị lấy bình lẻ hay thùng 4 bình ạ?';
- return 'Satori 5L: anh/chị cho biết '+missing.join(', ')+' ạ?';
+  return 'Satori 5 lít: anh/chị lấy bình lẻ hay thùng 4 bình ạ?';
+ return 'Satori 5 lít: anh/chị cho biết '+missing.join(', ')+' ạ?';
 }
 export function completeColloquialFollowup(pending,message){
  if(!pending||!Array.isArray(pending.items)||!pending.missing)return null;
