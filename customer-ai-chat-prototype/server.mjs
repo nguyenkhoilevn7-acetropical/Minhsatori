@@ -38,7 +38,7 @@ const FIXTURES=Object.freeze({
  'demo-b':{id:'KH-DEMO-B',name:'Khách Demo B',phone:'000 000 0002',address:'456 Đường Mẫu, TP.HCM',discount:35,ship:8,favourite:'S500',lastQty:5,uniqueFavourite:false}
 });
 const sessions=new Map(),quotes=new Map(),orders=new Map(),idempotency=new Map(),rate=new Map();
-const draftStore=makeDraftStore();
+const draftStore=makeDraftStore({filePath:path.join(DATA_DIR,'drafts-SANDBOX.json'),onChange:()=>driveWorker?.schedule()});
 const geminiProbe={status:'not_run',elapsedMs:null};
 const pendingAmends=new Map(); // profileId -> expiring unconfirmed customer proposal
 const MAX_AMEND_AGE_MS=5*60_000;
@@ -172,7 +172,8 @@ function saveOrdersAtomic(){const data=JSON.stringify([...orders.values()],null,
 if(scrubbedLegacyRequestIds)saveOrdersAtomic();
 // The first verified backup upload must be confirmed before a Render redeploy.
 driveWorker=makeDriveBackupWorker(()=>createSandboxBackup({
- ...customerLinks.exportState(),orders:[...orders.values()].map(o=>structuredClone(o))}));
+ ...customerLinks.exportState(),orders:[...orders.values()].map(o=>structuredClone(o)),
+ drafts:draftStore.snapshot()}));
 async function generatePdf(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_pdf.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,300)||'PDF_ERROR')));proc.stdin.end(JSON.stringify(o))})}
 async function generateHistoryExcel(customerOrders){
  return new Promise((resolve,reject)=>{
@@ -195,7 +196,7 @@ const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
  if(req.method==='GET'&&p==='/assets/logo-satori.jpg'){const logo=path.join(HERE,'assets','logo-satori.jpg');if(!fs.existsSync(logo))return fail(res,404,'NO_LOGO','Không tìm thấy logo');res.writeHead(200,{'content-type':'image/jpeg','cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});return fs.createReadStream(logo).pipe(res)}
- if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
+ if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,draftPersistence:true,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
  if(req.method==='GET'&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&p==='/admin'){const html=fs.readFileSync(path.join(HERE,'admin.html'));res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
  // This route probes source-of-truth sync READINESS only. Admin-authenticated,
@@ -234,9 +235,9 @@ const server=http.createServer(async(req,res)=>{
   if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị viên thử nghiệm mới được sao lưu hoặc khôi phục.');
   if(req.method==='GET'){
    const state=customerLinks.exportState();
-   return reply(res,200,createSandboxBackup({...state,orders:[...orders.values()].map(o=>structuredClone(o))}));
+   return reply(res,200,createSandboxBackup({...state,orders:[...orders.values()].map(o=>structuredClone(o)),drafts:draftStore.snapshot()}));
   }
-  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length){
+  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length||draftStore.snapshot().length){
    return fail(res,409,'SANDBOX_NOT_EMPTY','Chỉ khôi phục khi sandbox trống; không ghi đè khách hoặc đơn hiện có.');
   }
   const body=await bodyJSON(req,2_000_000);
@@ -244,6 +245,7 @@ const server=http.createServer(async(req,res)=>{
   let state;
   try{state=verifySandboxBackup(body.archive)}catch{return fail(res,400,'INVALID_SANDBOX_BACKUP','Tệp sao lưu thử không hợp lệ hoặc đã bị sửa.')}
   customerLinks.restoreState(state);
+  draftStore.restore(state.drafts||[]);
   for(const o of state.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   return reply(res,200,{ok:true,sandbox:true,restoredProfiles:state.profiles.length,restoredOrders:state.orders.length,message:'Đã khôi phục dữ liệu thử, không tác động production.'});
@@ -261,7 +263,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p==='/api/admin/drive-backup/restore'&&req.method==='POST'){
   if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị thử được khôi phục.');
-  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length)
+  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length||draftStore.snapshot().length)
    return fail(res,409,'SANDBOX_NOT_EMPTY','Sandbox chưa trống; không tự ghi đè hoặc hợp nhất.');
   const body=await bodyJSON(req);
   if(body?.confirmation!=='RESTORE_DRIVE_TEST_ONLY')
@@ -270,6 +272,7 @@ const server=http.createServer(async(req,res)=>{
   try{state=await driveWorker.readArchive(body?.fileId)}
   catch{return fail(res,503,'DRIVE_RESTORE_INVALID','Bản sao không thể xác minh và giải mã; chưa sửa dữ liệu.')}
   customerLinks.restoreState(state);
+  draftStore.restore(state.drafts||[]);
   for(const o of state.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   return reply(res,200,{ok:true,sandbox:true,restoredProfiles:state.profiles.length,
