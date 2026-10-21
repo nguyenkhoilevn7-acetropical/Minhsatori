@@ -73,7 +73,7 @@ export function parseWaterClarificationBasket(message,profile={}){
  const items=[];let missing=null;
  for(const chunk of chunks){
   const simplified=chunk.replace(/^(?:(?:cho|lay|dat|mua|them|can)\s+(?:(?:toi|anh|chi|em|minh)\s+)?|(?:anh|chi|em|minh|toi)\s+(?:lay|dat|mua|cho|can)\s+)/,'');
-  const m=simplified.match(new RegExp('^('+COUNT+')\\s*(?:(thung|thg|binh|loc|chai|lon|ly)\\s+)?(.+?)\\s*[.!?]*
+  const m=simplified.match(new RegExp('^('+COUNT+')\\s*(?:(thung|thg|binh|loc|chai|lon|ly)\\s+)?(.+?)\\s*[.!?]*$','u'));
   if(!m)return null;
   const qty=countOf(m[1]),unit=m[2]==='thg'?'thung':(m[2]||null),name=m[3].trim();
   if(!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
