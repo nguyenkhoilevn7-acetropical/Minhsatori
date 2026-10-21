@@ -7,6 +7,10 @@ new vm.Script(browser,{filename:'pdf-drive-archive.js'});
 new vm.Script(gas,{filename:'InvoicePdfArchive.gs'});
 assert(html.includes('<script src="pdf-drive-archive.js?v=1"></script>'));
 assert(html.includes('window.satoriArchiveSavedInvoicePdf(lastSavedPdfOrder)'));
+assert(html.includes('onclick="archiveModalInvoicePDF()"'), 'old bills must have Drive export action');
+assert(html.includes('function archiveModalInvoicePDF()'), 'archive action must not require editing invoices');
+assert(html.includes('window.satoriArchiveSavedInvoicePdf(JSON.parse(JSON.stringify(o)))'), 'archive original saved invoice');
+
 assert(browser.includes('prepareInvoicePdf(o)'), 'reuse website PDF');
 assert(browser.includes('window.__SATORI_DRIVE_READY__'), 'wait for Drive sync');
 assert(!browser.includes('fetch('), 'never use public PDF uploads');
