@@ -881,6 +881,11 @@ class NativeMainActivity : AppCompatActivity() {
                 "Hiển thị 120 hồ sơ đầu tiên; nhập từ khóa để thu hẹp.",
                 11f, false, muted, 8)
         }
+        monthFilter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
+                view: View?, position: Int, id: Long) { refresh() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -978,7 +983,21 @@ class NativeMainActivity : AppCompatActivity() {
         val choices = ArrayAdapter(this, android.R.layout.simple_spinner_item, statuses)
         choices.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         filter.adapter = choices
-        content.addView(filter, LinearLayout.LayoutParams(-1, dp(48)))
+        content.addView(filter, LinearLayout.LayoutParams(-1, dp(40)))
+
+        // Month filter reuses the authoritative stored invoice date; no
+        // invented accounting data, no writes and no duplicate counting.
+        val months = data.invoices.mapNotNull { invoice ->
+            val parts = invoice.displayDate.split('/')
+            if (parts.size == 3 && parts[1].length == 2 && parts[2].length == 4)
+                parts[1] + "/" + parts[2] else null
+        }.distinct().sortedDescending()
+        val monthChoices = listOf("Tất cả tháng") + months
+        val monthFilter = Spinner(this)
+        monthFilter.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, monthChoices).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        content.addView(monthFilter, LinearLayout.LayoutParams(-1, dp(40)))
 
         val totalsView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -989,10 +1008,14 @@ class NativeMainActivity : AppCompatActivity() {
         val scroll = ScrollView(this)
         val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(rows)
-        content.addView(scroll, LinearLayout.LayoutParams(-1, dp(410)))
+        content.addView(scroll, LinearLayout.LayoutParams(-1, dp(315)))
         fun refresh() {
+            val month = monthChoices[monthFilter.selectedItemPosition.coerceIn(0, monthChoices.lastIndex)]
+            val monthInvoices = if (month == "Tất cả tháng") data.invoices else data.invoices.filter {
+                it.displayDate.endsWith("/" + month)
+            }
             val matched = SatoriLedger.query(
-                data.invoices, search.text.toString(), statuses[filter.selectedItemPosition])
+                monthInvoices, search.text.toString(), statuses[filter.selectedItemPosition])
             val t = SatoriLedger.totals(matched)
             totalsView.removeAllViews()
             rows.removeAllViews()
