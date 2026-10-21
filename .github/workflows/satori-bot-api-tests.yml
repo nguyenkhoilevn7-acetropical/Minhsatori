@@ -7,6 +7,9 @@ on:
     paths:
       - "api/**"
       - "tests/satori-bot-api.test.js"
+      - "tests/bot-api-update-quantity.cjs"
+      - "connector/**"
+      - ".github/workflows/satori-bot-api-tests.yml"
 permissions:
   contents: read
 jobs:
@@ -19,4 +22,7 @@ jobs:
         with:
           node-version: "22"
       - name: Offline HMAC, money, invoice, backup and delete tests
-        run: node tests/satori-bot-api.test.js
+        run: |
+          node tests/satori-bot-api.test.js
+          node tests/bot-api-update-quantity.cjs
+          node --test connector/tests/update-quantity.mjs
