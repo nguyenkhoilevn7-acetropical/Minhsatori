@@ -82,6 +82,23 @@ for(const [needle,label] of [
  [".messages .bubble.user{background:linear-gradient(135deg,#087e73,#06968a);color:#fff",'customer bubble uses readable teal'],
  [".messages .bubble.assistant::before{content:\"SATORI AI\"",'blue bubble explicitly identifies AI']
 ])assert.ok(html.includes(needle),label);
+// Every product shortcut must feed the same mutable cart and never open a
+// separate order request. User confirms only after the combined quote.
+for(const code of ['TP-00003','TP-00136','TP-00056','TP-00058','TP-00051'])
+ assert.ok(html.includes('data-cart-sku="'+code+'"'),'product shortcut '+code+' builds shared basket');
+assert.ok(html.includes('id="quickCart"')&&html.includes('id="quickCartQuote"'),
+ 'persistent combined-cart status and review CTA');
+assert.ok(html.includes('cart.set(code,{code,name:item.name,unit:item.unit,qty:qty+1});'),
+ 'repeated chip taps increment quantity in shared cart');
+assert.ok(html.includes("document.querySelectorAll('.chip[data-cart-sku]')"),
+ 'quick chip handlers do not send a chat message');
+assert.ok(!html.includes("document.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>send(b.dataset.msg)))"),
+ 'legacy independent quote shortcut handler removed');
+assert.ok(html.includes("pendingCartItems=cartSnapshot()"),
+ 'combined quote includes every selected SKU');
+assert.ok(html.includes("--satori-visible-height"),
+ 'mobile keyboard visible-viewport adjustment present');
+console.log('PASS shared-cart product-chip and mobile-keyboard checks');
 console.log('PASS 16/16 multi-select basket and distinct bubble-color UI checks');
 console.log('PASS 9/9 customer logo, timeline and export UI tests');
 console.log('PASS 26/26 iMessage, automatic delivery notes and PDF UI structure smoke checks');
