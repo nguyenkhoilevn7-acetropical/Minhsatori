@@ -19,6 +19,7 @@ import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificatio
 import {parseCustomerMessage,splitOrderAndNote,waterAnswer,finishWater,deliveryAnswer} from './order-with-notes.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct,fold} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
+import {listLocations} from './delivery-locations.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
@@ -405,7 +406,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method==='GET'&&p==='/api/session'){
   const token=url.searchParams.get('token')||'';const c=getProfile(token);if(!c)return fail(res,404,'LINK_INVALID','Liên kết không hợp lệ');
-  return reply(res,200,{ok:true,sandbox:true,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship,vatRate:c.vatRate??0}})
+  return reply(res,200,{ok:true,sandbox:true,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,locations:listLocations(c),multipleDeliveryLocations:listLocations(c).length>1,discount:c.discount,ship:c.ship,vatRate:c.vatRate??0}})
  }
  if(req.method==='POST'&&p==='/api/order-amend/confirm'){
   const b=await bodyJSON(req),c=getProfile(b?.token);
