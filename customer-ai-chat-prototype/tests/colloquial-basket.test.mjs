@@ -19,6 +19,11 @@ for(const [text,code,qty] of [
 let parsed=parseColloquialBasket('Thêm 3 me, Suối 5 lit');
 check(parsed?.pending?.items?.[0]?.sku==='TP-00055'&&parsed.pending.items[0].qty===3,
  'understand 3 cartons of tamarind before asking about 5 litres');
+for(const spelling of ['5 lít','5L','5 lit','suối 5 lít','nước 5 lit']){
+ const interpreted=parseColloquialBasket(spelling);
+ check(interpreted?.pending?.missing?.kind==='FIVE_LITRE'&&interpreted.pending.missing.qty===null,
+  'normalise 5-litre expressions without guessing carton quantity: '+spelling);
+}
 check(parsed.pending.missing.kind==='FIVE_LITRE'&&parsed.pending.missing.qty===null,
  'do not hallucinate quantity from 5-litre capacity');
 let response=completeColloquialFollowup(parsed.pending,'2 thùng không vòi');
