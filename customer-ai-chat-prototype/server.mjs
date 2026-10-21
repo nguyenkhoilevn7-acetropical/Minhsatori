@@ -13,6 +13,7 @@ import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {parseOrder,parseRules,geminiConfigured,identityChange} from './free-parser.mjs';
 import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
+import {customerSuggestions} from './customer-suggestions.mjs';
 import {businessReply} from './business-reply.mjs';
 import {parseMultiOrder} from './multi-order.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
@@ -346,6 +347,17 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&p==='/api/catalogue'){
   const profile=getProfile(url.searchParams.get('token')||'');if(!profile)return fail(res,403,'DEMO_LINK_REQUIRED','Chỉ hiển thị giá riêng trong link khách thử hợp lệ');
   return reply(res,200,{ok:true,sandbox:true,source:'official-default-snapshot',catalogueSync:'snapshot_only',count:CATALOGUE.length,products:CATALOGUE.map(item=>({code:item.code,name:item.name,brand:item.brand,unit:item.unit,spec:item.spec,listPrice:item.listPrice,discount:profile.discount,unitPrice:money(item.listPrice*(1-profile.discount/100))}))});
+ }
+ // Publicly share only this customer's ranked catalog SKU suggestions, never raw order history.
+ if(req.method==='GET'&&p==='/api/suggestions'){
+  const profile=getProfile(url.searchParams.get('token')||'');
+  if(!profile)return fail(res,403,'INVALID_LINK','Liên kết khách không hợp lệ.');
+  const suggestions=customerSuggestions(profile,orders.values(),3).map(item=>{
+   const p=productFor(item.code);
+   return {...item,unitPrice:money(p.listPrice*(1-profile.discount/100))};
+  });
+  return reply(res,200,{ok:true,sandbox:true,suggestions,
+   source:'per-customer-test-invoice-history',historyLimitedToSandbox:true});
  }
  if(p==='/api/draft'&&(req.method==='GET'||req.method==='POST')){
   const body=req.method==='POST'?await bodyJSON(req):null;
