@@ -5,6 +5,18 @@ const words={mot:1,hai:2,ba:3,bon:4,tu:4,nam:5,lam:5,sau:6,bay:7,tam:8,chin:9,mu
 const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\s+/g,' ').trim();
 function hints(s,profile={}){const r=resolveProduct(s,profile);return r.sku?[r.sku]:[]}
 function qty(s){let m=s.match(/\b(\d{1,4})\s*(?:thung|thg|t|binh|loc)(?=\s|$|[.,!?;])/);if(m)return Number(m[1]);m=s.match(/\b(muoi\s+(?:mot|hai|ba|bon|nam|lam|sau|bay|tam|chin)|hai\s+muoi|ba\s+muoi|mot|hai|ba|bon|tu|nam|lam|sau|bay|tam|chin|muoi)\s+(?:thung|thg|binh|loc)\b/);if(!m)return 0;const p=m[1].split(' ');return p[0]==='muoi'&&p[1]?10+words[p[1]]:p[1]==='muoi'?10*words[p[0]]:words[p[0]]||0;}
+// Short Vietnamese shop slang: "10 suối 500ml" means 10 units of the
+// 500ml catalogue item, not a request about 10 * 500ml size markers.
+// Only resolve when one unique SKU is present, and ALWAYS show unit/carton
+// in the quote before checkout. Do not interpret explicit "chai" as "thùng".
+function implicitCatalogueQty(s,profile={}){
+ const m=s.match(/^(?:cho (?:toi|anh|chi|em)\s+)?(?:lay|dat|mua|can)?\s*(\d{1,3})\s+(?:(?:nuoc|suoi|nuoc suoi|satori|hikari|tinh khiet|chai nuoc)\s+)*(?:350\s*ml|500\s*ml|1500\s*ml|1[,.]?5\s*l|premium(?:\s*450\s*ml)?)(?=\s|$)/);
+ if(!m)return 0;
+ if(/\b(chai|lo|ly|binh|loc)\b/.test(s))return 0;
+ const item=resolveProduct(s,profile);
+ return !item.ambiguous&&item.sku&&productFor(item.sku)&&Number(m[1])>=1&&Number(m[1])<=500
+   ?Number(m[1]):0;
+}
 const last=s=>/\b(nhu lan truoc|don cu|don truoc|dat lai|nhu cu|nhu moi khi)\b/.test(s);
 const unsupported=s=>/\b(tra sua|tra mang cau|ca phe|coffee|bia|tra nho|sua tuoi)\b/.test(s);
 export function identityChange(message,profile={}){
@@ -21,8 +33,8 @@ export function parseRules(message,profile={}){
  if(identityChange(message,profile))return {intent:'order',sku:'unknown',qty:0,needsHuman:true,reason:'CHANGE',source:'rules'};
  if(unsupported(s)||selection.ambiguous)return {intent:'order',sku:'unknown',qty:qty(s),needMoreDetails:true,reason:selection.ambiguous?'PRODUCT_AMBIGUOUS':'UNSUPPORTED',source:'rules'};
  if(/\b(khong dat|huy don|dung giao|thoi khong|chua dat)\b/.test(s))return {intent:'other',sku:'unknown',qty:0,source:'rules'};
- if(!/\b(dat|mua|lay|cho|can|giao|them|gui|order|thung|nhu lan truoc|nhu cu)\b/.test(s))return null;
- const n=qty(s)||(reuse?Number(profile.lastQty||0):0);
+ if(!/\b(dat|mua|lay|cho|can|giao|them|gui|order|thung|nhu lan truoc|nhu cu)\b/.test(s)&&!implicitCatalogueQty(s,profile))return null;
+ const n=qty(s)||implicitCatalogueQty(s,profile)||(reuse?Number(profile.lastQty||0):0);
  const sku=h[0]||((reuse||profile.uniqueFavourite)?profile.favourite:null);
  if(!SKUS.has(sku)||!Number.isSafeInteger(n)||n<1)return {intent:'order',sku:SKUS.has(sku)?sku:'unknown',qty:Number.isSafeInteger(n)&&n>0?n:0,needMoreDetails:true,reason:'UNCLEAR',source:'rules'};
  return {intent:'order',sku,qty:n,source:'rules'};
@@ -94,7 +106,7 @@ export async function parseOrder(message,profile={}){
  const sku=h[0]||((reuse||profile.uniqueFavourite)?profile.favourite:null);
  // For phrases like "1 tá thùng", Gemini may convert to 12. Do not accept invented
  // quantities when only the product size (e.g. 5L) is in the message.
- const writtenQuantity=qty(s)||(reuse?Number(profile.lastQty||0):0);
+ const writtenQuantity=qty(s)||implicitCatalogueQty(s,profile)||(reuse?Number(profile.lastQty||0):0);
  const unusualQuantity=/\b(?:\d+\s*ta|mot\s+ta|nua\s+ta|chuc|v[aài]i\s+thung)\b/.test(s);
  const n=writtenQuantity||(unusualQuantity?ai.qty:0);
  if(!SKUS.has(sku)||!Number.isSafeInteger(n)||n<1)return {intent:'order',sku:'unknown',qty:0,needMoreDetails:true,source:'gemini'};
