@@ -11,11 +11,11 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
-import {parseOrder,parseRules,geminiConfigured,identityChange} from './free-parser.mjs';
+import {parseOrder,parseRules,parseComplexOrderWithGemini,geminiConfigured,identityChange} from './free-parser.mjs';
 import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
 import {customerSuggestions} from './customer-suggestions.mjs';
 import {businessReply} from './business-reply.mjs';
-import {parseMultiOrder} from './multi-order.mjs';
+import {parseMultiOrder,looksCompoundOrder} from './multi-order.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
@@ -488,9 +488,13 @@ const server=http.createServer(async(req,res)=>{
    }
    // Resolve all listed products before running single-item followups.
    // No partial checkout: one sentence is committed to one revisioned TEST basket.
-   const compound=parseMultiOrder(message,c);
-   if(compound?.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,
-    draft:draftStore.read(token),message:compound.message});
+   let compound=parseMultiOrder(message,c);
+   if(compound?.needMoreDetails||(!compound&&looksCompoundOrder(message))){
+    const structured=await parseComplexOrderWithGemini(message,c);
+    if(structured?.items)compound=structured;
+    else return reply(res,200,{ok:true,needMoreDetails:true,draft:draftStore.read(token),
+     message:compound?.message||'Em thấy đơn có nhiều sản phẩm nhưng chưa rõ đủ số lượng hoặc quy cách. Anh/chị vui lòng nói rõ món chưa xác định; em chưa tạo bill.'});
+   }
    if(compound?.items){
     const deliveryAll=extractDeliveryIntent(message,new Date());
     if(deliveryAll.clarification)return reply(res,200,{ok:true,needMoreDetails:true,
@@ -547,7 +551,13 @@ const server=http.createServer(async(req,res)=>{
   }
   // Every listed item must be understood; never silently drop a second SKU.
   if(/\b(khong dat|huy don|dung giao|thoi khong|chua dat)\b/.test(normalized))return reply(res,200,{ok:true,message:'Đã hiểu, mình chưa lập báo giá hay tạo đơn nào.'});
-  const multi=parseMultiOrder(parsedMessage,c);
+  let multi=parseMultiOrder(parsedMessage,c);
+  if(multi?.needMoreDetails||(!multi&&looksCompoundOrder(parsedMessage))){
+   const structured=await parseComplexOrderWithGemini(parsedMessage,c);
+   if(structured?.items)multi=structured;
+   else if(!multi)return reply(res,200,{ok:true,needMoreDetails:true,
+    message:'Em thấy nhiều món trong một tin nhắn nhưng chưa rõ đủ sản phẩm và số lượng. Anh/chị nói rõ món còn thiếu nhé; chưa lập bill.'});
+  }
   if(multi){
    if(identityChange(parsedMessage,c))return reply(res,200,{ok:true,needsHuman:true,message:'Thay đổi địa chỉ, số điện thoại hoặc người nhận cần cửa hàng xác minh thủ công.'});
    if(multi.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,message:multi.message});
