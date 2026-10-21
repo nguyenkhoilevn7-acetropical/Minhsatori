@@ -24,7 +24,7 @@ for(const [needle,description] of [
 ])assert.ok(html.includes(needle),description);
 assert.ok(html.trim().endsWith('</html>'),'complete HTML document');
 assert.ok(html.includes('--satori-action-blue:#0867d5')&&
- html.includes('.server-mode #productsToggle,.history-trigger,.history-item a,'),
+ html.includes('.server-mode #suggestionsToggle,.history-trigger,.history-item a,'),
  'customer actions including product menu/history links have a visible blue fill');
 assert.ok(html.includes('.chip,.catalog-filter,.quick-cart button,.suggestion-steps button,'),
  'shortcuts, filters, shared-cart buttons and +/- controls have blue active backgrounds');
@@ -35,6 +35,23 @@ assert.ok(html.includes(':is(.cart-clear,.cart-remove,.inline-cart-remove){backg
 assert.ok(html.includes('button:focus-visible,.btn:focus-visible,.chip:focus-visible'),
  'keyboard focus remains visible on blue buttons');
 
+// Customer navigation: two equal-width actions on the lower row, one compact
+// suggestions button in the former redundant header-products slot.
+const topBar=html.match(/<div class="chat-head">([\s\S]*?)<\/div>\s*<div class="catalog-launch-bar">/);
+assert.ok(topBar?.[1].includes('id="suggestionsToggle"'),'header houses product suggestions');
+assert.ok(!topBar?.[1].includes('id="locationsToggle"'),'location picker is not in header');
+const locationBar=html.match(/<div class="catalog-launch-bar">([\s\S]*?)<\/div>/);
+assert.ok(locationBar?.[1].includes('id="catalogLaunch"')&&locationBar?.[1].includes('id="locationsToggle"'),
+ 'Tất cả sản phẩm and Tất cả địa chỉ share a two-column row');
+assert.ok(!locationBar?.[1].includes('id="suggestionsToggle"'),'suggestions no longer take bottom action');
+assert.ok(html.includes('📍 Tất cả địa chỉ')&&html.includes('✨ Gợi ý sản phẩm'),
+ 'shortened Vietnamese labels visible on Samsung');
+assert.ok(!html.includes('productsToggle')&&!html.includes('Đóng sản phẩm'),
+ 'redundant products open/close control removed');
+assert.ok(html.includes('toggle.hidden=false;')&&html.includes('deliveryLocations.length===1'),
+ 'single-address demo still offers a tappable address picker and guidance');
+assert.equal((html.match(/id="locationsToggle"/g)||[]).length,1,'one distinct address control');
+assert.equal((html.match(/id="suggestionsToggle"/g)||[]).length,1,'one distinct suggestions control');
 assert.ok(html.includes('id="catalogLaunch"')&&html.includes('catalog-purchase-row')&&
  html.includes("meta.textContent=p.unit+' · Giá: '+money(p.unitPrice||0)")&&
  html.includes("const controls=stepper(p.code,cart.get(p.code)?.qty||0);"),
