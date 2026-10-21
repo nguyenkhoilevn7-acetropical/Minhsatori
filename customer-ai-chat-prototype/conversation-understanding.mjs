@@ -18,7 +18,7 @@ export function ambiguousWater500(msg){
 export function ambiguousWater500InComposite(message){
  const clauses=fold(message).split(/\s*[,;]\s*|\s+(?:va|voi)\s+/);
  if(clauses.length<2)return false;
- return clauses.some(x=>ambiguousWater500(x.replace(/^(?:them|bo sung|cong them)\s+/,'').trim()));
+ return clauses.some(x=>/\bsuoi\b/.test(x)&&ambiguousWater500(x.replace(/^(?:them|bo sung|cong them)\s+/,'').trim()));
 }
 export function brandAnswer(msg){
  const m=fold(msg).replace(/[.!?]+$/,'').match(/^(?:nuoc\s+)?(?:hang\s+)?(satori|hikari)(?:\s+500(?:\s*ml)?)?$/);
