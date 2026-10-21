@@ -417,7 +417,9 @@ const server=http.createServer(async(req,res)=>{
 
   // Block identity changes locally BEFORE any Gemini or order write.
   const ci=contactIntent(message);
-  if(ci?.address){pendingPhones.delete(token);return reply(res,200,{ok:true,needsHuman:true,
+  if(ci?.address){pendingPhones.delete(token);invalidateQuotes(token);
+   const request=customerLinks.logChangeRequest(c,message);
+   return reply(res,200,{ok:true,needsHuman:true,changeRequestId:request.id,
    contactPolicy:'ADDRESS_REQUIRES_STAFF',draft:draftStore.read(token),message:ADDRESS_REPLY});}
   if(ci?.phone){
    if(!ci.phoneNumber)return reply(res,200,{ok:true,needMoreDetails:true,
@@ -433,7 +435,7 @@ const server=http.createServer(async(req,res)=>{
     message:'Đã hủy yêu cầu đổi số, thông tin giữ nguyên.'});
   }
   if(pp&&pp.expiresAt>Date.now()&&phoneConfirm(message)){
-   pendingPhones.delete(token);
+   pendingPhones.delete(token);invalidateQuotes(token);
    const request=customerLinks.logChangeRequest(c,'PHONE_CHANGE_VERIFICATION_REQUIRED:'+pp.phone);
    return reply(res,200,{ok:true,needsHuman:true,verificationRequired:true,
     contactPolicy:'PHONE_PENDING_VERIFICATION',requestId:request.id,
