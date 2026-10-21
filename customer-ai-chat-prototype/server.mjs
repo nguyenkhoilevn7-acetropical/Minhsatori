@@ -12,6 +12,7 @@ import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {parseOrder,parseRules,geminiConfigured,identityChange} from './free-parser.mjs';
+import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
 import {businessReply} from './business-reply.mjs';
 import {parseMultiOrder} from './multi-order.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
@@ -36,6 +37,7 @@ const FIXTURES=Object.freeze({
  'demo-b':{id:'KH-DEMO-B',name:'Khách Demo B',phone:'000 000 0002',address:'456 Đường Mẫu, TP.HCM',discount:35,ship:8,favourite:'S500',lastQty:5,uniqueFavourite:false}
 });
 const sessions=new Map(),quotes=new Map(),orders=new Map(),idempotency=new Map(),rate=new Map();
+const draftStore=makeDraftStore();
 const geminiProbe={status:'not_run',elapsedMs:null};
 const pendingAmends=new Map(); // profileId -> expiring unconfirmed customer proposal
 const MAX_AMEND_AGE_MS=5*60_000;
