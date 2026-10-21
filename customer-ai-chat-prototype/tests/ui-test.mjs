@@ -23,6 +23,13 @@ for(const [needle,description] of [
  ["serverPost('/api/confirm'","customer confirmation before new order"]
 ])assert.ok(html.includes(needle),description);
 assert.ok(html.trim().endsWith('</html>'),'complete HTML document');
+assert.ok(html.includes('class="shop-hero"') && html.includes('id="heroShopCta"'),
+ 'mobile customer shop CTA present in shared storefront');
+assert.ok(html.includes("$('heroShopCta').addEventListener('click',openCatalog);"),
+ 'shop CTA opens existing full basket picker');
+assert.ok(html.includes('.chat-head{position:sticky;top:0;z-index:5}'),
+ 'customer chat navigation remains visible while chat scrolls');
+
 assert.ok(html.includes('id="printInvoice" href="#" download hidden>⬇ Tải PDF về máy'),'invoice modal uses a direct-download anchor');
 assert.ok(!html.includes('window.print()'),'invoice download never invokes browser print dialog');
 assert.ok(!html.includes("link.target='_blank'"),'confirmation download does not open an extra tab');
