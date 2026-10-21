@@ -11,7 +11,7 @@ export const ADDRESS_REPLY='Để thay đổi địa chỉ giao hàng, anh/chị
 export function ambiguousWater500(msg){
  const s=fold(msg);
  if(/\b(satori|hikari|premium)\b/.test(s))return null;
- const m=s.match(/^(?:(?:cho|lay|dat|mua|can|order)\s+(?:(?:toi|anh|chi|em)\s+)?)?(\d{1,3})\s*(?:thung|thg)?\s*(?:(?:nuoc\s+)?suoi|nuoc\s+tinh\s+khiet|nuoc)\s+500(?:\s*ml)?[.!?]?$/);
+ const m=s.match(/^(?:(?:cho|lay|dat|mua|can|order)\s+(?:(?:toi|anh|chi|em)\s+)?|(?:anh|chi|em|toi|minh)\s+(?:lay|dat|mua|can|cho)\s+)?(\d{1,3})\s*(?:thung|thg)?\s*(?:(?:nuoc\s+)?suoi|nuoc\s+tinh\s+khiet|nuoc)\s+500(?:\s*ml)?[.!?]?$/);
  const qty=Number(m?.[1]);
  return m&&Number.isSafeInteger(qty)&&qty>=1&&qty<=500?{qty}:null;
 }
