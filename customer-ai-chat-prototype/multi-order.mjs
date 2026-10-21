@@ -55,6 +55,53 @@ export function parseOneClause(message,profile={}){
  if(!product||(spoken&&spoken!==fold(product.unit)))return null;
  return {sku:product.code,qty:quantity};
 }
+
+/**
+ * An order can contain valid catalogue items and one water shorthand with no
+ * brand/size: "10 thùng suối, 2 thùng mãng cầu, 3 ổi".
+ * Keep ALL known items in a pending, uncommitted request; do not mutate the
+ * cart until the customer selects a real water SKU. "3 ổi" means three
+ * catalogue cartons, never three loose cans.
+ */
+export function parseWaterClarificationBasket(message,profile={}){
+ const text=fold(message);
+ const chunks=text.split(/\s*[,;\n]\s*|\s+va\s+/u).map(x=>x.trim()).filter(Boolean);
+ if(chunks.length>6||!chunks.length)return null;
+ const items=[];let missing=null;
+ for(const chunk of chunks){
+  const simplified=chunk.replace(/^(?:(?:cho|lay|dat|mua|them|can)\s+(?:(?:toi|anh|chi|em|minh)\s+)?|(?:anh|chi|em|minh|toi)\s+(?:lay|dat|mua|cho|can)\s+)/,'');
+  const m=simplified.match(/^(\d{1,3})\s*(?:(thung|thg|binh|loc|chai|lon|ly)\s+)?(.+?)\s*[.!?]*$/u);
+  if(!m)return null;
+  const qty=Number(m[1]),unit=m[2]==='thg'?'thung':(m[2]||null),name=m[3].trim();
+  if(!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
+  const water=name.match(/^(?:(?:nuoc\s+)?suoi|nuoc\s+tinh\s+khiet|nuoc)(?:\s+(350|500|1500)(?:\s*ml)?)?$/u);
+  if(water){
+   if(unit&&unit!=='thung')return null; // Do not reinterpret bottles or litres as cartons.
+   if(!unit&&!water[1])return null; // Bare "10 suối" has no safe packaging unit.
+   if(missing)return null; // Multiple ambiguous waters must be specified individually.
+   missing={qty,unit:'thung',size:water[1]?Number(water[1]):null};
+   continue;
+  }
+  const parsed=parseOneClause(simplified,profile);
+  if(!parsed)return null; // Unknown line: never create a partial order.
+  items.push(parsed);
+ }
+ if(!missing)return null;
+ const total=missing.qty+items.reduce((n,x)=>n+x.qty,0);
+ if(total>500)return {needMoreDetails:true,reason:'CART_LIMIT',
+  message:'Đơn tối đa 500 đơn vị. Anh/chị vui lòng điều chỉnh số lượng.'};
+ return {needMoreDetails:true,reason:'WATER_REQUIRES_BRAND_OR_SIZE',
+  pending:{items,water:missing},source:'clarify-water-with-full-basket'};
+}
+export function waterClarificationAnswer(message){
+ const n=fold(message).replace(/[.!?]+$/,'').trim();
+ if(!/^(?:satori|hikari|350|500|1500|ml|\s)+$/.test(n))return null;
+ const brands=[...n.matchAll(/\b(satori|hikari)\b/g)].map(m=>m[1]);
+ const sizes=[...n.matchAll(/\b(350|500|1500)(?:\s*ml)?\b/g)].map(m=>Number(m[1]));
+ if(new Set(brands).size>1||new Set(sizes).size>1||(!brands.length&&!sizes.length))return null;
+ return {brand:brands[0]||null,size:sizes[0]||null};
+}
+
 export function looksCompoundOrder(message){
  const n=fold(message);
  const obvious=/\b(?:va|voi|cung|them)\b/.test(n)||/[,;\n]/.test(n);
