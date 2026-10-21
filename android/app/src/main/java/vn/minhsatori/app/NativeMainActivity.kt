@@ -1035,6 +1035,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
+        button(parent, "▤ SỔ KẾ TOÁN · LỌC TRẠNG THÁI") { showLedger(data) }
         if (canWrite) button(parent, "+ TẠO HÓA ĐƠN", true) { launchEditor() }
         if (canAction("mobile.trash") && canAction("orders.restore")) {
             button(parent, "THÙNG RÁC 30 NGÀY") { showTrash() }
@@ -1052,12 +1053,27 @@ class NativeMainActivity : AppCompatActivity() {
         parent.addView(input, LinearLayout.LayoutParams(-1, dp(48)).apply {
             topMargin = dp(6)
         })
+        val statuses = listOf("Tất cả", "Chưa thanh toán", "Đã thanh toán",
+            "Đã TT Satori", "Không Tính", "Đã hủy")
+        val filter = Spinner(this)
+        filter.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, statuses).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        parent.addView(filter, LinearLayout.LayoutParams(-1, dp(42)).apply {
+            topMargin = dp(5)
+        })
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         parent.addView(list)
         fun updateList() {
             list.removeAllViews()
-            val matching = data.invoices.filter { SatoriData.search(it, searchText) }
-            label(list, "Tìm thấy " + matching.size + " hóa đơn", 12f, true, teal, 8)
+            val status = statuses[filter.selectedItemPosition.coerceIn(0, statuses.lastIndex)]
+            val matching = data.invoices.filter {
+                SatoriData.search(it, searchText) &&
+                    (status == "Tất cả" || it.status.equals(status, ignoreCase = true))
+            }
+            label(list, "Tìm thấy " + matching.size + " hóa đơn" +
+                (if (status != "Tất cả") " • " + status else ""),
+                11.5f, true, teal, 7)
             matching.take(120).forEach { inv ->
                 section(list, "#" + inv.number + " · " + inv.customer,
                     inv.displayDate + " · " + SatoriData.money(inv.total) + " · " +
@@ -1065,6 +1081,11 @@ class NativeMainActivity : AppCompatActivity() {
                     openInvoice(inv)
                 }
             }
+        }
+        filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
+                view: View?, position: Int, id: Long) { updateList() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) { updateList() }
         }
         input.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -1116,6 +1137,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderDebt(parent: LinearLayout, data: SatoriSnapshot) {
+        button(parent, "▤ BỘ LỌC SỔ KẾ TOÁN") { showLedger(data) }
         label(parent, "Chỉ tính các hóa đơn chưa ghi nhận khách trả tiền. Không cộng " +
             "các bản giá cộng tác viên có trạng thái 'Không Tính'.",
             12f, false, muted, 12)
