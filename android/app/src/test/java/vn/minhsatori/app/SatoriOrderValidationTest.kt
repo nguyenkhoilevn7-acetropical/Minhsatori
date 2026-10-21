@@ -48,6 +48,24 @@ class SatoriOrderValidationTest {
             org.json.JSONObject().put("order", org.json.JSONObject().put("name", "Khách thật"))))
     }
 
+    @Test fun commonExplicitTestLabelsDoNotPassLiveWrites() {
+        val marked = listOf(
+            org.json.JSONObject().put("order", org.json.JSONObject().put("name", "TEST đơn giả")),
+            org.json.JSONObject().put("order", org.json.JSONObject().put("deliveryNote", "test - không giao")),
+            org.json.JSONObject().put("order", org.json.JSONObject().put("note", "Sandbox: kiểm tra")),
+            org.json.JSONObject().put("order", org.json.JSONObject().put("name", "[ test ] Demo")),
+            org.json.JSONObject().put("order", org.json.JSONObject().put("name", "TEST_ONLY Demo"))
+        )
+        marked.forEach {
+            org.junit.Assert.assertTrue("Explicit TEST marker was not blocked: $it",
+                SatoriOrderValidation.requiresTestLedger("orders.create", it))
+        }
+        listOf("Testing Cafe", "Contest Coffee", "Khách TESTA").forEach { customer ->
+            org.junit.Assert.assertFalse(SatoriOrderValidation.requiresTestLedger("orders.create",
+                org.json.JSONObject().put("order", org.json.JSONObject().put("name", customer))))
+        }
+    }
+
     @Test fun lineAndGrandTotalsRejectIntegerOverflow() {
         assertEquals(650000L, SatoriOrderValidation.lineAmount(10L, 65000L))
         assertEquals(702000L, SatoriOrderValidation.sum(650000L, 52000L, 0L))
