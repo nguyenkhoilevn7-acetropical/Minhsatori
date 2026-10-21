@@ -70,7 +70,7 @@ try{
  check(proposal.previousNote==='Giao sau 2h; Nhớ gọi trước khi giao'&&proposal.newNote.includes('Nhớ gọi trước')&&!proposal.newNote.includes('Giao sau 2h'),
   'proposal displays prior note and adds delivery note');
  const pendingHistory=await ask('/api/history?token='+token);
- check(pendingHistory.result.orders[0].deliveryNote==='Nhớ gọi trước khi giao',
+ check(pendingHistory.result.orders[0].deliveryNote==='Giao sau 2h; Nhớ gọi trước khi giao',
   'proposal alone must not modify persisted history');
  const denied=await ask('/api/order-amend/confirm',{token,proposalId:proposal.proposalId});
  check(denied.status===400&&denied.result.error==='CONFIRMATION_REQUIRED',
