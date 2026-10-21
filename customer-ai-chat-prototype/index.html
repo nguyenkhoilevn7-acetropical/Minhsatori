@@ -443,6 +443,10 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 .locations-panel button{display:block;width:100%;text-align:left;border-radius:12px;background:#fff;padding:10px;border:1px solid #cbdbe9;color:#193c58;font:inherit;overflow-wrap:anywhere}
 .locations-panel button[aria-pressed="true"]{border:2px solid #1383c8;background:#e8f5ff}
 #locationsToggle{border-radius:12px;background:#ecf7ff;border:1px solid #b8d7eb;padding:9px;font-weight:700;color:#125a83}
+/* Quantity is visually prominent like the invoice total; the numeric editor stays numeric. */
+.quote .quantity-strong{font-weight:850;font-size:15px;color:#123b65;white-space:nowrap}
+.inline-cart-row .inline-qty-label{display:block;font-size:12px;font-weight:850;color:#094b90;line-height:1.2;white-space:nowrap}
+.server-mode .suggestion-steps input,.cart-qty{font-weight:800;color:#123b65}
 </style>
 </head>
 <body>
@@ -491,7 +495,7 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 </div>
 <div class="quick-cart" id="quickCart" hidden aria-live="polite">
 <span id="quickCartCount">Giỏ hàng chung • 0 món</span>
-<button type="button" id="quickCartEdit">Thu gọn giỏ</button><button type="button" id="quickCartNew" aria-label="Xóa giỏ thử hiện tại và bắt đầu đơn mới">Giỏ mới</button>
+<button type="button" id="quickCartEdit">Thu gọn giỏ</button><button type="button" id="quickCartNew" aria-label="Xóa giỏ thử hiện tại và bắt đầu đơn mới">Tạo giỏ mới</button>
 <div class="inline-cart-lines" id="inlineCartLines" aria-label="Điều chỉnh giỏ hàng ngay trong chat"></div>
 <button type="button" id="quickCartQuote">Xem tổng & xác nhận →</button>
 </div>
@@ -572,7 +576,7 @@ function deactivateQuotes(){
 }
 function showQuote(q){deactivateQuotes();const box=document.createElement('div');box.className='quote';box.dataset.quoteId=q.quoteId||'';activeQuoteId=q.quoteId||null;
 const products=Array.isArray(q.items)&&q.items.length?q.items:[{product:q.product,unit:q.unit||'thùng',qty:q.qty,listPrice:q.listPrice,unitPrice:q.unitPrice,subtotal:q.subtotal,discount:q.discount}];
-const lines=products.map((item,i)=>'<div class="line"><strong>'+(i+1)+'. '+esc(item.product)+'</strong><span>'+esc(item.qty)+' '+esc(item.unit)+'</span></div><div class="line"><span>Đơn giá sau CK '+esc(q.discount)+'%</span><strong>'+money(item.unitPrice)+'</strong></div><div class="line"><span>Thành tiền</span><strong>'+money(item.subtotal)+'</strong></div>').join('');
+const lines=products.map((item,i)=>'<div class="line"><strong>'+(i+1)+'. '+esc(item.product)+'</strong><strong class="quantity-strong">x'+esc(item.qty)+' '+esc(item.unit)+'</strong></div><div class="line"><span>Đơn giá sau CK '+esc(q.discount)+'%</span><strong>'+money(item.unitPrice)+'</strong></div><div class="line"><span>Thành tiền</span><strong>'+money(item.subtotal)+'</strong></div>').join('');
 box.innerHTML='<h3>🧾 Đơn hàng dự kiến — CHƯA TẠO</h3>'+'<div class="line"><span>Khách</span><strong>'+esc(q.name)+'</strong></div>'+lines+'<hr><div class="line"><span>Tổng tiền hàng</span><strong>'+money(q.subtotal)+'</strong></div><div class="line"><span>Vận chuyển ('+esc(q.ship)+'%)</span><strong>'+money(q.shipping)+'</strong></div><div class="line"><span>VAT ('+esc(q.vatRate??0)+'%)</span><strong>'+money(q.vatAmount??0)+'</strong></div><hr><div class="line"><span>Tổng cộng</span><strong class="total">'+money(q.total)+'</strong></div><div class="mini">Giao: '+esc(q.address)+' — '+esc(q.phone)+'</div><p class="small">Chỉ khi xác nhận mới lưu đơn THỬ. Không gửi đến production.</p>';
 const b=document.createElement('button');b.className='btn primary';b.textContent=q.locationRequired?'Chọn địa chỉ trước':'✓ Xác nhận đơn THỬ';
  if(q.locationRequired)b.disabled=true;
@@ -782,6 +786,8 @@ function renderInlineCart(){
  for(const item of cart.values()){
   const row=document.createElement('div');row.className='inline-cart-row';
   const title=document.createElement('span');title.textContent=item.name;title.title=item.name;
+  const quantityBadge=document.createElement('strong');quantityBadge.className='inline-qty-label';
+  quantityBadge.textContent='x'+item.qty+' '+(item.unit||'Thùng');title.append(quantityBadge);
   const controls=stepper(item.code,item.qty);
   const remove=document.createElement('button');remove.type='button';remove.className='inline-cart-remove';remove.textContent='×';remove.setAttribute('aria-label','Bỏ '+item.name);
   remove.addEventListener('click',()=>changeSharedDraft('remove',item.code));
@@ -1041,8 +1047,10 @@ function updateCart(){
  const root=$('cartList');root.replaceChildren();
  const quick=$('quickCart');
  quick.hidden=cart.size===0;
- $('quickCartCount').textContent='🛒 Giỏ hàng chung: '+cart.size+'/6 món • '+cartTotalQty()+' đơn vị';
- $('cartCount').textContent=cart.size+'/6 • '+cartTotalQty()+' đơn vị';
+ const cartUnits=[...new Set([...cart.values()].map(item=>item.unit||'đơn vị'))];
+ const cartUnit=cartUnits.length===1?cartUnits[0]:'đơn vị';
+ $('quickCartCount').textContent='🛒 Giỏ hàng chung: '+cart.size+'/6 món • x'+cartTotalQty()+' '+cartUnit;
+ $('cartCount').textContent=cart.size+'/6 • x'+cartTotalQty()+' '+cartUnit;
  $('clearCart').disabled=cart.size===0;
  $('composeCart').disabled=cart.size===0;
  $('composeCart').textContent='Soạn tin nhắn đầy đủ ('+cart.size+' món) →';
