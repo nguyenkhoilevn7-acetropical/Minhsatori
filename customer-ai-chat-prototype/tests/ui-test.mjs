@@ -116,11 +116,12 @@ const adminChecks=[
  ["announceAmendments(edited)",'admin notifies customer invoice revisions'],
  ["knownOrderVersions=new Map",'admin tracks changes by amendment version'],
  ["'✏️ ĐÃ SỬA • '",'updated orders labeled distinctly'],
- ["function showAmendment(proposal)",'customer sees explicit amendment confirmation card'],
- ["'/api/order-amend/confirm'",'customer amendment confirmation route called only on button click'],
+
  ["document.addEventListener('visibilitychange'",'refresh on returning to Admin tab']
 ];
 for(const [needle,label] of adminChecks)assert.ok(adminHtml.includes(needle),label);
+assert.ok(html.includes('function showAmendment(proposal)'),'customer sees explicit amendment confirmation card');
+assert.ok(html.includes("'/api/order-amend/confirm'"),'customer has server-verified amendment confirmation button');
 assert.ok(html.includes('q.vatAmount??0'),'quote displays server-calculated VAT');
 assert.ok(html.includes('o.vatAmount??0'),'invoice preview displays VAT');
 console.log('PASS '+(adminChecks.length+3)+'/'+(adminChecks.length+3)+' admin search and VAT UI checks');
