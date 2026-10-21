@@ -88,6 +88,37 @@ try{
  check(after.data.draft.items.length===0,'draft clears only after explicit confirmation');
  const pdf=await fetch(base+'/api/invoice/'+confirmed.data.order.ref+'?token=demo-a&view=1');
  check(pdf.status===200&&pdf.headers.get('content-disposition')?.startsWith('inline;'),'combined PDF can be viewed without forced download');
+ // User screenshot: 3 product lines in one chat => one cart and one invoice.
+ let longChat=await post('/api/message',{token:'demo-b',
+  message:'10 ổi hồng, 10 thùng nước 500ml, 3 thùng me',
+  unifiedDraft:true,expectedRevision:0});
+ check(longChat.status===200&&longChat.data.draft?.items?.length===3&&
+  longChat.data.quote?.items?.length===3,'screenshot: three products recognized from ONE message');
+ check(longChat.data.draft.items.reduce((sum,x)=>sum+x.qty,0)===23,
+   'screenshot quantities 10 + 10 + 3, never treat 500ml as 500 cartons');
+ const longRevision=longChat.data.draft.revision;
+ const invalid=await post('/api/message',{token:'demo-b',message:'Thêm 2 thùng trà sữa và 3 thùng Satori 500ml',
+   unifiedDraft:true,expectedRevision:longRevision});
+ check(invalid.data.needMoreDetails===true,'unknown added product blocks partial cart mutation');
+ const noPartial=await get('/api/draft?token=demo-b');
+ check(noPartial.data.draft.revision===longRevision&&noPartial.data.draft.items.length===3,
+   'invalid complex message does not silently add only the known item');
+ longChat=await post('/api/message',{token:'demo-b',message:'Thêm 2 thùng Hikari 500ml và 3 thùng Satori 5L có vòi',
+   unifiedDraft:true,expectedRevision:longRevision});
+ check(longChat.status===200&&longChat.data.draft?.items?.length===5,
+   'multi-product followup adds TWO products to same cart, no separate bill');
+ const longQuote=await post('/api/draft',{token:'demo-b',action:'quote',
+   expectedRevision:longChat.data.draft.revision});
+ check(longQuote.status===200&&longQuote.data.quote.items.length===5,'one final quote contains all five products');
+ const once=await post('/api/confirm',{token:'demo-b',quoteId:longQuote.data.quote.quoteId,
+   requestId:'complex-screenshot-confirm-1'});
+ check(once.status===200&&once.data.order.items.length===5,'one combined TEST invoice from a complex chat');
+ const repeated=await post('/api/confirm',{token:'demo-b',quoteId:longQuote.data.quote.quoteId,
+   requestId:'complex-screenshot-confirm-1'});
+ check(repeated.status===200&&repeated.data.duplicate===true,'repeat confirm does not create duplicate bill');
+ const afterCombined=await get('/api/history?token=demo-b');
+ check(afterCombined.data.orders.filter(x=>x.ref===once.data.order.ref).length===1,
+   'one invoice ID in customer history after a multi-message complex order');
  console.log('PASS '+n+'/'+n+' unified chip + chat + edits + quote + PDF + one TEST invoice');
 }catch(error){console.error('FAIL '+error.message+'\n'+stderr.slice(-3000));process.exitCode=1}
 finally{proc.kill();rmSync(data,{recursive:true,force:true})}
