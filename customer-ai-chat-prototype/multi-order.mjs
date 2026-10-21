@@ -189,7 +189,7 @@ export function completeColloquialFollowup(pending,message){
  const text=fold(message).replace(/\b5\s*(?:lit|liter)\b/g,'5l'),m=pending.missing;
  let updated={...m};
  if(m.kind==='FIVE_LITRE'){
-  const re=new RegExp('^('+COUNT+')(?:\\s+(thung))?(?:\\s+(?:satori\\s+)?5\\s*l)?(?:\\s+((?:co|khong|ko|k)\\s+voi))?
+  const re=new RegExp('^('+COUNT+')(?:\\s+(thung))?(?:\\s+(?:satori\\s+)?5\\s*l)?(?:\\s+((?:co|khong|ko|k)\\s+voi))?$','u');
   const spoken=text.match(re),variant=text.match(/^(?:(thung)\s+)?((?:co|khong|ko|k)\s+voi)$/);
   if(!spoken&&!variant)return null;
   const qty=spoken?countOf(spoken[1]):null;
