@@ -35,7 +35,7 @@ LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
 Utilities:{DigestAlgorithm:{SHA_256:'SHA_256'},
 computeDigest:(_alg,b)=>Array.from(crypto.createHash('sha256').update(Buffer.from(b.map(x=>x&255))).digest(),signed),
 base64Decode:s=>Array.from(Buffer.from(s,'base64'),signed),
-newBlob:(b,t,n)=>({bytes:Buffer.from(typeof b==='string'?b:b.map(x=>x&255)),type:t,name:n})}
+newBlob:(b,t,n)=>{const bytes=Buffer.from(typeof b==='string'?b:b.map(x=>x&255));return {bytes,type:t,name:n,getBytes:()=>Array.from(bytes,signed)};}}
 };
 vm.createContext(ctx);vm.runInContext(gas,ctx);
 const input={id:'11',invoiceNo:9001,total:21600,versionKey,pdfSha256:digest,pdfBase64:pdf.toString('base64')};
