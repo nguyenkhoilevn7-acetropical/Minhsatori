@@ -23,7 +23,7 @@ def validate(badging, certificates, expected_digest):
     sha1 = re.findall(r"^Signer #1 certificate SHA-1 digest: ([0-9a-fA-F]{40})\s*$", certificates, re.M)
     if len(sha1) != 1:
         raise ValueError("Missing signing SHA-1 required for Android OAuth registration")
-    return {"package": "vn.minhsatori.app", "versionName": "0.3.3", "versionCode": 10,
+    return {"package": "vn.minhsatori.app", "versionName": "0.3.4", "versionCode": 11,
             "certificateSha256": digest, "certificateSha1": sha1[0].lower()}
 
 
