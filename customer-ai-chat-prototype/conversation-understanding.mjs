@@ -29,7 +29,7 @@ export function contactIntent(msg){
  const phoneNumber=(matches.at(-1)||'').replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0');
  return {address,phone,phoneNumber:/^0\d{9}$/.test(phoneNumber)?phoneNumber:''};
 }
-export const phoneConfirm=s=>/^(xac nhan(?: doi(?: sdt| so dien thoai)?)?|dung so nay|dung roi|dong y|ok|okay|vang|phai roi)$/i.test(fold(s));
+export const phoneConfirm=s=>/^(xac nhan doi (?:sdt|so dien thoai)|dung so (?:dien thoai )?nay)$/i.test(fold(s));
 export const phoneCancel=s=>/^(huy|khong|thoi|huy doi so|khong doi nua)$/i.test(fold(s));
 export const maskPhone=s=>s?s.slice(0,3)+'***'+s.slice(-3):'';
 
