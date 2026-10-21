@@ -3,7 +3,7 @@ from verify_release import validate
 
 
 class ReleaseIdentityTest(unittest.TestCase):
-    badge = "package: name='vn.minhsatori.app' versionCode='12' versionName='0.3.5' platformBuildVersionName='15'\n"
+    badge = "package: name='vn.minhsatori.app' versionCode='13' versionName='0.3.6' platformBuildVersionName='15'\n"
     digest = "ab" * 32
     certs = ("Signer #1 certificate DN: CN=Minh Satori Release\n"
              "Signer #1 certificate SHA-256 digest: " + digest + "\n"
@@ -30,7 +30,7 @@ class ReleaseIdentityTest(unittest.TestCase):
             validate(self.badge, self.certs.replace("Minh Satori Release", "Android Debug"), self.digest)
 
     def test_wrong_version_or_package(self):
-        for value in [self.badge.replace("0.3.5", "0.3.4"), self.badge.replace("vn.minhsatori.app", "vn.other.app")]:
+        for value in [self.badge.replace("0.3.6", "0.3.5"), self.badge.replace("vn.minhsatori.app", "vn.other.app")]:
             with self.assertRaises(ValueError):
                 validate(value, self.certs, self.digest)
 
