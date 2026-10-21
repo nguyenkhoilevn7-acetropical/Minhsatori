@@ -19,7 +19,7 @@ function countOf(raw){
 }
 function cleanDescription(text){
  return text.replace(/^\s*(?:(?:va|voi|them|cong|cung|cho|lay|mua|dat)\s+|[,;.!?\s])+/g,'')
-  .replace(/(?:[,;.!?\s]|\bva\b|\bvoi\b|\bthem\b)+$/g,'')
+  .replace(/(?:[,;.!?\s]|\bva\b|\bthem\b)+$/g,'')
   .replace(/^\s*(?:nuoc ep\s+)?(?=oi hong|mang cau|man cau|me\b)/,'')
   .trim();
 }
