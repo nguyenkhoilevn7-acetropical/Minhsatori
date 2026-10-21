@@ -31,16 +31,21 @@ let state={revision:105,updatedAt:'2026-10-20T23:00:00.000Z',values:{
  satori_catalogue_v15:JSON.stringify(fixtureProducts),
  satori_ai_customer_memory:JSON.stringify([{
   id:'fake_customer_01',name:'Khách Đơn Thử',aliases:['Khách Đơn Thử'],
-  receivers:[{phone:'0900000000',location:'123 Đường TEST, HCM'}],
-  aiPricingApproval:{enabled:true,reviewedByOwner:true,discountPercent:20,vatPercent:8,shippingAmount:15000,
-   sourceOrderId:7788,sourceInvoiceNo:12,phone:'0900000000',location:'123 Đường TEST, HCM'}
+  receivers:[{phone:'0900000000',location:'123 Đường TEST, HCM'}]
+ }]),
+ satori_ai_pricing_approvals_v1:JSON.stringify([{
+  customerMemoryId:'fake_customer_01',enabled:true,reviewedByOwner:true,
+  discountPercent:20,vatPercent:8,shippingAmount:15000,sourceOrderId:7788,
+  sourceInvoiceNo:12,phone:'0900000000',location:'123 Đường TEST, HCM',
+  approvalRequestId:'seed-approved-fake-001'
  }]),
  satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'
 }};
 let writes=0,backups=0,nonceNum=0;const used=new Map();
 const scopeJson=JSON.stringify({
  'e2e-writer':{secret,enabled:true,scopes:['orders:read','catalogue:read','customers:read','orders:ai:write']},
- 'e2e-reader':{secret,enabled:true,scopes:['orders:read','catalogue:read','customers:read']}
+ 'e2e-reader':{secret,enabled:true,scopes:['orders:read','catalogue:read','customers:read']},
+ 'e2e-approver':{secret,enabled:true,scopes:['pricing:approve']}
 });
 const props={SATORI_BOT_CLIENTS_JSON:scopeJson,STATE_FILE_ID:'FAKE_LEDGER_DO_NOT_USE'};
 const ctx={Date,JSON,Number,String,Object,Array,Math,Error,RegExp,Set,
@@ -143,9 +148,9 @@ const wrongApproval=preflightCheckout({...opts,revision:106,
 const deniedDestination=call('orders.create.ai',wrongApproval.payload);
 ok(!deniedDestination.ok&&deniedDestination.error.code==='PROFILE_MISMATCH',
  'AI cannot borrow discount for a second destination when invoice recipient differs');
-const policyMatch=JSON.parse(state.values.satori_ai_customer_memory);
-policyMatch[0].aiPricingApproval.sourceOrderId=9999;
-state={...state,values:{...state.values,satori_ai_customer_memory:JSON.stringify(policyMatch)}};
+const policyMatch=JSON.parse(state.values.satori_ai_pricing_approvals_v1);
+policyMatch[0].sourceOrderId=9999;
+state={...state,values:{...state.values,satori_ai_pricing_approvals_v1:JSON.stringify(policyMatch)}};
 const noApproval=preflightCheckout({...opts,revision:106,requestId:'ai_bad_approval_0100'});
 const badApproval=call('orders.create.ai',noApproval.payload);
 ok(!badApproval.ok&&badApproval.error.code==='AI_PRICING_NOT_APPROVED',
@@ -168,5 +173,27 @@ try{preflightCheckout({...opts,revision:107,source:renewedCatalog.data.products,
 catch(err){quoteRejected=err.code==='QUOTE_STALE_OR_MISMATCH'}
 ok(quoteRejected,'AI requires new customer confirmation when source price changes');
 ok(writes===1&&backups===1,'price-change test does not modify invoices');
+// The owner alone can revoke a price approval. Changing the public/learned
+// memory must not re-enable or override the separate admin-only pricing ledger.
+const revokePayload={expectedRevision:107,requestId:'owner_pricing_revoke_001',
+ customerMemoryId:'fake_customer_01',customerRef:{id:7788,invoiceNo:12},
+ phone:'0900000000',location:'123 Đường TEST, HCM',discountPercent:20,
+ vatPercent:8,shippingAmount:15000,enabled:false,confirmed:true};
+const unauthorizedApproval=call('pricing.approve',revokePayload,'e2e-writer');
+ok(!unauthorizedApproval.ok&&unauthorizedApproval.error.code==='FORBIDDEN',
+ 'AI key has no pricing owner-approval scope');
+ok(writes===1&&backups===1,'AI is unable to revoke or grant prices');
+const revoked=call('pricing.approve',revokePayload,'e2e-approver');
+ok(revoked.ok&&revoked.data.approved===false&&revoked.revision===108,
+ 'approved owner can revoke exact delivery-point price policy on fake ledger');
+ok(writes===2&&backups===2,'owner-only pricing revocation creates one verified fake Drive backup and write');
+const retryRevoke=call('pricing.approve',revokePayload,'e2e-approver');
+ok(retryRevoke.ok&&retryRevoke.data.duplicate===true&&writes===2,
+ 'lost owner approval response can be retried idempotently');
+const mustRequote=preflightCheckout({...opts,revision:108,requestId:'new_ai_after_revoke_001'});
+const deniedRevoked=call('orders.create.ai',mustRequote.payload);
+ok(!deniedRevoked.ok&&deniedRevoked.error.code==='AI_PRICING_NOT_APPROVED',
+ 'revoked discount cannot be used for a new AI order');
+ok(writes===2&&backups===2,'rejected AI checkout after revocation leaves ledger untouched');
 console.log('PASS '+checked+'/'+checked+
  ' real staged BotApi HMAC + source pricing + customer profile + idempotent multi-SKU FAKE-Drive E2E checks');
