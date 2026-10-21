@@ -13,7 +13,7 @@ function shopWaterShorthand(s,profile={}){
  if(/\b(chai|loc|binh|ly)\b/.test(text))return null;
  const expanded=text.replace(/\b(350|500|1500)(?!\s*ml)\b/g,'$1ml');
  const product=resolveProduct(expanded,profile);
- return product.sku&&!product.ambiguous&&productFor(product.sku)?{sku:product.sku,qty:Number(m[2])}:null;
+ return product.sku&&!product.ambiguous&&productFor(product.sku)?{sku:product.sku,qty:Number(m[1])}:null;
 }
 function hints(s,profile={}){const r=shopWaterShorthand(s,profile)||resolveProduct(s,profile);return r.sku?[r.sku]:[]}
 function qty(s){let m=s.match(/\b(\d{1,4})\s*(?:thung|thg|t|binh|loc)(?=\s|$|[.,!?;])/);if(m)return Number(m[1]);m=s.match(/\b(muoi\s+(?:mot|hai|ba|bon|nam|lam|sau|bay|tam|chin)|hai\s+muoi|ba\s+muoi|mot|hai|ba|bon|tu|nam|lam|sau|bay|tam|chin|muoi)\s+(?:thung|thg|binh|loc)\b/);if(!m)return 0;const p=m[1].split(' ');return p[0]==='muoi'&&p[1]?10+words[p[1]]:p[1]==='muoi'?10*words[p[0]]:words[p[0]]||0;}
