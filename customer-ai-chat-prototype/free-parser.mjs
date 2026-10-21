@@ -3,13 +3,26 @@ import {CATALOGUE,productFor,resolveProduct} from './catalogue.mjs';
 const SKUS=new Set(['S5L','S500','S350',...CATALOGUE.map(p=>p.code)]);
 const words={mot:1,hai:2,ba:3,bon:4,tu:4,nam:5,lam:5,sau:6,bay:7,tam:8,chin:9,muoi:10};
 const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\s+/g,' ').trim();
-function hints(s,profile={}){const r=resolveProduct(s,profile);return r.sku?[r.sku]:[]}
+// A SKU lookup is only widened for explicitly labelled bottled water.
+// "10 suối 500" is a common shorthand for 500ml, but bare "500" may
+// refer to price, and can NEVER be silently treated as a product.
+function shopWaterShorthand(s,profile={}){
+ const text=norm(s);
+ const m=text.match(/^(?:(?:cho (?:toi|anh|chi|em))\s+)?(?:lay|dat|mua|can)?\s*(\d{1,3})\s+(?:(?:nuoc|suoi|nuoc suoi|satori|hikari|tinh khiet)\s+)+(350|500|1500)(?:\s*ml)?(?:\s+(?:satori|hikari))?$/);
+ if(!m)return null;
+ if(/\b(chai|loc|binh|ly)\b/.test(text))return null;
+ const expanded=text.replace(/\b(350|500|1500)(?!\s*ml)\b/g,'$1ml');
+ const product=resolveProduct(expanded,profile);
+ return product.sku&&!product.ambiguous&&productFor(product.sku)?{sku:product.sku,qty:Number(m[2])}:null;
+}
+function hints(s,profile={}){const r=shopWaterShorthand(s,profile)||resolveProduct(s,profile);return r.sku?[r.sku]:[]}
 function qty(s){let m=s.match(/\b(\d{1,4})\s*(?:thung|thg|t|binh|loc)(?=\s|$|[.,!?;])/);if(m)return Number(m[1]);m=s.match(/\b(muoi\s+(?:mot|hai|ba|bon|nam|lam|sau|bay|tam|chin)|hai\s+muoi|ba\s+muoi|mot|hai|ba|bon|tu|nam|lam|sau|bay|tam|chin|muoi)\s+(?:thung|thg|binh|loc)\b/);if(!m)return 0;const p=m[1].split(' ');return p[0]==='muoi'&&p[1]?10+words[p[1]]:p[1]==='muoi'?10*words[p[0]]:words[p[0]]||0;}
 // Short Vietnamese shop slang: "10 suối 500ml" means 10 units of the
 // 500ml catalogue item, not a request about 10 * 500ml size markers.
 // Only resolve when one unique SKU is present, and ALWAYS show unit/carton
 // in the quote before checkout. Do not interpret explicit "chai" as "thùng".
 function implicitCatalogueQty(s,profile={}){
+ const quick=shopWaterShorthand(s,profile);if(quick)return quick.qty;
  const m=s.match(/^(?:cho (?:toi|anh|chi|em)\s+)?(?:lay|dat|mua|can)?\s*(\d{1,3})\s+(?:(?:nuoc|suoi|nuoc suoi|satori|hikari|tinh khiet|chai nuoc)\s+)*(?:350\s*ml|500\s*ml|1500\s*ml|1[,.]?5\s*l|premium(?:\s*450\s*ml)?)(?=\s|$)/);
  if(!m)return 0;
  if(/\b(chai|lo|ly|binh|loc)\b/.test(s))return 0;
