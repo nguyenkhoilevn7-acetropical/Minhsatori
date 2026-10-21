@@ -942,7 +942,7 @@ const server=http.createServer(async(req,res)=>{
   return;
  }
  return fail(res,404,'NOT_FOUND','Không có đường dẫn này');
- }catch(err){return fail(res,err.message==='PAYLOAD_TOO_LARGE'?413:500,'SERVER_ERROR','Lỗi xử lý yêu cầu thử nghiệm')}
+ }catch(err){if(process.env.NODE_ENV==='test')console.error('SANDBOX_TEST_SERVER_ERROR',String(err?.stack||err).slice(0,800));return fail(res,err.message==='PAYLOAD_TOO_LARGE'?413:500,'SERVER_ERROR','Lỗi xử lý yêu cầu thử nghiệm')}
 });
 // TEST-ONLY one-time encrypted rescue for a confirmed pre-deploy snapshot.
 // Never inject plaintext or secret keys in code, browser, chat or logs.
