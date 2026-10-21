@@ -135,6 +135,38 @@ function makeMultiQuote(token,profile,requestedItems){
  const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku:'MULTI',qty:totalQty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,product:items.length+' loại sản phẩm',unit:'đơn vị',items,subtotal,shipping,vatRate,vatAmount,total:subtotal+shipping+vatAmount,expiresAt:Date.now()+10*60_000,token};
  quotes.set(q.quoteId,q);return q;
 }
+
+function draftFailure(res,err){
+ if(err?.message==='DRAFT_CONFLICT')return fail(res,409,'DRAFT_CONFLICT','Giỏ hàng đã được cập nhật ở phiên khác. Vui lòng tải lại giỏ.');
+ if(err?.message==='CART_LIMIT')return fail(res,400,'CART_LIMIT','Một bill tối đa 6 sản phẩm và 500 đơn vị.');
+ return fail(res,400,'INVALID_CART','Mã sản phẩm hoặc số lượng không hợp lệ.');
+}
+function invalidateQuotes(token){
+ for(const [id,q] of quotes)if(q.token===token)quotes.delete(id);
+}
+function currentBasketQuote(token,profile){
+ const draft=draftStore.read(token);
+ if(!draft.items.length)return null;
+ invalidateQuotes(token);
+ const items=draft.items.map(x=>({sku:x.code,qty:x.qty}));
+ const q=items.length===1?makeQuote(token,profile,items[0].sku,items[0].qty):makeMultiQuote(token,profile,items);
+ if(q)q.draftRevision=draft.revision;
+ return q;
+}
+function applyChatBasket(res,token,profile,changes,revision,source,delivery){
+ let draft;
+ try{draft=draftStore.mutate(token,changes,revision)}catch(e){return draftFailure(res,e)}
+ const quote=currentBasketQuote(token,profile);
+ if(!quote)return fail(res,400,'CART_QUOTE_FAILED','Chưa tạo được báo giá cho giỏ hàng.');
+ if(delivery){
+  quote.deliveryNote=normalizeDeliveryNote(delivery.deliveryNote);
+  quote.requestedDeliveryAt=delivery.requestedDeliveryAt;
+ }
+ sessions.delete(token);
+ return reply(res,200,{ok:true,sandbox:true,parserSource:source,draft,quote,
+  message:'Đã cập nhật cùng một giỏ: '+draft.items.length+' loại / '+draft.items.reduce((n,x)=>n+x.qty,0)+' đơn vị. Chưa tạo bill; bạn xác nhận báo giá cuối cùng một lần nhé.'});
+}
+
 function saveOrdersAtomic(){const data=JSON.stringify([...orders.values()],null,2);const tmp=DATA_FILE+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(tmp,data,{mode:0o600});fs.renameSync(tmp,DATA_FILE);driveWorker?.schedule()}
 if(scrubbedLegacyRequestIds)saveOrdersAtomic();
 // The first verified backup upload must be confirmed before a Render redeploy.
