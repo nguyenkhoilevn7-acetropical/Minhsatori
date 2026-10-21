@@ -375,7 +375,7 @@ class AiSandboxActivity : AppCompatActivity() {
                 setPadding(dp(12),dp(8),dp(12),dp(10))
             }
             val heading = text(
-                "LỊCH SỬ TEST • " + orders.length() + " hóa đơn\\n" +
+                "LỊCH SỬ TEST • " + orders.length() + " hóa đơn\n" +
                 "Chỉ Demo A; không phải hóa đơn production.", 13f, navy)
             list.addView(heading)
             val limit = minOf(orders.length(), 50)
@@ -389,7 +389,7 @@ class AiSandboxActivity : AppCompatActivity() {
                     background = bg(Color.rgb(234,243,253),12)
                 }
                 val header = text(ref + " • " + order.optString("createdAt").take(16).replace("T"," ") +
-                    "\\n" + "%,d".format(order.optLong("total")) + " đ",14f, navy, true)
+                    "\n" + "%,d".format(order.optLong("total")) + " đ",14f, navy, true)
                 card.addView(header)
                 val items = order.optJSONArray("items")
                 if (items != null && items.length()>0) {
@@ -398,7 +398,7 @@ class AiSandboxActivity : AppCompatActivity() {
                         val p = items.optJSONObject(j) ?: continue
                         summary.append("• ").append(p.optInt("qty")).append(" ")
                             .append(p.optString("unit")).append(" ")
-                            .append(p.optString("product")).append("\\n")
+                            .append(p.optString("product")).append("\n")
                     }
                     card.addView(text(summary.toString(),12f, navy))
                 } else {
