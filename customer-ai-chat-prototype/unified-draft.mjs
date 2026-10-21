@@ -25,7 +25,13 @@ export function makeDraftStore(options={}){
    lines.set(row.code,row.qty);
   }
   if([...lines.values()].reduce((sum,v)=>sum+v,0)>MAX_UNITS)throw Error('INVALID_DRAFT_CACHE');
-  return {key:item.key,revision:item.revision,updatedAt:item.updatedAt,lines};
+  const deliveryNote=item.deliveryNote??'';
+  if(typeof deliveryNote!=='string'||deliveryNote.length>300||
+     /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(deliveryNote))throw Error('INVALID_DRAFT_CACHE');
+  const requestedDeliveryAt=item.requestedDeliveryAt??null;
+  if(requestedDeliveryAt!==null&&(typeof requestedDeliveryAt!=='string'||
+     !Number.isFinite(Date.parse(requestedDeliveryAt))))throw Error('INVALID_DRAFT_CACHE');
+  return {key:item.key,revision:item.revision,updatedAt:item.updatedAt,lines,deliveryNote,requestedDeliveryAt};
  }
  function activeEntries(){
   const cutoff=Date.now()-expiresMs;
@@ -34,7 +40,9 @@ export function makeDraftStore(options={}){
  function snapshot(){
   return activeEntries().map(([key,s])=>({
    key,revision:s.revision,updatedAt:s.updatedAt,
-   items:[...s.lines].map(([code,qty])=>({code,qty}))
+   items:[...s.lines].map(([code,qty])=>({code,qty})),
+   ...(s.deliveryNote?{deliveryNote:s.deliveryNote}:{}),
+   ...(s.requestedDeliveryAt?{requestedDeliveryAt:s.requestedDeliveryAt}:{})
   })).sort((a,b)=>a.key.localeCompare(b.key));
  }
  function persist(){
@@ -55,7 +63,8 @@ export function makeDraftStore(options={}){
    if([keyOf('demo-a'),keyOf('demo-b')].includes(row.key))continue;
    if(states.has(row.key))throw Error('INVALID_DRAFT_CACHE');
    if(Date.now()-row.updatedAt<expiresMs)states.set(row.key,{
-    revision:row.revision,updatedAt:row.updatedAt,lines:row.lines
+    revision:row.revision,updatedAt:row.updatedAt,lines:row.lines,
+    deliveryNote:row.deliveryNote,requestedDeliveryAt:row.requestedDeliveryAt
    });
   }
  }
@@ -63,21 +72,27 @@ export function makeDraftStore(options={}){
  function get(token){
   const key=keyOf(token),s=states.get(key);
   if(s&&Date.now()-s.updatedAt<expiresMs)return s;
-  return {revision:0,lines:new Map(),updatedAt:Date.now()};
+  return {revision:0,lines:new Map(),updatedAt:Date.now(),deliveryNote:'',requestedDeliveryAt:null};
  }
  function read(token){
   const s=get(token);
   return {revision:s.revision,items:[...s.lines].map(([code,qty])=>{
    const p=productFor(code);return {code,qty,name:p.name,unit:p.unit};
-  })};
+  }),...(s.deliveryNote?{deliveryNote:s.deliveryNote}:{}),
+  ...(s.requestedDeliveryAt?{requestedDeliveryAt:s.requestedDeliveryAt}:{})};
  }
- function mutate(token,changes,expectedRevision){
+ function mutate(token,changes,expectedRevision,delivery=null){
   const key=keyOf(token),s=get(token);
   if(typeof token==='string'&&/^demo-[ab](?:~[a-f0-9]{32})?$/.test(token))volatileDemoKeys.add(key);
   if(!Number.isSafeInteger(expectedRevision)||s.revision!==expectedRevision)throw Error('DRAFT_CONFLICT');
   if(!Array.isArray(changes)||changes.length<1||changes.length>MAX_LINES)throw Error('INVALID_CART');
   const next=new Map(s.lines);
+  let note=s.deliveryNote||'',when=s.requestedDeliveryAt||null;
   for(const change of changes){
+   if(change.action==='note'){
+    if(typeof change.note!=='string'||change.note.length>300)throw Error('INVALID_NOTE');
+    note=change.note;when=change.requestedDeliveryAt??null;continue;
+   }
    if(change.action==='clear'){next.clear();continue}
    const p=productFor(change.code);
    if(!p)throw Error('INVALID_CART');
@@ -90,9 +105,14 @@ export function makeDraftStore(options={}){
    if(!Number.isSafeInteger(qty)||qty<0||qty>MAX_UNITS)throw Error('INVALID_CART');
    if(qty===0)next.delete(code);else next.set(code,qty);
   }
+  if(delivery?.deliveryNote){
+   if(typeof delivery.deliveryNote!=='string'||delivery.deliveryNote.length>300)throw Error('INVALID_NOTE');
+   note=delivery.deliveryNote;when=delivery.requestedDeliveryAt??null;
+  }
+  if(changes.some(x=>x.action==='clear')){note='';when=null}
   if(next.size>MAX_LINES||[...next.values()].reduce((n,v)=>n+v,0)>MAX_UNITS)throw Error('CART_LIMIT');
   const old=states.get(key);
-  states.set(key,{revision:s.revision+1,lines:next,updatedAt:Date.now()});
+  states.set(key,{revision:s.revision+1,lines:next,updatedAt:Date.now(),deliveryNote:note,requestedDeliveryAt:when});
   try{persist()}catch(e){if(old)states.set(key,old);else states.delete(key);throw e}
   onChange(); // schedules encrypted backup; cannot cause an extra invoice
   return read(token);
@@ -107,7 +127,8 @@ export function makeDraftStore(options={}){
    if([keyOf('demo-a'),keyOf('demo-b')].includes(row.key))continue;
    if(restoreStates.has(row.key))throw Error('INVALID_DRAFT_CACHE');
    if(Date.now()-row.updatedAt<expiresMs)restoreStates.set(row.key,{
-    revision:row.revision,updatedAt:row.updatedAt,lines:row.lines});
+    revision:row.revision,updatedAt:row.updatedAt,lines:row.lines,
+    deliveryNote:row.deliveryNote,requestedDeliveryAt:row.requestedDeliveryAt});
   }
   const old=new Map(states);
   states.clear();
