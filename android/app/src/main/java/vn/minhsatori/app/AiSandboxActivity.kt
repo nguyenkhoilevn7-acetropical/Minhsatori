@@ -46,6 +46,7 @@ class AiSandboxActivity : AppCompatActivity() {
     private lateinit var draft: EditText
     private lateinit var send: Button
     private lateinit var catalogueButton: Button
+    private lateinit var invoiceUi: AiSandboxInvoiceUi
     private var catalogue: JSONArray = JSONArray()
     private var basket: List<AiSandboxContract.Line>? = null
     private var quotedId: String? = null
@@ -92,6 +93,7 @@ class AiSandboxActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        invoiceUi = AiSandboxInvoiceUi(this)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(navy)
@@ -312,24 +314,11 @@ class AiSandboxActivity : AppCompatActivity() {
                 draft.text.clear()
                 quotedId = quote.optString("quoteId")
                 confirmRequestId = "android-ai-" + UUID.randomUUID().toString()
-                val items = quote.optJSONArray("items")
-                val summary = StringBuilder("BÁO GIÁ TEST\n")
-                if (items != null) {
-                    for (i in 0 until items.length()) {
-                        val p = items.getJSONObject(i)
-                        summary.append("• ").append(p.optInt("qty")).append(" ")
-                            .append(p.optString("unit")).append(" ")
-                            .append(p.optString("product")).append("\n")
-                    }
-                } else {
-                    summary.append("• ").append(quote.optInt("qty")).append(" ")
-                        .append(quote.optString("product")).append("\n")
-                }
-                summary.append("Tổng: ").append("%,d".format(quote.optLong("total"))).append(" đ\n")
-                    .append("Chưa thanh toán • Không giao hàng.")
-                addBubble(summary.toString())
-                val confirm = button("XÁC NHẬN ĐƠN TEST") { confirmQuote() }
-                transcript.addView(confirm)
+                // Structured native quote; no chat-text invoice and no client-side pricing.
+                transcript.addView(invoiceUi.invoiceCard(quote, quote = true) { confirmQuote() },
+                    LinearLayout.LayoutParams(-1, -2).apply {
+                        setMargins(dp(7), dp(8), dp(7), dp(9))
+                    })
                 transcriptScroll.post { transcriptScroll.fullScroll(View.FOCUS_DOWN) }
             }
         })
@@ -346,21 +335,16 @@ class AiSandboxActivity : AppCompatActivity() {
                 val body = JSONObject().put("token", AiSandboxContract.PUBLIC_FIXTURE)
                     .put("quoteId", id).put("requestId", key)
                 runTask({ request("/api/confirm", body) }, { result ->
-                    val order=result.optJSONObject("order")
-                    val ref = order?.optString("ref").orEmpty()
-                    addBubble("Đã tạo bill THỬ " + ref +
-                        ". Không có thanh toán hay giao hàng thật.")
-                    if (AiSandboxContract.validTestRef(ref)) {
-                        val actions = LinearLayout(this@AiSandboxActivity).apply {
-                            orientation = LinearLayout.HORIZONTAL
-                            setPadding(dp(8),dp(2),dp(8),dp(8))
-                        }
-                        val view = button("👁 Xem PDF") { openInvoicePdf(ref, share = false) }
-                        val sharePdf = button("↗ Chia sẻ PDF") { openInvoicePdf(ref, share = true) }
-                        actions.addView(view, LinearLayout.LayoutParams(0,dp(46),1f))
-                        actions.addView(sharePdf, LinearLayout.LayoutParams(0,dp(46),1f).apply { marginStart = dp(8) })
-                        transcript.addView(actions)
+                    val order = result.optJSONObject("order")
+                    if (order != null && AiSandboxContract.validTestRef(order.optString("ref"))) {
+                        addBubble("Đã tạo hóa đơn TEST; khung bên dưới có Xem, Tải PDF và Chia sẻ.")
+                        transcript.addView(invoiceUi.invoiceCard(order),
+                            LinearLayout.LayoutParams(-1, -2).apply {
+                                setMargins(dp(7), dp(8), dp(7), dp(9))
+                            })
                         transcriptScroll.post { transcriptScroll.fullScroll(View.FOCUS_DOWN) }
+                    } else {
+                        addBubble("Chưa nhận được bản ghi hóa đơn TEST. Mở Lịch sử TEST để kiểm tra.")
                     }
                 })
             }.show()
@@ -372,45 +356,17 @@ class AiSandboxActivity : AppCompatActivity() {
             val scroll = ScrollView(this)
             val list = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(12),dp(8),dp(12),dp(10))
+                setPadding(dp(12), dp(8), dp(12), dp(10))
             }
-            val heading = text(
-                "LỊCH SỬ TEST • " + orders.length() + " hóa đơn\n" +
-                "Chỉ Demo A; không phải hóa đơn production.", 13f, navy)
-            list.addView(heading)
+            list.addView(text(
+                "LỊCH SỬ HÓA ĐƠN TEST • " + orders.length() +
+                " đơn. Chỉ Demo A; không phải hóa đơn production.", 13f, navy))
             val limit = minOf(orders.length(), 50)
             for (i in 0 until limit) {
                 val order = orders.optJSONObject(i) ?: continue
-                val ref = order.optString("ref")
-                if (!AiSandboxContract.validTestRef(ref)) continue
-                val card = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(dp(8),dp(7),dp(8),dp(9))
-                    background = bg(Color.rgb(234,243,253),12)
-                }
-                val header = text(ref + " • " + order.optString("createdAt").take(16).replace("T"," ") +
-                    "\n" + "%,d".format(order.optLong("total")) + " đ",14f, navy, true)
-                card.addView(header)
-                val items = order.optJSONArray("items")
-                if (items != null && items.length()>0) {
-                    val summary = StringBuilder()
-                    for (j in 0 until items.length()) {
-                        val p = items.optJSONObject(j) ?: continue
-                        summary.append("• ").append(p.optInt("qty")).append(" ")
-                            .append(p.optString("unit")).append(" ")
-                            .append(p.optString("product")).append("\n")
-                    }
-                    card.addView(text(summary.toString(),12f, navy))
-                } else {
-                    card.addView(text(order.optString("product"),12f,navy))
-                }
-                val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                val view = button("Xem PDF") { openInvoicePdf(ref, share = false) }
-                val sharePdf = button("Chia sẻ") { openInvoicePdf(ref, share = true) }
-                buttons.addView(view,LinearLayout.LayoutParams(0,dp(44),1f))
-                buttons.addView(sharePdf,LinearLayout.LayoutParams(0,dp(44),1f).apply { marginStart=dp(7) })
-                card.addView(buttons)
-                list.addView(card,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(9) })
+                if (!AiSandboxContract.validTestRef(order.optString("ref"))) continue
+                list.addView(invoiceUi.invoiceCard(order),
+                    LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(9) })
             }
             if (orders.length()>limit) list.addView(text(
                 "Hiện tối đa 50 đơn TEST gần đây. Mở website để tra cứu đầy đủ.",12f,navy))
