@@ -421,7 +421,7 @@ const server=http.createServer(async(req,res)=>{
    const request=customerLinks.logChangeRequest(c,message);
    return reply(res,200,{ok:true,needsHuman:true,changeRequestId:request.id,
    contactPolicy:'ADDRESS_REQUIRES_STAFF',draft:draftStore.read(token),message:ADDRESS_REPLY});}
-  if(ci?.phone){
+  if(ci?.phone&&!phoneConfirm(message)){
    if(!ci.phoneNumber){pendingPhones.set(token,{needsNumber:true,expiresAt:Date.now()+600_000});
     return reply(res,200,{ok:true,needMoreDetails:true,
     contactPolicy:'PHONE_NEEDS_NUMBER',message:'Anh/chị vui lòng gửi số điện thoại mới gồm 10 chữ số. Em chưa thay đổi số đang lưu.'});}
