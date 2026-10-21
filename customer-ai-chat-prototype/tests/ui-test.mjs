@@ -113,6 +113,11 @@ const adminChecks=[
  ["request('/api/admin/create-test-order'",'authenticated fake-order request'],
  ["document.querySelectorAll('[data-tab-panel]')",'only selected Admin panel is shown'],
  ["request('/api/admin/new-orders')",'authenticated 10-second inbox poll'],
+ ["announceAmendments(edited)",'admin notifies customer invoice revisions'],
+ ["knownOrderVersions=new Map",'admin tracks changes by amendment version'],
+ ["'✏️ ĐÃ SỬA • '",'updated orders labeled distinctly'],
+ ["function showAmendment(proposal)",'customer sees explicit amendment confirmation card'],
+ ["'/api/order-amend/confirm'",'customer amendment confirmation route called only on button click'],
  ["document.addEventListener('visibilitychange'",'refresh on returning to Admin tab']
 ];
 for(const [needle,label] of adminChecks)assert.ok(adminHtml.includes(needle),label);
