@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Full-bleed official invoice artwork; Samsung/Android applies the circular
+     adaptive icon mask directly. Do not inset a square JPG inside the mask. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@android:color/white" />
-    <foreground android:drawable="@drawable/ic_launcher_satori_logo" />
+    <background android:drawable="@drawable/satori_invoice_logo" />
+    <foreground android:drawable="@android:color/transparent" />
 </adaptive-icon>
