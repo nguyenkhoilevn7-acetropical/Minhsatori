@@ -11,7 +11,7 @@ def validate(badging, certificates, expected_digest):
     digest = expected_digest.replace(":", "").strip().lower()
     if not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise ValueError("Configure the stable release certificate SHA-256 first")
-    if not re.search(r"^package: name='vn\.minhsatori\.app' versionCode='9' versionName='0\.3\.2'(?: |$)", badging, re.M):
+    if not re.search(r"^package: name='vn\.minhsatori\.app' versionCode='10' versionName='0\.3\.3'(?: |$)", badging, re.M):
         raise ValueError("Unexpected APK package or version")
     if re.search(r"^application-debuggable(?:\s|$)", badging, re.M):
         raise ValueError("Debuggable APK cannot be released")
@@ -23,7 +23,7 @@ def validate(badging, certificates, expected_digest):
     sha1 = re.findall(r"^Signer #1 certificate SHA-1 digest: ([0-9a-fA-F]{40})\s*$", certificates, re.M)
     if len(sha1) != 1:
         raise ValueError("Missing signing SHA-1 required for Android OAuth registration")
-    return {"package": "vn.minhsatori.app", "versionName": "0.3.2", "versionCode": 9,
+    return {"package": "vn.minhsatori.app", "versionName": "0.3.3", "versionCode": 10,
             "certificateSha256": digest, "certificateSha1": sha1[0].lower()}
 
 
