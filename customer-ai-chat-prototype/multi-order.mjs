@@ -49,8 +49,14 @@ export function parseMultiOrder(message,profile={}){
   start:m.index+m[1].length,end:m.index+m[0].length,quantity:countOf(m[2]),
   unit:m[3]||null
  }));
- // Single-item order remains in the one-item engine for backwards compatibility.
- if(matches.length<2)return null;
+ // Catch ALL explicit quantity+unit phrases, including unrecognized products.
+ // Otherwise "10 Satori 500ml, 3 trà sữa" could silently create only a partial order.
+ const broad=[...text.matchAll(/(?:^|[^a-z0-9-])(\\d{1,3}|muoi|mot|hai|ba|bon|nam)\\s*(?:thung|thg|binh|loc|chai|lon|ly)\\s+(?=[a-z])/g)];
+ if(matches.length<2){
+  if(matches.length&&broad.length>matches.length)
+   return needsMore('món chưa có trong danh mục / chưa rõ quy cách',[]);
+  return null;
+ }
  if(matches.length>6)return {needMoreDetails:true,reason:'TOO_MANY_ITEMS',
   message:'Một đơn thử hỗ trợ tối đa 6 dòng sản phẩm. Anh/chị vui lòng chia thành các đơn nhỏ hơn.'};
  const items=[];
