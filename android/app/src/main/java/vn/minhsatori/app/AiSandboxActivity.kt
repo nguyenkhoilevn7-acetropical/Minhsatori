@@ -69,8 +69,11 @@ class AiSandboxActivity : AppCompatActivity() {
         }
     private fun button(label: String, action: () -> Unit) = Button(this).apply {
         text = label
-        textSize = 13f
+        textSize = 12f
         isAllCaps = false
+        minHeight = dp(36)
+        minWidth = 0
+        setPadding(dp(9),0,dp(9),0)
         setTextColor(white)
         background = bg(blue, 12)
         setOnClickListener { action() }
@@ -130,7 +133,7 @@ class AiSandboxActivity : AppCompatActivity() {
             setPadding(dp(8), dp(6), dp(8), dp(4))
         }
         catalogueButton = button("＋ Nhiều sản phẩm") { showCatalogue() }
-        toolbar.addView(catalogueButton, LinearLayout.LayoutParams(0, dp(48), 1f))
+        toolbar.addView(catalogueButton, LinearLayout.LayoutParams(0, dp(39), 1f))
         val history = button("Lịch sử TEST") { showHistory() }
         toolbar.addView(history, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(7) })
         root.addView(toolbar)
@@ -144,7 +147,7 @@ class AiSandboxActivity : AppCompatActivity() {
             setHintTextColor(muted)
             setTextColor(white)
             textSize = 15f
-            minLines = 2
+            minLines = 1
             maxLines = 5
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             background = bg(Color.rgb(25, 48, 71), 13)
@@ -152,7 +155,7 @@ class AiSandboxActivity : AppCompatActivity() {
         }
         entry.addView(draft, LinearLayout.LayoutParams(0, -2, 1f))
         send = button("Gửi") { submit() }
-        entry.addView(send, LinearLayout.LayoutParams(dp(70), dp(50)).apply { marginStart = dp(7) })
+        entry.addView(send, LinearLayout.LayoutParams(dp(60), dp(43)).apply { marginStart = dp(7) })
         root.addView(entry)
         setContentView(root)
         addBubble("Xin chào! Đây là phiên AI dùng chung server Gemini sandbox của website. Anh có thể chọn nhiều mặt hàng vào cùng một giỏ hoặc nhập câu đặt hàng.")
