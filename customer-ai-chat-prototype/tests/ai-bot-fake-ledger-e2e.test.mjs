@@ -19,7 +19,7 @@ const fixtureProducts=[
  {code:'TP-00056',name:'Satori mãng cầu TEST',unit:'Thùng',spec:'24 chai',brand:'SATORI',listPrice:333333,unitPrice:266666,discountPercent:20},
  {code:'TP-00081',name:'Hikari 500ml TEST',unit:'Thùng',spec:'24 chai',brand:'HIKARI',listPrice:110000,unitPrice:88000,discountPercent:20}
 ];
-const privateCustomer={verifiedByServer:true,profileId:'FAKE_VERIFY_ONLY',
+const privateCustomer={verifiedByServer:true,profileId:'FAKE_VERIFY_ONLY',approvedMemoryId:'fake_customer_01',
  sourceReference:{id:7788,invoiceNo:12},name:'Khách Đơn Thử',phone:'0900000000',
  location:'123 Đường TEST, HCM',approvedDiscountPercent:20};
 let state={revision:105,updatedAt:'2026-10-20T23:00:00.000Z',values:{
@@ -29,11 +29,16 @@ let state={revision:105,updatedAt:'2026-10-20T23:00:00.000Z',values:{
   items:[{product:'Satori 500ml TEST',unit:'Thùng',code:'TP-00003',qty:1,unitPrice:78400}],
   timestamp:Date.now()-86400000}]),
  satori_catalogue_v15:JSON.stringify(fixtureProducts),
+ satori_ai_customer_memory:JSON.stringify([{
+  id:'fake_customer_01',name:'Khách Đơn Thử',aliases:['Khách Đơn Thử'],
+  receivers:[{phone:'0900000000',location:'123 Đường TEST, HCM'}],
+  aiPricingApproval:{enabled:true,reviewedByOwner:true,discountPercent:20,vatPercent:8,shippingAmount:15000}
+ }]),
  satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'
 }};
 let writes=0,backups=0,nonceNum=0;const used=new Map();
 const scopeJson=JSON.stringify({
- 'e2e-writer':{secret,enabled:true,scopes:['orders:read','catalogue:read','customers:read','orders:write']},
+ 'e2e-writer':{secret,enabled:true,scopes:['orders:read','catalogue:read','customers:read','orders:ai:write']},
  'e2e-reader':{secret,enabled:true,scopes:['orders:read','catalogue:read','customers:read']}
 });
 const props={SATORI_BOT_CLIENTS_JSON:scopeJson,STATE_FILE_ID:'FAKE_LEDGER_DO_NOT_USE'};
@@ -79,6 +84,8 @@ const opts={revision:cats.revision,requestId:'web_android_ai_same_0001',customer
 const preflight=preflightCheckout(opts);
 ok(preflight.payload.order.items.length===2&&preflight.payload.order.total===total,
  'AI preflight produces one two-product invoice with server-calculated amounts');
+ok(preflight.action==='orders.create.ai'&&preflight.payload.customerMemoryId==='fake_customer_01',
+ 'AI must use isolated write scope and owner-reviewed source pricing profile');
 const created=call(preflight.action,preflight.payload);
 ok(created.ok&&!created.data.duplicate&&created.revision===106,
  'real BotApi create action commits exactly one fake invoice and increments revision');
@@ -92,7 +99,7 @@ ok(writes===1&&backups===1&&state.revision===106,'safe retry never writes or mak
 const hijack=structuredClone(preflight.payload);
 hijack.order.items[0].qty=999;
 hijack.order.total+=999*78400;
-const conflict=call('orders.create',hijack);
+const conflict=call('orders.create.ai',hijack);
 ok(!conflict.ok&&conflict.error.code==='REQUEST_ID_CONFLICT',
  'same request ID cannot silently substitute a different basket');
 ok(writes===1&&backups===1,'tampered idempotency retry never commits or backs up');
@@ -100,15 +107,26 @@ const stale=preflightCheckout({...opts,requestId:'web_android_ai_other_0002'});
 const staleRes=call(stale.action,stale.payload);
 ok(!staleRes.ok&&staleRes.error.code==='REVISION_CONFLICT',
  'another device cannot write using a stale source revision');
-const untrusted=call('orders.create',preflight.payload,'e2e-reader');
+const untrusted=call('orders.create.ai',preflight.payload,'e2e-reader');
 ok(!untrusted.ok&&untrusted.error.code==='FORBIDDEN',
  'read-only AI Bot key cannot create any invoice');
 const badLocation=preflightCheckout({...opts,revision:106,
  requestId:'web_android_ai_other_0003',
  customer:{...privateCustomer,location:'456 Địa điểm sai TEST'}});
-const mismatch=call('orders.create',badLocation.payload);
+const mismatch=call('orders.create.ai',badLocation.payload);
 ok(!mismatch.ok&&mismatch.error.code==='PROFILE_MISMATCH',
  'recipient/location on one account cannot silently switch delivery address');
+const tamperedPrice=structuredClone(preflight.payload);
+tamperedPrice.requestId='new_ai_order_tamper_999';tamperedPrice.expectedRevision=106;
+tamperedPrice.order.items[0].unitPrice=1;
+tamperedPrice.order.total=total-(78400-1)*2;
+const badPrice=call('orders.create.ai',tamperedPrice);
+ok(!badPrice.ok&&badPrice.error.code==='AI_PRICE_MISMATCH',
+ 'Bot rejects tampered AI unit prices even when client recomputes grand total');
+ok(writes===1&&backups===1,'AI underpricing attempt cannot change Drive');
+const unauthorizedWriter=call('orders.create',preflight.payload);
+ok(!unauthorizedWriter.ok&&unauthorizedWriter.error.code==='FORBIDDEN',
+ 'AI-scoped key cannot bypass price checks by calling legacy orders.create');
 const history=call('orders.list',{query:privateCustomer.name},'e2e-reader');
 ok(history.ok&&history.data.totalMatches===2&&
  history.data.orders.some(x=>x.invoiceNo===created.data.order.invoiceNo),
