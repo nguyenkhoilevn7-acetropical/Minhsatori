@@ -58,9 +58,9 @@ jobs:
           import pathlib, re
           gradle = pathlib.Path("android/app/build.gradle.kts").read_text(encoding="utf-8")
           badging = pathlib.Path("/tmp/satori-apk-badging.txt").read_text(encoding="utf-8")
-          code = re.search(r"\\bversionCode\\s*=\\s*(\\d+)", gradle)
-          version = re.search(r'\\bversionName\\s*=\\s*"([^"]+)"', gradle)
-          package = re.search(r"^package: name='([^']+)' versionCode='(\\d+)' versionName='([^']+)'", badging, re.M)
+          code = re.search(r"\bversionCode\s*=\s*(\d+)", gradle)
+          version = re.search(r'\bversionName\s*=\s*"([^"]+)"', gradle)
+          package = re.search(r"^package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", badging, re.M)
           assert code and version and package, "Cannot resolve Gradle/APK version metadata"
           assert package.group(1) == "vn.minhsatori.app", "Wrong Android package"
           assert package.group(2) == code.group(1), "APK versionCode does not match Gradle"
