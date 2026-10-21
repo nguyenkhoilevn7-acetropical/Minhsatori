@@ -5303,7 +5303,9 @@
         }
         function rememberSavedInvoicePdf(order) {
             lastSavedPdfOrder=JSON.parse(JSON.stringify(order));lastSavedPdfFormSignature=pdfFormSignature();
-            prepareInvoicePdf(lastSavedPdfOrder).catch(e=>console.warn('Chưa chuẩn bị PDF:',e.message));
+            prepareInvoicePdf(lastSavedPdfOrder).then(()=>{
+                if(typeof window.satoriArchiveSavedInvoicePdf==='function')window.satoriArchiveSavedInvoicePdf(lastSavedPdfOrder).catch(e=>console.warn('Chưa lưu PDF lên Drive:',e.message));
+            }).catch(e=>console.warn('Chưa chuẩn bị PDF:',e.message));
         }
         function scheduleInvoicePdfPreparation() {
             if(!window.invoicePdfPreparationReady || pdfBuildingDraft)return;
@@ -8520,6 +8522,7 @@ window.SatoriRecon = (() => {
 <script src="accounting-workbook.js?v=185"></script>
 <script src="customer-debt.js?v=191"></script>
 <script src="accounting.js?v=191"></script>
+<script src="pdf-drive-archive.js?v=1"></script>
 <script>
 (() => {
     if (!location.hash.includes('satori-drive=1') || window.parent === window) return;
