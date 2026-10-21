@@ -19,6 +19,7 @@ import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificatio
 import {parseCustomerMessage,splitOrderAndNote,waterAnswer,finishWater,deliveryAnswer} from './order-with-notes.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct,fold} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
+import {listLocations,chosenLocation,matchLocation,foldLocation} from './delivery-locations.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
@@ -126,6 +127,13 @@ function getProfile(token){
  }
  return Object.hasOwn(FIXTURES,token)?FIXTURES[token]:customerLinks.getProfile(token);
 }
+function deliveryProfile(profile,locationId){
+ const points=listLocations(profile);
+ const location=locationId?chosenLocation(profile,locationId):points.length===1?points[0]:null;
+ if(!location)return {...profile,recipient:'',phone:'',address:'Chưa chọn điểm giao',deliveryLocationId:null,locationRequired:true};
+ return {...profile,recipient:location.recipient,phone:location.phone,address:location.address,
+  deliveryLocationId:location.id,locationLabel:location.label,locationRequired:false};
+}
 async function bodyJSON(req,maxBytes=8_192){const chunks=[];let size=0;for await(const buf of req){size+=buf.length;if(size>maxBytes)throw new Error('PAYLOAD_TOO_LARGE');chunks.push(buf)}return safeJSON(Buffer.concat(chunks).toString('utf8'))}
 function rateLimit(req,token){const now=Date.now();const key=(req.socket.remoteAddress||'localhost')+'|'+token;const list=(rate.get(key)||[]).filter(t=>now-t<60000);if(list.length>=(HOST==='127.0.0.1'&&process.env.DEMO_ISOLATED_TEST_RATE==='1'&&process.env.NODE_ENV!=='production'?100:20))return false;list.push(now);rate.set(key,list);return true}
 function money(v){return Math.round(v)}
@@ -134,7 +142,7 @@ function normalizeDeliveryNote(value){if(value==null)return '';if(typeof value!=
 // Pricing, discounts, identity and persistence are server-owned; AI only parses messages.
 function makeQuote(token,profile,sku,qty){
  if(!productFor(sku)||!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
- const product=productFor(sku);const unitPrice=money(product.listPrice*(1-profile.discount/100));const subtotal=qty*unitPrice;const shipping=money(subtotal*profile.ship/100);const vatRate=profile.vatRate??0;const vatAmount=money(subtotal*vatRate/100);const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku,qty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,unitPrice,product:product.name,code:product.code,unit:product.unit,spec:product.spec,listPrice:product.listPrice,subtotal,shipping,vatRate,vatAmount,total:subtotal+shipping+vatAmount,expiresAt:Date.now()+10*60_000,token};quotes.set(q.quoteId,q);return q;
+ const product=productFor(sku);const unitPrice=money(product.listPrice*(1-profile.discount/100));const subtotal=qty*unitPrice;const shipping=money(subtotal*profile.ship/100);const vatRate=profile.vatRate??0;const vatAmount=money(subtotal*vatRate/100);const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku,qty,name:profile.name,recipient:profile.recipient||profile.name,deliveryLocationId:profile.deliveryLocationId||null,locationLabel:profile.locationLabel||null,locationRequired:!!profile.locationRequired,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,unitPrice,product:product.name,code:product.code,unit:product.unit,spec:product.spec,listPrice:product.listPrice,subtotal,shipping,vatRate,vatAmount,total:subtotal+shipping+vatAmount,expiresAt:Date.now()+10*60_000,token};quotes.set(q.quoteId,q);return q;
 }
 function makeMultiQuote(token,profile,requestedItems){
  if(!Array.isArray(requestedItems)||requestedItems.length<2||requestedItems.length>6)return null;
@@ -148,7 +156,7 @@ function makeMultiQuote(token,profile,requestedItems){
  });
  if(items.some(x=>!x))return null;
  const subtotal=items.reduce((sum,x)=>sum+x.subtotal,0),shipping=money(subtotal*profile.ship/100),vatRate=profile.vatRate??0,vatAmount=money(subtotal*vatRate/100);
- const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku:'MULTI',qty:totalQty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,product:items.length+' loại sản phẩm',unit:'đơn vị',items,subtotal,shipping,vatRate,vatAmount,total:subtotal+shipping+vatAmount,expiresAt:Date.now()+10*60_000,token};
+ const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku:'MULTI',qty:totalQty,name:profile.name,recipient:profile.recipient||profile.name,deliveryLocationId:profile.deliveryLocationId||null,locationLabel:profile.locationLabel||null,locationRequired:!!profile.locationRequired,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,product:items.length+' loại sản phẩm',unit:'đơn vị',items,subtotal,shipping,vatRate,vatAmount,total:subtotal+shipping+vatAmount,expiresAt:Date.now()+10*60_000,token};
  quotes.set(q.quoteId,q);return q;
 }
 
@@ -165,7 +173,8 @@ function currentBasketQuote(token,profile){
  if(!draft.items.length)return null;
  invalidateQuotes(token);
  const items=draft.items.map(x=>({sku:x.code,qty:x.qty}));
- const q=items.length===1?makeQuote(token,profile,items[0].sku,items[0].qty):makeMultiQuote(token,profile,items);
+ const destination=deliveryProfile(profile,draft.locationId);
+ const q=items.length===1?makeQuote(token,destination,items[0].sku,items[0].qty):makeMultiQuote(token,destination,items);
  if(q){q.draftRevision=draft.revision;q.deliveryNote=draft.deliveryNote||'';q.requestedDeliveryAt=draft.requestedDeliveryAt||null;}
  return q;
 }
@@ -204,7 +213,7 @@ function vnOrderMonth(iso){
  return Number.isFinite(millis)?new Date(millis+7*60*60*1000).toISOString().slice(0,7):'';
 }
 async function generateQrPng(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_qr.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,200)||'QR_ERROR')));proc.stdin.end(JSON.stringify(o))})}
-const PREVIEW_BANNER='<aside role="status" style="position:relative;z-index:9999;padding:13px 18px;background:#25395b;color:white;font:bold 14px system-ui,sans-serif;line-height:1.5;text-align:center">🧪 Chế độ thử Gemini tạm thời — chỉ chat và báo giá; KHÔNG xác nhận đơn, KHÔNG lưu dữ liệu lâu dài. Bản sao cũ được giữ riêng.</aside>';
+const PREVIEW_BANNER='<aside role="status" style="position:relative;z-index:9999;padding:13px 18px;background:#25395b;color:white;font:bold 14px system-ui,sans-serif;line-height:1.5;text-align:center">🧪 Chế độ thử Gemini tạm thời — chat, báo giá và hồ sơ đại lý NHIỀU ĐỊA CHỈ mẫu. Dữ liệu thử có thể mất khi Render khởi động lại; KHÔNG xác nhận hóa đơn, KHÔNG đồng bộ production.</aside>';
 function previewHtml(name){
  const html=fs.readFileSync(path.join(HERE,name),'utf8');
  return EMERGENCY_PREVIEW?html.replace('<body>','<body>'+PREVIEW_BANNER):html;
@@ -214,7 +223,9 @@ const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
  if(EMERGENCY_PREVIEW&&req.method!=='GET'&&!(req.method==='POST'&&
-   (p==='/api/message'||p==='/api/draft'))){
+   (p==='/api/message'||p==='/api/draft'))&&
+   !(['POST','PATCH','DELETE'].includes(req.method)&&
+      /^\/api\/admin\/customers(?:\/KH-SANDBOX-[0-9a-f-]{36}(?:\/(?:locations(?:\/[a-zA-Z0-9-]{1,70})?|rotate|revoke))?)?$/.test(p))){
   return fail(res,503,'PREVIEW_ONLY_NO_WRITES',
    'Đang dùng chế độ thử Gemini. Chưa cho tạo hóa đơn hoặc thay đổi hồ sơ khách.');
  }
@@ -344,7 +355,7 @@ const server=http.createServer(async(req,res)=>{
   const all=[...orders.values()].filter(o=>o?.sandbox&&o.ref&&o.profileId);
   all.sort((a,b)=>Date.parse(b.createdAt||0)-Date.parse(a.createdAt||0));
   const latest=all.slice(0,80).map(o=>({
-   ref:o.ref,createdAt:o.createdAt,name:o.name,phone:o.phone,address:o.address,
+   ref:o.ref,createdAt:o.createdAt,name:o.name,recipient:o.recipient||o.name,locationLabel:o.locationLabel||null,phone:o.phone,address:o.address,
    status:o.status,product:o.product,qty:o.qty,
    items:Array.isArray(o.items)?o.items.map(i=>({product:i.product,qty:i.qty,unit:i.unit})):[],
    total:o.total,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',
@@ -401,10 +412,21 @@ const server=http.createServer(async(req,res)=>{
   if(!profile)return fail(res,403,'INVALID_LINK','Không có quyền xem hoặc sửa giỏ hàng này.');
   if(req.method==='GET')return reply(res,200,{ok:true,sandbox:true,draft:draftStore.read(token)});
   if(!rateLimit(req,'draft|'+profile.id))return fail(res,429,'RATE_LIMIT','Bạn thao tác quá nhanh, vui lòng thử lại.');
+  if(body?.action==='destination'){
+   const selected=chosenLocation(profile,body.locationId);
+   if(!selected)return fail(res,400,'INVALID_DESTINATION','Địa chỉ chưa thuộc đại lý này.');
+   let draft;
+   try{draft=draftStore.mutate(token,[{action:'destination',locationId:selected.id}],body.expectedRevision)}
+   catch(err){return draftFailure(res,err)}
+   invalidateQuotes(token);
+   return reply(res,200,{ok:true,sandbox:true,draft,selectedLocation:selected,
+    message:'Đã chọn '+selected.label+'. Địa chỉ sẽ được kiểm tra lại khi xác nhận đơn.'});
+  }
   if(body?.action==='quote'){
    if(body.expectedRevision!==draftStore.read(token).revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi, cần tải lại.');
    const quote=currentBasketQuote(token,profile);
    if(!quote)return fail(res,400,'EMPTY_CART','Giỏ hàng hiện chưa có sản phẩm.');
+   if(quote.locationRequired)return fail(res,409,'LOCATION_REQUIRED','Chọn điểm giao trước khi xác nhận báo giá.');
    return reply(res,200,{ok:true,sandbox:true,draft:draftStore.read(token),quote,message:'Đây là báo giá chung mới nhất của tất cả sản phẩm.'});
   }
   if(!['add','set','subtract','remove','clear'].includes(body?.action))
@@ -417,7 +439,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method==='GET'&&p==='/api/session'){
   const token=url.searchParams.get('token')||'';const c=getProfile(token);if(!c)return fail(res,404,'LINK_INVALID','Liên kết không hợp lệ');
-  return reply(res,200,{ok:true,sandbox:true,demoOnly:EMERGENCY_PREVIEW,orderSubmissionEnabled:!EMERGENCY_PREVIEW,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship,vatRate:c.vatRate??0}})
+  return reply(res,200,{ok:true,sandbox:true,demoOnly:EMERGENCY_PREVIEW,orderSubmissionEnabled:!EMERGENCY_PREVIEW,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,locations:listLocations(c),multipleDeliveryLocations:listLocations(c).length>1,discount:c.discount,ship:c.ship,vatRate:c.vatRate??0}})
  }
  if(req.method==='POST'&&p==='/api/order-amend/confirm'){
   const b=await bodyJSON(req),c=getProfile(b?.token);
@@ -433,6 +455,23 @@ const server=http.createServer(async(req,res)=>{
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
   if(!rateLimit(req,token))return fail(res,429,'RATE_LIMIT','Bạn đã gửi quá nhiều tin nhắn, vui lòng thử lại sau');
   let message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
+  // Only approved, unambiguous destinations may be selected by name in chat.
+  const locationHit=matchLocation(c,message);
+  if(locationHit.status==='ambiguous')
+   return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'DELIVERY_LOCATION',
+    draft:draftStore.read(token),message:'Có nhiều điểm giao trùng tên. Anh/chị chọn trong Tất cả địa chỉ ạ.'});
+  if(locationHit.status==='matched'&&listLocations(c).length>1){
+   const oldDraft=draftStore.read(token);
+   if(oldDraft.locationId!==locationHit.location.id){
+    if(b.expectedRevision!==oldDraft.revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi. Hãy tải lại trước khi chọn địa chỉ.');
+    const updated=draftStore.mutate(token,[{action:'destination',locationId:locationHit.location.id}],oldDraft.revision);
+    b.expectedRevision=updated.revision;invalidateQuotes(token);
+   }
+   const label=foldLocation(locationHit.location.label),spoken=foldLocation(message);
+   if([label,'giao '+label,'giao ve '+label,'ship '+label].includes(spoken))
+    return reply(res,200,{ok:true,sandbox:true,draft:draftStore.read(token),
+     message:'Đã chọn '+locationHit.location.label+'. Anh/chị muốn đặt sản phẩm nào ạ?'});
+  }
 
   // Block identity changes locally BEFORE any Gemini or order write.
   const ci=contactIntent(message);
@@ -521,7 +560,7 @@ const server=http.createServer(async(req,res)=>{
       draft:draftStore.read(token),message:completed.water.brand?
        'Em giữ '+completed.water.qty+' thùng '+completed.water.brand+
         '. Anh/chị xác nhận dung tích 350ml, 500ml hay 1500ml?':
-       'Em vẫn giữ đủ các món và lưu ý. Nước suối hãng Satori hay Hikari ạ?'});
+       'Em mặc định nước suối Satori. Anh/chị muốn dung tích 350ml, 500ml hay 1500ml?'});
     }
     if(completed?.kind==='order'){
      if(completed.delivery?.clarification){
@@ -586,10 +625,9 @@ const server=http.createServer(async(req,res)=>{
   else if(pendingWater){
    const answer=waterClarificationAnswer(message);
    if(answer){
-    const water={...pendingWater.water,brand:answer.brand||pendingWater.water.brand,
+    const water={...pendingWater.water,brand:answer.brand||pendingWater.water.brand||'satori',
      size:answer.size||pendingWater.water.size};
-    const choices=water.brand&&!water.size?'350ml, 500ml hay 1500ml?':
-     !water.brand?'Satori hay Hikari?':'';
+    const choices=!water.size?'Satori dung tích 350ml, 500ml hay 1500ml?':'';
     if(!water.brand||!water.size){
      pendingWaterOrders.set(token,{...pendingWater,water});
      return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'WATER_BRAND_SIZE',
@@ -672,7 +710,7 @@ const server=http.createServer(async(req,res)=>{
        pendingItems:mixed.items,
        message:'Em nhận đủ: '+list.join(', ')+
         (mixed.noteText?'. Lưu ý: '+mixed.noteText:'')+'. '+
-        (mixed.water?'Anh/chị muốn nước suối Satori hay Hikari, dung tích bao nhiêu ml?':
+        (mixed.water?'Em mặc định Satori. Anh/chị muốn nước suối 350ml, 500ml hay 1500ml?':
          mixed.delivery.clarification)+' Em chưa cộng hàng nào từ yêu cầu này.'});
      }
      return applyChatBasket(res,token,c,mixed.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
@@ -713,15 +751,14 @@ const server=http.createServer(async(req,res)=>{
     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'WATER_BRAND_SIZE',
      draft,pendingItems:incomplete.pending.items,
      message:'Em đã hiểu '+water.qty+' thùng nước suối'+
-      (summary?', '+summary:'')+'. '+(water.size?'Anh/chị muốn hãng Satori hay Hikari?':
-      'Nước suối là Satori hay Hikari, dung tích bao nhiêu ml?')+
+      (summary?', '+summary:'')+'. Em mặc định Satori. Anh/chị muốn dung tích 350ml, 500ml hay 1500ml?'+
       ' Em đã giữ đủ các món trong yêu cầu nhưng chưa thêm vào giỏ hoặc tạo bill.'});
    }
    if(incomplete?.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,
     draft:draftStore.read(token),message:incomplete.message});
    if(ambiguousWater500InComposite(message))
     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'COMPOUND_BRAND_500',
-     draft:draftStore.read(token),message:'Trong đơn có nước suối 500ml chưa rõ Satori hay Hikari. Anh/chị vui lòng ghi rõ hãng và gửi lại nguyên danh sách sản phẩm. Em chưa thêm bất cứ sản phẩm nào để tránh sót đơn.'});
+     draft:draftStore.read(token),message:'Có món nước suối chưa xác định rõ quy cách. Mặc định là Satori; anh/chị vui lòng ghi rõ dung tích để tránh thiếu sản phẩm.'});
   }
   // Existing basket always wins, even when an older browser omits the new opt-in.
   const existing=draftStore.read(token);
@@ -909,7 +946,7 @@ const server=http.createServer(async(req,res)=>{
     const savedQty=Number.isSafeInteger(fields.qty)&&fields.qty>0?fields.qty:0;
     if(savedSku!=='unknown'||savedQty>0)sessions.set(token,{sku:savedSku,qty:savedQty,expiresAt:Date.now()+5*60_000});
    }
-   return reply(res,200,{ok:true,needMoreDetails:true,message:fields?.reason==='UNSUPPORTED'?'Sản phẩm này chưa có trong danh mục Minh Satori. Bạn vui lòng chọn trong Tất cả sản phẩm.':!sku||parsed.reason==='PRODUCT_AMBIGUOUS'?'Bạn muốn đặt sản phẩm nào? Có thể chọn Premium 450ml, Hikari, Satori hoặc xem Tất cả sản phẩm.':'Bạn muốn đặt bao nhiêu '+(productFor(sku)?.unit||'đơn vị')+'?'});
+   return reply(res,200,{ok:true,needMoreDetails:true,message:fields?.reason==='UNSUPPORTED'?'Sản phẩm này chưa có trong danh mục Minh Satori. Bạn vui lòng chọn trong Tất cả sản phẩm.':!sku||parsed.reason==='PRODUCT_AMBIGUOUS'?(/\bsuoi\b/.test(normalized)&&!/\bhikari\b/.test(normalized)?'Em mặc định nước suối Satori. Anh/chị muốn loại 350ml, 500ml hay 1500ml?':'Bạn muốn đặt sản phẩm nào? Có thể chọn Premium 450ml, Hikari, Satori hoặc xem Tất cả sản phẩm.'):'Bạn muốn đặt bao nhiêu '+(productFor(sku)?.unit||'đơn vị')+'?'});
   }
   if(unified)return applyChatBasket(res,token,c,[{action:'add',code:sku,qty}],revision,parsed.source||'rules',delivery);
   const quote=makeQuote(token,c,sku,qty);if(!quote)return fail(res,400,'INVALID_QUANTITY','Chỉ chấp nhận tối đa 500 thùng một đơn');
@@ -924,7 +961,13 @@ const server=http.createServer(async(req,res)=>{
   // Idempotency may persist to disk. NEVER use the raw customer link token here.
   const idemKey=c.id+'|'+key;if(idempotency.has(idemKey))return reply(res,200,{ok:true,duplicate:true,order:orders.get(idempotency.get(idemKey))});
   const q=quotes.get(b.quoteId);if(!q||q.token!==token||q.expiresAt<Date.now())return fail(res,409,'QUOTE_EXPIRED','Báo giá hết hạn hoặc không thuộc khách này');
-  if(q.profileId!==c.id||q.discount!==c.discount||q.ship!==c.ship||q.vatRate!==(c.vatRate??0)||q.address!==c.address||q.phone!==c.phone)return fail(res,409,'PROFILE_CHANGED','Thông tin khách đã thay đổi, cần lập lại báo giá');
+  const approved=q.deliveryLocationId?chosenLocation(c,q.deliveryLocationId):
+    listLocations(c).length===1?listLocations(c)[0]:null;
+   if(!approved||q.locationRequired)return fail(res,409,'LOCATION_REQUIRED','Chưa chọn điểm giao chính xác. Vui lòng chọn trong Tất cả địa chỉ.');
+   if(q.profileId!==c.id||q.discount!==c.discount||q.ship!==c.ship||
+      q.vatRate!==(c.vatRate??0)||q.address!==approved.address||
+      q.phone!==approved.phone||(q.recipient!==undefined&&q.recipient!==approved.recipient))
+    return fail(res,409,'PROFILE_CHANGED','Thông tin điểm giao hoặc giá đã đổi. Vui lòng lập lại báo giá.');
   if(q.draftRevision!==undefined&&q.draftRevision!==draftStore.read(token).revision)return fail(res,409,'DRAFT_CONFLICT','Báo giá đã cũ vì giỏ hàng thay đổi. Vui lòng xem báo giá mới nhất.');
   let deliveryNote;
   try{deliveryNote=normalizeDeliveryNote(b?.deliveryNote??q.deliveryNote)}catch{return fail(res,400,'INVALID_DELIVERY_NOTE','Lưu ý giao hàng phải là văn bản tối đa 300 ký tự')}

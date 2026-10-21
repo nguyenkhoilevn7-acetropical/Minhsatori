@@ -33,16 +33,12 @@ try {
  const catB=await get('/api/catalogue?token=demo-b');
  test(catB.body.products.find(x=>x.code==='TP-00051').unitPrice===Math.round(137963*.65),'B product drawer shows calculated 35% demo discount');
  test((await get('/api/catalogue')).status===403,'prices not shown without demo customer link');
- // Unbranded 500ml must ask for the brand and retain quantity across turns.
+ // Unbranded 500ml defaults to Satori, without the previous brand-only prompt.
  for(const msg of ['10 suối 500ml','10 nước suối 500ml','10 suối 500','10 nước suối 500']){
-  const question=await post('/api/message',{token:'demo-a',message:msg});
-  test(question.status===200&&question.body.clarificationType==='BRAND_500'&&
-    question.body.choices?.length===2&&!question.body.quote,
-    'short-form requires brand clarification: '+msg);
-  const selected=await post('/api/message',{token:'demo-a',message:'Satori'});
-  test(selected.status===200&&selected.body.quote?.code==='TP-00003'&&
-    selected.body.quote?.qty===10&&selected.body.quote?.unit==='Thùng',
-    'follow-up single brand restores all 10 units in same quote: '+msg);
+  const direct=await post('/api/message',{token:'demo-a',message:msg});
+  test(direct.status===200&&direct.body.quote?.code==='TP-00003'&&
+    direct.body.quote.qty===10&&direct.body.quote.unit==='Thùng'&&!direct.body.needMoreDetails,
+    'Satori 500ml auto-select, without Hikari question: '+msg);
  }
  for(const msg of ['10 suối 500ml satori','10 suối 500 satori']){
   const trial=await post('/api/message',{token:'demo-a',message:msg});
@@ -52,9 +48,10 @@ try {
  }
  const mixedUnbranded=await post('/api/message',{token:'demo-a',
   message:'Cho 10 thùng nước suối 500 và 3 thùng nước ép mãng cầu'});
- test(['COMPOUND_BRAND_500','WATER_BRAND_SIZE'].includes(mixedUnbranded.body.clarificationType)&&
-   !mixedUnbranded.body.quote&&!mixedUnbranded.body.draft?.items?.length,
-   'unknown 500ml brand never causes partial multi-SKU quote');
+ test(mixedUnbranded.status===200&&mixedUnbranded.body.quote?.items?.length===2&&
+  mixedUnbranded.body.quote.items.some(x=>x.code==='TP-00003'&&x.qty===10)&&
+  mixedUnbranded.body.quote.items.some(x=>x.code==='TP-00056'&&x.qty===3),
+  'neutral 500ml Satori and juice stay in one verified quote');
  for (const [question,kind] of [
    ['Giá nước suối 500ml bao nhiêu?', 'price'],
    ['Chiết khấu bao nhiêu?', 'discount'],

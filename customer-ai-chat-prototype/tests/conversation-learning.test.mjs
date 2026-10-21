@@ -17,21 +17,16 @@ const skuFor={
  'nước ép mãng cầu':'TP-00056','nước ép ổi hồng':'TP-00058','Premium 450ml':'TP-00051'
 };
 for(const test of cases){
- if(test.kind==='brand-question'){
-  const c=ambiguousWater500(test.text);
-  verify(c?.qty===test.qty,'ask the brand, keep quantity: '+test.text);
- }else{
-  const a=parseRules(test.text);
-  const p=Object.entries(skuFor).find(([name])=>test.text.endsWith(name));
-  verify(p&&a?.qty===test.qty&&a?.sku===p[1]&&!a.needMoreDetails,
-   'resolved synthetic catalogue order: '+test.text);
- }
+ const a=parseRules(test.text);
+ const p=test.sku||Object.entries(skuFor).find(([name])=>test.text.endsWith(name))?.[1];
+ verify(p&&a?.qty===test.qty&&a?.sku===p&&!a.needMoreDetails,
+  'resolved Satori-by-default or explicit-brand synthetic order: '+test.text);
 }
 verify(brandAnswer('Hikari')?.sku==='TP-00081','Hikari resolves only in pending brand context');
 verify(brandAnswer('Satori')?.sku==='TP-00003','Satori resolves only in pending brand context');
-verify(ambiguousWater500('10 thùng nước suối 500')?.qty===10,'owner example retained');
+verify(!ambiguousWater500('10 thùng nước suối 500'),'Satori default never asks for brand');
 verify(!ambiguousWater500('10 thùng Hikari 500'),'never ask again for explicit Hikari');
-verify(ambiguousWater500InComposite('Cho 10 thùng nước suối 500 và 3 thùng ổi hồng'),'unknown brand in one part blocks entire combined order');
+verify(!ambiguousWater500InComposite('Cho 10 thùng nước suối 500 và 3 thùng ổi hồng'),'Satori default avoids brand-only block in mixed orders');
 verify(!ambiguousWater500InComposite('Cho 10 thùng Satori 500ml và 3 thùng ổi hồng'),'explicit brand does not block a complete order');
 verify(GEMINI_FEW_SHOTS.some(x=>x.includes('đổi địa chỉ')),'address policy appears in few-shots');
 const addr=contactIntent('Đổi địa chỉ sang 123 đường Mẫu và đổi SĐT 0901234567');

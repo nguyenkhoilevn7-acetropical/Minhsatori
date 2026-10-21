@@ -8,18 +8,10 @@ import path from 'node:path';
 import {fold,productFor,resolveProduct} from './catalogue.mjs';
 
 export const ADDRESS_REPLY='Để thay đổi địa chỉ giao hàng, anh/chị vui lòng liên hệ trực tiếp anh Nguyên hoặc anh Minh để được hỗ trợ. AI không tự thay đổi địa chỉ.';
-export function ambiguousWater500(msg){
- const s=fold(msg);
- if(/\b(satori|hikari|premium)\b/.test(s))return null;
- const m=s.match(/^(?:(?:cho|lay|dat|mua|can|order)\s+(?:(?:toi|anh|chi|em)\s+)?|(?:anh|chi|em|toi|minh)\s+(?:lay|dat|mua|can|cho)\s+)?(\d{1,3})\s*(?:thung|thg)?\s*(?:(?:nuoc\s+)?suoi|nuoc\s+tinh\s+khiet|nuoc)\s+500(?:\s*ml)?[.!?]?$/);
- const qty=Number(m?.[1]);
- return m&&Number.isSafeInteger(qty)&&qty>=1&&qty<=500?{qty}:null;
-}
-export function ambiguousWater500InComposite(message){
- const clauses=fold(message).split(/\s*[,;]\s*|\s+(?:va|voi)\s+/);
- if(clauses.length<2)return false;
- return clauses.some(x=>/\bsuoi\b/.test(x)&&ambiguousWater500(x.replace(/^(?:them|bo sung|cong them)\s+/,'').trim()));
-}
+// Brand-neutral requests for water 500ml now default to Satori.
+// Keep these exports as compatibility shims: no new brand-only pending state.
+export function ambiguousWater500(_msg){return null}
+export function ambiguousWater500InComposite(_message){return false}
 export function brandAnswer(msg){
  const m=fold(msg).replace(/[.!?]+$/,'').match(/^(?:nuoc\s+)?(?:hang\s+)?(satori|hikari)(?:\s+500(?:\s*ml)?)?$/);
  return m?{sku:m[1]==='satori'?'TP-00003':'TP-00081',brand:m[1]}:null;
@@ -123,9 +115,9 @@ export function makeCustomerPhraseMemory(dataDir){
  return {list,remember,forget,expand,snapshot,restore};
 }
 export const GEMINI_FEW_SHOTS=[
- '10 thùng nước suối 500: hỏi Satori hay Hikari; giữ số lượng 10',
- 'Satori (sau khi hỏi hãng): chọn Satori 500ml; không tạo bill trước xác nhận',
- 'Hikari (sau khi hỏi hãng): chọn Hikari 500ml; không đổi số lượng',
+ '10 thùng nước suối 500: mặc định 10 thùng Satori 500ml; không hỏi hãng',
+ '10 suối 350: hiểu 10 thùng Satori 350ml; không hỏi hãng',
+ '10 thùng Hikari 500ml: chọn Hikari rõ hãng; không đổi thành Satori',
  '10 suối 500 Satori: 10 thùng Satori 500ml',
  '5 thùng Hikari 500ml, 3 thùng mãng cầu: 2 sản phẩm, 1 giỏ',
  'mãng cầu 3 thùng, ổi hồng 2 thùng: giữ cả hai món',
@@ -148,6 +140,6 @@ export function syntheticOrderCases(){
  for(const name of products)for(const qty of counts)for(const verb of verbs)
   cases.push({text:(verb+' '+qty+' thùng '+name).trim(),qty,kind:'synthetic-order'});
  for(const qty of [1,5,10,20,50])for(const verb of ['Cho tôi','Anh lấy','Cần',''])
-  cases.push({text:(verb+' '+qty+' thùng nước suối 500').trim(),qty,kind:'brand-question'});
+  cases.push({text:(verb+' '+qty+' thùng nước suối 500').trim(),qty,kind:'synthetic-order',sku:'S500'});
  return cases;
 }
