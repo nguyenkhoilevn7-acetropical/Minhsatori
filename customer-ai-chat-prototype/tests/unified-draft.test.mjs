@@ -48,7 +48,7 @@ try{
  let stale=await post('/api/confirm',{token,quoteId:oldQuote.quoteId,requestId:'unified-old-quote-one'});
  check(stale.status===409,'previous quote cannot be used to create another TEST bill');
  const update=await chat('Đổi Satori 500ml thành 5 thùng');
- check(update.status===200&&update.data.draft.items.find(x=>x.code==='TP-00003').qty===5,'change quantity replaces rather than adds');
+ check(update.status===200&&update.data.draft?.items?.find(x=>x.code==='TP-00003')?.qty===5,'change quantity replaces rather than adds: '+JSON.stringify({status:update.status,body:update.data}).slice(0,500));
  const remove=await chat('Bỏ mãng cầu');
  check(remove.status===200&&remove.data.draft.items.length===2,'remove item by natural chat');
  const unclear=await chat('Thêm 2 thùng nữa');
