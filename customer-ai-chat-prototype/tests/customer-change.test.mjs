@@ -54,6 +54,21 @@ try{
  const cAfter=await api('/api/session?token='+encodeURIComponent(token));
  check(changed.data.needsHuman&&!changed.data.quote,'real-form private token cannot self-edit details');
  check(cAfter.data.profile.name===cBefore.data.profile.name&&cAfter.data.profile.phone===cBefore.data.profile.phone&&cAfter.data.profile.address===cBefore.data.profile.address,'private link recipient, phone, address remain unchanged');
+ // Explicit phone change: chatbot accepts a number, staff verifies independently,
+ // address and historical invoices remain immutable.
+ let phoneStep=await api('/api/message','POST',{token,message:'Em muốn đổi số điện thoại'});
+ check(phoneStep.data.contactPolicy==='PHONE_NEEDS_NUMBER','chat supports a multi-turn phone edit');
+ phoneStep=await api('/api/message','POST',{token,message:'0901234567'});
+ check(phoneStep.data.contactPolicy==='PHONE_AWAITING_CONFIRMATION','number alone advances only a pending request');
+ phoneStep=await api('/api/message','POST',{token,message:'Xác nhận đổi SĐT'});
+ check(phoneStep.data.contactPolicy==='PHONE_PENDING_VERIFICATION'&&!!phoneStep.data.requestId,'chat cannot self-approve phone');
+ const pathApprove='/api/admin/change-requests/'+phoneStep.data.requestId+'/approve-phone';
+ check((await api(pathApprove,'POST',{verifiedExternally:true,confirmation:'APPROVE_VERIFIED_PHONE_CHANGE'})).status===401,'non-owner cannot approve change');
+ check((await api(pathApprove,'POST',{verifiedExternally:false,confirmation:'APPROVE_VERIFIED_PHONE_CHANGE'},true)).status===400,'owner must acknowledge independent verification');
+ const approved=await api(pathApprove,'POST',{verifiedExternally:true,confirmation:'APPROVE_VERIFIED_PHONE_CHANGE'},true);
+ check(approved.data.phoneUpdated===true,'verified admin may update only phone');
+ const updatedProfile=await api('/api/session?token='+encodeURIComponent(token));
+ check(updatedProfile.data.profile.phone==='0901234567'&&updatedProfile.data.profile.address===cBefore.data.profile.address,'only approved phone updates; address stays locked');
  const records=JSON.parse(readFileSync(path.join(dir,'customer-change-requests-SANDBOX.json'),'utf8'));
  check(records.some(x=>x.profileId===cBefore.data.profile.id),'change request persisted separately from customer profile');
  const html=readFileSync(path.join(root,'admin.html'),'utf8');
