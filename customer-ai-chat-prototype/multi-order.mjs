@@ -284,7 +284,6 @@ export function parseMultiOrder(message,profile={}){
    message:'Tổng số lượng tối đa là 500 đơn vị, tối đa 6 loại trong một đơn TEST.'};
  return {items:merged,source:'rules-complete-message'};
 }
-,'u'));
   if(!m)return null;
   const qty=Number(m[1]),unit=m[2]==='thg'?'thung':(m[2]||null),name=m[3].trim();
   if(!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
