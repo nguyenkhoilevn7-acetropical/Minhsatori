@@ -78,14 +78,14 @@ export function parseWaterClarificationBasket(message,profile={}){
   const qty=Number(m[1]),unit=m[2]==='thg'?'thung':(m[2]||null),name=m[3].trim();
   if(!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
   const water=name.match(/^(?:(?:nuoc\s+)?suoi|nuoc\s+tinh\s+khiet|nuoc)(?:\s+(350|500|1500)(?:\s*ml)?)?$/u);
-  // Preserve legacy explicit "nước 500ml" Satori shorthand; only bare
-  // "suối" and unsized "nước" require clarification here.
-  if(water&&(/\bsuoi\b/.test(name)||!water[1])){
+  // Satori is the default when brand is omitted. 500ml/350ml/1500ml
+  // are complete water SKUs; only missing capacity requires clarification.
+  if(water&&!water[1]){
    if(unit&&unit!=='thung')return null; // Do not reinterpret bottles or litres as cartons.
    // '5 suối' is five thùng; brand and capacity still require clarification.
    if(!unit&&!water[1]&&!/\bsuoi\b/.test(name))return null;
    if(missing)return null; // Multiple ambiguous waters must be specified individually.
-   missing={qty,unit:'thung',size:water[1]?Number(water[1]):null};
+   missing={qty,unit:'thung',brand:'satori',size:null};
    continue;
   }
   const parsed=parseOneClause(simplified,profile);
