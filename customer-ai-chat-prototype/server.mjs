@@ -25,6 +25,7 @@ import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
+import {auditDriveCatalogue} from './catalogue-drive-audit.mjs';
 import {getGeminiVersionStatus} from './version-status.mjs';
 import {parseAmendment,isAmendmentIntent,isConfirmAmend,isCancelAmend,appendDeliveryNote,latestEditableOrder,normAmend} from './order-amend.mjs';
 import {ADDRESS_REPLY,ambiguousWater500,ambiguousWater500InComposite,brandAnswer,contactIntent,phoneConfirm,phoneCancel,maskPhone,trainingProposal,trainingConfirm,trainingCancel,trainingForget,makeCustomerPhraseMemory} from './conversation-understanding.mjs';
@@ -257,6 +258,7 @@ const server=http.createServer(async(req,res)=>{
       catalogue.data?.source!=='drive-ledger:satori_catalogue_v15')
      return fail(res,409,'SOURCE_REVISION_MISMATCH','Dữ liệu nguồn chưa cùng revision hoặc chưa có bảng giá chuẩn trên Drive.');
    const parity=checkCatalogueParity(catalogue.data.products,CATALOGUE);
+   const audit=auditDriveCatalogue(status,catalogue,CATALOGUE);
    return reply(res,200,{ok:true,sandbox:true,readOnly:true,
      revision:status.revision,invoiceCount:status.data?.orders??null,
      catalogueCount:catalogue.data.products.length,
@@ -264,6 +266,8 @@ const server=http.createServer(async(req,res)=>{
      catalogueParity:{exactlyMatched:parity.exactlyMatched,matchedCount:parity.matchedCount,
        sourceCount:parity.sourceCount,missingCodes:parity.missingCodes,
        extraCodes:parity.extraCodes,changedCodes:parity.changedCodes},
+     cataloguePriceAudit:{sourceRevision:audit.revision,exactlyMatched:audit.exactlyMatched,
+       differences:audit.differences,productionWriteEnabled:false},
      catalogueLiveSync:false,customerSync:false,checkoutEnabled:false,
      message:'Đã đối chiếu nguồn Drive chỉ đọc. Chưa bật tự động đồng bộ giá, khách hoặc tạo đơn thật.'});
   }catch{
