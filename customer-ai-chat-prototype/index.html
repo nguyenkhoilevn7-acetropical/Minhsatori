@@ -453,7 +453,18 @@ const PRODUCTS=[{code:'S5L',name:'Nước tinh khiết Satori 5L có vòi',price
 const FIXTURES={A:{id:'KH-DEMO-A',name:'Khách Demo A',phone:'000 000 0001',address:'123 Đường Thử Nghiệm, TP.HCM',discount:20,ship:8,favourite:'S5L',token:'satori-demo-A-no-identity'},B:{id:'KH-DEMO-B',name:'Khách Demo B',phone:'000 000 0002',address:'456 Đường Mẫu, TP.HCM',discount:35,ship:8,favourite:'S500',token:'satori-demo-B-no-identity'}};
 let current='A',draft=null,localOrders=[];
 const serverMode=/^https?:$/.test(location.protocol)&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(location.pathname);
-const serverToken=serverMode?location.pathname.split('/').pop():null;
+function isolatedDemoToken(bare){
+ if(!/^demo-[ab]$/.test(bare))return bare; // Real customer links unchanged.
+ const key='MINH_SATORI_ANON_DEMO_VISITOR_V2_'+bare;
+ let id='';
+ try{id=localStorage.getItem(key)||''}catch{}
+ if(!/^[a-f0-9]{32}$/.test(id)){
+  id=Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
+  try{localStorage.setItem(key,id)}catch{}
+ }
+ return bare+'~'+id; // Separate demo basket for each browser, not a public shared draft.
+}
+const serverToken=serverMode?isolatedDemoToken(location.pathname.split('/').pop()):null;
 let sending=false,draftBusy=false,draftRevision=0,activeQuoteId=null;
 if(serverMode)document.body.classList.add('server-mode');
 else document.getElementById('secondaryTools').hidden=false;

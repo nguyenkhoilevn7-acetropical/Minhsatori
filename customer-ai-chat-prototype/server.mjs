@@ -15,7 +15,7 @@ import {parseOrder,parseRules,parseComplexOrderWithGemini,geminiConfigured,ident
 import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
 import {customerSuggestions} from './customer-suggestions.mjs';
 import {businessReply} from './business-reply.mjs';
-import {parseMultiOrder,looksCompoundOrder} from './multi-order.mjs';
+import {parseMultiOrder,looksCompoundOrder,parseWaterClarificationBasket,waterClarificationAnswer} from './multi-order.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
@@ -42,7 +42,7 @@ const FIXTURES=Object.freeze({
 const sessions=new Map(),quotes=new Map(),orders=new Map(),idempotency=new Map(),rate=new Map();
 const draftStore=makeDraftStore({filePath:path.join(DATA_DIR,'drafts-SANDBOX.json'),onChange:()=>driveWorker?.schedule()});
 const phraseMemory=makeCustomerPhraseMemory(DATA_DIR);
-const pendingBrands=new Map(),pendingPhones=new Map(),pendingTeaching=new Map();
+const pendingBrands=new Map(),pendingPhones=new Map(),pendingTeaching=new Map(),pendingWaterOrders=new Map();
 const geminiProbe={status:'not_run',elapsedMs:null};
 const pendingAmends=new Map(); // profileId -> expiring unconfirmed customer proposal
 const MAX_AMEND_AGE_MS=5*60_000;
@@ -114,7 +114,15 @@ if(fs.existsSync(DATA_FILE))for(const o of safeJSON(fs.readFileSync(DATA_FILE,'u
 }
 function reply(res,status,obj){const body=JSON.stringify(obj);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'"});res.end(body)}
 function fail(res,status,code,message){reply(res,status,{ok:false,error:code,message})}
-function getProfile(token){return Object.hasOwn(FIXTURES,token)?FIXTURES[token]:customerLinks.getProfile(token)}
+function getProfile(token){
+ // Unique anonymous browser baskets for public DEMO pages. Real signed customer
+ // links remain unchanged. No personal identifying information is stored.
+ if(typeof token==='string'){
+  const demo=token.match(/^(demo-[ab])~([a-f0-9]{32})$/);
+  if(demo)return FIXTURES[demo[1]];
+ }
+ return Object.hasOwn(FIXTURES,token)?FIXTURES[token]:customerLinks.getProfile(token);
+}
 async function bodyJSON(req,maxBytes=8_192){const chunks=[];let size=0;for await(const buf of req){size+=buf.length;if(size>maxBytes)throw new Error('PAYLOAD_TOO_LARGE');chunks.push(buf)}return safeJSON(Buffer.concat(chunks).toString('utf8'))}
 function rateLimit(req,token){const now=Date.now();const key=(req.socket.remoteAddress||'localhost')+'|'+token;const list=(rate.get(key)||[]).filter(t=>now-t<60000);if(list.length>=(HOST==='127.0.0.1'&&process.env.DEMO_ISOLATED_TEST_RATE==='1'&&process.env.NODE_ENV!=='production'?100:20))return false;list.push(now);rate.set(key,list);return true}
 function money(v){return Math.round(v)}
@@ -476,6 +484,44 @@ const server=http.createServer(async(req,res)=>{
    }catch{return fail(res,400,'PHRASE_MEMORY_FAILED','Không lưu được cách gọi mới, hóa đơn và giỏ hàng giữ nguyên.')}
   }
   if(learn&&learn.expiresAt<=Date.now())pendingTeaching.delete(token);
+
+  // Multi-turn clarifications are scoped to one browser token + basket revision.
+  // Never add an incomplete phrase or a subset of a complex message.
+  const pendingWater=pendingWaterOrders.get(token);
+  if(pendingWater&&pendingWater.expiresAt<=Date.now())pendingWaterOrders.delete(token);
+  else if(pendingWater){
+   const answer=waterClarificationAnswer(message);
+   if(answer){
+    const water={...pendingWater.water,brand:answer.brand||pendingWater.water.brand,
+     size:answer.size||pendingWater.water.size};
+    const choices=water.brand&&!water.size?'350ml, 500ml hay 1500ml?':
+     !water.brand?'Satori hay Hikari?':'';
+    if(!water.brand||!water.size){
+     pendingWaterOrders.set(token,{...pendingWater,water});
+     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'WATER_BRAND_SIZE',
+      draft:draftStore.read(token),pendingItems:pendingWater.items,
+      message:'Em giữ đủ '+(pendingWater.items.length+1)+' món trong yêu cầu. '+choices+
+       ' Em chưa thêm hàng vào giỏ cho đến khi xác định đúng nước suối.'});
+    }
+    const requested=resolveProduct(water.brand+' '+water.size+'ml');
+    const item=productFor(requested.sku);
+    if(requested.ambiguous||!item||item.unit!=='Thùng'){
+     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'WATER_BRAND_SIZE',
+      draft:draftStore.read(token),message:'Loại nước này chưa có quy cách thùng xác nhận trong danh mục. Anh/chị vui lòng chọn Satori 500ml hoặc Hikari 500ml, hoặc ghi rõ mặt hàng hợp lệ.'});
+    }
+    const current=draftStore.read(token);
+    if(current.revision!==pendingWater.revision||b?.expectedRevision!==current.revision){
+     pendingWaterOrders.delete(token);
+     return fail(res,409,'DRAFT_CONFLICT','Giỏ hàng đã đổi trong lúc làm rõ sản phẩm. Vui lòng tải lại và đặt lại để tránh tính nhầm.');
+    }
+    pendingWaterOrders.delete(token);
+    return applyChatBasket(res,token,c,[...pendingWater.items,{sku:item.code,qty:water.qty}]
+      .map(i=>({action:'add',code:i.sku,qty:i.qty})),
+      current.revision,'clarified-full-basket');
+   }
+   // A new complete order supersedes the old unanswered question.
+   pendingWaterOrders.delete(token);
+  }
   const pendingBrand=pendingBrands.get(token);
   const brand=pendingBrand&&pendingBrand.expiresAt>Date.now()?brandAnswer(message):null;
   if(brand){
@@ -491,6 +537,26 @@ const server=http.createServer(async(req,res)=>{
      ' thùng nước suối 500ml. Anh/chị muốn Satori hay Hikari? Chỉ cần trả lời hãng; chưa thêm sản phẩm vào giỏ.'});
    }
    message=phraseMemory.expand(token,message);
+   const incomplete=parseWaterClarificationBasket(message,c);
+   if(incomplete?.pending){
+    const draft=draftStore.read(token);
+    if(b?.unifiedDraft===true&&b?.expectedRevision!==draft.revision)
+     return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi; vui lòng tải lại trước khi tiếp tục.');
+    pendingWaterOrders.set(token,{...incomplete.pending,revision:draft.revision,
+     expiresAt:Date.now()+600_000});
+    const summary=incomplete.pending.items.map(i=>{
+     const p=productFor(i.sku);return i.qty+' '+p.unit+' '+p.name;
+    }).join(', ');
+    const water=incomplete.pending.water;
+    return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'WATER_BRAND_SIZE',
+     draft,pendingItems:incomplete.pending.items,
+     message:'Em đã hiểu '+water.qty+' thùng nước suối'+
+      (summary?', '+summary:'')+'. '+(water.size?'Anh/chị muốn hãng Satori hay Hikari?':
+      'Nước suối là Satori hay Hikari, dung tích bao nhiêu ml?')+
+      ' Em đã giữ đủ các món trong yêu cầu nhưng chưa thêm vào giỏ hoặc tạo bill.'});
+   }
+   if(incomplete?.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,
+    draft:draftStore.read(token),message:incomplete.message});
    if(ambiguousWater500InComposite(message))
     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'COMPOUND_BRAND_500',
      draft:draftStore.read(token),message:'Trong đơn có nước suối 500ml chưa rõ Satori hay Hikari. Anh/chị vui lòng ghi rõ hãng và gửi lại nguyên danh sách sản phẩm. Em chưa thêm bất cứ sản phẩm nào để tránh sót đơn.'});
@@ -759,7 +825,7 @@ function bootstrapEncryptedTestSnapshot(){
   for(const o of restored.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   console.info('SANDBOX_BOOTSTRAP_RESTORED','orders='+restored.orders.length,
-   'drafts='+(restored.drafts||[]).length,'customers='+restored.profiles.length);
+   'drafts='+draftStore.snapshot().length,'customers='+restored.profiles.length);
  }catch(e){
   console.error('SANDBOX_BOOTSTRAP_FAILED',e?.message==='STALE_BOOTSTRAP'?'STALE_BOOTSTRAP':'INTEGRITY_OR_STORAGE_ERROR');
   throw Error('SANDBOX_BOOTSTRAP_FAILED');

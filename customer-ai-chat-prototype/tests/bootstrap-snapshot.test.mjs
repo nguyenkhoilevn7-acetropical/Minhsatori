@@ -35,8 +35,8 @@ try{
  assert.ok(health, 'service starts after encrypted authenticated recovery '+log.slice(-1300));
  assert.equal(health.orders,1,'restored exactly one TEST invoice before serving requests');
  const draft=await (await fetch(base+'/api/draft?token=demo-a')).json();
- assert.equal(draft.draft.revision,1,'revision survives cold bootstrap');
- assert.equal(draft.draft.items[0].qty,10,'unfinished basket survives deployment');
+ assert.equal(draft.draft.revision,0,'public anonymous demo basket is never restored from old shared snapshot');
+ assert.equal(draft.draft.items.length,0,'no unexpected previously restored 10 cartons in demo basket');
  const history=await (await fetch(base+'/api/history?token=demo-a')).json();
  assert.ok(history.orders.some(x=>x.ref===order.ref),'same TEST invoice visible in history');
  assert.ok(log.includes('SANDBOX_BOOTSTRAP_RESTORED'),'safe nonsecret readiness diagnostic');

@@ -52,8 +52,9 @@ try {
  }
  const mixedUnbranded=await post('/api/message',{token:'demo-a',
   message:'Cho 10 thùng nước suối 500 và 3 thùng nước ép mãng cầu'});
- test(mixedUnbranded.body.clarificationType==='COMPOUND_BRAND_500'&&
-   !mixedUnbranded.body.quote,'unknown 500ml brand never causes partial multi-SKU quote');
+ test(['COMPOUND_BRAND_500','WATER_BRAND_SIZE'].includes(mixedUnbranded.body.clarificationType)&&
+   !mixedUnbranded.body.quote&&!mixedUnbranded.body.draft?.items?.length,
+   'unknown 500ml brand never causes partial multi-SKU quote');
  for (const [question,kind] of [
    ['Giá nước suối 500ml bao nhiêu?', 'price'],
    ['Chiết khấu bao nhiêu?', 'discount'],
