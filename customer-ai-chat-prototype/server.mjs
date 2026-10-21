@@ -564,7 +564,9 @@ const server=http.createServer(async(req,res)=>{
      ' thùng nước suối 500ml. Anh/chị muốn Satori hay Hikari? Chỉ cần trả lời hãng; chưa thêm sản phẩm vào giỏ.'});
    }
    message=phraseMemory.expand(token,message);
-   const colloquial=parseColloquialBasket(message,c);
+   // New conversational cart semantics are opt-in; legacy quote-only clients
+   // must keep their historical no-draft behavior and pricing tests.
+   const colloquial=b?.unifiedDraft===true?parseColloquialBasket(message,c):null;
    if(colloquial?.pending){
     const draft=draftStore.read(token);
     if(b?.unifiedDraft===true&&b?.expectedRevision!==draft.revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi, cần tải lại.');
