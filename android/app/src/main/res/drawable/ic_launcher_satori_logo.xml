@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reuse the exact image printed on Minh Satori invoices.
+     Center the source artwork inside the adaptive-icon safe area so
+     Samsung/Android icon masks do not crop the brand mark. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:left="21dp"
+        android:top="21dp"
+        android:right="21dp"
+        android:bottom="21dp"
+        android:drawable="@drawable/satori_invoice_logo" />
+</layer-list>
