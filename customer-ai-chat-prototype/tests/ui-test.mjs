@@ -25,8 +25,16 @@ for(const [needle,description] of [
 assert.ok(html.trim().endsWith('</html>'),'complete HTML document');
 assert.ok(html.includes('class="shop-hero"') && html.includes('id="heroShopCta"'),
  'mobile customer shop CTA present in shared storefront');
-assert.ok(html.includes("$('heroShopCta').addEventListener('click',openCatalog);"),
- 'shop CTA opens existing full basket picker');
+assert.ok(html.includes("$('heroShopCta').addEventListener('click',openInlineSearch);"),
+ 'shop CTA opens searchable products in chat, not an overlay');
+assert.ok(html.includes("$('allProductsButton').addEventListener('click',openInlineSearch);"),
+ 'product link uses the same compact inline search');
+for(const label of ['id="suggestionsInline"','id="suggestionsList"','id="inlineProductSearch"',
+ 'id="inlineSearchInput"','id="inlineCartLines"','function renderPersonalizedSuggestions()',
+ 'function renderInlineProducts()','function stepper(code,current)',
+ "await changeSharedDraft('set',item.code,qty)",
+ "return restoreDraft().then(loadPersonalizedSuggestions)"])
+ assert.ok(html.includes(label),'one-screen personalized shopping interface: '+label);
 assert.ok(html.includes('.chat-head{position:sticky;top:0;z-index:5}'),
  'customer chat navigation remains visible while chat scrolls');
 
