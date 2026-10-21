@@ -79,7 +79,7 @@ export function waterAnswer(message){
 export function finishWater(pending,answer){
  if(!pending?.water||!answer)return null;
  const water={...pending.water,brand:answer.brand||pending.water.brand,size:answer.size||pending.water.size};
- if(!water.brand||!water.size)return {kind:'clarify',...pending,water};
+ if(!water.brand||!water.size)return {...pending,kind:'clarify',water};
  const found=resolveProduct(water.brand+' '+water.size+'ml'),product=productFor(found.sku);
  if(found.ambiguous||!product||fold(product.unit)!=='thung'||!new RegExp(water.size+'\\s*ml','i').test(product.name))
   return {kind:'invalid',message:'Không có đúng quy cách '+water.brand+' '+water.size+'ml để bán theo thùng. Chưa thêm món nào.'};
