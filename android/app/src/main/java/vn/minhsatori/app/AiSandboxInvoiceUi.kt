@@ -2,13 +2,18 @@ package vn.minhsatori.app
 
 import android.content.ClipData
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
 import android.net.Uri
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -219,30 +224,113 @@ internal class AiSandboxInvoiceUi(private val activity: AppCompatActivity) {
             .show()
     }
 
+    /**
+     * Only Save opens Android's document picker. View renders the PDF INSIDE
+     * this app; Share/Zalo/Messenger send temporary cache via FileProvider.
+     * No flow automatically writes to the Downloads folder.
+     */
     private fun pdf(ref: String, mode: String) {
         if (!AiSandboxContract.validTestRef(ref)) {
-            toast("Chỉ được tải hóa đơn TEST hợp lệ.")
+            toast("Chỉ hỗ trợ hóa đơn TEST hợp lệ.")
             return
         }
-        if (fetching) { toast("Đang tạo PDF, anh chờ một chút."); return }
+        if (fetching) { toast("Đang xử lý PDF, vui lòng chờ."); return }
         fetching = true
-        toast("Đang tải PDF từ server Sandbox…")
+        toast(when (mode) {
+            "view" -> "Đang mở PDF xem trước…"
+            "save" -> "Đang chuẩn bị PDF để anh chọn nơi lưu…"
+            else -> "Đang chuẩn bị chia sẻ PDF…"
+        })
         Thread {
-            val result = runCatching { fetchPdf(ref) }
+            val result = runCatching {
+                val file = fetchPdf(ref) // PRIVATE app cache; not a public download.
+                file to if (mode == "view") renderPdfPages(file) else null
+            }
             activity.runOnUiThread {
                 fetching = false
-                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
-                result.onSuccess { file ->
+                if (activity.isFinishing || activity.isDestroyed) {
+                    result.getOrNull()?.second?.forEach { it.recycle() }
+                    return@runOnUiThread
+                }
+                result.onSuccess { (file, pages) ->
                     when (mode) {
                         "save" -> { toSave = file; documentPicker.launch(file.name) }
-                        "view" -> openPdf(file)
+                        "view" -> showPdfPages(ref, pages ?: emptyList())
                         "zalo" -> sharePdf(file, "com.zing.zalo")
                         "messenger" -> sharePdf(file, "com.facebook.orca")
                         else -> sharePdf(file, null)
                     }
-                }.onFailure { toast("Không lấy được PDF TEST: " + (it.message ?: "Lỗi mạng")) }
+                }.onFailure { toast("Không xử lý được PDF TEST: " + (it.message ?: "Lỗi mạng")) }
             }
         }.start()
+    }
+
+    /** The Android PdfRenderer rasterizes authenticated server PDF pages in memory. */
+    private fun renderPdfPages(file: File): List<Bitmap> {
+        val pages = ArrayList<Bitmap>()
+        try {
+            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+                PdfRenderer(descriptor).use { renderer ->
+                    require(renderer.pageCount in 1..30) { "PDF có số trang không hợp lệ." }
+                    val targetWidth = minOf(
+                        activity.resources.displayMetrics.widthPixels - dp(32), 1000
+                    ).coerceAtLeast(320)
+                    for (index in 0 until renderer.pageCount) {
+                        renderer.openPage(index).use { page ->
+                            val scale = targetWidth.toFloat() / page.width.toFloat()
+                            val height = (page.height.toFloat() * scale).toInt().coerceAtLeast(1)
+                            require(height <= 2800) { "Trang PDF quá lớn." }
+                            val bitmap = Bitmap.createBitmap(targetWidth, height, Bitmap.Config.ARGB_8888)
+                            try {
+                                bitmap.eraseColor(Color.WHITE)
+                                page.render(bitmap, null,
+                                    Matrix().apply { postScale(scale, scale) },
+                                    PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                pages.add(bitmap)
+                            } catch (err: Exception) {
+                                bitmap.recycle()
+                                throw err
+                            }
+                        }
+                    }
+                }
+            }
+            return pages
+        } catch (err: Exception) {
+            pages.forEach { it.recycle() }
+            throw err
+        }
+    }
+
+    private fun showPdfPages(ref: String, pages: List<Bitmap>) {
+        if (pages.isEmpty()) { toast("PDF không có trang nào."); return }
+        val scrolling = ScrollView(activity)
+        val stack = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.rgb(227, 233, 239))
+            setPadding(dp(7), dp(6), dp(7), dp(8))
+        }
+        pages.forEachIndexed { pageIndex, bitmap ->
+            val pageImage = ImageView(activity).apply {
+                setImageBitmap(bitmap)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                adjustViewBounds = true
+                contentDescription = "Hóa đơn PDF TEST, trang ${pageIndex + 1}"
+                setBackgroundColor(Color.WHITE)
+            }
+            stack.addView(pageImage, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = dp(10)
+            })
+        }
+        scrolling.addView(stack)
+        AlertDialog.Builder(activity)
+            .setTitle("Xem PDF • " + ref + " (chỉ xem, không lưu)")
+            .setView(scrolling)
+            .setPositiveButton("Đóng", null)
+            .create().apply {
+                setOnDismissListener { pages.forEach { it.recycle() } }
+                show()
+            }
     }
 
     private fun fetchPdf(ref: String): File {
@@ -297,16 +385,6 @@ internal class AiSandboxInvoiceUi(private val activity: AppCompatActivity) {
 
     private fun uri(file: File): Uri = FileProvider.getUriForFile(activity,
         activity.packageName + ".fileprovider", file)
-
-    private fun openPdf(file: File) {
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri(file), "application/pdf")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        runCatching {
-            activity.startActivity(Intent.createChooser(intent, "Xem hóa đơn TEST bằng PDF"))
-        }.onFailure { toast("Chưa có ứng dụng xem PDF. Anh có thể tải file hoặc chia sẻ.") }
-    }
 
     private fun sharePdf(file: File, target: String?) {
         val fileUri = uri(file)
