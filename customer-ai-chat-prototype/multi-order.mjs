@@ -133,17 +133,18 @@ export function parseColloquialBasket(message,profile={}){
   if(five){
    if(qty!==null&&(!Number.isSafeInteger(qty)||qty<1||qty>500))
     return {needMoreDetails:true,reason:'INVALID_QUANTITY',message:'Số lượng cần từ 1 đến 500.'};
-   if(spoken&&spoken!=='thung')
-    return {needMoreDetails:true,reason:'UNIT_UNSUPPORTED',message:'Nước Satori 5L chỉ nhận đặt theo thùng. Anh/chị muốn loại có vòi hay không vòi?'};
+   if(spoken&&!['thung','binh'].includes(spoken))
+    return {needMoreDetails:true,reason:'UNIT_UNSUPPORTED',message:'Satori 5L có bình lẻ và thùng 4 bình. Anh/chị chọn quy cách nào ạ?'};
    const spout=/\b(?:khong|ko|k)\s+voi\b/.test(name)?'without':
     /\bco\s+voi\b/.test(name)?'with':null;
-   const packageUnit=spoken||'thung'; // 5L water is sold by carton, no individual bottle selection.
+   const packageUnit=spoken||null; // Catalogue sells both 1 bình and thùng 4 bình. Never guess.
    const favourite=profile.uniqueFavourite===true?productFor(profile.favourite):null;
-   if(qty&&spout){
-    const sku=spout==='with'?'TP-00136':'TP-00135';
+   if(qty&&spout&&packageUnit){
+    const sku=spout==='with'?(packageUnit==='binh'?'TP-00142':'TP-00136'):
+     (packageUnit==='binh'?'TP-00143':'TP-00135');
     items.push({sku,qty});
-   }else if(qty&&!spout&&!/^(?:them|bo sung|cong them)\b/.test(text)&&
-       favourite?.name.includes('5L')&&fold(favourite.unit)===spoken){
+   }else if(qty&&packageUnit&&!spout&&!/^(?:them|bo sung|cong them)\b/.test(text)&&
+       favourite?.name.includes('5L')&&fold(favourite.unit)===packageUnit){
     // Only explicitly verified single-SKU preference may fill an omitted tap.
     items.push({sku:favourite.code,qty});
    }else missing.push({kind:'FIVE_LITRE',qty,unit:packageUnit,spout,label:'nước suối Satori 5 lít'});
@@ -176,11 +177,16 @@ export function parseColloquialBasket(message,profile={}){
  return {items:merged,source:'catalogue-colloquial'};
 }
 export function colloquialQuestion(m){
- if(m.kind==='MISSING_QUANTITY')return 'Anh/chị lấy bao nhiêu '+productFor(m.sku).unit.toLowerCase()+' '+m.label+'?';
- const asks=[];
- if(!m.qty)asks.push('mấy thùng');
- if(!m.spout)asks.push('có vòi hay không vòi');
- return 'Nước Satori 5L: '+asks.join(', ')+'?';
+ if(m.kind==='MISSING_QUANTITY')return 'Anh/chị lấy mấy '+productFor(m.sku).unit.toLowerCase()+' '+m.label+' ạ?';
+ const missing=[];
+ if(!m.qty)missing.push('số lượng');
+ if(!m.unit)missing.push('bình lẻ hay thùng (4 bình)');
+ if(!m.spout)missing.push('có vòi hay không vòi');
+ if(missing.length===1&&missing[0]==='có vòi hay không vòi')
+  return m.qty+' '+m.unit+' Satori 5L: có vòi hay không vòi ạ?';
+ if(missing.length===1&&missing[0]==='bình lẻ hay thùng (4 bình)')
+  return 'Satori 5L: anh/chị lấy bình lẻ hay thùng 4 bình ạ?';
+ return 'Satori 5L: anh/chị cho biết '+missing.join(', ')+' ạ?';
 }
 export function completeColloquialFollowup(pending,message){
  if(!pending||!Array.isArray(pending.items)||!pending.missing)return null;
@@ -190,11 +196,10 @@ export function completeColloquialFollowup(pending,message){
   const re=new RegExp('^('+COUNT+')(?:\\s+(thung|binh))?(?:\\s+(?:satori\\s+)?5\\s*l)?(?:\\s+((?:co|khong|ko|k)\\s+voi))?$','u');
   const spoken=text.match(re),variant=text.match(/^(?:(thung|binh)\s+)?((?:co|khong|ko|k)\s+voi)$/);
   if(!spoken&&!variant)return null;
-  if(spoken?.[2]==='binh'||variant?.[1]==='binh')return null; // No 5L single-bottle sales.
   const qty=spoken?countOf(spoken[1]):null;
   if(qty!==null&&(!Number.isSafeInteger(qty)||qty<1||qty>500))return null;
   const tap=spoken?.[3]||variant?.[2]||'';
-  updated={...m,qty:qty||m.qty,unit:'thung',
+  updated={...m,qty:qty||m.qty,unit:spoken?.[2]||variant?.[1]||m.unit,
    spout:tap?(/^(khong|ko|k)\b/.test(tap)?'without':'with'):m.spout};
  }else if(m.kind==='MISSING_QUANTITY'){
   const count=text.match(new RegExp('^('+COUNT+')(?:\\s+('+UNIT+'))?$','u'));
@@ -208,7 +213,8 @@ export function completeColloquialFollowup(pending,message){
   return {needMoreDetails:true,pending:{...pending,missing:updated},message:colloquialQuestion(updated)};
  let sku=updated.sku;
  if(updated.kind==='FIVE_LITRE')
-  sku=updated.spout==='with'?'TP-00136':'TP-00135';
+  sku=updated.spout==='with'?(updated.unit==='binh'?'TP-00142':'TP-00136'):
+   (updated.unit==='binh'?'TP-00143':'TP-00135');
  const merged=[];
  for(const it of [...pending.items,{sku,qty:updated.qty}]){
   if(!productFor(it.sku))return null;
