@@ -368,21 +368,22 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
 /* The customer's conversation is primary. Suggestions are opt-in, not in the chat stream. */
 .secondary-tools[hidden]{display:none!important}
 .secondary-tools{border-top:1px solid #dce9f2;max-height:36dvh;overflow-y:auto;overscroll-behavior:contain}
-#productsToggle{display:none}
-.server-mode #productsToggle{display:inline-flex;align-items:center;min-height:32px;max-width:124px;border:1px solid #cfdfeb;border-radius:10px;padding:5px 8px;background:#f7fbff;color:#205d79;font-size:11px;font-weight:700;text-align:center}
+#suggestionsToggle{display:none}
+.server-mode #suggestionsToggle{display:inline-flex;align-items:center;justify-content:center;min-height:38px;max-width:126px;border:1px solid #cfdfeb;border-radius:10px;padding:6px 8px;background:#0867d5;color:#fff;font-size:11px;font-weight:750;text-align:center;line-height:1.25;white-space:normal}
+@media(max-width:390px){.server-mode #suggestionsToggle{max-width:105px;padding:5px 6px;font-size:10px}}
 .server-mode .shop-hero{display:none}
 .server-mode .secondary-tools .chips{padding:5px 9px}
 /* High-visibility, tappable customer actions: blue is interactive.
    Red remove controls remain distinct; disabled/finished controls stay grey. */
 :root{--satori-action-blue:#0867d5;--satori-action-blue-hover:#0758b5}
-.server-mode #productsToggle,.history-trigger,.history-item a,
+.server-mode #suggestionsToggle,.history-trigger,.history-item a,
 .chip,.catalog-filter,.quick-cart button,.suggestion-steps button,
 .inline-search-head button,.history-close,.catalog-close,
 .btn:not(.primary),.delivery-note-presets .btn{
  background:var(--satori-action-blue);color:#fff;border-color:var(--satori-action-blue);
  box-shadow:0 2px 8px #0b63c528;
 }
-:is(.server-mode #productsToggle,.history-trigger,.history-item a,
+:is(.server-mode #suggestionsToggle,.history-trigger,.history-item a,
 .chip,.catalog-filter,.quick-cart button,.suggestion-steps button,
 .inline-search-head button,.history-close,.catalog-close,
 .btn:not(.primary),.delivery-note-presets .btn):hover:not(:disabled){
@@ -407,7 +408,7 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 .catalog-launch-bar button{min-height:42px;background:#0867d5;color:#fff;border:1px solid #075aba;
  border-radius:11px;font-size:12.5px;font-weight:750;padding:8px 7px;white-space:normal;line-height:1.25}
 .catalog-launch-bar button[hidden]{display:none!important}
-.catalog-launch-bar:has(#suggestionsToggle[hidden]){grid-template-columns:1fr}
+.catalog-launch-bar #locationsToggle{display:flex;align-items:center;justify-content:center;width:100%;max-width:none;min-width:0;background:#0867d5;color:#fff;border-color:#075aba}
 .server-mode .quick-cart{display:grid;grid-template-columns:minmax(0,1fr) auto;
  grid-template-rows:auto auto auto auto;gap:6px 9px;padding:8px 11px;min-width:0}
 .server-mode .quick-cart #quickCartCount{grid-column:1/-1;grid-row:1!important;margin:0!important;
@@ -434,6 +435,8 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 .catalog-purchase-row button{touch-action:manipulation}
 @media(max-width:390px){.catalog-purchase-row{grid-template-columns:27px minmax(0,1fr) 108px;gap:5px}
  .catalog-purchase-row .catalog-quantity-controls{width:108px;grid-template-columns:29px minmax(0,1fr) 29px}}
+/* Dealer-specific destinations stay beside the product catalogue action. */
+.location-picker-hint{font-size:12px;line-height:1.4;color:#44657e;margin:2px 4px 7px}
 /* Compact branch picker stays outside the message scroller on narrow phones. */
 .locations-panel{padding:9px;max-height:39dvh;overflow-y:auto;border-bottom:1px solid #d9e5ef;background:#f4f9ff;display:grid;gap:7px}
 .locations-panel[hidden]{display:none}
@@ -455,10 +458,10 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 <div class="actions"><button class="btn primary" id="apply">Cập nhật cấu hình thử</button><button class="btn alt" id="copy">Sao chép link</button><button class="btn" id="reset">Xóa đơn thử</button></div>
 <div class="info"><b>Lưu ý bảo mật:</b> Link này chỉ mô phỏng định danh. Bản thật phải dùng token ngẫu nhiên lưu băm ở server, kiểm tra người nhận và có xác minh số điện thoại khi cần. Không nhúng tên, SĐT, địa chỉ hay Gemini API key vào URL.</div>
 </div></aside>
-<main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><button type="button" id="productsToggle" aria-controls="secondaryTools" aria-expanded="false">Sản phẩm &amp; gợi ý ▾</button><button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button></div>
+<main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><button id="suggestionsToggle" type="button" aria-controls="suggestionsList" aria-expanded="false">✨ Gợi ý sản phẩm</button><button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button></div>
 <div class="catalog-launch-bar">
-<button id="catalogLaunch" type="button" aria-haspopup="dialog" aria-controls="catalogBackdrop">🛍 Tất cả sản phẩm</button><button id="locationsToggle" type="button" aria-expanded="false" aria-controls="locationsPanel" hidden>📍 Tất cả địa chỉ</button>
-<button id="suggestionsToggle" type="button" aria-controls="suggestionsList" aria-expanded="false" hidden>✨ Gợi ý mua nhanh ▾</button>
+<button id="catalogLaunch" type="button" aria-haspopup="dialog" aria-controls="catalogBackdrop">🛍 Tất cả sản phẩm</button>
+<button id="locationsToggle" type="button" aria-expanded="false" aria-controls="locationsPanel" aria-label="Tất cả địa chỉ giao hàng của đại lý" hidden>📍 Tất cả địa chỉ</button>
 </div>
 <section id="locationsPanel" class="locations-panel" aria-label="Tất cả địa chỉ giao của đại lý" hidden></section>
 <section class="suggestions-inline" id="suggestionsInline" aria-label="Gợi ý mặt hàng thường mua" hidden>
@@ -706,9 +709,13 @@ function renderPersonalizedSuggestions(){
  list.replaceChildren();
  // This is an optional compact horizontal row, NEVER large cards on the chat.
  const suggestions=personalizedSuggestions.filter(p=>p?.code&&p?.name).slice(0,7);
- toggle.hidden=suggestions.length===0;
- section.hidden=suggestions.length===0||toggle.getAttribute('aria-expanded')!=='true';
+ toggle.hidden=false; // header button stays available even when empty
+ section.hidden=toggle.getAttribute('aria-expanded')!=='true';
  list.hidden=section.hidden;
+ if(!suggestions.length){
+  const empty=document.createElement('span');empty.className='location-picker-hint';
+  empty.textContent='Chưa có gợi ý sản phẩm phù hợp.';list.append(empty);
+ }
  for(const p of suggestions){
   const chip=document.createElement('button');chip.type='button';chip.className='suggestion-compact-chip';
   chip.title=p.name+' · '+money(p.unitPrice||0)+'/'+(p.unit||'đơn vị');
@@ -716,22 +723,32 @@ function renderPersonalizedSuggestions(){
   chip.addEventListener('click',()=>addSuggestedItem(p.code));
   list.append(chip);
  }
- $('suggestionsCaption').textContent='Chọn tên sản phẩm để thêm 1 thùng vào giỏ';
+ $('suggestionsCaption').textContent=suggestions.length
+  ? 'Chọn tên sản phẩm để thêm 1 thùng vào giỏ'
+  : 'Chưa có gợi ý riêng. Chọn Tất cả sản phẩm để xem danh mục.';
 }
 $('suggestionsToggle').addEventListener('click',()=>{
  const opened=$('suggestionsToggle').getAttribute('aria-expanded')==='true';
  $('suggestionsToggle').setAttribute('aria-expanded',String(!opened));
- $('suggestionsToggle').textContent=opened?'✨ Gợi ý mua nhanh ▾':'✨ Ẩn gợi ý ▴';
+ $('suggestionsToggle').textContent='✨ Gợi ý sản phẩm';
  renderPersonalizedSuggestions();
 });
 function renderLocations(){
  if(!serverMode)return;
  const toggle=$('locationsToggle'),panel=$('locationsPanel');
- toggle.hidden=deliveryLocations.length<2;
- if(toggle.hidden){panel.hidden=true;return}
+ // Always show addresses next to chat, including a single registered branch.
+ // Only this customer link's locations are listed; never expose other dealers.
+ toggle.hidden=false;
+ toggle.textContent='📍 Tất cả địa chỉ';
  const selected=deliveryLocations.find(x=>x.id===selectedLocationId);
- toggle.textContent=selected?'📍 '+selected.label+' ▾':'📍 Tất cả địa chỉ — chọn điểm giao ▾';
+ if(deliveryLocations.length===0){panel.hidden=true;toggle.disabled=true;return}
+ toggle.disabled=false;
  panel.replaceChildren();
+ const hint=document.createElement('p');hint.className='location-picker-hint';
+ hint.textContent=deliveryLocations.length===1
+  ? 'Đại lý này hiện chỉ lưu 1 địa chỉ. Khi quản trị thêm chi nhánh, các địa chỉ sẽ hiện ở đây.'
+  : 'Chọn điểm giao đã lưu cho đại lý này. Không hiển thị địa chỉ của đại lý khác.';
+ panel.append(hint);
  for(const loc of deliveryLocations){
   const item=document.createElement('button');item.type='button';
   item.setAttribute('aria-pressed',String(selectedLocationId===loc.id));
@@ -1101,13 +1118,6 @@ async function openCatalog(){
  if(!catalogItems.length&&!serverMode)catalogItems=PRODUCTS.map(x=>({code:x.code,name:x.name,unit:'Thùng',brand:'SATORI',spec:'Bản xem thử offline'}));
  renderCatalogue(); // Opening products should not automatically summon Android keyboard.
 }
-$('productsToggle').addEventListener('click',()=>{
- const panel=$('secondaryTools'),opening=panel.hidden;
- panel.hidden=!opening;
- $('productsToggle').setAttribute('aria-expanded',String(opening));
- $('productsToggle').textContent=opening?'Đóng sản phẩm ▴':'Sản phẩm & gợi ý ▾';
- if(!opening)$('inlineProductSearch').hidden=true;
-});
 $('allProductsButton').addEventListener('click',openCatalog);
 $('catalogLaunch').addEventListener('click',openCatalog);
 $('heroShopCta').addEventListener('click',openCatalog);
