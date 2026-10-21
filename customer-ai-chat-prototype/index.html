@@ -358,6 +358,13 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
 .inline-product-row .inline-name{font-size:11px;color:#20516a;line-height:1.28;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .inline-product-row .suggestion-steps{grid-template-columns:29px minmax(0,1fr) 29px;gap:2px}
 .inline-product-row .suggestion-steps input,.inline-product-row .suggestion-steps button{height:29px;font-size:13px}
+/* The customer's conversation is primary. Suggestions are opt-in, not in the chat stream. */
+.secondary-tools[hidden]{display:none!important}
+.secondary-tools{border-top:1px solid #dce9f2;max-height:36dvh;overflow-y:auto;overscroll-behavior:contain}
+#productsToggle{display:none}
+.server-mode #productsToggle{display:inline-flex;align-items:center;min-height:32px;max-width:124px;border:1px solid #cfdfeb;border-radius:10px;padding:5px 8px;background:#f7fbff;color:#205d79;font-size:11px;font-weight:700;text-align:center}
+.server-mode .shop-hero{display:none}
+.server-mode .secondary-tools .chips{padding:5px 9px}
 </style>
 </head>
 <body>
@@ -373,13 +380,14 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
 <div class="actions"><button class="btn primary" id="apply">Cập nhật cấu hình thử</button><button class="btn alt" id="copy">Sao chép link</button><button class="btn" id="reset">Xóa đơn thử</button></div>
 <div class="info"><b>Lưu ý bảo mật:</b> Link này chỉ mô phỏng định danh. Bản thật phải dùng token ngẫu nhiên lưu băm ở server, kiểm tra người nhận và có xác minh số điện thoại khi cần. Không nhúng tên, SĐT, địa chỉ hay Gemini API key vào URL.</div>
 </div></aside>
-<main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button></div>
+<main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><button type="button" id="productsToggle" aria-controls="secondaryTools" aria-expanded="false">Sản phẩm &amp; gợi ý ▾</button><button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button></div>
 <section class="shop-hero" aria-label="Bắt đầu mua nước Satori">
  <div class="shop-hero-copy"><strong>Đặt nước nhanh • Đúng giá riêng của bạn</strong>
  <small>Chọn mặt hàng, chỉnh số lượng, kiểm tra hóa đơn rồi xác nhận.</small></div>
  <button type="button" id="heroShopCta">Tìm thêm →</button>
  </section>
  <div class="messages" id="messages" aria-live="polite"></div>
+<div class="secondary-tools" id="secondaryTools" hidden aria-label="Sản phẩm và gợi ý tùy chọn">
 <section class="suggestions-inline" id="suggestionsInline" aria-label="Sản phẩm thường mua của khách" hidden>
 <div class="suggestions-heading"><strong>✨ Mua nhanh theo thói quen</strong><small id="suggestionsCaption">Gợi ý riêng từ lịch sử đơn THỬ</small></div>
 <div id="suggestionsList" class="suggestions-list"></div></section>
@@ -396,13 +404,14 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
 <button class="chip" type="button" data-cart-sku="TP-00051">＋ Premium</button>
 <button class="chip" type="button" data-msg="Cho tôi đặt lại đơn lần trước">Đặt lại đơn cũ</button>
 </div>
+</div>
 <div class="quick-cart" id="quickCart" hidden aria-live="polite">
 <span id="quickCartCount">Giỏ hàng chung • 0 món</span>
 <button type="button" id="quickCartEdit">Thu gọn giỏ</button>
 <div class="inline-cart-lines" id="inlineCartLines" aria-label="Điều chỉnh giỏ hàng ngay trong chat"></div>
 <button type="button" id="quickCartQuote">Xem tổng & xác nhận →</button>
 </div>
-<form class="composer" id="sendForm"><textarea id="messageInput" maxlength="500" rows="2" placeholder="Nhắn: Cho tôi 10 thùng nước 5L..." aria-label="Nhập yêu cầu đặt hàng"></textarea><button type="submit" class="btn primary">Gửi ➤</button></form>
+<form class="composer" id="sendForm"><textarea id="messageInput" maxlength="500" rows="2" placeholder="Nhắn: 10 ổi hồng, thêm 5 mãng cầu..." aria-label="Nhập yêu cầu đặt hàng"></textarea><button type="submit" class="btn primary">Gửi ➤</button></form>
 </main></div>
 <p class="footnote">Dữ liệu và giá chỉ để thử nghiệm. AI GPT thật, tạo PDF tự động phía server, gửi thông báo và đồng bộ đơn hàng sẽ được kích hoạt sau khi backend staging được cấp cấu hình. Không có yêu cầu nào ở trang này gửi đến Minh Satori production.</p>
 </div>
@@ -447,6 +456,7 @@ const serverMode=/^https?:$/.test(location.protocol)&&/^\/c\/(?:demo-[ab]|[A-Za-
 const serverToken=serverMode?location.pathname.split('/').pop():null;
 let sending=false,draftBusy=false,draftRevision=0,activeQuoteId=null;
 if(serverMode)document.body.classList.add('server-mode');
+else document.getElementById('secondaryTools').hidden=false;
 async function serverPost(route,obj){const r=await fetch(route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});const data=await r.json();if(!data.ok)throw new Error(data.message||data.error||'Lỗi máy chủ');return data;}
 function norm(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase()}
 function money(n){return Math.round(n).toLocaleString('vi-VN')+'đ'}
@@ -455,7 +465,7 @@ function msg(text,who='assistant'){const e=document.createElement('div');e.class
 function bottom(){requestAnimationFrame(()=>$('messages').scrollTop=$('messages').scrollHeight)}
 function customer(){return FIXTURES[current]}
 function firstActiveProfile(){const fragment=location.hash.slice(1);const match=Object.entries(FIXTURES).find(([,v])=>fragment===v.token);return match?.[0]||'A'}
-function selectProfile(id){current=id;draft=null;const c=customer();$('customer').value=current;$('discount').value=c.discount;$('ship').value=c.ship;$('identity').textContent=`${c.name} · ${c.phone}\n${c.address}`;$('fixedLink').textContent=`#${c.token}`;$('chatSubtitle').textContent=`${c.name} • hồ sơ đặt hàng thử`;$('messages').innerHTML='';msg(`Xin chào ${c.name}! Mình đã mở cuộc trò chuyện riêng của bạn. Bạn cần đặt nước gì hôm nay? Chọn gợi ý hoặc xem Tất cả sản phẩm nhé.`);if(!serverMode)msg('Đây là DEMO giao diện: bộ nhận diện tin nhắn dùng quy tắc lập trình miễn phí. Giá và khách đều là dữ liệu giả.', 'note')}
+function selectProfile(id){current=id;draft=null;const c=customer();$('customer').value=current;$('discount').value=c.discount;$('ship').value=c.ship;$('identity').textContent=`${c.name} · ${c.phone}\n${c.address}`;$('fixedLink').textContent=`#${c.token}`;$('chatSubtitle').textContent=`${c.name} • hồ sơ đặt hàng thử`;$('messages').innerHTML='';msg(`Xin chào ${c.name}! Mình đã mở cuộc trò chuyện riêng của bạn. Bạn muốn đặt gì hôm nay? Chỉ cần nhắn số lượng và tên sản phẩm, ví dụ: "10 ổi hồng".`);if(!serverMode)msg('Đây là DEMO giao diện: bộ nhận diện tin nhắn dùng quy tắc lập trình miễn phí. Giá và khách đều là dữ liệu giả.', 'note')}
 function matchRequest(message){const text=norm(message),c=customer();const amount=text.match(/\b(\d{1,4})\s*(thung|thg|kien|case)\b/),quantity=amount?Number(amount[1]):null;if(quantity!==null&&(quantity<1||quantity>500))return {error:'Số lượng cần từ 1 đến 500 thùng. Anh/chị vui lòng kiểm tra lại.'};const product=PRODUCTS.find(p=>p.keys.some(k=>text.includes(norm(k))));const previous=/(lan truoc|nhu cu|don cu|dat lai)/.test(text);const code=product?.code||(previous?c.favourite:null);const diffAddr=/(giao (den|toi|ve)\s+|doi dia chi|dia chi khac)/.test(text);const phone=message.match(/(?:\+84|0)\d[\d\s.\-]{8,14}/);if(diffAddr||phone)return {error:'Bạn đang đề nghị thay đổi địa chỉ hoặc SĐT. Đơn này không được tự động áp dụng chiết khấu riêng. Vui lòng liên hệ cửa hàng để xác minh và duyệt thủ công.'};if(!code||!PRODUCTS.some(p=>p.code===code))return {error:'Mình chưa xác định chắc chắn loại nước. Bạn cho biết dung tích 350ml, 500ml hay 5L nhé.'};if(quantity===null&&!previous)return {error:'Bạn muốn đặt bao nhiêu thùng? Ví dụ: “10 thùng nước 5L”.'};return {code,qty:quantity||(previous?10:0)};}
 function quote(code,qty){const p=PRODUCTS.find(p=>p.code===code),c=customer(),discount=c.discount,ship=c.ship,subtotal=Math.round(qty*p.price*(100-discount)/100),shipping=Math.round(subtotal*ship/100);return {profileId:c.id,code,qty,discount,ship,unitPrice:Math.round(p.price*(100-discount)/100),subtotal,shipping,total:subtotal+shipping,product:p.name,phone:c.phone,address:c.address,name:c.name,nonce:Math.random().toString(36).slice(2)}}
 function deactivateQuotes(){
@@ -916,6 +926,13 @@ async function openCatalog(){
  if(!catalogItems.length&&!serverMode)catalogItems=PRODUCTS.map(x=>({code:x.code,name:x.name,unit:'Thùng',brand:'SATORI',spec:'Bản xem thử offline'}));
  renderCatalogue(); // Opening products should not automatically summon Android keyboard.
 }
+$('productsToggle').addEventListener('click',()=>{
+ const panel=$('secondaryTools'),opening=panel.hidden;
+ panel.hidden=!opening;
+ $('productsToggle').setAttribute('aria-expanded',String(opening));
+ $('productsToggle').textContent=opening?'Đóng sản phẩm ▴':'Sản phẩm & gợi ý ▾';
+ if(!opening)$('inlineProductSearch').hidden=true;
+});
 $('allProductsButton').addEventListener('click',openInlineSearch);
 $('heroShopCta').addEventListener('click',openInlineSearch);
 $('inlineSearchClose').addEventListener('click',()=>{$('inlineProductSearch').hidden=true});
