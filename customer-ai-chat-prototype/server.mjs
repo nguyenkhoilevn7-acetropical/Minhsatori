@@ -413,7 +413,73 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='POST'&&p==='/api/message'){
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
   if(!rateLimit(req,token))return fail(res,429,'RATE_LIMIT','Bạn đã gửi quá nhiều tin nhắn, vui lòng thử lại sau');
-  const message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
+  let message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
+
+  // Block identity changes locally BEFORE any Gemini or order write.
+  const ci=contactIntent(message);
+  if(ci?.address){pendingPhones.delete(token);return reply(res,200,{ok:true,needsHuman:true,
+   contactPolicy:'ADDRESS_REQUIRES_STAFF',draft:draftStore.read(token),message:ADDRESS_REPLY});}
+  if(ci?.phone){
+   if(!ci.phoneNumber)return reply(res,200,{ok:true,needMoreDetails:true,
+    contactPolicy:'PHONE_NEEDS_NUMBER',message:'Anh/chị vui lòng gửi số điện thoại mới gồm 10 chữ số. Em chưa thay đổi số đang lưu.'});
+   pendingPhones.set(token,{phone:ci.phoneNumber,expiresAt:Date.now()+600_000});
+   return reply(res,200,{ok:true,needConfirmation:true,verificationRequired:true,
+    contactPolicy:'PHONE_AWAITING_CONFIRMATION',message:'Đã nhận số mới '+maskPhone(ci.phoneNumber)+
+    '. Vui lòng trả lời "Xác nhận đổi SĐT" để gửi yêu cầu xác minh. Chưa có thông tin nào được thay đổi.'});
+  }
+  const pp=pendingPhones.get(token);
+  if(pp&&pp.expiresAt>Date.now()&&phoneCancel(message)){
+   pendingPhones.delete(token);return reply(res,200,{ok:true,contactPolicy:'PHONE_CANCELLED',
+    message:'Đã hủy yêu cầu đổi số, thông tin giữ nguyên.'});
+  }
+  if(pp&&pp.expiresAt>Date.now()&&phoneConfirm(message)){
+   pendingPhones.delete(token);
+   const request=customerLinks.logChangeRequest(c,'PHONE_CHANGE_VERIFICATION_REQUIRED:'+pp.phone);
+   return reply(res,200,{ok:true,needsHuman:true,verificationRequired:true,
+    contactPolicy:'PHONE_PENDING_VERIFICATION',requestId:request.id,
+    message:'Yêu cầu số mới '+maskPhone(pp.phone)+' đã gửi quản trị viên để xác minh. Chưa đổi số trong hóa đơn hoặc dữ liệu khách.'});
+  }
+  if(pp&&pp.expiresAt<=Date.now())pendingPhones.delete(token);
+  // Only a confirmed, customer-specific nickname becomes durable memory.
+  const forgetAlias=trainingForget(message);
+  if(forgetAlias){
+   phraseMemory.forget(token,forgetAlias);driveWorker?.schedule();
+   return reply(res,200,{ok:true,training:'FORGOTTEN',
+    message:'Đã bỏ cách gọi "'+forgetAlias+'" khỏi bộ nhớ riêng của khách này.'});
+  }
+  const teaching=trainingProposal(message);
+  if(teaching?.invalid)return reply(res,200,{ok:true,needMoreDetails:true,training:'INVALID_ALIAS',message:teaching.message});
+  if(teaching?.code){
+   pendingTeaching.set(token,{...teaching,expiresAt:Date.now()+600_000});
+   return reply(res,200,{ok:true,needConfirmation:true,training:'AWAITING_CONFIRMATION',
+    message:'Em hiểu "'+teaching.alias+'" là '+teaching.label+' (mã '+teaching.code+
+    '). Anh/chị trả lời "Xác nhận" để ghi nhớ riêng cho lần sau, hoặc "Hủy".'});
+  }
+  const learn=pendingTeaching.get(token);
+  if(learn&&learn.expiresAt>Date.now()&&(trainingConfirm(message)||trainingCancel(message))){
+   pendingTeaching.delete(token);
+   if(trainingCancel(message))return reply(res,200,{ok:true,training:'CANCELLED',message:'Đã hủy; em chưa ghi nhớ.'});
+   try{phraseMemory.remember(token,learn);driveWorker?.schedule();
+    return reply(res,200,{ok:true,training:'SAVED',message:'Đã ghi nhớ "'+learn.alias+'" tương ứng '+learn.code+' cho riêng khách này.'});
+   }catch{return fail(res,400,'PHRASE_MEMORY_FAILED','Không lưu được cách gọi mới, hóa đơn và giỏ hàng giữ nguyên.')}
+  }
+  if(learn&&learn.expiresAt<=Date.now())pendingTeaching.delete(token);
+  const pendingBrand=pendingBrands.get(token);
+  const brand=pendingBrand&&pendingBrand.expiresAt>Date.now()?brandAnswer(message):null;
+  if(brand){
+   pendingBrands.delete(token);
+   message='Cho '+pendingBrand.qty+' thùng '+brand.brand+' 500ml';
+  }else{
+   const uncertain=ambiguousWater500(message);
+   if(uncertain){
+    pendingBrands.set(token,{qty:uncertain.qty,expiresAt:Date.now()+600_000});
+    return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'BRAND_500',
+     choices:[{label:'Satori 500ml',code:'TP-00003'},{label:'Hikari 500ml',code:'TP-00081'}],
+     draft:draftStore.read(token),message:'Em hiểu '+uncertain.qty+
+     ' thùng nước suối 500ml. Anh/chị muốn Satori hay Hikari? Chỉ cần trả lời hãng; chưa thêm sản phẩm vào giỏ.'});
+   }
+   message=phraseMemory.expand(token,message);
+  }
   // Existing basket always wins, even when an older browser omits the new opt-in.
   const existing=draftStore.read(token);
   if(existing.items.length&&b?.cartItems!==undefined)return fail(res,409,'DRAFT_ACTIVE','Giỏ hiện có sản phẩm. Vui lòng tải lại trang để tiếp tục chung một giỏ.');
