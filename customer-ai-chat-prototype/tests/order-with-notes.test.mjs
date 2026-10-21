@@ -21,8 +21,8 @@ check(p.items.some(x=>x.sku==='TP-00055'&&x.qty===2)&&p.items.some(x=>x.sku==='T
  '2 me and 3 mãng cầu must not disappear');
 check(p.delivery?.deliveryNote.includes('14:00')&&!p.delivery.clarification,
  '2h chiều is fixed 14:00, not 2 hours later');
-check(waterAnswer('Suối 500ml')?.size===500&&!waterAnswer('Suối 500ml').brand,
- 'water 500ml answer does not hallucinate Satori brand');
+check(waterAnswer('Suối 500ml')?.size===500&&waterAnswer('Suối 500ml').brand==='satori',
+ 'Satori-by-default 500ml answer still requires no guess of SKU variant');
 check(waterAnswer('Suối satori 500ml')?.brand==='satori','water Satori 500ml explicit brand');
 const completed=finishWater(p,waterAnswer('Suối satori 500ml'));
 check(completed?.items?.length===3&&completed.items.some(x=>x.sku==='TP-00003'&&x.qty===10)&&
@@ -57,11 +57,8 @@ try{
   'one clarification message preserves full products and original note: '+JSON.stringify(r.body).slice(0,800));
  check((await get(a)).items.length===0,'no partial SKU before choosing water');
  r=await say(a,'Suối 500ml',0);
- check(r.status===200&&r.body.clarificationType==='MIXED_WATER'&&/Satori hay Hikari/i.test(r.body.message),
-  '500ml needs brand, cannot auto pick Satori or 5L: '+JSON.stringify(r.body).slice(0,1000));
- r=await say(a,'Suối satori 500ml',0);
  check(r.status===200&&r.body.draft?.items?.length===3&&r.body.quote,
-  'explicit water SKU commits three items atomically: '+JSON.stringify(r.body).slice(0,850));
+  'neutral suối 500ml defaults to Satori and commits all items atomically: '+JSON.stringify(r.body).slice(0,850));
  let ordered=new Map(r.body.draft.items.map(x=>[x.code,x.qty]));
  check(ordered.get('TP-00003')===10&&ordered.get('TP-00055')===2&&ordered.get('TP-00056')===3,
   'all three screenshot items exact, including product code 00003');
