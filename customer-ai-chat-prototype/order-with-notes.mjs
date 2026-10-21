@@ -7,7 +7,7 @@ import {fold,resolveProduct,productFor} from './catalogue.mjs';
 import {parseOneClause} from './multi-order.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 
-const noteStart=/(?:^|[\s,.;])((?:lưu\s*ý|luu\s*y|ghi\s*chú|ghi\s*chu|nhớ|nho|gọi\s+trước|goi\s+truoc|giao\s+(?:sau|lúc|luc|vào|vao|trước|truoc|tầm|tam|khoảng|khoang))\b)/iu;
+const noteStart=/(?:^|[\s,.;])((?:lưu\s*ý|luu\s*y|ghi\s*chú|ghi\s*chu|nhớ|nho|gọi\s+trước|goi\s+truoc|giao\s+(?:sau|lúc|luc|vào|vao|trước|truoc|tầm|tam|khoảng|khoang))(?=\s|$|[.,;]))/iu;
 export function splitOrderAndNote(message){
  const raw=String(message||'').trim();
  const match=noteStart.exec(raw);
