@@ -57,6 +57,14 @@ async function signedPost(cfg,operation,content){
   return result;
  }finally{clearTimeout(timer)}
 }
+// Emit fixed diagnostic categories only; never emit environment secrets, backup contents,
+// URLs, request bodies, customer data or raw network exceptions to service logs.
+function reportBackupFailure(error){
+ const code=String(error?.message||'');
+ const safe=/^(DRIVE_BACKUP_NOT_CONFIGURED|BACKUP_TOO_LARGE|BRIDGE_ACK_MISMATCH|BACKUP_ACK_MISMATCH|BRIDGE_RESPONSE_TOO_LARGE|BRIDGE_REJECTED_[A-Z_]+|BRIDGE_HTTP_[0-9]{3})$/.test(code)
+  ?code:'BRIDGE_NETWORK_OR_UNKNOWN_ERROR';
+ console.warn('SANDBOX_DRIVE_BACKUP_FAILED',safe);
+}
 export function makeDriveBackupWorker(readState){
  let lastSuccessAt=null,lastFileId=null,lastFingerprint=null,lastFailure=null,inFlight=null,timer=null,interval=null;
  const active=()=>config()!==null;
@@ -78,12 +86,13 @@ export function makeDriveBackupWorker(readState){
  }
  const schedule=()=>{
   if(!active()||timer)return;
-  timer=setTimeout(()=>{timer=null;syncNow().catch(()=>{})},5000);
+  timer=setTimeout(()=>{timer=null;syncNow().catch(reportBackupFailure)},5000);
   timer.unref?.();
  };
  const start=()=>{
   if(!active()||interval)return;
-  timer=setTimeout(()=>{timer=null;syncNow().catch(()=>{})},15000);timer.unref?.();
+  console.info('SANDBOX_DRIVE_BACKUP_BOOT',active()?'configured':'not_configured');
+  timer=setTimeout(()=>{timer=null;syncNow().catch(reportBackupFailure)},15000);timer.unref?.();
   interval=setInterval(schedule,5*60_000);interval.unref?.();
  };
  async function readArchive(fileId){
