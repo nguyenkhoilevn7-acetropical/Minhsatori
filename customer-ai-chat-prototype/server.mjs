@@ -622,7 +622,10 @@ const server=http.createServer(async(req,res)=>{
    // Split the order from "Lưu ý" BEFORE any generic Gemini, edit, or
    // first-SKU parser. This prevents lost products and hallucinated 5L SKUs.
    if(b?.unifiedDraft===true){
-    const mixed=parseCustomerMessage(message,c);
+    const candidate=parseCustomerMessage(message,c);
+    // Existing product-only clarification remains backward-compatible;
+    // intercept only mixed product+delivery instructions or note-only chats.
+    const mixed=candidate?.noteText?candidate:null;
     if(mixed?.kind==='invalid')return reply(res,200,{ok:true,needMoreDetails:true,
      draft:draftStore.read(token),message:mixed.message});
     if(mixed?.kind==='note-only'){
