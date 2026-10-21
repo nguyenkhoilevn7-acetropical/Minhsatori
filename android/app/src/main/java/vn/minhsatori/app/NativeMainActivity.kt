@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
@@ -473,6 +474,29 @@ class NativeMainActivity : AppCompatActivity() {
             }
             button(hero, "XEM TRẢI NGHIỆM ĐẶT HÀNG") {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "customer"))
+            }
+            button(hero, "🔗 MỞ CÙNG LINK KHÁCH TRÊN WEBSITE") {
+                val input = EditText(this).apply {
+                    hint = "https://minh-satori-customer-ai-gemini.onrender.com/c/..."
+                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+                    setSingleLine(true)
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("Mở giỏ hàng Gemini của khách")
+                    .setMessage("Dán link khách do Gemini cấp. App mở cùng phiên trên máy chủ; không lưu link vào điện thoại. Chỉ dùng thử, chưa ghi hóa đơn thật.")
+                    .setView(input)
+                    .setNegativeButton("Hủy", null)
+                    .setPositiveButton("Mở link") { _, _ ->
+                        val verified = AiSandboxContract.customerPortalUrl(input.text.toString())
+                        if (verified == null) {
+                            Toast.makeText(this, "Link không hợp lệ. Chỉ nhận link khách Gemini của Satori.", Toast.LENGTH_LONG).show()
+                        } else {
+                            startActivity(Intent(this, AiCustomerPortalActivity::class.java)
+                                .putExtra("mode", "customer")
+                                .putExtra("customer_url", verified))
+                        }
+                    }
+                    .show()
             }
             content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(14)

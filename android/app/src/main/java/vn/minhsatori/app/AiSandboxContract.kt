@@ -32,6 +32,24 @@ internal object AiSandboxContract {
             uri.path.orEmpty().isEmpty()
     }
 
+    /**
+     * Open the SAME customer-specific Gemini session on web and Android.
+     * Customer links are bearer URLs: never persist or log them in the APK.
+     * Reject unrelated hosts, redirects, query/fragment payloads and path escapes.
+     * This is still the sandbox gateway, NOT a production invoice write token.
+     */
+    fun customerPortalUrl(raw: String?): String? {
+        val candidate = raw?.trim()?.takeIf { it.length in 1..300 } ?: return null
+        val uri = runCatching { URI(candidate) }.getOrNull() ?: return null
+        if (uri.scheme != "https" ||
+            uri.host != "minh-satori-customer-ai-gemini.onrender.com" ||
+            uri.port != -1 || uri.userInfo != null ||
+            uri.rawQuery != null || uri.rawFragment != null) return null
+        val path = uri.rawPath ?: return null
+        if (!Regex("^/c/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$").matches(path)) return null
+        return BASE_URL + path
+    }
+
     /** The embedded owner/customer browser never follows non-sandbox origins. */
     fun validPortalNavigation(raw: String?): Boolean {
         val uri = runCatching { URI(raw ?: "") }.getOrNull() ?: return false
