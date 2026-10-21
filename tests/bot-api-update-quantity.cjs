@@ -24,7 +24,7 @@ function call(action,payload={}){
 }
 const payload={expectedRevision:7,requestId:'change-qty-001',id:222,invoiceNo:5930,expectedName:'Dung',expectedTotal:1102500,itemId:'line-500',qty:20,confirmed:true};
 const pdfBefore=call('orders.pdfSource',{id:222,invoiceNo:5930});
-assert.equal(pdfBefore.ok,true);assert.equal(pdfBefore.data.order.deliveryNote,'Giao buổi chiều');
+if(!pdfBefore.ok)console.error('DIAGNOSTIC',pdfBefore.error);assert.equal(pdfBefore.ok,true);assert.equal(pdfBefore.data.order.deliveryNote,'Giao buổi chiều');
 assert.equal(pdfBefore.data.order.items[0].qty,15);assert.equal(writes,0);
 assert.equal(call('orders.updateQty',{...payload,confirmed:false}).error.code,'CONFIRMATION_REQUIRED');
 assert.equal(call('orders.updateQty',{...payload,expectedTotal:1102000}).error.code,'ORDER_CHANGED');
