@@ -37,16 +37,31 @@ assert.ok(html.includes('button:focus-visible,.btn:focus-visible,.chip:focus-vis
 
 assert.ok(html.includes('class="shop-hero"') && html.includes('id="heroShopCta"'),
  'mobile customer shop CTA present in shared storefront');
-assert.ok(html.includes("$('heroShopCta').addEventListener('click',openInlineSearch);"),
- 'shop CTA opens searchable products in chat, not an overlay');
-assert.ok(html.includes("$('allProductsButton').addEventListener('click',openInlineSearch);"),
- 'product link uses the same compact inline search');
+assert.ok(html.includes("$('heroShopCta').addEventListener('click',openCatalog);"),
+ 'shop CTA opens full catalogue with prices and inline steppers');
+assert.ok(html.includes("$('allProductsButton').addEventListener('click',openCatalog);"),
+ 'product link opens full catalogue of priced products');
 for(const label of ['id="suggestionsInline"','id="suggestionsList"','id="inlineProductSearch"',
  'id="inlineSearchInput"','id="inlineCartLines"','function renderPersonalizedSuggestions()',
  'function renderInlineProducts()','function stepper(code,current)',
  "await changeSharedDraft('set',item.code,qty)",
  "return restoreDraft().then(loadPersonalizedSuggestions)"])
  assert.ok(html.includes(label),'one-screen personalized shopping interface: '+label);
+assert.ok(html.includes('id="productsToggle" aria-controls="catalogBackdrop" aria-haspopup="dialog">Tất cả sản phẩm'),
+ 'visible All Products button opens the modal');
+assert.ok(html.includes('function renderCatalogue()')&&html.includes("price.textContent='Giá khách: '")&&
+ html.includes("const controls=stepper(p.code,cart.get(p.code)?.qty||0);"),
+ 'entire catalogue shows customer pricing and editable +/- quantity controls on each item');
+assert.ok(html.includes("let personalizedSuggestions=[],inlineCartCollapsed=true,suggestionsExpanded=false;")&&
+ html.includes('id="suggestionsToggle"')&&html.includes("suggestionsExpanded=!suggestionsExpanded"),
+ 'habit suggestions are a compact opt-in button, collapsed by default');
+assert.ok(html.includes(".server-mode .quick-cart #quickCartCount{grid-column:1!important;grid-row:1!important;")&&
+ html.includes(".server-mode .quick-cart #quickCartNew{grid-column:2!important;grid-row:1!important;")&&
+ html.includes(".server-mode .quick-cart #quickCartEdit{grid-column:3!important;grid-row:1!important;"),
+ 'cart title, new cart and collapse buttons use non-overlapping grid columns on Samsung');
+assert.ok(html.includes(".server-mode .quick-cart.is-collapsed #inlineCartLines{display:none!important}")&&
+ html.includes("inlineCartCollapsed=!inlineCartCollapsed;renderInlineCart();"),
+ 'collapse button actually hides line items and can reopen them');
 assert.ok(html.includes('.chat-head{position:sticky;top:0;z-index:5}'),
  'customer chat navigation remains visible while chat scrolls');
 
