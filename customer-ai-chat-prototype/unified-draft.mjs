@@ -31,7 +31,9 @@ export function makeDraftStore(options={}){
   const requestedDeliveryAt=item.requestedDeliveryAt??null;
   if(requestedDeliveryAt!==null&&(typeof requestedDeliveryAt!=='string'||
      !Number.isFinite(Date.parse(requestedDeliveryAt))))throw Error('INVALID_DRAFT_CACHE');
-  return {key:item.key,revision:item.revision,updatedAt:item.updatedAt,lines,deliveryNote,requestedDeliveryAt};
+  const locationId=item.locationId??null;
+  if(locationId!==null&&(typeof locationId!=='string'||!/^(?:primary|[0-9a-f-]{36})$/.test(locationId)))throw Error('INVALID_DRAFT_CACHE');
+  return {key:item.key,revision:item.revision,updatedAt:item.updatedAt,lines,deliveryNote,requestedDeliveryAt,locationId};
  }
  function activeEntries(){
   const cutoff=Date.now()-expiresMs;
@@ -42,7 +44,8 @@ export function makeDraftStore(options={}){
    key,revision:s.revision,updatedAt:s.updatedAt,
    items:[...s.lines].map(([code,qty])=>({code,qty})),
    ...(s.deliveryNote?{deliveryNote:s.deliveryNote}:{}),
-   ...(s.requestedDeliveryAt?{requestedDeliveryAt:s.requestedDeliveryAt}:{})
+   ...(s.requestedDeliveryAt?{requestedDeliveryAt:s.requestedDeliveryAt}:{}),
+   ...(s.locationId?{locationId:s.locationId}:{})
   })).sort((a,b)=>a.key.localeCompare(b.key));
  }
  function persist(){
@@ -64,7 +67,7 @@ export function makeDraftStore(options={}){
    if(states.has(row.key))throw Error('INVALID_DRAFT_CACHE');
    if(Date.now()-row.updatedAt<expiresMs)states.set(row.key,{
     revision:row.revision,updatedAt:row.updatedAt,lines:row.lines,
-    deliveryNote:row.deliveryNote,requestedDeliveryAt:row.requestedDeliveryAt
+    deliveryNote:row.deliveryNote,requestedDeliveryAt:row.requestedDeliveryAt,locationId:row.locationId
    });
   }
  }
@@ -72,14 +75,15 @@ export function makeDraftStore(options={}){
  function get(token){
   const key=keyOf(token),s=states.get(key);
   if(s&&Date.now()-s.updatedAt<expiresMs)return s;
-  return {revision:0,lines:new Map(),updatedAt:Date.now(),deliveryNote:'',requestedDeliveryAt:null};
+  return {revision:0,lines:new Map(),updatedAt:Date.now(),deliveryNote:'',requestedDeliveryAt:null,locationId:null};
  }
  function read(token){
   const s=get(token);
   return {revision:s.revision,items:[...s.lines].map(([code,qty])=>{
    const p=productFor(code);return {code,qty,name:p.name,unit:p.unit};
   }),...(s.deliveryNote?{deliveryNote:s.deliveryNote}:{}),
-  ...(s.requestedDeliveryAt?{requestedDeliveryAt:s.requestedDeliveryAt}:{})};
+  ...(s.requestedDeliveryAt?{requestedDeliveryAt:s.requestedDeliveryAt}:{}),
+  ...(s.locationId?{locationId:s.locationId}:{})};
  }
  function mutate(token,changes,expectedRevision,delivery=null){
   const key=keyOf(token),s=get(token);
@@ -87,8 +91,12 @@ export function makeDraftStore(options={}){
   if(!Number.isSafeInteger(expectedRevision)||s.revision!==expectedRevision)throw Error('DRAFT_CONFLICT');
   if(!Array.isArray(changes)||changes.length<1||changes.length>MAX_LINES)throw Error('INVALID_CART');
   const next=new Map(s.lines);
-  let note=s.deliveryNote||'',when=s.requestedDeliveryAt||null;
+  let note=s.deliveryNote||'',when=s.requestedDeliveryAt||null,locationId=s.locationId||null;
   for(const change of changes){
+   if(change.action==='destination'){
+    if(typeof change.locationId!=='string'||!/^(?:primary|[0-9a-f-]{36})$/.test(change.locationId))throw Error('INVALID_DESTINATION');
+    locationId=change.locationId;continue;
+   }
    if(change.action==='note'){
     if(typeof change.note!=='string'||change.note.length>300)throw Error('INVALID_NOTE');
     note=change.note;when=change.requestedDeliveryAt??null;continue;
@@ -109,10 +117,10 @@ export function makeDraftStore(options={}){
    if(typeof delivery.deliveryNote!=='string'||delivery.deliveryNote.length>300)throw Error('INVALID_NOTE');
    note=delivery.deliveryNote;when=delivery.requestedDeliveryAt??null;
   }
-  if(changes.some(x=>x.action==='clear')){note='';when=null}
+  if(changes.some(x=>x.action==='clear')){note='';when=null;locationId=null}
   if(next.size>MAX_LINES||[...next.values()].reduce((n,v)=>n+v,0)>MAX_UNITS)throw Error('CART_LIMIT');
   const old=states.get(key);
-  states.set(key,{revision:s.revision+1,lines:next,updatedAt:Date.now(),deliveryNote:note,requestedDeliveryAt:when});
+  states.set(key,{revision:s.revision+1,lines:next,updatedAt:Date.now(),deliveryNote:note,requestedDeliveryAt:when,locationId});
   try{persist()}catch(e){if(old)states.set(key,old);else states.delete(key);throw e}
   onChange(); // schedules encrypted backup; cannot cause an extra invoice
   return read(token);
@@ -128,7 +136,7 @@ export function makeDraftStore(options={}){
    if(restoreStates.has(row.key))throw Error('INVALID_DRAFT_CACHE');
    if(Date.now()-row.updatedAt<expiresMs)restoreStates.set(row.key,{
     revision:row.revision,updatedAt:row.updatedAt,lines:row.lines,
-    deliveryNote:row.deliveryNote,requestedDeliveryAt:row.requestedDeliveryAt});
+    deliveryNote:row.deliveryNote,requestedDeliveryAt:row.requestedDeliveryAt,locationId:row.locationId});
   }
   const old=new Map(states);
   states.clear();

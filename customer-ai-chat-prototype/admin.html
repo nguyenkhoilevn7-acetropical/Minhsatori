@@ -37,6 +37,14 @@ button:disabled{opacity:.55}
 .suggestions button{background:#f2f7fd;border:1px solid #d9e5f4;color:#235381}
 .selected{color:#176d58}
 .customer{border-top:1px solid #e6ebf2}
+.new-location-item{border:1px solid #cedcf0;border-radius:13px;padding:12px 14px;margin:10px 0;background:#f7faff;min-width:0}
+.new-location-item legend{font-size:14px;color:#195a93;font-weight:750;padding:0 5px}
+.new-location-item button{margin-top:6px}
+.location-manager{margin-top:12px;padding:11px;border:1px solid #d6e4f2;border-radius:12px}
+.location-manager summary{font-weight:750;cursor:pointer;padding:6px}
+.location-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.location-form label{min-width:0}
+@media(max-width:640px){.location-form{grid-template-columns:minmax(0,1fr)}.new-location-item{padding:10px}}
 .link{background:#f3f8fd;color:#0b6a63}
 #result{color:#176d58}#error{color:#b6283b}
 .admin-tabs{position:sticky;top:0;z-index:4;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;white-space:nowrap;padding:8px 4px;background:rgba(246,248,252,.96);border-bottom:1px solid #e0e7f1;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
@@ -107,7 +115,11 @@ button:disabled{opacity:.55}
 <button type="button" id="newCustomer" class="secondary">+ Nhập khách mới</button>
 <label for="name">Tên khách</label><input id="name" required minlength="2" maxlength="120" placeholder="Khách Demo C">
 <label for="phone">Số điện thoại thử</label><input id="phone" required maxlength="30" type="tel" placeholder="000 000 0003">
-<label for="address">Địa chỉ giao hàng thử</label><input id="address" required maxlength="300" placeholder="789 Đường Mẫu, TP.HCM">
+<label for="address">Địa chỉ giao hàng chính</label><input id="address" required maxlength="300" placeholder="789 Đường Mẫu, TP.HCM">
+<div id="newCustomerLocations" aria-label="Các địa chỉ giao khác của khách mới"></div>
+<p><button id="addCustomerLocation" type="button" class="secondary">＋ Thêm địa chỉ giao khác</button>
+<button id="manageSelectedLocations" type="button" class="secondary" hidden>📍 Thêm địa chỉ cho khách đã có</button></p>
+<p class="hint">Một đại lý dùng một link riêng cho tối đa 20 địa chỉ giao, có người nhận và số điện thoại riêng.</p>
 <div class="row"><div><label for="discount">Chiết khấu (%)</label><input id="discount" required type="number" min="0" max="70" step="1" value="20"></div><div><label for="ship">Phí giao hàng (%)</label><input id="ship" required type="number" min="0" max="30" step="1" value="8"></div><div><label for="vatRate">Thuế VAT (%)</label><select id="vatRate"><option value="0">0% — chưa áp dụng</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div></div>
 <p class="hint">VAT thử nghiệm tính trên tiền hàng sau chiết khấu, không tính phí giao. Thuế suất thật phải kiểm tra theo từng mặt hàng trước khi sử dụng.</p>
 <p><button type="submit" id="createButton">+ Tạo link khách</button></p></form>
@@ -225,15 +237,38 @@ function chooseCustomer(c){
  $('discount').value=c.discount;$('ship').value=c.ship;$('vatRate').value=c.vatRate??0;
  $('customerSearch').value=c.name+' • '+c.phone;
  $('customerSuggestions').textContent='';
- $('selectedCustomer').textContent='✓ Đã chọn hồ sơ: '+c.name+'. Không tạo trùng khách. Quản lý link trong danh sách bên dưới.';
+ $('selectedCustomer').textContent='✓ Đã chọn hồ sơ: '+c.name+'. Không tạo trùng khách. Bấm "Thêm địa chỉ cho khách đã có" để quản lý.';
+ $('newCustomerLocations').replaceChildren();$('addCustomerLocation').disabled=true;$('manageSelectedLocations').hidden=false;
  $('createButton').disabled=true;$('createButton').textContent='Đã chọn khách có sẵn';
 }
 function clearCustomerSelection(){
  selectedCustomerId='';$('existingCustomer').value='';$('customerSearch').value='';
  $('create').reset();$('customerSuggestions').textContent='';$('selectedCustomer').textContent='';
+ $('newCustomerLocations').replaceChildren();$('addCustomerLocation').disabled=false;$('manageSelectedLocations').hidden=true;
  $('createButton').disabled=false;$('createButton').textContent='+ Tạo link khách';
 }
 $('newCustomer').onclick=clearCustomerSelection;
+$('addCustomerLocation').onclick=()=>{
+ if(selectedCustomerId)return;
+ const root=$('newCustomerLocations');
+ if(root.children.length>=19){$('error').textContent='Một khách có tối đa 20 địa chỉ (gồm địa chỉ chính).';return}
+ const fieldset=document.createElement('fieldset');fieldset.className='new-location-item';
+ const legend=document.createElement('legend');legend.textContent='📍 Điểm giao thêm '+(root.children.length+1);fieldset.append(legend);
+ for(const [key,title,placeholder] of [['label','Tên điểm giao','Chi nhánh Quận 7'],['recipient','Tên người nhận','Nguyễn Văn A'],['phone','Số điện thoại nhận hàng','0900000000'],['address','Địa chỉ chi tiết','Số nhà, tên đường, quận']]){
+  const label=document.createElement('label');label.textContent=title;
+  const input=document.createElement('input');input.required=true;input.dataset.locationField=key;input.placeholder=placeholder;
+  input.maxLength=key==='address'?300:key==='label'?80:key==='phone'?30:120;
+  if(key==='phone')input.type='tel';
+  label.append(input);fieldset.append(label);
+ }
+ const remove=document.createElement('button');remove.type='button';remove.className='secondary';remove.textContent='Xóa điểm giao này';
+ remove.onclick=()=>fieldset.remove();fieldset.append(remove);root.append(fieldset);
+};
+$('manageSelectedLocations').onclick=()=>{
+ const panel=[...document.querySelectorAll('.location-manager')].find(el=>el.dataset.customerId===selectedCustomerId);
+ if(!panel){$('error').textContent='Chưa tải được điểm giao. Hãy mở lại tab Khách hàng.';return}
+ panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'center'});
+};
 $('existingCustomer').onchange=()=>{const c=customerProfiles.find(x=>x.id===$('existingCustomer').value);if(c)chooseCustomer(c);else clearCustomerSelection()};
 $('customerSearch').addEventListener('input',e=>showMatches(e.target.value));
 for(const id of ['name','phone']){
@@ -395,7 +430,42 @@ async function load(){
   const revoke=document.createElement('button');revoke.className='danger';revoke.textContent='Thu hồi link';revoke.disabled=!c.enabled;
   rotate.onclick=async()=>{if(!confirm('Đổi link sẽ khiến link cũ không còn sử dụng được. Tiếp tục?'))return;rotate.disabled=true;try{const d=await request('/api/admin/customers/'+encodeURIComponent(c.id)+'/rotate','POST');showNewLink(d.customerLink);await load()}catch(e){$('error').textContent=e.message}finally{rotate.disabled=false}};
   revoke.onclick=async()=>{if(!confirm('Thu hồi link của '+c.name+'?'))return;revoke.disabled=true;try{await request('/api/admin/customers/'+encodeURIComponent(c.id)+'/revoke','POST');await load()}catch(e){$('error').textContent=e.message}finally{revoke.disabled=false}};
-  row.append(rotate,revoke);section.append(title,p,row);list.append(section);
+  row.append(rotate,revoke);section.append(title,p,row);
+  const panel=document.createElement('details');panel.className='location-manager';panel.dataset.customerId=c.id;
+  const summary=document.createElement('summary');summary.textContent='📍 Điểm giao ('+(c.locations?.length||1)+') • Quản lý địa chỉ';panel.append(summary);
+  const form=document.createElement('form');form.className='location-form';
+  const fields=[['label','Tên điểm giao','Chi nhánh Quận 1'],['recipient','Người nhận','Tên người nhận'],['phone','Số điện thoại','09...'],['address','Địa chỉ giao','Số nhà, đường...']];
+  for(const [key,title,placeholder] of fields){
+   const label=document.createElement('label');label.textContent=title;
+   const input=document.createElement('input');input.name=key;input.placeholder=placeholder;input.required=true;
+   input.maxLength=key==='address'?300:key==='phone'?30:key==='label'?80:120;
+   if(key==='phone')input.type='tel';label.append(input);form.append(label);
+  }
+  const submit=document.createElement('button');submit.type='submit';submit.textContent='+ Thêm điểm giao';
+  const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Nhập địa chỉ mới';cancel.className='secondary';
+  cancel.onclick=()=>{form.reset();delete form.dataset.editId;submit.textContent='+ Thêm điểm giao';};
+  form.append(submit,cancel);
+  form.onsubmit=async e=>{e.preventDefault();submit.disabled=true;
+   const body=Object.fromEntries(new FormData(form)),id=form.dataset.editId;
+   const url='/api/admin/customers/'+encodeURIComponent(c.id)+'/locations'+(id?'/'+encodeURIComponent(id):'');
+   try{await request(url,id?'PATCH':'POST',body);await load();$('error').textContent='Đã lưu điểm giao cho '+c.name+'. Link không đổi.'}
+   catch(err){$('error').textContent=err.message}
+   finally{submit.disabled=false}
+  };
+  for(const loc of c.locations||[]){
+   const card=document.createElement('div');card.className='customer';
+   const text=document.createElement('p');text.textContent=loc.label+' • '+loc.recipient+' • '+loc.phone+' • '+loc.address;
+   const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='Sửa';
+   edit.onclick=()=>{for(const key of ['label','recipient','phone','address'])form.elements[key].value=loc[key];form.dataset.editId=loc.id;submit.textContent='Lưu thay đổi';panel.open=true};
+   card.append(text,edit);
+   if(loc.id!=='primary'){
+    const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='Xóa';
+    remove.onclick=async()=>{if(!confirm('Xóa địa chỉ '+loc.label+'?'))return;try{await request('/api/admin/customers/'+encodeURIComponent(c.id)+'/locations/'+encodeURIComponent(loc.id),'DELETE');await load()}catch(err){$('error').textContent=err.message}};
+    card.append(remove);
+   }
+   panel.append(card);
+  }
+  panel.append(form);section.append(panel);list.append(section);
  }
 }
 async function loadRequests(){
@@ -487,7 +557,7 @@ $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
  const b=$('createButton');b.disabled=true;
  if(selectedCustomerId){$('error').textContent='Khách đã có. Không tạo thêm hồ sơ trùng.';b.disabled=true;return}
- const payload={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),discount:Number($('discount').value),ship:Number($('ship').value),vatRate:Number($('vatRate').value)};
+ const payload={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),discount:Number($('discount').value),ship:Number($('ship').value),vatRate:Number($('vatRate').value),locations:[...$('newCustomerLocations').querySelectorAll('fieldset')].map(field=>Object.fromEntries([...field.querySelectorAll('[data-location-field]')].map(input=>[input.dataset.locationField,input.value.trim()])))};
  try{const data=await request('/api/admin/customers','POST',payload);showNewLink(data.customerLink);clearCustomerSelection();await load()}catch(err){$('error').textContent=err.message}finally{b.disabled=false}};
 $('copyLink').onclick=async()=>{try{await navigator.clipboard.writeText(lastLink);$('result').textContent='Đã sao chép link để gửi cho khách thử.'}catch(e){$('result').textContent='Không tự sao chép được. Anh giữ lâu để chọn và sao chép link ở trên.'}};
 })();
