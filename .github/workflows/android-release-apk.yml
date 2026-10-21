@@ -80,7 +80,7 @@ jobs:
       - name: Upload signed APK for Samsung acceptance test
         uses: actions/upload-artifact@v4
         with:
-          name: MinhSatori-Samsung-Native-v0.3.2-SIGNED-RELEASE
+          name: MinhSatori-Samsung-Native-v0.3.3-SIGNED-RELEASE
           path: |
             android/app/build/outputs/apk/release/app-release.apk
             android/app/build/outputs/apk/release/release-verification.json
