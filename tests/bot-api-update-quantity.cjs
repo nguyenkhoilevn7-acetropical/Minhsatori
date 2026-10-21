@@ -1,6 +1,6 @@
 // Isolated production-like quantity and PDF source tests. No network, no live invoices.
 const assert=require('node:assert/strict'),crypto=require('node:crypto'),vm=require('node:vm'),fs=require('node:fs');
-const code=fs.readFileSync(__dirname+'/../api/BotApi.gs','utf8').replace("message:err.code?err.message:'Không xử lý được; kiểm tra nhật ký hệ thống'",'message:err.message'),secret='LOCAL_TEST_QUANTITY_SECRET_012345678901234';
+const code=fs.readFileSync(__dirname+'/../api/BotApi.gs','utf8'),secret='LOCAL_TEST_QUANTITY_SECRET_012345678901234';
 const original={id:222,invoiceNo:5930,apiRequestId:'fake-create-test',__syncId:'fake-sync-id',date:'21/10/2026',name:'Dung',phone:'0988388992',
  location:'SANDBOX sân cầu lông D36',status:'Chưa thanh toán',items:[{id:'line-500',code:'TP-00003',product:'Nước tinh khiết Satori 500ml',unit:'Thùng',
  qty:15,listPrice:98000,unitPrice:73500,discountAmount:24500,subtotal:1102500}],qty:15,goodsTotal:1102500,vat:'no',
@@ -13,7 +13,7 @@ const ctx={Date,JSON,Number,String,Array,Object,Math,Error,RegExp,Set,
  PropertiesService:{getScriptProperties:()=>({getProperty:k=>({STATE_FILE_ID:'fake-file',SATORI_BOT_CLIENTS_JSON:clients})[k]})},
  CacheService:{getScriptCache:()=>({get:()=>null,put:()=>{}})},
  LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
- Utilities:{computeHmacSha256Signature:(m,k)=>[...crypto.createHmac('sha256',k).update(m).digest()],getUuid:()=>String(++seq),formatDate:()=> '21/10/2026'},
+ Utilities:{Charset:{UTF_8:'UTF_8'},computeHmacSha256Signature:(m,k)=>[...crypto.createHmac('sha256',k).update(m).digest()],getUuid:()=>String(++seq),formatDate:()=> '21/10/2026'},
  DriveApp:{getFileById:()=>({makeCopy(){const snapshot=JSON.stringify(data);return {getId:()=>String(++backups),getBlob:()=>({getDataAsString:()=>snapshot})}},setContent(x){writes++;data=JSON.parse(x)}})}
 };
 vm.createContext(ctx);vm.runInContext(code,ctx);
@@ -24,7 +24,7 @@ function call(action,payload={}){
 }
 const payload={expectedRevision:7,requestId:'change-qty-001',id:222,invoiceNo:5930,expectedName:'Dung',expectedTotal:1102500,itemId:'line-500',qty:20,confirmed:true};
 const pdfBefore=call('orders.pdfSource',{id:222,invoiceNo:5930});
-if(!pdfBefore.ok)console.error('DIAGNOSTIC',pdfBefore.error);assert.equal(pdfBefore.ok,true);assert.equal(pdfBefore.data.order.deliveryNote,'Giao buổi chiều');
+assert.equal(pdfBefore.ok,true);assert.equal(pdfBefore.data.order.deliveryNote,'Giao buổi chiều');
 assert.equal(pdfBefore.data.order.items[0].qty,15);assert.equal(writes,0);
 assert.equal(call('orders.updateQty',{...payload,confirmed:false}).error.code,'CONFIRMATION_REQUIRED');
 assert.equal(call('orders.updateQty',{...payload,expectedTotal:1102000}).error.code,'ORDER_CHANGED');
