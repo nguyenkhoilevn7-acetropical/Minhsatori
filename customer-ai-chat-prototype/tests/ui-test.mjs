@@ -218,4 +218,13 @@ assert.ok(html.includes('function showAmendment(proposal)'),'customer sees expli
 assert.ok(html.includes("'/api/order-amend/confirm'"),'customer has server-verified amendment confirmation button');
 assert.ok(html.includes('q.vatAmount??0'),'quote displays server-calculated VAT');
 assert.ok(html.includes('o.vatAmount??0'),'invoice preview displays VAT');
+assert.ok(html.includes('>Tạo giỏ mới</button>')&&!html.includes('>Giỏ mới</button>'),
+ 'new-cart button explains its purpose clearly');
+assert.ok(html.includes('<strong class="quantity-strong">x')&&html.includes('.quote .quantity-strong{font-weight:850'),
+ 'quote uses bold x10 Thùng-like quantity labels');
+assert.ok(html.includes("quantityBadge.textContent='x'+item.qty")&&html.includes('.inline-cart-row .inline-qty-label'),
+ 'inline chat basket displays bold x-prefixed quantities');
+assert.ok(html.includes("cartUnit=cartUnits.length===1?cartUnits[0]:'đơn vị'"),
+ 'mixed-unit totals remain honest while same-unit baskets display x count');
+console.log('PASS quantity x-prefix and create-cart accessibility labels');
 console.log('PASS '+(adminChecks.length+3)+'/'+(adminChecks.length+3)+' admin search and VAT UI checks');
