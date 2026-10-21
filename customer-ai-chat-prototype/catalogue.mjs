@@ -12,7 +12,7 @@ const byCode=new Map(CATALOGUE.map(x=>[x.code,x]));
 const ALIASES=Object.freeze({S5L:'TP-00136',S500:'TP-00003',S350:'TP-00001'});
 export function productFor(code){return byCode.get(ALIASES[code]||code)||null}
 export function productList(){return CATALOGUE.map(x=>({code:x.code,name:x.name,brand:x.brand,unit:x.unit,spec:x.spec}))}
-export function fold(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\s+/g,' ').trim()}
+export function fold(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/đ/g,'d').replace(/\s+/g,' ').trim()}
 function has(n,pat){return new RegExp('(?:^|[^a-z0-9])(?:'+pat+')(?![a-z0-9])').test(n)}
 export function resolveProduct(text,profile={}){
  const n=fold(text);
