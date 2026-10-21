@@ -82,7 +82,7 @@ try{
  const before=await get(a);
  r=await say(a,'Cho anh 10 suối, 2 me, 3 trà sữa. Lưu ý giao sau 2h chiều',before.revision);
  check(r.body.needMoreDetails&&(await get(a)).revision===before.revision,
-  'unknown product cannot partially mutate existing basket');
+  'unknown product cannot partially mutate existing basket: '+JSON.stringify(r.body).slice(0,1000)+' rev='+before.revision);
  const clean=await get(other);
  r=await say(other,'Cho anh 10 suối, 2 me, 3 mãng cầu. Lưu ý giao sau 2h',clean.revision);
  check(r.body.clarificationType==='MIXED_WATER'&&(await get(other)).items.length===0,
