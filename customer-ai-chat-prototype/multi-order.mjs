@@ -111,6 +111,9 @@ export function parseColloquialBasket(message,profile={}){
  if(!chunks.length||chunks.length>6)return null;
  const grouped=chunks.length>1;
  if(!grouped&&!/\b(?:suoi|nuoc|5l)\b/.test(text))return null;
+ // Legacy single-item orders already handle quantities, saved favourite and
+ // pricing. Only the new multi-line flow or an unquantified 5L question belongs here.
+ if(!grouped&&/\b(?:\d{1,3}|mot|hai|ba|muoi)\s*(?:thung|thg|binh|loc|chai)\b/.test(text))return null;
  const items=[],missing=[];
  const intro=/^(?:(?:cho|lay|dat|mua|them|can|order)\s+(?:(?:toi|anh|chi|em|minh)\s+)?|(?:anh|chi|em|toi|minh)\s+(?:lay|dat|mua|cho|can)\s+|bo\s+sung\s+)*/u;
  const numeric=new RegExp('^('+COUNT+')(?:\\s+('+UNIT+'))?\\s+(.+)$','u');
