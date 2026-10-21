@@ -22,7 +22,7 @@ export function brandAnswer(msg){
 const ADDRESS=/\b(?:doi\s+(?:dia chi|noi giao|noi nhan)|thay\s+(?:dia chi|noi giao)|dia chi moi|chuyen dia chi|cap nhat dia chi|giao sang|giao ve dia chi khac|giao den dia chi khac|giao cho nguoi khac|ship sang|ship den dia chi|giao qua dia chi|doi noi giao|doi cho giao)\b/;
 const PHONE=/\b(?:doi|sua|thay|cap nhat|chinh sua|muon doi|cho doi)\s+(?:so dien thoai|sdt|so dt|so lien he|so nhan hang)\b|\b(?:sdt moi|so dien thoai moi|so lien he moi)\b/;
 export function contactIntent(msg){
- const s=fold(msg),address=ADDRESS.test(s)||/\b(?:giao|ship|gui)\s+(?:den|toi|ve|sang)\s+(?:dia chi|nha|so\s+\d{1,4}\s+\w+)/.test(s);
+ const s=fold(msg),address=ADDRESS.test(s)||/\b(?:giao(?: hang)?|ship|gui)\s+(?:den|toi|ve|sang)\s+(?:dia chi|nha|so\s+\d{1,4}\s+\w+|\d{1,4}\s+\w+)/.test(s);
  const phone=PHONE.test(s);
  if(!address&&!phone)return null;
  const matches=phone?(String(msg).match(/(?:\+?84|0)(?:[\s().-]*\d){9,10}(?!\d)/g)||[]):[];
