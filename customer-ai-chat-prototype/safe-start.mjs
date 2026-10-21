@@ -9,6 +9,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
 import {decryptArchive,makeDriveBackupWorker} from './drive-backup.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
@@ -17,13 +19,14 @@ const PORT=Number(process.env.PORT||8787);
 let maintenance=null;
 let terminating=false;
 let archivalStatus='not_started';
+let rescueInProgress=false,previewStarted=false,child=null;
 
 // Salvage the ORIGINAL authenticated archive into Google Drive, without
 // rewriting its timestamp, replacing the Render environment snapshot, or
 // starting a new empty transactional state. Fail closed if Drive is unavailable.
 async function preserveRecoveryArchive(){
  const encoded=String(process.env.GEMINI_SANDBOX_BOOTSTRAP_ENCRYPTED_B64||'');
- if(!encoded){archivalStatus='missing';return}
+ if(!encoded){archivalStatus='missing';return false}
  archivalStatus='verifying';
  try{
   if(encoded.length>6000000)throw Error('OVERSIZE');
@@ -34,7 +37,7 @@ async function preserveRecoveryArchive(){
   decipher.setAuthTag(Buffer.from(envelope.tag,'base64'));
   const archive=JSON.parse(Buffer.concat([decipher.update(Buffer.from(envelope.ciphertext,'base64')),decipher.final()]).toString('utf8'));
   const records=state.profiles.length+state.orders.length+state.changeRequests.length+state.drafts.length+state.phrases.length;
-  if(records===0){archivalStatus='empty_verified';return}
+  if(records===0){archivalStatus='empty_verified';return false}
   const worker=makeDriveBackupWorker(()=>archive);
   const receipt=await worker.syncNow();
   if(!receipt?.lastFileId)throw Error('NO_RECEIPT');
@@ -42,9 +45,11 @@ async function preserveRecoveryArchive(){
   if(JSON.stringify(state)!==JSON.stringify(restored))throw Error('REMOTE_MISMATCH');
   archivalStatus='verified';
   console.info('SANDBOX_RESCUE_ARCHIVE_VERIFIED','orders='+state.orders.length,'profiles='+state.profiles.length);
+  return true;
  }catch{
   archivalStatus='failed';
   console.warn('SANDBOX_RESCUE_ARCHIVE_NOT_VERIFIED');
+  return false;
  }
 }
 
@@ -89,24 +94,51 @@ function startMaintenance(){
  maintenance.listen(PORT,HOST,()=>console.warn('SANDBOX_MAINTENANCE_LISTENING - writes disabled'));
 }
 
-const child=spawn(process.execPath,[path.join(HERE,'server.mjs')],{
+// Only after the original authenticated TEST archive has been uploaded and
+// independently fetched/decrypted can we open a SEPARATE ephemeral demo.
+// Confirmations, admin writes, backup workers and profile mutations are disabled
+// in the new process. Never pass original customer profiles or orders to it.
+function startPreview(){
+ if(terminating||previewStarted)return;
+ previewStarted=true;
+ let dir;
+ try{dir=fs.mkdtempSync(path.join(os.tmpdir(),'minh-satori-gemini-chat-preview-'))}
+ catch{console.error('SANDBOX_PREVIEW_STORAGE_UNAVAILABLE');startMaintenance();return}
+ const env={...process.env,DEMO_DATA_DIR:dir,
+  GEMINI_SANDBOX_BOOTSTRAP_ENCRYPTED_B64:'',
+  GEMINI_SANDBOX_DRIVE_BRIDGE_URL:'',GEMINI_SANDBOX_DRIVE_HMAC_KEY:'',
+  GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY:'1'};
+ child=spawn(process.execPath,[path.join(HERE,'server.mjs')],{cwd:HERE,env,stdio:'inherit'});
+ child.on('error',()=>{console.error('SANDBOX_PREVIEW_PROCESS_FAILED');startMaintenance()});
+ child.on('exit',(code)=>{if(!terminating){console.error('SANDBOX_PREVIEW_STOPPED',Number.isInteger(code)?code:'signal');startMaintenance()}});
+ console.warn('SANDBOX_RESCUED_CHAT_PREVIEW_STARTING - orders and admin writes disabled');
+}
+async function attemptPreviewAfterVerifiedRescue(){
+ if(rescueInProgress||previewStarted||terminating)return;
+ rescueInProgress=true;
+ const verified=await preserveRecoveryArchive();
+ if(!verified||terminating)return; // fail closed if remote backup wasn't read back
+ if(maintenance){maintenance.close(()=>{maintenance=null;startPreview()})}
+ else startPreview();
+}
+child=spawn(process.execPath,[path.join(HERE,'server.mjs')],{
  cwd:HERE,env:process.env,stdio:'inherit'
 });
 child.on('error',()=>{
  console.error('SANDBOX_CHILD_START_FAILED');
  startMaintenance();
- void preserveRecoveryArchive();
+ void attemptPreviewAfterVerifiedRescue();
 });
 child.on('exit',(code)=>{
  if(terminating)return;
  console.error('SANDBOX_CHILD_UNAVAILABLE',Number.isInteger(code)?code:'signal');
  startMaintenance();
- void preserveRecoveryArchive();
+ void attemptPreviewAfterVerifiedRescue();
 });
 for(const signal of ['SIGTERM','SIGINT']){
  process.on(signal,()=>{
   terminating=true;
-  if(child.exitCode===null)child.kill(signal);
+  if(child&&child.exitCode===null)child.kill(signal);
   if(maintenance)maintenance.close();
   setTimeout(()=>process.exit(0),1000).unref();
  });
