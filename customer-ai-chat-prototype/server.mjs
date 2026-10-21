@@ -558,7 +558,7 @@ const server=http.createServer(async(req,res)=>{
       draft:draftStore.read(token),message:completed.water.brand?
        'Em giữ '+completed.water.qty+' thùng '+completed.water.brand+
         '. Anh/chị xác nhận dung tích 350ml, 500ml hay 1500ml?':
-       'Em vẫn giữ đủ các món và lưu ý. Nước suối hãng Satori hay Hikari ạ?'});
+       'Em mặc định nước suối Satori. Anh/chị muốn dung tích 350ml, 500ml hay 1500ml?'});
     }
     if(completed?.kind==='order'){
      if(completed.delivery?.clarification){
@@ -623,10 +623,9 @@ const server=http.createServer(async(req,res)=>{
   else if(pendingWater){
    const answer=waterClarificationAnswer(message);
    if(answer){
-    const water={...pendingWater.water,brand:answer.brand||pendingWater.water.brand,
+    const water={...pendingWater.water,brand:answer.brand||pendingWater.water.brand||'satori',
      size:answer.size||pendingWater.water.size};
-    const choices=water.brand&&!water.size?'350ml, 500ml hay 1500ml?':
-     !water.brand?'Satori hay Hikari?':'';
+    const choices=!water.size?'Satori dung tích 350ml, 500ml hay 1500ml?':'';
     if(!water.brand||!water.size){
      pendingWaterOrders.set(token,{...pendingWater,water});
      return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'WATER_BRAND_SIZE',
@@ -709,7 +708,7 @@ const server=http.createServer(async(req,res)=>{
        pendingItems:mixed.items,
        message:'Em nhận đủ: '+list.join(', ')+
         (mixed.noteText?'. Lưu ý: '+mixed.noteText:'')+'. '+
-        (mixed.water?'Anh/chị muốn nước suối Satori hay Hikari, dung tích bao nhiêu ml?':
+        (mixed.water?'Em mặc định Satori. Anh/chị muốn nước suối 350ml, 500ml hay 1500ml?':
          mixed.delivery.clarification)+' Em chưa cộng hàng nào từ yêu cầu này.'});
      }
      return applyChatBasket(res,token,c,mixed.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
@@ -750,15 +749,14 @@ const server=http.createServer(async(req,res)=>{
     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'WATER_BRAND_SIZE',
      draft,pendingItems:incomplete.pending.items,
      message:'Em đã hiểu '+water.qty+' thùng nước suối'+
-      (summary?', '+summary:'')+'. '+(water.size?'Anh/chị muốn hãng Satori hay Hikari?':
-      'Nước suối là Satori hay Hikari, dung tích bao nhiêu ml?')+
+      (summary?', '+summary:'')+'. Em mặc định Satori. Anh/chị muốn dung tích 350ml, 500ml hay 1500ml?'+
       ' Em đã giữ đủ các món trong yêu cầu nhưng chưa thêm vào giỏ hoặc tạo bill.'});
    }
    if(incomplete?.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,
     draft:draftStore.read(token),message:incomplete.message});
    if(ambiguousWater500InComposite(message))
     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'COMPOUND_BRAND_500',
-     draft:draftStore.read(token),message:'Trong đơn có nước suối 500ml chưa rõ Satori hay Hikari. Anh/chị vui lòng ghi rõ hãng và gửi lại nguyên danh sách sản phẩm. Em chưa thêm bất cứ sản phẩm nào để tránh sót đơn.'});
+     draft:draftStore.read(token),message:'Có món nước suối chưa xác định rõ quy cách. Mặc định là Satori; anh/chị vui lòng ghi rõ dung tích để tránh thiếu sản phẩm.'});
   }
   // Existing basket always wins, even when an older browser omits the new opt-in.
   const existing=draftStore.read(token);
@@ -946,7 +944,7 @@ const server=http.createServer(async(req,res)=>{
     const savedQty=Number.isSafeInteger(fields.qty)&&fields.qty>0?fields.qty:0;
     if(savedSku!=='unknown'||savedQty>0)sessions.set(token,{sku:savedSku,qty:savedQty,expiresAt:Date.now()+5*60_000});
    }
-   return reply(res,200,{ok:true,needMoreDetails:true,message:fields?.reason==='UNSUPPORTED'?'Sản phẩm này chưa có trong danh mục Minh Satori. Bạn vui lòng chọn trong Tất cả sản phẩm.':!sku||parsed.reason==='PRODUCT_AMBIGUOUS'?'Bạn muốn đặt sản phẩm nào? Có thể chọn Premium 450ml, Hikari, Satori hoặc xem Tất cả sản phẩm.':'Bạn muốn đặt bao nhiêu '+(productFor(sku)?.unit||'đơn vị')+'?'});
+   return reply(res,200,{ok:true,needMoreDetails:true,message:fields?.reason==='UNSUPPORTED'?'Sản phẩm này chưa có trong danh mục Minh Satori. Bạn vui lòng chọn trong Tất cả sản phẩm.':!sku||parsed.reason==='PRODUCT_AMBIGUOUS'?(/\bsuoi\b/.test(normalized)&&!/\bhikari\b/.test(normalized)?'Em mặc định nước suối Satori. Anh/chị muốn loại 350ml, 500ml hay 1500ml?':'Bạn muốn đặt sản phẩm nào? Có thể chọn Premium 450ml, Hikari, Satori hoặc xem Tất cả sản phẩm.'):'Bạn muốn đặt bao nhiêu '+(productFor(sku)?.unit||'đơn vị')+'?'});
   }
   if(unified)return applyChatBasket(res,token,c,[{action:'add',code:sku,qty}],revision,parsed.source||'rules',delivery);
   const quote=makeQuote(token,c,sku,qty);if(!quote)return fail(res,400,'INVALID_QUANTITY','Chỉ chấp nhận tối đa 500 thùng một đơn');
