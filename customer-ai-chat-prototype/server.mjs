@@ -422,14 +422,24 @@ const server=http.createServer(async(req,res)=>{
    return reply(res,200,{ok:true,needsHuman:true,changeRequestId:request.id,
    contactPolicy:'ADDRESS_REQUIRES_STAFF',draft:draftStore.read(token),message:ADDRESS_REPLY});}
   if(ci?.phone){
-   if(!ci.phoneNumber)return reply(res,200,{ok:true,needMoreDetails:true,
-    contactPolicy:'PHONE_NEEDS_NUMBER',message:'Anh/chị vui lòng gửi số điện thoại mới gồm 10 chữ số. Em chưa thay đổi số đang lưu.'});
+   if(!ci.phoneNumber){pendingPhones.set(token,{needsNumber:true,expiresAt:Date.now()+600_000});
+    return reply(res,200,{ok:true,needMoreDetails:true,
+    contactPolicy:'PHONE_NEEDS_NUMBER',message:'Anh/chị vui lòng gửi số điện thoại mới gồm 10 chữ số. Em chưa thay đổi số đang lưu.'});}
    pendingPhones.set(token,{phone:ci.phoneNumber,expiresAt:Date.now()+600_000});
    return reply(res,200,{ok:true,needConfirmation:true,verificationRequired:true,
     contactPolicy:'PHONE_AWAITING_CONFIRMATION',message:'Đã nhận số mới '+maskPhone(ci.phoneNumber)+
     '. Vui lòng trả lời "Xác nhận đổi SĐT" để gửi yêu cầu xác minh. Chưa có thông tin nào được thay đổi.'});
   }
   const pp=pendingPhones.get(token);
+  if(pp?.needsNumber&&pp.expiresAt>Date.now()){
+   const digits=String(message).replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0');
+   if(/^0\d{9}$/.test(digits)){
+    pendingPhones.set(token,{phone:digits,expiresAt:Date.now()+600_000});
+    return reply(res,200,{ok:true,needConfirmation:true,verificationRequired:true,
+     contactPolicy:'PHONE_AWAITING_CONFIRMATION',
+     message:'Đã nhận số mới '+maskPhone(digits)+'. Hãy trả lời "Xác nhận đổi SĐT" để gửi yêu cầu xác minh.'});
+   }
+  }
   if(pp&&pp.expiresAt>Date.now()&&phoneCancel(message)){
    pendingPhones.delete(token);return reply(res,200,{ok:true,contactPolicy:'PHONE_CANCELLED',
     message:'Đã hủy yêu cầu đổi số, thông tin giữ nguyên.'});
