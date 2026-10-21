@@ -24,7 +24,7 @@ function need(value,code,message){if(!value)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function props(){return PropertiesService.getScriptProperties();}
 var ACTION_SCOPES={
- 'mobile.snapshot':'orders:read','mobile.trash':'orders:delete',
+ 'mobile.snapshot':'orders:read','mobile.revision':'orders:read','mobile.trash':'orders:delete',
  'system.status':'orders:read','orders.list':'orders:read',
  'customers.search':'customers:read','debt.summary':'debt:read',
  'orders.create':'orders:write','orders.update':'orders:write',
@@ -94,13 +94,18 @@ function handle(e){
        'INVALID_ACTION','Lệnh không hỗ trợ');
   need(verified.owner||verified.scopes.includes(ACTION_SCOPES[action]),
        'FORBIDDEN','Nhân viên chưa được cấp quyền thực hiện thao tác này');
-  if(action==='mobile.snapshot'||action==='mobile.trash'){
+  if(action==='mobile.snapshot'||action==='mobile.revision'||action==='mobile.trash'){
     var lock=LockService.getScriptLock();lock.waitLock(30000);
     try{
       var state=readState_();
       need(state&&Number.isInteger(state.revision)&&state.values&&
        typeof state.values.satori_orders_v15==='string','INVALID_STATE',
        'Dữ liệu hóa đơn chưa sẵn sàng');
+      if(action==='mobile.revision'){
+        // Lightweight revision check, never exposes invoice/customer rows or secrets.
+        return json({ok:true,action:action,revision:state.revision,
+          data:{revision:state.revision,updatedAt:state.updatedAt}});
+      }
       if(action==='mobile.snapshot'){
         var allowedActions=Object.keys(ACTION_SCOPES).filter(function(a){
           return verified.owner||verified.scopes.includes(ACTION_SCOPES[a]);
