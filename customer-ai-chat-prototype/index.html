@@ -653,6 +653,30 @@ async function restoreDraft(){
  if(!response.ok||!result.ok)throw Error(result.message||'Không tải được giỏ hàng.');
  renderSharedDraft(result.draft);
 }
+// Web browser and Samsung WebView observe one server basket without manual refresh.
+// Revision checks prevent unnecessary rerendering and avoid invalidating a user's quote.
+let remoteDraftPolling=false;
+async function refreshSharedDraftFromOtherDevice(){
+ if(!serverMode||remoteDraftPolling||sending||draftBusy||document.visibilityState==='hidden')return;
+ remoteDraftPolling=true;
+ try{
+  const previous=draftRevision;
+  const res=await fetch('/api/draft?token='+encodeURIComponent(serverToken),{cache:'no-store'});
+  const data=await res.json();
+  if(res.ok&&data.ok&&Number.isSafeInteger(data.draft?.revision)&&data.draft.revision!==previous){
+   renderSharedDraft(data.draft);
+   deactivateQuotes();
+   msg('Giỏ hàng đã được đồng bộ từ thiết bị khác. Hãy kiểm tra lại báo giá trước khi xác nhận.','note');
+  }
+ }catch(e){/* A transient offline poll does not mutate or clear the shared basket. */}
+ finally{remoteDraftPolling=false}
+}
+if(serverMode){
+ setInterval(refreshSharedDraftFromOtherDevice,5000);
+ document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible')refreshSharedDraftFromOtherDevice();
+ });
+}
 let draftQueue=Promise.resolve();
 function orderedDraftJob(work){
  const task=draftQueue.then(work,work);
@@ -987,7 +1011,7 @@ $('composeCart').addEventListener('click',()=>{
 });
 
 
-if(serverMode){const id=serverToken==='demo-b'?'B':'A';fetch('/api/session?token='+encodeURIComponent(serverToken)).then(r=>r.json()).then(d=>{if(!d.ok)throw new Error('Link khách không hợp lệ');Object.assign(FIXTURES[id],d.profile);$('panel').style.display='none';$('chatSubtitle').textContent='Nhận diện đơn nhanh • quy tắc + Gemini Free Tier';$('messages').innerHTML='';current=id;selectProfile(id);msg(d.aiConfigured?'AI Gemini đã cấu hình. Bộ xử lý quy tắc luôn sẵn sàng.':'Đặt nước miễn phí đang hoạt động bằng bộ nhận diện quy tắc. Gemini AI sẽ bổ sung khi được kết nối.','note');document.querySelector('.footnote').textContent='Khách và đơn đều là dữ liệu thử. Đơn lưu riêng trên sandbox; dữ liệu có thể mất khi sandbox khởi động lại. Không gửi đến Minh Satori production.';return restoreDraft().then(loadPersonalizedSuggestions)}).catch(e=>msg(e.message,'note'))}else{current=firstActiveProfile();selectProfile(current);}
+if(serverMode){const id=serverToken==='demo-b'?'B':'A';fetch('/api/session?token='+encodeURIComponent(serverToken)).then(r=>r.json()).then(d=>{if(!d.ok)throw new Error('Link khách không hợp lệ');Object.assign(FIXTURES[id],d.profile);$('panel').style.display='none';$('chatSubtitle').textContent='Nhận diện đơn nhanh • quy tắc + Gemini Free Tier';$('messages').innerHTML='';current=id;selectProfile(id);msg(d.aiConfigured?'AI Gemini đã cấu hình. Bộ xử lý quy tắc luôn sẵn sàng.':'Đặt nước miễn phí đang hoạt động bằng bộ nhận diện quy tắc. Gemini AI sẽ bổ sung khi được kết nối.','note');document.querySelector('.footnote').textContent='Khách và đơn đều là dữ liệu thử. Giỏ hàng dùng chung máy chủ và được sao lưu mã hóa; đây chưa phải dữ liệu Minh Satori production.';return restoreDraft().then(loadPersonalizedSuggestions)}).catch(e=>msg(e.message,'note'))}else{current=firstActiveProfile();selectProfile(current);}
 })();
 </script>
 </body></html>
