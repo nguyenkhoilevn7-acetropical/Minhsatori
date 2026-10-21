@@ -17,7 +17,7 @@ import {customerSuggestions} from './customer-suggestions.mjs';
 import {businessReply} from './business-reply.mjs';
 import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificationBasket,waterClarificationAnswer,parseColloquialBasket,colloquialQuestion,completeColloquialFollowup} from './multi-order.mjs';
 import {parseCustomerMessage,waterAnswer,finishWater,deliveryAnswer} from './order-with-notes.mjs';
-import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
+import {CATALOGUE,productFor,productList,resolveProduct,fold} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
