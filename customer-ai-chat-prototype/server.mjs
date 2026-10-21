@@ -386,6 +386,8 @@ const server=http.createServer(async(req,res)=>{
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
   if(!rateLimit(req,token))return fail(res,429,'RATE_LIMIT','Bạn đã gửi quá nhiều tin nhắn, vui lòng thử lại sau');
   const message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
+  const unified=b?.unifiedDraft===true,revision=b?.expectedRevision;
+  if(unified&&revision!==draftStore.read(token).revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi, hãy tải lại trước khi gửi.');
   // Once the customer confirmed a TEST bill, a later delivery message is an
   // amendment proposal. It NEVER mutates invoice, price or recipient on parse.
   const pending=pendingAmends.get(c.id);
@@ -451,7 +453,12 @@ const server=http.createServer(async(req,res)=>{
   }
   const normalized=message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
   // Treat "thêm 3 thùng nữa" as an edit request, not a new independent order.
-  if(/\bthem\b.*\b(nua|vao don)\b/.test(normalized))return reply(res,200,{ok:true,needMoreDetails:true,message:'Bạn muốn tăng số lượng của báo giá đang xem hay tạo đơn mới? Vui lòng nói rõ loại nước và tổng số thùng trước khi xác nhận.'});
+  if(unified){
+   const edit=contextualDraftEdit(message,c,draftStore.read(token));
+   if(edit?.clarification)return reply(res,200,{ok:true,needMoreDetails:true,draft:draftStore.read(token),message:edit.clarification});
+   if(edit?.changes)return applyChatBasket(res,token,c,edit.changes,revision,'basket-followup');
+  }else if(/\bthem\b.*\b(nua|vao don)\b/.test(normalized))
+   return reply(res,200,{ok:true,needMoreDetails:true,message:'Vui lòng ghi rõ loại nước và số lượng cần bổ sung.'});
   // A short answer to a clarification is merged with the *previous sandbox question*.
   // It never changes another customer's profile, discount, or price.
   const previous=sessions.get(token);
