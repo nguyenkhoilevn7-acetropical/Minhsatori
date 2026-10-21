@@ -2,7 +2,7 @@
  * No pricing, product, identity or payment fields can be mutated by this module.
  */
 import {extractDeliveryIntent} from './delivery-intent.mjs';
-export const normAmend=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\s+/g,' ').trim();
+export const normAmend=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/đ/g,'d').replace(/\s+/g,' ').trim();
 const vnWords={mot:1,hai:2,ba:3,bon:4,tu:4,nam:5,sau:6,bay:7,tam:8,chin:9,muoi:10};
 function numericVietnameseHours(s){
  return String(s||'').replace(/\b(một|hai|ba|bốn|tư|năm|sáu|bảy|tám|chín|mười)\s+(giờ|tiếng)\b/giu,(all,word,unit)=> {
