@@ -167,7 +167,12 @@ internal class AiSandboxInvoiceUi(private val activity: AppCompatActivity) {
             }
         } else {
             detail(card, "Sản phẩm", readable(order.optString("product")))
-            detail(card, "Số lượng", order.optInt("qty").toString())
+            detail(card, "Quy cách / số lượng",
+                readable(order.optString("unit")) + " × " + order.optInt("qty"))
+            detail(card, "Giá niêm yết", money(amount(order, "listPrice")))
+            detail(card, "Chiết khấu", order.optString("discount", "0") + "%")
+            detail(card, "Đơn giá", money(amount(order, "unitPrice")))
+            detail(card, "Thành tiền", money(amount(order, "subtotal")))
         }
 
         section(card, "THANH TOÁN • CHỈ THỬ NGHIỆM")
