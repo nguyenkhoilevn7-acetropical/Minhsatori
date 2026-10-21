@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Reuse the exact image printed on Minh Satori invoices.
-     Center the source artwork inside the adaptive-icon safe area so
-     Samsung/Android icon masks do not crop the brand mark. -->
+<!-- Original invoice artwork, reduced within the circular adaptive-icon safe zone.
+     The photo spans the circular visible area (no square tile or white border).
+     The letterforms now fit entirely inside Samsung's launcher mask. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:left="21dp"
-        android:top="21dp"
-        android:right="21dp"
-        android:bottom="21dp"
-        android:drawable="@drawable/satori_invoice_logo" />
+    <item android:left="16dp" android:top="16dp"
+          android:right="16dp" android:bottom="16dp"
+          android:drawable="@drawable/satori_invoice_logo" />
 </layer-list>
