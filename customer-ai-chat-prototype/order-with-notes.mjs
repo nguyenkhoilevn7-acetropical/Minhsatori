@@ -46,7 +46,7 @@ export function parseCustomerMessage(message,profile={}){
   const generic=name.match(/^(?:(?:nuoc\s+)?suoi)(?:\s+(satori|hikari))?(?:\s+(350|500|1500)(?:\s*ml)?)?$/u);
   if(generic){
    if(unit&&unit!=='thung')return {kind:'invalid',message:'Nước suối đang chọn đơn vị khác thùng. Xin ghi rõ đúng quy cách, em chưa cộng hàng.'};
-   const brand=generic[1]||null,size=generic[2]?Number(generic[2]):null;
+   const brand=generic[1]||'satori',size=generic[2]?Number(generic[2]):null;
    if(!brand||!size){
     if(water)return {kind:'invalid',message:'Có hai loại nước suối chưa rõ. Vui lòng nói rõ từng loại để tránh nhầm.'};
     water={qty:count,brand,size,unit:'thung'};
@@ -72,13 +72,13 @@ export function parseCustomerMessage(message,profile={}){
 export function waterAnswer(message){
  const s=fold(message).replace(/[.!?]+$/,'').trim();
  if(!/^(?:(?:nuoc\s+)?suoi\s+)?(?:(?:satori|hikari)(?:\s+(?:350|500|1500)(?:\s*ml)?)?|(?:350|500|1500)(?:\s*ml)?)$/.test(s))return null;
- const brand=s.match(/\b(satori|hikari)\b/)?.[1]||null;
+ const brand=s.match(/\b(satori|hikari)\b/)?.[1]||'satori';
  const size=Number(s.match(/\b(350|500|1500)(?:\s*ml)?\b/)?.[1])||null;
  return {brand,size};
 }
 export function finishWater(pending,answer){
  if(!pending?.water||!answer)return null;
- const water={...pending.water,brand:answer.brand||pending.water.brand,size:answer.size||pending.water.size};
+ const water={...pending.water,brand:answer.brand||pending.water.brand||'satori',size:answer.size||pending.water.size};
  if(!water.brand||!water.size)return {...pending,kind:'clarify',water};
  const found=resolveProduct(water.brand+' '+water.size+'ml'),product=productFor(found.sku);
  if(found.ambiguous||!product||fold(product.unit)!=='thung'||!new RegExp(water.size+'\\s*ml','i').test(product.name))
