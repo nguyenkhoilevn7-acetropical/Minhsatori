@@ -81,6 +81,35 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
   if(p==='/api/admin/change-requests'&&req.method==='GET'){
    api(res,200,{ok:true,sandbox:true,pendingCount:pendingCount(),requests:changeRequests.slice(0,100)});return true;
   }
+  // Owner/staff verification gate: customer chat can submit a phone request but
+  // only an authenticated administrator, after independent verification, may apply it.
+  const phoneApproval=/^\/api\/admin\/change-requests\/([0-9a-f-]{36})\/approve-phone$/.exec(p);
+  if(phoneApproval&&req.method==='POST'){
+   const entry=changeRequests.find(x=>x.id===phoneApproval[1]&&x.status==='pending');
+   const match=entry?.message.match(/^PHONE_CHANGE_VERIFICATION_REQUIRED:(0\d{9})$/);
+   if(!match){no(res,404,'PHONE_REQUEST_NOT_FOUND','Không tìm thấy yêu cầu số điện thoại cần xác minh.');return true}
+   const approval=await bodyJSON(req);
+   if(approval?.verifiedExternally!==true||approval?.confirmation!=='APPROVE_VERIFIED_PHONE_CHANGE'){
+    no(res,400,'PHONE_VERIFICATION_REQUIRED','Người quản trị phải xác minh khách bên ngoài AI và xác nhận rõ trước khi đổi số.');return true;
+   }
+   const customer=profiles.find(x=>x.id===entry.profileId&&x.enabled===true);
+   if(!customer){no(res,409,'CUSTOMER_NOT_ELIGIBLE','Không thể tự thay đổi số của khách thử hoặc link không còn hợp lệ.');return true}
+   if(customer.phone!==entry.approvedPhone){no(res,409,'PHONE_CHANGED_SINCE_REQUEST','Số đã thay đổi sau khi gửi yêu cầu. Vui lòng xác minh lại.');return true}
+   const prior={phone:customer.phone,updatedAt:customer.updatedAt,status:entry.status,reviewedAt:entry.reviewedAt};
+   try{
+    customer.phone=match[1];customer.updatedAt=now();
+    save();
+    entry.status='reviewed';entry.reviewedAt=now();saveRequests();
+   }catch{
+    customer.phone=prior.phone;customer.updatedAt=prior.updatedAt;
+    entry.status=prior.status;entry.reviewedAt=prior.reviewedAt;
+    try{save();saveRequests()}catch{}
+    no(res,503,'PHONE_SAVE_FAILED','Không xác nhận được việc cập nhật số; vui lòng kiểm tra trạng thái và đối chiếu lại.');return true;
+   }
+   api(res,200,{ok:true,sandbox:true,phoneUpdated:true,customerId:customer.id,
+    message:'Số điện thoại khách thử đã được quản trị xác minh và cập nhật. Không thay đổi địa chỉ hoặc hóa đơn đã tạo.'});
+   return true;
+  }
   const requestAction=/^\/api\/admin\/change-requests\/([0-9a-f-]{36})\/review$/.exec(p);
   if(requestAction&&req.method==='POST'){
    const entry=changeRequests.find(x=>x.id===requestAction[1]);
