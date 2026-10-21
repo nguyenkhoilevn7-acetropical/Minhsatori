@@ -32,6 +32,14 @@ internal object AiSandboxContract {
             uri.path.orEmpty().isEmpty()
     }
 
+    /** The embedded owner/customer browser never follows non-sandbox origins. */
+    fun validPortalNavigation(raw: String?): Boolean {
+        val uri = runCatching { URI(raw ?: "") }.getOrNull() ?: return false
+        return uri.scheme == "https" &&
+            uri.host == "minh-satori-customer-ai-gemini.onrender.com" &&
+            uri.port == -1 && uri.userInfo == null
+    }
+
     fun validateCart(lines: List<Line>) {
         require(lines.isNotEmpty() && lines.size <= MAX_LINES) { "Chọn từ 1 đến 6 loại sản phẩm." }
         require(lines.map { it.code }.distinct().size == lines.size) { "Sản phẩm bị trùng." }
