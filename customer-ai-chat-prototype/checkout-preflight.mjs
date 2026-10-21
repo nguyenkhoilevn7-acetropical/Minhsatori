@@ -15,6 +15,8 @@ export function preflightCheckout({revision,requestId,customer,source,lines,
  if(typeof requestId!=='string'||!/^[a-zA-Z0-9_-]{8,100}$/.test(requestId))fail('INVALID_REQUEST_ID');
  if(!customer||customer.verifiedByServer!==true||!customer.profileId||
     !customer.sourceReference||customer.sourceReference.id==null||
+    typeof customer.approvedMemoryId!=='string'||
+    !/^[a-zA-Z0-9_-]{4,100}$/.test(customer.approvedMemoryId)||
     !int(customer.sourceReference.invoiceNo,1,1e9)||
     typeof customer.name!=='string'||customer.name.trim().length<2||
     typeof customer.location!=='string'||customer.location.trim().length<5||
@@ -50,9 +52,9 @@ export function preflightCheckout({revision,requestId,customer,source,lines,
  const total=goodsTotal+shippingAmount+vatAmount;
  if(!int(total,0,100000000000)||total!==expectedTotal)fail('QUOTE_STALE_OR_MISMATCH');
  return Object.freeze({
-  action:'orders.create',
+  action:'orders.create.ai',
   payload:{
-   requestId,expectedRevision:revision,
+   requestId,expectedRevision:revision,customerMemoryId:customer.approvedMemoryId,
    confirmedNewCustomer:false,
    customerRef:{id:customer.sourceReference.id,invoiceNo:customer.sourceReference.invoiceNo},
    order:{name:customer.name,phone:customer.phone,location:customer.location,
