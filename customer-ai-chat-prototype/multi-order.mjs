@@ -232,6 +232,189 @@ export function parseMultiOrder(message,profile={}){
  return {items:merged,source:'catalogue-colloquial'};
 }
 
+
+export function colloquialQuestion(missing){
+ if(missing.kind==='MISSING_QUANTITY')return 'Em nhận ra '+missing.label+
+  '. Anh/chị muốn bao nhiêu '+productFor(missing.sku).unit.toLowerCase()+'? Các món khác em đã giữ lại, chưa cập nhật giỏ.';
+ const needed=[];
+ if(!missing.qty)needed.push('số lượng');
+ if(!missing.unit)needed.push('thùng hay bình');
+ if(!missing.spout)needed.push('có vòi hay không vòi');
+ return 'Em hiểu nước suối Satori 5 lít. Anh/chị cho em biết '+needed.join(', ')+
+  ' (ví dụ: "2 thùng có vòi"). Em giữ nguyên các món đã hiểu; chưa cộng vào giỏ.';
+}
+export function completeColloquialFollowup(pending,message){
+ if(!pending||!Array.isArray(pending.items)||!pending.missing)return null;
+ const normalized=fold(message).replace(/\b5\s*(?:lit|liter)\b/g,'5l');
+ const missing=pending.missing;
+ let updated={...missing};
+ if(missing.kind==='FIVE_LITRE'){
+  const quantity=new RegExp('^('+COUNT+')(?:\\s+(thung|binh))?(?:\\s+(?:satori\\s+)?5\\s*l)?(?:\\s+((?:co|khong|ko|k)\\s+voi))?
+ const n=fold(message).replace(/[.!?]+$/,'').trim();
+ if(!/^(?:satori|hikari|350|500|1500|ml|\s)+$/.test(n))return null;
+ const brands=[...n.matchAll(/\b(satori|hikari)\b/g)].map(m=>m[1]);
+ const sizes=[...n.matchAll(/\b(350|500|1500)(?:\s*ml)?\b/g)].map(m=>Number(m[1]));
+ if(new Set(brands).size>1||new Set(sizes).size>1||(!brands.length&&!sizes.length))return null;
+ return {brand:brands[0]||null,size:sizes[0]||null};
+}
+
+export function looksCompoundOrder(message){
+ const n=fold(message);
+ const obvious=/\b(?:va|voi|cung|them)\b/.test(n)||/[,;\n]/.test(n);
+ if(!obvious)return false;
+ // Mixed natural ordering like "10 ổi hồng, me thì 3 thùng" must not
+ // degrade into an apparently complete one-product invoice.
+ return /(?:\b(?:oi hong|mang cau|man cau|me|satori|hikari|juice|nuoc|premium)\b.{0,25}\b(?:\d{1,3}|mot|hai|ba|muoi)\s*(?:thung|thg|binh|loc|chai)\b)/.test(n)||
+ /(?:\b\d{1,3}\s*(?:thung|thg|binh|loc|chai)\b.*\b\d{1,3}\s*(?:thung|thg|binh|loc|chai)\b)/.test(n);
+}
+export function parseMultiOrder(message,profile={}){
+ const text=fold(message);
+ const matches=[...text.matchAll(ANCHORS)].map(m=>({
+  start:m.index+m[1].length,end:m.index+m[0].length,quantity:countOf(m[2]),
+  unit:m[3]||null,rawQuantity:m[2]
+ })).filter(m=>!(
+  /^(?:350|500|1500)$/.test(m.rawQuantity)&&!m.unit&&
+  /\b(?:nuoc|suoi|satori|hikari)\s*$/.test(text.slice(Math.max(0,m.start-25),m.start))
+ ));
+ // Catch ALL explicit quantity+unit phrases, including unrecognized products.
+ // Otherwise "10 Satori 500ml, 3 trà sữa" could silently create only a partial order.
+ const broad=[...text.matchAll(/(?:^|[^a-z0-9-])(\d{1,3}|muoi|mot|hai|ba|bon|nam)\s*(?:thung|thg|binh|loc|chai|lon|ly)\s+(?=[a-z])/g)];
+ if(matches.length<2){
+  if(matches.length&&broad.length>matches.length)
+   return needsMore('món chưa có trong danh mục / chưa rõ quy cách',[]);
+  return null;
+ }
+ if(matches.length>6)return {needMoreDetails:true,reason:'TOO_MANY_ITEMS',
+  message:'Một đơn thử hỗ trợ tối đa 6 dòng sản phẩm. Anh/chị vui lòng chia thành các đơn nhỏ hơn.'};
+ const items=[];
+ for(let i=0;i<matches.length;i++){
+  const m=matches[i],raw=text.slice(m.end,matches[i+1]?.start??text.length);
+  const description=cleanDescription(withoutDelivery(raw));
+  if(!Number.isSafeInteger(m.quantity)||m.quantity<1||m.quantity>500)return {
+   needMoreDetails:true,reason:'INVALID_QUANTITY',
+   message:'Số lượng của "'+description.slice(0,60)+'" cần từ 1 đến 500.'};
+  // Don't accidentally drop an unsupported line placed between two recognized lines.
+  if(/(?:[,;]|\bva\b|\bvoi\b)\s*(?:\d{1,3}|mot|hai|ba|bon|nam|muoi)\s+(?:thung|chai|binh|loc|lon|ly)?\s*[a-z]/.test(description))
+   return needsMore(description,items);
+  const product=resolution(description,profile);
+  if(!product)return needsMore(description||'món chưa rõ',items);
+  const given=m.unit==='thg'?'thung':m.unit;
+  if(given&&given!==fold(product.unit))return needsMore(description+' ('+given+')',items);
+  // An omitted unit is safe only when the SKU is locally unambiguous.
+  items.push({sku:product.code,qty:m.quantity});
+ }
+ const merged=[];
+ for(const it of items){
+  const old=merged.find(x=>x.sku===it.sku);
+  if(old)old.qty+=it.qty;else merged.push({...it});
+ }
+ if(merged.length>6||merged.some(x=>x.qty>500)||merged.reduce((n,x)=>n+x.qty,0)>500)
+  return {needMoreDetails:true,reason:'CART_LIMIT',
+   message:'Tổng số lượng tối đa là 500 đơn vị, tối đa 6 loại trong một đơn TEST.'};
+ return {items:merged,source:'rules-complete-message'};
+}
+,'u');
+  const standalone=/^(?:(thung|binh)\s+)?((?:co|khong|ko|k)\s+voi)$/u;
+  const match=normalized.match(quantity);
+  const noQuantity=normalized.match(standalone);
+  if(!match&&!noQuantity)return null;
+  const qty=match?countOf(match[1]):null;
+  if(qty!==null&&(!Number.isSafeInteger(qty)||qty<1||qty>500))return null;
+  const unit=match?.[2]||noQuantity?.[1]||null;
+  const spoutText=match?.[3]||noQuantity?.[2]||'';
+  const spout=spoutText?/^(?:khong|ko|k)\b/.test(spoutText)?'without':'with':null;
+  updated={...updated,qty:qty||updated.qty,unit:unit||updated.unit,spout:spout||updated.spout};
+ }else if(missing.kind==='MISSING_QUANTITY'){
+  const m=normalized.match(new RegExp('^('+COUNT+')(?:\\s+('+UNIT+'))?
+ const n=fold(message).replace(/[.!?]+$/,'').trim();
+ if(!/^(?:satori|hikari|350|500|1500|ml|\s)+$/.test(n))return null;
+ const brands=[...n.matchAll(/\b(satori|hikari)\b/g)].map(m=>m[1]);
+ const sizes=[...n.matchAll(/\b(350|500|1500)(?:\s*ml)?\b/g)].map(m=>Number(m[1]));
+ if(new Set(brands).size>1||new Set(sizes).size>1||(!brands.length&&!sizes.length))return null;
+ return {brand:brands[0]||null,size:sizes[0]||null};
+}
+
+export function looksCompoundOrder(message){
+ const n=fold(message);
+ const obvious=/\b(?:va|voi|cung|them)\b/.test(n)||/[,;\n]/.test(n);
+ if(!obvious)return false;
+ // Mixed natural ordering like "10 ổi hồng, me thì 3 thùng" must not
+ // degrade into an apparently complete one-product invoice.
+ return /(?:\b(?:oi hong|mang cau|man cau|me|satori|hikari|juice|nuoc|premium)\b.{0,25}\b(?:\d{1,3}|mot|hai|ba|muoi)\s*(?:thung|thg|binh|loc|chai)\b)/.test(n)||
+ /(?:\b\d{1,3}\s*(?:thung|thg|binh|loc|chai)\b.*\b\d{1,3}\s*(?:thung|thg|binh|loc|chai)\b)/.test(n);
+}
+export function parseMultiOrder(message,profile={}){
+ const text=fold(message);
+ const matches=[...text.matchAll(ANCHORS)].map(m=>({
+  start:m.index+m[1].length,end:m.index+m[0].length,quantity:countOf(m[2]),
+  unit:m[3]||null,rawQuantity:m[2]
+ })).filter(m=>!(
+  /^(?:350|500|1500)$/.test(m.rawQuantity)&&!m.unit&&
+  /\b(?:nuoc|suoi|satori|hikari)\s*$/.test(text.slice(Math.max(0,m.start-25),m.start))
+ ));
+ // Catch ALL explicit quantity+unit phrases, including unrecognized products.
+ // Otherwise "10 Satori 500ml, 3 trà sữa" could silently create only a partial order.
+ const broad=[...text.matchAll(/(?:^|[^a-z0-9-])(\d{1,3}|muoi|mot|hai|ba|bon|nam)\s*(?:thung|thg|binh|loc|chai|lon|ly)\s+(?=[a-z])/g)];
+ if(matches.length<2){
+  if(matches.length&&broad.length>matches.length)
+   return needsMore('món chưa có trong danh mục / chưa rõ quy cách',[]);
+  return null;
+ }
+ if(matches.length>6)return {needMoreDetails:true,reason:'TOO_MANY_ITEMS',
+  message:'Một đơn thử hỗ trợ tối đa 6 dòng sản phẩm. Anh/chị vui lòng chia thành các đơn nhỏ hơn.'};
+ const items=[];
+ for(let i=0;i<matches.length;i++){
+  const m=matches[i],raw=text.slice(m.end,matches[i+1]?.start??text.length);
+  const description=cleanDescription(withoutDelivery(raw));
+  if(!Number.isSafeInteger(m.quantity)||m.quantity<1||m.quantity>500)return {
+   needMoreDetails:true,reason:'INVALID_QUANTITY',
+   message:'Số lượng của "'+description.slice(0,60)+'" cần từ 1 đến 500.'};
+  // Don't accidentally drop an unsupported line placed between two recognized lines.
+  if(/(?:[,;]|\bva\b|\bvoi\b)\s*(?:\d{1,3}|mot|hai|ba|bon|nam|muoi)\s+(?:thung|chai|binh|loc|lon|ly)?\s*[a-z]/.test(description))
+   return needsMore(description,items);
+  const product=resolution(description,profile);
+  if(!product)return needsMore(description||'món chưa rõ',items);
+  const given=m.unit==='thg'?'thung':m.unit;
+  if(given&&given!==fold(product.unit))return needsMore(description+' ('+given+')',items);
+  // An omitted unit is safe only when the SKU is locally unambiguous.
+  items.push({sku:product.code,qty:m.quantity});
+ }
+ const merged=[];
+ for(const it of items){
+  const old=merged.find(x=>x.sku===it.sku);
+  if(old)old.qty+=it.qty;else merged.push({...it});
+ }
+ if(merged.length>6||merged.some(x=>x.qty>500)||merged.reduce((n,x)=>n+x.qty,0)>500)
+  return {needMoreDetails:true,reason:'CART_LIMIT',
+   message:'Tổng số lượng tối đa là 500 đơn vị, tối đa 6 loại trong một đơn TEST.'};
+ return {items:merged,source:'rules-complete-message'};
+}
+,'u'));
+  if(!m)return null;
+  const qty=countOf(m[1]),unit=m[2]==='thg'?'thung':m[2];
+  if(!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
+  const product=productFor(missing.sku);
+  if(!product||(unit&&unit!==fold(product.unit)))return null;
+  updated={...updated,qty};
+ }else return null;
+ if(!updated.qty||(updated.kind==='FIVE_LITRE'&&(!updated.unit||!updated.spout)))
+  return {pending:{...pending,missing:updated},needMoreDetails:true,message:colloquialQuestion(updated)};
+ let sku=updated.sku;
+ if(updated.kind==='FIVE_LITRE'){
+  sku=updated.spout==='with'?(updated.unit==='binh'?'TP-00142':'TP-00136'):
+   (updated.unit==='binh'?'TP-00143':'TP-00135');
+ }
+ const grouped=[];
+ for(const row of [...pending.items,{sku,qty:updated.qty}]){
+  if(!productFor(row.sku))return null;
+  const exists=grouped.find(x=>x.sku===row.sku);
+  if(exists)exists.qty+=row.qty;else grouped.push({...row});
+ }
+ if(grouped.length>6||grouped.some(x=>x.qty>500)||grouped.reduce((n,x)=>n+x.qty,0)>500)
+  return {needMoreDetails:true,message:'Giỏ không vượt quá 6 mặt hàng và 500 đơn vị.'};
+ return {items:grouped,source:'clarified-colloquial'};
+}
+
 export function waterClarificationAnswer(message){
  const n=fold(message).replace(/[.!?]+$/,'').trim();
  if(!/^(?:satori|hikari|350|500|1500|ml|\s)+$/.test(n))return null;
