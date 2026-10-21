@@ -39,7 +39,7 @@ function resolution(text,profile){
  return productFor(match.sku)||null;
 }
 function needsMore(description,resolved){
- return {needMoreDetails:true,reason:'ITEM_CLARIFICATION',...(resolved.length?{items:resolved.map(r=>({...r}))}:{}),
+ return {needMoreDetails:true,reason:'ITEM_CLARIFICATION',
  message:'Em đã nhận '+resolved.length+' loại rõ quy cách. Riêng "'+description.slice(0,70)+
  '" em chưa xác định chính xác sản phẩm hoặc đơn vị. Anh/chị nói rõ tên, dung tích và số lượng món này nhé; em chưa tạo bill.'};
 }
