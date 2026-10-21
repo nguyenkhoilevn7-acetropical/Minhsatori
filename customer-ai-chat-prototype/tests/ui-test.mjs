@@ -98,6 +98,10 @@ assert.ok(html.includes("pendingCartItems=cartSnapshot()"),
  'combined quote includes every selected SKU');
 assert.ok(html.includes("--satori-visible-height"),
  'mobile keyboard visible-viewport adjustment present');
+assert.ok(!html.includes("renderCatalogue();$('catalogSearch').focus();"),
+ 'opening catalogue does not force Samsung keyboard visible');
+assert.ok(!html.includes("$('productSelection').classList.add('active');\n $('addProductMessage').disabled=false;\n $('cartFeedback').textContent='';\n $('selectedQuantity').focus();"),
+ 'choosing product does not force Samsung keyboard visible');
 console.log('PASS shared-cart product-chip and mobile-keyboard checks');
 console.log('PASS 16/16 multi-select basket and distinct bubble-color UI checks');
 console.log('PASS 9/9 customer logo, timeline and export UI tests');
