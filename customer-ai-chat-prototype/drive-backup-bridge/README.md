@@ -22,7 +22,16 @@ admin-only `/api/admin/drive-backup/status`, `/now` and `/restore`.
 Restore requires an empty sandbox, explicit `RESTORE_DRIVE_TEST_ONLY` confirmation
 and successful decrypt + backup checksum/format validation.
 
-## One-time owner-authorized deployment (NOT YET COMPLETED)
+## Installation checkpoint as of 2026-10-21 (SANDBOX ONLY)
+
+- Standalone Google Apps Script was created by the owner and a Web App URL was provided: `https://script.google.com/macros/s/AKfycbzB-NNlJ7Zeq9t9WuWCWnoEUK79oRc50Zv4JaiZNFaMS_o-TOTapGtEialZlrOb6fT55A/exec`. Its live GET response, HMAC properties, and POST behavior remain **unverified from the current connector**.
+- The owner saved two Script Properties in the Apps Script UI. **Do not read, recreate or disclose the existing HMAC secret.**
+- A real standalone Sandbox JSON export from 2026-10-21T03:25:03.807Z was found in authorized Project files: format v1, 0 profiles, 0 change requests and 0 TEST orders; SHA-256 matches checksum `9ee9cfd0428593925eaec43677e210bd09faa085d729a62e6bb87b1a812d5975`. It is NOT proof that the currently running sandbox is still empty.
+- Google Drive folder was verified EMPTY again. Render auto-deploy is OFF and latest live deployment is `b5298283c8b26a9d4782adcaea4ddb35d7a3c43e`, without the newer backup code. Render secret setup was begun in Work but `Save only` and all three variables are **not verified**.
+- Staging Admin now has owner-only **Kiểm tra Drive** and **Sao lưu lên Drive** buttons, not yet live on Render. GitHub integration tests have passed.
+- **No Render restart/deploy until current state comparison, correct secrets, and recovery plan are verified.**
+
+## One-time owner-authorized setup checklist (partly completed)
 
 1. Create a NEW Google Apps Script standalone project exclusively for Gemini Sandbox.
    Paste reviewed `drive-backup-bridge/Code.gs`. **Never change** production Apps Script.
