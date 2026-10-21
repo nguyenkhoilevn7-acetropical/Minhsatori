@@ -16,7 +16,7 @@ import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
 import {customerSuggestions} from './customer-suggestions.mjs';
 import {businessReply} from './business-reply.mjs';
 import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificationBasket,waterClarificationAnswer,parseColloquialBasket,colloquialQuestion,completeColloquialFollowup} from './multi-order.mjs';
-import {parseCustomerMessage,waterAnswer,finishWater,deliveryAnswer} from './order-with-notes.mjs';
+import {parseCustomerMessage,splitOrderAndNote,waterAnswer,finishWater,deliveryAnswer} from './order-with-notes.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct,fold} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
@@ -625,7 +625,7 @@ const server=http.createServer(async(req,res)=>{
     const candidate=parseCustomerMessage(message,c);
     // Existing product-only clarification remains backward-compatible;
     // intercept only mixed product+delivery instructions or note-only chats.
-    const mixed=candidate?.noteText?candidate:null;
+    const mixed=candidate?.noteText||(candidate?.kind==='invalid'&&splitOrderAndNote(message).noteText)?candidate:null;
     if(mixed?.kind==='invalid')return reply(res,200,{ok:true,needMoreDetails:true,
      draft:draftStore.read(token),message:mixed.message});
     if(mixed?.kind==='note-only'){
