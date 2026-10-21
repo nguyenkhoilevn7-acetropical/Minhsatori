@@ -76,18 +76,29 @@ class NativeMainActivity : AppCompatActivity() {
     // Owner opt-in: Google read-only access replaces repeated manual Drive file selection.
     // Poll only while the app is foregrounded, and only after successful authorization.
     private val syncHandler = Handler(Looper.getMainLooper())
-    private val syncIntervalMs = 120_000L
+    private val syncIntervalMs = 20_000L
+    private val driveSyncIntervalMs = 120_000L
     private var lastOnlineReadElapsedMs = 0L
+    private var lastRevisionCheckElapsedMs = 0L
+    private var isCheckingRevision = false
     private var foreground = false
     private val syncTick = object : Runnable {
         override fun run() {
             if (!foreground) return
-            if (!isLoading && accessToken != null &&
-                lastOnlineReadElapsedMs > 0L &&
-                SystemClock.elapsedRealtime() - lastOnlineReadElapsedMs >= syncIntervalMs) {
+            if (!isLoading && accessToken != null) {
                 when (dataSource) {
-                    "Minh Satori API" -> refreshFromMobileApi()
-                    "Google Drive API" -> refreshFromDrive()
+                    "Minh Satori API" -> {
+                        if (snapshot != null &&
+                            SystemClock.elapsedRealtime() - lastRevisionCheckElapsedMs >= syncIntervalMs) {
+                            checkRevisionFromMobileApi()
+                        }
+                    }
+                    "Google Drive API" -> {
+                        if (lastOnlineReadElapsedMs > 0L &&
+                            SystemClock.elapsedRealtime() - lastOnlineReadElapsedMs >= driveSyncIntervalMs) {
+                            refreshFromDrive()
+                        }
+                    }
                 }
             }
             syncHandler.postDelayed(this, syncIntervalMs)
@@ -211,14 +222,22 @@ class NativeMainActivity : AppCompatActivity() {
         foreground = true
         syncHandler.removeCallbacks(syncTick)
         syncHandler.postDelayed(syncTick, syncIntervalMs)
-        // If returning from another app after a long time, refresh the authenticated
-        // source rather than displaying a read-only file as live synced data.
-        if (!isLoading && accessToken != null &&
-            lastOnlineReadElapsedMs > 0L &&
-            SystemClock.elapsedRealtime() - lastOnlineReadElapsedMs >= syncIntervalMs) {
+        // Resume checks the canonical server revision; only a changed revision
+        // triggers a full snapshot download. Legacy Drive read remains slower.
+        if (!isLoading && accessToken != null) {
             when (dataSource) {
-                "Minh Satori API" -> refreshFromMobileApi()
-                "Google Drive API" -> refreshFromDrive()
+                "Minh Satori API" -> {
+                    if (snapshot != null &&
+                        SystemClock.elapsedRealtime() - lastRevisionCheckElapsedMs >= syncIntervalMs) {
+                        checkRevisionFromMobileApi()
+                    }
+                }
+                "Google Drive API" -> {
+                    if (lastOnlineReadElapsedMs > 0L &&
+                        SystemClock.elapsedRealtime() - lastOnlineReadElapsedMs >= driveSyncIntervalMs) {
+                        refreshFromDrive()
+                    }
+                }
             }
         }
     }
@@ -1408,6 +1427,47 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    /**
+     * Avoid downloading personal invoice rows when the authoritative revision
+     * has not changed. Read only while foregrounded; never write from polling.
+     */
+    private fun checkRevisionFromMobileApi() {
+        if (!foreground || isLoading || isCheckingRevision ||
+            dataSource != "Minh Satori API") return
+        val endpoint = apiEndpoint ?: return
+        val token = accessToken ?: return
+        val localRevision = snapshot?.revision ?: return
+        isCheckingRevision = true
+        lastRevisionCheckElapsedMs = SystemClock.elapsedRealtime()
+        Thread {
+            val result = runCatching { MobileApiClient.revision(endpoint, token) }
+            runOnUiThread {
+                isCheckingRevision = false
+                if (!foreground || isFinishing || isDestroyed ||
+                    accessToken != token || apiEndpoint != endpoint ||
+                    dataSource != "Minh Satori API") return@runOnUiThread
+                result.fold(
+                    onSuccess = { remote ->
+                        val current = snapshot?.revision ?: return@fold
+                        if (remote > current && !isLoading) {
+                            refreshFromMobileApi()
+                        } else if (remote < current) {
+                            // Never overwrite a newer snapshot from a stale server.
+                            allowedActions = emptySet()
+                            statusMessage = "Phiên bản máy chủ cũ hơn dữ liệu đã đọc. Đã khóa ghi để tránh mất hóa đơn."
+                            render()
+                        }
+                    },
+                    onFailure = {
+                        // Keep last verified view, but do not claim it is live.
+                        statusMessage = "Tạm mất đồng bộ phiên bản. Dữ liệu đang xem có thể đã cũ."
+                        render()
+                    }
+                )
+            }
+        }.start()
+    }
+
     private fun refreshFromMobileApi() {
         val endpoint = apiEndpoint ?: run {
             statusMessage = "Chưa cấu hình Mobile API."
@@ -1437,6 +1497,7 @@ class NativeMainActivity : AppCompatActivity() {
                         dataSource = "Minh Satori API"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
+                        lastRevisionCheckElapsedMs = lastOnlineReadElapsedMs
                         statusMessage = "Đã kết nối quyền lên đơn."
                         if (pending != null && pending.belongsTo(endpoint, it.actorId)) {
                             if (pending.confirmedIn(it.snapshot, trash)) finishPendingWrite(pending)
