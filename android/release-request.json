@@ -7,12 +7,14 @@
   "scope": "signed GitHub APK artifact only; no production apps-script or invoice writes",
   "requestedOn": "2026-10-21",
   "safety": "Sandbox Gemini Demo A only, existing OAuth signing certificate maintained",
-  "requestedFromCommit": "2ef769fc2030e7711052b73ef6f67d8ad5e1c7d0",
+  "requestedFromCommit": "3a66169973e3e37862f187b6981261898f8d2d31",
   "fixes": [
     "clear chat composer as soon as valid message is sent",
     "preview actual PDF pages inside app with PdfRenderer, no downloads folder",
     "direct ACTION_SEND from app cache to Zalo/Messenger/other share targets",
     "save file only after explicit Tải PDF and Android document picker",
     "remove inset-square effect from adaptive Satori launcher icon"
-  ]
+  ],
+  "preflight": "Release version regex corrected after Python identity test failure; next signed build must pass 17 Python tests and Android tests",
+  "requestSequence": 2
 }
