@@ -31,6 +31,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
 const PORT=Number(process.env.PORT||8787);
 const MODEL='gemini-3.5-flash-lite';
+// Emergency preview is isolated/ephemeral: Gemini chat and draft only.
+const EMERGENCY_PREVIEW=process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1';
 const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'minh-satori-customer-chat-SANDBOX'));
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
@@ -202,14 +204,24 @@ function vnOrderMonth(iso){
  return Number.isFinite(millis)?new Date(millis+7*60*60*1000).toISOString().slice(0,7):'';
 }
 async function generateQrPng(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_qr.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,200)||'QR_ERROR')));proc.stdin.end(JSON.stringify(o))})}
-function sendHtml(res){const html=fs.readFileSync(path.join(HERE,'index.html'));res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"});res.end(html)}
+const PREVIEW_BANNER='<aside role="status" style="position:relative;z-index:9999;padding:13px 18px;background:#25395b;color:white;font:bold 14px system-ui,sans-serif;line-height:1.5;text-align:center">🧪 Chế độ thử Gemini tạm thời — chỉ chat và báo giá; KHÔNG xác nhận đơn, KHÔNG lưu dữ liệu lâu dài. Bản sao cũ được giữ riêng.</aside>';
+function previewHtml(name){
+ const html=fs.readFileSync(path.join(HERE,name),'utf8');
+ return EMERGENCY_PREVIEW?html.replace('<body>','<body>'+PREVIEW_BANNER):html;
+}
+function sendHtml(res){const html=previewHtml('index.html');res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"});res.end(html)}
 const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
+ if(EMERGENCY_PREVIEW&&req.method!=='GET'&&!(req.method==='POST'&&
+   (p==='/api/message'||p==='/api/draft'))){
+  return fail(res,503,'PREVIEW_ONLY_NO_WRITES',
+   'Đang dùng chế độ thử Gemini. Chưa cho tạo hóa đơn hoặc thay đổi hồ sơ khách.');
+ }
  if(req.method==='GET'&&p==='/assets/logo-satori.jpg'){const logo=path.join(HERE,'assets','logo-satori.jpg');if(!fs.existsSync(logo))return fail(res,404,'NO_LOGO','Không tìm thấy logo');res.writeHead(200,{'content-type':'image/jpeg','cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});return fs.createReadStream(logo).pipe(res)}
- if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,draftPersistence:true,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
+ if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,ready:true,demoOnly:EMERGENCY_PREVIEW,orderSubmissionEnabled:!EMERGENCY_PREVIEW,durableStorage:false,draftPersistence:!EMERGENCY_PREVIEW,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
  if(req.method==='GET'&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(p))return sendHtml(res);
- if(req.method==='GET'&&p==='/admin'){const html=fs.readFileSync(path.join(HERE,'admin.html'));res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
+ if(req.method==='GET'&&(p==='/admin'||p==='/admin/')){const html=previewHtml('admin.html');res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
  // Compare current server code with newest GitHub commit; never deploy from here.
  if(req.method==='GET'&&p==='/api/admin/version-status'){
   if(!customerLinks.adminAuthorized(req))
@@ -405,7 +417,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method==='GET'&&p==='/api/session'){
   const token=url.searchParams.get('token')||'';const c=getProfile(token);if(!c)return fail(res,404,'LINK_INVALID','Liên kết không hợp lệ');
-  return reply(res,200,{ok:true,sandbox:true,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship,vatRate:c.vatRate??0}})
+  return reply(res,200,{ok:true,sandbox:true,demoOnly:EMERGENCY_PREVIEW,orderSubmissionEnabled:!EMERGENCY_PREVIEW,provider:'Gemini + rules',aiConfigured:geminiConfigured(),rulesReady:true,profile:{id:c.id,name:c.name,phone:c.phone,address:c.address,discount:c.discount,ship:c.ship,vatRate:c.vatRate??0}})
  }
  if(req.method==='POST'&&p==='/api/order-amend/confirm'){
   const b=await bodyJSON(req),c=getProfile(b?.token);
