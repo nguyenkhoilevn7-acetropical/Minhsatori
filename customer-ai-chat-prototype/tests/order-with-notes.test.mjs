@@ -58,7 +58,7 @@ try{
  check((await get(a)).items.length===0,'no partial SKU before choosing water');
  r=await say(a,'Suối 500ml',0);
  check(r.status===200&&r.body.clarificationType==='MIXED_WATER'&&/Satori hay Hikari/i.test(r.body.message),
-  '500ml needs brand, cannot auto pick Satori or 5L');
+  '500ml needs brand, cannot auto pick Satori or 5L: '+JSON.stringify(r.body).slice(0,1000));
  r=await say(a,'Suối satori 500ml',0);
  check(r.status===200&&r.body.draft?.items?.length===3&&r.body.quote,
   'explicit water SKU commits three items atomically: '+JSON.stringify(r.body).slice(0,850));
