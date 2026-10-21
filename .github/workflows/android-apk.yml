@@ -54,12 +54,24 @@ jobs:
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee /tmp/satori-apk-badging.txt
-          grep -F "package: name='vn.minhsatori.app' versionCode='9' versionName='0.3.2'" /tmp/satori-apk-badging.txt
+          python3 - <<'PY'
+          import pathlib, re
+          gradle = pathlib.Path("android/app/build.gradle.kts").read_text(encoding="utf-8")
+          badging = pathlib.Path("/tmp/satori-apk-badging.txt").read_text(encoding="utf-8")
+          code = re.search(r"\\bversionCode\\s*=\\s*(\\d+)", gradle)
+          version = re.search(r'\\bversionName\\s*=\\s*"([^"]+)"', gradle)
+          package = re.search(r"^package: name='([^']+)' versionCode='(\\d+)' versionName='([^']+)'", badging, re.M)
+          assert code and version and package, "Cannot resolve Gradle/APK version metadata"
+          assert package.group(1) == "vn.minhsatori.app", "Wrong Android package"
+          assert package.group(2) == code.group(1), "APK versionCode does not match Gradle"
+          assert package.group(3) == version.group(1), "APK versionName does not match Gradle"
+          print("PASS signed identity-neutral debug APK metadata:", package.groups())
+          PY
           sha256sum "$APK"
       - name: Upload debug APK (trial only)
         uses: actions/upload-artifact@v4
         with:
-          name: MinhSatori-Samsung-Native-v0.3.2-debug
+          name: MinhSatori-Samsung-Native-v0.3.3-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
@@ -101,7 +113,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: MinhSatori-v0.3.2-outbox-emulator-tests
+          name: MinhSatori-v0.3.3-outbox-emulator-tests
           path: |
             android/app/build/reports/androidTests/
             android/app/build/outputs/androidTest-results/
