@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {CATALOGUE} from '../catalogue.mjs';
 import {auditDriveCatalogue} from '../catalogue-drive-audit.mjs';
 
@@ -41,4 +44,15 @@ throws(()=>auditDriveCatalogue(status,src([{...original[0],listPrice:-10}]),CATA
 throws(()=>auditDriveCatalogue(status,src([{...original[0],listPrice:'98000'}]),CATALOGUE),/INVALID_SOURCE_PRODUCTS/,'string price rejected');
 throws(()=>auditDriveCatalogue(status,src([{...original[0],spec:''}]),CATALOGUE),/INVALID_SOURCE_PRODUCTS/,'missing SKU specification rejected');
 eq(Object.keys(normal).every(k=>!/(phone|customerId|address|secret|email)/i.test(k)),true,'no private data fields');
+const here=path.dirname(fileURLToPath(import.meta.url));
+const server=fs.readFileSync(path.join(here,'../server.mjs'),'utf8');
+const admin=fs.readFileSync(path.join(here,'../admin.html'),'utf8');
+eq(server.includes("p==='/api/admin/source-check'")&&server.includes('customerLinks.adminAuthorized(req)'),
+ true,'catalogue audit route stays admin-authorized');
+eq(server.includes('auditDriveCatalogue(status,catalogue,CATALOGUE)'),
+ true,'admin check reads canonical HMAC responses through strict validator');
+eq(server.includes('catalogueLiveSync:false,customerSync:false,checkoutEnabled:false'),
+ true,'catalogue comparison cannot activate orders or customer sync');
+eq(admin.includes('id="sourcePriceDifferences"')&&admin.includes('li.textContent='),
+ true,'admin displays precise product differences safely without innerHTML');
 console.log('PASS '+count+'/'+count+' read-only Drive catalogue parity & fail-closed checks (no network)');
