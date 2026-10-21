@@ -4,6 +4,7 @@ const source=fs.readFileSync(path.join(__dirname,'../api/BotApi.gs'),'utf8'),sec
 assert.equal(fs.readFileSync(path.join(__dirname,'../api/AccountingCore.gs'),'utf8').trimEnd(),fs.readFileSync(path.join(__dirname,'../accounting-core.js'),'utf8').trimEnd(),'API and website must use identical accounting rules');
 let data={revision:1,updatedAt:'2026-10-18T00:00:00Z',values:{satori_orders_v15:'[]',satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}},backs=0,writes=0,sequence=0;
 let testFileState={environment:'MINHSATORI_TEST_ONLY_V1',revision:0,orders:[]},testFileWrites=0;
+let scriptLockDepth=0,scriptLockAcquisitions=0;
 const cache=new Map(),props={STATE_FILE_ID:'test-file',SATORI_BOT_CLIENTS_JSON:JSON.stringify({'bot-01':{secret,enabled:true,scopes:['orders:read','orders:write','orders:delete','customers:read','debt:read','payments:write']}})};
 const context={
  Date,JSON,Number,String,Object,Array,Math,Error,RegExp,
@@ -11,9 +12,12 @@ const context={
  ContentService:{MimeType:{JSON:'json'},createTextOutput(t){return {text:t,setMimeType(){return this}}}},
  PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]})},
  CacheService:{getScriptCache:()=>({get:k=>cache.get(k),put:(k,v)=>cache.set(k,v)})},
- LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
+ LockService:{getScriptLock:()=>({
+  waitLock(){assert.equal(scriptLockDepth,0,'Lock must not be re-entered during mock write');scriptLockDepth++;scriptLockAcquisitions++},
+  releaseLock(){assert.equal(scriptLockDepth,1,'ScriptLock must be held before release');scriptLockDepth--}
+ })},
  Utilities:{Charset:{UTF_8:'UTF_8'},computeHmacSha256Signature:(m,k)=>[...crypto.createHmac('sha256',k).update(m).digest()],getUuid:()=>String(++sequence),formatDate:()=> '19/10/2026'},
- DriveApp:{getFileById:(id)=>id==='mock-test-ledger'?({getBlob:()=>({getDataAsString:()=>JSON.stringify(testFileState)}),setContent(s){testFileState=JSON.parse(s);testFileWrites++}}):({makeCopy:()=>{const original=JSON.stringify(data);return {getId:()=>String(++backs),getBlob:()=>({getDataAsString:()=>original})}},setContent(s){data=JSON.parse(s);writes++}})}
+ DriveApp:{getFileById:(id)=>id==='mock-test-ledger'?({getBlob:()=>({getDataAsString:()=>JSON.stringify(testFileState)}),setContent(s){assert.equal(scriptLockDepth,1,'TEST ledger write must hold ScriptLock');testFileState=JSON.parse(s);testFileWrites++}}):({makeCopy:()=>{const original=JSON.stringify(data);return {getId:()=>String(++backs),getBlob:()=>({getDataAsString:()=>original})}},setContent(s){data=JSON.parse(s);writes++}})}
 };
 vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../accounting-core.js'),'utf8'),context);vm.runInContext(source.replaceAll("message:err.code?err.message:'Không xử lý được; kiểm tra nhật ký hệ thống'","message:String(err&&err.stack||err)"),context);
 function call(action,payload={},override={}){
@@ -67,13 +71,17 @@ assert.equal(testCreated.ok,true,'TEST data written to separate file only');
 assert.equal(testCreated.data.order.invoiceNo,'TEST-000001','TEST namespace cannot consume real invoice numbers');
 assert.equal(testCreated.data.financial,false,'TEST explicitly non-financial');
 assert.equal(testFileWrites,1,'TEST file written exactly once');
+assert.ok(scriptLockAcquisitions>0,'TEST write must acquire a ScriptLock');
+assert.equal(scriptLockDepth,0,'TEST create must release ScriptLock');
 assert.equal(testFileState.revision,1,'Only TEST revision increments');
 assert.equal(call('orders.create.test',testPayload).data.duplicate,true,
  'TEST retries deduplicated without another write');
 assert.equal(testFileWrites,1,'Duplicate TEST request cannot write twice');
+assert.equal(scriptLockDepth,0,'Duplicate TEST retry must release ScriptLock');
 assert.equal(call('orders.create.test',{...testPayload,order:{...fakeOrder,total:30000}}).error.code,
  'REQUEST_ID_CONFLICT','Reused TEST requestId with different order fails');
 assert.equal(call('orders.list.test').data.total,1,'TEST list uses separate ledger only');
+assert.equal(scriptLockDepth,0,'TEST list must release ScriptLock');
 assert.equal(data.revision,isolationStart.revision,'Real revision unchanged after isolated TEST create');
 assert.equal(data.values.satori_orders_v15,isolationStart.orders,'Real orders unchanged after TEST create');
 assert.equal(writes,isolationStart.writes,'No production file write from isolated TEST create');
