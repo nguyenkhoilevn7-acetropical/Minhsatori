@@ -5,7 +5,7 @@ const catalog=[
  {code:'TP-00056',name:'Satori Juice mãng cầu',unit:'Thùng',listPrice:333333},
  {code:'TP-00081',name:'Hikari 500ml',unit:'Thùng',listPrice:110000}
 ];
-const customer={verifiedByServer:true,profileId:'internal-verified-customer',
+const customer={verifiedByServer:true,profileId:'internal-verified-customer',approvedMemoryId:'fake_customer_01',
  sourceReference:{id:1275,invoiceNo:222},
  name:'Khách TEST',phone:'0900000000',location:'123 Đường TEST, HCM',
  approvedDiscountPercent:20};
@@ -15,7 +15,8 @@ const base={revision:105,requestId:'test_idempotency_0001',customer,source:catal
  lines,expectedTotal:goods+vat+15000,shippingAmount:15000,vatRate:8,confirmedByCustomer:true};
 let n=0;const ok=(v,label)=>{assert.ok(v,label);n++};
 const valid=preflightCheckout(base);
-ok(valid.action==='orders.create','verified create action');
+ok(valid.action==='orders.create.ai','AI-specific write action, not unrestricted orders.create');
+ok(valid.payload.customerMemoryId==='fake_customer_01','AI priced checkout binds approved memory ID');
 ok(valid.payload.expectedRevision===105&&valid.payload.requestId===base.requestId,'exact source version and stable request ID');
 ok(valid.payload.customerRef.id===1275&&valid.payload.customerRef.invoiceNo===222,'customer linked to specific source invoice/delivery point');
 ok(valid.payload.order.items.length===2&&valid.payload.order.items[1].code==='TP-00056','multiple SKU lines remain in one payload');
@@ -27,6 +28,7 @@ for(const [change,err] of [
  [{revision:0},'SOURCE_REVISION_REQUIRED'],
  [{requestId:'bad'},'INVALID_REQUEST_ID'],
  [{customer:{...customer,verifiedByServer:false}},'CUSTOMER_NOT_VERIFIED'],
+ [{customer:{...customer,approvedMemoryId:''}},'CUSTOMER_NOT_VERIFIED'],
  [{customer:{...customer,sourceReference:{id:1275}}},'CUSTOMER_NOT_VERIFIED'],
  [{customer:{...customer,approvedDiscountPercent:71}},'CUSTOMER_DISCOUNT_UNVERIFIED'],
  [{vatRate:7},'VAT_POLICY_REQUIRED'],
