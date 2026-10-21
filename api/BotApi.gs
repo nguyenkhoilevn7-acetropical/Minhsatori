@@ -10,6 +10,7 @@ var ORDER_KEY='satori_orders_v15';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
  'debt.summary':'debt:read','customers.search':'customers:read','orders.create':'orders:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
+ 'orders.updateQty':'orders:write','orders.pdfSource':'orders:read',
  'payments.markCustomerPaid':'payments:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
@@ -187,6 +188,51 @@ function create(s,all,p){
   goodsTotal:goods,shippingAmount:ship,vatAmount:vat,vat:vat?'yes':'no',total:total,status:'Chưa thanh toán',source:'bot_api'};
  all.unshift(next);return {modified:true,result:{order:visible(next),duplicate:false}};
 }
+
+function updateQty(s,all,p){
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần xác nhận sửa số lượng hóa đơn');
+ need(/^[a-zA-Z0-9_-]{8,100}$/.test(String(p.requestId||'')),'INVALID_REQUEST','Thiếu requestId chống thao tác lặp');
+ need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0&&p.id!==undefined,'INVALID_ORDER','Thiếu ID hoặc số hóa đơn');
+ var found=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo&&String(o.id)===String(p.id)});
+ need(found.length===1,'INVALID_ORDER','Không tìm thấy chính xác hóa đơn');
+ var old=found[0],history=Array.isArray(old.apiQtyEditHistory)?old.apiQtyEditHistory:[];
+ var repeated=history.find(function(v){return v.requestId===p.requestId});
+ if(repeated){
+  need(String(repeated.itemId)===String(p.itemId)&&Number(repeated.qty)===Number(p.qty),'REUSED_REQUEST_ID','Mã yêu cầu đã dùng cho nội dung khác');
+  return {modified:false,result:{order:visible(old),duplicate:true,updated:true}};
+ }
+ version(s,p);
+ need(norm(old.name)===norm(p.expectedName)&&Number(old.total)===money(p.expectedTotal),
+   'ORDER_CHANGED','Tên khách hoặc tổng tiền đã khác, cần đọc lại bill');
+ need(active(old)&&!paid(old)&&old.status!=='Đã TT Satori','PAID_ORDER_PROTECTED','Không được sửa hóa đơn đã thanh toán hoặc đã quyết toán Satori');
+ need(Array.isArray(old.items)&&old.items.length>0,'INVALID_ORDER','Không có dòng hàng chi tiết để sửa an toàn');
+ need(p.itemId!==undefined&&p.itemId!==null,'INVALID_ITEM','Thiếu ID sản phẩm');
+ need(Number.isSafeInteger(p.qty)&&p.qty>0&&p.qty<=100000,'INVALID_ITEM','Số thùng không hợp lệ');
+ var matching=old.items.filter(function(i){return String(i.id)===String(p.itemId)});
+ need(matching.length===1,'INVALID_ITEM','Không xác định duy nhất mặt hàng, hãy kiểm tra lại ID');
+ var items=old.items.map(function(i){
+  var n=Object.assign({},i);
+  if(String(i.id)===String(p.itemId)){n.qty=p.qty;n.subtotal=Math.round(p.qty*money(i.unitPrice));}
+  return n;
+ });
+ var goods=Math.round(items.reduce(function(a,i){return a+Number(i.qty)*money(i.unitPrice)},0));
+ var ship=money(old.shippingAmount||0);
+ var vat=old.vat==='yes'?Math.round(goods*.08):money(old.vatAmount||0);
+ // A zero-tax order keeps zero tax; nonstandard legacy VAT is never silently recalculated.
+ if(old.vat!=='yes' && Number(old.vatAmount||0)>0)
+   fail('VAT_REVIEW_REQUIRED','Hóa đơn thuế không chuẩn, cần sửa trên website');
+ var total=Math.round(goods+ship+vat);
+ need(total<=1e11,'INVALID_AMOUNT','Tổng tiền vượt giới hạn');
+ var next=Object.assign({},old,{
+  items:items,qty:items.reduce(function(a,i){return a+Number(i.qty)},0),
+  product:items.map(function(i){return i.product+' x'+i.qty}).join(', '),
+  goodsTotal:goods,vatAmount:vat,total:total,updatedAt:Date.now(),
+  apiQtyEditHistory:history.concat([{requestId:p.requestId,itemId:p.itemId,qty:p.qty}])
+ });
+ all[all.indexOf(old)]=next;
+ return {modified:true,result:{order:visible(next),duplicate:false,updated:true}};
+}
+
 function markPaid(s,all,p){
  version(s,p);need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Thiếu số hóa đơn');
  var match=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo});
@@ -209,6 +255,20 @@ function read(s,action,p){
   return {revision:s.revision,totalMatches:candidates.length,invoices:candidates.slice(0,Math.min(100,Math.max(1,Number(p.limit)||30))).map(function(t){return {order:visible(t.order),deletedAt:t.deletedAt,expiresAt:t.expiresAt||t.deletedAt+30*86400000}})};
  }
  if(action==='system.status')return {revision:s.revision,updatedAt:s.updatedAt,orders:all.length};
+ if(action==='orders.pdfSource'){
+  need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0&&p.id!==undefined,'INVALID_ORDER','Cần số hóa đơn và ID');
+  var one=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo&&String(o.id)===String(p.id)});
+  need(one.length===1,'INVALID_ORDER','Không tìm thấy hóa đơn duy nhất');
+  var o=one[0];
+  return {revision:s.revision,order:{
+   id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone||'',
+   location:o.location||'',taxCode:o.taxCode||'',deliveryNote:o.deliveryNote||'',
+   items:o.items||[],product:o.product||'',qty:o.qty||0,
+   goodsTotal:o.goodsTotal==null?undefined:o.goodsTotal,
+   shippingAmount:o.shippingAmount||0,shippingPercent:o.shippingPercent||0,
+   vat:o.vat||'no',vatAmount:o.vatAmount||0,total:o.total,status:o.status
+  }};
+ }
  if(action==='customers.search')return {revision:s.revision,profiles:searchProfiles(all,p)};
  var found=select(all,p);
  if(action==='orders.list')return {revision:s.revision,totalMatches:found.length,orders:found.slice(0,Math.min(100,Math.max(1,Number(p.limit)||30))).map(visible)};
@@ -226,7 +286,7 @@ function read(s,action,p){
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
 function write(s,action,p){
- var all=rows(s),result=action==='orders.create'?create(s,all,p):action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):markPaid(s,all,p);
+ var all=rows(s),result=action==='orders.create'?create(s,all,p):action==='orders.updateQty'?updateQty(s,all,p):action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):markPaid(s,all,p);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
  need(!!fileId,'CONFIG_MISSING','Thiếu STATE_FILE_ID');
@@ -252,7 +312,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.updateQty'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
