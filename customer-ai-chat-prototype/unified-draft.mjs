@@ -1,12 +1,66 @@
 /** One pending TEST basket per customer link. No customer PII, prices or bearer tokens in responses. */
 import {productFor,resolveProduct,fold} from './catalogue.mjs';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
 export const MAX_LINES=6, MAX_UNITS=500;
-export function makeDraftStore(){
+export function makeDraftStore(options={}){
+ // Only a SHA-256 lookup digest of each bearer link is persisted — never its raw token.
+ // This keeps browser/WebView sessions on the same server-authoritative revisioned basket.
  const states=new Map();
+ const filePath=options.filePath||null;
+ const onChange=typeof options.onChange==='function'?options.onChange:()=>{};
+ const expiresMs=24*3600_000;
+ const keyOf=token=>crypto.createHash('sha256').update('minh-satori-sandbox-draft-v1:'+String(token)).digest('hex');
+ function verifiedRow(item){
+  if(!item||typeof item!=='object'||!/^([a-f0-9]{64})$/.test(item.key)||
+      !Number.isSafeInteger(item.revision)||item.revision<1||
+      !Number.isSafeInteger(item.updatedAt)||item.updatedAt<1||item.updatedAt>Date.now()+60_000||
+      !Array.isArray(item.items)||item.items.length>MAX_LINES)throw Error('INVALID_DRAFT_CACHE');
+  const lines=new Map();
+  for(const row of item.items){
+   if(!row||typeof row!=='object'||!productFor(row.code)||
+      row.code!==productFor(row.code).code||!Number.isSafeInteger(row.qty)||
+      row.qty<1||row.qty>MAX_UNITS||lines.has(row.code))throw Error('INVALID_DRAFT_CACHE');
+   lines.set(row.code,row.qty);
+  }
+  if([...lines.values()].reduce((sum,v)=>sum+v,0)>MAX_UNITS)throw Error('INVALID_DRAFT_CACHE');
+  return {key:item.key,revision:item.revision,updatedAt:item.updatedAt,lines};
+ }
+ function activeEntries(){
+  const cutoff=Date.now()-expiresMs;
+  return [...states].filter(([,v])=>v.updatedAt>=cutoff);
+ }
+ function snapshot(){
+  return activeEntries().map(([key,s])=>({
+   key,revision:s.revision,updatedAt:s.updatedAt,
+   items:[...s.lines].map(([code,qty])=>({code,qty}))
+  })).sort((a,b)=>a.key.localeCompare(b.key));
+ }
+ function persist(){
+  if(!filePath)return;
+  const temp=filePath+'.'+crypto.randomUUID()+'.tmp';
+  try{
+   fs.writeFileSync(temp,JSON.stringify({format:'minh-satori-sandbox-draft-cache-v1',drafts:snapshot()}),{mode:0o600,flag:'wx'});
+   fs.renameSync(temp,filePath);
+  }catch(e){try{fs.unlinkSync(temp)}catch{}throw e}
+ }
+ function load(){
+  if(!filePath||!fs.existsSync(filePath))return;
+  const data=JSON.parse(fs.readFileSync(filePath,'utf8'));
+  if(data?.format!=='minh-satori-sandbox-draft-cache-v1'||!Array.isArray(data.drafts)||
+      data.drafts.length>250)throw Error('INVALID_DRAFT_CACHE');
+  for(const item of data.drafts){
+   const row=verifiedRow(item);
+   if(states.has(row.key))throw Error('INVALID_DRAFT_CACHE');
+   if(Date.now()-row.updatedAt<expiresMs)states.set(row.key,{
+    revision:row.revision,updatedAt:row.updatedAt,lines:row.lines
+   });
+  }
+ }
+ load(); // Fail closed if local data is damaged. Never silently discard outstanding baskets.
  function get(token){
-  let s=states.get(token);
-  if(s && Date.now()-s.updatedAt<24*3600_000)return s;
-  if(s)states.delete(token);
+  const key=keyOf(token),s=states.get(key);
+  if(s&&Date.now()-s.updatedAt<expiresMs)return s;
   return {revision:0,lines:new Map(),updatedAt:Date.now()};
  }
  function read(token){
@@ -16,7 +70,7 @@ export function makeDraftStore(){
   })};
  }
  function mutate(token,changes,expectedRevision){
-  const s=get(token);
+  const key=keyOf(token),s=get(token);
   if(!Number.isSafeInteger(expectedRevision)||s.revision!==expectedRevision)throw Error('DRAFT_CONFLICT');
   if(!Array.isArray(changes)||changes.length<1||changes.length>MAX_LINES)throw Error('INVALID_CART');
   const next=new Map(s.lines);
@@ -34,10 +88,29 @@ export function makeDraftStore(){
    if(qty===0)next.delete(code);else next.set(code,qty);
   }
   if(next.size>MAX_LINES||[...next.values()].reduce((n,v)=>n+v,0)>MAX_UNITS)throw Error('CART_LIMIT');
-  states.set(token,{revision:s.revision+1,lines:next,updatedAt:Date.now()});
+  const old=states.get(key);
+  states.set(key,{revision:s.revision+1,lines:next,updatedAt:Date.now()});
+  try{persist()}catch(e){if(old)states.set(key,old);else states.delete(key);throw e}
+  onChange(); // schedules encrypted backup; cannot cause an extra invoice
   return read(token);
  }
- return {read,mutate};
+ function restore(rows){
+  if(activeEntries().length)throw Error('SANDBOX_DRAFT_NOT_EMPTY');
+  if(!Array.isArray(rows)||rows.length>250)throw Error('INVALID_DRAFT_CACHE');
+  const restoreStates=new Map();
+  for(const item of rows){
+   const row=verifiedRow(item);
+   if(restoreStates.has(row.key))throw Error('INVALID_DRAFT_CACHE');
+   if(Date.now()-row.updatedAt<expiresMs)restoreStates.set(row.key,{
+    revision:row.revision,updatedAt:row.updatedAt,lines:row.lines});
+  }
+  const old=new Map(states);
+  states.clear();
+  for(const [k,v] of restoreStates)states.set(k,v);
+  try{persist()}catch(e){states.clear();for(const [k,v] of old)states.set(k,v);throw e}
+  onChange();
+ }
+ return {read,mutate,snapshot,restore};
 }
 export function contextualDraftEdit(message,profile,draft){
  const s=fold(message);
