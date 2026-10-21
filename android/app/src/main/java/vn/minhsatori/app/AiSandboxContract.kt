@@ -16,6 +16,8 @@ internal object AiSandboxContract {
 
     data class Line(val code: String, val name: String, val unit: String, val qty: Int)
 
+    fun validTestRef(ref: String): Boolean = Regex("^TEST-[A-F0-9]{10}$").matches(ref)
+
     fun validEndpoint(raw: String): Boolean {
         val uri = runCatching { URI(raw) }.getOrNull() ?: return false
         return uri.scheme == "https" && uri.host == "minh-satori-customer-ai-gemini.onrender.com" &&
