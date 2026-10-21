@@ -47,11 +47,8 @@ class AiCustomerPortalActivity : AppCompatActivity() {
     private fun toast(message: String) =
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
 
-    private fun sameSandbox(raw: String?): Boolean {
-        val url = runCatching { Uri.parse(raw) }.getOrNull() ?: return false
-        return url.scheme == "https" && url.host == "minh-satori-customer-ai-gemini.onrender.com" &&
-            url.port == -1 && url.userInfo == null
-    }
+    private fun sameSandbox(raw: String?): Boolean =
+        AiSandboxContract.validPortalNavigation(raw)
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
