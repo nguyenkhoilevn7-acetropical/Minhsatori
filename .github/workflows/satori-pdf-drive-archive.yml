@@ -1,0 +1,25 @@
+name: Satori invoice PDF Drive archive tests
+on:
+  pull_request:
+    paths:
+      - "index.html"
+      - "pdf-drive-archive.js"
+      - "api/InvoicePdfArchive.gs"
+      - "tests/pdf-drive-archive.test.cjs"
+      - "tests/pdf-drive-channel.test.cjs"
+      - ".github/workflows/satori-pdf-drive-archive.yml"
+permissions:
+  contents: read
+jobs:
+  pdf-drive-archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify original pdfmake QR
+        run: node tests/pdf-vietqr-regression.cjs
+      - name: Verify private Drive archive guards and retry flow
+        run: node tests/pdf-drive-archive.test.cjs && node tests/pdf-drive-channel.test.cjs

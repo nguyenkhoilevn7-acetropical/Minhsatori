@@ -2133,6 +2133,9 @@
                     <button type="button" onclick="downloadModalInvoicePDF()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2.5 py-1.5 rounded-lg transition font-bold flex items-center gap-1 shadow" title="Tải PDF vào thư mục Satori Order">
                         <i class="fa-solid fa-file-pdf"></i> Tải PDF
                     </button>
+                    <button type="button" onclick="archiveModalInvoicePDF()" class="bg-sky-700 hover:bg-sky-600 text-white text-xs px-2.5 py-1.5 rounded-lg transition font-bold flex items-center gap-1 shadow" title="Lưu đúng PDF gốc hóa đơn hiện tại lên Google Drive, không tải vào điện thoại">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Lưu Drive
+                    </button>
                     <button type="button" onclick="shareModalInvoicePDF('zalo')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1.5 rounded-lg transition font-bold flex items-center gap-1 shadow" title="Gửi qua Zalo">
                         <i class="fa-solid fa-share-nodes"></i> Zalo
                     </button>
@@ -5303,6 +5306,10 @@
         }
         function rememberSavedInvoicePdf(order) {
             lastSavedPdfOrder=JSON.parse(JSON.stringify(order));lastSavedPdfFormSignature=pdfFormSignature();
+            // Persist the archive queue immediately. Waiting for PDF rendering here can
+            // lose the archival request if the owner closes the tab during rendering.
+            if(typeof window.satoriArchiveSavedInvoicePdf==='function')
+                window.satoriArchiveSavedInvoicePdf(lastSavedPdfOrder).catch(e=>console.warn('Chưa xếp hàng lưu PDF lên Drive:',e.message));
             prepareInvoicePdf(lastSavedPdfOrder).catch(e=>console.warn('Chưa chuẩn bị PDF:',e.message));
         }
         function scheduleInvoicePdfPreparation() {
@@ -5367,6 +5374,25 @@
             const request=++pdfShareRequest;
             showModal('Đang chuẩn bị tệp PDF…','Đang tạo PDF. Khi tệp sẵn sàng, chọn nút Gửi Zalo hoặc Gửi Messenger.','info');
             return prepareInvoicePdf(o).then(result=>{if(request===pdfShareRequest)presentPdfFile(result,'',activePdfChannel);},e=>{if(request===pdfShareRequest)showModal('Chưa chuẩn bị được PDF',aiEscape(e.message),'error');});
+        }
+
+        function archiveModalInvoicePDF() {
+            if(!window.__SATORI_DRIVE_APP__ || !window.__SATORI_DRIVE_READY__ ||
+               typeof window.satoriArchiveSavedInvoicePdf!=='function'){
+                showModal('Chưa kết nối lưu PDF lên Google Drive',
+                    'Chờ thanh trạng thái xác nhận đã đồng bộ Google Drive và tải lại website sau khi triển khai tính năng PDF.', 'info');
+                return;
+            }
+            const o=currentModalViewedOrder;
+            if(!o || o.id==null || !Number.isSafeInteger(Number(o.invoiceNo))){
+                showModal('Chưa chọn đúng hóa đơn',
+                    'Mở một hóa đơn đã lưu trong danh sách rồi chọn Lưu Drive.', 'info');
+                return;
+            }
+            window.satoriArchiveSavedInvoicePdf(JSON.parse(JSON.stringify(o)))
+                .then(()=>showModal('Đã xếp hàng lưu PDF gốc lên Drive',
+                    'Hóa đơn #'+Number(o.invoiceNo)+' đã vào hàng chờ xuất PDF gốc. Hãy giữ website mở và đã đồng bộ; chờ xác nhận tệp xuất hiện trong thư mục MinhSatori_PDF_Invoices. Thông báo này KHÔNG xác nhận rằng Drive đã lưu thành công.', 'info'))
+                .catch(e=>showModal('Chưa xếp hàng được PDF',aiEscape(e.message),'error'));
         }
 
         function downloadModalInvoicePDF() {
@@ -8733,6 +8759,7 @@ window.SatoriRecon = (() => {
     setInterval(tick,15000);
 })();
 </script>
+<script src="pdf-drive-archive.js?v=1"></script>
 <script>
 (() => {
     if (window.__SATORI_DRIVE_APP__) return;
