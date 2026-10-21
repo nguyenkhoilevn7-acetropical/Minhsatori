@@ -1,11 +1,12 @@
 /** Versioned TEST-ONLY data export/import. Never touches Drive or production. */
 import crypto from 'node:crypto';
+import {productFor,MAX_LINES,MAX_UNITS} from './unified-draft.mjs';
 const FORMAT='minh-satori-sandbox-backup';
 const digest=x=>crypto.createHash('sha256').update(JSON.stringify(x),'utf8').digest('hex');
 const isObj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const fail=()=>{throw new Error('INVALID_SANDBOX_BACKUP')};
-export function createSandboxBackup({profiles,changeRequests,orders}){
- const snapshot={format:FORMAT,version:1,exportedAt:new Date().toISOString(),sandbox:true,profiles,changeRequests,orders};
+export function createSandboxBackup({profiles,changeRequests,orders,drafts=[]}){
+ const snapshot={format:FORMAT,version:1,exportedAt:new Date().toISOString(),sandbox:true,profiles,changeRequests,orders,drafts};
  return {ok:true,sandbox:true,snapshot,checksum:digest(snapshot)};
 }
 export function verifySandboxBackup(archive){
@@ -33,8 +34,29 @@ export function verifySandboxBackup(archive){
   if(Array.isArray(o.items)&&o.items.length>6)fail();
   refs.add(o.ref);
  }
+
+ // v1 archives created before cross-device draft sync lack this optional field.
+ // New archives include only hashed draft identifiers, never raw link credentials.
+ const drafts=s.drafts===undefined?[]:s.drafts;
+ if(!Array.isArray(drafts)||drafts.length>250)fail();
+ const keys=new Set();
+ for(const d of drafts){
+  if(!isObj(d)||Object.hasOwn(d,'token')||!/^([a-f0-9]{64})$/.test(d.key)||
+     keys.has(d.key)||!Number.isSafeInteger(d.revision)||d.revision<1||
+     !Number.isSafeInteger(d.updatedAt)||d.updatedAt<1||
+     d.updatedAt>Date.now()+60_000||!Array.isArray(d.items)||d.items.length>MAX_LINES)fail();
+  keys.add(d.key);
+  const codes=new Set();let units=0;
+  for(const item of d.items){
+   if(!isObj(item)||typeof item.code!=='string'||!productFor(item.code)||
+      productFor(item.code).code!==item.code||codes.has(item.code)||
+      !Number.isSafeInteger(item.qty)||item.qty<1||item.qty>MAX_UNITS)fail();
+   units+=item.qty;codes.add(item.code);
+  }
+  if(units>MAX_UNITS)fail();
+ }
  for(const r of s.changeRequests){
   if(!isObj(r)||typeof r.id!=='string'||r.id.length>80||!ids.has(r.profileId)||!['pending','reviewed'].includes(r.status)||typeof r.message!=='string'||r.message.length>500)fail();
  }
- return {profiles:structuredClone(s.profiles),changeRequests:structuredClone(s.changeRequests),orders:structuredClone(s.orders)};
+ return {profiles:structuredClone(s.profiles),changeRequests:structuredClone(s.changeRequests),orders:structuredClone(s.orders),drafts:structuredClone(drafts)};
 }
