@@ -138,6 +138,11 @@ const adminChecks=[
  ['id="downloadSandboxBackup"','owner backup download button'],
  ['id="restoreSandboxFile"','owner upload backup file selector'],
  ['id="restoreSandboxBackup"','guarded restore control'],
+ ['id="checkDriveBackup"','owner can inspect Drive backup state'],
+ ['id="runDriveBackup"','owner can request encrypted remote backup'],
+ ["request('/api/admin/drive-backup/status')",'owner-only backup status endpoint'],
+ ["request('/api/admin/drive-backup/now','POST',{})",'owner-only backup command'],
+
  ['id="newOrders"','live Admin confirmed-order inbox'],
  ['id="newOrderCount"','order alert count'],
  ['id="enableOrderBell"','optional sound and browser notifications'],
