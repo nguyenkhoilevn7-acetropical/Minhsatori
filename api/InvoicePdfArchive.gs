@@ -65,6 +65,24 @@ var SatoriInvoicePdfArchive=(function(){
   }
   return {archive:archive};
 })();
+/**
+ * Read-only owner preflight. Run from the Apps Script editor before redeploying.
+ * No invoice or Drive document is created, altered or deleted by this check.
+ */
+function satoriPdfArchivePreflight(){
+  requireOwner_();
+  var p=PropertiesService.getScriptProperties();
+  var folderId=p.getProperty('SATORI_PDF_ARCHIVE_FOLDER_ID');
+  if(!folderId)throw Error('Thiếu SATORI_PDF_ARCHIVE_FOLDER_ID trong Script Properties.');
+  var state=readState_();
+  if(!state||!state.values||typeof state.values.satori_orders_v15!=='string')
+    throw Error('Không đọc được cấu trúc hóa đơn hiện tại.');
+  var list=JSON.parse(state.values.satori_orders_v15);
+  if(!Array.isArray(list))throw Error('Danh sách hóa đơn trên Drive không hợp lệ.');
+  var folder=DriveApp.getFolderById(folderId);
+  return {ok:true,revision:state.revision,orders:list.length,
+    folderName:folder.getName(),archiveConfigured:true,ordersModified:false};
+}
 function satoriSaveInvoicePdf(p){return SatoriInvoicePdfArchive.archive(p);}
 /** Call this INSIDE the existing doGet HTML script after const f=... has been declared. */
 function satoriPdfArchiveBridgeJs_(appOrigin){
