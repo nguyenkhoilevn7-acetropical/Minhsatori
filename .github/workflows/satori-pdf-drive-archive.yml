@@ -6,6 +6,7 @@ on:
       - "pdf-drive-archive.js"
       - "api/InvoicePdfArchive.gs"
       - "tests/pdf-drive-archive.test.cjs"
+      - "tests/pdf-drive-channel.test.cjs"
       - ".github/workflows/satori-pdf-drive-archive.yml"
 permissions:
   contents: read
