@@ -825,7 +825,7 @@ function bootstrapEncryptedTestSnapshot(){
   for(const o of restored.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   console.info('SANDBOX_BOOTSTRAP_RESTORED','orders='+restored.orders.length,
-   'drafts='+(restored.drafts||[]).length,'customers='+restored.profiles.length);
+   'drafts='+draftStore.snapshot().length,'customers='+restored.profiles.length);
  }catch(e){
   console.error('SANDBOX_BOOTSTRAP_FAILED',e?.message==='STALE_BOOTSTRAP'?'STALE_BOOTSTRAP':'INTEGRITY_OR_STORAGE_ERROR');
   throw Error('SANDBOX_BOOTSTRAP_FAILED');
