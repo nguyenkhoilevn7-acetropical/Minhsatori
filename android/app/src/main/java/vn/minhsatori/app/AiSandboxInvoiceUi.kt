@@ -278,15 +278,21 @@ internal class AiSandboxInvoiceUi(private val activity: AppCompatActivity) {
                     var pdfMemoryUsed = 0L
                     for (index in 0 until renderer.pageCount) {
                         renderer.openPage(index).use { page ->
-                            val scale = targetWidth.toFloat() / page.width.toFloat()
+                            val maxWidth = kotlin.math.sqrt(
+                                48.0 * 1024.0 * 1024.0 * page.width.toDouble() /
+                                    (renderer.pageCount.toDouble() * 4.0 * page.height.toDouble())
+                            ).toInt()
+                            val pageWidth = minOf(targetWidth, maxWidth)
+                            require(pageWidth >= 280) { "PDF quá nhiều trang để xem trong bộ nhớ an toàn." }
+                            val scale = pageWidth.toFloat() / page.width.toFloat()
                             val height = (page.height.toFloat() * scale).toInt().coerceAtLeast(1)
                             require(height <= 2800) { "Trang PDF quá lớn." }
-                            val bytes = targetWidth.toLong() * height * 4L
+                            val bytes = pageWidth.toLong() * height * 4L
                             require(pdfMemoryUsed + bytes <= 48L * 1024 * 1024) {
                                 "PDF cần quá nhiều bộ nhớ; vui lòng tải riêng hoặc chia sẻ."
                             }
                             pdfMemoryUsed += bytes
-                            val bitmap = Bitmap.createBitmap(targetWidth, height, Bitmap.Config.ARGB_8888)
+                            val bitmap = Bitmap.createBitmap(pageWidth, height, Bitmap.Config.ARGB_8888)
                             try {
                                 bitmap.eraseColor(Color.WHITE)
                                 page.render(bitmap, null,
