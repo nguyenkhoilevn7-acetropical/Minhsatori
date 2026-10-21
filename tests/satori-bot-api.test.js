@@ -309,3 +309,78 @@ assert.equal(data.revision,71);
 assert.equal(backs,priorBackups+1);
 assert.equal(writes,priorWrites+1);
 console.log('PASS — Satori-side paid is separate from customer-paid, payment retry is read-only');
+
+
+/* Owner-approved AI price policy is server-side separate from learned memory.
+ * Entire test uses in-memory fake Google Drive and fake HMAC credentials.
+ */
+{
+ const prevClients=props.SATORI_BOT_CLIENTS_JSON;
+ const oldWrites=writes,oldBacks=backs;
+ data={revision:80,updatedAt:'2026-10-20T00:00:00Z',values:{
+  satori_orders_v15:JSON.stringify([{id:800,invoiceNo:800,name:'Customer Policy TEST',
+   phone:'0900000000',location:'123 Fake Test Street',date:'20/10/2026',
+   total:78400,status:'Chưa thanh toán',items:[{code:'TP-00003',
+   product:'Satori 500 TEST',unit:'Thùng',qty:1,unitPrice:78400}]}]),
+  satori_catalogue_v15:JSON.stringify([{code:'TP-00003',
+   name:'Satori 500 TEST',unit:'Thùng',listPrice:98000,unitPrice:73500}]),
+  satori_ai_customer_memory:JSON.stringify([{id:'test_memory_800',
+   name:'Customer Policy TEST',receivers:[{phone:'0900000000',location:'123 Fake Test Street'}]}]),
+  satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}};
+ const approve={expectedRevision:80,requestId:'approve-fake-policy-001',
+  confirmed:true,customerMemoryId:'test_memory_800',
+  customerRef:{id:800,invoiceNo:800},phone:'0900000000',
+  location:'123 Fake Test Street',discountPercent:20,vatPercent:0,
+  shippingAmount:0,enabled:true};
+ assert.equal(call('pricing.approve',approve).error.code,'FORBIDDEN',
+  'standard order-writing bot must not silently become a pricing owner');
+ let grants=JSON.parse(prevClients);
+ grants['bot-01'].scopes.push('pricing:approve','orders:ai:write');
+ props.SATORI_BOT_CLIENTS_JSON=JSON.stringify(grants);
+ const confirmed=call('pricing.approve',approve);
+ assert.equal(confirmed.ok,true);
+ assert.equal(confirmed.data.approved,true);
+ assert.equal(data.revision,81);
+ assert.equal(writes,oldWrites+1);
+ assert.equal(backs,oldBacks+1);
+ assert.equal(JSON.parse(data.values.satori_ai_pricing_approvals_v1).length,1);
+ assert.equal(call('pricing.approve',approve).data.duplicate,true,
+  'duplicate owner approval must not write again');
+ assert.equal(writes,oldWrites+1);
+ assert.equal(call('pricing.approve',{...approve,discountPercent:70}).error.code,
+  'REQUEST_ID_CONFLICT','owner approval request key cannot approve a different percentage');
+ assert.equal(writes,oldWrites+1);
+ // The authorizer reads the approval from the non-browser state key. Merely
+ // modifying the AI memory must not grant a new price.
+ const aiOrder={expectedRevision:81,requestId:'ai-fake-checkout-001',
+  customerMemoryId:'test_memory_800',customerRef:{id:800,invoiceNo:800},
+  confirmedNewCustomer:false,order:{name:'Customer Policy TEST',
+   phone:'0900000000',location:'123 Fake Test Street',
+   items:[{code:'TP-00003',product:'Satori 500 TEST',unit:'Thùng',
+    qty:2,unitPrice:78400,listPrice:98000}],
+   shippingAmount:0,vatAmount:0,total:156800}};
+ const newOrder=call('orders.create.ai',aiOrder);
+ assert.equal(newOrder.ok,true);
+ assert.equal(newOrder.revision,82);
+ assert.equal(newOrder.data.order.total,156800);
+ assert.equal(call('orders.create.ai',aiOrder).data.duplicate,true);
+ assert.equal(writes,oldWrites+2);
+ const failPrice=call('orders.create.ai',{...aiOrder,requestId:'ai-fake-bad-002',
+  expectedRevision:82,order:{...aiOrder.order,items:[{...aiOrder.order.items[0],
+   unitPrice:1}],total:2}});
+ assert.equal(failPrice.error.code,'AI_PRICE_MISMATCH','Bot must reject an AI-created fake price even when total is internally consistent');
+ assert.equal(writes,oldWrites+2);
+ const revoke={...approve,expectedRevision:82,requestId:'revoke-fake-policy-002',enabled:false};
+ assert.equal(call('pricing.approve',revoke).data.approved,false);
+ assert.equal(data.revision,83);
+ const blocked=call('orders.create.ai',{...aiOrder,
+  requestId:'ai-fake-after-revoke-003',expectedRevision:83});
+ assert.equal(blocked.error.code,'AI_PRICING_NOT_APPROVED',
+  'after revocation the AI cannot use a previously-approved discount');
+ assert.equal(writes,oldWrites+3);
+ assert.equal(backs,oldBacks+3);
+ assert.equal(JSON.parse(data.values.satori_ai_pricing_approvals_v1).length,2,
+  'approval and revocation both remain in append-only audit history');
+ props.SATORI_BOT_CLIENTS_JSON=prevClients;
+ console.log('PASS — strict HMAC pricing approval, isolated source ledger, AI underpricing rejection and revocation');
+}
