@@ -881,11 +881,6 @@ class NativeMainActivity : AppCompatActivity() {
                 "Hiển thị 120 hồ sơ đầu tiên; nhập từ khóa để thu hẹp.",
                 11f, false, muted, 8)
         }
-        monthFilter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
-                view: View?, position: Int, id: Long) { refresh() }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
-        }
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -1041,6 +1036,11 @@ class NativeMainActivity : AppCompatActivity() {
             if (matched.isEmpty()) label(rows, "Không có hóa đơn phù hợp.", 12f)
         }
         filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
+                view: View?, position: Int, id: Long) { refresh() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        monthFilter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?,
                 view: View?, position: Int, id: Long) { refresh() }
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
