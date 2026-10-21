@@ -33,6 +33,21 @@ class SatoriOrderValidationTest {
         }
     }
 
+    @Test fun sandboxMarkersAreRejectedByRealInvoiceApi() {
+        val values = listOf(
+            org.json.JSONObject().put("isTest", true),
+            org.json.JSONObject().put("environment", "sandbox"),
+            org.json.JSONObject().put("order", org.json.JSONObject().put("name", "[TEST] Demo")),
+            org.json.JSONObject().put("invoiceNo", "TEST-000001")
+        )
+        values.forEach {
+            org.junit.Assert.assertTrue(SatoriOrderValidation.requiresTestLedger("orders.create", it))
+        }
+        org.junit.Assert.assertFalse(SatoriOrderValidation.requiresTestLedger("orders.list", values[0]))
+        org.junit.Assert.assertFalse(SatoriOrderValidation.requiresTestLedger("orders.create",
+            org.json.JSONObject().put("order", org.json.JSONObject().put("name", "Khách thật"))))
+    }
+
     @Test fun lineAndGrandTotalsRejectIntegerOverflow() {
         assertEquals(650000L, SatoriOrderValidation.lineAmount(10L, 65000L))
         assertEquals(702000L, SatoriOrderValidation.sum(650000L, 52000L, 0L))
