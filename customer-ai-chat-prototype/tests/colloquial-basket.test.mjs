@@ -7,7 +7,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {parseOneClause,parseColloquialBasket,completeColloquialFollowup} from '../multi-order.mjs';
+import {parseOneClause,parseColloquialBasket,colloquialQuestion,completeColloquialFollowup,parseWaterClarificationBasket} from '../multi-order.mjs';
 let checks=0;const check=(ok,msg)=>{assert.ok(ok,msg);checks++};
 for(const [text,code,qty] of [
  ['3 me','TP-00055',3],['ba me','TP-00055',3],['thêm 3 me','TP-00055',3],
@@ -24,6 +24,19 @@ for(const spelling of ['5 lít','5L','5 lit','suối 5 lít','nước 5 lit']){
  check(interpreted?.pending?.missing?.kind==='FIVE_LITRE'&&interpreted.pending.missing.qty===null,
   'normalise 5-litre expressions without guessing carton quantity: '+spelling);
 }
+// In this customer ordering flow 5L is only sold per carton.
+// The assistant must never ask whether the customer wants a bottle.
+const compact=parseColloquialBasket('Thêm 5 thùng 5 lít');
+check(compact?.pending?.missing?.unit==='thung'&&compact.pending.missing.qty===5,
+ '5L carton quantity understood; only spout variant requires clarification');
+check(!colloquialQuestion(compact.pending.missing).includes('bình')&&
+ !colloquialQuestion(compact.pending.missing).includes('thùng hay')&&
+ colloquialQuestion(compact.pending.missing).includes('có vòi hay không vòi'),
+ 'short and human 5L response never asks carton versus bottle');
+check(parseColloquialBasket('5 thùng suối 5 lít có vòi')?.items?.[0]?.sku==='TP-00136',
+ '5L with spout maps to correct carton SKU without clarification');
+check(parseColloquialBasket('5 bình 5 lít')?.reason==='UNIT_UNSUPPORTED',
+ 'do not offer unsupported single bottle sales');
 check(parsed.pending.missing.kind==='FIVE_LITRE'&&parsed.pending.missing.qty===null,
  'do not hallucinate quantity from 5-litre capacity');
 let response=completeColloquialFollowup(parsed.pending,'2 thùng không vòi');
@@ -36,6 +49,11 @@ parsed=parseColloquialBasket('3 me, 2 ổi');
 check(parsed?.items?.length===2&&parsed.items[0].sku==='TP-00055'&&parsed.items[1].sku==='TP-00058',
  'two separate natural juice keywords from one text');
 check(parseColloquialBasket('3 me, 2 thùng trà sữa')===null,'unsupported products never create a partial basket');
+for(const phrase of ['5 suối','năm suối','cho anh 5 suối']){
+ const result=parseWaterClarificationBasket(phrase);
+ check(result?.pending?.water?.qty===5&&result.pending.water.unit==='thung',
+  'unbranded shorthand '+phrase+' assumes carton, asks brand/volume without invented SKU');
+}
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dir=mkdtempSync(path.join(tmpdir(),'satori-natural-'));
 const port=35110+Math.floor(Math.random()*300);
