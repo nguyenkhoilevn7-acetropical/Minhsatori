@@ -21,7 +21,7 @@ const bearer=header=>{
  return match?.[1]||'';
 };
 
-export function makeCustomerLinks(dataDir){
+export function makeCustomerLinks(dataDir,onSaved=()=>{}){
  const filename=path.join(dataDir,'customer-links-SANDBOX.json');
  let profiles=[];
  try{const loaded=JSON.parse(fs.readFileSync(filename,'utf8'));if(Array.isArray(loaded))profiles=loaded.filter(x=>x&&typeof x.id==='string'&&typeof x.tokenHash==='string')}catch{}
@@ -32,6 +32,7 @@ export function makeCustomerLinks(dataDir){
   const tmp=requestsFile+'.'+crypto.randomUUID()+'.tmp';
   fs.writeFileSync(tmp,JSON.stringify(changeRequests,null,2),{mode:0o600});
   fs.renameSync(tmp,requestsFile);
+  onSaved();
  };
  const pendingCount=()=>changeRequests.filter(x=>x.status==='pending').length;
  // Customer chat NEVER changes an existing link's identity, phone or address.
@@ -48,6 +49,7 @@ export function makeCustomerLinks(dataDir){
   const tmp=filename+'.'+crypto.randomUUID()+'.tmp';
   fs.writeFileSync(tmp,JSON.stringify(profiles,null,2),{mode:0o600});
   fs.renameSync(tmp,filename);
+  onSaved();
  };
  const getProfile=token=>{
   if(typeof token!=='string'||token.length<40||token.length>96)return null;
