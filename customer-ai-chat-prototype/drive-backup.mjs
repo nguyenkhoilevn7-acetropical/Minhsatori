@@ -90,8 +90,12 @@ export function makeDriveBackupWorker(readState){
   timer.unref?.();
  };
  const start=()=>{
+  const urlOk=validUrl(String(process.env.GEMINI_SANDBOX_DRIVE_BRIDGE_URL||'').trim());
+  const hmacOk=String(process.env.GEMINI_SANDBOX_DRIVE_HMAC_KEY||'').length>=32;
+  const aesOk=Buffer.from(String(process.env.GEMINI_SANDBOX_DRIVE_ENCRYPTION_KEY_B64||''),'base64').length===32;
+  console.info('SANDBOX_DRIVE_BACKUP_READINESS',
+   'url='+Number(urlOk),'hmac='+Number(hmacOk),'aes='+Number(aesOk));
   if(!active()||interval)return;
-  console.info('SANDBOX_DRIVE_BACKUP_BOOT',active()?'configured':'not_configured');
   timer=setTimeout(()=>{timer=null;syncNow().catch(reportBackupFailure)},15000);timer.unref?.();
   interval=setInterval(schedule,5*60_000);interval.unref?.();
  };
