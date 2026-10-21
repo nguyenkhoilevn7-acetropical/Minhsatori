@@ -1,8 +1,12 @@
-# Minh Satori Android Native v0.3.2 (development)
+# Minh Satori Android Native v0.3.3 (development)
 
-Package `vn.minhsatori.app`, versionCode `9`. Work in `feature/minhsatori-native-android-v020`, draft PR #9. This is a native Android app, not the retired Chrome launcher described in v0.1.x history.
+Package `vn.minhsatori.app`, versionCode `10`. Work in `feature/minhsatori-native-android-v020`, draft PR #9. This is a native Android app, not the retired Chrome launcher described in v0.1.x history.
 
 The native UI supports invoice/customer/debt browsing, creating/editing orders, delivery notes, PDF and separate Zalo/Messenger sharing, 30-day trash restore and supplier CSV/XLSX reconciliation. These features are implemented in code; real Google OAuth, staff permissions and complete Samsung release acceptance still require isolated sandbox testing.
+
+## AI customer demo and Satori launcher icon (sandbox only)
+
+Version 0.3.3 reuses the exact invoice image `satori_invoice_logo.jpg` as the Android launcher logo with a white adaptive-icon background. Gemini demo-A displays a structured quote/invoice card with line items, discount, VAT and total; TEST history can reopen bills and the app downloads server-generated A4 sandbox PDFs for viewing, saving and sharing via Android/Zalo/Messenger. No payment link or production invoice is enabled. Signed release uses the same pinned certificate to support in-place Samsung updates.
 
 ## Recovery after closing the app or losing a reply
 
