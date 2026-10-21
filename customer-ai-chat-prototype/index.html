@@ -379,7 +379,7 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
  <a id="historyExcel" class="history-excel" href="#" download="Satori_Lich_su_don_hang.xlsx">📊 Xuất Excel (.xlsx)</a>
  <p class="history-caution">Dữ liệu hiện chỉ gồm đơn THỬ lưu trên Gemini sandbox. Chưa kết nối lịch sử hóa đơn website thật; dữ liệu thử trên Render Free có thể mất khi triển khai lại.</p>
  <div id="historyItems" aria-live="polite"></div></div></section>
-<section id="invoice" class="invoice" aria-label="Phiếu xác nhận đơn thử"><div class="paper" id="printPaper"></div><div class="paper-btns"><button class="btn" id="closeInvoice">Đóng</button><a class="btn primary" id="printInvoice" href="#" download hidden>⬇ Tải PDF về máy</a></div></section>
+<section id="invoice" class="invoice" aria-label="Phiếu xác nhận đơn thử"><div class="paper" id="printPaper"></div><div class="paper-btns"><button class="btn" id="closeInvoice">Đóng</button><a class="btn primary" id="viewInvoice" href="#" target="_blank" rel="noopener noreferrer" hidden>👁 Xem PDF</a><a class="btn" id="printInvoice" href="#" download hidden>⬇ Tải PDF về máy</a></div></section>
 <script>
 (function(){'use strict';
 const $=id=>document.getElementById(id);
@@ -490,11 +490,15 @@ function showInvoice(o){
   <p class="invoice-words"><b>Số tiền bằng chữ:</b> ${esc(moneyInWords(o.total))}</p>
   <div class="invoice-signatures"><div><strong>ĐẠI DIỆN BÊN BÁN</strong><p>(Ký, ghi rõ họ tên)</p><b>HKD MINH SATORI</b></div><div><strong>ĐẠI DIỆN BÊN MUA / NGƯỜI NHẬN</strong><p>(Ký, ghi rõ họ tên)</p><b>${esc(o.name)}</b></div></div>
   <p class="invoice-note">Phiếu thử nghiệm. Không gửi tới hệ thống production, không có giá trị thanh toán hoặc giao hàng.</p>`;
- const download=$('printInvoice');
+ const download=$('printInvoice'),view=$('viewInvoice');
  if(serverMode&&o.ref){
-  download.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);
-  download.download=o.ref+'.pdf';download.hidden=false;download.style.display='inline-flex';
- }else{download.removeAttribute('href');download.hidden=true;download.style.display='none'}
+  const pdfUrl='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);
+  download.href=pdfUrl;download.download=o.ref+'.pdf';download.hidden=false;download.style.display='inline-flex';
+  view.href=pdfUrl+'&view=1';view.hidden=false;view.style.display='inline-flex';
+ }else{
+  download.removeAttribute('href');download.hidden=true;download.style.display='none';
+  view.removeAttribute('href');view.hidden=true;view.style.display='none';
+ }
  $('invoice').style.display='block';
 }
 
@@ -576,10 +580,14 @@ function renderHistory(){
     card.append(title,time,product,total);
     if(o.deliveryNote){const note=document.createElement('p');note.textContent='Lưu ý: '+o.deliveryNote;card.append(note)}
     if(serverMode&&o.hasPdf){
+     const pdfUrl='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);
+     const view=document.createElement('a');
+     view.href=pdfUrl+'&view=1';view.textContent='👁 Xem PDF hóa đơn';
+     view.target='_blank';view.rel='noopener noreferrer';
      const download=document.createElement('a');
-     download.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);
-     download.textContent='⬇ Tải lại PDF hóa đơn';download.setAttribute('download',o.ref+'.pdf');
-     card.append(download);
+     download.href=pdfUrl;download.textContent='⬇ Tải lại PDF hóa đơn';
+     download.setAttribute('download',o.ref+'.pdf');
+     card.append(view,download);
     }
     daySection.append(card);
    }
