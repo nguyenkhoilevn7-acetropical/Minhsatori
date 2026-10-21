@@ -23,6 +23,7 @@ import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
+import {getGeminiVersionStatus} from './version-status.mjs';
 import {parseAmendment,isAmendmentIntent,isConfirmAmend,isCancelAmend,appendDeliveryNote,latestEditableOrder,normAmend} from './order-amend.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST=process.env.DEMO_BIND||'127.0.0.1';
@@ -199,6 +200,13 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,draftPersistence:true,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
  if(req.method==='GET'&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&p==='/admin'){const html=fs.readFileSync(path.join(HERE,'admin.html'));res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
+ // Compare current server code with newest GitHub commit; never deploy from here.
+ if(req.method==='GET'&&p==='/api/admin/version-status'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần quyền quản trị để xem phiên bản hệ thống.');
+  const status=await getGeminiVersionStatus();
+  return reply(res,200,{ok:true,sandbox:true,...status});
+ }
  // This route probes source-of-truth sync READINESS only. Admin-authenticated,
  // no catalogue/customer/order records returned and never any production writes.
  if(req.method==='GET'&&p==='/api/admin/source-check'){
