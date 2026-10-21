@@ -183,8 +183,23 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
    if(profiles.some(x=>normalizedPhone(x.phone)===normalizedPhone(phone))){
     no(res,409,'DUPLICATE_CUSTOMER','Số điện thoại đã thuộc một khách thử. Hãy chọn khách đã có thay vì tạo trùng.');return true;
    }
+   // New customers may save all approved destinations in one atomic request.
+   const extraLocations=b?.locations??[];
+   if(!Array.isArray(extraLocations)||extraLocations.length>=MAX_LOCATIONS){
+    no(res,400,'LOCATION_LIMIT','Một đại lý có tối đa 20 địa chỉ, tính cả địa chỉ chính.');return true;
+   }
+   const locations=[{id:'primary',label:'Địa chỉ chính',recipient:name,phone,address,enabled:true}];
+   for(const raw of extraLocations){
+    const loc=validateLocation(raw);
+    if(!loc){no(res,400,'INVALID_LOCATION','Điền đủ tên điểm giao, người nhận, số điện thoại và địa chỉ hợp lệ.');return true}
+    if(locations.some(x=>x.label.toLocaleLowerCase('vi')===loc.label.toLocaleLowerCase('vi')||
+      x.address.toLocaleLowerCase('vi')===loc.address.toLocaleLowerCase('vi'))){
+     no(res,409,'DUPLICATE_LOCATION','Tên điểm giao hoặc địa chỉ đã có.');return true;
+    }
+    locations.push({id:crypto.randomUUID(),...loc});
+   }
    const token=newToken();
-   const c={id:'KH-SANDBOX-'+crypto.randomUUID(),name,phone,address,discount,ship,vatRate,enabled:true,tokenHash:hash(token),createdAt:now(),updatedAt:now(),locations:[{id:'primary',label:'Địa chỉ chính',recipient:name,phone,address,enabled:true}],favourite:null,lastQty:0,uniqueFavourite:false};
+   const c={id:'KH-SANDBOX-'+crypto.randomUUID(),name,phone,address,discount,ship,vatRate,enabled:true,tokenHash:hash(token),createdAt:now(),updatedAt:now(),locations,favourite:null,lastQty:0,uniqueFavourite:false};
    profiles.unshift(c);save();
    api(res,201,{ok:true,sandbox:true,customer:publicProfile(c),customerLink:link(req,token),notice:'Chỉ dùng với dữ liệu giả. Sao chép link ngay; hệ thống không lưu token dạng rõ.'});return true;
   }
