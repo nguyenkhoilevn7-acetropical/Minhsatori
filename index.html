@@ -5171,6 +5171,30 @@
             const qrUrl='https://img.vietqr.io/image/vpbank-658489418-compact2.png?amount='+total+'&addInfo='+encodeURIComponent(memo)+'&accountName=HKD%20MINH%20SATORI';
             return {goods,ship,vat,total,memo,qrUrl};
         }
+
+        // Build a VietQR/NAPAS EMVCo payment code locally.
+        // PDFMake renders the QR vector into the PDF, so cross-origin image access,
+        // failed network requests and mobile iframe restrictions cannot omit it.
+        function invoiceVietQrPayload(o) {
+            const payment=invoicePaymentDetails(o);
+            const tlv=(tag,value)=>{
+                const content=String(value);
+                if(content.length>99)throw Error('Dữ liệu mã QR quá dài.');
+                return tag+String(content.length).padStart(2,'0')+content;
+            };
+            const bankAccount=tlv('00','970432')+tlv('01','658489418'); // VPBank BIN + account
+            const merchant=tlv('00','A000000727')+tlv('01',bankAccount)+tlv('02','QRIBFTTA');
+            const amount=String(payment.total);
+            if(!/^\d+$/.test(amount)||Number(amount)<=0)throw Error('Tổng tiền phải lớn hơn 0 để xuất QR thanh toán.');
+            const unsealed='000201010212'+tlv('38',merchant)+'5303704'+tlv('54',amount)+'5802VN'
+                +tlv('62',tlv('08',payment.memo))+'6304';
+            let crc=0xffff;
+            for(let i=0;i<unsealed.length;i++){
+                crc^=unsealed.charCodeAt(i)<<8;
+                for(let bit=0;bit<8;bit++)crc=(crc&0x8000)?((crc<<1)^0x1021)&0xffff:(crc<<1)&0xffff;
+            }
+            return unsealed+crc.toString(16).toUpperCase().padStart(4,'0');
+        }
         function invoicePdfShareMessage(o) {
             const payment=invoicePaymentDetails(o);
             return 'Kính gửi '+(o.name || 'Quý khách')+' hóa đơn bán nước Satori #'+o.invoiceNo+':\n'
@@ -5200,7 +5224,8 @@
                 return [String(i+1),String(it.product || ''),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
             });
             const bank=[{text:'THÔNG TIN THANH TOÁN',bold:true,color:'#0369a1',margin:[0,8,0,6]},'Ngân hàng: VPBank','Số tài khoản: 658489418','Chủ tài khoản: HKD MINH SATORI',{text:'Nội dung: '+memo,margin:[0,4,0,0]}];
-            if(qrImage)bank.push({image:qrImage,fit:[90,90],margin:[0,8,0,0]});
+            // Always render an amount-specific scannable VietQR. Never silently omit it.
+            bank.push({qr:invoiceVietQrPayload(o),fit:100,foreground:'#0f172a',background:'#ffffff',margin:[0,8,0,0]});
             return {pageSize:'A4',pageMargins:[30,30,30,35],defaultStyle:{font:'Roboto',fontSize:9,color:'#0f172a'},info:{title:'Hóa đơn #'+o.invoiceNo+' - '+(o.name || ''),author:'HKD Minh Satori'},
                 footer:(page,count)=>({text:page+' / '+count,alignment:'right',fontSize:8,margin:[30,8,30,0],color:'#64748b'}),
                 content:[
@@ -5231,8 +5256,9 @@
         async function renderInvoiceToPdfBlob(order=null) {
             const o=JSON.parse(JSON.stringify(order || currentModalViewedOrder || getCurrentInvoiceData()));
             const pdfMake=await ensureTextPdf();
-            const [qrImage,logoImage]=await Promise.all([invoiceQrImage(o),invoiceLogoImage()]);
-            const definition=invoicePdfDefinition(o,qrImage,logoImage);
+            // The payment QR is rendered locally by pdfmake; no external QR image fetch.
+            const logoImage=await invoiceLogoImage();
+            const definition=invoicePdfDefinition(o,null,logoImage);
             const blob=await new Promise((resolve,reject)=>{
                 const timeout=setTimeout(()=>reject(new Error('Tạo PDF quá thời gian. Hãy bấm thử lại.')),30000);
                 try{pdfMake.createPdf(definition).getBlob(b=>{clearTimeout(timeout);resolve(b);});}catch(e){clearTimeout(timeout);reject(e);}
