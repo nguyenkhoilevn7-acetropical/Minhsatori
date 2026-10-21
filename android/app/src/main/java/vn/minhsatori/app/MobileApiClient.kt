@@ -53,6 +53,9 @@ object MobileApiClient {
         val origin = validateEndpoint(endpoint)
             ?: throw IOException("Chưa cấu hình liên kết Apps Script API hợp lệ.")
         require(token.length >= 20) { "Cần đăng nhập tài khoản Google quản lý Minh Satori." }
+        if (SatoriOrderValidation.requiresTestLedger(action, payload))
+            throw MobileApiError("TEST_ORDER_REQUIRES_SANDBOX",
+                "Đơn TEST phải lưu trong môi trường thử riêng, không phải sổ hóa đơn thật.")
         val body = JSONObject()
             .put("kind", "satori-android-v1")
             .put("action", action)

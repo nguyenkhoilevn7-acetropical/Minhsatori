@@ -64,9 +64,11 @@ data class SatoriInvoice(
     val updateRequestId: String = "",
     val restoreRequestId: String = "",
     val taxCode: String = "",
-    val paymentRequestId: String = ""
+    val paymentRequestId: String = "",
+    val isTest: Boolean = false
 ) {
-    val isExcluded: Boolean get() = status.equals("Không Tính", ignoreCase = true) ||
+    val isExcluded: Boolean get() = isTest ||
+        status.equals("Không Tính", ignoreCase = true) ||
         status.equals("Đã hủy", ignoreCase = true)
     val customerHasPaid: Boolean get() =
         status.equals("Đã thanh toán", ignoreCase = true) || customerPaidAt.isNotBlank()
@@ -115,7 +117,7 @@ data class SatoriSnapshot(
     fun confirmedWrite(action: String, requestId: String): SatoriInvoice? {
         if (requestId.isBlank()) return null
         return invoices.firstOrNull { invoice ->
-            when (action) {
+            !invoice.isTest && when (action) {
                 "orders.create" -> invoice.requestId == requestId
                 "orders.update" -> invoice.updateRequestId == requestId
                 "orders.restore" -> invoice.restoreRequestId == requestId
@@ -201,7 +203,8 @@ object SatoriData {
                 updateRequestId = string(x, "apiUpdateRequestId"),
                 restoreRequestId = string(x, "apiRestoreRequestId"),
                 paymentRequestId = string(x, "apiPaymentRequestId"),
-                taxCode = string(x, "taxCode")
+                taxCode = string(x, "taxCode"),
+                isTest = SatoriOrderValidation.requiresTestLedger("orders.create", x)
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })

@@ -1260,6 +1260,9 @@ class NativeMainActivity : AppCompatActivity() {
         }
         wrapper.addView(content)
         label(content, "HÓA ĐƠN #" + invoice.number, 19f, true, teal)
+        if (invoice.isTest) {
+            label(content, "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ", 12f, true, gold, 8)
+        }
         label(content, invoice.customer, 16f, true, dark, 10)
         label(content, "Ngày: " + invoice.displayDate + " · " + invoice.status, 13f,
             false, muted, 7)
@@ -1293,7 +1296,15 @@ class NativeMainActivity : AppCompatActivity() {
             NativeInvoicePdf.preview(this, invoice)
         }
         var invoiceDialog: AlertDialog? = null
-        if (invoice.canEditOrDelete || invoice.canMarkCustomerPaid) {
+        // Legacy/partially restored rows may have a missing/non-numeric number.
+        // Continue read-only display, but never crash on toInt() or send a write.
+        val validInvoiceNumber = invoice.number.toIntOrNull()?.takeIf { it > 0 }
+        if (validInvoiceNumber == null) {
+            label(content, "⚠ Số hóa đơn cần kiểm tra. Đã khóa sửa, xóa và ghi thanh toán.",
+                12f, true, gold, 10)
+        }
+        if (validInvoiceNumber != null &&
+            (invoice.canEditOrDelete || invoice.canMarkCustomerPaid)) {
             if (invoice.canEditOrDelete && canAction("orders.update")) button(content, "SỬA HÓA ĐƠN") {
                 invoiceDialog?.dismiss()
                 launchEditor(editing = invoice)
@@ -1503,6 +1514,10 @@ class NativeMainActivity : AppCompatActivity() {
         val contents = JSONObject(payload.toString())
         if (!contents.has("requestId")) contents.put("requestId",
             UUID.randomUUID().toString().replace("-", ""))
+        if (SatoriOrderValidation.requiresTestLedger(action, contents)) {
+            completed(false, "Đơn TEST phải chuyển sang môi trường thử, không được lưu vào sổ hóa đơn thật.")
+            return
+        }
         val exactRetry = prior?.matches(endpoint.orEmpty(), actorId, action, contents) == true
         if (!hasServerAction(action) || endpoint == null || token == null || isLoading ||
             pendingStorageError || (prior != null && !exactRetry)) {
