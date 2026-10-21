@@ -315,11 +315,34 @@ const note=document.createElement('textarea');note.className='delivery-note';not
 note.placeholder='AI tự điền lời dặn từ tin nhắn; bấm vào đây nếu cần sửa';note.value=q.deliveryNote||'';note.setAttribute('aria-label','Lưu ý giao hàng đã được tự động nhận diện, có thể chỉnh sửa');label.appendChild(note);
 const notice=document.createElement('small');notice.textContent=q.deliveryNote?'✓ Đã tự hiểu lời dặn từ tin nhắn. Anh/chị xem lại và sửa nếu muốn. Giờ giao vẫn chờ cửa hàng xác nhận.':'Có thể ghi thêm lời dặn tại đây. Giờ giao vẫn chờ cửa hàng xác nhận.';
 noteBlock.append(label,notice);box.append(noteBlock,b);$('messages').appendChild(box);bottom()}
+function showAmendment(proposal){
+ const box=document.createElement('div');box.className='quote';box.setAttribute('data-amendment',proposal.proposalId);
+ const heading=document.createElement('h3');heading.textContent='✏️ Xác nhận sửa hóa đơn '+proposal.ref;box.append(heading);
+ const before=document.createElement('p');before.className='small';before.textContent='Ghi chú trước: '+(proposal.previousNote||'(chưa có)');
+ const after=document.createElement('p');after.className='small';after.textContent='Ghi chú sau khi sửa: '+proposal.newNote;
+ const info=document.createElement('p');info.className='small';info.textContent='Tổng tiền không đổi: '+money(proposal.total)+'. Giờ giao là yêu cầu của khách, cửa hàng sẽ xác nhận. Chưa lưu khi chưa bấm đồng ý.';
+ const actions=document.createElement('div');actions.className='selection-controls';
+ const yes=document.createElement('button');yes.type='button';yes.className='btn primary';yes.textContent='✓ Đúng, sửa hóa đơn';
+ const no=document.createElement('button');no.type='button';no.className='btn';no.textContent='Không sửa';
+ yes.addEventListener('click',async()=>{
+  if(yes.disabled)return;yes.disabled=true;no.disabled=true;
+  try{
+   const result=await serverPost('/api/order-amend/confirm',{token:serverToken,proposalId:proposal.proposalId,confirmed:true});
+   yes.textContent='Đã lưu sửa đổi';
+   msg(result.message||'Đã cập nhật hóa đơn.');
+   if(result.order)showInvoice(result.order);
+  }catch(e){yes.disabled=false;no.disabled=false;msg('Chưa sửa được hóa đơn: '+e.message,'note')}
+ });
+ no.addEventListener('click',()=>{yes.disabled=true;no.disabled=true;send('Không sửa')});
+ actions.append(yes,no);box.append(before,after,info,actions);$('messages').append(box);bottom();
+}
 async function confirmOrder(q,button){const deliveryNote=(button.closest('.quote')?.querySelector('textarea.delivery-note')?.value||'').trim();if(deliveryNote.length>300){msg('Lưu ý chỉ được tối đa 300 ký tự.','note');return}if(serverMode){button.disabled=true;button.textContent='Đang lưu đơn thử...';try{const res=await serverPost('/api/confirm',{token:serverToken,quoteId:q.quoteId,requestId:'demo-'+q.quoteId,deliveryNote});const o=res.order;button.textContent='Đã xác nhận';msg('Đã tạo đơn THỬ '+o.ref+'. Chưa chuyển tới Minh Satori thật. Trạng thái: Chờ thanh toán.');showInvoice(o);const link=document.createElement('a');link.className='btn';link.textContent='⬇ Tải PDF về máy';link.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);link.setAttribute('download',o.ref+'.pdf');$('messages').appendChild(link);bottom();draft=null;}catch(e){button.disabled=false;button.textContent='Xác nhận đơn THỬ';msg('Không ghi được đơn: '+e.message,'note')}return;}if(!draft||draft.nonce!==q.nonce||draft.profileId!==customer().id){msg('Báo giá đã thay đổi, vui lòng yêu cầu lại.');return}const c=customer();if(c.id!==q.profileId||c.discount!==q.discount||c.ship!==q.ship||c.address!==q.address||c.phone!==q.phone){msg('Cấu hình khách đã đổi nên không thể chốt theo báo giá cũ. Vui lòng đặt lại.');draft=null;return;}const key='MSATORI_SANDBOX_DEMO_ONLY';try{localOrders=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(localOrders))localOrders=[]}catch(e){localOrders=[]}let saved=localOrders.find(o=>o.nonce===q.nonce);if(!saved){saved={...q,deliveryNote,ref:'TEST-'+String(Date.now()),createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};localOrders.push(saved);try{localStorage.setItem(key,JSON.stringify(localOrders))}catch(e){msg('Không thể lưu localStorage; đơn thử chỉ tồn tại trong phiên này.','note')}}button.disabled=true;button.textContent='Đã xác nhận';msg(`Đã tạo đơn THỬ ${saved.ref}. Trạng thái: Chờ thanh toán. Chưa gửi website thật và chưa phát sinh yêu cầu giao hàng.`);showInvoice(saved);draft=null}
 async function send(text){const message=String(text||'').trim();if(!message||sending)return;msg(message,'user');$('messageInput').value='';if(message.length>500){msg('Tin nhắn quá dài.');return;}if(serverMode){sending=true;const sendButton=$('sendForm').querySelector('button');sendButton.disabled=true;$('messages').setAttribute('aria-busy','true');msg('Đang kiểm tra yêu cầu đặt nước...','note');const loading=$('messages').lastElementChild;try{const useCart=pendingCartMessage===message&&Array.isArray(pendingCartItems);
  const payload={token:serverToken,message,...(useCart?{cartItems:pendingCartItems}: {})};
  const res=await serverPost('/api/message',payload);
  if(res.message)msg(res.message);
+ if(res.editProposal)showAmendment(res.editProposal);
+ if(res.amended&&res.order)showInvoice(res.order);
  if(res.quote){draft=res.quote;showQuote(res.quote);if(useCart){pendingCartItems=null;pendingCartMessage=null;cart.clear();updateCart();}}
  }catch(e){msg('AI chưa xử lý được: '+e.message+' Không có đơn nào được tạo.','note')}finally{loading.remove();sending=false;sendButton.disabled=false;$('messages').removeAttribute('aria-busy')}return;}const r=matchRequest(message);if(r.error){msg(r.error);return;}draft=quote(r.code,r.qty);msg(`Mình đã hiểu yêu cầu: ${draft.qty} thùng ${draft.product}. Bạn kiểm tra báo giá và địa chỉ bên dưới rồi xác nhận nhé.`);showQuote(draft)}
 function moneyInWords(value){
