@@ -124,6 +124,14 @@ button:disabled{opacity:.55}
 <p class="hint">Chỉ khôi phục khi sandbox đang trống, không ghi đè dữ liệu đang có. Không kết nối hay khôi phục dữ liệu production.</p>
 <button type="button" id="restoreSandboxBackup" class="secondary">Khôi phục dữ liệu THỬ</button>
 <p id="backupState" role="status" class="hint"></p>
+<hr aria-hidden="true">
+<h3>☁ Google Drive • Sao lưu mã hóa (TEST)</h3>
+<p class="hint">Xem trạng thái bản sao gần nhất, hoặc sao lưu ngay khi kết nối đã được cấu hình. Không tự Deploy hoặc Restart Render. Bản sao Drive không thay thế cơ sở dữ liệu giao dịch.</p>
+<div class="row">
+<button id="checkDriveBackup" type="button" class="secondary">Kiểm tra Drive</button>
+<button id="runDriveBackup" type="button" class="secondary">Sao lưu lên Drive</button>
+</div>
+<p id="driveBackupStatus" class="hint" role="status" aria-live="polite">Chưa kiểm tra Google Drive.</p>
 </section>
 </div>
 </main><script>
@@ -398,6 +406,35 @@ $('downloadSandboxBackup').onclick=async()=>{
   setTimeout(()=>URL.revokeObjectURL(uri),30000);
   $('backupState').textContent='Đã tạo bản sao lưu THỬ. Kiểm tra thư mục Tải xuống trên điện thoại.';
  }catch(e){$('backupState').textContent='Lỗi sao lưu: '+e.message}
+ finally{b.disabled=false}
+};
+async function showDriveBackupStatus(){
+ const view=$('driveBackupStatus');
+ view.textContent='Đang kiểm tra trạng thái Google Drive…';
+ try{
+  const result=await request('/api/admin/drive-backup/status');
+  const d=result.driveBackup||{};
+  if(!d.configured){view.textContent='Chưa cấu hình đủ 3 biến bảo mật trong Render; chưa thể tự động sao lưu.';return}
+  if(!d.lastVerifiedUploadAt){view.textContent='Đã cấu hình nhưng CHƯA có lần tải thành công được xác minh. Không Deploy cho đến khi sao lưu.';return}
+  view.textContent='Đã nhận xác nhận tải bản sao mã hóa lên Google Drive vào '+new Date(d.lastVerifiedUploadAt).toLocaleString('vi-VN')+
+   '. Mã tệp: '+String(d.lastVerifiedFileId||'không có')+'. Cần nghiệm thu khôi phục ở môi trường TEST riêng.';
+ }catch(err){view.textContent='Chưa xác minh được Google Drive: '+err.message}
+}
+$('checkDriveBackup').onclick=showDriveBackupStatus;
+$('runDriveBackup').onclick=async()=>{
+ const b=$('runDriveBackup');
+ if(!confirm('Chỉ gửi bản sao dữ liệu TEST đã mã hóa lên Google Drive riêng. Không sửa hóa đơn thật. Tiếp tục?'))return;
+ b.disabled=true;$('driveBackupStatus').textContent='Đang sao lưu, vui lòng chờ…';
+ try{
+  const result=await request('/api/admin/drive-backup/now','POST',{});
+  const d=result.driveBackup||{};
+  $('driveBackupStatus').textContent=d.ok?
+   (d.skipped?'Không có thay đổi kể từ bản sao Drive đã xác minh trước đó.':
+    'Drive đã xác nhận nhận bản sao mã hóa lúc '+new Date(d.lastSuccessAt).toLocaleString('vi-VN')+
+    ' • Mã tệp: '+String(d.lastFileId||'không có'))+
+   '. Chưa tính là nghiệm thu khôi phục.':
+   'Chưa xác minh được lần sao lưu.';
+ }catch(err){$('driveBackupStatus').textContent='Không sao lưu được lên Drive: '+err.message}
  finally{b.disabled=false}
 };
 $('restoreSandboxBackup').onclick=async()=>{
