@@ -9,7 +9,7 @@ function numericVietnameseHours(s){
   const n=vnWords[normAmend(word)];return n?String(n)+' '+unit:all;
  });
 }
-export const isConfirmAmend=s=>/^(?:dung(?: roi)?|dong y|xac nhan(?: sua(?: don| hoa don)?)?|ok(?:ay)?|chinh xac|phai(?: roi)?|yes)$/i.test(normAmend(s));
+export const isConfirmAmend=s=>/^(?:dung(?: roi)?|dong y|xac nhan(?: sua(?: don| hoa don)?)?|ok(?:ay)?|chinh xac|phai(?: roi)?|co|vang(?: a)?|da dung|ok em|yes)$/i.test(normAmend(s));
 export const isCancelAmend=s=>/^(?:khong|khong sua(?: nua)?|huy(?: sua)?|thoi|giu nguyen|no)$/i.test(normAmend(s));
 export function isAmendmentIntent(message){
  const n=normAmend(message);
@@ -39,7 +39,12 @@ export function appendDeliveryNote(original,addition){
  const old=String(original||'').trim(),fresh=String(addition||'').trim();
  if(!fresh||fresh.length>300)throw Error('INVALID_NOTE');
  if(old.toLocaleLowerCase('vi-VN').includes(fresh.toLocaleLowerCase('vi-VN')))return old;
- const combined=old?old+'; '+fresh:fresh;
+ const oldParts=old.split(/;\\s*/).filter(Boolean);
+ // If an earlier customer delivery-time instruction exists, replace that
+ // instruction rather than adding contradictory 14:00 / 15:00 requests.
+ const freshTime=/^Khách yêu cầu giao (?:sau|trước|vào khoảng)/iu.test(fresh);
+ const kept=freshTime?oldParts.filter(x=>!/^Khách yêu cầu giao (?:sau|trước|vào khoảng)/iu.test(x)):oldParts;
+ const combined=[...kept,fresh].join('; ');
  if(combined.length>300)throw Error('NOTE_LIMIT');
  return combined;
 }
