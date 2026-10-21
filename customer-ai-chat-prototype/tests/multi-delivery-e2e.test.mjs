@@ -69,6 +69,14 @@ try{
   message:'Giao Chi nhánh Quận 7',unifiedDraft:true,expectedRevision:next.data.draft.revision});
  assert.equal(chat.status,200);
  assert.equal(chat.data.draft?.locationId,idQ7,'chat can identify the approved branch by name');
+ const combinedDraft=await call('/api/draft?token='+encodeURIComponent(token));
+ const combined=await call('/api/message','POST',{token,
+  message:'Cho 3 thùng Satori 500ml giao Chi nhánh Quận 7',
+  unifiedDraft:true,expectedRevision:combinedDraft.data.draft.revision});
+ assert.equal(combined.status,200,'mixed product and destination reaches chat handler');
+ assert.equal(combined.data.draft?.locationId,idQ7,'combined message selects known branch');
+ assert.ok(combined.data.quote?.qty===3,'combined message preserves the requested quantity');
+ assert.equal(combined.data.quote?.address,'7 Đường Mẫu, Quận 7','mixed message quote uses approved destination');
  console.log('Multi-location sandbox HTTP checks PASS');
 }finally{
  processRef.kill();rmSync(temp,{recursive:true,force:true});
