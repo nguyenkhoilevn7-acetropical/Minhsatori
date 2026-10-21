@@ -23,6 +23,18 @@ try{
  const notConfigured=await req('/api/admin/source-check','GET',undefined,admin);
  ok(notConfigured.status===503&&notConfigured.data.error==='READ_ONLY_NOT_CONFIGURED','source probe safely refuses missing HMAC credentials');
 
+ const unauthedDrive=await req('/api/admin/drive-backup/status');
+ ok(unauthedDrive.status===401,'anonymous caller cannot inspect encrypted Drive backup');
+ const noDriveConfig=await req('/api/admin/drive-backup/status','GET',undefined,admin);
+ ok(noDriveConfig.status===200&&noDriveConfig.data.driveBackup?.configured===false,
+    'owner sees clear unconfigured state, never fake upload success');
+ const anonymousBackupUpload=await req('/api/admin/drive-backup/now','POST',{});
+ ok(anonymousBackupUpload.status===401,'anonymous caller cannot trigger Drive backup');
+ const refusedBackupUpload=await req('/api/admin/drive-backup/now','POST',{},admin);
+ ok(refusedBackupUpload.status===503&&refusedBackupUpload.data.error==='DRIVE_BACKUP_FAILED',
+    'owner Drive backup refuses unset security variables without modifying test data');
+
+
  denied=await req('/api/admin/customers','POST',{name:'Fake Customer'});ok(denied.status===401,'anonymous create denied');
  const creation=await req('/api/admin/customers','POST',{name:'Khách Giả C',phone:'000 000 0003',address:'789 Đường Giả Lập, TP.HCM',discount:25,ship:8,vatRate:8},admin);
  ok(creation.status===201&&creation.data.ok,'admin can create sandbox customer');
