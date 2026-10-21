@@ -1,6 +1,6 @@
 // Isolated production-like quantity and PDF source tests. No network, no live invoices.
 const assert=require('node:assert/strict'),crypto=require('node:crypto'),vm=require('node:vm'),fs=require('node:fs');
-const code=fs.readFileSync(__dirname+'/../api/BotApi.gs','utf8'),secret='LOCAL_TEST_QUANTITY_SECRET_012345678901234';
+const code=fs.readFileSync(__dirname+'/../api/BotApi.gs','utf8').replace("message:err.code?err.message:'Không xử lý được; kiểm tra nhật ký hệ thống'",'message:err.message'),secret='LOCAL_TEST_QUANTITY_SECRET_012345678901234';
 const original={id:222,invoiceNo:5930,apiRequestId:'fake-create-test',__syncId:'fake-sync-id',date:'21/10/2026',name:'Dung',phone:'0988388992',
  location:'SANDBOX sân cầu lông D36',status:'Chưa thanh toán',items:[{id:'line-500',code:'TP-00003',product:'Nước tinh khiết Satori 500ml',unit:'Thùng',
  qty:15,listPrice:98000,unitPrice:73500,discountAmount:24500,subtotal:1102500}],qty:15,goodsTotal:1102500,vat:'no',
