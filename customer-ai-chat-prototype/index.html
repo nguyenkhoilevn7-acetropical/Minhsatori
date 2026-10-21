@@ -697,7 +697,7 @@ function chooseProduct(p){
  $('selectedQuantity').value=1;$('productSelection').classList.add('active');
  $('addProductMessage').disabled=false;
  $('cartFeedback').textContent='';
- $('selectedQuantity').focus();
+ // Keyboard stays hidden until customer actually taps the quantity input.
 }
 function closeCatalog(){
  $('catalogBackdrop').classList.remove('open');document.body.style.overflow='';
@@ -719,7 +719,7 @@ async function openCatalog(){
   }
  }
  if(!catalogItems.length&&!serverMode)catalogItems=PRODUCTS.map(x=>({code:x.code,name:x.name,unit:'Thùng',brand:'SATORI',spec:'Bản xem thử offline'}));
- renderCatalogue();$('catalogSearch').focus();
+ renderCatalogue(); // Opening products should not automatically summon Android keyboard.
 }
 $('allProductsButton').addEventListener('click',openCatalog);
 $('heroShopCta').addEventListener('click',openCatalog);
