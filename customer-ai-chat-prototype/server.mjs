@@ -50,7 +50,7 @@ function applyAmendment(res,profile,proposalId){
  const p=pendingAmends.get(profile.id);
  if(!p||p.id!==proposalId||p.expiresAt<Date.now()||p.ref!==order.ref)
   return fail(res,409,'AMENDMENT_EXPIRED','Đề xuất sửa đã hết hạn hoặc đơn mới đã được tạo.');
- if(order.amendmentVersion!==p.version||order.deliveryNote!==p.previousNote)
+ if((order.amendmentVersion||0)!==p.version||order.deliveryNote!==p.previousNote)
   return fail(res,409,'AMENDMENT_CHANGED','Ghi chú đã thay đổi, hãy yêu cầu AI kiểm tra lại.');
  if(order.deliveryNote===p.newNote)return fail(res,409,'NOTHING_TO_UPDATE','Nội dung ghi chú không có thay đổi.');
  const updated={...order,deliveryNote:p.newNote,amendmentVersion:(order.amendmentVersion||0)+1,
