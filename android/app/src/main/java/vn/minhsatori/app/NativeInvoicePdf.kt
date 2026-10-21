@@ -109,13 +109,28 @@ object NativeInvoicePdf {
                     ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
                         PdfRenderer(descriptor).use { reader ->
                             require(reader.pageCount in 1..20) { "PDF có số trang không hợp lệ." }
-                            val width = (activity.resources.displayMetrics.widthPixels -
+                            val screenWidth = (activity.resources.displayMetrics.widthPixels -
                                 (32 * activity.resources.displayMetrics.density).toInt()).coerceIn(280, 960)
+                            // Avoid allocating up to 20 full-resolution bitmaps at once on Samsung.
+                            // Keep the total ARGB_8888 page buffer under 48 MiB.
+                            val maxBitmapBytes = 48L * 1024L * 1024L
+                            var allocatedBytes = 0L
                             repeat(reader.pageCount) { index ->
                                 reader.openPage(index).use { page ->
+                                    val maxWidth = kotlin.math.sqrt(
+                                        maxBitmapBytes.toDouble() * page.width.toDouble() /
+                                            (reader.pageCount.toDouble() * 4.0 * page.height.toDouble())
+                                    ).toInt()
+                                    val width = minOf(screenWidth, maxWidth)
+                                    require(width >= 280) { "PDF nhiều trang, vượt bộ nhớ xem an toàn." }
                                     val scale = width.toFloat() / page.width.toFloat()
                                     val height = (page.height.toFloat() * scale).toInt()
                                     require(height in 1..2700) { "Trang PDF quá lớn." }
+                                    val bytes = width.toLong() * height.toLong() * 4L
+                                    require(allocatedBytes + bytes <= maxBitmapBytes) {
+                                        "Bộ nhớ xem PDF đã đạt giới hạn an toàn."
+                                    }
+                                    allocatedBytes += bytes
                                     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                                     try {
                                         bitmap.eraseColor(Color.WHITE)
