@@ -792,6 +792,27 @@ async function ensureCatalog() {
  catalogItems=PRODUCTS.map(x=>({code:x.code,name:x.name,unit:'Thùng',brand:'SATORI',spec:'Thử ngoại tuyến'}));
  return true;
 }
+
+function renderInlineProducts(){
+ if(!serverMode||$('inlineProductSearch').hidden)return;
+ const root=$('inlineProductResults');root.replaceChildren();
+ const query=norm($('inlineSearchInput').value).trim();
+ const matches=catalogItems.filter(p=>!query||norm([p.name,p.brand,p.spec,p.code].join(' ')).includes(query)).slice(0,6);
+ if(!matches.length){const empty=document.createElement('small');empty.textContent='Không tìm thấy. Anh/chị thử tên hoặc dung tích khác.';root.append(empty)}
+ for(const product of matches){
+  const row=document.createElement('div');row.className='inline-product-row';
+  const name=document.createElement('span');name.className='inline-name';name.textContent=product.name;name.title=product.name;
+  row.append(name,stepper(product.code,cart.get(product.code)?.qty||0));root.append(row);
+ }
+}
+async function openInlineSearch(){
+ if(!serverMode){openCatalog();return}
+ if(!await ensureCatalog())return;
+ const panel=$('inlineProductSearch');panel.hidden=!panel.hidden;
+ if(!panel.hidden){$('inlineSearchInput').value='';renderInlineProducts()}
+ // Deliberately do not focus the input or open the keyboard on Samsung.
+}
+
 async function addSuggestedItem(code) {
  if(!await ensureCatalog())return;
  const item=catalogItems.find(x=>x.code===code);
@@ -822,7 +843,7 @@ function updateCart(){
  $('clearCart').disabled=cart.size===0;
  $('composeCart').disabled=cart.size===0;
  $('composeCart').textContent='Soạn tin nhắn đầy đủ ('+cart.size+' món) →';
- if(serverMode)renderInlineCart();
+ if(serverMode){renderInlineCart();renderInlineProducts();}
  if(!cart.size){const label=document.createElement('span');label.className='cart-empty';label.textContent='Chọn từng sản phẩm để thêm vào cùng một đơn.';root.append(label)}
  for(const item of cart.values()){
   const row=document.createElement('div');row.className='cart-row';
@@ -884,8 +905,10 @@ async function openCatalog(){
  if(!catalogItems.length&&!serverMode)catalogItems=PRODUCTS.map(x=>({code:x.code,name:x.name,unit:'Thùng',brand:'SATORI',spec:'Bản xem thử offline'}));
  renderCatalogue(); // Opening products should not automatically summon Android keyboard.
 }
-$('allProductsButton').addEventListener('click',openCatalog);
-$('heroShopCta').addEventListener('click',openCatalog);
+$('allProductsButton').addEventListener('click',openInlineSearch);
+$('heroShopCta').addEventListener('click',openInlineSearch);
+$('inlineSearchClose').addEventListener('click',()=>{$('inlineProductSearch').hidden=true});
+$('inlineSearchInput').addEventListener('input',renderInlineProducts);
 $('catalogClose').addEventListener('click',closeCatalog);
 $('catalogBackdrop').addEventListener('click',e=>{if(e.target===$('catalogBackdrop'))closeCatalog()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('catalogBackdrop').classList.contains('open'))closeCatalog()});
