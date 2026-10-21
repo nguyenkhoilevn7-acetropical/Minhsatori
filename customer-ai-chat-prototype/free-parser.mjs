@@ -2,7 +2,7 @@ import {CATALOGUE,productFor,resolveProduct} from './catalogue.mjs';
 /* SANDBOX: rule-first Vietnamese order parser, optional Gemini Developer API Free Tier. Never touches price or customer identity. */
 const SKUS=new Set(['S5L','S500','S350',...CATALOGUE.map(p=>p.code)]);
 const words={mot:1,hai:2,ba:3,bon:4,tu:4,nam:5,lam:5,sau:6,bay:7,tam:8,chin:9,muoi:10};
-const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\s+/g,' ').trim();
+const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/đ/g,'d').replace(/\s+/g,' ').trim();
 // A SKU lookup is only widened for explicitly labelled bottled water.
 // "10 suối 500" is a common shorthand for 500ml, but bare "500" may
 // refer to price, and can NEVER be silently treated as a product.
