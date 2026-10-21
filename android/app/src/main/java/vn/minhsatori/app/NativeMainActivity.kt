@@ -1260,6 +1260,9 @@ class NativeMainActivity : AppCompatActivity() {
         }
         wrapper.addView(content)
         label(content, "HÓA ĐƠN #" + invoice.number, 19f, true, teal)
+        if (invoice.isTest) {
+            label(content, "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ", 12f, true, gold, 8)
+        }
         label(content, invoice.customer, 16f, true, dark, 10)
         label(content, "Ngày: " + invoice.displayDate + " · " + invoice.status, 13f,
             false, muted, 7)
