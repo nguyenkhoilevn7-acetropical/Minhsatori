@@ -122,6 +122,9 @@ export function parseColloquialBasket(message,profile={}){
   const m=clause.match(numeric);
   const qty=m?countOf(m[1]):null,spoken=m?.[2]==='thg'?'thung':m?.[2]||null;
   const name=m?m[3].trim():clause;
+  // Do not infer Satori from "suối 500": Hikari 500ml also exists.
+  // Defer this specific two-brand ambiguity to the brand-clarification flow.
+  if(/^(?:(?:nuoc\s+)?suoi)\s+500(?:\s*ml)?$/.test(name))return null;
   const five=/^(?:(?:(?:nuoc\s+)?suoi|nuoc\s+tinh\s+khiet|nuoc|satori)\s+)?5\s*l(?:\s+(?:co|khong|ko|k)\s+voi)?$/u.test(name);
   if(five){
    if(qty!==null&&(!Number.isSafeInteger(qty)||qty<1||qty>500))
