@@ -20,7 +20,7 @@ import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
-import {makeDriveBackupWorker} from './drive-backup.mjs';
+import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
 import {getGeminiVersionStatus} from './version-status.mjs';
@@ -629,6 +629,46 @@ const server=http.createServer(async(req,res)=>{
  return fail(res,404,'NOT_FOUND','Không có đường dẫn này');
  }catch(err){return fail(res,err.message==='PAYLOAD_TOO_LARGE'?413:500,'SERVER_ERROR','Lỗi xử lý yêu cầu thử nghiệm')}
 });
+// TEST-ONLY one-time encrypted rescue for a confirmed pre-deploy snapshot.
+// Never inject plaintext or secret keys in code, browser, chat or logs.
+// Fail closed if the backup is stale. Prevent ghost/stale orders after a later restart.
+function bootstrapEncryptedTestSnapshot(){
+ const encoded=process.env.GEMINI_SANDBOX_BOOTSTRAP_ENCRYPTED_B64||'';
+ if(!encoded)return;
+ const state=customerLinks.exportState();
+ if(orders.size||state.profiles.length||state.changeRequests.length||draftStore.snapshot().length){
+  console.info('SANDBOX_BOOTSTRAP_EXISTING_STATE_PRESERVED');
+  return;
+ }
+ try{
+  if(encoded.length>6000000)throw Error('INVALID_BOOTSTRAP_SIZE');
+  const key=Buffer.from(String(process.env.GEMINI_SANDBOX_DRIVE_ENCRYPTION_KEY_B64||''),'base64');
+  const envelope=JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
+  const restored=decryptArchive(envelope,key);
+  // Explicit snapshot age is checked before modifying any in-memory or on-disk data.
+  const raw=Buffer.from(encoded,'base64');
+  const payload=JSON.parse(raw.toString('utf8'));
+  if(!payload||payload.encrypted!==true)throw Error('INVALID_BOOTSTRAP');
+  // The verified archive date is in the encrypted authenticated plaintext; read it
+  // only from a decrypted, independently integrity-checked snapshot.
+  const decipher=crypto.createDecipheriv('aes-256-gcm',key,Buffer.from(envelope.iv,'base64'));
+  decipher.setAuthTag(Buffer.from(envelope.tag,'base64'));
+  const json=Buffer.concat([decipher.update(Buffer.from(envelope.ciphertext,'base64')),decipher.final()]).toString('utf8');
+  const stamp=Date.parse(JSON.parse(json)?.snapshot?.exportedAt||'');
+  const age=Date.now()-stamp;
+  if(!Number.isFinite(stamp)||age<0||age>90*60_000)throw Error('STALE_BOOTSTRAP');
+  customerLinks.restoreState(restored);
+  draftStore.restore(restored.drafts||[]);
+  for(const o of restored.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
+  saveOrdersAtomic();
+  console.info('SANDBOX_BOOTSTRAP_RESTORED','orders='+restored.orders.length,
+   'drafts='+(restored.drafts||[]).length,'customers='+restored.profiles.length);
+ }catch(e){
+  console.error('SANDBOX_BOOTSTRAP_FAILED',e?.message==='STALE_BOOTSTRAP'?'STALE_BOOTSTRAP':'INTEGRITY_OR_STORAGE_ERROR');
+  throw Error('SANDBOX_BOOTSTRAP_FAILED');
+ }
+}
+try{bootstrapEncryptedTestSnapshot()}catch{process.exit(78)}
 server.listen(PORT,HOST,()=>{
  driveWorker.start();
  console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched');
