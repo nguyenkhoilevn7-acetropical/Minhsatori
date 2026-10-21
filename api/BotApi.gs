@@ -9,7 +9,7 @@ var SatoriBotApi=(function(){
 var ORDER_KEY='satori_orders_v15', PRICE_APPROVAL_KEY='satori_ai_pricing_approvals_v1';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
  'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write','orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','orders.update':'orders:write','orders.delete':'orders:delete','orders.restore':'orders:write','trash.list':'orders:read',
- 'payments.markCustomerPaid':'payments:write'};
+ 'payments.markCustomerPaid':'payments:write','orders.create.test':'orders:test:write','orders.list.test':'orders:test:read'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
@@ -521,6 +521,48 @@ function write(s,action,p){
   'COMMIT_UNVERIFIED','Chưa xác minh được ghi dữ liệu');
  return {revision:next.revision,data:result.result,backupCreated:true};
 }
+
+function testLedger(action,p){
+ var prop=PropertiesService.getScriptProperties();
+ var testId=String(prop.getProperty('SATORI_TEST_STATE_FILE_ID')||'');
+ var liveId=String(prop.getProperty('STATE_FILE_ID')||'');
+ need(testId&&liveId&&testId!==liveId,'TEST_LEDGER_NOT_CONFIGURED','Kho TEST phải là tệp Drive khác sổ thật');
+ var file=DriveApp.getFileById(testId),state;
+ try{state=JSON.parse(file.getBlob().getDataAsString());}catch(e){fail('TEST_LEDGER_INVALID','Kho TEST hỏng');}
+ need(state&&state.environment==='MINHSATORI_TEST_ONLY_V1'&&
+   Number.isSafeInteger(state.revision)&&state.revision>=0&&
+   Array.isArray(state.orders)&&state.orders.length<=1000,
+   'TEST_LEDGER_INVALID','Kho TEST không được xác minh');
+ if(action==='orders.list.test')return {revision:state.revision,
+   data:{environment:'TEST_ONLY',financial:false,orders:state.orders.slice(-50),total:state.orders.length}};
+ need(action==='orders.create.test','INVALID_ACTION','Lệnh TEST không hỗ trợ');
+ need(p.confirmedSynthetic===true,'TEST_CONFIRMATION_REQUIRED','Cần xác nhận đơn TEST dùng dữ liệu giả');
+ need(/^[A-Za-z0-9_-]{8,100}$/.test(String(p.requestId||'')),'INVALID_REQUEST','Mã đơn TEST không hợp lệ');
+ var previous=state.orders.find(function(o){return o.requestId===p.requestId;});
+ if(previous){
+   need(JSON.stringify(previous.intent)===JSON.stringify(p.order),'REQUEST_ID_CONFLICT','TEST requestId đã dùng');
+   return {revision:state.revision,data:{environment:'TEST_ONLY',financial:false,order:previous,duplicate:true}};
+ }
+ need(Number.isSafeInteger(p.expectedRevision)&&p.expectedRevision===state.revision,
+   'TEST_REVISION_CONFLICT','Kho TEST vừa thay đổi');
+ var o=p.order;
+ need(o&&typeof o==='object'&&typeof o.name==='string'&&o.name.trim().length>=2&&
+   Array.isArray(o.items)&&o.items.length>0&&o.items.length<=20&&
+   o.items.every(function(i){return i&&typeof (i.product||i.name)==='string'&&
+      Number.isSafeInteger(i.qty)&&i.qty>0&&i.qty<=500&&
+      Number.isSafeInteger(i.unitPrice)&&i.unitPrice>=0;}),
+   'INVALID_TEST_ORDER','Đơn TEST không hợp lệ');
+ var nextRev=state.revision+1,ref='TEST-'+String(nextRev).padStart(6,'0');
+ var added={id:ref,invoiceNo:ref,environment:'TEST_ONLY',financial:false,
+  requestId:p.requestId,intent:JSON.parse(JSON.stringify(o)),createdAt:new Date().toISOString()};
+ var next={environment:'MINHSATORI_TEST_ONLY_V1',revision:nextRev,orders:state.orders.concat([added])};
+ file.setContent(JSON.stringify(next));
+ var check;
+ try{check=JSON.parse(file.getBlob().getDataAsString());}catch(e){fail('TEST_COMMIT_UNVERIFIED','Chưa xác minh ghi TEST');}
+ need(JSON.stringify(check)===JSON.stringify(next),'TEST_COMMIT_UNVERIFIED','Chưa xác minh ghi TEST');
+ return {revision:nextRev,data:{environment:'TEST_ONLY',financial:false,order:added,duplicate:false}};
+}
+
 function handle(e){
  try{
   var raw=e&&e.postData&&e.postData.contents;
@@ -529,6 +571,10 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
+   if(identity.action==='orders.create.test'||identity.action==='orders.list.test'){
+    var t=testLedger(identity.action,identity.payload);cache.put(key,'1',600);
+    return json({ok:true,action:identity.action,revision:t.revision,data:t.data,backupCreated:false});
+   }
    var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.update'||identity.action==='orders.restore'||identity.action==='orders.delete'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
@@ -546,6 +592,10 @@ function executeVerified(action,payload,nonce) {
  try {
   var cache=CacheService.getScriptCache(),key='satorimobile:'+nonce;
   need(!cache.get(key),'REPLAYED','Không gửi lặp thao tác');
+  if(action==='orders.create.test'||action==='orders.list.test'){
+   var t=testLedger(action,p);cache.put(key,'1',600);
+   return {ok:true,action:action,revision:t.revision,data:t.data,backupCreated:false};
+  }
   var s=state(),writeAction=['orders.create','orders.update','orders.delete',
    'orders.restore','payments.markCustomerPaid'].includes(action);
   var result=writeAction?write(s,action,p):{revision:s.revision,data:read(s,action,p)};
