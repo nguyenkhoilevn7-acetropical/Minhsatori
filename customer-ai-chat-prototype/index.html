@@ -523,6 +523,51 @@ $('toggleSettings').addEventListener('click',()=>{$('panel').classList.toggle('o
 
 let catalogItems=[],currentBrand='ALL',selectedProduct=null;
 const cart=new Map();let pendingCartMessage=null,pendingCartItems=null;
+
+function renderSharedDraft(data){
+ if(!data||!Number.isSafeInteger(data.revision)||!Array.isArray(data.items))return;
+ draftRevision=data.revision;
+ cart.clear();
+ for(const item of data.items){
+  if(!item||!item.code||!Number.isSafeInteger(item.qty))continue;
+  cart.set(item.code,{code:item.code,name:item.name,unit:item.unit,qty:item.qty});
+ }
+ pendingCartMessage=null;pendingCartItems=null;
+ updateCart();renderCatalogue();
+}
+async function restoreDraft(){
+ if(!serverMode)return;
+ const response=await fetch('/api/draft?token='+encodeURIComponent(serverToken),{cache:'no-store'});
+ const result=await response.json();
+ if(!response.ok||!result.ok)throw Error(result.message||'Không tải được giỏ hàng.');
+ renderSharedDraft(result.draft);
+}
+async function changeSharedDraft(action,code=null,qty=null){
+ if(!serverMode||draftBusy||sending)return false;
+ draftBusy=true;
+ try{
+  const result=await serverPost('/api/draft',{token:serverToken,action,code,qty,expectedRevision:draftRevision});
+  renderSharedDraft(result.draft);deactivateQuotes();
+  return true;
+ }catch(e){
+  msg('Chưa cập nhật giỏ: '+e.message,'note');
+  await restoreDraft().catch(()=>{});
+  return false;
+ }finally{draftBusy=false}
+}
+async function sharedQuote(){
+ if(!serverMode||draftBusy||sending||!cart.size)return;
+ draftBusy=true;
+ try{
+  const result=await serverPost('/api/draft',{token:serverToken,action:'quote',expectedRevision:draftRevision});
+  renderSharedDraft(result.draft);
+  msg(result.message||'Đây là báo giá của giỏ chung.');
+  if(result.quote){draft=result.quote;showQuote(result.quote)}
+  if($('catalogBackdrop').classList.contains('open'))closeCatalog();
+ }catch(e){msg('Chưa lập được báo giá chung: '+e.message,'note');await restoreDraft().catch(()=>{})}
+ finally{draftBusy=false}
+}
+
 const dateVN=value=>{
  if(typeof value!=='string'||!/[T ]\d{2}:\d{2}/.test(value))return value?'Ngày '+value+' • chưa lưu giờ đặt':'Chưa có ngày giờ';
  const dt=new Date(value);if(!Number.isFinite(dt.getTime()))return 'Chưa có ngày giờ';
