@@ -42,6 +42,13 @@ try{
  const first=await chat('Cho tôi 2 thùng nước ép mãng cầu');
  check(first.status===200&&first.data.quote?.items?.length===3,'natural chat merges third product into existing basket');
  check(first.data.draft.items.reduce((v,i)=>v+i.qty,0)===4,'all button and typed quantities retained');
+ const attack=await chat('Thêm 2 thùng Satori 500ml giao đến 999 Đường Lạ');
+ check(attack.status===200&&attack.data.needsHuman===true&&
+   attack.data.draft.items.find(x=>x.code==='TP-00003').qty===1,
+   'delivery destination change never bypasses verification through cart editing');
+ const ambiguousExtra=await chat('2 thùng nữa');
+ check(ambiguousExtra.status===200&&ambiguousExtra.data.needMoreDetails===true,
+   'short follow-up does not guess among multiple products');
  const oldQuote=first.data.quote;
  const followup=await chat('Thêm 3 thùng Satori 500ml');
  check(followup.status===200&&followup.data.draft.items.find(x=>x.code==='TP-00003').qty===4,'follow-up adds to chosen SKU, not another bill');
