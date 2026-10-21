@@ -118,6 +118,9 @@ export function parseColloquialBasket(message,profile={}){
  // Existing single-product parsing owns all quantified/sales phrases.
  // This new flow owns a single utterance ONLY when it describes the 5L capacity
  // without an order quantity; 10t and 10 thùng are order quantities, not 5L.
+ // A customer-facing cart supports cartons only; do not silently sell a loose 5L bottle.
+ if(!grouped&&/\b\d{1,3}\s+binh\s+(?:satori\s+)?5\s*l\b/.test(text))
+  return {needMoreDetails:true,reason:'UNIT_UNSUPPORTED',message:'Bên em chỉ bán thùng Satori 5L, không bán bình lẻ.'};
  const isNew5LAdd=!grouped&&/^(?:them|bo sung)\b/.test(text)&&/\b5\s*l\b/.test(text);
  if(!grouped&&!isNew5LAdd&&(!/\b5\s*l\b/.test(text)||/^(?:cho|lay|mua|dat|can)\b/.test(text)||/\b(?:\d{1,3}|mot|hai|ba|muoi)\s*(?:thung|thg|t|binh|loc|chai)\b/.test(text)))return null;
  const items=[],missing=[];
