@@ -5,7 +5,7 @@ const html=fs.readFileSync(__dirname+'/../index.html','utf8');
 function fn(name,next){
  const start=html.indexOf('        function '+name+'(');
  assert(start>=0,name+' missing');
- const stop=html.indexOf('        function '+next+'(',start);
+ let stop=html.indexOf('        function '+next+'(',start); if(stop<0)stop=html.indexOf('        async function '+next+'(',start);
  assert(stop>start,'Unable to isolate '+name);
  return html.slice(start,stop);
 }
