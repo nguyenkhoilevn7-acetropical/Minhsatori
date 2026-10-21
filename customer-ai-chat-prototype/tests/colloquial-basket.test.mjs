@@ -24,19 +24,27 @@ for(const spelling of ['5 lít','5L','5 lit','suối 5 lít','nước 5 lit']){
  check(interpreted?.pending?.missing?.kind==='FIVE_LITRE'&&interpreted.pending.missing.qty===null,
   'normalise 5-litre expressions without guessing carton quantity: '+spelling);
 }
-// In this customer ordering flow 5L is only sold per carton.
-// The assistant must never ask whether the customer wants a bottle.
+// The authoritative catalogue sells 5L both as a carton of four bottles
+// and as an individual bottle, with separate SKUs and prices.
 const compact=parseColloquialBasket('Thêm 5 thùng 5 lít');
 check(compact?.pending?.missing?.unit==='thung'&&compact.pending.missing.qty===5,
- '5L carton quantity understood; only spout variant requires clarification');
-check(!colloquialQuestion(compact.pending.missing).includes('bình')&&
- !colloquialQuestion(compact.pending.missing).includes('thùng hay')&&
+ 'five 5L cartons are understood, only spout variant needs confirmation');
+check(!colloquialQuestion(compact.pending.missing).includes('bình lẻ hay')&&
  colloquialQuestion(compact.pending.missing).includes('có vòi hay không vòi'),
- 'short and human 5L response never asks carton versus bottle');
+ 'already specified thùng: no unnecessary bottle-versus-carton question');
 check(parseColloquialBasket('5 thùng suối 5 lít có vòi')?.items?.[0]?.sku==='TP-00136',
- '5L with spout maps to correct carton SKU without clarification');
-check(parseColloquialBasket('5 bình 5 lít')?.reason==='UNIT_UNSUPPORTED',
- 'do not offer unsupported single bottle sales');
+ '5L 4-bottle carton with tap maps to TP-00136');
+check(parseColloquialBasket('5 bình 5 lít có vòi')?.items?.[0]?.sku==='TP-00142',
+ '5 individual 5L bottles with tap maps to TP-00142');
+check(parseColloquialBasket('5 bình 5 lít không vòi')?.items?.[0]?.sku==='TP-00143',
+ '5 individual 5L bottles without tap maps to TP-00143');
+const loose=parseColloquialBasket('5 bình 5 lít');
+check(loose?.pending?.missing?.unit==='binh'&&loose.pending.missing.qty===5,
+ '5 bình 5L stays bottles, only tap variant remains unclear');
+check(parseColloquialBasket('5 lít')?.pending?.missing?.unit===null,
+ 'unspecified 5L package must not silently default to thùng');
+check(colloquialQuestion(parseColloquialBasket('5 lít').pending.missing).includes('bình lẻ hay thùng'),
+ 'ambiguous 5L clearly offers the two catalogue-backed package choices');
 check(parsed.pending.missing.kind==='FIVE_LITRE'&&parsed.pending.missing.qty===null,
  'do not hallucinate quantity from 5-litre capacity');
 let response=completeColloquialFollowup(parsed.pending,'2 thùng không vòi');
