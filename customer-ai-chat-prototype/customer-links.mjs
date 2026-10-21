@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {readOnlyReady} from './satori-readonly.mjs';
+import {listLocations,validateLocation,MAX_LOCATIONS} from './delivery-locations.mjs';
 
 const now=()=>new Date().toISOString();
 const hash=token=>crypto.createHash('sha256').update(token).digest('hex');
@@ -67,7 +68,7 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
   res.end(JSON.stringify(object));
  };
  const no=(res,status,error,message)=>api(res,status,{ok:false,error,message});
- const publicProfile=p=>({id:p.id,name:p.name,phone:p.phone,address:p.address,discount:p.discount,ship:p.ship,vatRate:p.vatRate??0,enabled:p.enabled,createdAt:p.createdAt,updatedAt:p.updatedAt});
+ const publicProfile=p=>({id:p.id,name:p.name,phone:p.phone,address:p.address,locations:listLocations(p),discount:p.discount,ship:p.ship,vatRate:p.vatRate??0,enabled:p.enabled,createdAt:p.createdAt,updatedAt:p.updatedAt});
  const link=(req,token)=>{
   // Host is derived from the trusted Render service rather than untrusted Host headers.
   const origin=process.env.CUSTOMER_LINKS_ORIGIN||'https://minh-satori-customer-ai-gemini.onrender.com';
@@ -117,6 +118,54 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
    entry.status='reviewed';entry.reviewedAt=now();saveRequests();
    api(res,200,{ok:true,request:entry,pendingCount:pendingCount(),notice:'Đã đánh dấu xem. Không có thay đổi nào được áp dụng cho thông tin khách hoặc link.'});return true;
   }
+  // Owner-only location management. Each delivery destination remains under ONE
+  // agent/distributor profile and ONE existing customer link. No invoice writes.
+  const locRoute=/^\/api\/admin\/customers\/(KH-SANDBOX-[0-9a-f-]{36})\/locations(?:\/([a-zA-Z0-9-]{1,70}))?$/.exec(p);
+  if(locRoute){
+   const customer=profiles.find(x=>x.id===locRoute[1]);
+   if(!customer){no(res,404,'NOT_FOUND','Không tìm thấy hồ sơ đại lý thử.');return true}
+   if(req.method==='GET'&&!locRoute[2]){
+    api(res,200,{ok:true,sandbox:true,locations:listLocations(customer)});return true;
+   }
+   if(!['POST','PATCH','DELETE'].includes(req.method)){
+    no(res,405,'METHOD_NOT_ALLOWED','Phương thức quản lý địa chỉ không hợp lệ.');return true;
+   }
+   const before=structuredClone(customer);
+   const locations=listLocations(customer);
+   const id=locRoute[2];
+   const idx=locations.findIndex(x=>x.id===id);
+   const body=req.method==='DELETE'?null:await bodyJSON(req);
+   if(req.method==='POST'&&!id){
+    if(locations.length>=MAX_LOCATIONS){no(res,409,'LOCATION_LIMIT','Tối đa 20 điểm giao cho mỗi đại lý.');return true}
+    const location=validateLocation(body);
+    if(!location){no(res,400,'INVALID_LOCATION','Điền tên điểm giao, người nhận, số điện thoại và địa chỉ hợp lệ.');return true}
+    if(locations.some(x=>x.label.toLowerCase()===location.label.toLowerCase()||
+      x.address.toLowerCase()===location.address.toLowerCase())){
+     no(res,409,'DUPLICATE_LOCATION','Điểm giao hoặc địa chỉ đã có.');return true;
+    }
+    locations.push({id:crypto.randomUUID(),...location});
+   }else if(req.method==='PATCH'&&id&&idx>=0){
+    const location=validateLocation(body);
+    if(!location){no(res,400,'INVALID_LOCATION','Thông tin điểm giao không hợp lệ.');return true}
+    if(locations.some((x,i)=>i!==idx&&(x.label.toLowerCase()===location.label.toLowerCase()||
+      x.address.toLowerCase()===location.address.toLowerCase()))){
+     no(res,409,'DUPLICATE_LOCATION','Điểm giao hoặc địa chỉ đã có.');return true;
+    }
+    locations[idx]={...locations[idx],...location};
+   }else if(req.method==='DELETE'&&id&&idx>=0&&id!=='primary'&&locations.length>1){
+    locations.splice(idx,1);
+   }else{
+    no(res,400,'INVALID_LOCATION_ACTION','Không thể sửa hoặc xóa điểm giao đã chọn. Địa chỉ chính phải được giữ lại.');return true;
+   }
+   customer.locations=locations;customer.updatedAt=now();
+   try{save()}catch{
+    Object.assign(customer,before);
+    no(res,503,'LOCATION_SAVE_FAILED','Chưa lưu được địa chỉ, vui lòng thử lại.');return true;
+   }
+   api(res,200,{ok:true,sandbox:true,customer:publicProfile(customer),
+    message:'Đã cập nhật danh sách điểm giao TEST, không đổi link và không sửa hóa đơn.'});
+   return true;
+  }
   if(p==='/api/admin/customers'&&req.method==='GET'){
    api(res,200,{ok:true,sandbox:true,customers:profiles.map(publicProfile)});return true;
   }
@@ -134,8 +183,23 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
    if(profiles.some(x=>normalizedPhone(x.phone)===normalizedPhone(phone))){
     no(res,409,'DUPLICATE_CUSTOMER','Số điện thoại đã thuộc một khách thử. Hãy chọn khách đã có thay vì tạo trùng.');return true;
    }
+   // New customers may save all approved destinations in one atomic request.
+   const extraLocations=b?.locations??[];
+   if(!Array.isArray(extraLocations)||extraLocations.length>=MAX_LOCATIONS){
+    no(res,400,'LOCATION_LIMIT','Một đại lý có tối đa 20 địa chỉ, tính cả địa chỉ chính.');return true;
+   }
+   const locations=[{id:'primary',label:'Địa chỉ chính',recipient:name,phone,address,enabled:true}];
+   for(const raw of extraLocations){
+    const loc=validateLocation(raw);
+    if(!loc){no(res,400,'INVALID_LOCATION','Điền đủ tên điểm giao, người nhận, số điện thoại và địa chỉ hợp lệ.');return true}
+    if(locations.some(x=>x.label.toLocaleLowerCase('vi')===loc.label.toLocaleLowerCase('vi')||
+      x.address.toLocaleLowerCase('vi')===loc.address.toLocaleLowerCase('vi'))){
+     no(res,409,'DUPLICATE_LOCATION','Tên điểm giao hoặc địa chỉ đã có.');return true;
+    }
+    locations.push({id:crypto.randomUUID(),...loc});
+   }
    const token=newToken();
-   const c={id:'KH-SANDBOX-'+crypto.randomUUID(),name,phone,address,discount,ship,vatRate,enabled:true,tokenHash:hash(token),createdAt:now(),updatedAt:now(),favourite:null,lastQty:0,uniqueFavourite:false};
+   const c={id:'KH-SANDBOX-'+crypto.randomUUID(),name,phone,address,discount,ship,vatRate,enabled:true,tokenHash:hash(token),createdAt:now(),updatedAt:now(),locations,favourite:null,lastQty:0,uniqueFavourite:false};
    profiles.unshift(c);save();
    api(res,201,{ok:true,sandbox:true,customer:publicProfile(c),customerLink:link(req,token),notice:'Chỉ dùng với dữ liệu giả. Sao chép link ngay; hệ thống không lưu token dạng rõ.'});return true;
   }
@@ -157,7 +221,7 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
   if(!c){no(res,404,'LINK_INVALID','Không có quyền xem lịch sử hóa đơn');return}
   const list=[...orders.values()].filter(o=>o&&o.sandbox&&(o.profileId===c.id||(!o.profileId&&o.token===token)))
    .sort((a,b)=>Date.parse(b.createdAt||0)-Date.parse(a.createdAt||0))
-   .map(o=>({ref:o.ref,createdAt:o.createdAt,product:o.product||'',qty:o.qty||0,unit:o.unit||'thùng',items:Array.isArray(o.items)?o.items:[],total:o.total||0,status:o.status||'Chưa thanh toán',deliveryNote:o.deliveryNote||'',hasPdf:true}));
+   .map(o=>({ref:o.ref,createdAt:o.createdAt,product:o.product||'',qty:o.qty||0,unit:o.unit||'thùng',items:Array.isArray(o.items)?o.items:[],total:o.total||0,status:o.status||'Chưa thanh toán',deliveryNote:o.deliveryNote||'',recipient:o.recipient||o.name,locationLabel:o.locationLabel||null,deliveryLocationId:o.deliveryLocationId||null,hasPdf:true}));
   api(res,200,{ok:true,sandbox:true,profileId:c.id,timezone:'Asia/Ho_Chi_Minh',count:list.length,orders:list,notice:'Dữ liệu chỉ là bản thử, không phải lịch sử hóa đơn website thật.'});
  };
  const exportState=()=>({profiles:structuredClone(profiles),changeRequests:structuredClone(changeRequests)});
