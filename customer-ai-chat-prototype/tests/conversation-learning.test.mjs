@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {parseRules} from '../free-parser.mjs';
 import {verifySandboxBackup,createSandboxBackup} from '../sandbox-backup.mjs';
-import {syntheticOrderCases,ambiguousWater500,brandAnswer,contactIntent,
+import {syntheticOrderCases,ambiguousWater500,ambiguousWater500InComposite,brandAnswer,contactIntent,
  phoneConfirm,trainingProposal,makeCustomerPhraseMemory,GEMINI_FEW_SHOTS} from '../conversation-understanding.mjs';
 let tests=0;const verify=(value,msg)=>{assert.ok(value,msg);tests++};
 const cases=syntheticOrderCases();
@@ -31,6 +31,8 @@ verify(brandAnswer('Hikari')?.sku==='TP-00081','Hikari resolves only in pending 
 verify(brandAnswer('Satori')?.sku==='TP-00003','Satori resolves only in pending brand context');
 verify(ambiguousWater500('10 thùng nước suối 500')?.qty===10,'owner example retained');
 verify(!ambiguousWater500('10 thùng Hikari 500'),'never ask again for explicit Hikari');
+verify(ambiguousWater500InComposite('Cho 10 thùng nước suối 500 và 3 thùng ổi hồng'),'unknown brand in one part blocks entire combined order');
+verify(!ambiguousWater500InComposite('Cho 10 thùng Satori 500ml và 3 thùng ổi hồng'),'explicit brand does not block a complete order');
 verify(GEMINI_FEW_SHOTS.some(x=>x.includes('đổi địa chỉ')),'address policy appears in few-shots');
 const addr=contactIntent('Đổi địa chỉ sang 123 đường Mẫu và đổi SĐT 0901234567');
 verify(addr?.address===true,'mixed address+phone request remains blocked');
