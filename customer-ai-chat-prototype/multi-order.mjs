@@ -142,7 +142,8 @@ export function parseColloquialBasket(message,profile={}){
     const sku=spout==='with'?(spoken==='thung'?'TP-00136':'TP-00142'):
      (spoken==='thung'?'TP-00135':'TP-00143');
     items.push({sku,qty});
-   }else if(qty&&spoken&&!spout&&favourite?.name.includes('5L')&&fold(favourite.unit)===spoken){
+   }else if(qty&&spoken&&!spout&&!/^(?:them|bo sung|cong them)\b/.test(text)&&
+       favourite?.name.includes('5L')&&fold(favourite.unit)===spoken){
     // Only explicitly verified single-SKU preference may fill an omitted tap.
     items.push({sku:favourite.code,qty});
    }else missing.push({kind:'FIVE_LITRE',qty,unit:spoken,spout,label:'nước suối Satori 5 lít'});
