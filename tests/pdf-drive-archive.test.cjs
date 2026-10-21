@@ -22,7 +22,7 @@ const versionKey=website.invoicePdfKey(invoice)+'\nSATORI_PDF_VIETQR_20261021';
 const pdf=Buffer.from('%PDF-1.4\n'+'.'.repeat(150)+'\n%%EOF');
 const digest=crypto.createHash('sha256').update(pdf).digest('hex');
 const stored=new Map();
-const folder={getFilesByName:n=>({hasNext:()=>stored.has(n),next:()=>stored.get(n)}),
+const folder={getName:()=> 'MinhSatori_PDF_Invoices', getFilesByName:n=>({hasNext:()=>stored.has(n),next:()=>stored.get(n)}),
 createFile:blob=>{const f={getId:()=>String(stored.size+1),getSize:()=>blob.bytes.length,
 setDescription:s=>{f.description=s;}};stored.set(blob.name,f);return f;}};
 const signed=x=>x>127?x-256:x;
@@ -38,6 +38,8 @@ base64Decode:s=>Array.from(Buffer.from(s,'base64'),signed),
 newBlob:(b,t,n)=>{const bytes=Buffer.from(typeof b==='string'?b:b.map(x=>x&255));return {bytes,type:t,name:n,getBytes:()=>Array.from(bytes,signed)};}}
 };
 vm.createContext(ctx);vm.runInContext(gas,ctx);
+assert.equal(ctx.satoriPdfArchivePreflight().archiveConfigured,true);
+assert.equal(ctx.satoriPdfArchivePreflight().ordersModified,false);
 const input={id:'11',invoiceNo:9001,total:21600,versionKey,pdfSha256:digest,pdfBase64:pdf.toString('base64')};
 assert.equal(ctx.satoriSaveInvoicePdf(input).duplicate,false);
 assert.equal(stored.size,1);
