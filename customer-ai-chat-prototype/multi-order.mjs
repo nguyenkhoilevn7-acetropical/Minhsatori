@@ -109,6 +109,10 @@ export function parseColloquialBasket(message,profile={}){
  const text=fold(message).replace(/\b5\s*(?:lit|liter)\b/g,'5l');
  const chunks=text.split(/\s*[,;\n]\s*|\s+(?:va|voi)\s+/u).map(x=>x.trim()).filter(Boolean);
  if(!chunks.length||chunks.length>6)return null;
+ // Information-seeking questions are never order intents. Keep existing
+ // price/discount/VAT/payment/shipping FAQ behavior unchanged.
+ if(/\b(?:gia|bao nhieu|chiet khau|vat|phi ship|thanh toan|da tra|bao lau|thoi gian giao|lich su|xin chao)\b/.test(text))
+  return null;
  const grouped=chunks.length>1;
  if(!grouped&&!/\b(?:suoi|nuoc|5l)\b/.test(text))return null;
  // Legacy single-item orders already handle quantities, saved favourite and
