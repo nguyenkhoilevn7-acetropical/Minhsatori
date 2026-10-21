@@ -18,6 +18,7 @@ import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
+import {makeDriveBackupWorker} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
 import {parseAmendment,isAmendmentIntent,isConfirmAmend,isCancelAmend,appendDeliveryNote,latestEditableOrder,normAmend} from './order-amend.mjs';
@@ -28,7 +29,8 @@ const MODEL='gemini-3.5-flash-lite';
 const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'minh-satori-customer-chat-SANDBOX'));
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
-const customerLinks=makeCustomerLinks(DATA_DIR);
+let driveWorker=null;
+const customerLinks=makeCustomerLinks(DATA_DIR,()=>driveWorker?.schedule());
 const FIXTURES=Object.freeze({
  'demo-a':{id:'KH-DEMO-A',name:'Khách Demo A',phone:'000 000 0001',address:'123 Đường Thử Nghiệm, TP.HCM',discount:20,ship:8,favourite:'S5L',lastQty:10,uniqueFavourite:true},
  'demo-b':{id:'KH-DEMO-B',name:'Khách Demo B',phone:'000 000 0002',address:'456 Đường Mẫu, TP.HCM',discount:35,ship:8,favourite:'S500',lastQty:5,uniqueFavourite:false}
@@ -131,8 +133,11 @@ function makeMultiQuote(token,profile,requestedItems){
  const q={quoteId:crypto.randomUUID(),profileId:profile.id,sku:'MULTI',qty:totalQty,name:profile.name,phone:profile.phone,address:profile.address,discount:profile.discount,ship:profile.ship,product:items.length+' loại sản phẩm',unit:'đơn vị',items,subtotal,shipping,vatRate,vatAmount,total:subtotal+shipping+vatAmount,expiresAt:Date.now()+10*60_000,token};
  quotes.set(q.quoteId,q);return q;
 }
-function saveOrdersAtomic(){const data=JSON.stringify([...orders.values()],null,2);const tmp=DATA_FILE+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(tmp,data,{mode:0o600});fs.renameSync(tmp,DATA_FILE)}
+function saveOrdersAtomic(){const data=JSON.stringify([...orders.values()],null,2);const tmp=DATA_FILE+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(tmp,data,{mode:0o600});fs.renameSync(tmp,DATA_FILE);driveWorker?.schedule()}
 if(scrubbedLegacyRequestIds)saveOrdersAtomic();
+// The first verified backup upload must be confirmed before a Render redeploy.
+driveWorker=makeDriveBackupWorker(()=>createSandboxBackup({
+ ...customerLinks.exportState(),orders:[...orders.values()].map(o=>structuredClone(o))}));
 async function generatePdf(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_pdf.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,300)||'PDF_ERROR')));proc.stdin.end(JSON.stringify(o))})}
 async function generateHistoryExcel(customerOrders){
  return new Promise((resolve,reject)=>{
@@ -207,6 +212,34 @@ const server=http.createServer(async(req,res)=>{
   for(const o of state.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
   saveOrdersAtomic();
   return reply(res,200,{ok:true,sandbox:true,restoredProfiles:state.profiles.length,restoredOrders:state.orders.length,message:'Đã khôi phục dữ liệu thử, không tác động production.'});
+ }
+ // Google Drive backup commands are ADMIN-only, SANDBOX-only.
+ // No plaintext backup reaches Drive; AES key never leaves server.
+ if(p==='/api/admin/drive-backup/status'&&req.method==='GET'){
+  if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị thử được xem sao lưu.');
+  return reply(res,200,{ok:true,sandbox:true,driveBackup:driveWorker.status()});
+ }
+ if(p==='/api/admin/drive-backup/now'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị thử được sao lưu.');
+  try{const result=await driveWorker.syncNow();return reply(res,200,{ok:true,sandbox:true,driveBackup:result})}
+  catch{return fail(res,503,'DRIVE_BACKUP_FAILED','Chưa xác minh lưu thành công trên Drive; không thay đổi dữ liệu.')}
+ }
+ if(p==='/api/admin/drive-backup/restore'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị thử được khôi phục.');
+  if(orders.size||customerLinks.exportState().profiles.length||customerLinks.exportState().changeRequests.length)
+   return fail(res,409,'SANDBOX_NOT_EMPTY','Sandbox chưa trống; không tự ghi đè hoặc hợp nhất.');
+  const body=await bodyJSON(req);
+  if(body?.confirmation!=='RESTORE_DRIVE_TEST_ONLY')
+   return fail(res,400,'RESTORE_CONFIRMATION_REQUIRED','Cần xác nhận khôi phục dữ liệu TEST.');
+  let state;
+  try{state=await driveWorker.readArchive(body?.fileId)}
+  catch{return fail(res,503,'DRIVE_RESTORE_INVALID','Bản sao không thể xác minh và giải mã; chưa sửa dữ liệu.')}
+  customerLinks.restoreState(state);
+  for(const o of state.orders){orders.set(o.ref,o);idempotency.set(o.requestId,o.ref)}
+  saveOrdersAtomic();
+  return reply(res,200,{ok:true,sandbox:true,restoredProfiles:state.profiles.length,
+   restoredChangeRequests:state.changeRequests.length,restoredOrders:state.orders.length,
+   message:'Khôi phục TEST từ Drive đã xác minh; không tác động production.'});
  }
  // Owner-only order inbox, updated by the client while Admin is open.
  // Never include link tokens or the private idempotency request key in responses.
@@ -486,6 +519,7 @@ const server=http.createServer(async(req,res)=>{
  }catch(err){return fail(res,err.message==='PAYLOAD_TOO_LARGE'?413:500,'SERVER_ERROR','Lỗi xử lý yêu cầu thử nghiệm')}
 });
 server.listen(PORT,HOST,()=>{
+ driveWorker.start();
  console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched');
  // One test with fake words only, no customer data, no stored orders, no API key printed.
  // This is intentionally an actual Gemini API call, and consumes at most one Free Tier request per deployment.
