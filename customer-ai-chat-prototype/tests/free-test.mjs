@@ -7,7 +7,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const dir=path.dirname(fileURLToPath(import.meta.url)),root=path.dirname(dir),data=mkdtempSync(path.join(tmpdir(),'ms-free-test-'));
 const port=25000+Math.floor(Math.random()*1000),base='http://127.0.0.1:'+port;
-const proc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(port),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:data,GEMINI_API_KEY:'',GEMINI_FREE_TIER_ONLY:'false'},stdio:['ignore','pipe','pipe']});
+const proc=spawn(process.execPath,[path.join(root,'server.mjs')],{env:{...process.env,PORT:String(port),DEMO_BIND:'127.0.0.1',DEMO_DATA_DIR:data,GEMINI_API_KEY:'',GEMINI_FREE_TIER_ONLY:'false',DEMO_ISOLATED_TEST_RATE:'1'},stdio:['ignore','pipe','pipe']});
 let output='';proc.stderr.on('data',b=>output+=String(b));proc.stdout.on('data',b=>output+=String(b));
 const sleep=t=>new Promise(r=>setTimeout(r,t));
 const get=async u=>{const r=await fetch(base+u);return {status:r.status,body:await r.json()}};
