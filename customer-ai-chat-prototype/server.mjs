@@ -398,7 +398,11 @@ const server=http.createServer(async(req,res)=>{
   const b=await bodyJSON(req);const token=b?.token;const c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không thể nhận diện link khách');
   if(!rateLimit(req,token))return fail(res,429,'RATE_LIMIT','Bạn đã gửi quá nhiều tin nhắn, vui lòng thử lại sau');
   const message=String(b?.message||'').trim();if(!message||message.length>500)return fail(res,400,'BAD_MESSAGE','Tin nhắn phải dài 1–500 ký tự');
-  const unified=b?.unifiedDraft===true,revision=b?.expectedRevision;
+  // Existing basket always wins, even when an older browser omits the new opt-in.
+  const existing=draftStore.read(token);
+  if(existing.items.length&&b?.cartItems!==undefined)return fail(res,409,'DRAFT_ACTIVE','Giỏ hiện có sản phẩm. Vui lòng tải lại trang để tiếp tục chung một giỏ.');
+  const unified=b?.unifiedDraft===true||existing.items.length>0;
+  const revision=b?.unifiedDraft===true?b?.expectedRevision:existing.revision;
   if(unified&&revision!==draftStore.read(token).revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi, hãy tải lại trước khi gửi.');
   // Once the customer confirmed a TEST bill, a later delivery message is an
   // amendment proposal. It NEVER mutates invoice, price or recipient on parse.
