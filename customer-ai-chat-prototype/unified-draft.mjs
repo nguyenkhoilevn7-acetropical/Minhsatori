@@ -7,6 +7,7 @@ export function makeDraftStore(options={}){
  // Only a SHA-256 lookup digest of each bearer link is persisted — never its raw token.
  // This keeps browser/WebView sessions on the same server-authoritative revisioned basket.
  const states=new Map();
+ const volatileDemoKeys=new Set(); // Anonymous test baskets never enter durable backup.
  const filePath=options.filePath||null;
  const onChange=typeof options.onChange==='function'?options.onChange:()=>{};
  const expiresMs=24*3600_000;
@@ -28,7 +29,7 @@ export function makeDraftStore(options={}){
  }
  function activeEntries(){
   const cutoff=Date.now()-expiresMs;
-  return [...states].filter(([,v])=>v.updatedAt>=cutoff);
+  return [...states].filter(([key,v])=>v.updatedAt>=cutoff&&!volatileDemoKeys.has(key));
  }
  function snapshot(){
   return activeEntries().map(([key,s])=>({
@@ -51,6 +52,7 @@ export function makeDraftStore(options={}){
       data.drafts.length>250)throw Error('INVALID_DRAFT_CACHE');
   for(const item of data.drafts){
    const row=verifiedRow(item);
+   if([keyOf('demo-a'),keyOf('demo-b')].includes(row.key))continue;
    if(states.has(row.key))throw Error('INVALID_DRAFT_CACHE');
    if(Date.now()-row.updatedAt<expiresMs)states.set(row.key,{
     revision:row.revision,updatedAt:row.updatedAt,lines:row.lines
@@ -71,6 +73,7 @@ export function makeDraftStore(options={}){
  }
  function mutate(token,changes,expectedRevision){
   const key=keyOf(token),s=get(token);
+  if(typeof token==='string'&&/^demo-[ab](?:~[a-f0-9]{32})?$/.test(token))volatileDemoKeys.add(key);
   if(!Number.isSafeInteger(expectedRevision)||s.revision!==expectedRevision)throw Error('DRAFT_CONFLICT');
   if(!Array.isArray(changes)||changes.length<1||changes.length>MAX_LINES)throw Error('INVALID_CART');
   const next=new Map(s.lines);
@@ -100,6 +103,8 @@ export function makeDraftStore(options={}){
   const restoreStates=new Map();
   for(const item of rows){
    const row=verifiedRow(item);
+   // Old shared demo link baskets are not customer orders. Never resurrect them.
+   if([keyOf('demo-a'),keyOf('demo-b')].includes(row.key))continue;
    if(restoreStates.has(row.key))throw Error('INVALID_DRAFT_CACHE');
    if(Date.now()-row.updatedAt<expiresMs)restoreStates.set(row.key,{
     revision:row.revision,updatedAt:row.updatedAt,lines:row.lines});
