@@ -38,10 +38,11 @@ assert.ok(html.includes('button:focus-visible,.btn:focus-visible,.chip:focus-vis
 assert.ok(html.includes('id="catalogLaunch"')&&html.includes('catalog-purchase-row')&&
  html.includes("meta.textContent=p.unit+' · Giá: '+money(p.unitPrice||0)")&&
  html.includes("const controls=stepper(p.code,cart.get(p.code)?.qty||0);"),
- 'priced full catalogue gives +/- and quantity for each thùng product');
-assert.ok(html.includes("catalogItems=data.products.filter(p=>p.unit==='Thùng');")&&
- html.includes("catalogItems=json.products.filter(p=>p.unit==='Thùng');"),
- 'retail binh SKUs hidden on storefront and inline search');
+ 'priced full catalogue gives +/- and quantity for every official unit');
+assert.ok(html.includes("catalogItems=data.products;")&&
+ html.includes("catalogItems=json.products;")&&
+ html.includes("meta.textContent=p.unit+' · Giá: '+money(p.unitPrice||0)+' / '+p.unit.toLowerCase();"),
+ 'all official product units visible with correct per-unit prices, including 5L bình and thùng');
 assert.ok(html.includes('id="suggestionsToggle"')&&html.includes('id="suggestionsList" class="suggestions-list" hidden')&&
  html.includes('suggestion-compact-chip')&&html.includes("section.hidden=suggestions.length===0||toggle.getAttribute('aria-expanded')!=='true';"),
  'frequent purchases are one collapsed button and a compact chip row only on click');
