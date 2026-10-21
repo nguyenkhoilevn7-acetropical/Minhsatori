@@ -28,7 +28,7 @@ internal object SatoriOrderValidation {
             // Treat an explicit leading TEST/SANDBOX label as test data, not
             // just "[TEST]" or "TEST ONLY". Customers commonly type "TEST đơn".
             // A word boundary avoids blocking ordinary names like "Testing Cafe".
-            val testLabel = Regex("^(?:\\[\\s*TEST\\s*\\]|TEST\\b|SANDBOX\\b)", RegexOption.IGNORE_CASE)
+            val testLabel = Regex("^(?:\\[\\s*TEST\\s*\\]|TEST(?:\\b|_)|SANDBOX(?:\\b|_))", RegexOption.IGNORE_CASE)
             return listOf("name", "note", "deliveryNote").any {
                 testLabel.containsMatchIn(obj.optString(it, "").trimStart())
             }
