@@ -6,7 +6,8 @@ export function customerSuggestions(profile,orders,limit=3){
  const rows=new Map(),now=Date.now();
  for(const order of orders){
   if(!order||order.sandbox!==true||order.profileId!==profile.id||
-    order.ownerTest===true||/(?:huy|cancel|delete|xoa)/i.test(String(order.status||'')))continue;
+    order.ownerTest===true||/(?:huy|cancel|delete|xoa)/i.test(String(order.status||'')
+       .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/đ/g,'d')))continue;
   const when=Date.parse(order.createdAt||'');
   if(!Number.isFinite(when)||when>now+86400_000)continue;
   const age=Math.max(0,(now-when)/86400_000);
