@@ -496,7 +496,7 @@ function showAmendment(proposal){
  actions.append(yes,no);box.append(before,after,info,actions);$('messages').append(box);bottom();
 }
 async function confirmOrder(q,button){if(serverMode&&(draftBusy||q.quoteId!==activeQuoteId)){msg('Báo giá này đã cũ. Vui lòng xem báo giá của giỏ hàng hiện tại.','note');return;}const deliveryNote=(button.closest('.quote')?.querySelector('textarea.delivery-note')?.value||'').trim();if(deliveryNote.length>300){msg('Lưu ý chỉ được tối đa 300 ký tự.','note');return}if(serverMode){button.disabled=true;button.textContent='Đang lưu đơn thử...';try{const res=await serverPost('/api/confirm',{token:serverToken,quoteId:q.quoteId,requestId:'demo-'+q.quoteId,deliveryNote});const o=res.order;button.textContent='Đã xác nhận';msg('Đã tạo một bill THỬ '+o.ref+' cho toàn bộ giỏ hàng. Chưa chuyển tới Minh Satori thật. Trạng thái: Chờ thanh toán.');deactivateQuotes();await restoreDraft().catch(()=>{cart.clear();updateCart();});loadPersonalizedSuggestions();showInvoice(o);const link=document.createElement('a');link.className='btn';link.textContent='⬇ Tải PDF về máy';link.href='/api/invoice/'+encodeURIComponent(o.ref)+'?token='+encodeURIComponent(serverToken);link.setAttribute('download',o.ref+'.pdf');$('messages').appendChild(link);bottom();draft=null;}catch(e){button.disabled=false;button.textContent='Xác nhận đơn THỬ';msg('Không ghi được đơn: '+e.message,'note')}return;}if(!draft||draft.nonce!==q.nonce||draft.profileId!==customer().id){msg('Báo giá đã thay đổi, vui lòng yêu cầu lại.');return}const c=customer();if(c.id!==q.profileId||c.discount!==q.discount||c.ship!==q.ship||c.address!==q.address||c.phone!==q.phone){msg('Cấu hình khách đã đổi nên không thể chốt theo báo giá cũ. Vui lòng đặt lại.');draft=null;return;}const key='MSATORI_SANDBOX_DEMO_ONLY';try{localOrders=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(localOrders))localOrders=[]}catch(e){localOrders=[]}let saved=localOrders.find(o=>o.nonce===q.nonce);if(!saved){saved={...q,deliveryNote,ref:'TEST-'+String(Date.now()),createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};localOrders.push(saved);try{localStorage.setItem(key,JSON.stringify(localOrders))}catch(e){msg('Không thể lưu localStorage; đơn thử chỉ tồn tại trong phiên này.','note')}}button.disabled=true;button.textContent='Đã xác nhận';msg(`Đã tạo đơn THỬ ${saved.ref}. Trạng thái: Chờ thanh toán. Chưa gửi website thật và chưa phát sinh yêu cầu giao hàng.`);showInvoice(saved);draft=null}
-async function send(text){const message=String(text||'').trim();if(!message||sending||draftBusy)return;msg(message,'user');$('messageInput').value='';if(message.length>500){msg('Tin nhắn quá dài.');return;}if(serverMode){sending=true;const sendButton=$('sendForm').querySelector('button');sendButton.disabled=true;$('messages').setAttribute('aria-busy','true');msg('Đang kiểm tra yêu cầu đặt nước...','note');const loading=$('messages').lastElementChild;try{const useCart=pendingCartMessage===message&&Array.isArray(pendingCartItems);
+async function send(text){const message=String(text||'').trim();if(!message||sending)return;if(serverMode)await draftQueue;msg(message,'user');$('messageInput').value='';if(message.length>500){msg('Tin nhắn quá dài.');return;}if(serverMode){sending=true;const sendButton=$('sendForm').querySelector('button');sendButton.disabled=true;$('messages').setAttribute('aria-busy','true');msg('Đang kiểm tra yêu cầu đặt nước...','note');const loading=$('messages').lastElementChild;try{const useCart=pendingCartMessage===message&&Array.isArray(pendingCartItems);
  const payload={token:serverToken,message,unifiedDraft:true,expectedRevision:draftRevision,...(useCart?{cartItems:pendingCartItems}: {})};
  const res=await serverPost('/api/message',payload);
  if(res.message)msg(res.message);
@@ -643,30 +643,41 @@ async function restoreDraft(){
  if(!response.ok||!result.ok)throw Error(result.message||'Không tải được giỏ hàng.');
  renderSharedDraft(result.draft);
 }
-async function changeSharedDraft(action,code=null,qty=null){
- if(!serverMode||draftBusy||sending)return false;
- draftBusy=true;
- try{
-  const result=await serverPost('/api/draft',{token:serverToken,action,code,qty,expectedRevision:draftRevision});
-  renderSharedDraft(result.draft);deactivateQuotes();
-  return true;
- }catch(e){
-  msg('Chưa cập nhật giỏ: '+e.message,'note');
-  await restoreDraft().catch(()=>{});
-  return false;
- }finally{draftBusy=false}
+let draftQueue=Promise.resolve();
+function orderedDraftJob(work){
+ const task=draftQueue.then(work,work);
+ draftQueue=task.catch(()=>{});
+ return task;
 }
-async function sharedQuote(){
- if(!serverMode||draftBusy||sending||!cart.size)return;
- draftBusy=true;
- try{
-  const result=await serverPost('/api/draft',{token:serverToken,action:'quote',expectedRevision:draftRevision});
-  renderSharedDraft(result.draft);
-  msg(result.message||'Đây là báo giá của giỏ chung.');
-  if(result.quote){draft=result.quote;showQuote(result.quote)}
-  if($('catalogBackdrop').classList.contains('open'))closeCatalog();
- }catch(e){msg('Chưa lập được báo giá chung: '+e.message,'note');await restoreDraft().catch(()=>{})}
- finally{draftBusy=false}
+function changeSharedDraft(action,code=null,qty=null){
+ if(!serverMode||sending)return Promise.resolve(false);
+ return orderedDraftJob(async()=>{
+  draftBusy=true;
+  try{
+   const result=await serverPost('/api/draft',{token:serverToken,action,code,qty,expectedRevision:draftRevision});
+   renderSharedDraft(result.draft);deactivateQuotes();
+   return true;
+  }catch(e){
+   msg('Chưa cập nhật giỏ: '+e.message,'note');
+   await restoreDraft().catch(()=>{});
+   return false;
+  }finally{draftBusy=false}
+ });
+}
+function sharedQuote(){
+ if(!serverMode||sending)return Promise.resolve();
+ return orderedDraftJob(async()=>{
+  if(!cart.size)return;
+  draftBusy=true;
+  try{
+   const result=await serverPost('/api/draft',{token:serverToken,action:'quote',expectedRevision:draftRevision});
+   renderSharedDraft(result.draft);
+   msg(result.message||'Đây là báo giá của giỏ chung.');
+   if(result.quote){draft=result.quote;showQuote(result.quote)}
+   if($('catalogBackdrop').classList.contains('open'))closeCatalog();
+  }catch(e){msg('Chưa lập được báo giá chung: '+e.message,'note');await restoreDraft().catch(()=>{})}
+  finally{draftBusy=false}
+ });
 }
 
 const dateVN=value=>{
