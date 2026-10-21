@@ -6,7 +6,7 @@
   "branch": "feature/minhsatori-native-android-v020",
   "scope": "signed APK for internal SANDBOX Samsung acceptance only; no production change",
   "requestedOn": "2026-10-21",
-  "requestedFromCommit": "c20559bcb11188deb7b9e93ccd70fd7534cee291",
+  "requestedFromCommit": "415b04c4e980e00654210e66485c94eb7f4ef39d",
   "notes": [
     "compact button/panel typography with fixed owner navigation",
     "first-class in-app PDF preview for stored invoices, no automatic download",
@@ -14,5 +14,7 @@
     "embedded customer WebView soft input resize for keyboard",
     "Gemini natural-conversation, shared quick-cart chips and compact catalogue independently staged on prototype/customer-ai-gemini-free-20261020, web CI PASS but NOT YET DEPLOYED to Render"
   ],
-  "safety": "Do not merge or touch real invoices. Render sandbox autoDeploy=no; protect existing demo orders and customer link state before deploying updated server."
+  "safety": "Do not merge or touch real invoices. Render sandbox autoDeploy=no; protect existing demo orders and customer link state before deploying updated server.",
+  "releaseRetry": 2,
+  "ciCorrection": "Move monthFilter listener from Customer Memory to Ledger (Kotlin compile error fixed)"
 }
