@@ -17,7 +17,7 @@ globalThis.fetch=async(url,options)=>{
  assert.ok(String(url).startsWith('https://generativelanguage.googleapis.com/v1beta/models/'));
  const payload=JSON.parse(options.body);
  assert.equal(payload.generationConfig.responseMimeType,'application/json');
- const msg=payload.contents[0].parts[0].text.toLowerCase();
+ const msg=payload.contents[0].parts[0].text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
  assert.ok(!msg.includes('fake street')&&!msg.includes('client fake')&&!msg.includes('000 000 0001'));
  let result;
  if(msg.includes('ta thung'))result=aiReply('order','S5L',12);
