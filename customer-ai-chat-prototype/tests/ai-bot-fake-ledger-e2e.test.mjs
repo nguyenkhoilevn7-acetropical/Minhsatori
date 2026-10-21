@@ -32,7 +32,8 @@ let state={revision:105,updatedAt:'2026-10-20T23:00:00.000Z',values:{
  satori_ai_customer_memory:JSON.stringify([{
   id:'fake_customer_01',name:'Khách Đơn Thử',aliases:['Khách Đơn Thử'],
   receivers:[{phone:'0900000000',location:'123 Đường TEST, HCM'}],
-  aiPricingApproval:{enabled:true,reviewedByOwner:true,discountPercent:20,vatPercent:8,shippingAmount:15000}
+  aiPricingApproval:{enabled:true,reviewedByOwner:true,discountPercent:20,vatPercent:8,shippingAmount:15000,
+   sourceOrderId:7788,sourceInvoiceNo:12,phone:'0900000000',location:'123 Đường TEST, HCM'}
  }]),
  satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'
 }};
@@ -127,6 +128,30 @@ ok(writes===1&&backups===1,'AI underpricing attempt cannot change Drive');
 const unauthorizedWriter=call('orders.create',preflight.payload);
 ok(!unauthorizedWriter.ok&&unauthorizedWriter.error.code==='FORBIDDEN',
  'AI-scoped key cannot bypass price checks by calling legacy orders.create');
+// Even a phone/address listed as another receiver in the same AI memory cannot
+// inherit this destination's discount until the owner approves that exact place.
+const otherRecipient=structuredClone(state);
+const records=JSON.parse(otherRecipient.values.satori_ai_customer_memory);
+records[0].receivers.push({phone:'0911111111',location:'456 Other TEST Site'});
+otherRecipient.values.satori_ai_customer_memory=JSON.stringify(records);
+const firstState=state;
+state=otherRecipient;
+const wrongApproval=preflightCheckout({...opts,revision:106,
+ requestId:'ai_other_delivery_0100',
+ customer:{...privateCustomer,sourceReference:{id:7788,invoiceNo:12},
+  phone:'0911111111',location:'456 Other TEST Site'}});
+const deniedDestination=call('orders.create.ai',wrongApproval.payload);
+ok(!deniedDestination.ok&&deniedDestination.error.code==='PROFILE_MISMATCH',
+ 'AI cannot borrow discount for a second destination when invoice recipient differs');
+const policyMatch=JSON.parse(state.values.satori_ai_customer_memory);
+policyMatch[0].aiPricingApproval.sourceOrderId=9999;
+state={...state,values:{...state.values,satori_ai_customer_memory:JSON.stringify(policyMatch)}};
+const noApproval=preflightCheckout({...opts,revision:106,requestId:'ai_bad_approval_0100'});
+const badApproval=call('orders.create.ai',noApproval.payload);
+ok(!badApproval.ok&&badApproval.error.code==='AI_PRICING_NOT_APPROVED',
+ 'AI cannot use a discount approved for another invoice reference');
+state=firstState;
+ok(writes===1&&backups===1,'unapproved destination and cross-invoice discount never write Drive');
 const history=call('orders.list',{query:privateCustomer.name},'e2e-reader');
 ok(history.ok&&history.data.totalMatches===2&&
  history.data.orders.some(x=>x.invoiceNo===created.data.order.invoiceNo),
