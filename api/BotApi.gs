@@ -6,9 +6,9 @@
  */
 var SatoriBotApi=(function(){
 'use strict';
-var ORDER_KEY='satori_orders_v15';
+var ORDER_KEY='satori_orders_v15', PRICE_APPROVAL_KEY='satori_ai_pricing_approvals_v1';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
- 'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write','orders.create.ai':'orders:ai:write','orders.update':'orders:write','orders.delete':'orders:delete','orders.restore':'orders:write','trash.list':'orders:read',
+ 'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write','orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','orders.update':'orders:write','orders.delete':'orders:delete','orders.restore':'orders:write','trash.list':'orders:read',
  'payments.markCustomerPaid':'payments:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
@@ -147,6 +147,60 @@ function sameCreateIntent(saved,provided){
    Number(item.listPrice==null?item.unitPrice:item.listPrice)===Number(old.listPrice);
  });
 }
+function approveAIPricing(s,all,p){
+ // An entirely separate HMAC owner scope is required to approve or revoke AI
+ // discounts. Browser AI customer memory must NEVER self-authorize this key.
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần quản trị xác nhận duyệt giá');
+ var requestId=String(p.requestId||'');
+ need(/^[a-zA-Z0-9_-]{8,100}$/.test(requestId),'INVALID_REQUEST','Thiếu mã yêu cầu duyệt giá');
+ var id=String(p.customerMemoryId||'');
+ need(/^[a-zA-Z0-9_-]{4,100}$/.test(id),'INVALID_ORDER','Mã hồ sơ khách không hợp lệ');
+ var entries=JSON.parse(s.values[PRICE_APPROVAL_KEY]||'[]');
+ need(Array.isArray(entries)&&entries.length<10000,'INVALID_STATE',
+  'Nhật ký duyệt giá đã đầy hoặc không hợp lệ');
+ var same=entries.filter(function(x){return x&&x.approvalRequestId===requestId});
+ var params={customerMemoryId:id,sourceOrderId:p.customerRef&&p.customerRef.id,
+  sourceInvoiceNo:p.customerRef&&p.customerRef.invoiceNo,
+  phone:String(p.phone||'').replace(/\\D/g,''),location:String(p.location||'').trim(),
+  discountPercent:p.discountPercent,vatPercent:p.vatPercent,shippingAmount:p.shippingAmount,
+  enabled:p.enabled===true};
+ need(p.enabled===true||p.enabled===false,'INVALID_ORDER','Cần trạng thái duyệt hoặc thu hồi');
+ if(same.length){
+  need(same.length===1&&Object.keys(params).every(function(k){return same[0][k]===params[k]}),
+   'REQUEST_ID_CONFLICT','Mã duyệt giá đã sử dụng với nội dung khác');
+  return {modified:false,result:{duplicate:true,approved:same[0].enabled,customerMemoryId:id}};
+ }
+ version(s,p);
+ need(typeof s.values.satori_ai_customer_memory==='string','AI_CUSTOMER_UNVERIFIED',
+  'Không có hồ sơ khách nguồn');
+ var memories=JSON.parse(s.values.satori_ai_customer_memory);
+ need(Array.isArray(memories),'INVALID_STATE','Bộ nhớ AI chưa hợp lệ');
+ var match=memories.filter(function(m){return m&&m.id===id});
+ need(match.length===1,'AI_CUSTOMER_UNVERIFIED','Hồ sơ khách chưa duy nhất');
+ var cust=match[0];
+ var names=[cust.name].concat(Array.isArray(cust.aliases)?cust.aliases:[]);
+ var source=all.filter(function(o){return p.customerRef&&
+  String(o.id)===String(p.customerRef.id)&&Number(o.invoiceNo)===Number(p.customerRef.invoiceNo)});
+ need(source.length===1&&names.some(function(n){return norm(n)===norm(source[0].name)})&&
+  norm(source[0].location)===norm(params.location)&&
+  String(source[0].phone||'').replace(/\\D/g,'')===params.phone,
+  'AI_CUSTOMER_UNVERIFIED','Hồ sơ khách, hóa đơn tham chiếu và điểm giao không khớp');
+ var addresses=[{phone:cust.defaultPhone,location:cust.defaultLocation}]
+  .concat(Array.isArray(cust.receivers)?cust.receivers:[]);
+ need(params.phone.length>=8&&params.location.length>=5&&addresses.some(function(a){
+  return a&&String(a.phone||'').replace(/\\D/g,'')===params.phone&&
+   norm(a.location)===norm(params.location);
+ }), 'AI_CUSTOMER_UNVERIFIED','Điểm giao chưa có trong hồ sơ khách');
+ need(typeof p.discountPercent==='number'&&Number.isFinite(p.discountPercent)&&
+  p.discountPercent>=0&&p.discountPercent<=70&&
+  [0,5,8,10].includes(p.vatPercent)&&
+  Number.isSafeInteger(p.shippingAmount)&&p.shippingAmount>=0&&p.shippingAmount<=1000000,
+  'INVALID_PRICE_POLICY','Chưa xác minh mức chiết khấu, VAT hoặc phí giao');
+ entries.push(Object.assign({},params,{reviewedByOwner:true,
+  approvalRequestId:requestId,approvedAt:Date.now()}));
+ return {modified:true,extras:{satori_ai_pricing_approvals_v1:JSON.stringify(entries)},
+  result:{approved:p.enabled===true,customerMemoryId:id,duplicate:false}};
+}
 function checkAIPricing(s,o,p){
  // Dedicated HMAC action orders.create.ai requires orders:ai:write scope.
  // Authenticated API callers CANNOT select the customer's percentage in payload.
@@ -160,7 +214,13 @@ function checkAIPricing(s,o,p){
  need(Array.isArray(memories)&&memories.length<=10000,'INVALID_STATE','Bộ nhớ khách không hợp lệ');
  var found=memories.filter(function(x){return x&&x.id===id});
  need(found.length===1,'AI_PRICING_NOT_APPROVED','Hồ sơ duyệt không duy nhất');
- var mem=found[0],policy=mem.aiPricingApproval;
+ var mem=found[0],approvals=JSON.parse(s.values[PRICE_APPROVAL_KEY]||'[]');
+ need(Array.isArray(approvals)&&approvals.length<=10000,'INVALID_STATE',
+  'Nhật ký duyệt giá không hợp lệ');
+ // Approvals are stored independently from editable/learned AI customer memory.
+ // The last matching approval (including revocation) is authoritative.
+ var records=approvals.filter(function(x){return x&&x.customerMemoryId===id});
+ var policy=records.length?records[records.length-1]:null;
  need(policy&&policy.enabled===true&&policy.reviewedByOwner===true,
   'AI_PRICING_NOT_APPROVED','Chiết khấu AI chưa được người quản trị phê duyệt');
  // A pricing approval belongs to one historical source invoice and one exact
@@ -425,7 +485,7 @@ function read(s,action,p){
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
 function write(s,action,p){
- var all=rows(s),result=action==='orders.create'||action==='orders.create.ai'?create(s,all,p,action==='orders.create.ai'):action==='orders.update'?updateOrder(s,all,p):action==='orders.restore'?restoreOrder(s,all,p):action==='orders.delete'?removeOrder(s,all,p):markPaid(s,all,p);
+ var all=rows(s),result=action==='pricing.approve'?approveAIPricing(s,all,p):action==='orders.create'||action==='orders.create.ai'?create(s,all,p,action==='orders.create.ai'):action==='orders.update'?updateOrder(s,all,p):action==='orders.restore'?restoreOrder(s,all,p):action==='orders.delete'?removeOrder(s,all,p):markPaid(s,all,p);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
  need(!!fileId,'CONFIG_MISSING','Thiếu STATE_FILE_ID');
@@ -451,7 +511,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='orders.update'||identity.action==='orders.restore'||identity.action==='orders.delete'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.update'||identity.action==='orders.restore'||identity.action==='orders.delete'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
