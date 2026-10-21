@@ -163,6 +163,14 @@ function checkAIPricing(s,o,p){
  var mem=found[0],policy=mem.aiPricingApproval;
  need(policy&&policy.enabled===true&&policy.reviewedByOwner===true,
   'AI_PRICING_NOT_APPROVED','Chiết khấu AI chưa được người quản trị phê duyệt');
+ // A pricing approval belongs to one historical source invoice and one exact
+ // delivery destination, not merely to the customer company name.
+ need(p.customerRef&&p.customerRef.id!=null&&Number.isSafeInteger(p.customerRef.invoiceNo)&&
+  String(policy.sourceOrderId)===String(p.customerRef.id)&&
+  Number(policy.sourceInvoiceNo)===p.customerRef.invoiceNo&&
+  String(policy.phone||'').replace(/\\D/g,'')===String(o.phone||'').replace(/\\D/g,'')&&
+  norm(policy.location)===norm(o.location),
+  'AI_PRICING_NOT_APPROVED','Điểm giao chưa có phê duyệt giá riêng');
  var pct=policy.discountPercent,vatPct=policy.vatPercent,shipping=policy.shippingAmount;
  need(typeof pct==='number'&&Number.isFinite(pct)&&pct>=0&&pct<=70,
   'AI_PRICING_NOT_APPROVED','Mức chiết khấu chưa được xác thực');
