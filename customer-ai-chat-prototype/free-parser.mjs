@@ -23,6 +23,15 @@ function qty(s){let m=s.match(/\b(\d{1,4})\s*(?:thung|thg|t|binh|loc)(?=\s|$|[.,
 // in the quote before checkout. Do not interpret explicit "chai" as "thùng".
 function implicitCatalogueQty(s,profile={}){
  const quick=shopWaterShorthand(s,profile);if(quick)return quick.qty;
+ // "10 ổi hồng" means ten catalogue cartons, never ten loose cans.
+ // Do not infer quantities for other catalogue sizes or units.
+ const juice=s.match(/^(?:(?:cho(?: (?:toi|anh|chi|em))?|lay|dat|mua|can|them|order|anh (?:lay|mua|dat|cho)|chi (?:lay|mua|dat|cho))\s+)?(\d{1,3})\s+(?:(?:thung|thg)\s+)?(?:(?:nuoc ep|ep|satori juice|juice)\s+)?(oi hong|mang cau|man cau|me)(?:\s+(?:satori|juice))?[.!?]?$/);
+ if(juice && !/\b(lon|chai|ly|loc|binh)\b/.test(s)){
+  const item=resolveProduct(s,profile),product=productFor(item.sku);
+  const count=Number(juice[1]);
+  if(!item.ambiguous && product?.brand==='JUICE' && norm(product.unit)==='thung'
+     && Number.isSafeInteger(count) && count>=1 && count<=500)return count;
+ }
  const m=s.match(/^(?:cho (?:toi|anh|chi|em)\s+)?(?:lay|dat|mua|can)?\s*(\d{1,3})\s+(?:(?:nuoc|suoi|nuoc suoi|satori|hikari|tinh khiet|chai nuoc)\s+)*(?:350\s*ml|500\s*ml|1500\s*ml|1[,.]?5\s*l|premium(?:\s*450\s*ml)?)(?=\s|$)/);
  if(!m)return 0;
  if(/\b(chai|lo|ly|binh|loc)\b/.test(s))return 0;
