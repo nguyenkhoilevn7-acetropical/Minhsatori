@@ -197,7 +197,11 @@ class AiSandboxActivity : AppCompatActivity() {
         }
     }
 
-    private fun runTask(task: () -> JSONObject, done: (JSONObject) -> Unit) {
+    private fun runTask(
+        task: () -> JSONObject,
+        done: (JSONObject) -> Unit,
+        onError: ((Throwable) -> Unit)? = null
+    ) {
         if (busy) return
         busy = true
         send.isEnabled = false
@@ -209,7 +213,10 @@ class AiSandboxActivity : AppCompatActivity() {
                 busy = false
                 send.isEnabled = true
                 catalogueButton.isEnabled = true
-                result.onSuccess(done).onFailure { addBubble("Chưa thể kết nối AI thử: " + (it.message ?: "Lỗi mạng.")) }
+                result.onSuccess(done).onFailure { error ->
+                    onError?.invoke(error)
+                    addBubble("Chưa thể kết nối AI thử: " + (error.message ?: "Lỗi mạng."))
+                }
             }
         }.start()
     }
@@ -326,6 +333,16 @@ class AiSandboxActivity : AppCompatActivity() {
                     })
                 transcriptScroll.post { transcriptScroll.fullScroll(View.FOCUS_DOWN) }
             }
+        }, { _ ->
+            // On a network failure, restore the exact customer message and
+            // structured basket. Never replace anything the customer has begun
+            // typing while waiting for the response.
+            if (draft.text.toString().isBlank()) {
+                draft.setText(message)
+                basket = attached
+                draft.setSelection(draft.text.length)
+            }
+            addBubble("Tin nhắn chưa được xác nhận. Nội dung đã khôi phục để anh có thể gửi lại.")
         })
     }
 
