@@ -294,6 +294,9 @@ class AiSandboxActivity : AppCompatActivity() {
     }
 
     private fun submit() {
+        // Reject an additional tap while a request is pending. Never drop/clear text
+        // for a submission that cannot actually be sent.
+        if (busy) return
         val message = draft.text.toString().trim()
         if (message.isBlank()) return
         val attached = basket?.takeIf { runCatching { AiSandboxContract.cartMessage(it) }.getOrNull() == message }
@@ -304,14 +307,16 @@ class AiSandboxActivity : AppCompatActivity() {
         // Clear the old quote before sending. No accidental reuse of an expired quote.
         quotedId = null
         confirmRequestId = null
+        // Clear immediately after the valid send tap, not only if a quote is
+        // returned. This covers clarification-only conversations as well.
+        draft.text.clear()
+        basket = null
         addBubble(message, true)
         runTask({ request("/api/message", body) }, { result ->
             val explanation = result.optString("message")
             if (explanation.isNotBlank()) addBubble(explanation)
             val quote = result.optJSONObject("quote")
             if (quote != null) {
-                basket = null
-                draft.text.clear()
                 quotedId = quote.optString("quoteId")
                 confirmRequestId = "android-ai-" + UUID.randomUUID().toString()
                 // Structured native quote; no chat-text invoice and no client-side pricing.
