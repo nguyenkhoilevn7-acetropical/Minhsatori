@@ -506,6 +506,7 @@ const server=http.createServer(async(req,res)=>{
   if(multi){
    if(identityChange(parsedMessage,c))return reply(res,200,{ok:true,needsHuman:true,message:'Thay đổi địa chỉ, số điện thoại hoặc người nhận cần cửa hàng xác minh thủ công.'});
    if(multi.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,message:multi.message});
+   if(unified)return applyChatBasket(res,token,c,multi.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),revision,multi.source,delivery);
    const quote=makeMultiQuote(token,c,multi.items);
    if(!quote)return fail(res,400,'INVALID_QUANTITY','Số lượng hoặc quy cách của đơn nhiều sản phẩm chưa hợp lệ');
    quote.deliveryNote=normalizeDeliveryNote(delivery.deliveryNote);
@@ -538,6 +539,7 @@ const server=http.createServer(async(req,res)=>{
    }
    return reply(res,200,{ok:true,needMoreDetails:true,message:fields?.reason==='UNSUPPORTED'?'Sản phẩm này chưa có trong danh mục Minh Satori. Bạn vui lòng chọn trong Tất cả sản phẩm.':!sku||parsed.reason==='PRODUCT_AMBIGUOUS'?'Bạn muốn đặt sản phẩm nào? Có thể chọn Premium 450ml, Hikari, Satori hoặc xem Tất cả sản phẩm.':'Bạn muốn đặt bao nhiêu '+(productFor(sku)?.unit||'đơn vị')+'?'});
   }
+  if(unified)return applyChatBasket(res,token,c,[{action:'add',code:sku,qty}],revision,parsed.source||'rules',delivery);
   const quote=makeQuote(token,c,sku,qty);if(!quote)return fail(res,400,'INVALID_QUANTITY','Chỉ chấp nhận tối đa 500 thùng một đơn');
   quote.deliveryNote=normalizeDeliveryNote(delivery.deliveryNote);
   quote.requestedDeliveryAt=delivery.requestedDeliveryAt;
@@ -551,11 +553,13 @@ const server=http.createServer(async(req,res)=>{
   const idemKey=c.id+'|'+key;if(idempotency.has(idemKey))return reply(res,200,{ok:true,duplicate:true,order:orders.get(idempotency.get(idemKey))});
   const q=quotes.get(b.quoteId);if(!q||q.token!==token||q.expiresAt<Date.now())return fail(res,409,'QUOTE_EXPIRED','Báo giá hết hạn hoặc không thuộc khách này');
   if(q.profileId!==c.id||q.discount!==c.discount||q.ship!==c.ship||q.vatRate!==(c.vatRate??0)||q.address!==c.address||q.phone!==c.phone)return fail(res,409,'PROFILE_CHANGED','Thông tin khách đã thay đổi, cần lập lại báo giá');
+  if(q.draftRevision!==undefined&&q.draftRevision!==draftStore.read(token).revision)return fail(res,409,'DRAFT_CONFLICT','Báo giá đã cũ vì giỏ hàng thay đổi. Vui lòng xem báo giá mới nhất.');
   let deliveryNote;
   try{deliveryNote=normalizeDeliveryNote(b?.deliveryNote??q.deliveryNote)}catch{return fail(res,400,'INVALID_DELIVERY_NOTE','Lưu ý giao hàng phải là văn bản tối đa 300 ký tự')}
   const o={...q,deliveryNote,ref:'TEST-'+crypto.randomBytes(5).toString('hex').toUpperCase(),requestId:idemKey,createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};
   delete o.token; // Do not write the bearer link credential into invoice/order storage.
   orders.set(o.ref,o);idempotency.set(idemKey,o.ref);saveOrdersAtomic();quotes.delete(q.quoteId);
+  if(q.draftRevision!==undefined){draftStore.mutate(token,[{action:'clear'}],q.draftRevision);invalidateQuotes(token);}
   pendingAmends.delete(c.id); // New confirmed invoice supersedes any earlier amendment proposal.
   return reply(res,200,{ok:true,duplicate:false,order:o});
  }
