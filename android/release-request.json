@@ -1,20 +1,19 @@
 {
-  "purpose": "android-v0.3.4-samsung-acceptance-chat-pdf-launcher-fixes",
+  "purpose": "android-v0.3.5-shared-customer-storefront-admin-links-satori-ui",
   "package": "vn.minhsatori.app",
-  "version": "0.3.4",
-  "versionCode": 11,
+  "version": "0.3.5",
+  "versionCode": 12,
   "branch": "feature/minhsatori-native-android-v020",
-  "scope": "signed GitHub APK artifact only; no production apps-script or invoice writes",
+  "scope": "SIGNED SANDBOX ANDROID APK ONLY; NO production data changes",
   "requestedOn": "2026-10-21",
-  "safety": "Sandbox Gemini Demo A only, existing OAuth signing certificate maintained",
-  "requestedFromCommit": "3a66169973e3e37862f187b6981261898f8d2d31",
-  "fixes": [
-    "clear chat composer as soon as valid message is sent",
-    "preview actual PDF pages inside app with PdfRenderer, no downloads folder",
-    "direct ACTION_SEND from app cache to Zalo/Messenger/other share targets",
-    "save file only after explicit Tải PDF and Android document picker",
-    "remove inset-square effect from adaptive Satori launcher icon"
+  "requestedFromCommit": "6b9ef3c4025c43fa8fab9ee05d49e204137d91fc",
+  "notes": [
+    "Owner hero CTA and fixed navigation",
+    "secure in-app storefront uses existing website customer cart, quantity, VAT, invoice and history",
+    "in-app owner link admin retains server-side bearer authentication, no keys in APK",
+    "exact Satori logo safe area sized for round launcher mask",
+    "chat buttons compact",
+    "backend natural-language parser and website hero change isolated on separate Gemini Sandbox branch with CI PASS; Render auto deploy disabled"
   ],
-  "preflight": "Release version regex corrected after Python identity test failure; next signed build must pass 17 Python tests and Android tests",
-  "requestSequence": 2
+  "safety": "Never automatically change production, invoices or real customer discount records"
 }
