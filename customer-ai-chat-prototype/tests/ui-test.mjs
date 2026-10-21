@@ -23,6 +23,18 @@ for(const [needle,description] of [
  ["serverPost('/api/confirm'","customer confirmation before new order"]
 ])assert.ok(html.includes(needle),description);
 assert.ok(html.trim().endsWith('</html>'),'complete HTML document');
+assert.ok(html.includes('--satori-action-blue:#0867d5')&&
+ html.includes('.server-mode #productsToggle,.history-trigger,.history-item a,'),
+ 'customer actions including product menu/history links have a visible blue fill');
+assert.ok(html.includes('.chip,.catalog-filter,.quick-cart button,.suggestion-steps button,'),
+ 'shortcuts, filters, shared-cart buttons and +/- controls have blue active backgrounds');
+assert.ok(html.includes('button:disabled,.btn:disabled{background:#dbe2eb!important'),
+ 'disabled or completed actions remain visibly grey, not false-blue tappable');
+assert.ok(html.includes(':is(.cart-clear,.cart-remove,.inline-cart-remove){background:#fff0f1'),
+ 'destructive removal controls retain separate warning-color semantics');
+assert.ok(html.includes('button:focus-visible,.btn:focus-visible,.chip:focus-visible'),
+ 'keyboard focus remains visible on blue buttons');
+
 assert.ok(html.includes('class="shop-hero"') && html.includes('id="heroShopCta"'),
  'mobile customer shop CTA present in shared storefront');
 assert.ok(html.includes("$('heroShopCta').addEventListener('click',openInlineSearch);"),
