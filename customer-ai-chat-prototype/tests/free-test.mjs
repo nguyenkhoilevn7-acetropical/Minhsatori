@@ -33,6 +33,14 @@ try {
  const catB=await get('/api/catalogue?token=demo-b');
  test(catB.body.products.find(x=>x.code==='TP-00051').unitPrice===Math.round(137963*.65),'B product drawer shows calculated 35% demo discount');
  test((await get('/api/catalogue')).status===403,'prices not shown without demo customer link');
+ // Natural Vietnamese mobile chat: common shorthand still maps to the
+ // known 500ml SKU and displays server-priced cartons before confirmation.
+ for (const msg of ['10 suối 500ml', '10 suối 500ml satori', '10 nước suối 500ml']) {
+   const shortOrder=await post('/api/message',{token:'demo-a',message:msg});
+   test(shortOrder.status===200 && shortOrder.body.quote?.code==='TP-00003'
+      && shortOrder.body.quote?.qty===10 && shortOrder.body.quote?.unit==='Thùng',
+      'short-form Vietnamese water order: '+msg);
+ }
  r=await post('/api/message',{token:'demo-b',message:'Cho anh 20 thùng premium'});
  test(r.body.quote?.code==='TP-00051'&&r.body.quote?.qty===20,'B premium request resolved with quantity 20');
  test(r.body.quote?.listPrice===137963&&r.body.quote?.discount===35,'premium pricing matches official default and B policy');
