@@ -91,7 +91,24 @@ export function makeCustomerPhraseMemory(dataDir){
   }
   return result;
  }
- return {list,remember,forget,expand};
+ function snapshot(){return records.map(x=>({...x}))}
+ function restore(rows){
+  if(records.length)throw Error('PHRASE_MEMORY_NOT_EMPTY');
+  if(!Array.isArray(rows)||rows.length>1500)throw Error('INVALID_PHRASE_MEMORY');
+  const seen=new Set();
+  for(const x of rows){
+   if(!x||!/^[a-f0-9]{64}$/.test(x.key)||!validAlias(x.alias)||!productFor(x.code)||
+       !Number.isSafeInteger(x.updatedAt)||x.updatedAt<1||x.updatedAt>Date.now()+60000)
+     throw Error('INVALID_PHRASE_MEMORY');
+   const id=x.key+'|'+x.alias;
+   if(seen.has(id))throw Error('INVALID_PHRASE_MEMORY');
+   seen.add(id);
+  }
+  const old=records;
+  records=rows.map(x=>({key:x.key,alias:x.alias,code:x.code,updatedAt:x.updatedAt}));
+  try{flush()}catch(e){records=old;throw e}
+ }
+ return {list,remember,forget,expand,snapshot,restore};
 }
 export const GEMINI_FEW_SHOTS=[
  '10 thùng nước suối 500: hỏi Satori hay Hikari; giữ số lượng 10',
