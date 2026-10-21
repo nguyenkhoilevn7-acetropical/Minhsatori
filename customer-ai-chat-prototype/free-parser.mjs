@@ -10,7 +10,7 @@ const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLo
 // refer to price, and can NEVER be silently treated as a product.
 function shopWaterShorthand(s,profile={}){
  const text=norm(s);
- const m=text.match(/^(?:(?:cho (?:toi|anh|chi|em))\s+)?(?:lay|dat|mua|can)?\s*(\d{1,3})\s+(?:(?:thung|thg)\s+)?(?:(?:nuoc|suoi|nuoc suoi|satori|hikari|tinh khiet)\s+)+(350|500|1500)(?:\s*ml)?(?:\s+(?:satori|hikari))?$/);
+ const m=text.match(/^(?:(?:cho (?:toi|anh|chi|em|minh))\s+|(?:anh|chi|em|minh|toi)\s+(?:lay|dat|mua|can|cho)\s+)?(?:lay|dat|mua|can|them)?\s*(\d{1,3})\s+(?:(?:thung|thg)\s+)?(?:(?:nuoc|suoi|nuoc suoi|satori|hikari|tinh khiet)\s+)+(350|500|1500)(?:\s*ml)?(?:\s+(?:satori|hikari))?$/);
  if(!m)return null;
  if(/\b(chai|loc|binh|ly)\b/.test(text))return null;
  const expanded=text.replace(/\b(350|500|1500)(?!\s*ml)\b/g,'$1ml');
