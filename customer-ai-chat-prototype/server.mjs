@@ -106,7 +106,7 @@ function reply(res,status,obj){const body=JSON.stringify(obj);res.writeHead(stat
 function fail(res,status,code,message){reply(res,status,{ok:false,error:code,message})}
 function getProfile(token){return Object.hasOwn(FIXTURES,token)?FIXTURES[token]:customerLinks.getProfile(token)}
 async function bodyJSON(req,maxBytes=8_192){const chunks=[];let size=0;for await(const buf of req){size+=buf.length;if(size>maxBytes)throw new Error('PAYLOAD_TOO_LARGE');chunks.push(buf)}return safeJSON(Buffer.concat(chunks).toString('utf8'))}
-function rateLimit(req,token){const now=Date.now();const key=(req.socket.remoteAddress||'localhost')+'|'+token;const list=(rate.get(key)||[]).filter(t=>now-t<60000);if(list.length>=20)return false;list.push(now);rate.set(key,list);return true}
+function rateLimit(req,token){const now=Date.now();const key=(req.socket.remoteAddress||'localhost')+'|'+token;const list=(rate.get(key)||[]).filter(t=>now-t<60000);if(list.length>=(HOST==='127.0.0.1'&&process.env.DEMO_ISOLATED_TEST_RATE==='1'&&process.env.NODE_ENV!=='production'?100:20))return false;list.push(now);rate.set(key,list);return true}
 function money(v){return Math.round(v)}
 function normalizeDeliveryNote(value){if(value==null)return '';if(typeof value!=='string'||value.length>300)throw new Error('INVALID_DELIVERY_NOTE');return value.replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim()}
 
