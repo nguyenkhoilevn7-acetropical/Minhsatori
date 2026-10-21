@@ -314,6 +314,12 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
  .history-sheet{height:min(83dvh,var(--satori-visible-height));max-height:var(--satori-visible-height)}
 }
 
+
+.quick-cart{display:flex;align-items:center;gap:7px;padding:5px 11px;border-top:1px solid #d5e6ef;background:#eaf6fa;flex-wrap:wrap}
+.quick-cart[hidden]{display:none}
+.quick-cart span{flex:1;min-width:110px;font-size:12px;color:#174f62;font-weight:740}
+.quick-cart button{border:1px solid #b6d9e4;border-radius:9px;min-height:35px;padding:5px 10px;font-size:11.5px;color:#165c75;background:#fff}
+.quick-cart button:last-child{background:#087aff;color:#fff;border-color:#087aff}
 </style>
 </head>
 <body>
@@ -336,7 +342,20 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
  <button type="button" id="heroShopCta">Chọn sản phẩm →</button>
  </section>
  <div class="messages" id="messages" aria-live="polite"></div>
-<div class="chips" aria-label="Gợi ý sản phẩm"><button class="chip catalog-entry" type="button" id="allProductsButton">☷ Tất cả sản phẩm</button><button class="chip" data-msg="Cho tôi 10 thùng nước Satori 500ml">500ml</button><button class="chip" data-msg="Cho tôi 10 thùng nước Satori 5L có vòi">5 lít</button><button class="chip" data-msg="Cho tôi 10 thùng nước ép mãng cầu Satori Juice">Mãng cầu</button><button class="chip" data-msg="Cho tôi 10 thùng nước ép ổi hồng Satori Juice">Ổi hồng</button><button class="chip" data-msg="Cho tôi 10 thùng Premium 450ml">Premium</button><button class="chip" data-msg="Cho tôi đặt lại đơn lần trước">Đặt lại đơn cũ</button></div>
+<div class="chips" aria-label="Gợi ý thêm vào cùng một giỏ hàng">
+<button class="chip catalog-entry" type="button" id="allProductsButton">☷ Tất cả</button>
+<button class="chip" type="button" data-cart-sku="TP-00003">＋ 500ml</button>
+<button class="chip" type="button" data-cart-sku="TP-00136">＋ 5 lít</button>
+<button class="chip" type="button" data-cart-sku="TP-00056">＋ Mãng cầu</button>
+<button class="chip" type="button" data-cart-sku="TP-00058">＋ Ổi hồng</button>
+<button class="chip" type="button" data-cart-sku="TP-00051">＋ Premium</button>
+<button class="chip" type="button" data-msg="Cho tôi đặt lại đơn lần trước">Đặt lại đơn cũ</button>
+</div>
+<div class="quick-cart" id="quickCart" hidden aria-live="polite">
+<span id="quickCartCount">Giỏ hàng chung • 0 món</span>
+<button type="button" id="quickCartEdit">Sửa số lượng / Xem giỏ</button>
+<button type="button" id="quickCartQuote">Báo giá chung →</button>
+</div>
 <form class="composer" id="sendForm"><textarea id="messageInput" maxlength="500" rows="2" placeholder="Nhắn: Cho tôi 10 thùng nước 5L..." aria-label="Nhập yêu cầu đặt hàng"></textarea><button type="submit" class="btn primary">Gửi ➤</button></form>
 </main></div>
 <p class="footnote">Dữ liệu và giá chỉ để thử nghiệm. AI GPT thật, tạo PDF tự động phía server, gửi thông báo và đồng bộ đơn hàng sẽ được kích hoạt sau khi backend staging được cấp cấu hình. Không có yêu cầu nào ở trang này gửi đến Minh Satori production.</p>
@@ -481,7 +500,10 @@ function showInvoice(o){
 
 $('sendForm').addEventListener('submit',e=>{e.preventDefault();send($('messageInput').value)});
 $('messageInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('sendForm').requestSubmit()}});
-document.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>send(b.dataset.msg)));
+// Product suggestions must accumulate in ONE cart. They never issue /api/message
+// or create a bill merely by tapping a chip.
+document.querySelectorAll('.chip[data-msg]').forEach(b=>b.addEventListener('click',()=>send(b.dataset.msg)));
+document.querySelectorAll('.chip[data-cart-sku]').forEach(b=>b.addEventListener('click',()=>addSuggestedItem(b.dataset.cartSku)));
 $('customer').addEventListener('change',e=>selectProfile(e.target.value));
 $('apply').addEventListener('click',()=>{const d=Number($('discount').value),s=Number($('ship').value);if(!Number.isInteger(d)||d<0||d>60||!Number.isInteger(s)||s<0||s>30){msg('Chiết khấu phải 0–60%, phí vận chuyển 0–30%.','note');return;}Object.assign(customer(),{discount:d,ship:s});draft=null;msg(`Đã cập nhật cấu hình thử: CK ${d}%, vận chuyển ${s}%. Báo giá cũ hết hiệu lực.`, 'note')});
 $('copy').addEventListener('click',async()=>{const link='file-demo://customer/'+customer().token;try{await navigator.clipboard.writeText(link);msg('Đã sao chép đường dẫn mô phỏng. Link thật sẽ do server sinh và quản lý.','note')}catch(e){msg('Link DEMO: '+link,'note')}});
@@ -596,6 +618,33 @@ $('historyButton').addEventListener('click',openHistory);
 $('historyClose').addEventListener('click',closeHistory);
 $('historyBackdrop').addEventListener('click',e=>{if(e.target===$('historyBackdrop'))closeHistory()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('historyBackdrop').classList.contains('open'))closeHistory()});
+async function ensureCatalog() {
+ if(catalogItems.length) return true;
+ if(serverMode){
+  try{
+   const resp=await fetch('/api/catalogue?token='+encodeURIComponent(serverToken),{cache:'no-store'});
+   const json=await resp.json();
+   if(!resp.ok||!json.ok||!Array.isArray(json.products))throw Error('Không thể mở danh mục.');
+   catalogItems=json.products;
+   return true;
+  }catch(err){msg('Chưa tải được danh mục sản phẩm: '+err.message,'note');return false;}
+ }
+ catalogItems=PRODUCTS.map(x=>({code:x.code,name:x.name,unit:'Thùng',brand:'SATORI',spec:'Thử ngoại tuyến'}));
+ return true;
+}
+async function addSuggestedItem(code) {
+ if(!await ensureCatalog())return;
+ const item=catalogItems.find(x=>x.code===code);
+ if(!item){msg('Mặt hàng đang chọn chưa có trong danh mục. Hãy mở Tất cả sản phẩm.','note');return;}
+ const old=cart.get(code),qty=old?.qty||0;
+ if((!old&&cart.size>=6)||cartTotalQty()>=500||qty>=500){
+  msg('Một hóa đơn có tối đa 6 loại và 500 đơn vị. Anh/chị hãy mở giỏ để điều chỉnh.','note');return;
+ }
+ cart.set(code,{code,name:item.name,unit:item.unit,qty:qty+1});
+ pendingCartMessage=null;pendingCartItems=null;
+ updateCart();
+ msg('Đã thêm '+item.name+' vào giỏ chung (hiện '+(qty+1)+' '+item.unit+'). Bấm Sửa số lượng / Xem giỏ hoặc chọn tiếp món khác.','note');
+}
 function filteredCatalog(){
  const query=norm($('catalogSearch').value).trim();
  return catalogItems.filter(p=>(currentBrand==='ALL'||p.brand===currentBrand)&&
@@ -605,6 +654,9 @@ function cartTotalQty(){return [...cart.values()].reduce((sum,item)=>sum+item.qt
 function cartSnapshot(){return [...cart.values()].map(x=>({code:x.code,qty:x.qty}))}
 function updateCart(){
  const root=$('cartList');root.replaceChildren();
+ const quick=$('quickCart');
+ quick.hidden=cart.size===0;
+ $('quickCartCount').textContent='🛒 Giỏ hàng chung: '+cart.size+'/6 món • '+cartTotalQty()+' đơn vị';
  $('cartCount').textContent=cart.size+'/6 • '+cartTotalQty()+' đơn vị';
  $('clearCart').disabled=cart.size===0;
  $('composeCart').disabled=cart.size===0;
@@ -698,6 +750,12 @@ $('clearCart').addEventListener('click',()=>{
  cart.clear();pendingCartMessage=null;pendingCartItems=null;selectedProduct=null;
  $('productSelection').classList.remove('active');$('cartFeedback').textContent='Đã xóa giỏ chọn thử.';
  updateCart();renderCatalogue();
+});
+$('quickCartEdit').addEventListener('click',openCatalog);
+$('quickCartQuote').addEventListener('click',()=> {
+ if(!cart.size)return;
+ $('composeCart').click();
+ // Use one editable structured message. Never call /api/confirm from a chip.
 });
 $('composeCart').addEventListener('click',()=>{
  if(!cart.size)return;
