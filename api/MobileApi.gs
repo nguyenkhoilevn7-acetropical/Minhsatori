@@ -25,6 +25,7 @@ function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMi
 function props(){return PropertiesService.getScriptProperties();}
 var ACTION_SCOPES={
  'mobile.snapshot':'orders:read','mobile.revision':'orders:read','mobile.trash':'orders:delete',
+ 'mobile.catalogue':'catalogue:read',
  'system.status':'orders:read','orders.list':'orders:read',
  'customers.search':'customers:read','debt.summary':'debt:read',
  'orders.create':'orders:write','orders.update':'orders:write',
@@ -131,6 +132,12 @@ function handle(e){
         deleteRequestId:t.apiDeleteRequestId||''};
        })}});
     }finally{lock.releaseLock()}
+  }
+  if(action==='mobile.catalogue'){
+    // Use exactly the same locked, validated Drive-ledger catalogue as Bot API.
+    // OAuth scopes are checked above; never expose invoice/customer data here.
+    var checked=SatoriBotApi.executeVerified('catalogue.list',{},String(request.nonce||''));
+    return json({ok:true,action:action,revision:checked.revision,data:checked.data});
   }
   need(['orders.create','orders.update','orders.delete','orders.restore',
         'payments.markCustomerPaid','system.status','orders.list',
