@@ -41,6 +41,8 @@ try{
  check(confirmed.status===200&&/^TEST-[A-F0-9]{10}$/.test(ref),'one sandbox TEST invoice created');
  const originalPdf=await ask('/api/invoice/'+ref+'?token='+token);
  check(originalPdf.status===200&&originalPdf.bytes.subarray(0,4).toString()==='%PDF','original PDF created');
+ const wrongRef=await ask('/api/message',{token,message:'Sửa hóa đơn TEST-FFFFFFFFFF giao sau 2 giờ chiều'});
+ check(wrongRef.result.needsHuman===true&&!wrongRef.result.editProposal,'explicitly referenced wrong invoice is refused');
  const ambiguous=await ask('/api/message',{token,message:'Em muốn sửa hóa đơn vừa đặt giao sau hai giờ'});
  check(ambiguous.status===200&&ambiguous.result.needMoreDetails===true&&
   /chiều|tiếng/.test(ambiguous.result.message),'ambiguous time requires clarification, no silent 2am/2pm');
@@ -97,6 +99,13 @@ try{
  check(yes.result.order.amendmentVersion===2,'second distinct amendment advances revision');
  const crossPdf=await ask('/api/invoice/'+ref+'?token=demo-b');
  check(crossPdf.status===404,'other customer cannot view updated invoice PDF');
+ const newTime=await ask('/api/message',{token,message:'Sửa hóa đơn vừa đặt giao sau 3 giờ chiều'});
+ check(newTime.result.editProposal?.newNote.includes('15:00'),'new requested time is offered for consent');
+ const approveNewTime=await ask('/api/message',{token,message:'Vâng'});
+ check(approveNewTime.result.amended===true&&approveNewTime.result.order.deliveryNote.includes('15:00'),
+  'customer can accept updated time with natural Vietnamese confirmation');
+ check(!approveNewTime.result.order.deliveryNote.includes('14:00')&&
+  approveNewTime.result.order.amendmentVersion===3,'new delivery time replaces old request instead of contradicting it');
  check((await ask('/health')).result.orders===1,'still exactly one TEST invoice after two edits');
  console.log('PASS '+count+'/'+count+' conversational post-confirm invoice amendments, PDF, XLSX, isolation and idempotency');
 }catch(e){console.error('FAIL '+e.stack);process.exitCode=1}
