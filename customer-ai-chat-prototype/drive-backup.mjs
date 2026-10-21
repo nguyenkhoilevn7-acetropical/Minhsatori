@@ -74,7 +74,8 @@ export function makeDriveBackupWorker(readState){
    const cfg=config();if(!cfg)throw Error('DRIVE_BACKUP_NOT_CONFIGURED');
    const archive=readState();
    const fingerprint=digest(JSON.stringify(archive.snapshot?.profiles||[])+
-    JSON.stringify(archive.snapshot?.changeRequests||[])+JSON.stringify(archive.snapshot?.orders||[]));
+    JSON.stringify(archive.snapshot?.changeRequests||[])+JSON.stringify(archive.snapshot?.orders||[])+
+    JSON.stringify(archive.snapshot?.drafts||[]));
    if(lastFingerprint===fingerprint)return {ok:true,skipped:true,lastSuccessAt,lastFileId};
    const envelope=encryptArchive(archive,cfg.key);
    const response=await signedPost(cfg,'put',JSON.stringify(envelope));
