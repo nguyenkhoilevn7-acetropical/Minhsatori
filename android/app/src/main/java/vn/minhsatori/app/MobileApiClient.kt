@@ -142,6 +142,23 @@ object MobileApiClient {
         return MobileSnapshot(SatoriData.fromDriveState(data.toString()), actions, actor)
     }
 
+    /**
+     * Lightweight authorized revision probe. Missing or malformed values must
+     * never be treated as revision zero (which could hide real changes).
+     */
+    internal fun parseRevision(response: JSONObject): Long {
+        val raw = response.optJSONObject("data")?.opt("revision")
+        if (raw !is Int && raw !is Long) {
+            throw IOException("Mobile API chưa hỗ trợ phiên bản dữ liệu hợp lệ.")
+        }
+        val revision = (raw as Number).toLong()
+        if (revision < 0L) throw IOException("Máy chủ trả về phiên bản dữ liệu không hợp lệ.")
+        return revision
+    }
+
+    fun revision(endpoint: String, token: String): Long =
+        parseRevision(request(endpoint, token, "mobile.revision"))
+
     fun trash(endpoint: String, token: String): JSONObject =
         request(endpoint, token, "mobile.trash").getJSONObject("data")
 }
