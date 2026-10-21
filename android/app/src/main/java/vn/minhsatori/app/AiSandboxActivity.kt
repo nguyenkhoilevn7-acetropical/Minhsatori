@@ -322,6 +322,18 @@ class AiSandboxActivity : AppCompatActivity() {
         runTask({ request("/api/message", body) }, { result ->
             val explanation = result.optString("message")
             if (explanation.isNotBlank()) addBubble(explanation)
+            val amendment=result.optJSONObject("editProposal")
+            if(amendment!=null)askToAmendInvoice(amendment)
+            if(result.optBoolean("amended")){
+                val updated=result.optJSONObject("order")
+                if(updated!=null&&AiSandboxContract.validTestRef(updated.optString("ref"))){
+                    transcript.addView(invoiceUi.invoiceCard(updated),
+                        LinearLayout.LayoutParams(-1,-2).apply{
+                            setMargins(dp(7),dp(8),dp(7),dp(9))
+                        })
+                    transcriptScroll.post { transcriptScroll.fullScroll(View.FOCUS_DOWN) }
+                }
+            }
             val quote = result.optJSONObject("quote")
             if (quote != null) {
                 quotedId = quote.optString("quoteId")
@@ -344,6 +356,47 @@ class AiSandboxActivity : AppCompatActivity() {
             }
             addBubble("Tin nhắn chưa được xác nhận. Nội dung đã khôi phục để anh có thể gửi lại.")
         })
+    }
+
+    private fun askToAmendInvoice(proposal: JSONObject) {
+        val proposalId=proposal.optString("proposalId")
+        val ref=proposal.optString("ref")
+        if(!AiSandboxContract.validTestRef(ref)||proposalId.isBlank()){
+            addBubble("Chưa xác minh được hóa đơn cần sửa. Vui lòng mở lịch sử TEST.")
+            return
+        }
+        val old=proposal.optString("previousNote").ifBlank { "(Chưa có)" }
+        val next=proposal.optString("newNote")
+        AlertDialog.Builder(this)
+            .setTitle("Xác nhận sửa hóa đơn " + ref)
+            .setMessage("Ghi chú hiện tại:\\n"+old+
+                "\\n\\nGhi chú sau khi sửa:\\n"+next+
+                "\\n\\nTổng tiền không thay đổi. Giờ giao chờ cửa hàng xác nhận.")
+            .setNegativeButton("Không sửa"){_,_->
+                runTask({
+                    request("/api/message",AiSandboxContract.requestMessage("Không sửa"))
+                }, {response->
+                    addBubble(response.optString("message","Đã hủy yêu cầu sửa."))
+                })
+            }
+            .setPositiveButton("Đúng, sửa"){_,_->
+                runTask({
+                    request("/api/order-amend/confirm",JSONObject()
+                        .put("token",AiSandboxContract.PUBLIC_FIXTURE)
+                        .put("proposalId",proposalId)
+                        .put("confirmed",true))
+                }, { response ->
+                    if(response.optBoolean("amended")){
+                        addBubble(response.optString("message","Đã sửa hóa đơn TEST."))
+                        val updated=response.optJSONObject("order")
+                        if(updated!=null) transcript.addView(invoiceUi.invoiceCard(updated),
+                            LinearLayout.LayoutParams(-1,-2).apply{
+                                setMargins(dp(7),dp(8),dp(7),dp(9))
+                            })
+                        transcriptScroll.post { transcriptScroll.fullScroll(View.FOCUS_DOWN) }
+                    } else addBubble("Chưa xác minh được sửa đổi. Hóa đơn vẫn giữ nguyên.")
+                })
+            }.show()
     }
 
     private fun confirmQuote() {
