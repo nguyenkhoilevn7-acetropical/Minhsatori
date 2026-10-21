@@ -12,6 +12,7 @@ import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {parseOrder,parseRules,geminiConfigured,identityChange} from './free-parser.mjs';
+import {businessReply} from './business-reply.mjs';
 import {parseMultiOrder} from './multi-order.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
@@ -394,6 +395,11 @@ const server=http.createServer(async(req,res)=>{
    sessions.delete(token);
    return reply(res,200,{ok:true,needsHuman:true,changeRequestId:request.id,message:'Đã ghi nhận yêu cầu thay đổi thông tin và đưa vào danh sách chờ người quản trị xem xét. Link hiện tại vẫn giữ nguyên người nhận, số điện thoại và địa chỉ cũ. Cửa hàng sẽ liên hệ sau khi kiểm tra; chưa tạo hoặc thay đổi đơn.'});
   }
+  // Factual sales answers come only from the customer's approved server data.
+  // They never change price, identity, cart, invoices or delivery promises.
+  const factual=businessReply(parsedMessage,c);
+  if(factual)return reply(res,200,{ok:true,sandbox:true,parserSource:'verified-facts',
+   intent:factual.kind,message:factual.message});
   const delivery=extractDeliveryIntent(parsedMessage,new Date());
   if(delivery.clarification){
    sessions.set(token,{pendingDeliveryMessage:parsedMessage,expiresAt:Date.now()+5*60_000});
@@ -416,11 +422,13 @@ const server=http.createServer(async(req,res)=>{
   if(parsed.needsHuman)return reply(res,200,{ok:true,needsHuman:true,message:'Yêu cầu thay đổi người nhận, địa chỉ hoặc số điện thoại phải được cửa hàng xác minh trước khi áp dụng giá riêng.'});
   if(parsed.address_change||parsed.receiver_or_phone_change)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu thay địa chỉ, SĐT hoặc người nhận. Mức chiết khấu riêng sẽ không được áp dụng tự động; cửa hàng cần kiểm tra thủ công.'});
   if(parsed.intent==='product_question'){
+   const question=businessReply(parsedMessage,c);
+   if(question)return reply(res,200,{ok:true,parserSource:parsed.source||'rules',intent:question.kind,message:question.message});
    const mentioned=resolveProduct(parsedMessage,c);
    const product=mentioned.sku&&!mentioned.ambiguous?productFor(mentioned.sku):null;
    return reply(res,200,{ok:true,parserSource:parsed.source||'rules',message:product?
-    'Có '+product.name+' trong danh mục Minh Satori. Bạn chọn số lượng trong Tất cả sản phẩm để nhận báo giá chính xác theo chiết khấu và VAT của link khách.':
-    'Mình hỗ trợ thông tin, tư vấn và đặt hàng các sản phẩm Satori, Hikari, Juice. Bạn mở Tất cả sản phẩm để xem quy cách, giá phù hợp và thêm nhiều món vào một giỏ nhé.'});
+    'Có '+product.name+' trong danh mục Minh Satori. Bạn chọn số lượng trong Tất cả sản phẩm để nhận báo giá theo chiết khấu và VAT của link khách.':
+    'Mình hỗ trợ tư vấn các sản phẩm Satori, Hikari và Juice. Bạn mở Tất cả sản phẩm để xem quy cách, giá theo link và thêm nhiều món vào cùng giỏ hàng nhé.'});
   }
   if(parsed.intent!=='order')return reply(res,200,{ok:true,parserSource:parsed.source||'rules',
    message:'Mình là trợ lý mua bán nước Minh Satori nên chỉ hỗ trợ tư vấn sản phẩm, giá theo link khách, giỏ hàng, đơn đặt, hóa đơn và giao hàng. Bạn muốn mình hỗ trợ phần nào?'});
