@@ -36,6 +36,17 @@ parsed=parseColloquialBasket('3 me, 2 ổi');
 check(parsed?.items?.length===2&&parsed.items[0].sku==='TP-00055'&&parsed.items[1].sku==='TP-00058',
  'two separate natural juice keywords from one text');
 check(parseColloquialBasket('3 me, 2 thùng trà sữa')===null,'unsupported products never create a partial basket');
+parsed=parseColloquialBasket('Thêm 5 thùng 5 lít');
+check(parsed?.pending?.missing?.qty===5&&parsed.pending.missing.unit==='thung'&&
+ !/binh/i.test(parsed.message||''),'five 5L cartons default to thùng, never ask binh');
+check(/có vòi hay không vòi/i.test(
+ (await import('../multi-order.mjs')).colloquialQuestion(parsed.pending.missing)),
+ '5L followup asks ONLY spout when qty known');
+let variant=completeColloquialFollowup(parsed.pending,'không vòi');
+check(variant?.items?.some(x=>x.sku==='TP-00135'&&x.qty===5),
+ 'five 5L cartons no-spout resolved safely');
+check(parseColloquialBasket('2 bình 5 lít')?.needMoreDetails===true,
+ 'unsupported binh retail never enters basket');
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dir=mkdtempSync(path.join(tmpdir(),'satori-natural-'));
 const port=35110+Math.floor(Math.random()*300);
@@ -63,7 +74,7 @@ try{
  rev=r.data.draft.revision;
  r=await send('Thêm 3 me, Suối 5 lit',rev);
  check(r.status===200&&r.data.clarificationType==='COLLOQUIAL_PRODUCT'&&
-  /me/i.test(r.data.message)&&/5 lít/i.test(r.data.message),
+  /me/i.test(r.data.message)&&/(5L|5 lít)/i.test(r.data.message),
   'understand me, ask only missing qty/packaging/variant for water');
  check((await draft()).revision===rev,'ambiguous water never adds 3 me prematurely');
  r=await send('2 thùng không vòi',rev);
