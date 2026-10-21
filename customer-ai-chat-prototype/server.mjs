@@ -415,7 +415,16 @@ const server=http.createServer(async(req,res)=>{
   const parsed=await parseOrder(parsedMessage,c);
   if(parsed.needsHuman)return reply(res,200,{ok:true,needsHuman:true,message:'Yêu cầu thay đổi người nhận, địa chỉ hoặc số điện thoại phải được cửa hàng xác minh trước khi áp dụng giá riêng.'});
   if(parsed.address_change||parsed.receiver_or_phone_change)return reply(res,200,{ok:true,needsHuman:true,message:'Bạn yêu cầu thay địa chỉ, SĐT hoặc người nhận. Mức chiết khấu riêng sẽ không được áp dụng tự động; cửa hàng cần kiểm tra thủ công.'});
-  if(parsed.intent!=='order')return reply(res,200,{ok:true,message:'Mình có thể hỗ trợ đủ 20 sản phẩm Satori, Hikari và Juice. Bạn muốn đặt loại nào và bao nhiêu thùng, bình hoặc lốc?'});
+  if(parsed.intent==='product_question'){
+   const mentioned=resolveProduct(parsedMessage,c);
+   const product=mentioned.sku&&!mentioned.ambiguous?productFor(mentioned.sku):null;
+   return reply(res,200,{ok:true,parserSource:parsed.source||'rules',message:product?
+    'Có '+product.name+' trong danh mục Minh Satori. Bạn chọn số lượng trong Tất cả sản phẩm để nhận báo giá chính xác theo chiết khấu và VAT của link khách.':
+    'Mình hỗ trợ thông tin, tư vấn và đặt hàng các sản phẩm Satori, Hikari, Juice. Bạn mở Tất cả sản phẩm để xem quy cách, giá phù hợp và thêm nhiều món vào một giỏ nhé.'});
+  }
+  if(parsed.intent!=='order')return reply(res,200,{ok:true,parserSource:parsed.source||'rules',
+   message:'Mình là trợ lý mua bán nước Minh Satori nên chỉ hỗ trợ tư vấn sản phẩm, giá theo link khách, giỏ hàng, đơn đặt, hóa đơn và giao hàng. Bạn muốn mình hỗ trợ phần nào?'});
+
   const sku=parsed.sku!=='unknown'?parsed.sku:(parsed.use_last_order||c.uniqueFavourite)?c.favourite:null, qty=parsed.qty>0?parsed.qty:parsed.use_last_order?c.lastQty:0;
   if(parsed.needMoreDetails||!sku||qty<1){
    const fields=parseRules(parsedMessage,c);
