@@ -25,10 +25,12 @@ internal object SatoriOrderValidation {
             if (keys.any { marker(obj.opt(it)) }) return true
             val tags = obj.optJSONArray("tags")
             if (tags != null && (0 until tags.length()).any { marker(tags.opt(it)) }) return true
+            // Treat an explicit leading TEST/SANDBOX label as test data, not
+            // just "[TEST]" or "TEST ONLY". Customers commonly type "TEST đơn".
+            // A word boundary avoids blocking ordinary names like "Testing Cafe".
+            val testLabel = Regex("^(?:\\[\\s*TEST\\s*\\]|TEST\\b|SANDBOX\\b)", RegexOption.IGNORE_CASE)
             return listOf("name", "note", "deliveryNote").any {
-                val text = obj.optString(it, "").trimStart().uppercase()
-                text.startsWith("[TEST]") || text.startsWith("TEST ONLY") ||
-                    text.startsWith("SANDBOX ONLY")
+                testLabel.containsMatchIn(obj.optString(it, "").trimStart())
             }
         }
         return tagged(payload) || (order != null && tagged(order)) ||
