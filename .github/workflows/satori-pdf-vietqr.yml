@@ -1,0 +1,23 @@
+name: Website Satori PDF / VietQR Tests
+on:
+  pull_request:
+    paths:
+      - "index.html"
+      - "tests/pdf-vietqr-regression.cjs"
+      - ".github/workflows/satori-pdf-vietqr.yml"
+  push:
+    branches:
+      - "fix/satori-pdf-payment-qr-20261021"
+permissions:
+  contents: read
+jobs:
+  pdf-qr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify embedded VietQR payment data and website PDF template
+        run: node tests/pdf-vietqr-regression.cjs
