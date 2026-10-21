@@ -213,7 +213,7 @@ for(const id of ['name','phone']){
 }
 
 // Owner-only live inbox: initial load establishes baseline without a false alarm.
-let knownOrderRefs=null,unseenOrderRefs=new Set(),orderPollBusy=false;
+let knownOrderRefs=null,knownOrderVersions=null,unseenOrderRefs=new Set(),orderPollBusy=false;
 let showAllOrderCards=false,mostRecentOrderList=[];
 let bellEnabled=false,orderAudio=null;
 const BASE_TITLE=document.title;
@@ -247,6 +247,15 @@ function announceOrders(newOnes){
   }
  }catch{}
 }
+function announceAmendments(changes){
+ const newest=changes[0];
+ $('orderAlert').textContent='✏️ '+changes.length+' hóa đơn TEST vừa được khách sửa ghi chú giao hàng. Kiểm tra trước khi giao.';
+ ringForNewOrder();
+ try{
+  if(bellEnabled&&typeof Notification!=='undefined'&&Notification.permission==='granted')
+   new Notification('Minh Satori • Đơn đã sửa',{body:newest.ref+' • Ghi chú mới: '+(newest.deliveryNote||'Chưa có'),tag:'minh-satori-test-amend-'+newest.ref+'-'+newest.amendmentVersion});
+ }catch{}
+}
 function renderOrderInbox(orders){
  $('newOrderCount').textContent=String(unseenOrderRefs.size);
  document.title=(unseenOrderRefs.size?'('+unseenOrderRefs.size+') ':'')+BASE_TITLE;
@@ -255,8 +264,8 @@ function renderOrderInbox(orders){
  if(!orders.length){const p=document.createElement('p');p.className='hint';p.textContent='Chưa có đơn thử nào được xác nhận.';root.append(p);return}
  for(const o of shown){
   const card=document.createElement('article');card.className='customer';
-  const heading=document.createElement('strong');heading.textContent=(unseenOrderRefs.has(o.ref)?'🔔 MỚI • ':'')+o.ref+' • '+money(o.total)+'đ';
-  const customer=document.createElement('p');customer.className='hint';customer.textContent='Khách: '+o.name+' • '+o.phone+' • '+formatOrderTime(o.createdAt);
+  const heading=document.createElement('strong');heading.textContent=(unseenOrderRefs.has(o.ref)?(o.amendmentVersion?'✏️ ĐÃ SỬA • ':'🔔 MỚI • '):'')+o.ref+' • '+money(o.total)+'đ';
+  const customer=document.createElement('p');customer.className='hint';customer.textContent='Khách: '+o.name+' • '+o.phone+' • '+formatOrderTime(o.createdAt)+(o.amendedAt?' • Sửa lúc '+formatOrderTime(o.amendedAt):'');
   const info=document.createElement('p');info.textContent=(o.items?.length?o.items.map(x=>x.product+' × '+x.qty+' '+(x.unit||'thùng')).join(' | '):(o.product+' × '+o.qty))+' • '+(o.status||'Chờ thanh toán');
   const address=document.createElement('p');address.className='hint';address.textContent='Giao: '+(o.address||'Chưa có địa chỉ')+(o.deliveryNote?' • Lưu ý: '+o.deliveryNote:'');
   card.append(heading,customer,info,address);root.append(card);
@@ -277,7 +286,16 @@ async function refreshOrderInbox(){
   }else{
    $('orderAlert').textContent='Đang theo dõi • '+data.total+' đơn THỬ đã có, kiểm tra mỗi 10 giây.';
   }
+  if(knownOrderVersions!==null){
+   const edited=data.orders.filter(o=>knownOrderRefs?.has(o.ref)&&
+    (o.amendmentVersion||0)>(knownOrderVersions.get(o.ref)||0));
+   if(edited.length){
+    for(const o of edited)unseenOrderRefs.add(o.ref);
+    announceAmendments(edited);
+   }
+  }
   knownOrderRefs=current;
+  knownOrderVersions=new Map(data.orders.map(o=>[o.ref,o.amendmentVersion||0]));
   renderOrderInbox(data.orders);
  }catch(e){$('orderAlert').textContent='Chưa đọc được đơn mới: '+e.message}
  finally{orderPollBusy=false}
