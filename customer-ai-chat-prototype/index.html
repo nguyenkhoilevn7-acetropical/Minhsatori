@@ -365,6 +365,34 @@ body{background:#eef1f5;color:#1b2430;font-family:-apple-system,BlinkMacSystemFo
 .server-mode #productsToggle{display:inline-flex;align-items:center;min-height:32px;max-width:124px;border:1px solid #cfdfeb;border-radius:10px;padding:5px 8px;background:#f7fbff;color:#205d79;font-size:11px;font-weight:700;text-align:center}
 .server-mode .shop-hero{display:none}
 .server-mode .secondary-tools .chips{padding:5px 9px}
+/* High-visibility, tappable customer actions: blue is interactive.
+   Red remove controls remain distinct; disabled/finished controls stay grey. */
+:root{--satori-action-blue:#0867d5;--satori-action-blue-hover:#0758b5}
+.server-mode #productsToggle,.history-trigger,.history-item a,
+.chip,.catalog-filter,.quick-cart button,.suggestion-steps button,
+.inline-search-head button,.history-close,.catalog-close,
+.btn:not(.primary),.delivery-note-presets .btn{
+ background:var(--satori-action-blue);color:#fff;border-color:var(--satori-action-blue);
+ box-shadow:0 2px 8px #0b63c528;
+}
+:is(.server-mode #productsToggle,.history-trigger,.history-item a,
+.chip,.catalog-filter,.quick-cart button,.suggestion-steps button,
+.inline-search-head button,.history-close,.catalog-close,
+.btn:not(.primary),.delivery-note-presets .btn):hover:not(:disabled){
+ background:var(--satori-action-blue-hover);color:#fff;border-color:var(--satori-action-blue-hover)
+}
+button:focus-visible,.btn:focus-visible,.chip:focus-visible,.history-item a:focus-visible{
+ outline:3px solid #ffbb48;outline-offset:3px
+}
+button:active:not(:disabled){transform:translateY(1px)}
+button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!important;border-color:#c8d1dd!important;
+ opacity:.8;box-shadow:none!important;transform:none;cursor:not-allowed}
+.catalog-item:not(.in-cart){background:#f0f7ff;border-left:3px solid #087aff}
+.catalog-item.in-cart{border-left:3px solid #0b8bca}
+.catalog-item:focus-visible{outline:3px solid #ffbb48;outline-offset:-3px}
+/* Deleting a cart line is not an ordinary blue add action. */
+:is(.cart-clear,.cart-remove,.inline-cart-remove){background:#fff0f1;color:#ac3346;border:1px solid #ecb2bd}
+:is(.cart-clear,.cart-remove,.inline-cart-remove):hover:not(:disabled){background:#fbd9de;color:#8c1931}
 </style>
 </head>
 <body>

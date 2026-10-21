@@ -35,19 +35,44 @@ export function parseAmendment(message,now=new Date()){
  if(note.length>300)return {unsupported:true,clarification:'Lưu ý giao hàng không được dài quá 300 ký tự.'};
  return {note};
 }
+/**
+ * Split on actual note separators, never the semicolon within a parenthesized
+ * delivery time such as "(giờ Việt Nam; cửa hàng xác nhận)".
+ */
+function noteSegments(value){
+ const chunks=[];let depth=0,buffer='';
+ for(const ch of value){
+  if(ch==='(')depth++;
+  if(ch===')')depth=Math.max(0,depth-1);
+  if(ch===';'&&depth===0){
+   if(buffer.trim())chunks.push(buffer.trim());
+   buffer='';
+  }else buffer+=ch;
+ }
+ if(buffer.trim())chunks.push(buffer.trim());
+ return chunks;
+}
+function isDeliverySchedule(segment){
+ const n=normAmend(segment);
+ // The original legacy customer note "Giao sau 2h" is a time request too.
+ // Do not erase instructions like "gọi trước khi giao" or "giao ở cổng sau".
+ return /^(?:khach yeu cau\s+)?(?:giao|ship)(?: hang)?\s+(?:(?:sau|truoc|luc|vao|tam|khoang|trong)\s+)(?:(?:\d{1,2}(?::\d{2})?|\d{1,2}h(?:\d{2})?|mot|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi)\b)/u.test(n);
+}
 export function appendDeliveryNote(original,addition){
  const old=String(original||'').trim(),fresh=String(addition||'').trim();
  if(!fresh||fresh.length>300)throw Error('INVALID_NOTE');
- if(old.toLocaleLowerCase('vi-VN').includes(fresh.toLocaleLowerCase('vi-VN')))return old;
- const oldParts=old.split(/;\s*/).filter(Boolean);
- // If an earlier customer delivery-time instruction exists, replace that
- // instruction rather than adding contradictory 14:00 / 15:00 requests.
- const freshTime=/^Khách yêu cầu giao (?:sau|trước|vào khoảng)/iu.test(fresh);
- const kept=freshTime?oldParts.filter(x=>!/^Khách yêu cầu giao (?:sau|trước|vào khoảng)/iu.test(x)):oldParts;
- const combined=[...kept,fresh].join('; ');
+ const newer=noteSegments(fresh);
+ const oldParts=noteSegments(old);
+ // All superseded time specifications disappear, including shorthand "Giao sau
+ // 2h", while unrelated customer requests remain intact, in original order.
+ const freshSchedules=newer.some(isDeliverySchedule);
+ const kept=freshSchedules?oldParts.filter(part=>!isDeliverySchedule(part)):oldParts;
+ const combined=[...kept,...newer].filter((part,index,items)=>
+  items.findIndex(x=>normAmend(x)===normAmend(part))===index).join('; ');
  if(combined.length>300)throw Error('NOTE_LIMIT');
  return combined;
 }
+
 export function latestEditableOrder(orders,profileId,now=Date.now()){
  const matches=[...orders.values()].filter(o=>o&&o.sandbox===true&&o.profileId===profileId&&!o.ownerTest)
   .sort((a,b)=>Date.parse(b.createdAt||0)-Date.parse(a.createdAt||0));

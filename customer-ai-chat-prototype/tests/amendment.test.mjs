@@ -35,11 +35,23 @@ try{
  check(!isAmendmentIntent('Cho tôi 10 thùng Satori 500ml giao sau 2 giờ chiều'),'new product order is never mistaken for amendment');
  check(isConfirmAmend('Đúng rồi'),'explicit Vietnamese confirmation');
  check(appendDeliveryNote('Gọi trước','Giao sau 14:00').includes('Gọi trước'),'old note is preserved');
+ const actualLegacy='Giao sau 2h; Nhớ gọi trước khi giao';
+ const corrected=appendDeliveryNote(actualLegacy,'Khách yêu cầu giao sau 14:00 (giờ Việt Nam; cửa hàng xác nhận).');
+ check(corrected.includes('14:00')&&!corrected.includes('Giao sau 2h'),
+  'legacy short time 2h is replaced by clarified 14:00, not appended');
+ check(corrected.includes('Nhớ gọi trước khi giao'),'non-time note kept untouched');
+ check(!corrected.includes('; cửa hàng xác nhận).;'),'semicolon inside time label cannot split note');
+ const another=appendDeliveryNote('Giao sau 2h; Khách yêu cầu giao sau 14:00 (giờ Việt Nam; cửa hàng xác nhận).; Để ở lễ tân',
+  'Khách yêu cầu giao sau 15:00 (giờ Việt Nam; cửa hàng xác nhận).');
+ check(!another.includes('Giao sau 2h')&&!another.includes('14:00')&&another.includes('Để ở lễ tân')&&another.includes('15:00'),
+  'any superseded time phrases disappear; unrelated location instructions stay');
+ check(appendDeliveryNote(corrected,'Khách yêu cầu giao sau 14:00 (giờ Việt Nam; cửa hàng xác nhận).')===corrected,
+  'repeating same clarified time is idempotent');
  const token='demo-a';
  const first=await ask('/api/message',{token,message:'Cho tôi 2 thùng Satori 500ml'});
  check(first.status===200&&first.result.quote?.qty===2,'sandbox item quoted');
  const confirmed=await ask('/api/confirm',{token,quoteId:first.result.quote.quoteId,requestId:'demo-amend-confirm-001',
-  deliveryNote:'Nhớ gọi trước khi giao'});
+  deliveryNote:'Giao sau 2h; Nhớ gọi trước khi giao'});
  const ref=confirmed.result.order?.ref,total=confirmed.result.order?.total;
  check(confirmed.status===200&&/^TEST-[A-F0-9]{10}$/.test(ref),'one sandbox TEST invoice created');
  const originalPdf=await ask('/api/invoice/'+ref+'?token='+token);
@@ -50,15 +62,15 @@ try{
  check(ambiguous.status===200&&ambiguous.result.needMoreDetails===true&&
   /chiều|tiếng/.test(ambiguous.result.message),'ambiguous time requires clarification, no silent 2am/2pm');
  let history=await ask('/api/history?token='+token);
- check(history.result.orders[0].deliveryNote==='Nhớ gọi trước khi giao','ambiguous utterance never edits invoice');
+ check(history.result.orders[0].deliveryNote==='Giao sau 2h; Nhớ gọi trước khi giao','ambiguous utterance never edits invoice');
  const clarified=await ask('/api/message',{token,message:'2 giờ chiều'});
  const proposal=clarified.result.editProposal;
  check(clarified.status===200&&proposal?.ref===ref&&proposal?.newNote.includes('14:00'),
   'confirmation proposal targets same invoice and correct 14:00 time');
- check(proposal.previousNote==='Nhớ gọi trước khi giao'&&proposal.newNote.includes('Nhớ gọi trước'),
+ check(proposal.previousNote==='Giao sau 2h; Nhớ gọi trước khi giao'&&proposal.newNote.includes('Nhớ gọi trước')&&!proposal.newNote.includes('Giao sau 2h'),
   'proposal displays prior note and adds delivery note');
  const pendingHistory=await ask('/api/history?token='+token);
- check(pendingHistory.result.orders[0].deliveryNote==='Nhớ gọi trước khi giao',
+ check(pendingHistory.result.orders[0].deliveryNote==='Giao sau 2h; Nhớ gọi trước khi giao',
   'proposal alone must not modify persisted history');
  const denied=await ask('/api/order-amend/confirm',{token,proposalId:proposal.proposalId});
  check(denied.status===400&&denied.result.error==='CONFIRMATION_REQUIRED',
@@ -69,7 +81,7 @@ try{
  check(accepted.status===200&&accepted.result.amended===true&&accepted.result.order.ref===ref,
   'explicit approval updates original TEST invoice');
  check(accepted.result.order.total===total&&accepted.result.order.qty===2&&
-  accepted.result.order.deliveryNote.includes('14:00'),'amount and SKUs untouched');
+  accepted.result.order.deliveryNote.includes('14:00')&&!accepted.result.order.deliveryNote.includes('Giao sau 2h'),'amount and SKUs untouched, stale vague time removed');
  const retry=await ask('/api/order-amend/confirm',{token,proposalId:proposal.proposalId,confirmed:true});
  check(retry.status===200&&retry.result.duplicate===true,'double-click idempotent');
  history=await ask('/api/history?token='+token);
