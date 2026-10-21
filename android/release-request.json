@@ -1,12 +1,13 @@
 {
-  "purpose": "staging-signed-release-acceptance-website-ui-refresh",
+  "purpose": "staging-signed-release-acceptance-current-android-v0.3.2",
   "package": "vn.minhsatori.app",
   "version": "0.3.2",
   "versionCode": 9,
   "branch": "feature/minhsatori-native-android-v020",
   "scope": "GitHub Actions build artifact only; no deployment, no production data writes",
-  "requestedOn": "2026-10-20",
+  "requestedOn": "2026-10-21",
   "uiReference": "main/index.html - slate-950 and blue/cyan/teal Satori brand",
   "safety": "Only builds signed APK; no production Apps Script or Drive writes",
-  "requestedFromCommit": "882eb5a98167f6e13d1dd8226661e9b4a916cf37"
+  "requestedFromCommit": "06c1d81fb7ece4b5459bc69a7a6958dc71fb6022",
+  "preflight": "Android Native APK (test), Server Bot API, Bot Safety and Drive Sync guard successful on requestedFromCommit; UI screenshot job failed because Maven repository returned HTTP 403"
 }
