@@ -83,10 +83,17 @@ export function makeCustomerPhraseMemory(dataDir){
   return list(token);
  }
  function expand(token,message){
-  let result=fold(message);
+  let result=String(message);
+  const accent={
+   a:'aàáảãạăằắẳẵặâầấẩẫậ',e:'eèéẻẽẹêềếểễệ',
+   i:'iìíỉĩị',o:'oòóỏõọôồốổỗộơờớởỡợ',
+   u:'uùúủũụưừứửữự',y:'yỳýỷỹỵ',d:'dđ'
+  };
+  // Unicode-aware whole-phrase replacement keeps original Vietnamese accents,
+  // punctuation, delivery times, identity warnings and customer wording intact.
   for(const item of list(token).sort((a,b)=>b.alias.length-a.alias.length)){
-   // Alias characters are [a-z0-9 ], making literal regexp insertion safe.
-   const re=new RegExp('(^|[^a-z0-9])('+item.alias+')(?=$|[^a-z0-9])','g');
+   const pattern=[...item.alias].map(ch=>ch===' '?'\\s+':accent[ch]?'['+accent[ch]+']':ch).join('');
+   const re=new RegExp('(^|[^\\p{L}\\p{N}])('+pattern+')(?=$|[^\\p{L}\\p{N}])','giu');
    result=result.replace(re,(whole,prefix)=>prefix+item.code);
   }
   return result;
