@@ -1293,7 +1293,15 @@ class NativeMainActivity : AppCompatActivity() {
             NativeInvoicePdf.preview(this, invoice)
         }
         var invoiceDialog: AlertDialog? = null
-        if (invoice.canEditOrDelete || invoice.canMarkCustomerPaid) {
+        // Legacy/partially restored rows may have a missing/non-numeric number.
+        // Continue read-only display, but never crash on toInt() or send a write.
+        val validInvoiceNumber = invoice.number.toIntOrNull()?.takeIf { it > 0 }
+        if (validInvoiceNumber == null) {
+            label(content, "⚠ Số hóa đơn cần kiểm tra. Đã khóa sửa, xóa và ghi thanh toán.",
+                12f, true, gold, 10)
+        }
+        if (validInvoiceNumber != null &&
+            (invoice.canEditOrDelete || invoice.canMarkCustomerPaid)) {
             if (invoice.canEditOrDelete && canAction("orders.update")) button(content, "SỬA HÓA ĐƠN") {
                 invoiceDialog?.dismiss()
                 launchEditor(editing = invoice)
