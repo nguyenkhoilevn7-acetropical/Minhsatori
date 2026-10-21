@@ -8,7 +8,7 @@ var SatoriBotApi=(function(){
 'use strict';
 var ORDER_KEY='satori_orders_v15';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
- 'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write','orders.update':'orders:write','orders.delete':'orders:delete','orders.restore':'orders:write','trash.list':'orders:read',
+ 'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write','orders.create.ai':'orders:ai:write','orders.update':'orders:write','orders.delete':'orders:delete','orders.restore':'orders:write','trash.list':'orders:read',
  'payments.markCustomerPaid':'payments:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
@@ -147,10 +147,76 @@ function sameCreateIntent(saved,provided){
    Number(item.listPrice==null?item.unitPrice:item.listPrice)===Number(old.listPrice);
  });
 }
-function create(s,all,p){
+function checkAIPricing(s,o,p){
+ // Dedicated HMAC action orders.create.ai requires orders:ai:write scope.
+ // Authenticated API callers CANNOT select the customer's percentage in payload.
+ // Owner-approved policy is read again from the versioned Drive ledger while locked.
+ var id=String(p.customerMemoryId||'');
+ need(/^[a-zA-Z0-9_-]{4,100}$/.test(id),'AI_PRICING_NOT_APPROVED',
+  'Chưa có mã hồ sơ chiết khấu đã được duyệt');
+ need(typeof s.values.satori_ai_customer_memory==='string','AI_PRICING_NOT_APPROVED',
+  'Chưa có dữ liệu chiết khấu duyệt trên Drive');
+ var memories=JSON.parse(s.values.satori_ai_customer_memory);
+ need(Array.isArray(memories)&&memories.length<=10000,'INVALID_STATE','Bộ nhớ khách không hợp lệ');
+ var found=memories.filter(function(x){return x&&x.id===id});
+ need(found.length===1,'AI_PRICING_NOT_APPROVED','Hồ sơ duyệt không duy nhất');
+ var mem=found[0],policy=mem.aiPricingApproval;
+ need(policy&&policy.enabled===true&&policy.reviewedByOwner===true,
+  'AI_PRICING_NOT_APPROVED','Chiết khấu AI chưa được người quản trị phê duyệt');
+ var pct=policy.discountPercent,vatPct=policy.vatPercent,shipping=policy.shippingAmount;
+ need(typeof pct==='number'&&Number.isFinite(pct)&&pct>=0&&pct<=70,
+  'AI_PRICING_NOT_APPROVED','Mức chiết khấu chưa được xác thực');
+ need([0,5,8,10].includes(vatPct)&&Number.isSafeInteger(shipping)&&shipping>=0&&shipping<=1000000,
+  'AI_PRICING_NOT_APPROVED','Thuế và phí giao chưa được duyệt');
+ var phone=String(o.phone||'').replace(/\\D/g,''),loc=norm(o.location);
+ var name=norm(o.name),matches=[mem.name].concat(Array.isArray(mem.aliases)?mem.aliases:[]);
+ need(matches.some(function(n){return norm(n)===name}),'AI_CUSTOMER_UNVERIFIED',
+  'Tên khách chưa được xác minh trong sổ khách');
+ var addresses=[{phone:mem.defaultPhone,location:mem.defaultLocation}]
+  .concat(Array.isArray(mem.receivers)?mem.receivers:[]);
+ need(phone.length>=8&&loc.length>=5&&addresses.some(function(x){
+  return x&&String(x.phone||'').replace(/\\D/g,'')===phone&&norm(x.location)===loc;
+ }), 'AI_CUSTOMER_UNVERIFIED','Điểm giao hoặc số điện thoại chưa được duyệt');
+ need(typeof s.values.satori_catalogue_v15==='string','AI_SOURCE_CATALOGUE_MISSING',
+  'Chưa có bảng giá chuẩn trên Drive');
+ var source=JSON.parse(s.values.satori_catalogue_v15);
+ need(Array.isArray(source)&&source.length>0&&source.length<=200,
+  'AI_SOURCE_CATALOGUE_MISSING','Bảng giá nguồn không hợp lệ');
+ var codes={},sum=0,units=0,goods=0;
+ source.forEach(function(x){
+  need(x&&/^TP-[0-9]{5}$/.test(x.code||'')&&!codes[x.code]&&
+   Number.isSafeInteger(x.listPrice)&&x.listPrice>=0&&x.listPrice<=1e9,
+   'AI_SOURCE_CATALOGUE_INVALID','Bảng giá nguồn có mã hoặc giá không hợp lệ');
+  codes[x.code]=x;
+ });
+ need(Array.isArray(o.items)&&o.items.length>=1&&o.items.length<=6,
+  'AI_ITEM_LIMIT','Giỏ AI phải có 1 đến 6 mặt hàng');
+ o.items.forEach(function(i){
+  need(i&&typeof i.code==='string'&&codes[i.code]&&!codes[i.code]._aiSeen,
+   'AI_UNKNOWN_PRODUCT','Sản phẩm không được phép hoặc bị lặp');
+  var sourceItem=codes[i.code];sourceItem._aiSeen=true;
+  need(Number.isSafeInteger(i.qty)&&i.qty>=1&&i.qty<=500,
+   'AI_ITEM_LIMIT','Số lượng sản phẩm không hợp lệ');
+  units+=i.qty;
+  var cost=Math.round(sourceItem.listPrice*(100-pct)/100);
+  need(norm(i.product||i.name)===norm(sourceItem.name)&&
+   String(i.unit||'')===String(sourceItem.unit)&&
+   Number(i.listPrice)===sourceItem.listPrice&&Number(i.unitPrice)===cost,
+   'AI_PRICE_MISMATCH','Tên, đơn vị hoặc giá AI khác bảng giá đã duyệt');
+  goods+=cost*i.qty;sum++;
+ });
+ need(units<=500&&goods<=1e11,'AI_ITEM_LIMIT','Giỏ hàng vượt giới hạn');
+ var vat=Math.round(goods*vatPct/100),total=goods+shipping+vat;
+ need(Number(o.shippingAmount||0)===shipping&&Number(o.vatAmount||0)===vat&&
+  Number(o.total)===total,'AI_PRICE_MISMATCH',
+  'Thuế, phí giao hoặc tổng tiền không khớp duyệt giá trên Drive');
+}
+function create(s,all,p,aiMode){
  var req=String(p.requestId||'');need(/^[a-zA-Z0-9_-]{8,100}$/.test(req),'INVALID_REQUEST','Thiếu requestId hợp lệ');
  var old=all.find(function(o){return o.apiRequestId===req});
  if(old){
+  if(aiMode)need(old.source==='bot_api_ai'&&old.aiPricingMemoryId===p.customerMemoryId,
+   'REQUEST_ID_CONFLICT','Yêu cầu trùng mã nhưng không thuộc cùng khách AI');
   need(sameCreateIntent(old,p.order),'REQUEST_ID_CONFLICT',
    'Mã requestId đã được dùng cho nội dung đơn khác, cần tạo yêu cầu mới');
   return {modified:false,result:{order:visible(old),duplicate:true}};
@@ -163,6 +229,7 @@ function create(s,all,p){
  var name=String(o.name).trim(),phone=String(o.phone||''),location=String(o.location||'');
  need(name.length<=150&&phone.length<=60&&location.length<=500,'INVALID_ORDER','Thông tin khách quá dài');
  checkProfile(all,o,p);
+ if(aiMode)checkAIPricing(s,o,p);
  var items=o.items.map(function(i){
   need(i&&String(i.product||i.name||'').trim().length>=2,'INVALID_ITEM','Thiếu tên sản phẩm');
   var qty=Number(i.qty),price=money(i.unitPrice);need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Sai số lượng');
@@ -186,7 +253,9 @@ function create(s,all,p){
   date:Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','dd/MM/yyyy'),timestamp:Date.now(),
   name:name,phone:phone,location:location,items:items,
   product:items.map(function(i){return i.product+' x'+i.qty}).join(', '),qty:items.reduce(function(v,i){return v+i.qty},0),
-  goodsTotal:goods,shippingAmount:ship,vatAmount:vat,vat:vat?'yes':'no',total:total,status:'Chưa thanh toán',source:'bot_api',deliveryNote:String(o.deliveryNote||'').slice(0,1000)};
+  goodsTotal:goods,shippingAmount:ship,vatAmount:vat,vat:vat?'yes':'no',total:total,status:'Chưa thanh toán',source:aiMode?'bot_api_ai':'bot_api',
+  aiPricingMemoryId:aiMode?p.customerMemoryId:null,
+  deliveryNote:String(o.deliveryNote||'').slice(0,1000)};
  all.unshift(next);return {modified:true,result:{order:visible(next),duplicate:false}};
 }
 
@@ -348,7 +417,7 @@ function read(s,action,p){
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
 function write(s,action,p){
- var all=rows(s),result=action==='orders.create'?create(s,all,p):action==='orders.update'?updateOrder(s,all,p):action==='orders.restore'?restoreOrder(s,all,p):action==='orders.delete'?removeOrder(s,all,p):markPaid(s,all,p);
+ var all=rows(s),result=action==='orders.create'||action==='orders.create.ai'?create(s,all,p,action==='orders.create.ai'):action==='orders.update'?updateOrder(s,all,p):action==='orders.restore'?restoreOrder(s,all,p):action==='orders.delete'?removeOrder(s,all,p):markPaid(s,all,p);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
  need(!!fileId,'CONFIG_MISSING','Thiếu STATE_FILE_ID');
@@ -374,7 +443,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.update'||identity.action==='orders.restore'||identity.action==='orders.delete'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='orders.update'||identity.action==='orders.restore'||identity.action==='orders.delete'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
