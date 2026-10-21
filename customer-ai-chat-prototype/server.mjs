@@ -341,7 +341,7 @@ const server=http.createServer(async(req,res)=>{
   const all=[...orders.values()].filter(o=>o?.sandbox&&o.ref&&o.profileId);
   all.sort((a,b)=>Date.parse(b.createdAt||0)-Date.parse(a.createdAt||0));
   const latest=all.slice(0,80).map(o=>({
-   ref:o.ref,createdAt:o.createdAt,name:o.name,phone:o.phone,address:o.address,
+   ref:o.ref,createdAt:o.createdAt,name:o.name,recipient:o.recipient||o.name,locationLabel:o.locationLabel||null,phone:o.phone,address:o.address,
    status:o.status,product:o.product,qty:o.qty,
    items:Array.isArray(o.items)?o.items.map(i=>({product:i.product,qty:i.qty,unit:i.unit})):[],
    total:o.total,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',
