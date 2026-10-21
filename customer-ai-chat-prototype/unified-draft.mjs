@@ -54,8 +54,13 @@ export function contextualDraftEdit(message,profile,draft){
  if(!code)return {clarification:'Giỏ có nhiều mặt hàng. Bạn vui lòng nói rõ tên hoặc dung tích sản phẩm cần sửa.'};
  if(remove)return {changes:[{action:'remove',code}]};
  const time= s.match(/\b(?:thanh|con|lai)\s+(\d{1,3})(?:\s*(?:thung|binh|loc|chai))?\b/);
+ // "thêm 3 ổi hồng" must change the current draft without an explicit "thùng".
+ // Only explicitly named JUICE cartons may omit the carton unit.
+ const implicitJuice=productFor(code)?.brand==='JUICE' &&
+  !/\b(lon|chai|ly|binh|loc)\b/.test(s) ?
+   s.match(/\b(\d{1,3})\s+(?:(?:nuoc ep|ep)\s+)?(?:oi hong|mang cau|man cau|me)\b/) : null;
  const amount=extra?Number(extra[1]):time?Number(time[1]):
-  Number((s.match(/\b(\d{1,3})\s*(?:thung|binh|loc|chai|don vi)(?=\s|$)/)||[])[1]||0);
+  Number((s.match(/\b(\d{1,3})\s*(?:thung|binh|loc|chai|don vi)(?=\s|$)/)||[])[1]||implicitJuice?.[1]||0);
  if(!Number.isSafeInteger(amount)||amount<1||amount>MAX_UNITS)
   return {clarification:'Bạn muốn sửa bao nhiêu đơn vị? Ví dụ: thêm 2 thùng Satori 500ml.'};
  return {changes:[{action:set?'set':subtract?'subtract':'add',code,qty:amount}]};
