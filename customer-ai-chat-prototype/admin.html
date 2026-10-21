@@ -132,7 +132,7 @@ button:disabled{opacity:.55}
 <p><button id="checkSystemVersion" type="button" class="secondary">↻ Kiểm tra phiên bản</button></p>
 <p class="hint">Cập nhật xử lý Gemini trên server không cần cài lại APK nếu API tương thích. Thay đổi giao diện hoặc mã Android phải phát hành APK mới. Đồng bộ hóa đơn thật là phép kiểm tra riêng.</p>
 </section>
-<section class="card" data-tab-panel="settings" hidden><h2>Trạng thái kết nối website thật</h2><p class="hint">Đây là bảng kiểm tra điều kiện triển khai chính thức, không phải dữ liệu sản xuất. Không nhập mã API hoặc thông tin bí mật vào phần này.</p><div id="integrationStatus" role="status">Đăng nhập để kiểm tra trạng thái.</div><p><button type="button" class="secondary" id="checkSourceReadonly">Kiểm tra API nguồn • CHỈ ĐỌC</button></p><p id="sourceReadResult" class="hint" role="status">Không sao chép khách hàng hoặc hóa đơn thật vào sandbox.</p></section>
+<section class="card" data-tab-panel="settings" hidden><h2>Trạng thái kết nối website thật</h2><p class="hint">Đây là bảng kiểm tra điều kiện triển khai chính thức, không phải dữ liệu sản xuất. Không nhập mã API hoặc thông tin bí mật vào phần này.</p><div id="integrationStatus" role="status">Đăng nhập để kiểm tra trạng thái.</div><p><button type="button" class="secondary" id="checkSourceReadonly">Kiểm tra API nguồn • CHỈ ĐỌC</button></p><p id="sourceReadResult" class="hint" role="status">Không sao chép khách hàng hoặc hóa đơn thật vào sandbox.</p><div id="sourcePriceDifferences" class="hint" role="region" aria-label="Các sản phẩm lệch bảng giá Drive" hidden></div></section>
 <section class="card" data-tab-panel="changes" hidden><h2>🔔 Yêu cầu đổi thông tin khách <span id="changeCount">0</span></h2><p class="hint">Chỉ ghi nhận yêu cầu đổi số điện thoại, địa chỉ hoặc người nhận. Không tự áp dụng thay đổi vào link. Danh sách tự tải lại khi anh đang mở trang quản trị.</p><p><button id="refreshChanges" class="secondary" type="button">Kiểm tra yêu cầu</button></p><div id="changeList" role="status"></div></section>
 <section class="card" data-tab-panel="customers" hidden><h2>Danh sách hồ sơ đã tạo</h2><p class="hint">Thu hồi link sẽ ngăn truy cập mới nhưng giữ lịch sử đơn thử. Đổi link sẽ vô hiệu hóa link cũ.</p><div id="list"></div></section>
 <section class="card" data-tab-panel="settings" hidden><h2>💾 Sao lưu & khôi phục sandbox</h2>
@@ -182,6 +182,7 @@ async function refreshVersionStatus(){
 $('checkSystemVersion').onclick=refreshVersionStatus;
 $('checkSourceReadonly').onclick=async()=>{
  const b=$('checkSourceReadonly');b.disabled=true;
+ const list=$('sourcePriceDifferences');list.replaceChildren();list.hidden=true;
  $('sourceReadResult').textContent='Đang kiểm tra kết nối HMAC chỉ đọc…';
  try{
   const d=await request('/api/admin/source-check');
@@ -193,6 +194,26 @@ $('checkSourceReadonly').onclick=async()=>{
     ' giá/tên thay đổi; '+(parity.missingCodes||[]).length+' thiếu; '+
     (parity.extraCodes||[]).length+' thừa. Cần đồng bộ lại trước khi bán.')+
    ' Chỉ đọc: chưa cho phép ghi đơn hoặc đồng bộ khách thật.';
+  // Only render the server-validated price differences. Never inject HTML.
+  // An identical catalogue is prerequisite only, NOT permission to sell.
+  const audit=d.cataloguePriceAudit||{},diffs=Array.isArray(audit.differences)?audit.differences:[];
+  if(diffs.length){
+   list.hidden=false;
+   const heading=document.createElement('strong');
+   heading.textContent='Chi tiết '+diffs.length+' mã hàng cần kiểm tra (Drive ↔ Gemini):';
+   list.append(heading);
+   const ul=document.createElement('ul');
+   for(const item of diffs.slice(0,300)){
+    const li=document.createElement('li');
+    const oldPrice=item.geminiListPrice==null?'không có':money(item.geminiListPrice)+'đ';
+    const newPrice=item.driveListPrice==null?'không có':money(item.driveListPrice)+'đ';
+    li.textContent=String(item.code||'')+' • '+String(item.kind||'')+
+     ' • Drive: '+newPrice+' • Gemini: '+oldPrice+
+     (Array.isArray(item.changedFields)?' • Trường lệch: '+item.changedFields.join(', '):'');
+    ul.append(li);
+   }
+   list.append(ul);
+  }
  }catch(e){$('sourceReadResult').textContent='Chưa đủ điều kiện đồng bộ: '+e.message}
  finally{b.disabled=false}
 };
