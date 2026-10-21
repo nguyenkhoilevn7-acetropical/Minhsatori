@@ -14,7 +14,10 @@ const port=31000+Math.floor(Math.random()*1200),base='http://127.0.0.1:'+port;
 const proc=spawn(process.execPath,[path.join(root,'server.mjs')],{
  env:{...process.env,PORT:String(port),DEMO_BIND:'127.0.0.1',
  DEMO_DATA_DIR:dir,GEMINI_API_KEY:'',SATORI_READ_ENDPOINT:'',SATORI_READ_KEY_ID:'',
- SATORI_READ_HMAC_SECRET:''},stdio:'ignore'});
+ SATORI_READ_HMAC_SECRET:''},stdio:['ignore','pipe','pipe']});
+let bootDiagnostic='';
+proc.stdout.on('data',x=>{bootDiagnostic+=String(x).slice(0,1200)});
+proc.stderr.on('data',x=>{bootDiagnostic+=String(x).slice(0,1200)});
 const sleep=t=>new Promise(r=>setTimeout(r,t));
 const ask=async(uri,body)=>{
  const r=await fetch(base+uri,{method:body?'POST':'GET',
@@ -27,7 +30,7 @@ const ask=async(uri,body)=>{
 let count=0;const check=(value,label)=>{assert.ok(value,label);count++};
 try{
  let ready=false;for(let i=0;i<80;i++){try{if((await ask('/health')).status===200){ready=true;break}}catch{}await sleep(85)}
- check(ready,'isolated Node server boots with no AI credentials');
+ check(ready,'isolated Node server boots with no AI credentials; '+bootDiagnostic.slice(-1500));
  check(isAmendmentIntent('Sửa hóa đơn vừa đặt giao sau hai giờ'),'understands a confirmed-order delivery-note change');
  check(!isAmendmentIntent('Cho tôi 10 thùng Satori 500ml giao sau 2 giờ chiều'),'new product order is never mistaken for amendment');
  check(isConfirmAmend('Đúng rồi'),'explicit Vietnamese confirmation');
