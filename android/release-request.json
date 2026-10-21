@@ -1,19 +1,18 @@
 {
-  "purpose": "android-v0.3.5-shared-customer-storefront-admin-links-satori-ui",
+  "purpose": "android-0.3.6-samsung-owner-compact-invoice-preview-and-accounting-filters",
   "package": "vn.minhsatori.app",
-  "version": "0.3.5",
-  "versionCode": 12,
+  "version": "0.3.6",
+  "versionCode": 13,
   "branch": "feature/minhsatori-native-android-v020",
-  "scope": "SIGNED SANDBOX ANDROID APK ONLY; NO production data changes",
+  "scope": "signed APK for internal SANDBOX Samsung acceptance only; no production change",
   "requestedOn": "2026-10-21",
-  "requestedFromCommit": "6b9ef3c4025c43fa8fab9ee05d49e204137d91fc",
+  "requestedFromCommit": "c20559bcb11188deb7b9e93ccd70fd7534cee291",
   "notes": [
-    "Owner hero CTA and fixed navigation",
-    "secure in-app storefront uses existing website customer cart, quantity, VAT, invoice and history",
-    "in-app owner link admin retains server-side bearer authentication, no keys in APK",
-    "exact Satori logo safe area sized for round launcher mask",
-    "chat buttons compact",
-    "backend natural-language parser and website hero change isolated on separate Gemini Sandbox branch with CI PASS; Render auto deploy disabled"
+    "compact button/panel typography with fixed owner navigation",
+    "first-class in-app PDF preview for stored invoices, no automatic download",
+    "native invoice status search and accounting ledger month/status filters",
+    "embedded customer WebView soft input resize for keyboard",
+    "Gemini natural-conversation, shared quick-cart chips and compact catalogue independently staged on prototype/customer-ai-gemini-free-20261020, web CI PASS but NOT YET DEPLOYED to Render"
   ],
-  "safety": "Never automatically change production, invoices or real customer discount records"
+  "safety": "Do not merge or touch real invoices. Render sandbox autoDeploy=no; protect existing demo orders and customer link state before deploying updated server."
 }
