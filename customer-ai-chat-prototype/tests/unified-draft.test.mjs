@@ -76,6 +76,14 @@ try{
  check(repeat.status===200&&repeat.data.duplicate===true&&repeat.data.order.ref===confirmed.data.order.ref,'confirm retry is idempotent');
  const history=await get('/api/history?token=demo-a');
  check(history.data.orders.filter(i=>i.ref===confirmed.data.order.ref).length===1,'only one history invoice created');
+ const suggested=await get('/api/suggestions?token=demo-a');
+ check(suggested.status===200&&suggested.data.suggestions.some(i=>i.code==='TP-00003'&&i.orderCount>=1),
+   'suggestions track this customer confirmed TEST invoice');
+ const bSuggested=await get('/api/suggestions?token=demo-b');
+ check(bSuggested.status===200&&!bSuggested.data.suggestions.some(i=>i.orderCount>0),
+   'other customer never sees profile A purchase history');
+ const forbiddenSuggestions=await get('/api/suggestions?token=invalid-link');
+ check(forbiddenSuggestions.status===403,'invalid token cannot request suggestions');
  const after=await get('/api/draft?token=demo-a');
  check(after.data.draft.items.length===0,'draft clears only after explicit confirmation');
  const pdf=await fetch(base+'/api/invoice/'+confirmed.data.order.ref+'?token=demo-a&view=1');
