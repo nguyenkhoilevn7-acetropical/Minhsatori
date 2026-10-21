@@ -43,8 +43,89 @@ function needsMore(description,resolved){
  message:'Em đã nhận '+resolved.length+' loại rõ quy cách. Riêng "'+description.slice(0,70)+
  '" em chưa xác định chính xác sản phẩm hoặc đơn vị. Anh/chị nói rõ tên, dung tích và số lượng món này nhé; em chưa tạo bill.'};
 }
+
+// Customers can list items quantity-first ("3 thùng mãng cầu") or product-first
+// ("mãng cầu 3 thùng", "Satori 500ml 10 thùng"). Reorder only unambiguous
+// clauses; never assume that an unfamiliar line can be silently discarded.
+function normalizePostposedCounts(text,profile){
+ const clauses=text.split(/\s*[,;]\s*|\s+va\s+|(?<!co)\s+voi\s+/u);
+ if(clauses.length<2)return {text,unmatched:[]};
+ const rewritten=[],unmatched=[];
+ const trailing=new RegExp('^(.+?)\\s+('+COUNT+')(?:\\s+('+UNIT+'))?\\s*
+ const matches=[...text.matchAll(ANCHORS)].map(m=>({
+  start:m.index+m[1].length,end:m.index+m[0].length,quantity:countOf(m[2]),
+  unit:m[3]||null,rawQuantity:m[2]
+ })).filter(m=>!(
+  /^(?:350|500|1500)$/.test(m.rawQuantity)&&!m.unit&&
+  /\b(?:nuoc|suoi|satori|hikari)\s*$/.test(text.slice(Math.max(0,m.start-25),m.start))
+ ));
+ // Catch ALL explicit quantity+unit phrases, including unrecognized products.
+ // Otherwise "10 Satori 500ml, 3 trà sữa" could silently create only a partial order.
+ const broad=[...text.matchAll(/(?:^|[^a-z0-9-])(\d{1,3}|muoi|mot|hai|ba|bon|nam)\s*(?:thung|thg|binh|loc|chai|lon|ly)\s+(?=[a-z])/g)];
+ if(reordered.unmatched.length)return needsMore(reordered.unmatched[0],[]);
+ if(matches.length<2){
+  if(matches.length&&broad.length>matches.length)
+   return needsMore('món chưa có trong danh mục / chưa rõ quy cách',[]);
+  return null;
+ }
+ if(matches.length>6)return {needMoreDetails:true,reason:'TOO_MANY_ITEMS',
+  message:'Một đơn thử hỗ trợ tối đa 6 dòng sản phẩm. Anh/chị vui lòng chia thành các đơn nhỏ hơn.'};
+ const items=[];
+ for(let i=0;i<matches.length;i++){
+  const m=matches[i],raw=text.slice(m.end,matches[i+1]?.start??text.length);
+  const description=cleanDescription(withoutDelivery(raw));
+  if(!Number.isSafeInteger(m.quantity)||m.quantity<1||m.quantity>500)return {
+   needMoreDetails:true,reason:'INVALID_QUANTITY',
+   message:'Số lượng của "'+description.slice(0,60)+'" cần từ 1 đến 500.'};
+  // Don't accidentally drop an unsupported line placed between two recognized lines.
+  if(/(?:[,;]|\bva\b|\bvoi\b)\s*(?:\d{1,3}|mot|hai|ba|bon|nam|muoi)\s+(?:thung|chai|binh|loc|lon|ly)?\s*[a-z]/.test(description))
+   return needsMore(description,items);
+  const product=resolution(description,profile);
+  if(!product)return needsMore(description||'món chưa rõ',items);
+  const given=m.unit==='thg'?'thung':m.unit;
+  if(given&&given!==fold(product.unit))return needsMore(description+' ('+given+')',items);
+  // An omitted unit is safe only when the SKU is locally unambiguous.
+  items.push({sku:product.code,qty:m.quantity});
+ }
+ const merged=[];
+ for(const it of items){
+  const old=merged.find(x=>x.sku===it.sku);
+  if(old)old.qty+=it.qty;else merged.push({...it});
+ }
+ if(merged.length>6||merged.some(x=>x.qty>500)||merged.reduce((n,x)=>n+x.qty,0)>500)
+  return {needMoreDetails:true,reason:'CART_LIMIT',
+   message:'Tổng số lượng tối đa là 500 đơn vị, tối đa 6 loại trong một đơn TEST.'};
+ return {items:merged,source:'rules-complete-message'};
+}
+,'u');
+ for(const clause of clauses){
+  const raw=clause.trim();
+  const productPart=withoutDelivery(raw);
+  const suffix=raw.slice(productPart.length);
+  const m=productPart.match(trailing);
+  if(!m){rewritten.push(raw);continue}
+  const name=cleanDescription(m[1].replace(/^(?:anh|chi|em|toi|minh)\s+(?:lay|mua|dat|cho|can)\s+/,''));
+  const resolved=resolution(name,profile);
+  const explicitUnit=m[3]||'';
+  if(!resolved){
+   // Unknown product-first lines with quantity + unit must block the WHOLE
+   // basket; an incomplete invoice is worse than asking one question.
+   if(explicitUnit)unmatched.push(raw);
+   rewritten.push(raw);
+   continue;
+  }
+  const unit=explicitUnit||(
+   resolved.brand==='JUICE'&&fold(resolved.unit)==='thung'?'thung':'');
+  if(!unit){unmatched.push(raw);rewritten.push(raw);continue}
+  rewritten.push(m[2]+' '+unit+' '+name+suffix);
+ }
+ return {text:rewritten.join(', '),unmatched};
+}
+
 export function parseMultiOrder(message,profile={}){
- const text=fold(message);
+ const original=fold(message);
+ const reordered=normalizePostposedCounts(original,profile);
+ const text=reordered.text;
  const matches=[...text.matchAll(ANCHORS)].map(m=>({
   start:m.index+m[1].length,end:m.index+m[0].length,quantity:countOf(m[2]),
   unit:m[3]||null,rawQuantity:m[2]
