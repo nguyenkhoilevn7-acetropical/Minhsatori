@@ -194,7 +194,8 @@ class AiSandboxActivity : AppCompatActivity() {
                     bytes.write(chunk, 0, n)
                 }
             }
-            return JSONObject(bytes.toString("UTF-8"))
+            // HTTP 200 can still carry an API-level error. Never treat that as an accepted chat message.
+            return AiSandboxResponse.requireSuccess(JSONObject(bytes.toString("UTF-8")))
         } finally {
             connection.disconnect()
         }
@@ -564,6 +565,8 @@ class AiSandboxActivity : AppCompatActivity() {
             startActivity(if(share)Intent.createChooser(intent,"Chia sẻ hóa đơn Satori TEST") else intent)
         }catch(e:ActivityNotFoundException){
             addBubble("Samsung chưa có ứng dụng mở file này. Hãy dùng Chia sẻ để lưu vào Drive hoặc gửi qua Zalo.")
+        }catch(e:SecurityException){
+            addBubble("Không được cấp quyền mở hoặc chia sẻ tệp. Hãy thử lại qua ứng dụng khác.")
         }
     }
 
