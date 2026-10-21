@@ -676,7 +676,7 @@ const server=http.createServer(async(req,res)=>{
     pendingColloquial.set(token,{...colloquial.pending,revision:draft.revision,expiresAt:Date.now()+600_000});
     const known=colloquial.pending.items.map(x=>x.qty+' '+productFor(x.sku).unit.toLowerCase()+' '+productFor(x.sku).name).join(', ');
     return reply(res,200,{ok:true,needMoreDetails:true,clarificationType:'COLLOQUIAL_PRODUCT',
-     draft,message:'Em đã hiểu '+(known?known+', ':'')+colloquial.pending.missing.label+'. '+
+     draft,message:(known?'Đã ghi nhận '+known+'. ':'')+
       colloquialQuestion(colloquial.pending.missing)});
    }
    if(colloquial?.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,
