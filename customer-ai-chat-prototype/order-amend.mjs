@@ -39,7 +39,7 @@ export function appendDeliveryNote(original,addition){
  const old=String(original||'').trim(),fresh=String(addition||'').trim();
  if(!fresh||fresh.length>300)throw Error('INVALID_NOTE');
  if(old.toLocaleLowerCase('vi-VN').includes(fresh.toLocaleLowerCase('vi-VN')))return old;
- const oldParts=old.split(/;\\s*/).filter(Boolean);
+ const oldParts=old.split(/;\s*/).filter(Boolean);
  // If an earlier customer delivery-time instruction exists, replace that
  // instruction rather than adding contradictory 14:00 / 15:00 requests.
  const freshTime=/^Khách yêu cầu giao (?:sau|trước|vào khoảng)/iu.test(fresh);
