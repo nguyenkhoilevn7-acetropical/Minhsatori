@@ -387,7 +387,7 @@ class AiSandboxActivity : AppCompatActivity() {
     private fun downloadTestFile(relativePath: String, isPdf: Boolean, filename: String): File {
         if (!AiSandboxContract.validEndpoint(AiSandboxContract.BASE_URL))
             throw IllegalStateException("Endpoint AI không được phép.")
-        if (!filename.matches(Regex("[A-Za-z0-9_-]{4,90}\\\\.(pdf|xlsx)")))
+        if (!filename.matches(Regex("""[A-Za-z0-9_-]{4,90}\.(pdf|xlsx)""")))
             throw IllegalArgumentException("Tên file không hợp lệ.")
         val con=(URL(AiSandboxContract.BASE_URL+relativePath).openConnection() as HttpURLConnection)
         try {
