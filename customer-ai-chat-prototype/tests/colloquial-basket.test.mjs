@@ -37,16 +37,35 @@ check(parsed?.items?.length===2&&parsed.items[0].sku==='TP-00055'&&parsed.items[
  'two separate natural juice keywords from one text');
 check(parseColloquialBasket('3 me, 2 thùng trà sữa')===null,'unsupported products never create a partial basket');
 parsed=parseColloquialBasket('Thêm 5 thùng 5 lít');
-check(parsed?.pending?.missing?.qty===5&&parsed.pending.missing.unit==='thung'&&
- !/binh/i.test(parsed.message||''),'five 5L cartons default to thùng, never ask binh');
+check(parsed?.pending?.missing?.qty===5&&parsed.pending.missing.unit==='thung',
+ 'explicit five 5L cartons retain the thùng unit');
 check(/có vòi hay không vòi/i.test(
  (await import('../multi-order.mjs')).colloquialQuestion(parsed.pending.missing)),
  '5L followup asks ONLY spout when qty known');
 let variant=completeColloquialFollowup(parsed.pending,'không vòi');
 check(variant?.items?.some(x=>x.sku==='TP-00135'&&x.qty===5),
  'five 5L cartons no-spout resolved safely');
-check(parseColloquialBasket('2 bình 5 lít')?.needMoreDetails===true,
- 'unsupported binh retail never enters basket');
+let binh=parseColloquialBasket('2 bình 5 lít');
+check(binh?.pending?.missing?.qty===2&&binh.pending.missing.unit==='binh',
+ '2 bình 5L is a valid official unit; ask only spout');
+let withTap=completeColloquialFollowup(binh.pending,'có vòi');
+check(withTap?.items?.some(x=>x.sku==='TP-00142'&&x.qty===2),
+ '2 bình 5L có vòi maps exactly to TP-00142');
+let withoutTap=completeColloquialFollowup(binh.pending,'không vòi');
+check(withoutTap?.items?.some(x=>x.sku==='TP-00143'&&x.qty===2),
+ '2 bình 5L không vòi maps exactly to TP-00143');
+let unsized=parseColloquialBasket('Thêm 3 me, suối 5 lít');
+check(unsized?.pending?.missing?.unit===null,'do not guess bình or thùng when unspecified');
+check(/bình hay thùng/i.test((await import('../multi-order.mjs')).colloquialQuestion(unsized.pending.missing)),
+ 'unknown packaging asks customer which official unit');
+let partial=completeColloquialFollowup(unsized.pending,'2 bình không vòi');
+check(partial?.items.some(x=>x.sku==='TP-00143'&&x.qty===2)&&
+ partial.items.some(x=>x.sku==='TP-00055'&&x.qty===3),
+ 'two-turn follow-up preserves me and selects 2 bình 5L không vòi');
+check((await import('../multi-order.mjs')).colloquialQuestion({kind:'FIVE_LITRE',qty:5,unit:'binh',spout:null})===
+ 'Satori 5L: có vòi hay không vòi ạ?',
+ 'when unit is already bình, ask only the remaining spout');
+
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dir=mkdtempSync(path.join(tmpdir(),'satori-natural-'));
 const port=35110+Math.floor(Math.random()*300);
