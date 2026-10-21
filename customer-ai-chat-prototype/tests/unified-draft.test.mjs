@@ -106,7 +106,7 @@ try{
  longChat=await post('/api/message',{token:'demo-b',message:'Thêm 2 thùng Hikari 500ml và 3 thùng Satori 5L có vòi',
    unifiedDraft:true,expectedRevision:longRevision});
  check(longChat.status===200&&longChat.data.draft?.items?.length===5,
-   'multi-product followup adds TWO products to same cart, no separate bill');
+   'multi-product followup adds TWO products to same cart, no separate bill: '+JSON.stringify(longChat).slice(0,750));
  const longQuote=await post('/api/draft',{token:'demo-b',action:'quote',
    expectedRevision:longChat.data.draft.revision});
  check(longQuote.status===200&&longQuote.data.quote.items.length===5,'one final quote contains all five products');
