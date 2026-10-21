@@ -42,9 +42,10 @@ export function makeDraftStore(){
 export function contextualDraftEdit(message,profile,draft){
  const s=fold(message);
  // Only treat explicit changes as edits; a normal "cho 5 thùng" remains a new basket addition.
- const verb=/^(?:(?:cho|lay)\s+)?(them|bo sung|bot|giam|tru|bo|xoa|loai bo|doi|sua|chinh|cap nhat|cho con|con lai)\b/.exec(s);
- if(!verb)return null;
- const v=verb[1], remove=/^(bo|xoa|loai bo)$/.test(v),
+ const verb=/^(?:(?:cho|lay)\s+)?(them|cong them|bo sung|bot|giam|tru|bo|xoa|loai bo|doi|sua|chinh|cap nhat|cho con|con lai)\b/.exec(s);
+ const extra=/^(?:cho |lay )?(\d{1,3})\s*(?:thung|binh|loc|chai)\s+nua\b/.exec(s);
+ if(!verb&&!extra)return null;
+ const v=verb?.[1]||'them', remove=/^(bo|xoa|loai bo)$/.test(v),
   subtract=/^(bot|giam|tru)$/.test(v), set=/^(doi|sua|chinh|cap nhat|cho con|con lai)$/.test(v);
  const selection=resolveProduct(message,profile);
  if(selection.ambiguous)return {clarification:'Bạn vui lòng nói rõ mặt hàng cần sửa trong giỏ.'};
@@ -53,7 +54,7 @@ export function contextualDraftEdit(message,profile,draft){
  if(!code)return {clarification:'Giỏ có nhiều mặt hàng. Bạn vui lòng nói rõ tên hoặc dung tích sản phẩm cần sửa.'};
  if(remove)return {changes:[{action:'remove',code}]};
  const time= s.match(/\b(?:thanh|con|lai)\s+(\d{1,3})(?:\s*(?:thung|binh|loc|chai))?\b/);
- const amount=time?Number(time[1]):
+ const amount=extra?Number(extra[1]):time?Number(time[1]):
   Number((s.match(/\b(\d{1,3})\s*(?:thung|binh|loc|chai|don vi)(?=\s|$)/)||[])[1]||0);
  if(!Number.isSafeInteger(amount)||amount<1||amount>MAX_UNITS)
   return {clarification:'Bạn muốn sửa bao nhiêu đơn vị? Ví dụ: thêm 2 thùng Satori 500ml.'};
