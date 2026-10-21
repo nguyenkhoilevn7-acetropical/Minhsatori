@@ -53,6 +53,9 @@ class AiSandboxActivity : AppCompatActivity() {
     private var confirmRequestId: String? = null
     private var busy = false
     private var alive = true
+    // Pending text is retained across Samsung fold/orientation activity recreation.
+    private var sendingMessage: String? = null
+    private var sendingBasket: List<AiSandboxContract.Line>? = null
 
     private fun dp(n: Int) = (resources.displayMetrics.density * n + .5f).toInt()
     private fun bg(color: Int, radius: Int = 15) = GradientDrawable().apply {
@@ -159,6 +162,21 @@ class AiSandboxActivity : AppCompatActivity() {
         root.addView(entry)
         setContentView(root)
         addBubble("Xin chào! Đây là phiên AI dùng chung server Gemini sandbox của website. Anh có thể chọn nhiều mặt hàng vào cùng một giỏ hoặc nhập câu đặt hàng.")
+        if (savedInstanceState != null) {
+            val typed = savedInstanceState.getString("draft_text").orEmpty()
+            val pending = savedInstanceState.getString("pending_text").orEmpty()
+            val recovered = typed.ifBlank { pending }
+            if (recovered.isNotBlank()) {
+                draft.setText(recovered)
+                draft.setSelection(draft.text.length)
+                basket = AiSandboxDraftRecovery.restore(recovered,
+                    savedInstanceState.getString(if (typed.isNotBlank()) "draft_basket" else "pending_basket"))
+            }
+            if (pending.isNotBlank()) addBubble(
+                "Màn hình vừa được tạo lại khi có tin nhắn đang gửi. " +
+                    "Chưa thể xác nhận phản hồi trước đó; kiểm tra lịch sử TEST trước khi thử lại."
+            )
+        }
         loadCatalogue()
     }
 
@@ -315,6 +333,9 @@ class AiSandboxActivity : AppCompatActivity() {
             addBubble(it.message ?: "Tin nhắn quá dài.")
             return
         }
+        // Keep a copy for process/activity recreation while the network is in flight.
+        sendingMessage = message
+        sendingBasket = attached
         // Clear the old quote before sending. No accidental reuse of an expired quote.
         quotedId = null
         confirmRequestId = null
@@ -324,6 +345,8 @@ class AiSandboxActivity : AppCompatActivity() {
         basket = null
         addBubble(message, true)
         runTask({ request("/api/message", body) }, { result ->
+            sendingMessage = null
+            sendingBasket = null
             val explanation = result.optString("message")
             if (explanation.isNotBlank()) addBubble(explanation)
             val amendment=result.optJSONObject("editProposal")
@@ -350,6 +373,8 @@ class AiSandboxActivity : AppCompatActivity() {
                 transcriptScroll.post { transcriptScroll.fullScroll(View.FOCUS_DOWN) }
             }
         }, { _ ->
+            sendingMessage = null
+            sendingBasket = null
             // On a network failure, restore the exact customer message and
             // structured basket. Never replace anything the customer has begun
             // typing while waiting for the response.
@@ -566,6 +591,16 @@ class AiSandboxActivity : AppCompatActivity() {
         }catch(e:ActivityNotFoundException){
             addBubble("Samsung chưa có ứng dụng mở file này. Hãy dùng Chia sẻ để lưu vào Drive hoặc gửi qua Zalo.")
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (::draft.isInitialized) {
+            outState.putString("draft_text", draft.text.toString())
+            outState.putString("draft_basket", AiSandboxDraftRecovery.encode(basket))
+        }
+        outState.putString("pending_text", sendingMessage)
+        outState.putString("pending_basket", AiSandboxDraftRecovery.encode(sendingBasket))
+        super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {
