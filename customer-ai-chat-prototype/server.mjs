@@ -213,7 +213,7 @@ function vnOrderMonth(iso){
  return Number.isFinite(millis)?new Date(millis+7*60*60*1000).toISOString().slice(0,7):'';
 }
 async function generateQrPng(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_qr.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,200)||'QR_ERROR')));proc.stdin.end(JSON.stringify(o))})}
-const PREVIEW_BANNER='<aside role="status" style="position:relative;z-index:9999;padding:13px 18px;background:#25395b;color:white;font:bold 14px system-ui,sans-serif;line-height:1.5;text-align:center">🧪 Chế độ thử Gemini tạm thời — chỉ chat và báo giá; KHÔNG xác nhận đơn, KHÔNG lưu dữ liệu lâu dài. Bản sao cũ được giữ riêng.</aside>';
+const PREVIEW_BANNER='<aside role="status" style="position:relative;z-index:9999;padding:13px 18px;background:#25395b;color:white;font:bold 14px system-ui,sans-serif;line-height:1.5;text-align:center">🧪 Chế độ thử Gemini tạm thời — chat, báo giá và hồ sơ đại lý NHIỀU ĐỊA CHỈ mẫu. Dữ liệu thử có thể mất khi Render khởi động lại; KHÔNG xác nhận hóa đơn, KHÔNG đồng bộ production.</aside>';
 function previewHtml(name){
  const html=fs.readFileSync(path.join(HERE,name),'utf8');
  return EMERGENCY_PREVIEW?html.replace('<body>','<body>'+PREVIEW_BANNER):html;
@@ -223,7 +223,9 @@ const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
  if(EMERGENCY_PREVIEW&&req.method!=='GET'&&!(req.method==='POST'&&
-   (p==='/api/message'||p==='/api/draft'))){
+   (p==='/api/message'||p==='/api/draft'))&&
+   !(['POST','PATCH','DELETE'].includes(req.method)&&
+      /^\/api\/admin\/customers(?:\/KH-SANDBOX-[0-9a-f-]{36}(?:\/(?:locations(?:\/[a-zA-Z0-9-]{1,70})?|rotate|revoke))?)?$/.test(p))){
   return fail(res,503,'PREVIEW_ONLY_NO_WRITES',
    'Đang dùng chế độ thử Gemini. Chưa cho tạo hóa đơn hoặc thay đổi hồ sơ khách.');
  }
