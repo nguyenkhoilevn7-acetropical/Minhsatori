@@ -14,6 +14,15 @@ internal object AiSandboxContract {
     const val MAX_LINES = 6
     const val MAX_UNITS = 500
 
+    // Only server-issued fake order references can be used to request an invoice PDF.
+    // Arbitrary paths and real invoice numbers are rejected before opening the network.
+    fun validTestRef(ref: String): Boolean = ref.matches(Regex("TEST-[0-9A-F]{10}"))
+
+    fun sandboxPdfPath(ref: String): String {
+        require(validTestRef(ref)) { "Mã hóa đơn TEST không hợp lệ." }
+        return "/api/invoice/" + ref + "?token=" + PUBLIC_FIXTURE
+    }
+
     data class Line(val code: String, val name: String, val unit: String, val qty: Int)
 
     fun validTestRef(ref: String): Boolean = Regex("^TEST-[A-F0-9]{10}$").matches(ref)
