@@ -1,13 +1,18 @@
 {
-  "purpose": "staging-signed-release-acceptance-current-android-v0.3.2",
+  "purpose": "android-v0.3.3-staging-signed-release-samsung-ai-invoice-logo",
   "package": "vn.minhsatori.app",
-  "version": "0.3.2",
-  "versionCode": 9,
+  "version": "0.3.3",
+  "versionCode": 10,
   "branch": "feature/minhsatori-native-android-v020",
-  "scope": "GitHub Actions build artifact only; no deployment, no production data writes",
+  "scope": "GitHub Actions signed artifact only; no production Apps Script or Drive writes",
   "requestedOn": "2026-10-21",
-  "uiReference": "main/index.html - slate-950 and blue/cyan/teal Satori brand",
-  "safety": "Only builds signed APK; no production Apps Script or Drive writes",
-  "requestedFromCommit": "06c1d81fb7ece4b5459bc69a7a6958dc71fb6022",
-  "preflight": "Android Native APK (test), Server Bot API, Bot Safety and Drive Sync guard successful on requestedFromCommit; UI screenshot job failed because Maven repository returned HTTP 403"
+  "uiReference": "main/index.html invoice layout and satori_invoice_logo.jpg",
+  "safety": "Sandbox demo-a only, no real payment QR or customer data transfer",
+  "requestedFromCommit": "4b8086c4a41c2caa4440cdbf148d013598497f9f",
+  "features": [
+    "original Satori invoice logo adaptive/round app icon",
+    "native structured quote and invoice",
+    "server-issued PDF view/download/share Zalo/Messenger",
+    "recover TEST invoice from demo history"
+  ]
 }
