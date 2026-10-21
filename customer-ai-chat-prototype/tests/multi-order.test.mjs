@@ -40,4 +40,22 @@ p=parseMultiOrder('10 ổi hồng, 3 chai me',b);
 check(p?.needMoreDetails,'cannot convert explicit loose cans/bottles to cartons');
 p=parseMultiOrder('Cho tôi 10 thùng Satori 500ml',b);
 check(p===null,'single product uses legacy parser');
+
+p=parseMultiOrder('Mãng cầu 5 thùng và ổi hồng 3 thùng',b);
+check(p?.items?.length===2&&p.items[0].sku==='TP-00056'&&p.items[0].qty===5&&p.items[1].sku==='TP-00058'&&p.items[1].qty===3,'product-first Vietnamese quantity, one complete order');
+p=parseMultiOrder('Cho 10 thùng Satori 500ml, mãng cầu 5 thùng, ổi hồng 3 thùng',b);
+check(p?.items?.length===3&&p.items.map(x=>x.qty).join(',')==='10,5,3','mixed quantity-first and product-first message parsed completely');
+p=parseMultiOrder('Satori 5L có vòi 3 thùng với ổi hồng 2 thùng',b);
+check(p?.items?.length===2&&p.items[0].sku==='TP-00136'&&p.items[1].sku==='TP-00058','spout variant not split on có vòi, conjunction với recognized');
+p=parseMultiOrder('Mãng cầu 5, ổi hồng 3',b);
+check(p?.items?.length===2&&p.items.map(x=>x.qty).join(',')==='5,3','catalogue-backed juice cartons may omit written unit after product');
+p=parseMultiOrder('10 thùng Satori 500ml, trà sữa 3 thùng',b);
+check(p?.needMoreDetails&&!p?.items,'unsupported reversed product must block partial order');
+p=parseMultiOrder('10 thùng Satori 500ml, mãng cầu 3 chai',b);
+check(p?.needMoreDetails&&!p?.items,'product-first explicit loose bottles cannot become cartons');
+p=parseMultiOrder('Satori 500ml 10 thùng, Hikari 500ml 3 thùng, giao sau 2 giờ chiều',b);
+check(p?.items?.length===2&&p.items[0].sku==='TP-00003'&&p.items[1].sku==='TP-00081','reversed water quantities with delivery instruction');
+p=parseMultiOrder('Mãng cầu 5 thùng và mãng cầu 3 thùng',b);
+check(p?.items?.length===1&&p.items[0].qty===8,'identical product-first lines combined into one bill line');
+
 console.log('PASS '+checks+'/'+checks+' safe multi-item extraction checks');
