@@ -157,8 +157,27 @@ function mobile(action,payload={},overrides={}){
   return JSON.parse(context.doPost({parameter:{route:'android'},
     postData:{contents:JSON.stringify(body)}}).text);
 }
+// Android and Gemini must read the same versioned Drive catalogue, not
+// two independently hardcoded price lists. All data here is fake.
+assert.equal(mobile('mobile.catalogue',{}, {nonce:'testmissingcatalogue00001'}).error.code,
+  'CATALOGUE_NOT_PERSISTED','missing shared catalogue must fail closed');
+const sharedTestCatalogue=[{code:'TP-00003',name:'Satori 500ml',unit:'Thùng',
+  brand:'SATORI',spec:'24 chai/thùng',listPrice:98000,unitPrice:73500,discountPercent:25}];
+data.values.satori_catalogue_v15=JSON.stringify(sharedTestCatalogue);
+const beforeMobileCatalogueWrites=writes;
+const scopedMobileCatalogue=mobile('mobile.catalogue');
+assert.equal(scopedMobileCatalogue.ok,true,'verified owner can read catalogue');
+assert.equal(scopedMobileCatalogue.data.source,'drive-ledger:satori_catalogue_v15');
+assert.equal(scopedMobileCatalogue.revision,data.revision);
+assert.equal(scopedMobileCatalogue.data.products[0].listPrice,98000);
+assert.equal(scopedMobileCatalogue.data.products[0].standardUnitPrice,73500);
+assert.equal(writes,beforeMobileCatalogueWrites,'catalogue read cannot write to Drive');
 const firstMobile=mobile('mobile.snapshot');console.log('MOBILE smoke:',JSON.stringify(firstMobile));assert.equal(firstMobile.data.revision,20);
 assert.equal(firstMobile.data.actorId,'google-sub:owner@example.com');
+assert.equal(scopedMobileCatalogue.revision,firstMobile.data.revision,
+  'Android catalogue and invoice snapshot must use same ledger revision');
+assert.deepEqual(JSON.parse(firstMobile.data.values.satori_catalogue_v15),sharedTestCatalogue,
+  'Mobile snapshot reflects same source rows, not independent local UI prices');
 assert.equal(mobile('mobile.snapshot',{}, {actorId:'spoofed-client-identity'}).data.actorId,
   'google-sub:owner@example.com','outbox identity must come from verified Google userinfo, never the phone');
 issuer.subject='';
@@ -185,6 +204,14 @@ issuer.email='staff@example.com';
 assert.equal(mobile('mobile.snapshot').ok,true);
 assert.equal(mobile('mobile.snapshot').data.allowedActions.includes('orders.create'),false);
 assert.equal(mobile('mobile.trash').error.code,'FORBIDDEN');
+assert.equal(mobile('mobile.catalogue').error.code,'FORBIDDEN',
+  'invoice-read-only staff must not get pricing without catalogue:read');
+props.SATORI_ANDROID_STAFF_PERMISSIONS_JSON=JSON.stringify({
+  'staff@example.com':['catalogue:read']
+});
+assert.equal(mobile('mobile.catalogue').ok,true,'separate catalogue-only scope allowed');
+assert.equal(mobile('mobile.snapshot').error.code,'FORBIDDEN',
+  'catalogue-only staff must not receive invoices or customer memory');
 // A staff role that can delete but cannot create/edit must not be able to
 // restore a deleted invoice. Restoring revives a financial record (write).
 props.SATORI_ANDROID_STAFF_PERMISSIONS_JSON=JSON.stringify({
