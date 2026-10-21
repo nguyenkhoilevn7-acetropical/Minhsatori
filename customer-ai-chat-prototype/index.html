@@ -459,7 +459,7 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 <div class="actions"><button class="btn primary" id="apply">Cập nhật cấu hình thử</button><button class="btn alt" id="copy">Sao chép link</button><button class="btn" id="reset">Xóa đơn thử</button></div>
 <div class="info"><b>Lưu ý bảo mật:</b> Link này chỉ mô phỏng định danh. Bản thật phải dùng token ngẫu nhiên lưu băm ở server, kiểm tra người nhận và có xác minh số điện thoại khi cần. Không nhúng tên, SĐT, địa chỉ hay Gemini API key vào URL.</div>
 </div></aside>
-<main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><button type="button" id="locationsToggle" aria-expanded="false" aria-controls="locationsPanel" aria-label="Tất cả các địa chỉ giao hàng của đại lý" hidden>📍 Tất cả các địa chỉ</button><button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button></div>
+<main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><button type="button" id="locationsToggle" aria-expanded="false" aria-controls="locationsPanel" aria-label="Tất cả địa chỉ giao hàng của đại lý" hidden>📍 Tất cả địa chỉ</button><button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button></div>
 <div class="catalog-launch-bar">
 <button id="catalogLaunch" type="button" aria-haspopup="dialog" aria-controls="catalogBackdrop">🛍 Tất cả sản phẩm</button>
 <button id="suggestionsToggle" type="button" aria-controls="suggestionsList" aria-expanded="false" hidden>✨ Gợi ý mua nhanh ▾</button>
@@ -734,7 +734,7 @@ function renderLocations(){
  // Always show addresses next to chat, including a single registered branch.
  // Only this customer link's locations are listed; never expose other dealers.
  toggle.hidden=false;
- toggle.textContent='📍 Tất cả các địa chỉ';
+ toggle.textContent='📍 Tất cả địa chỉ';
  const selected=deliveryLocations.find(x=>x.id===selectedLocationId);
  if(deliveryLocations.length===0){panel.hidden=true;toggle.disabled=true;return}
  toggle.disabled=false;
