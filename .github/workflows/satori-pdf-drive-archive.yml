@@ -21,4 +21,4 @@ jobs:
       - name: Verify original pdfmake QR
         run: node tests/pdf-vietqr-regression.cjs
       - name: Verify private Drive archive guards and retry flow
-        run: node tests/pdf-drive-archive.test.cjs
+        run: node tests/pdf-drive-archive.test.cjs && node tests/pdf-drive-channel.test.cjs
