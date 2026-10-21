@@ -1,5 +1,8 @@
 package vn.minhsatori.app
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -16,11 +19,15 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.util.UUID
 
 /**
@@ -340,25 +347,189 @@ class AiSandboxActivity : AppCompatActivity() {
                     .put("quoteId", id).put("requestId", key)
                 runTask({ request("/api/confirm", body) }, { result ->
                     val order=result.optJSONObject("order")
-                    addBubble("Đã tạo bill THỬ " + (order?.optString("ref") ?: "") +
+                    val ref = order?.optString("ref").orEmpty()
+                    addBubble("Đã tạo bill THỬ " + ref +
                         ". Không có thanh toán hay giao hàng thật.")
+                    if (AiSandboxContract.validTestRef(ref)) {
+                        val actions = LinearLayout(this@AiSandboxActivity).apply {
+                            orientation = LinearLayout.HORIZONTAL
+                            setPadding(dp(8),dp(2),dp(8),dp(8))
+                        }
+                        val view = button("👁 Xem PDF") { openInvoicePdf(ref, share = false) }
+                        val sharePdf = button("↗ Chia sẻ PDF") { openInvoicePdf(ref, share = true) }
+                        actions.addView(view, LinearLayout.LayoutParams(0,dp(46),1f))
+                        actions.addView(sharePdf, LinearLayout.LayoutParams(0,dp(46),1f).apply { marginStart = dp(8) })
+                        transcript.addView(actions)
+                        transcriptScroll.post { transcriptScroll.fullScroll(View.FOCUS_DOWN) }
+                    }
                 })
             }.show()
     }
 
     private fun showHistory() {
         runTask({ request("/api/history?token=" + AiSandboxContract.PUBLIC_FIXTURE) }, { result ->
-            val orders=result.optJSONArray("orders") ?: JSONArray()
-            val count = minOf(orders.length(), 15)
-            val text=StringBuilder("LỊCH SỬ TEST (").append(orders.length()).append(")\n")
-            for (i in 0 until count) {
-                val o=orders.optJSONObject(i) ?: continue
-                text.append(o.optString("createdAt").take(10)).append(" • ")
-                    .append(o.optString("ref")).append(" • ")
-                    .append("%,d".format(o.optLong("total"))).append(" đ\n")
+            val orders = result.optJSONArray("orders") ?: JSONArray()
+            val scroll = ScrollView(this)
+            val list = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12),dp(8),dp(12),dp(10))
             }
-            addBubble(text.toString())
+            val heading = text(
+                "LỊCH SỬ TEST • " + orders.length() + " hóa đơn\\n" +
+                "Chỉ Demo A; không phải hóa đơn production.", 13f, navy)
+            list.addView(heading)
+            val limit = minOf(orders.length(), 50)
+            for (i in 0 until limit) {
+                val order = orders.optJSONObject(i) ?: continue
+                val ref = order.optString("ref")
+                if (!AiSandboxContract.validTestRef(ref)) continue
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(8),dp(7),dp(8),dp(9))
+                    background = bg(Color.rgb(234,243,253),12)
+                }
+                val header = text(ref + " • " + order.optString("createdAt").take(16).replace("T"," ") +
+                    "\\n" + "%,d".format(order.optLong("total")) + " đ",14f, navy, true)
+                card.addView(header)
+                val items = order.optJSONArray("items")
+                if (items != null && items.length()>0) {
+                    val summary = StringBuilder()
+                    for (j in 0 until items.length()) {
+                        val p = items.optJSONObject(j) ?: continue
+                        summary.append("• ").append(p.optInt("qty")).append(" ")
+                            .append(p.optString("unit")).append(" ")
+                            .append(p.optString("product")).append("\\n")
+                    }
+                    card.addView(text(summary.toString(),12f, navy))
+                } else {
+                    card.addView(text(order.optString("product"),12f,navy))
+                }
+                val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                val view = button("Xem PDF") { openInvoicePdf(ref, share = false) }
+                val sharePdf = button("Chia sẻ") { openInvoicePdf(ref, share = true) }
+                buttons.addView(view,LinearLayout.LayoutParams(0,dp(44),1f))
+                buttons.addView(sharePdf,LinearLayout.LayoutParams(0,dp(44),1f).apply { marginStart=dp(7) })
+                card.addView(buttons)
+                list.addView(card,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(9) })
+            }
+            if (orders.length()>limit) list.addView(text(
+                "Hiện tối đa 50 đơn TEST gần đây. Mở website để tra cứu đầy đủ.",12f,navy))
+            scroll.addView(list)
+            AlertDialog.Builder(this)
+                .setTitle("Hóa đơn • Minh Satori TEST")
+                .setView(scroll)
+                .setNeutralButton("Xuất Excel") { _,_ -> exportHistoryExcel() }
+                .setPositiveButton("Đóng",null)
+                .show()
         })
+    }
+
+    /**
+     * Strict sandbox file download: no arbitrary URL, no redirects, 5 MB cap,
+     * MIME signature validation and private cache location with FileProvider.
+     */
+    private fun downloadTestFile(relativePath: String, isPdf: Boolean, filename: String): File {
+        if (!AiSandboxContract.validEndpoint(AiSandboxContract.BASE_URL))
+            throw IllegalStateException("Endpoint AI không được phép.")
+        if (!filename.matches(Regex("[A-Za-z0-9_-]{4,90}\\\\.(pdf|xlsx)")))
+            throw IllegalArgumentException("Tên file không hợp lệ.")
+        val con=(URL(AiSandboxContract.BASE_URL+relativePath).openConnection() as HttpURLConnection)
+        try {
+            con.instanceFollowRedirects=false
+            con.connectTimeout=9000
+            con.readTimeout=20000
+            con.requestMethod="GET"
+            con.setRequestProperty("Accept",if(isPdf) "application/pdf" else
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            if(con.responseCode!=200)throw IllegalStateException("Máy chủ trả mã "+con.responseCode)
+            val expected=if(isPdf) "application/pdf" else
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            if(!con.contentType.orEmpty().substringBefore(";").equals(expected,ignoreCase=true))
+                throw IllegalStateException("Máy chủ không trả đúng định dạng hóa đơn.")
+            val out=ByteArrayOutputStream()
+            con.inputStream.use { input ->
+                val buffer=ByteArray(8192)
+                while(true){
+                    val n=input.read(buffer)
+                    if(n<0)break
+                    if(out.size()+n>5_000_000)throw IllegalStateException("File hóa đơn vượt 5 MB.")
+                    out.write(buffer,0,n)
+                }
+            }
+            val b=out.toByteArray()
+            val prefix=if(isPdf) "%PDF-".toByteArray(Charsets.US_ASCII) else byteArrayOf(0x50,0x4B)
+            if(b.size<1024||!b.copyOfRange(0,prefix.size).contentEquals(prefix))
+                throw IllegalStateException("File hóa đơn bị lỗi hoặc sai định dạng.")
+            val folder=File(cacheDir,"shared_invoices")
+            if(!folder.exists()&&!folder.mkdirs())throw IllegalStateException("Không tạo được bộ nhớ tạm.")
+            return File(folder,filename).also { file ->
+                FileOutputStream(file).use { it.write(b) }
+            }
+        } finally { con.disconnect() }
+    }
+
+    private fun openInvoicePdf(ref: String, share: Boolean) {
+        if(!AiSandboxContract.validTestRef(ref)){
+            addBubble("Mã hóa đơn TEST không hợp lệ.")
+            return
+        }
+        runFileTask({
+            val safeRef=URLEncoder.encode(ref,"UTF-8")
+            downloadTestFile("/api/invoice/"+safeRef+"?token="+AiSandboxContract.PUBLIC_FIXTURE,
+                true,ref+".pdf")
+        }, {file ->
+            showDocument(file,"application/pdf",share)
+        })
+    }
+
+    private fun exportHistoryExcel() {
+        runFileTask({
+            downloadTestFile("/api/history.xlsx?token="+AiSandboxContract.PUBLIC_FIXTURE,
+                false,"Satori_Lich_su_TEST.xlsx")
+        }, { file -> showDocument(file,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",true) })
+    }
+
+    private fun runFileTask(task: () -> File, done: (File) -> Unit) {
+        if(busy){addBubble("Đang xử lý yêu cầu khác. Anh thử lại sau nhé.");return}
+        busy=true
+        send.isEnabled=false
+        catalogueButton.isEnabled=false
+        Thread {
+            val result=runCatching { task() }
+            runOnUiThread {
+                if(!alive||isFinishing||isDestroyed)return@runOnUiThread
+                busy=false
+                send.isEnabled=true
+                catalogueButton.isEnabled=true
+                result.onSuccess(done).onFailure {
+                    addBubble("Chưa tải được file TEST: "+(it.message?:"Lỗi mạng."))
+                }
+            }
+        }.start()
+    }
+
+    private fun showDocument(file: File,mime: String,share: Boolean) {
+        val uri=FileProvider.getUriForFile(this,packageName+".fileprovider",file)
+        val intent=if(share){
+            Intent(Intent.ACTION_SEND).apply{
+                type=mime
+                putExtra(Intent.EXTRA_STREAM,uri)
+                clipData=ClipData.newUri(contentResolver,file.name,uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }else{
+            Intent(Intent.ACTION_VIEW).apply{
+                setDataAndType(uri,mime)
+                clipData=ClipData.newUri(contentResolver,file.name,uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+        try {
+            startActivity(if(share)Intent.createChooser(intent,"Chia sẻ hóa đơn Satori TEST") else intent)
+        }catch(e:ActivityNotFoundException){
+            addBubble("Samsung chưa có ứng dụng mở file này. Hãy dùng Chia sẻ để lưu vào Drive hoặc gửi qua Zalo.")
+        }
     }
 
     override fun onDestroy() {
