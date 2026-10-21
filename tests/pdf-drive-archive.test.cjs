@@ -6,6 +6,10 @@ const gas=fs.readFileSync(__dirname+'/../api/InvoicePdfArchive.gs','utf8');
 new vm.Script(browser,{filename:'pdf-drive-archive.js'});
 new vm.Script(gas,{filename:'InvoicePdfArchive.gs'});
 assert(html.includes('<script src="pdf-drive-archive.js?v=1"></script>'));
+const driveModeInit=html.indexOf('window.__SATORI_DRIVE_APP__ = true;');
+const archiveScript=html.indexOf('<script src="pdf-drive-archive.js?v=1"></script>');
+assert(driveModeInit>=0 && archiveScript>driveModeInit,
+  'PDF archive module must load after Drive mode flag, or it exits before registering itself');
 assert(html.includes('window.satoriArchiveSavedInvoicePdf(lastSavedPdfOrder)'));
 assert(html.includes('onclick="archiveModalInvoicePDF()"'), 'old bills must have Drive export action');
 assert(html.includes('function archiveModalInvoicePDF()'), 'archive action must not require editing invoices');
