@@ -194,7 +194,8 @@ class AiSandboxActivity : AppCompatActivity() {
                     bytes.write(chunk, 0, n)
                 }
             }
-            return JSONObject(bytes.toString("UTF-8"))
+            // HTTP 200 can still carry an API-level error. Never treat that as an accepted chat message.
+            return AiSandboxResponse.requireSuccess(JSONObject(bytes.toString("UTF-8")))
         } finally {
             connection.disconnect()
         }
