@@ -20,7 +20,7 @@ function call(action,payload={},override={}){
  body.signature=crypto.createHmac('sha256',secret).update([body.keyId,body.timestamp,body.nonce,body.action,JSON.stringify(body.payload)].join('\n')).digest('hex');
  Object.assign(body,override);return JSON.parse(context.doPost({postData:{contents:JSON.stringify(body)}}).text);
 }
-assert.equal(call('system.status').data.orders,0);
+const initialStatus=call('system.status'); if(!initialStatus.ok)console.error('DIAGNOSTIC',initialStatus.error);assert.equal(initialStatus.data.orders,0);
 const input={expectedRevision:1,requestId:'create-00001',confirmedNewCustomer:true,order:{name:'Test Customer',location:'123 Đường thử nghiệm',phone:'0901234567',items:[{product:'Satori 500 ml',qty:2,unitPrice:10000}],total:20000}};
 assert.equal(call('orders.create',input).data.order.invoiceNo,1);
 assert.equal(backs,1);assert.equal(data.revision,2);
