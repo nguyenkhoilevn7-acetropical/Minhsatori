@@ -41,7 +41,7 @@ export function decryptArchive(envelope,key){
 async function signedPost(cfg,operation,content){
  const ts=Date.now(),nonce=crypto.randomBytes(24).toString('base64url');
  const payload={operation,ts,nonce,...(operation==='put'?{payload:content}:{fileId:content})};
- const canonical=[operation,ts,nonce,digest(content)].join('\n');
+ const canonical=[operation,ts,nonce,digest(content)].join('\\n');
  payload.signature=crypto.createHmac('sha256',cfg.auth).update(canonical).digest('hex');
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),14000);
  try{
