@@ -45,3 +45,21 @@ function satoriGeminiReadOnlySetup() {
     lock.releaseLock();
   }
 }
+
+// Run ONLY after Render SATORI_READ_HMAC_SECRET has been saved and the
+// read-only production status/orders/customer lookups have been verified.
+function satoriGeminiReadOnlyFinish() {
+  var props=PropertiesService.getScriptProperties();
+  var transfer=props.getProperty('SATORI_GEMINI_READONLY_TRANSFER_KEY');
+  if(!transfer) {
+    console.log('NO_TRANSFER_KEY_TO_CLEAN');
+    return;
+  }
+  var clients=JSON.parse(props.getProperty('SATORI_BOT_CLIENTS_JSON')||'{}');
+  var client=clients.gemini_readonly_20261022;
+  if(!client || client.secret!==transfer ||
+      client.scopes.join(',')!=='orders:read,customers:read')
+    throw Error('GEMINI_CLIENT_MISMATCH_DO_NOT_CLEAN');
+  props.deleteProperty('SATORI_GEMINI_READONLY_TRANSFER_KEY');
+  console.log('GEMINI_TRANSFER_KEY_CLEANED_BOT_CLIENT_PRESERVED');
+}
