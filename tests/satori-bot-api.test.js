@@ -25,6 +25,13 @@ const input={expectedRevision:1,requestId:'create-00001',confirmedNewCustomer:tr
 assert.equal(call('orders.create',input).data.order.invoiceNo,1);
 assert.equal(backs,1);assert.equal(data.revision,2);
 assert.equal(call('orders.create',input).data.duplicate,true);
+// Formatting-only phone changes must not create a duplicate invoice, while changed content must fail.
+assert.equal(call('orders.create',{
+ ...input,order:{...input.order,phone:'0901 234 567'}
+}).data.duplicate,true,'phone punctuation is canonicalized for a safe requestId replay');
+assert.equal(call('orders.create',{
+ ...input,order:{...input.order,phone:'0901 234 568'}
+}).error.code,'REQUEST_ID_CONFLICT','a different phone cannot reuse a prior requestId');
 assert.equal(backs,1);
 assert.equal(call('orders.create',{...input,requestId:'create-00002'}).error.code,'REVISION_CONFLICT');
 assert.equal(call('orders.create',{...input,requestId:'create-00003',expectedRevision:2,order:{...input.order,total:30000}}).error.code,'TOTAL_MISMATCH');
