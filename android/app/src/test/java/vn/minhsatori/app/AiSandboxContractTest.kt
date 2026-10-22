@@ -49,6 +49,24 @@ class AiSandboxContractTest {
             AiSandboxContract.validPortalNavigation(target))
     }
 
+    @Test fun sharedCustomerLinkMustBeExactGeminiTokenAndOrigin() {
+        val base = AiSandboxContract.BASE_URL
+        val token = "Ab_0123456789abcdefghijklmnopqrstuv-WXYZ567890"
+        val valid = "$base/c/$token"
+        assertEquals(valid, AiSandboxContract.customerPortalUrl(valid))
+        assertEquals("$base/c/demo-a", AiSandboxContract.customerPortalUrl("$base/c/demo-a"))
+        assertEquals("$base/c/demo-b", AiSandboxContract.customerPortalUrl("$base/c/demo-b"))
+        for (bad in listOf(
+            "$base/c/short", "$base/c/$token?test=1", "$base/c/$token#fragment",
+            "$base/c/%2e%2e/admin", "$base/c/$token/../admin",
+            "https://minh-satori-customer-ai-gemini.onrender.com.evil.net/c/$token",
+            "https://example.com/c/$token", "http://minh-satori-customer-ai-gemini.onrender.com/c/$token",
+            "https://attacker@minh-satori-customer-ai-gemini.onrender.com/c/$token",
+            "$base:443/c/$token", "$base/admin", "javascript:alert(1)", ""
+        )) assertNull("reject " + bad, AiSandboxContract.customerPortalUrl(bad))
+        assertNull(AiSandboxContract.customerPortalUrl(null))
+    }
+
     @Test fun pinnedHttpsHostOnly() {
         assertTrue(AiSandboxContract.validEndpoint(AiSandboxContract.BASE_URL))
         for (url in listOf(
