@@ -72,3 +72,14 @@ assert.match(pricingServer,/pricingEvidence,realCustomerLinkIssuanceEnabled:fals
 const details=pricingServer.slice(start,end);
 assert.doesNotMatch(details,/orders\.create|payments\.markCustomerPaid|writeState/);
 console.log('PASS real customer form: editable VAT/ship/discount, add-address, session-only drafts, no real checkout');
+
+assert.match(reviewHtml,/class="customer-link-actions"/,'stack actions, no overlapping buttons');
+assert.match(reviewHtml,/\.customer-link-actions\{display:grid;grid-template-columns:minmax\(0,1fr\);row-gap:12px/);
+assert.match(reviewHtml,/id="createButton">🔗 Cấp link cho khách thử/);
+assert.match(reviewHtml,/id="realLinkBlockReason"/);
+assert.match(reviewHtml,/\$\('realLinkBlockReason'\)\.hidden=!enabled/);
+assert.match(reviewHtml,/selectedCustomerId\+'\/rotate'/,'reissue only explicitly confirmed TEST links');
+assert.match(reviewHtml,/Cấp LẠI link khách THỬ/,'reissue requires owner confirmation');
+assert.match(reviewHtml,/if\(selectedRealKey\)\{[\s\S]{0,200}khách THẬT từ bản sandbox/);
+assert.doesNotMatch(reviewHtml,/realCustomerPermission|canAddAddress|mayAddLocation|permissions\.grant/,'no dealer-address permission in this change');
+console.log('PASS owner link: independent buttons, guarded TEST reissue and no customer-grant feature');
