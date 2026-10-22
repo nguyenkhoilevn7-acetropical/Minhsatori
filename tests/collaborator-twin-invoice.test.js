@@ -80,6 +80,10 @@ assert.equal(pair.data.collaboratorInvoice.total,687960);
 assert.equal(pair.data.difference,158760);
 assert.equal(pair.data.customerInvoice.pairRole,'customer');
 assert.equal(pair.data.collaboratorInvoice.pairRole,'collaborator');
+assert.equal(pair.data.customerInvoice.name,'Synthetic Customer','customer bill must show real buyer');
+assert.equal(pair.data.collaboratorInvoice.name,'CTV thử 01','internal bill must be billed to the associated collaborator');
+assert.equal(pair.data.collaboratorInvoice.pairCustomerName,'Synthetic Customer');
+assert.equal(pair.data.customerInvoice.pairCollaboratorName,'CTV thử 01');
 assert.equal(pair.data.customerInvoice.pairInvoiceNo,pair.data.collaboratorInvoice.invoiceNo);
 assert.equal(pair.data.collaboratorInvoice.pairInvoiceNo,pair.data.customerInvoice.invoiceNo);
 assert.equal(backups,beforePairBackups+1,'one Drive backup for both invoices');
@@ -95,6 +99,10 @@ const debt=call('debt.summary',{query:'Synthetic Customer'});
 assert.equal(debt.ok,true);assert.equal(debt.data.orders,1);
 assert.equal(debt.data.due,846720);
 assert.equal(debt.data.excludedReferenceCount,1);
+assert.equal(call('orders.list',{query:'CTV thử 01'}).data.totalMatches,2,
+ 'owner CTV search must show both linked invoices');
+assert.equal(call('orders.list',{query:'Synthetic Customer'}).data.totalMatches,2,
+ 'buyer search must also find the internal paired invoice for bookkeeping');
 
 const duplicate=call('orders.create.pair',quote);
 assert.equal(duplicate.data.duplicate,true);
