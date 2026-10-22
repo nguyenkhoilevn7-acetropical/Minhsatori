@@ -64,7 +64,7 @@ assert.match(reviewHtml,/function saveRealReviewDraft\(\)/);
 assert.match(reviewHtml,/realPricingEvidence/);
 assert.match(reviewHtml,/\$\('discount'\)\.value=String\(evidence\.suggestedDiscount\)/);
 assert.doesNotMatch(reviewHtml,/for\(const id of \['discount','ship','vatRate'\]\)\$\(id\)\.disabled=enabled/);
-assert.match(reviewHtml,/if\(selectedRealKey\)\{\$\('error'\)\.textContent='Khách thật chỉ được đối chiếu/);
+assert.match(reviewHtml,/if\(selectedRealKey\)\{[\s\S]{0,200}cấp link khách THẬT từ bản sandbox/,'no fake link for real customers');
 assert.doesNotMatch(reviewHtml,/localStorage\.setItem|sessionStorage\.setItem/,'no PII stored by browser');
 const pricingServer=readFileSync(path.join(root,'server.mjs'),'utf8');
 assert.match(pricingServer,/observedRealCustomerDiscounts\(invoiceRows,name\)/);
