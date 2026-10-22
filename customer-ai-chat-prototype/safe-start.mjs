@@ -108,6 +108,9 @@ function startPreview(){
   GEMINI_SANDBOX_BOOTSTRAP_ENCRYPTED_B64:'',
   GEMINI_SANDBOX_DRIVE_BRIDGE_URL:'',GEMINI_SANDBOX_DRIVE_HMAC_KEY:'',
   GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY:'1'};
+ // Distinguish parent backup readiness from the intentionally isolated preview.
+ // This does NOT mean the Render Environment lost its endpoint or HMAC.
+ console.info('SANDBOX_PREVIEW_DRIVE_BACKUP_DISABLED_BY_DESIGN - parent archive already readback-verified');
  child=spawn(process.execPath,[path.join(HERE,'server.mjs')],{cwd:HERE,env,stdio:'inherit'});
  child.on('error',()=>{console.error('SANDBOX_PREVIEW_PROCESS_FAILED');startMaintenance()});
  child.on('exit',(code)=>{if(!terminating){console.error('SANDBOX_PREVIEW_STOPPED',Number.isInteger(code)?code:'signal');startMaintenance()}});
