@@ -407,39 +407,55 @@ function fillRealCustomer(detail){
  markRealMode(true);
  const root=$('realCustomerDetails');root.replaceChildren();
  const intro=document.createElement('p');intro.className='hint';
- intro.textContent=detail.count+' điểm giao đã tìm thấy'+(detail.sourceTotal==null?'':', nguồn báo '+detail.sourceTotal+' hồ sơ')+
-  (detail.complete?' • Đã khớp phạm vi dữ liệu tìm kiếm.':' • CHƯA ĐẦY ĐỦ: phải đối chiếu thêm.')+
-  (detail.multipleContacts?' • Có nhiều số điện thoại; hãy kiểm tra từng chi nhánh.':'');
+ const hasExtra=Number.isInteger(detail.sourceTotal)&&detail.count!==detail.sourceTotal;
+ intro.textContent='Đã tìm thấy '+detail.count+' địa chỉ/đầu mối từ hóa đơn'+
+  (detail.sourceTotal==null?'':' • nguồn tìm kiếm có '+detail.sourceTotal+' hồ sơ')+
+  (!detail.complete?' • CHƯA ĐẦY ĐỦ: cần đối chiếu thêm.':hasExtra?' • Cần đối chiếu số hồ sơ trùng nhau.':' • Đã đối chiếu phạm vi tìm kiếm.')+
+  (detail.multipleContacts?' • Có nhiều số điện thoại, phải kiểm tra từng điểm giao.':'');
  root.append(intro);
  const note=document.createElement('p');note.className='hint';
- note.textContent='Danh sách địa chỉ sau đây chỉ để đối chiếu. Chọn một địa chỉ để điền mẫu thông tin ở phía dưới; không dùng để gửi đơn thật.';
+ note.textContent='Em đã điền tên, SĐT và địa chỉ từ sổ thật; các địa chỉ còn lại sẽ hiện trong phần bên dưới. Đổi điểm giao để xem thông tin tương ứng. Chưa phải xác nhận đặt hàng.';
  root.append(note);
  const places=detail.places||[];
  if(!places.length){
   $('name').value=detail.name;$('phone').value='';$('address').value='';
   root.append('Chưa tìm được điểm giao hợp lệ trong sổ.');return;
  }
- const updatePrimary=i=>{
-  const p=places[i];
-  $('name').value=p.name;$('phone').value=p.phone||'';$('address').value=p.address||'';
- };
- for(const [i,p] of places.entries()){
-  const card=document.createElement('fieldset');card.className='new-location-item';
-  const legend=document.createElement('legend');legend.textContent=(i+1)+'. '+p.name;
-  card.append(legend);
-  const choice=document.createElement('label');choice.className='selected';
-  const radio=document.createElement('input');radio.type='radio';radio.name='readonly-real-location';radio.checked=i===0;
-  radio.style.width='auto';radio.style.minHeight='auto';radio.onchange=()=>updatePrimary(i);
-  choice.append(radio,document.createTextNode(' Xem điểm giao này trong ô thông tin'));card.append(choice);
-  card.append(makeRealField('Địa chỉ',p.address),makeRealField('Số điện thoại',p.phone||'Chưa có'),
-   makeRealField('Tên trên chứng từ',p.name));
-  root.append(card);
+ const picker=document.createElement('select');picker.setAttribute('aria-label','Chọn điểm giao để điền vào thông tin khách');
+ const pickerLabel=document.createElement('label');pickerLabel.textContent='Chọn địa chỉ làm ô thông tin chính';pickerLabel.append(picker);
+ for(const [i,p] of places.entries())picker.add(new Option((i+1)+'. '+p.name+' • '+p.address+(p.phone?' • '+p.phone:''),String(i)));
+ root.append(pickerLabel);
+ const others=$('newCustomerLocations');
+ function renderAdditionalLocations(primary){
+  others.replaceChildren();
+  const extra=places.filter((_,i)=>i!==primary);
+  if(!extra.length)return;
+  const panel=document.createElement('details');panel.className='location-manager';panel.open=extra.length<=6;
+  const summary=document.createElement('summary');
+  summary.textContent='📍 Đã tự thêm '+extra.length+' địa chỉ giao khác từ sổ thật (chỉ xem)';
+  panel.append(summary);
+  for(const [index,p] of extra.entries()){
+   const fieldset=document.createElement('fieldset');fieldset.className='new-location-item';
+   const legend=document.createElement('legend');legend.textContent=(index+1)+'. '+p.name;
+   fieldset.append(legend);
+   fieldset.append(makeRealField('Tên trên hóa đơn',p.name),
+    makeRealField('Số điện thoại nhận hàng (cần xác minh)',p.phone||'Chưa có'),
+    makeRealField('Địa chỉ giao',p.address));
+   panel.append(fieldset);
+  }
+  others.append(panel);
  }
+ function updatePrimary(i){
+  const p=places[i];$('name').value=detail.name;$('phone').value=p.phone||'';
+  $('address').value=p.address||'';renderAdditionalLocations(i);
+ }
+ picker.onchange=()=>updatePrimary(Number(picker.value));
  updatePrimary(0);
  if(detail.aliases?.length>1){
   const info=document.createElement('p');info.className='hint';
-  info.textContent='Các tên trên hóa đơn: '+detail.aliases.join(' • ')+' (nhóm để anh kiểm tra, không tự kết luận cùng một pháp nhân).';
-  root.prepend(info);
+  info.textContent='Tên/chi nhánh trên các hóa đơn: '+detail.aliases.join(' • ')+
+   '. Cần anh đối chiếu trước khi coi là cùng một khách.';
+  root.append(info);
  }
 }
 async function selectRealCustomer(name,key){
