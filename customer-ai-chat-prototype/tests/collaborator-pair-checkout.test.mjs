@@ -67,6 +67,8 @@ const again=await gateway.confirm({session:'OTP_SESSION',quoteId:quote.quoteId,
  confirmedByCustomer:true});
 assert.equal(again.duplicate,true);assert.equal(submits,1);
 assert.equal(JSON.stringify(again).includes('9002'),false,'retry must not expose CTV invoice');
+await error('CUSTOMER_NOT_VERIFIED',()=>gateway.confirm({session:'someone-else',
+ quoteId:quote.quoteId,confirmedByCustomer:true}));
 
 config={...ownerResponse,policy:{...policy,enabled:false}};
 await error('CTV_APPROVED_POLICY_REQUIRED',()=>gateway.preview({
