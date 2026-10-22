@@ -11,7 +11,7 @@ def validate(badging, certificates, expected_digest):
     digest = expected_digest.replace(":", "").strip().lower()
     if not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise ValueError("Configure the stable release certificate SHA-256 first")
-    if not re.search(r"^package: name='vn\.minhsatori\.app' versionCode='15' versionName='0\.3\.7'(?: |$)", badging, re.M):
+    if not re.search(r"^package: name='vn\.minhsatori\.app' versionCode='15' versionName='0\.3\.8'(?: |$)", badging, re.M):
         raise ValueError("Unexpected APK package or version")
     if re.search(r"^application-debuggable(?:\s|$)", badging, re.M):
         raise ValueError("Debuggable APK cannot be released")
