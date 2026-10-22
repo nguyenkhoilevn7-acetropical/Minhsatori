@@ -25,6 +25,7 @@ import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
+import {customerReviewCandidates} from './customer-review-candidates.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
 import {auditDriveCatalogue} from './catalogue-drive-audit.mjs';
 import {getGeminiVersionStatus} from './version-status.mjs';
@@ -287,6 +288,50 @@ const server=http.createServer(async(req,res)=>{
  // Owner-only production READ access. Read it directly from the authoritative
  // Bot API on each request; never copy PII to the ephemeral sandbox disk.
  // This is separate from the public Gemini chat and cannot create/change bills.
+ // Owner-only, ephemeral candidate review. Nothing is written to local sandbox
+ // or production; no customer link is generated and no price is authorized.
+ if(req.method==='GET'&&p==='/api/admin/live-review-candidates'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần đăng nhập quản trị để xem khách chờ duyệt.');
+  if(!rateLimit(req,'admin-review-read'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng không đồng bộ quá liên tục.');
+  if(!readOnlyReady())
+   return fail(res,503,'READ_ONLY_NOT_CONFIGURED','Chưa có kết nối nguồn chỉ đọc.');
+  const months=Number(url.searchParams.get('months')||6);
+  if(!Number.isSafeInteger(months)||months<1||months>12)
+   return fail(res,400,'REVIEW_RANGE_INVALID','Chỉ được xem 1 đến 12 tháng mỗi lần.');
+  const vnNow=new Date(Date.now()+7*3600000);
+  const monthIds=Array.from({length:months},(_,i)=>{
+   const d=new Date(Date.UTC(vnNow.getUTCFullYear(),vnNow.getUTCMonth()-i,1));
+   return d.toISOString().slice(0,7);
+  });
+  try{
+   const snapshots=[];
+   for(let offset=0;offset<monthIds.length;offset+=3){
+    const batch=await Promise.all(monthIds.slice(offset,offset+3).map(async month=>{
+     const search=ownerLiveLookup(new URLSearchParams({kind:'invoices',month}));
+     const snapshot=await readMinhSatori(search.action,search.payload);
+     if(!Number.isSafeInteger(snapshot?.revision)||!Array.isArray(snapshot?.data?.orders)||
+        !Number.isFinite(Number(snapshot?.data?.totalMatches)))
+      throw Error('INVALID_REVIEW_SNAPSHOT');
+     return {month,revision:snapshot.revision,
+       matches:Number(snapshot.data.totalMatches),orders:snapshot.data.orders};
+    }));
+    snapshots.push(...batch);
+   }
+   if(new Set(snapshots.map(s=>s.revision)).size!==1)
+    return fail(res,409,'REVIEW_REVISION_CHANGED','Sổ kế toán thay đổi trong lúc đọc. Hãy tải lại để tránh ghép dữ liệu cũ mới.');
+   const incomplete=snapshots.some(s=>s.matches>s.orders.length);
+   const invoices=snapshots.flatMap(s=>s.orders);
+   const candidates=customerReviewCandidates(invoices,{complete:!incomplete});
+   return reply(res,200,{ok:true,readOnly:true,ownerReviewRequired:true,
+    linkCreationAllowedAutomatically:false,sourceRevision:snapshots[0].revision,
+    months:monthIds,incomplete,scannedInvoices:invoices.length,
+    candidates,message:'Chỉ đề xuất để quản trị duyệt. Chưa tạo hồ sơ hoặc link khách.'});
+  }catch{
+   return fail(res,503,'REVIEW_SOURCE_UNAVAILABLE','Không thể tổng hợp đủ các tháng; chưa tạo danh sách chờ duyệt. Không dùng dữ liệu demo thay thế.');
+  }
+ }
  if(req.method==='GET'&&p==='/api/admin/live-search'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần đăng nhập quản trị để xem hóa đơn thật.');
