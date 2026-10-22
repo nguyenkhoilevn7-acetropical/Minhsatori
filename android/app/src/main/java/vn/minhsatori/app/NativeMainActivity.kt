@@ -1437,42 +1437,64 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun openInvoice(invoice: SatoriInvoice) {
-        val wrapper = ScrollView(this)
+        val wrapper = ScrollView(this).apply { setBackgroundColor(night) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(15), dp(20), dp(18))
+            setPadding(dp(17), dp(16), dp(17), dp(18))
+            setBackgroundColor(night)
         }
         wrapper.addView(content)
-        label(content, "HÓA ĐƠN #" + invoice.number, 19f, true, teal)
-        if (invoice.isTest) {
-            label(content, "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ", 12f, true, gold, 8)
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(13), dp(14), dp(13))
+            background = panelBackground(Color.rgb(19, 37, 64))
         }
-        label(content, invoice.customer, 16f, true, dark, 10)
-        label(content, "Ngày: " + invoice.displayDate + " · " + invoice.status, 13f,
-            false, muted, 7)
-        label(content, "Điện thoại: " + invoice.phone, 13f, false, dark, 9)
-        label(content, "Giao tới: " + invoice.address, 13f, false, dark, 5)
-        if (invoice.duplicateFrom.isNotBlank()) {
-            label(content, "Bản giá sao từ #" + invoice.duplicateFrom +
-                " — kiểm tra trạng thái trước khi tính doanh thu.", 12f,
-                true, gold, 8)
-        }
-        label(content, "SẢN PHẨM", 13f, true, teal, 16)
+        label(heading, "HÓA ĐƠN #" + invoice.number, 21f, true, white)
+        label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true, cyan, 7)
+        label(heading, SatoriData.money(invoice.total), 20f, true,
+            Color.rgb(153, 246, 228), 8)
+        content.addView(heading)
+        if (invoice.isTest) label(content,
+            "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ",
+            12f, true, Color.rgb(253, 186, 116), 9)
+
+        label(content, "THÔNG TIN KHÁCH HÀNG", 12f, true, cyan, 15)
+        label(content, invoice.customer, 17f, true, white, 7)
+        label(content, "Điện thoại: " + invoice.phone.ifBlank { "(Chưa có SĐT)" },
+            13f, false, softInk, 8)
+        label(content, "Giao tới: " + invoice.address.ifBlank { "(Chưa có địa chỉ)" },
+            13f, false, softInk, 6)
+        if (invoice.duplicateFrom.isNotBlank()) label(content,
+            "Bản giá sao từ #" + invoice.duplicateFrom +
+                " — kiểm tra trạng thái trước khi tính doanh thu.",
+            12f, true, Color.rgb(253, 186, 116), 8)
+
+        label(content, "SẢN PHẨM (" + invoice.lines.size + " dòng)",
+            13f, true, cyan, 16)
         invoice.lines.forEach { line ->
-            label(content, line.description, 13f, true, dark, 8)
-            label(content, line.quantity.toString() + " " + line.unit + " × " +
-                SatoriData.money(line.unitPrice) + " = " + SatoriData.money(line.amount),
-                12f, false, muted, 3)
+            val product = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = panelBackground()
+            }
+            label(product, line.description, 13.5f, true, white)
+            label(product, "x" + line.quantity + " " + line.unit + "  ×  " +
+                SatoriData.money(line.unitPrice), 12f, false, softInk, 5)
+            label(product, "THÀNH TIỀN: " + SatoriData.money(line.amount),
+                13f, true, cyan, 5)
+            content.addView(product, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(7)
+            })
         }
-        label(content, "Phí giao: " + SatoriData.money(invoice.shipping), 12f,
-            false, muted, 12)
-        label(content, "Thuế VAT: " + SatoriData.money(invoice.vat), 12f,
-            false, muted, 4)
+        label(content, "Phí giao: " + SatoriData.money(invoice.shipping),
+            12f, false, softInk, 13)
+        label(content, "Thuế VAT: " + SatoriData.money(invoice.vat),
+            12f, false, softInk, 5)
         label(content, "TỔNG THANH TOÁN: " + SatoriData.money(invoice.total),
-            17f, true, teal, 10)
+            18f, true, Color.rgb(153, 246, 228), 11)
         if (invoice.deliveryNote.isNotBlank()) {
-            label(content, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, gold, 14)
-            label(content, invoice.deliveryNote, 13f, true, dark, 4)
+            label(content, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, cyan, 13)
+            label(content, invoice.deliveryNote, 13f, false, white, 5)
         }
         // The first invoice action must show the actual A4 PDF in this app.
         // Never implicitly download when the user only chooses View.
@@ -1556,6 +1578,9 @@ class NativeMainActivity : AppCompatActivity() {
             .create()
         invoiceDialog = dialog
         dialog.setOnShowListener {
+            dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(night))
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(cyan)
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(cyan)
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 try {
                     NativeInvoicePdf.share(this, invoice)
