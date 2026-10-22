@@ -30,6 +30,19 @@ check(completed?.items?.length===3&&completed.items.some(x=>x.sku==='TP-00003'&&
 check(parseCustomerMessage('10 suối, 2 me, 3 trà sữa. Lưu ý giao sau 2 giờ chiều').kind==='invalid',
  'unknown item blocks partial basket');
 check(parseCustomerMessage('Lưu ý gọi trước khi đến').kind==='note-only','standalone note recognized');
+for(const utterance of ['Giao sớm','giao giúp anh sớm nha','Ship gấp nhé','Anh muốn nhận hàng sớm','Giao hàng nhanh giúp em','Để ở bảo vệ','Đừng bấm chuông']){
+ const extracted=splitOrderAndNote(utterance);
+ check(!extracted.orderText&&extracted.noteText===utterance,'natural delivery-only note: '+utterance);
+ check(parseCustomerMessage(utterance)?.kind==='note-only','no forced quantity for '+utterance);
+}
+const mixedSpoken=parseCustomerMessage('Cho em 10 suối 500, 2 ổi, giao sớm');
+check(mixedSpoken?.kind==='order'&&mixedSpoken.items.length===2&&
+ mixedSpoken.items.reduce((n,x)=>n+x.qty,0)===12&&
+ mixedSpoken.delivery?.deliveryNote.toLowerCase().includes('giao sớm'),
+ 'natural delivery tail keeps both exact products and note');
+check(!parseCustomerMessage('Cho em 10 suối 500, 2 ổi')?.noteText,
+ 'regular shopping request never invents a delivery note');
+
 const ROOT=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dir=mkdtempSync(path.join(tmpdir(),'satori-screenshot-notes-'));
 const port=35810+Math.floor(Math.random()*400),base='http://127.0.0.1:'+port;
@@ -92,6 +105,39 @@ try{
  check(after.items.length===3&&after.items.some(x=>x.code==='TP-00081'&&x.qty===10)
    &&after.deliveryNote.includes('14:00'),
    'delivery followup atomically commits correct Hikari 500ml, juices and normalized note');
+
+ // New isolated buyer with a pending cart: casual language must update NOTE
+ // rather than asking for quantity or changing the selected products.
+ const talker='demo-a~'+'c'.repeat(32);
+ let fresh=await say(talker,'Cho em 2 thùng Satori 500ml',0);
+ check(fresh.status===200&&fresh.body.draft?.items?.[0]?.qty===2,
+  'new customer starts a correct two-carton sandbox draft');
+ let unchangedRev=fresh.body.draft.revision;
+ for(const [natural,expected] of [
+  ['Giao sớm','Giao sớm'],
+  ['giao giúp anh sớm nha','giao giúp anh sớm'],
+  ['Ship gấp nhé','Ship gấp'],
+  ['Anh muốn nhận hàng sớm','nhận hàng sớm'],
+  ['Để ở bảo vệ','Để ở bảo vệ']
+ ]){
+  fresh=await say(talker,natural,unchangedRev);
+  check(fresh.status===200&&fresh.body.parserSource==='delivery-note-only'&&
+   fresh.body.draft?.items?.length===1&&fresh.body.draft.items[0].qty===2,
+   'casual note should never be interpreted as product quantity: '+natural+' '+JSON.stringify(fresh.body).slice(0,450));
+  check(fresh.body.draft.deliveryNote.includes(expected),
+   'quote stores original unpromised delivery wish: '+natural);
+  check(fresh.body.quote?.deliveryNote.includes(expected),
+   'final quote preserves natural note: '+natural);
+  unchangedRev=fresh.body.draft.revision;
+ }
+ let mixedDraft=await get(talker);
+ fresh=await say(talker,'Cho em 10 suối 500, 2 ổi, giao sớm nha',mixedDraft.revision);
+ check(fresh.status===200&&fresh.body.draft?.items?.length===2&&
+  fresh.body.draft.items.reduce((n,x)=>n+x.qty,0)===12&&
+  fresh.body.draft.deliveryNote.includes('giao sớm'),
+  'mixed product and natural note: exact 10+2 with delivery note, never 27');
+ const wrongToken=await get(other);
+ check(wrongToken.items.length===3,'natural note does not leak into another customer draft');
  console.log('PASS '+count+'/'+count+' screenshot multi-item+notes, no ghost 5L, quote-note persistence and multi-turn');
 }catch(e){console.error('FAIL '+String(e.stack||e)+'\n'+log.slice(-1500));process.exitCode=1}
 finally{proc.kill();rmSync(dir,{recursive:true,force:true})}
