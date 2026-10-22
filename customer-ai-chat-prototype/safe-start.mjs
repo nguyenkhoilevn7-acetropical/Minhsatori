@@ -39,16 +39,38 @@ async function preserveRecoveryArchive(){
   const records=state.profiles.length+state.orders.length+state.changeRequests.length+state.drafts.length+state.phrases.length;
   if(records===0){archivalStatus='empty_verified';return false}
   const worker=makeDriveBackupWorker(()=>archive);
-  const receipt=await worker.syncNow();
-  if(!receipt?.lastFileId)throw Error('NO_RECEIPT');
-  const restored=await worker.readArchive(receipt.lastFileId); // verifies remote HMAC + SHA + AES + backup checksum
-  if(JSON.stringify(state)!==JSON.stringify(restored))throw Error('REMOTE_MISMATCH');
-  archivalStatus='verified';
-  console.info('SANDBOX_RESCUE_ARCHIVE_VERIFIED','orders='+state.orders.length,'profiles='+state.profiles.length);
-  return true;
- }catch{
+  // Apps Script may briefly return BUSY on concurrent signed requests.
+  // Retrying transport errors never bypasses readback or integrity verification.
+  for(let attempt=0;attempt<3;attempt++){
+   try{
+    const receipt=await worker.syncNow();
+    if(!receipt?.lastFileId)throw Error('NO_RECEIPT');
+    const restored=await worker.readArchive(receipt.lastFileId);
+    if(JSON.stringify(state)!==JSON.stringify(restored))throw Error('REMOTE_MISMATCH');
+    archivalStatus='verified';
+    console.info('SANDBOX_RESCUE_ARCHIVE_VERIFIED','orders='+state.orders.length,'profiles='+state.profiles.length);
+    return true;
+   }catch(error){
+    const code=String(error?.message||'');
+    const retryable=code==='BRIDGE_REJECTED_BUSY'||
+     /^BRIDGE_HTTP_(?:429|500|502|503|504)$/.test(code)||
+     error?.name==='AbortError'||error instanceof TypeError;
+    if(!retryable||attempt===2)throw error;
+    console.warn('SANDBOX_RESCUE_RETRY_TRANSIENT',attempt+1);
+    await new Promise(resolve=>setTimeout(resolve,1400*(attempt+1)));
+   }
+  }
+  return false;
+ }catch(error){
   archivalStatus='failed';
-  console.warn('SANDBOX_RESCUE_ARCHIVE_NOT_VERIFIED');
+  const code=String(error?.message||'');
+  const category=code==='BRIDGE_REJECTED_BUSY'?'BRIDGE_BUSY':
+   code==='BRIDGE_REJECTED_UNAUTHORIZED'?'BRIDGE_AUTH_FAILURE':
+   /^BRIDGE_HTTP_(?:429|500|502|503|504)$/.test(code)?'BRIDGE_TEMPORARY_HTTP':
+   code==='REMOTE_MISMATCH'||code==='BACKUP_READBACK_MISMATCH'?'INTEGRITY_MISMATCH':
+   error?.name==='AbortError'?'NETWORK_TIMEOUT':
+   error instanceof TypeError?'NETWORK_ERROR':'UNKNOWN';
+  console.warn('SANDBOX_RESCUE_ARCHIVE_NOT_VERIFIED',category);
   return false;
  }
 }
