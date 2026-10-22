@@ -1146,6 +1146,7 @@ class NativeMainActivity : AppCompatActivity() {
         content.addView(totalsView, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(12)
         })
+        // Keep the reset control above the (potentially long) results list.
         val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(rows)
 
@@ -1227,6 +1228,8 @@ class NativeMainActivity : AppCompatActivity() {
             listOf(selectedCustomer, status, month, year, sort).forEach { it.setSelection(0) }
             refresh()
         }
+        content.removeView(rows)
+        content.addView(rows)
         refresh()
         val dialog = AlertDialog.Builder(this)
             .setView(scroll).setPositiveButton("Đóng", null).create()
