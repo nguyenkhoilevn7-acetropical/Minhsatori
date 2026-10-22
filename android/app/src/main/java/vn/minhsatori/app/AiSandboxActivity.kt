@@ -99,6 +99,8 @@ class AiSandboxActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Samsung IME must resize the transcript instead of covering the send row.
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         invoiceUi = AiSandboxInvoiceUi(this)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
