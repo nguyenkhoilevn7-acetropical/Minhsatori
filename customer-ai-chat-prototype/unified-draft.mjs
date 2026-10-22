@@ -102,6 +102,27 @@ export function makeDraftStore(options={}){
     note=change.note;when=change.requestedDeliveryAt??null;continue;
    }
    if(change.action==='clear'){next.clear();continue}
+   // A complete multi-item order replaces the quoted basket in ONE revisioned
+   // transaction. Do not synthesize successive clear/add HTTP calls: concurrent
+   // Samsung/browser sessions must never observe or overwrite a half-filled cart.
+   if(change.action==='replace'){
+    if(!Array.isArray(change.items)||change.items.length<1||change.items.length>MAX_LINES)
+     throw Error('INVALID_CART');
+    const replacements=new Map();
+    for(const item of change.items){
+     const product=productFor(item?.code);
+     if(!product||!Number.isSafeInteger(item.qty)||item.qty<1||item.qty>MAX_UNITS||
+        replacements.has(product.code))throw Error('INVALID_CART');
+     replacements.set(product.code,item.qty);
+    }
+    if([...replacements.values()].reduce((n,v)=>n+v,0)>MAX_UNITS)throw Error('CART_LIMIT');
+    next.clear();
+    for(const [code,qty] of replacements)next.set(code,qty);
+    // A fresh order should never inherit yesterday's delivery note or date,
+    // but may keep this customer's independently selected authorized address.
+    note='';when=null;
+    continue;
+   }
    const p=productFor(change.code);
    if(!p)throw Error('INVALID_CART');
    const code=p.code,old=next.get(code)||0;
