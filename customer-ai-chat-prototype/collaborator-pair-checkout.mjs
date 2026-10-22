@@ -9,6 +9,7 @@
  * No public customer link or Gemini LLM text can select collaborator or rate.
  */
 import crypto from 'node:crypto';
+import {ownerPairAction} from './owner-collaborator-pairs.mjs';
 const fail=code=>{const e=new Error(code);e.code=code;throw e};
 const money=(p,q,d)=>Math.round(p*(100-d)/100)*q;
 const safeId=id=>typeof id==='string'&&/^[A-Za-z0-9_-]{4,100}$/.test(id);
@@ -81,6 +82,19 @@ function uniqueContext(ctx,policy){
   ctx.customer.sourceReference,ctx.customer.name,ctx.customer.phone,
   ctx.customer.location,policy.policyVersion])).digest('hex');
 }
+// Only the server with an owner-scoped HMAC read key can retrieve policies.
+// The customer never receives a collaborator roster, policy or settlement price.
+export async function readConfiguredPairPolicy(collaboratorId,options={}){
+ if(!safeId(collaboratorId))fail('CTV_ID_INVALID');
+ const response=await ownerPairAction('collaborators.pair.list',{},options);
+ const entries=response.policies.filter(x=>x?.collaboratorId===collaboratorId);
+ const partners=Array.isArray(response.collaborators)?
+  response.collaborators.filter(x=>x?.id===collaboratorId&&x.active===true):[];
+ if(entries.length!==1||partners.length!==1||entries[0].enabled!==true||
+    entries[0].reviewedByOwner!==true)fail('CTV_PAIR_NOT_ENABLED');
+ return {revision:response.revision,source:'drive-ledger:collaborator-pair-policy',
+   policy:structuredClone(entries[0])};
+}
 export function createCollaboratorPairGateway({resolveTrusted,readPolicy,store,
  send,now=Date.now,newId=()=>crypto.randomBytes(18).toString('hex')}={}){
  if(typeof resolveTrusted!=='function'||typeof readPolicy!=='function'||
@@ -112,7 +126,7 @@ export function createCollaboratorPairGateway({resolveTrusted,readPolicy,store,
   if(!requestId(quoteId)||confirmedByCustomer!==true)fail('CTV_CONFIRMATION_REQUIRED');
   const record=await store.get(quoteId);
   if(!record)fail('CTV_QUOTE_NOT_FOUND');
-  if(record.status==='confirmed')return freezeTree({...record.result,duplicate:true});
+  if(record.status==='confirmed')return freezeTree({customerInvoiceNo:record.result.customerInvoiceNo,confirmedByAuthoritativeLedger:true,duplicate:true});
   if(record.status!=='pending')fail('CTV_COMMIT_UNCERTAIN_RECONCILE');
   if(record.expiresAt<=now())fail('CTV_QUOTE_EXPIRED');
   const {ctx,policy}=await load(session);
