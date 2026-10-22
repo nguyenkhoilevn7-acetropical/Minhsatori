@@ -122,3 +122,44 @@ assert.equal(call('debt.summary',{query:'Fixture Shop A'}).data.due,0);
 assert.equal(call('payments.markCustomerPaid',{...uniqueTarget,expectedRevision:31}).data.alreadyPaid,true);
 assert.equal(data.revision,31,'idempotent repeat must not rewrite the state');
 console.log('PASS — duplicate invoice identity guard, receipt persistence, readback, shared revision, idempotency');
+
+
+// Gemini real checkout may read an exact owner-approved policy only through
+// the dedicated HMAC orders:ai:write scope. Synthetic customer/ledger only.
+props.SATORI_BOT_CLIENTS_JSON=JSON.stringify({'bot-01':{
+ secret,enabled:true,scopes:['orders:read','orders:write','orders:delete',
+ 'customers:read','debt:read','payments:write','orders:ai:write']}});
+const fixture={id:899001,invoiceNo:899,name:'Fixture Customer Approved',
+ phone:'0901 234 567',location:'123 Fake Test Street',total:110000};
+const memory={id:'mem-fixture-001',name:fixture.name,aliases:[],
+ defaultPhone:'0901234567',defaultLocation:fixture.location,receivers:[]};
+const approval={customerMemoryId:memory.id,sourceOrderId:fixture.id,
+ sourceInvoiceNo:fixture.invoiceNo,phone:'0901234567',
+ location:fixture.location,enabled:true,reviewedByOwner:true,
+ discountPercent:45,vatPercent:0,shippingAmount:0};
+data={revision:40,updatedAt:'2026-10-22T15:00:00Z',values:{
+ satori_orders_v15:JSON.stringify([fixture]),
+ satori_ai_customer_memory:JSON.stringify([memory]),
+ satori_ai_pricing_approvals_v1:JSON.stringify([approval]),
+ satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}};
+const beforeEligibilityWrites=writes,beforeEligibilityBackups=backs;
+const query={customerMemoryId:memory.id,customerRef:{id:fixture.id,
+ invoiceNo:fixture.invoiceNo}};
+const elig=call('pricing.eligibility',query);
+assert.equal(elig.ok,true);
+assert.equal(elig.data.verifiedByServer,true);
+assert.equal(elig.data.pricingApprovedByOwner,true);
+assert.equal(elig.data.customerLoginVerified,false);
+assert.equal(elig.data.profile.approvedDiscountPercent,45);
+assert.equal(elig.data.profile.shippingAmount,0);
+assert.equal(elig.data.revision,40);
+assert.equal(call('pricing.eligibility',{...query,customerRef:{...query.customerRef,invoiceNo:900}}).error.code,'AI_PRICING_NOT_APPROVED');
+assert.equal(call('pricing.eligibility',{...query,customerMemoryId:'wrong-memory-002'}).error.code,'AI_PRICING_NOT_APPROVED');
+data.values.satori_ai_pricing_approvals_v1=JSON.stringify([approval,{...approval,enabled:false}]);
+assert.equal(call('pricing.eligibility',query).error.code,'AI_PRICING_NOT_APPROVED');
+data.values.satori_ai_pricing_approvals_v1=JSON.stringify([approval]);
+data.values.satori_orders_v15=JSON.stringify([{...fixture,location:'999 Different Test Street'}]);
+assert.equal(call('pricing.eligibility',query).error.code,'AI_CUSTOMER_UNVERIFIED');
+assert.equal(writes,beforeEligibilityWrites,'eligibility never changes Drive');
+assert.equal(backs,beforeEligibilityBackups,'eligibility never creates backups');
+console.log('PASS — Gemini exact customer+location approved pricing eligibility, revocation, HMAC scope, no ledger mutation');

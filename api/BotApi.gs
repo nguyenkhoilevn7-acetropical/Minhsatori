@@ -9,7 +9,7 @@ var SatoriBotApi=(function(){
 var ORDER_KEY='satori_orders_v15', PRICE_APPROVAL_KEY='satori_ai_pricing_approvals_v1';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
  'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write',
- 'orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','orders.delete':'orders:delete',
+ 'orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','pricing.eligibility':'orders:ai:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
  'payments.markCustomerPaid':'payments:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
@@ -397,8 +397,63 @@ function markPaid(s,all,p){
  if(updated.status!=='Đã TT Satori')updated.status='Đã thanh toán';
  all[all.indexOf(old)]=updated;return {modified:true,result:{order:visible(updated),alreadyPaid:false}};
 }
+/**
+ * Owner-authorised, bounded proof that a single customer+delivery destination
+ * has a current, separately owner-approved pricing policy. A Gemini backend
+ * must still authenticate the real person before using this response.
+ * There is no browser/Android read path; the HMAC caller needs orders:ai:write.
+ */
+function readApprovedAIPricing(s,all,p){
+ var id=String(p.customerMemoryId||''),ref=p.customerRef;
+ need(/^[A-Za-z0-9_-]{4,100}$/.test(id)&&ref&&ref.id!=null&&
+  Number.isSafeInteger(ref.invoiceNo)&&ref.invoiceNo>0,
+  'INVALID_REQUEST','Cần hồ sơ khách và hóa đơn tham chiếu xác định');
+ need(typeof s.values.satori_ai_customer_memory==='string',
+  'AI_PRICING_NOT_APPROVED','Chưa có hồ sơ khách chính thức');
+ var memory=JSON.parse(s.values.satori_ai_customer_memory),
+     policies=JSON.parse(s.values[PRICE_APPROVAL_KEY]||'[]');
+ need(Array.isArray(memory)&&memory.length<=10000&&Array.isArray(policies)&&policies.length<=10000,
+  'INVALID_STATE','Chính sách giá hoặc hồ sơ khách không hợp lệ');
+ var candidates=memory.filter(function(m){return m&&m.id===id});
+ need(candidates.length===1,'AI_PRICING_NOT_APPROVED','Không có duyệt giá cho hồ sơ này');
+ var m=candidates[0];
+ var records=policies.filter(function(a){return a&&a.customerMemoryId===id});
+ var a=records.length?records[records.length-1]:null;
+ need(a&&a.enabled===true&&a.reviewedByOwner===true,
+  'AI_PRICING_NOT_APPROVED','Giá chưa được người quản trị duyệt hoặc đã thu hồi');
+ need(String(a.sourceOrderId)===String(ref.id)&&Number(a.sourceInvoiceNo)===ref.invoiceNo,
+  'AI_PRICING_NOT_APPROVED','Hóa đơn nguồn không khớp phê duyệt');
+ var matches=all.filter(function(o){
+  return String(o.id)===String(ref.id)&&Number(o.invoiceNo)===ref.invoiceNo;
+ });
+ need(matches.length===1,'AI_CUSTOMER_UNVERIFIED','Hóa đơn tham chiếu không duy nhất');
+ var o=matches[0],aliases=[m.name].concat(Array.isArray(m.aliases)?m.aliases:[]);
+ var phone=String(o.phone||'').replace(/\D/g,''),loc=norm(o.location);
+ need(aliases.some(function(n){return norm(n)===norm(o.name)})&&
+  phone.length>=8&&loc.length>=5&&
+  String(a.phone||'').replace(/\D/g,'')===phone&&norm(a.location)===loc,
+  'AI_CUSTOMER_UNVERIFIED','Tên hoặc điểm giao khác phê duyệt');
+ var addresses=[{phone:m.defaultPhone,location:m.defaultLocation}]
+  .concat(Array.isArray(m.receivers)?m.receivers:[]);
+ need(addresses.some(function(v){return v&&
+  String(v.phone||'').replace(/\D/g,'')===phone&&norm(v.location)===loc;}),
+  'AI_CUSTOMER_UNVERIFIED','Điểm giao không nằm trong hồ sơ đã xác minh');
+ need(typeof a.discountPercent==='number'&&Number.isFinite(a.discountPercent)&&
+  a.discountPercent>=0&&a.discountPercent<=70&&[0,5,8,10].includes(a.vatPercent)&&
+  Number.isSafeInteger(a.shippingAmount)&&a.shippingAmount>=0&&a.shippingAmount<=1000000,
+  'AI_PRICING_NOT_APPROVED','Chính sách duyệt giá không hợp lệ');
+ return {revision:s.revision,source:'drive-ledger:owner-approved-pricing',
+  verifiedByServer:true,pricingApprovedByOwner:true,customerMemoryId:id,
+  profile:{name:o.name,phone:o.phone||'',location:o.location,
+   sourceReference:{id:o.id,invoiceNo:o.invoiceNo},
+   approvedDiscountPercent:a.discountPercent,vatRate:a.vatPercent,
+   shippingAmount:a.shippingAmount},
+  // This is NOT an authenticated login/OTP proof; caller must verify the person.
+  customerLoginVerified:false};
+}
 function read(s,action,p){
  var all=rows(s);
+ if(action==='pricing.eligibility')return readApprovedAIPricing(s,all,p);
  if(action==='catalogue.list'){
   // Fail closed: a browser-local catalogue is not the authoritative shared ledger.
   need(typeof s.values.satori_catalogue_v15==='string','CATALOGUE_NOT_PERSISTED',
