@@ -214,7 +214,9 @@ function vnOrderMonth(iso){
  return Number.isFinite(millis)?new Date(millis+7*60*60*1000).toISOString().slice(0,7):'';
 }
 async function generateQrPng(o){return new Promise((resolve,reject)=>{const proc=spawn('python3',[path.join(HERE,'invoice_qr.py')],{stdio:['pipe','pipe','pipe']});const out=[],err=[];proc.stdout.on('data',d=>out.push(d));proc.stderr.on('data',d=>err.push(d));proc.on('error',reject);proc.on('close',code=>code===0?resolve(Buffer.concat(out)):reject(new Error(Buffer.concat(err).toString('utf8').slice(0,200)||'QR_ERROR')));proc.stdin.end(JSON.stringify(o))})}
-const PREVIEW_BANNER='<aside role="status" style="position:relative;z-index:9999;padding:13px 18px;background:#25395b;color:white;font:bold 14px system-ui,sans-serif;line-height:1.5;text-align:center">🧪 Chế độ thử Gemini tạm thời — chat, báo giá và hồ sơ đại lý NHIỀU ĐỊA CHỈ mẫu. Dữ liệu thử có thể mất khi Render khởi động lại; KHÔNG xác nhận hóa đơn, KHÔNG đồng bộ production.</aside>';
+// Keep the sandbox/production boundary permanently visible without consuming the chat viewport.
+// Full, explicit warnings remain accessible through the native details disclosure.
+const PREVIEW_BANNER='<aside id="satoriPreviewBanner" class="satori-preview-banner" role="status" aria-label="Môi trường thử nghiệm"><span class="satori-preview-label">🧪 SANDBOX · Chỉ chat và báo giá thử; KHÔNG tạo hóa đơn thật.</span><details id="satoriPreviewDetails"><summary>Chi tiết</summary><p>Chế độ thử Gemini tạm thời, hồ sơ đại lý nhiều địa chỉ là dữ liệu mẫu. Dữ liệu thử có thể mất khi Render khởi động lại. KHÔNG xác nhận hóa đơn, KHÔNG đồng bộ production.</p></details></aside>';
 function previewHtml(name){
  const html=fs.readFileSync(path.join(HERE,name),'utf8');
  return EMERGENCY_PREVIEW?html.replace('<body>','<body>'+PREVIEW_BANNER):html;
