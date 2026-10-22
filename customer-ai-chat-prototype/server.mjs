@@ -24,6 +24,7 @@ import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
+import {ownerLiveLookup} from './owner-live-lookup.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
 import {auditDriveCatalogue} from './catalogue-drive-audit.mjs';
 import {getGeminiVersionStatus} from './version-status.mjs';
@@ -282,6 +283,39 @@ const server=http.createServer(async(req,res)=>{
    productionCheckoutEnabled:false,demoOnly:EMERGENCY_PREVIEW,
    gates,blockers,
    message:'Hệ thống này chỉ dùng thử. Không được bật tạo đơn thật trước khi hoàn tất các cổng kiểm chứng.'});
+ }
+ // Owner-only production READ access. Read it directly from the authoritative
+ // Bot API on each request; never copy PII to the ephemeral sandbox disk.
+ // This is separate from the public Gemini chat and cannot create/change bills.
+ if(req.method==='GET'&&p==='/api/admin/live-search'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần đăng nhập quản trị để xem hóa đơn thật.');
+  if(!rateLimit(req,'admin-production-read'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng giảm tần suất tra cứu.');
+  if(!readOnlyReady())
+   return fail(res,503,'READ_ONLY_NOT_CONFIGURED','Chưa cấu hình kết nối Bot API quyền chỉ đọc trên Render.');
+  let search;
+  try{search=ownerLiveLookup(url.searchParams)}
+  catch{return fail(res,400,'LIVE_SEARCH_INVALID','Cần tên hoặc số hóa đơn hợp lệ, hoặc chọn một tháng để xem.')}
+  try{
+   const latest=await readMinhSatori(search.action,search.payload);
+   const result=latest?.data;
+   if(!Number.isSafeInteger(latest.revision)||!result||typeof result!=='object')
+    return fail(res,503,'LIVE_SOURCE_INVALID','Nguồn dữ liệu chưa trả về phiên bản hợp lệ.');
+   if(search.kind==='invoices'){
+    const rows=Array.isArray(result.orders)?result.orders:null;
+    if(!rows)return fail(res,503,'LIVE_SOURCE_INVALID','Nguồn hóa đơn không trả về đúng cấu trúc.');
+    return reply(res,200,{ok:true,readOnly:true,source:'Minh Satori Bot API',
+     revision:latest.revision,totalMatches:result.totalMatches,shown:rows.length,
+     truncated:Number(result.totalMatches)>rows.length,invoices:rows});
+   }
+   const profiles=result.profiles;
+   if(!profiles||!Array.isArray(profiles.profiles))
+    return fail(res,503,'LIVE_SOURCE_INVALID','Nguồn khách hàng không trả về đúng cấu trúc.');
+   return reply(res,200,{ok:true,readOnly:true,source:'Minh Satori Bot API',
+    revision:latest.revision,totalMatches:profiles.total,shown:profiles.profiles.length,
+    truncated:Number(profiles.total)>profiles.profiles.length,profiles:profiles.profiles});
+  }catch{return fail(res,503,'LIVE_SOURCE_UNAVAILABLE','Không thể truy xuất dữ liệu thật. Không dùng dữ liệu mẫu thay thế.')}
  }
  // This route probes source-of-truth sync READINESS only. Admin-authenticated,
  // no catalogue/customer/order records returned and never any production writes.
@@ -1132,6 +1166,7 @@ function bootstrapEncryptedTestSnapshot(){
 try{bootstrapEncryptedTestSnapshot()}catch{process.exit(78)}
 server.listen(PORT,HOST,()=>{
  driveWorker.start();
+ console.info('SATORI_OWNER_LIVE_READONLY_CONFIGURED',Number(readOnlyReady()));
  console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched');
  // One test with fake words only, no customer data, no stored orders, no API key printed.
  // This is intentionally an actual Gemini API call, and consumes at most one Free Tier request per deployment.

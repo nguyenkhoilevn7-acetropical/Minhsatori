@@ -87,6 +87,7 @@ button:disabled{opacity:.55}
 <div id="workspace" hidden>
 <nav class="admin-tabs" aria-label="Chức năng quản trị">
  <button type="button" class="admin-tab active" data-admin-tab="orders" aria-pressed="true">🔔 Đơn hàng</button>
+ <button type="button" class="admin-tab" data-admin-tab="live" aria-pressed="false">📚 Dữ liệu thật</button>
  <button type="button" class="admin-tab" data-admin-tab="customers" aria-pressed="false">👥 Khách hàng</button>
  <button type="button" class="admin-tab" data-admin-tab="changes" aria-pressed="false">📬 Yêu cầu</button>
  <button type="button" class="admin-tab" data-admin-tab="settings" aria-pressed="false">⚙️ Cài đặt</button>
@@ -105,6 +106,18 @@ button:disabled{opacity:.55}
 <button id="showMoreOrders" type="button" class="secondary" hidden>Xem thêm đơn</button>
 </section>
 
+<section class="card" data-tab-panel="live" hidden>
+<h2>📚 Hóa đơn & khách hàng Minh Satori • CHỈ ĐỌC</h2>
+<p class="hint">Đọc trực tiếp từ sổ kế toán website qua Bot API. Chỉ quản trị viên đăng nhập mới xem được. Không sao chép khách thật vào Gemini Free và không tạo/sửa bill.</p>
+<label for="liveMonth">Tháng hóa đơn</label><input type="month" id="liveMonth" min="2020-01" max="2099-12">
+<label for="liveQuery">Tên khách, số hóa đơn hoặc mã khách</label>
+<input id="liveQuery" autocomplete="off" maxlength="120" placeholder="Ví dụ: 5928 hoặc tên đại lý">
+<p><button id="liveFindInvoices" type="button">Xem hóa đơn thật</button></p>
+<p class="hint">Để duyệt hết lịch sử, chọn từng tháng. Nếu trong một tháng nhiều hơn 100 bill, phải thu hẹp bằng tên hoặc số bill; kết quả không được coi là đầy đủ khi có cảnh báo.</p>
+<p><button id="liveFindCustomers" type="button" class="secondary">Tra điểm giao của khách theo tên/SĐT</button></p>
+<p id="liveStatus" class="hint" role="status" aria-live="polite">Chưa đọc dữ liệu thật.</p>
+<div id="liveRows" aria-label="Kết quả hóa đơn hoặc khách hàng thật"></div>
+</section>
 <section class="card" data-tab-panel="customers" hidden><h2>Tạo link riêng cho khách thử</h2><p class="hint">Mỗi link chỉ thuộc một hồ sơ. Thông tin khách và chiết khấu được kiểm tra ở máy chủ, không lấy từ tin nhắn AI.</p>
 <form id="create">
 <label for="customerSearch">Chọn khách đã có (sandbox)</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
@@ -217,6 +230,57 @@ $('checkSourceReadonly').onclick=async()=>{
  }catch(e){$('sourceReadResult').textContent='Chưa đủ điều kiện đồng bộ: '+e.message}
  finally{b.disabled=false}
 };
+// Search real source only after owner authentication. No customer PII goes to
+// public AI endpoints, browser storage, logs or local sandbox data files.
+(function(){
+ const today=new Date();
+ $('liveMonth').value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+ function itemRow(title,lines){
+  const box=document.createElement('div');box.className='customer';
+  const strong=document.createElement('strong');strong.textContent=title;box.append(strong);
+  for(const t of lines){const p=document.createElement('p');p.className='hint';p.textContent=t;box.append(p)}
+  $('liveRows').append(box);
+ }
+ async function lookup(kind){
+  if(!secret){$('liveStatus').textContent='Cần đăng nhập quản trị.';return}
+  const q=$('liveQuery').value.trim(),month=$('liveMonth').value;
+  if(kind==='customers'&&q.length<2){$('liveStatus').textContent='Nhập tối thiểu 2 ký tự tên hoặc 7 số điện thoại.';return}
+  if(kind==='invoices'&&!q&&!month){$('liveStatus').textContent='Chọn một tháng hoặc nhập số hóa đơn/tên khách.';return}
+  const params=new URLSearchParams({kind});
+  if(q)params.set('query',q);
+  if(kind==='invoices'&&month)params.set('month',month);
+  const btn=kind==='invoices'?$('liveFindInvoices'):$('liveFindCustomers');
+  btn.disabled=true;$('liveRows').replaceChildren();$('liveStatus').textContent='Đang tải trực tiếp từ website Minh Satori…';
+  try{
+   const data=await request('/api/admin/live-search?'+params.toString());
+   const incomplete=data.truncated?' • CẢNH BÁO: danh sách chưa đầy đủ, hãy tìm theo tên/số bill hoặc lọc tháng khác.':'';
+   $('liveStatus').textContent='Nguồn chính thức • revision '+data.revision+
+    ' • tìm được '+data.totalMatches+' • hiển thị '+data.shown+incomplete;
+   if(kind==='invoices'){
+    for(const o of data.invoices||[]){
+     const goods=Array.isArray(o.items)?o.items.map(i=>String(i.product||i.name||'')+' × '+i.qty).join(', '):String(o.product||'');
+     itemRow('Hóa đơn #'+o.invoiceNo+' • '+o.name,[
+      'Ngày: '+(o.date||'')+' • '+(o.status||''),
+      'Điểm giao: '+(o.location||'')+' • SĐT: '+(o.phone||''),
+      'Hàng: '+goods+' • Số lượng: '+(o.qty||0),
+      'Tổng: '+money(o.total||0)+' đ'
+     ]);
+    }
+   }else{
+    for(const p of data.profiles||[]){
+     itemRow(p.name||'Khách hàng',[
+      'Điểm giao: '+(p.location||'')+' • SĐT: '+(p.phone||''),
+      'Lần gần nhất: '+(p.lastDate||'')+' • Số bill: '+(p.count||0),
+      'Hóa đơn tham chiếu: '+(p.sourceInvoiceNo||p.ref?.invoiceNo||'')
+     ]);
+    }
+   }
+  }catch(e){$('liveStatus').textContent='Chưa thể xem dữ liệu thật: '+e.message}
+  finally{btn.disabled=false}
+ }
+ $('liveFindInvoices').onclick=()=>lookup('invoices');
+ $('liveFindCustomers').onclick=()=>lookup('customers');
+})();
 function showAdminTab(name){
  for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
  for(const b of document.querySelectorAll('[data-admin-tab]')){
