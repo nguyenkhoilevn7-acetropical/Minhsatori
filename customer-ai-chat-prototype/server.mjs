@@ -25,6 +25,7 @@ import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
+import {ownerPairAction} from './owner-collaborator-pairs.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
 import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
@@ -254,6 +255,48 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&(p==='/admin'||p==='/admin/')){const html=previewHtml('admin.html');res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
  // Compare current server code with newest GitHub commit; never deploy from here.
+ // Scoped owner-only CTV policy controls. Never call this from customer chat.
+ // Until deployment has explicit separate keys, read fails closed and writes
+ // remain disabled. Gemini/public customer link credentials are never accepted.
+ if(p==='/api/admin/collaborator-pairs'&&req.method==='GET'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần quyền quản trị để xem cấu hình CTV.');
+  try{
+   const policies=await ownerPairAction('collaborators.pair.list',{});
+   return reply(res,200,{ok:true,source:'owner-approved-bot-api',...policies});
+  }catch(e){
+   return fail(res,503,e?.code||'CTV_PAIR_NOT_READY','Chưa xác minh được cấu hình hóa đơn đôi trên Bot API.');
+  }
+ }
+ if(p==='/api/admin/collaborator-pairs/configure'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần quyền quản trị để bật/tắt hóa đơn đôi.');
+  // Emergency sandbox never accepts owner policy writes, even if a key exists.
+  if(EMERGENCY_PREVIEW)
+   return fail(res,503,'PREVIEW_ONLY_NO_WRITES','Chế độ xem thử không cho sửa cấu hình thật.');
+  const x=await bodyJSON(req);
+  const allowed=['collaboratorId','enabled','customerDiscountPercent',
+   'collaboratorDiscountPercent','shippingPercent','vatPercent','expectedRevision',
+   'requestId','confirmed'];
+  if(!x||typeof x!=='object'||Array.isArray(x)||Object.keys(x).some(k=>!allowed.includes(k))||
+   !/^[A-Za-z0-9_-]{4,100}$/.test(x.collaboratorId||'')||
+   !/^[A-Za-z0-9_-]{8,100}$/.test(x.requestId||'')||
+   !Number.isSafeInteger(x.expectedRevision)||x.expectedRevision<1||
+   typeof x.enabled!=='boolean'||x.confirmed!==true||
+   !Number.isSafeInteger(x.customerDiscountPercent)||x.customerDiscountPercent<0||x.customerDiscountPercent>70||
+   !Number.isSafeInteger(x.collaboratorDiscountPercent)||x.collaboratorDiscountPercent<0||x.collaboratorDiscountPercent>70||
+   x.collaboratorDiscountPercent<=x.customerDiscountPercent||
+   !Number.isSafeInteger(x.shippingPercent)||x.shippingPercent<0||x.shippingPercent>30||
+   ![0,5,8,10].includes(x.vatPercent))
+   return fail(res,400,'CTV_PAIR_POLICY_INVALID','Cần mã CTV, quyền duyệt và các tỷ lệ hợp lệ.');
+  try{
+   const out=await ownerPairAction('collaborators.pair.configure',x);
+   return reply(res,200,{ok:true,source:'owner-approved-bot-api',...out});
+  }catch(e){
+   return fail(res,503,e?.code||'CTV_PAIR_NOT_READY','Chưa lưu được chính sách. Đọc lại trạng thái trước khi thử tiếp.');
+  }
+ }
+
  if(req.method==='GET'&&p==='/api/admin/version-status'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần quyền quản trị để xem phiên bản hệ thống.');
