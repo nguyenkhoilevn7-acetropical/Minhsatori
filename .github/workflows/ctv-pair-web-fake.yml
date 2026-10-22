@@ -1,0 +1,24 @@
+name: CTV Website Linked Invoice Display (fake only)
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'accounting-core.js'
+      - 'tests/collaborator-pair-web.test.cjs'
+      - '.github/workflows/ctv-pair-web-fake.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  html-accounting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate customer vs internal CTV bill roles
+        run: node tests/collaborator-pair-web.test.cjs
+      - name: Verify fake CTV ledger pair accounting
+        run: node tests/collaborator-twin-invoice.test.js

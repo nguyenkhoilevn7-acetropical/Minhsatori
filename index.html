@@ -4265,6 +4265,8 @@
                     card.className = "bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 shadow-lg space-y-3 transition flex flex-col justify-between";
 
                     const statusBadge = `<span class="bg-slate-950 border border-slate-700 text-[10px] px-2 py-0.5 rounded-full ${SatoriAccountingCore.statusClass(o)}">${aiEscape(o.status||'Chưa thanh toán')}${o.status==='Không Tính'?' (0đ DT)':''}</span>${o.status==='Đã TT Satori'?'<small class="block text-slate-300">'+(SatoriAccountingCore.paid(o)?'Khách đã TT':'Khách chưa TT')+'</small>':''}`;
+                    const pairBadge=o.pairRole==='customer'||o.pairRole==='collaborator'?
+                        `<span class="bg-blue-950 text-blue-200 border border-blue-800 text-[10px] px-2 py-0.5 rounded-full">${o.pairRole==='customer'?'Bill khách':'Bill CTV nội bộ'} · CK ${Number(o.pairDiscountPercent||0).toLocaleString('vi-VN')}% · liên kết #${aiEscape(String(o.pairInvoiceNo||''))}</span>`:'';
                     const profitValArchive = getOrderProfit(o);
                     const profitBadgeArchive = `<span class="bg-purple-950/80 text-purple-300 border border-purple-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold" title="Lợi nhuận nội bộ">Lời: ${profitValArchive >= 0 ? "+" : ""}${profitValArchive.toLocaleString('vi-VN')} đ</span>`;
 
@@ -4294,6 +4296,7 @@
                                 </div>
                                 <div class="flex flex-col items-end gap-1">
                                     ${statusBadge}
+                                    ${pairBadge}
                                     ${profitBadgeArchive}
                                 </div>
                             </div>
@@ -4356,7 +4359,7 @@
                     const tr = document.createElement('tr');
                     tr.className = "hover:bg-slate-850 transition";
                     tr.innerHTML = `
-                        <td class="p-3 text-center font-bold text-amber-400">#${o.invoiceNo}</td>
+                        <td class="p-3 text-center font-bold text-amber-400">#${o.invoiceNo}${o.pairRole?'<small class="block text-[10px] text-blue-200">'+(o.pairRole==='customer'?'Bill khách':'Bill CTV nội bộ')+' · liên kết #'+aiEscape(String(o.pairInvoiceNo||''))+'</small>':''}</td>
                         <td class="p-3 font-mono text-slate-300 text-[11px]">${o.date}</td>
                         <td class="p-3 font-semibold text-white">${o.name}</td>
                         <td class="p-3 text-slate-300">${o.phone}</td>
@@ -6387,7 +6390,10 @@
             let globalTotalProfit = 0;
             let globalPaidRev = 0;
             let globalUnpaidRev = 0;
+            const accountingByOrder=new Map(Acct.model().rows.map(row=>[SatoriAccountingCore.key(row.order),row]));
             orders.forEach(o => {
+                const row=accountingByOrder.get(SatoriAccountingCore.key(o));
+                if(row?.secondary||o.pairRole==='collaborator')return;
                 if (o.status !== 'Đã hủy' && o.status !== 'Không Tính') {
                     globalTotalRev += (o.total || 0);
                     globalTotalProfit += getOrderProfit(o);
@@ -6413,8 +6419,10 @@
             if (statUnpaid) statUnpaid.innerText = Math.round(globalUnpaidRev).toLocaleString('vi-VN') + ' đ';
 
             // 4. SUB-SUMMARY KPI FOR CURRENT FILTER VIEW (Đơn 'Không Tính' và 'Đã hủy' tính 0đ vào DT)
-            const subCount = filtered.length;
-            const financialModel=Acct.model(),financialRows=filtered.filter(o=>!financialModel.rows.find(r=>SatoriAccountingCore.key(r.order)===SatoriAccountingCore.key(o))?.secondary);
+            const financialModel=Acct.model(),financialRows=filtered.filter(o=>
+              o.pairRole!=='collaborator'&&
+              !financialModel.rows.find(r=>SatoriAccountingCore.key(r.order)===SatoriAccountingCore.key(o))?.secondary);
+            const subCount=financialRows.length;
             const subRevenue = financialRows.filter(o => o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + (o.total || 0), 0);
             const subProfit = financialRows.filter(o => o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + getOrderProfit(o) - (financialModel.rows.find(r=>SatoriAccountingCore.key(r.order)===SatoriAccountingCore.key(o))?.profit||0), 0);
             const subPaid = financialRows.filter(o => SatoriAccountingCore.paid(o)).reduce((s, o) => s + (o.total || 0), 0);
@@ -6477,7 +6485,7 @@
                 tr.className = "hover:bg-slate-900/60 transition";
                 tr.innerHTML = `
                     <td class="p-3 text-slate-300 font-mono text-[11px]">${o.date}</td>
-                    <td class="p-3 text-center font-bold text-amber-400">#${o.invoiceNo}</td>
+                    <td class="p-3 text-center font-bold text-amber-400">#${o.invoiceNo}${o.pairRole?'<small class="block text-[10px] text-blue-200">'+(o.pairRole==='customer'?'Bill khách':'Bill CTV nội bộ')+' · liên kết #'+aiEscape(String(o.pairInvoiceNo||''))+'</small>':''}</td>
                     <td class="p-3 font-semibold text-white">${o.name}</td>
                     <td class="p-3 text-slate-300">${o.phone}</td>
                     <td class="p-3 text-slate-400 text-[11px] max-w-xs truncate" title="${o.location}">${o.location}</td>
