@@ -70,6 +70,10 @@ button:disabled{opacity:.55}
  .test-order-bar button{width:100%;white-space:normal}
  .card>p>button{margin-bottom:6px}
 }
+.customer-link-actions{display:grid;grid-template-columns:minmax(0,1fr);row-gap:12px;align-items:stretch;margin-top:20px;margin-bottom:14px}
+.customer-link-actions button{display:block;width:100%;max-width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.4;text-align:center;min-height:50px;margin:0}
+.customer-link-actions button[disabled]{cursor:not-allowed;opacity:.75}
+.customer-link-actions .hint{margin:0}
 .admin-branded-header{display:flex;align-items:center;gap:14px;min-height:55px}
 .admin-brand{display:inline-flex;align-items:center;gap:9px}
 .admin-brand img{width:46px;height:46px;object-fit:contain;background:white;border:1px solid #dfe7ef;border-radius:12px;box-shadow:0 3px 13px #163f6b14}
@@ -144,8 +148,11 @@ button:disabled{opacity:.55}
 <div class="row"><div><label for="discount">Chiết khấu (%)</label><input id="discount" required type="number" min="0" max="70" step="1" value="20"></div><div><label for="ship">Phí giao hàng (%)</label><input id="ship" required type="number" min="0" max="30" step="1" value="8"></div><div><label for="vatRate">Thuế VAT (%)</label><select id="vatRate"><option value="0">0% — chưa áp dụng</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div></div>
 <p class="hint">VAT thử nghiệm tính trên tiền hàng sau chiết khấu, không tính phí giao. Thuế suất thật phải kiểm tra theo từng mặt hàng trước khi sử dụng.</p>
 <p id="realPricingEvidence" class="hint" role="status" hidden></p>
-<p><button type="submit" id="createButton">+ Tạo link khách</button>
-<button type="button" id="saveRealReview" class="secondary" hidden>✓ Lưu bản nháp địa chỉ &amp; tỷ lệ (trong phiên)</button></p>
+<div class="customer-link-actions" role="group" aria-label="Lưu nháp và cấp link">
+<button type="button" id="saveRealReview" class="secondary" hidden>✓ Lưu bản nháp địa chỉ &amp; tỷ lệ (trong phiên)</button>
+<button type="submit" id="createButton">🔗 Cấp link cho khách thử</button>
+<p id="realLinkBlockReason" class="hint" hidden>Chưa thể phát hành link đặt hàng thật: dữ liệu khách đang ở chế độ CHỈ ĐỌC; cần xác minh và lưu bản phê duyệt an toàn trước khi cấp link.</p>
+</div>
 <p id="realDraftStatus" class="hint" role="status" hidden></p></form>
 <div id="result" role="status"></div><div id="newLink" hidden><p class="hint">Sao chép ngay link này để chia sẻ. Mất link thì tạo lại; link cũ sẽ hết hiệu lực.</p><div id="linkText" class="link"></div><button id="copyLink" type="button">Sao chép link để gửi Zalo</button></div>
 </section>
@@ -366,6 +373,7 @@ function matchesCustomer(c,query){
 function markRealMode(enabled){
  $('realCustomerDetails').hidden=!enabled;
  $('realCustomerLinkWarning').hidden=!enabled;
+ $('realLinkBlockReason').hidden=!enabled;
  $('realPricingEvidence').hidden=!enabled;
  $('realDraftStatus').hidden=!enabled;
  $('saveRealReview').hidden=!enabled;
@@ -417,7 +425,7 @@ function fillRealCustomer(detail){
  selectedCustomerId='';selectedRealKey=detail.key;
  $('customerSuggestions').replaceChildren();
  $('selectedCustomer').textContent='📚 Đã chọn '+detail.name+' từ sổ thật • chỉ để rà soát, KHÔNG cấp link.';
- $('createButton').disabled=true;$('createButton').textContent='🔒 Khách thật • Chưa cấp link';
+ $('createButton').disabled=true;$('createButton').textContent='🔒 Link khách thật • Chờ hoàn thiện kết nối';
  $('addCustomerLocation').disabled=false;$('manageSelectedLocations').hidden=true;
  $('newCustomerLocations').replaceChildren();
  markRealMode(true);
@@ -546,7 +554,7 @@ function chooseCustomer(c){
  $('customerSuggestions').textContent='';
  $('selectedCustomer').textContent='✓ Đã chọn hồ sơ: '+c.name+'. Không tạo trùng khách. Bấm "Thêm địa chỉ cho khách đã có" để quản lý.';
  $('newCustomerLocations').replaceChildren();$('addCustomerLocation').disabled=true;$('manageSelectedLocations').hidden=false;
- $('createButton').disabled=true;$('createButton').textContent='Đã chọn khách có sẵn';
+ $('createButton').disabled=false;$('createButton').textContent='🔗 Cấp lại link khách THỬ';
 }
 function clearCustomerSelection(){
  ++realFetchSeq;selectedRealKey='';markRealMode(false);
@@ -554,7 +562,7 @@ function clearCustomerSelection(){
  selectedCustomerId='';$('existingCustomer').value='';$('customerSearch').value='';
  $('create').reset();$('customerSuggestions').textContent='';$('selectedCustomer').textContent='';
  $('newCustomerLocations').replaceChildren();$('addCustomerLocation').disabled=false;$('manageSelectedLocations').hidden=true;
- $('createButton').disabled=false;$('createButton').textContent='+ Tạo link khách';
+ $('createButton').disabled=false;$('createButton').textContent='🔗 Cấp link cho khách THỬ';
 }
 $('newCustomer').onclick=clearCustomerSelection;
 function appendNewCustomerLocation(initial={}){
@@ -936,11 +944,38 @@ function showNewLink(url){lastLink=url;$('newLink').hidden=false;$('linkText').t
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
  secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load();$('loginCard').hidden=true;showAdminTab('orders');void loadRealDirectory();await refreshOrderInbox()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
- const b=$('createButton');b.disabled=true;
- if(selectedRealKey){$('error').textContent='Khách thật chỉ được đối chiếu, không được gửi vào hồ sơ thử.';b.disabled=true;return}
- if(selectedCustomerId){$('error').textContent='Khách đã có. Không tạo thêm hồ sơ trùng.';b.disabled=true;return}
- const payload={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),discount:Number($('discount').value),ship:Number($('ship').value),vatRate:Number($('vatRate').value),locations:[...$('newCustomerLocations').querySelectorAll('fieldset')].map(field=>Object.fromEntries([...field.querySelectorAll('[data-location-field]')].map(input=>[input.dataset.locationField,input.value.trim()])))};
- try{const data=await request('/api/admin/customers','POST',payload);showNewLink(data.customerLink);clearCustomerSelection();await load()}catch(err){$('error').textContent=err.message}finally{b.disabled=false}};
+ const b=$('createButton');if(b.disabled)return;b.disabled=true;
+ if(selectedRealKey){
+  $('error').textContent='Chưa thể cấp link khách THẬT từ bản sandbox. Không gửi dữ liệu khách thật vào hồ sơ thử.';
+  return;
+ }
+ if(selectedCustomerId){
+  // Issuing a replacement TEST link invalidates the old link. Explicit owner
+  // confirmation is mandatory; sandbox-only IDs cannot target real customers.
+  if(!confirm('Cấp LẠI link khách THỬ? Link cũ sẽ không còn hiệu lực. Đây KHÔNG phải link đặt hàng thật.')){
+   b.disabled=false;return;
+  }
+  try{
+   const d=await request('/api/admin/customers/'+encodeURIComponent(selectedCustomerId)+'/rotate','POST');
+   showNewLink(d.customerLink);
+   clearCustomerSelection();
+   await load();
+  }catch(err){$('error').textContent=err.message}
+  finally{b.disabled=false}
+  return;
+ }
+ const payload={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),
+  discount:Number($('discount').value),ship:Number($('ship').value),vatRate:Number($('vatRate').value),
+  locations:[...$('newCustomerLocations').querySelectorAll('fieldset[data-manual-location]')].map(field=>Object.fromEntries(
+   [...field.querySelectorAll('[data-location-field]')].map(input=>[input.dataset.locationField,input.value.trim()])))};
+ try{
+  const d=await request('/api/admin/customers','POST',payload);
+  showNewLink(d.customerLink);
+  clearCustomerSelection();
+  await load();
+ }catch(err){$('error').textContent=err.message}
+ finally{b.disabled=false}
+};
 $('copyLink').onclick=async()=>{try{await navigator.clipboard.writeText(lastLink);$('result').textContent='Đã sao chép link để gửi cho khách thử.'}catch(e){$('result').textContent='Không tự sao chép được. Anh giữ lâu để chọn và sao chép link ở trên.'}};
 })();
 </script></body></html>
