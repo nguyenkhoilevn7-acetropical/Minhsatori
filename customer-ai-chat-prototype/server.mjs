@@ -873,6 +873,14 @@ const server=http.createServer(async(req,res)=>{
      chatBasketChanges(message,compound.items),
      revision,compound.source,deliveryAll);
    }
+   // A natural-language multi-product order must be all-or-nothing.
+   // If the whole parser could not resolve every clause, never fall back to
+   // a single recognized SKU and silently discard an unknown line.
+   const requestedClauses=fold(message).split(/\s*[,;\n]\s*|\s+(?:va|voi)\s+/u).filter(Boolean);
+   if(requestedClauses.length>1&&requestedClauses.filter(part=>/\b\d{1,3}\b/.test(part)).length>1){
+    return reply(res,200,{ok:true,needMoreDetails:true,draft:draftStore.read(token),
+     message:'Em chưa nhận diện đủ tất cả món trong yêu cầu. Vui lòng nói rõ từng loại nước; giỏ hiện tại chưa thay đổi.'});
+   }
    const single=parseOneClause(message,c);
    if(single)return applyChatBasket(res,token,c,chatBasketChanges(message,[single]),
     revision,'catalogue-short-product');
