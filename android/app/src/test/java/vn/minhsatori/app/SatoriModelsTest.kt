@@ -42,6 +42,31 @@ class SatoriModelsTest {
     }
 
     @Test
+    fun explicitlyMarkedTestInvoicesNeverEnterAccountingOrWriteProof() {
+        val orders = JSONArray()
+            .put(JSONObject().put("invoiceNo", 103).put("name", "Khách thật")
+                .put("status", "Chưa thanh toán").put("total", 20000))
+            .put(JSONObject().put("invoiceNo", 104).put("name", "[TEST] Khách giả")
+                .put("status", "Chưa thanh toán").put("total", 999999))
+            .put(JSONObject().put("invoiceNo", 105).put("name", "Khách giả")
+                .put("isTest", true).put("total", 888888)
+                .put("apiRequestId", "not-a-real-request"))
+        val state = JSONObject().put("revision", 15).put("values",
+            JSONObject().put("satori_orders_v15", orders.toString()))
+        val snapshot = SatoriData.fromDriveState(state.toString())
+        assertEquals(3, snapshot.invoices.size)
+        assertEquals(1, snapshot.activeCount)
+        assertEquals(1, snapshot.outstandingCount)
+        assertEquals(20000L, snapshot.outstandingAmount)
+        assertEquals(2, snapshot.invoices.count { it.isTest })
+        assertNull(snapshot.confirmedWrite("orders.create", "not-a-real-request"))
+        snapshot.invoices.filter { it.isTest }.forEach {
+            assertFalse(it.canEditOrDelete)
+            assertFalse(it.canMarkCustomerPaid)
+        }
+    }
+
+    @Test
     fun keepsCustomersWithDifferentLocationsSeparate() {
         val template = """{"revision":2,"values":{"satori_orders_v15":"[{\"id\":1,\"invoiceNo\":10,\"name\":\"Traky Hair\",\"phone\":\"0900\",\"location\":\"Quang Trung\",\"total\":100},{\"id\":2,\"invoiceNo\":11,\"name\":\"Traky Hair\",\"phone\":\"0900\",\"location\":\"Cát Lái\",\"total\":200}]"}}"""
         val invoices = SatoriData.fromDriveState(template).invoices
