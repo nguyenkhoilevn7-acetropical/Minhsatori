@@ -38,7 +38,7 @@ function state(){
 }
 function rows(s){var x=JSON.parse(s.values[ORDER_KEY]);need(Array.isArray(x),'INVALID_STATE','Dữ liệu hóa đơn hỏng');return x;}
 function version(s,p){need(Number.isInteger(p.expectedRevision),'REVISION_REQUIRED','Thiếu expectedRevision');need(s.revision===p.expectedRevision,'REVISION_CONFLICT','Dữ liệu vừa được cập nhật, hãy đọc lại');}
-function visible(o){return {id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null};}
+function visible(o){return {id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null};}
 function iso(date){
  var m=String(date||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
  var d=new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
@@ -188,13 +188,43 @@ function create(s,all,p){
  all.unshift(next);return {modified:true,result:{order:visible(next),duplicate:false}};
 }
 function markPaid(s,all,p){
- version(s,p);need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Thiếu số hóa đơn');
- var match=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo});
- need(match.length===1&&active(match[0]),'INVALID_ORDER','Hóa đơn không duy nhất hoặc đã hủy');
- var old=match[0];if(paid(old))return {modified:false,result:{order:visible(old),alreadyPaid:true}};
+ version(s,p);
+ need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Thiếu số hóa đơn');
+ // Historical imports can share an invoiceNo. Only allow that number alone when unique.
+ // An explicit id must match exactly one row alongside invoiceNo.
+ var hasId=p.id!==undefined&&p.id!==null;
+ need(!hasId||(typeof p.id==='string'||Number.isSafeInteger(p.id))&&String(p.id).length>0,
+   'INVALID_ORDER','ID hóa đơn không hợp lệ');
+ var match=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo&&(!hasId||String(o.id)===String(p.id))});
+ need(match.length===1&&active(match[0]),'INVALID_ORDER','Hóa đơn không duy nhất, không tồn tại hoặc đã hủy');
+ var old=match[0];
+ // For a duplicate invoice number, require the name and total as additional guards.
+ if(hasId){
+   need(typeof p.expectedName==='string'&&p.expectedName.trim().length>=2&&Number.isFinite(p.expectedTotal),
+     'CONFIRMATION_REQUIRED','Cần tên khách và tổng tiền xác nhận');
+   need(norm(old.name)===norm(p.expectedName)&&money(old.total)===money(p.expectedTotal),
+     'ORDER_CHANGED','Tên khách hoặc tổng tiền đã thay đổi');
+ }
  need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần xác nhận thực nhận tiền');
- if(p.amount!==undefined)need(money(p.amount)===money(old.total),'TOTAL_MISMATCH','Tiền thanh toán không khớp');
- var updated=Object.assign({},old,{customerPaidAt:new Date().toISOString(),updatedAt:Date.now()});
+ need(p.amount!==undefined&&money(p.amount)===money(old.total),'TOTAL_MISMATCH','Tiền thanh toán không khớp');
+ // Never silently overwrite an already-paid invoice or its existing proof.
+ if(paid(old))return {modified:false,result:{order:visible(old),alreadyPaid:true}};
+ var extra={};
+ if(p.receiptUrl!==undefined){
+   need(typeof p.receiptUrl==='string'&&/^https:\/\/drive\.google\.com\/file\/d\/[a-zA-Z0-9_-]{10,}\/(?:view|preview)(?:\?[^#]*)?$/.test(p.receiptUrl)&&p.receiptUrl.length<=500,
+     'INVALID_RECEIPT','Chỉ nhận liên kết biên lai Google Drive hợp lệ');
+   extra.customerPaymentReceiptUrl=p.receiptUrl;
+ }
+ if(p.receiptAt!==undefined){
+   need(typeof p.receiptAt==='string'&&/^20\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?\+07:00$/.test(p.receiptAt)&&!isNaN(Date.parse(p.receiptAt)),
+     'INVALID_RECEIPT','Thời gian chuyển khoản không hợp lệ');
+   extra.customerPaymentReceiptAt=p.receiptAt;
+ }
+ if(p.paymentNote!==undefined){
+   need(typeof p.paymentNote==='string'&&p.paymentNote.length<=300,'INVALID_RECEIPT','Ghi chú thanh toán không hợp lệ');
+   extra.customerPaymentNote=p.paymentNote;
+ }
+ var updated=Object.assign({},old,extra,{customerPaidAt:new Date().toISOString(),updatedAt:Date.now()});
  if(updated.status!=='Đã TT Satori')updated.status='Đã thanh toán';
  all[all.indexOf(old)]=updated;return {modified:true,result:{order:visible(updated),alreadyPaid:false}};
 }
