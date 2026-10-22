@@ -22,9 +22,18 @@ export async function readMinhSatori(action,payload={}){
   const query=String(payload.query||'').trim();
   if(phone.length<7 && query.length<2)throw Error('CUSTOMER_QUERY_REQUIRED');
  }
- if(action==='orders.list'&&!String(payload.query||'').trim())throw Error('BULK_ORDER_EXPORT_DENIED');
+ if(action==='orders.list'&&!String(payload.query||'').trim()){
+  // A signed owner request may browse a single calendar month only, not
+  // extract the full production ledger in one request.
+  const from=String(payload.from||''),to=String(payload.to||'');
+  const validDate=x=>/^20\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$/.test(x)&&
+   !Number.isNaN(Date.parse(x))&&new Date(x+'T00:00:00Z').toISOString().slice(0,10)===x;
+  if(!validDate(from)||!validDate(to)||from>to||from.slice(0,7)!==to.slice(0,7))
+   throw Error('BULK_ORDER_EXPORT_DENIED');
+ }
  const safePayload={...payload};
- if(action!=='system.status'&&action!=='catalogue.list')safePayload.limit=Math.min(20,Math.max(1,Number(payload.limit)||10));
+ if(action!=='system.status'&&action!=='catalogue.list')
+  safePayload.limit=Math.min(action==='orders.list'?100:20,Math.max(1,Number(payload.limit)||10));
  const keyId=String(process.env.SATORI_READ_KEY_ID),secret=String(process.env.SATORI_READ_HMAC_SECRET);
  const timestamp=Date.now(),nonce=crypto.randomBytes(18).toString('hex');
  const msg=[keyId,timestamp,nonce,action,JSON.stringify(safePayload)].join('\n');
