@@ -160,7 +160,7 @@ function sameCreateIntent(saved,provided){
     provided.items.length!==saved.items.length)return false;
  if(norm(saved.name)!==norm(provided.name)||
     norm(saved.location)!==norm(provided.location)||
-    String(saved.phone||'').replace(/\\D/g,'')!==String(provided.phone||'').replace(/\\D/g,'')||
+    String(saved.phone||'').replace(/\D/g,'')!==String(provided.phone||'').replace(/\D/g,'')||
     Number(saved.total)!==Number(provided.total))return false;
  if(Number(saved.shippingAmount||0)!==Number(provided.shippingAmount||0)||
     Number(saved.vatAmount||0)!==Number(provided.vatAmount||0)||
@@ -190,7 +190,7 @@ function approveAIPricing(s,all,p){
  var same=entries.filter(function(x){return x&&x.approvalRequestId===requestId});
  var params={customerMemoryId:id,sourceOrderId:p.customerRef&&p.customerRef.id,
   sourceInvoiceNo:p.customerRef&&p.customerRef.invoiceNo,
-  phone:String(p.phone||'').replace(/\\D/g,''),location:String(p.location||'').trim(),
+  phone:String(p.phone||'').replace(/\D/g,''),location:String(p.location||'').trim(),
   discountPercent:p.discountPercent,vatPercent:p.vatPercent,shippingAmount:p.shippingAmount,
   enabled:p.enabled===true};
  need(p.enabled===true||p.enabled===false,'INVALID_ORDER','Cần trạng thái duyệt hoặc thu hồi');
@@ -212,12 +212,12 @@ function approveAIPricing(s,all,p){
   String(o.id)===String(p.customerRef.id)&&Number(o.invoiceNo)===Number(p.customerRef.invoiceNo)});
  need(source.length===1&&names.some(function(n){return norm(n)===norm(source[0].name)})&&
   norm(source[0].location)===norm(params.location)&&
-  String(source[0].phone||'').replace(/\\D/g,'')===params.phone,
+  String(source[0].phone||'').replace(/\D/g,'')===params.phone,
   'AI_CUSTOMER_UNVERIFIED','Hồ sơ khách, hóa đơn tham chiếu và điểm giao không khớp');
  var addresses=[{phone:cust.defaultPhone,location:cust.defaultLocation}]
   .concat(Array.isArray(cust.receivers)?cust.receivers:[]);
  need(params.phone.length>=8&&params.location.length>=5&&addresses.some(function(a){
-  return a&&String(a.phone||'').replace(/\\D/g,'')===params.phone&&
+  return a&&String(a.phone||'').replace(/\D/g,'')===params.phone&&
    norm(a.location)===norm(params.location);
  }), 'AI_CUSTOMER_UNVERIFIED','Điểm giao chưa có trong hồ sơ khách');
  need(typeof p.discountPercent==='number'&&Number.isFinite(p.discountPercent)&&
@@ -257,7 +257,7 @@ function checkAIPricing(s,o,p){
  need(p.customerRef&&p.customerRef.id!=null&&Number.isSafeInteger(p.customerRef.invoiceNo)&&
   String(policy.sourceOrderId)===String(p.customerRef.id)&&
   Number(policy.sourceInvoiceNo)===p.customerRef.invoiceNo&&
-  String(policy.phone||'').replace(/\\D/g,'')===String(o.phone||'').replace(/\\D/g,'')&&
+  String(policy.phone||'').replace(/\D/g,'')===String(o.phone||'').replace(/\D/g,'')&&
   norm(policy.location)===norm(o.location),
   'AI_PRICING_NOT_APPROVED','Điểm giao chưa có phê duyệt giá riêng');
  var pct=policy.discountPercent,vatPct=policy.vatPercent,shipping=policy.shippingAmount;
@@ -265,14 +265,14 @@ function checkAIPricing(s,o,p){
   'AI_PRICING_NOT_APPROVED','Mức chiết khấu chưa được xác thực');
  need([0,5,8,10].includes(vatPct)&&Number.isSafeInteger(shipping)&&shipping>=0&&shipping<=1000000,
   'AI_PRICING_NOT_APPROVED','Thuế và phí giao chưa được duyệt');
- var phone=String(o.phone||'').replace(/\\D/g,''),loc=norm(o.location);
+ var phone=String(o.phone||'').replace(/\D/g,''),loc=norm(o.location);
  var name=norm(o.name),matches=[mem.name].concat(Array.isArray(mem.aliases)?mem.aliases:[]);
  need(matches.some(function(n){return norm(n)===name}),'AI_CUSTOMER_UNVERIFIED',
   'Tên khách chưa được xác minh trong sổ khách');
  var addresses=[{phone:mem.defaultPhone,location:mem.defaultLocation}]
   .concat(Array.isArray(mem.receivers)?mem.receivers:[]);
  need(phone.length>=8&&loc.length>=5&&addresses.some(function(x){
-  return x&&String(x.phone||'').replace(/\\D/g,'')===phone&&norm(x.location)===loc;
+  return x&&String(x.phone||'').replace(/\D/g,'')===phone&&norm(x.location)===loc;
  }), 'AI_CUSTOMER_UNVERIFIED','Điểm giao hoặc số điện thoại chưa được duyệt');
  need(typeof s.values.satori_catalogue_v15==='string','AI_SOURCE_CATALOGUE_MISSING',
   'Chưa có bảng giá chuẩn trên Drive');
