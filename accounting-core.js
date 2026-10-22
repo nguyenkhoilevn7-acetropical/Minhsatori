@@ -46,7 +46,8 @@ function pairOrders(all){
    String(customer.pairInvoiceNo)===String(settlement.invoiceNo)&&
    String(settlement.pairInvoiceNo)===String(customer.invoiceNo)&&
    customer.pairPolicyVersion===settlement.pairPolicyVersion&&
-   norm(customer.name)===norm(settlement.name)&&
+   norm(settlement.pairCustomerName||settlement.name)===norm(customer.name)&&
+   norm(customer.pairCollaboratorName||settlement.name)===norm(settlement.name)&&
    norm(customer.location)===norm(settlement.location)&&
    basket(customer)===basket(settlement)&&
    total(customer)>total(settlement);
