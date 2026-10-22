@@ -130,6 +130,11 @@ export const GEMINI_FEW_SHOTS=[
  '10 lon ổi hồng: không chuyển lon thành thùng',
  'đơn cũ: hỏi rõ và xác nhận trước khi tạo bill',
  'giao sau 2 tiếng: ghi chú yêu cầu, không cam kết',
+ 'giao sớm: là lưu ý giao hàng cho giỏ hiện tại, không phải số lượng hay cam kết thời gian',
+ 'giao giúp anh sớm nha: thêm lời dặn khách muốn nhận sớm, không đổi thùng',
+ '10 suối 500, 2 ổi, giao sớm: đúng 12 thùng và lưu thêm ghi chú giao sớm',
+ 'để hàng ở bảo vệ: ghi chú cho nhân viên giao, không thay đổi địa chỉ',
+ 'giao sớm được không: mong muốn của khách; yêu cầu cửa hàng xác nhận',
  '10 thùng Satori 500ml và 3 thùng Satori 500ml: gộp 13 thùng, 1 dòng'
 ];
 export function syntheticOrderCases(){
