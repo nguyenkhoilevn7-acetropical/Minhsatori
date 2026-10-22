@@ -383,6 +383,8 @@ function markRealMode(enabled){
  if(enabled&&!blank)vat.insertBefore(new Option('— Chưa xác minh VAT —',''),vat.firstChild);
  if(!enabled&&blank)blank.remove();
  if(!enabled){
+  for(const id of ['name','phone','address'])$(id).oninput=null;
+  reviewImportedLocations=[];
   $('realCustomerDetails').replaceChildren();
   $('realPricingEvidence').textContent='';
   $('realDraftStatus').textContent='';
