@@ -12,6 +12,33 @@ internal object SatoriOrderValidation {
     private val plain = Regex("^[0-9]+$")
     private val grouped = Regex("^[0-9]{1,3}([., ][0-9]{3})+$")
 
+    /** Explicit sandbox markers must never pass through the live invoice API. */
+    fun requiresTestLedger(action: String, payload: org.json.JSONObject): Boolean {
+        if (action !in setOf("orders.create", "orders.update", "orders.delete",
+                "orders.restore", "payments.markCustomerPaid")) return false
+        val order = payload.optJSONObject("order")
+        fun tagged(obj: org.json.JSONObject): Boolean {
+            val keys = listOf("isTest", "test", "testMode", "environment", "mode", "orderType", "status")
+            fun marker(value: Any?): Boolean = value == true ||
+                (value is String && value.trim().lowercase() in
+                    setOf("test", "testing", "sandbox", "test_only", "test-only"))
+            if (keys.any { marker(obj.opt(it)) }) return true
+            val tags = obj.optJSONArray("tags")
+            if (tags != null && (0 until tags.length()).any { marker(tags.opt(it)) }) return true
+            // Treat an explicit leading TEST/SANDBOX label as test data, not
+            // just "[TEST]" or "TEST ONLY". Customers commonly type "TEST đơn".
+            // A word boundary avoids blocking ordinary names like "Testing Cafe".
+            val testLabel = Regex("^(?:\\[\\s*TEST\\s*\\]|TEST(?:\\b|_)|SANDBOX(?:\\b|_))", RegexOption.IGNORE_CASE)
+            return listOf("name", "note", "deliveryNote").any {
+                testLabel.containsMatchIn(obj.optString(it, "").trimStart())
+            }
+        }
+        return tagged(payload) || (order != null && tagged(order)) ||
+            listOf("id", "invoiceNo", "expectedInvoiceNo").any {
+                payload.optString(it, "").startsWith("TEST-", ignoreCase = true)
+            }
+    }
+
     fun amount(raw: String): Long {
         val value = raw.trim().replace('\u00a0', ' ')
         if (value.isEmpty()) return 0L
