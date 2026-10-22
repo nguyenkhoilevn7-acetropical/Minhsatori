@@ -8,6 +8,7 @@ on:
     branches:
       - 'feature/minhsatori-native-android-v020'
       - 'release/android-v0.3.7-ui-ledger-20261022'
+      - 'release/android-v0.3.8-owner-live-readonly-20261022'
     paths:
       - 'android/release-request.json'
 
@@ -81,7 +82,7 @@ jobs:
       - name: Upload signed APK for Samsung acceptance test
         uses: actions/upload-artifact@v4
         with:
-          name: MinhSatori-Samsung-Native-v0.3.7-SIGNED-RELEASE
+          name: MinhSatori-Samsung-Native-v0.3.8-SIGNED-RELEASE
           path: |
             android/app/build/outputs/apk/release/app-release.apk
             android/app/build/outputs/apk/release/release-verification.json
