@@ -334,28 +334,42 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun showConnectionSettings() {
+        // AlertDialog shows either setMessage OR the setItems list, not both.
+        // Keep the actual source choices visible on compact Samsung displays.
         val items = arrayOf(
-            "Cài đặt Mobile API (Sandbox)",
-            "Đăng nhập Google / Đồng bộ API",
-            "Google Drive — chỉ xem",
+            "☁ Google Drive — xem hóa đơn thật (chỉ đọc)",
+            "Đăng nhập Google / Đồng bộ Mobile API",
+            "Cài đặt Mobile API (SANDBOX)",
             "Chọn file dữ liệu thủ công — chỉ xem"
         )
         AlertDialog.Builder(this)
             .setTitle("Kết nối Minh Satori")
-            .setMessage("Chỉ dùng Mobile API sandbox khi chưa kiểm thử production. " +
-                "Chế độ Drive/file chỉ đọc, không thể ghi hóa đơn.")
             .setItems(items) { _, choice ->
                 when (choice) {
-                    0 -> configureMobileApi()
+                    0 -> {
+                        // Explicitly leave the 3-fake-invoice API snapshot behind.
+                        // OAuth must request Drive read scope even when a sandbox
+                        // Mobile API endpoint is already stored on the device.
+                        getPreferences(MODE_PRIVATE).edit()
+                            .putBoolean("google_drive_auto_read", true).apply()
+                        accessToken = null
+                        actorId = ""
+                        allowedActions = emptySet()
+                        snapshot = null
+                        dataSource = ""
+                        connectGoogle()
+                    }
                     1 -> {
+                        getPreferences(MODE_PRIVATE).edit()
+                            .putBoolean("google_drive_auto_read", false).apply()
                         if (apiEndpoint == null) configureMobileApi()
                         else if (accessToken == null) connectGoogle()
                         else refreshFromMobileApi()
                     }
                     2 -> {
                         getPreferences(MODE_PRIVATE).edit()
-                            .putBoolean("google_drive_auto_read", true).apply()
-                        if (accessToken == null) connectGoogle() else refreshFromDrive()
+                            .putBoolean("google_drive_auto_read", false).apply()
+                        configureMobileApi()
                     }
                     else -> {
                         if (fileUri != null) refreshFromPicker()
@@ -1908,9 +1922,10 @@ class NativeMainActivity : AppCompatActivity() {
         if (isLoading) return
         // The secured Mobile API only needs verified email identity.
         // Avoid requesting restricted Drive access when the server reads Drive.
-        // Read-only Drive mode still asks for drive.readonly when no API is configured.
+        // Direct Drive reads always require drive.readonly, even when a
+        // sandbox API endpoint is still stored. API-only mode needs email only.
         val scopes = mutableListOf(Scope("https://www.googleapis.com/auth/userinfo.email"))
-        if (apiEndpoint == null) {
+        if (apiEndpoint == null || preferGoogleDrive()) {
             scopes.add(Scope("https://www.googleapis.com/auth/drive.readonly"))
         }
         val request = AuthorizationRequest.builder()
@@ -1953,8 +1968,16 @@ class NativeMainActivity : AppCompatActivity() {
             actorId = ""
             allowedActions = emptySet()
             dataSource = ""
+            if (preferGoogleDrive() || apiEndpoint == null) {
+                if (!result.grantedScopes.contains("https://www.googleapis.com/auth/drive.readonly")) {
+                    statusMessage = "Chưa cấp quyền Google Drive chỉ đọc. Không sử dụng 3 hóa đơn thử làm dữ liệu thật."
+                    render()
+                    return
+                }
+            }
             accessToken = token
-            if (apiEndpoint != null) refreshFromMobileApi() else refreshFromDrive()
+            if (preferGoogleDrive() || apiEndpoint == null) refreshFromDrive()
+            else refreshFromMobileApi()
         }
     }
 
@@ -1978,7 +2001,7 @@ class NativeMainActivity : AppCompatActivity() {
                         dataSource = "Google Drive API"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
-                        statusMessage = "Đã đồng bộ trực tiếp."
+                        statusMessage = "Đã đồng bộ Google Drive (chỉ xem)."
                     },
                     onFailure = {
                         snapshot = null
