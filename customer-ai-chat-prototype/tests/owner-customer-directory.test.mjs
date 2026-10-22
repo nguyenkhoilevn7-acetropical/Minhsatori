@@ -83,3 +83,15 @@ assert.match(reviewHtml,/Cấp LẠI link khách THỬ/,'reissue requires owner 
 assert.match(reviewHtml,/if\(selectedRealKey\)\{[\s\S]{0,200}khách THẬT từ bản sandbox/);
 assert.doesNotMatch(reviewHtml,/realCustomerPermission|canAddAddress|mayAddLocation|permissions\.grant/,'no dealer-address permission in this change');
 console.log('PASS owner link: independent buttons, guarded TEST reissue and no customer-grant feature');
+
+assert.match(reviewHtml,/function makeRealField\(labelText,value,onChange,kind='text'\)/);
+assert.doesNotMatch(reviewHtml,/input\.readOnly=true/,'imported location fields must be editable by the owner');
+assert.match(reviewHtml,/p\.recipient=v/,'recipient edits are recorded');
+assert.match(reviewHtml,/p\.phone=v/,'existing phone edits are recorded');
+assert.match(reviewHtml,/p\.address=v/,'existing address edits are recorded');
+assert.match(reviewHtml,/reviewImportedLocations\.map\(p=>/,'save all edited imported locations in draft');
+assert.match(reviewHtml,/\$\('createButton'\)\.type='button'/,'real customer link action never submits TEST form');
+assert.match(reviewHtml,/CHƯA THỂ CẤP LINK THẬT/,'failed production prerequisites surfaced in UI');
+assert.match(reviewHtml,/\$\('createButton'\)\.type='submit'/,'test link creation is still usable');
+assert.doesNotMatch(reviewHtml,/localStorage\.setItem|sessionStorage\.setItem/,'no local PII persistence');
+console.log('PASS editable recipient/phone/address draft and explicit real-link safety');
