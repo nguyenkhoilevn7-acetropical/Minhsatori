@@ -27,7 +27,10 @@ try{
  }
  assert.ok(health,'preview must be reachable: '+logs.slice(-800));
  assert.equal(health.demoOnly,true);
- assert.equal(health.ready,true);
+ assert.equal(health.ready,false,'emergency preview must not advertise launch readiness');
+ assert.equal(health.productionCheckoutEnabled,false);
+ assert.equal(health.productionLaunchReady,false);
+ assert.equal(health.mode,'sandbox_emergency_preview');
  assert.equal(health.orderSubmissionEnabled,false);
  assert.equal(health.draftPersistence,false);
  assert.equal(health.orders,0);
