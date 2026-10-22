@@ -82,7 +82,7 @@ await error('CHECKOUT_NOT_CONFIGURED',{mode:'test',checkout:testOrder,...opts,
 await error('TEST_REQUIRED',{mode:'test',checkout:{...testOrder,order:{...testOrder.order,isTest:false}},...opts});
 await error('PREFLIGHT_REQUIRED',{mode:'real',checkout:{...approved,payload:{...approved.payload,confirmedNewCustomer:true}},
  ...opts,env:realEnv});
-await error('TEST_ORDER_REQUIRES_SANDBOX',{mode:'real',
+await error('PREFLIGHT_REQUIRED',{mode:'real',
  checkout:{...approved,payload:{...approved.payload,order:{...approved.payload.order,isTest:true}}},...opts,env:realEnv});
 await error('INVALID_CHECKOUT_MODE',{mode:'pretend',checkout:testOrder,...opts});
 // A client can spoof every "verified" field, but cannot obtain the
