@@ -7,6 +7,7 @@
  * canonical pricing and TEST ledger E2E have all been verified.
  */
 import crypto from 'node:crypto';
+import {isPreflightCheckoutResult} from './checkout-preflight.mjs';
 
 const endpointPattern=/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,180}\/exec$/;
 const allowedErrors=new Set(['REVISION_CONFLICT','REQUEST_ID_CONFLICT','REUSED_REQUEST_ID',
@@ -34,6 +35,9 @@ function validatePayload(mode,checkout){
  const payload=mode==='test'?checkout:checkout.payload;
  const action=mode==='test'?'orders.create.test':'orders.create.ai';
  if(mode==='real'&&checkout.action!=='orders.create.ai')throw failure('INVALID_CHECKOUT_ACTION');
+ // Never accept an object reconstructed from browser JSON as permission to
+ // sign a real invoice. It must be the exact immutable server preflight result.
+ if(mode==='real'&&!isPreflightCheckoutResult(checkout))throw failure('PREFLIGHT_REQUIRED');
  if(!payload||typeof payload!=='object'||Array.isArray(payload)||
     !Number.isSafeInteger(payload.expectedRevision)||payload.expectedRevision<0||
     !safeId(payload.requestId)||!payload.order||typeof payload.order!=='object')
