@@ -1164,8 +1164,37 @@ function bootstrapEncryptedTestSnapshot(){
  }
 }
 try{bootstrapEncryptedTestSnapshot()}catch{process.exit(78)}
+// Verify credentials and scopes against the real, read-only Bot API once at boot.
+// The request filters cannot match any real customer. Neither customer records,
+// HMAC secrets nor upstream error bodies are logged or persisted in the sandbox.
+async function verifyOwnerReadOnlyAtBoot(){
+ if(!readOnlyReady())return;
+ try{
+  const status=await readMinhSatori('system.status');
+  const probe='unlikely-gemini-readonly-probe-20261022-no-real-record';
+  const orders=await readMinhSatori('orders.list',{query:probe,limit:1});
+  const customers=await readMinhSatori('customers.search',{query:probe,limit:1});
+  if(!Number.isSafeInteger(status.revision)||
+     !Number.isSafeInteger(status.data?.orders)||
+     orders.revision!==status.revision||customers.revision!==status.revision||
+     !Array.isArray(orders.data?.orders)||
+     !Array.isArray(customers.data?.profiles?.profiles))throw Error('RESPONSE_SCHEMA');
+  console.info('SATORI_OWNER_LIVE_READONLY_VERIFIED',
+   'revision='+status.revision,'invoices='+status.data.orders,
+   'scopes=orders_read_customers_read');
+ }catch(e){
+  // Only a fixed diagnostic class, no upstream response bodies or personal data.
+  const code=String(e?.message||'');
+  const category=code==='READ_ONLY_UPSTREAM_ERROR'?'UPSTREAM_AUTH_OR_PERMISSION':
+   code.startsWith('READ_ONLY_UPSTREAM_HTTP_')?'UPSTREAM_HTTP':
+   code==='RESPONSE_SCHEMA'?'SCHEMA_MISMATCH':
+   code==='READ_ONLY_RESPONSE_TOO_LARGE'?'OVERSIZE':'NETWORK_OR_TIMEOUT';
+  console.warn('SATORI_OWNER_LIVE_READONLY_NOT_VERIFIED',category);
+ }
+}
 server.listen(PORT,HOST,()=>{
  driveWorker.start();
+ if(readOnlyReady())void verifyOwnerReadOnlyAtBoot();
  console.info('SATORI_OWNER_LIVE_READONLY_CONFIGURED',Number(readOnlyReady()));
  console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched');
  // One test with fake words only, no customer data, no stored orders, no API key printed.
