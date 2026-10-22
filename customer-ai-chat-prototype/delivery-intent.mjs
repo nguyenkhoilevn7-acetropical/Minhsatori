@@ -11,7 +11,7 @@ function vietnamTime(date){
 function tailOfDelivery(message){
  const str=String(message||'').trim();
  // Keep the customer's original spelling and diacritics.
- const found=str.match(/(?:\b(?:giao(?:\s+hàng)?|ship)\s+(?:sau|lúc|luc|vào|vao|trước|truoc|tầm|tam|khoảng|khoang|từ|tu|buổi|buoi)|\b(?:ghi chú|ghi chu|lưu ý|luu y|nhớ|nho|gọi trước|goi truoc|để ở|de o|không bấm|khong bam))[^]{0,280}$/iu);
+ const found=str.match(/(?:\b(?:giao(?:\s+hàng)?|ship)\s+(?:sau|lúc|luc|vào|vao|trước|truoc|tầm|tam|khoảng|khoang|từ|tu|buổi|buoi|sớm|som|nhanh|gấp|gap|ngay)\b|\b(?:ghi chú|ghi chu|lưu ý|luu y|nhớ|nho|gọi trước|goi truoc|để ở|de o|để trước|de truoc|đừng bấm|dung bam|không bấm|khong bam)\b|\b(?:cần|can|muốn|muon|mong|nhờ|nho)\s+(?:được\s+|duoc\s+)?(?:giao|nhận|nhan)(?:\s+hàng|\s+hang)?\s+(?:sớm|som|nhanh|gấp|gap|ngay)\b)[^]{0,280}$/iu);
  return (found?.[0]||'').replace(/^[,;\s]+|[,;\s]+$/g,'').slice(0,300);
 }
 export function extractDeliveryIntent(message,now=new Date()){
