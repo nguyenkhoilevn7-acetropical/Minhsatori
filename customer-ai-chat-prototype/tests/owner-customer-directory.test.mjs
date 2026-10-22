@@ -83,3 +83,17 @@ assert.match(reviewHtml,/Cấp LẠI link khách THỬ/,'reissue requires owner 
 assert.match(reviewHtml,/if\(selectedRealKey\)\{[\s\S]{0,200}khách THẬT từ bản sandbox/);
 assert.doesNotMatch(reviewHtml,/realCustomerPermission|canAddAddress|mayAddLocation|permissions\.grant/,'no dealer-address permission in this change');
 console.log('PASS owner link: independent buttons, guarded TEST reissue and no customer-grant feature');
+
+assert.match(reviewHtml,/id="realLinkCheck" hidden/,'separate actionable real link preflight');
+assert.match(reviewHtml,/\$\('realLinkCheck'\)\.hidden=!enabled/);
+assert.match(reviewHtml,/\$\('createButton'\)\.hidden=enabled/,'avoid invisible disabled real link button');
+assert.match(reviewHtml,/function makeRealField\(labelText,value,index,field\)/);
+const editable=reviewHtml.slice(reviewHtml.indexOf('function makeRealField('),reviewHtml.indexOf('function fillRealCustomer('));
+assert.doesNotMatch(editable,/readOnly=true|tabIndex=-1/,'historical phone/address fields must be editable for owner');
+assert.match(editable,/realEditingLocations\[index\]\[field\]=input.value/,'preserve reviewed edits');
+assert.match(reviewHtml,/editedLocations\};/,'all historical destination edits survive as a draft');
+assert.match(reviewHtml,/editedLocations\.filter\(/,'calculate which addresses changed');
+assert.match(reviewHtml,/currentRealEvidence/,'price evidence remains visible');
+assert.match(reviewHtml,/Không cấp link thử dưới tên khách thật/,'no misleading test links for production customers');
+assert.doesNotMatch(reviewHtml,/grantDealer|allowCustomerAddLocation|customerMayAddAddress/,'no dealer permissions per owner instruction');
+console.log('PASS owner editable historical delivery addresses and clear real-link gating without production writes');
