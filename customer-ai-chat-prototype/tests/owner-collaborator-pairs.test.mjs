@@ -1,0 +1,57 @@
+// Offline owner CTV admin bridge tests — no network or real HMAC secrets.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import vm from 'node:vm';
+import {ownerPairAction} from '../owner-collaborator-pairs.mjs';
+
+const url='https://script.google.com/macros/s/FAKE_SANDBOX_ENDPOINT_0123456789abcde/exec';
+const key='test_owner_scope',secret='OFFLINE_FAKE_HMAC_SECRET_12345678901234567890';
+const env={SATORI_CTV_PAIR_ENDPOINT:url,SATORI_CTV_PAIR_READ_KEY_ID:key,
+ SATORI_CTV_PAIR_READ_SECRET:secret,SATORI_CTV_PAIR_APPROVE_KEY_ID:key,
+ SATORI_CTV_PAIR_APPROVE_SECRET:secret,SATORI_CTV_PAIR_CONFIG_ENABLED:'0'};
+let requests=0,latestPayload=null;
+const fetcher=async (endpoint,req)=>{
+ assert.equal(endpoint,url);requests++;
+ const body=JSON.parse(req.body);latestPayload=body.payload;
+ assert.match(body.nonce,/^[A-Za-z0-9_-]{16,128}$/);
+ assert.equal(body.signature,crypto.createHmac('sha256',secret).update([
+  body.keyId,body.timestamp,body.nonce,body.action,JSON.stringify(body.payload)].join('\n')).digest('hex'));
+ return {ok:true,text:async()=>JSON.stringify({
+  ok:true,action:body.action,revision:8,data:body.action==='collaborators.pair.list'?
+   {policies:[{collaboratorId:'ctv-01',enabled:false}],
+    collaborators:[{id:'ctv-01',name:'Fixture CTV',active:true}]}:
+   {policy:{collaboratorId:body.payload.collaboratorId,enabled:body.payload.enabled}}
+ })};
+};
+const opts={env,fetcher,now:()=>1792700000000,
+ nonce:()=> 'owner_nonce_1234567890abcdef'};
+const response=await ownerPairAction('collaborators.pair.list',{},opts);
+assert.equal(response.revision,8);
+assert.equal(response.collaborators[0].name,'Fixture CTV');
+assert.equal(requests,1);
+const config={collaboratorId:'ctv-01',enabled:true,
+ customerDiscountPercent:20,collaboratorDiscountPercent:35,shippingPercent:8,
+ vatPercent:0,requestId:'test-config-001',expectedRevision:8,confirmed:true};
+await assert.rejects(()=>ownerPairAction('collaborators.pair.configure',config,opts),
+ e=>e?.code==='CTV_PAIR_WRITE_DISABLED');
+assert.equal(requests,1);
+const saved=await ownerPairAction('collaborators.pair.configure',config,
+ {...opts,env:{...env,SATORI_CTV_PAIR_CONFIG_ENABLED:'1'}});
+assert.equal(saved.policy.enabled,true);
+assert.equal(latestPayload.collaboratorDiscountPercent,35);
+assert.equal(requests,2);
+await assert.rejects(()=>ownerPairAction('orders.create.pair',config,opts),
+ e=>e?.code==='INVALID_CTV_ACTION');
+await assert.rejects(()=>ownerPairAction('collaborators.pair.list',{},
+ {...opts,env:{...env,SATORI_CTV_PAIR_READ_SECRET:''}}),
+ e=>e?.code==='CTV_PAIR_NOT_CONFIGURED');
+const admin=fs.readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+const scripts=[...admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
+assert.ok(scripts.length>0,'admin has inline script');
+for(const [,src] of scripts)new vm.Script(src,{filename:'CTV owner dashboard'});
+for(const id of ['pairPartner','pairEnabled','pairCustomerDiscount','pairCollaboratorDiscount',
+ 'pairShipping','pairVat','pairSave','pairRefresh'])assert.ok(admin.includes('id="'+id+'"'));
+assert.ok(admin.includes("pairLoadSuccessful=false"));
+assert.ok(admin.includes("disabled"),'owner UI disabled until backend is verified');
+console.log('PASS scoped owner-only CTV policy admin HMAC, default-off writes, 20/35 flexible GUI syntax (FAKE only)');
