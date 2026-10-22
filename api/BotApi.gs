@@ -6,9 +6,10 @@
  */
 var SatoriBotApi=(function(){
 'use strict';
-var ORDER_KEY='satori_orders_v15';
+var ORDER_KEY='satori_orders_v15', PRICE_APPROVAL_KEY='satori_ai_pricing_approvals_v1';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
- 'debt.summary':'debt:read','customers.search':'customers:read','orders.create':'orders:write','orders.delete':'orders:delete',
+ 'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write',
+ 'orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
  'payments.markCustomerPaid':'payments:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
@@ -38,7 +39,7 @@ function state(){
 }
 function rows(s){var x=JSON.parse(s.values[ORDER_KEY]);need(Array.isArray(x),'INVALID_STATE','Dữ liệu hóa đơn hỏng');return x;}
 function version(s,p){need(Number.isInteger(p.expectedRevision),'REVISION_REQUIRED','Thiếu expectedRevision');need(s.revision===p.expectedRevision,'REVISION_CONFLICT','Dữ liệu vừa được cập nhật, hãy đọc lại');}
-function visible(o){return {id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null};}
+function visible(o){return {id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
 function iso(date){
  var m=String(date||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
  var d=new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
@@ -150,9 +151,173 @@ function recoverOrder(s,all,p){
  deleted=deleted.filter(function(n){return Number(n)!==p.invoiceNo});
  return {modified:true,extras:{satori_trash_bin_v15:JSON.stringify(trash),satori_deleted_invoice_nos:JSON.stringify(deleted)},result:{restored:true,duplicate:false,order:visible(restored)}};
 }
-function create(s,all,p){
+function sameCreateIntent(saved,provided){
+ // A requestId is bound to the entire intended order, not just its invoice number.
+ // Compare only canonical fields already persisted in the Drive ledger, so a lost
+ // HTTP reply can be retried without another backup/write. Modified carts fail.
+ if(!provided||typeof provided!=='object'||Array.isArray(provided)||
+    !Array.isArray(provided.items)||!Array.isArray(saved.items)||
+    provided.items.length!==saved.items.length)return false;
+ if(norm(saved.name)!==norm(provided.name)||
+    norm(saved.location)!==norm(provided.location)||
+    String(saved.phone||'').replace(/\\D/g,'')!==String(provided.phone||'').replace(/\\D/g,'')||
+    Number(saved.total)!==Number(provided.total))return false;
+ if(Number(saved.shippingAmount||0)!==Number(provided.shippingAmount||0)||
+    Number(saved.vatAmount||0)!==Number(provided.vatAmount||0)||
+    String(saved.deliveryNote||'')!==String(provided.deliveryNote||'')||
+    String(saved.deliveryDate||'')!==String(provided.deliveryDate||''))return false;
+ return provided.items.every(function(item,i){
+  var old=saved.items[i];
+  return item&&old&&String(item.code||'')===String(old.code||'')&&
+   norm(item.product||item.name)===norm(old.product)&&
+   String(item.unit||'Thùng')===String(old.unit||'Thùng')&&
+   Number(item.qty)===Number(old.qty)&&
+   Number(item.unitPrice)===Number(old.unitPrice)&&
+   Number(item.listPrice==null?item.unitPrice:item.listPrice)===Number(old.listPrice);
+ });
+}
+function approveAIPricing(s,all,p){
+ // An entirely separate HMAC owner scope is required to approve or revoke AI
+ // discounts. Browser AI customer memory must NEVER self-authorize this key.
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần quản trị xác nhận duyệt giá');
+ var requestId=String(p.requestId||'');
+ need(/^[a-zA-Z0-9_-]{8,100}$/.test(requestId),'INVALID_REQUEST','Thiếu mã yêu cầu duyệt giá');
+ var id=String(p.customerMemoryId||'');
+ need(/^[a-zA-Z0-9_-]{4,100}$/.test(id),'INVALID_ORDER','Mã hồ sơ khách không hợp lệ');
+ var entries=JSON.parse(s.values[PRICE_APPROVAL_KEY]||'[]');
+ need(Array.isArray(entries)&&entries.length<10000,'INVALID_STATE',
+  'Nhật ký duyệt giá đã đầy hoặc không hợp lệ');
+ var same=entries.filter(function(x){return x&&x.approvalRequestId===requestId});
+ var params={customerMemoryId:id,sourceOrderId:p.customerRef&&p.customerRef.id,
+  sourceInvoiceNo:p.customerRef&&p.customerRef.invoiceNo,
+  phone:String(p.phone||'').replace(/\\D/g,''),location:String(p.location||'').trim(),
+  discountPercent:p.discountPercent,vatPercent:p.vatPercent,shippingAmount:p.shippingAmount,
+  enabled:p.enabled===true};
+ need(p.enabled===true||p.enabled===false,'INVALID_ORDER','Cần trạng thái duyệt hoặc thu hồi');
+ if(same.length){
+  need(same.length===1&&Object.keys(params).every(function(k){return same[0][k]===params[k]}),
+   'REQUEST_ID_CONFLICT','Mã duyệt giá đã sử dụng với nội dung khác');
+  return {modified:false,result:{duplicate:true,approved:same[0].enabled,customerMemoryId:id}};
+ }
+ version(s,p);
+ need(typeof s.values.satori_ai_customer_memory==='string','AI_CUSTOMER_UNVERIFIED',
+  'Không có hồ sơ khách nguồn');
+ var memories=JSON.parse(s.values.satori_ai_customer_memory);
+ need(Array.isArray(memories),'INVALID_STATE','Bộ nhớ AI chưa hợp lệ');
+ var match=memories.filter(function(m){return m&&m.id===id});
+ need(match.length===1,'AI_CUSTOMER_UNVERIFIED','Hồ sơ khách chưa duy nhất');
+ var cust=match[0];
+ var names=[cust.name].concat(Array.isArray(cust.aliases)?cust.aliases:[]);
+ var source=all.filter(function(o){return p.customerRef&&
+  String(o.id)===String(p.customerRef.id)&&Number(o.invoiceNo)===Number(p.customerRef.invoiceNo)});
+ need(source.length===1&&names.some(function(n){return norm(n)===norm(source[0].name)})&&
+  norm(source[0].location)===norm(params.location)&&
+  String(source[0].phone||'').replace(/\\D/g,'')===params.phone,
+  'AI_CUSTOMER_UNVERIFIED','Hồ sơ khách, hóa đơn tham chiếu và điểm giao không khớp');
+ var addresses=[{phone:cust.defaultPhone,location:cust.defaultLocation}]
+  .concat(Array.isArray(cust.receivers)?cust.receivers:[]);
+ need(params.phone.length>=8&&params.location.length>=5&&addresses.some(function(a){
+  return a&&String(a.phone||'').replace(/\\D/g,'')===params.phone&&
+   norm(a.location)===norm(params.location);
+ }), 'AI_CUSTOMER_UNVERIFIED','Điểm giao chưa có trong hồ sơ khách');
+ need(typeof p.discountPercent==='number'&&Number.isFinite(p.discountPercent)&&
+  p.discountPercent>=0&&p.discountPercent<=70&&
+  [0,5,8,10].includes(p.vatPercent)&&
+  Number.isSafeInteger(p.shippingAmount)&&p.shippingAmount>=0&&p.shippingAmount<=1000000,
+  'INVALID_PRICE_POLICY','Chưa xác minh mức chiết khấu, VAT hoặc phí giao');
+ entries.push(Object.assign({},params,{reviewedByOwner:true,
+  approvalRequestId:requestId,approvedAt:Date.now()}));
+ return {modified:true,extras:{satori_ai_pricing_approvals_v1:JSON.stringify(entries)},
+  result:{approved:p.enabled===true,customerMemoryId:id,duplicate:false}};
+}
+function checkAIPricing(s,o,p){
+ // Dedicated HMAC action orders.create.ai requires orders:ai:write scope.
+ // Authenticated API callers CANNOT select the customer's percentage in payload.
+ // Owner-approved policy is read again from the versioned Drive ledger while locked.
+ var id=String(p.customerMemoryId||'');
+ need(/^[a-zA-Z0-9_-]{4,100}$/.test(id),'AI_PRICING_NOT_APPROVED',
+  'Chưa có mã hồ sơ chiết khấu đã được duyệt');
+ need(typeof s.values.satori_ai_customer_memory==='string','AI_PRICING_NOT_APPROVED',
+  'Chưa có dữ liệu chiết khấu duyệt trên Drive');
+ var memories=JSON.parse(s.values.satori_ai_customer_memory);
+ need(Array.isArray(memories)&&memories.length<=10000,'INVALID_STATE','Bộ nhớ khách không hợp lệ');
+ var found=memories.filter(function(x){return x&&x.id===id});
+ need(found.length===1,'AI_PRICING_NOT_APPROVED','Hồ sơ duyệt không duy nhất');
+ var mem=found[0],approvals=JSON.parse(s.values[PRICE_APPROVAL_KEY]||'[]');
+ need(Array.isArray(approvals)&&approvals.length<=10000,'INVALID_STATE',
+  'Nhật ký duyệt giá không hợp lệ');
+ // Approvals are stored independently from editable/learned AI customer memory.
+ // The last matching approval (including revocation) is authoritative.
+ var records=approvals.filter(function(x){return x&&x.customerMemoryId===id});
+ var policy=records.length?records[records.length-1]:null;
+ need(policy&&policy.enabled===true&&policy.reviewedByOwner===true,
+  'AI_PRICING_NOT_APPROVED','Chiết khấu AI chưa được người quản trị phê duyệt');
+ // A pricing approval belongs to one historical source invoice and one exact
+ // delivery destination, not merely to the customer company name.
+ need(p.customerRef&&p.customerRef.id!=null&&Number.isSafeInteger(p.customerRef.invoiceNo)&&
+  String(policy.sourceOrderId)===String(p.customerRef.id)&&
+  Number(policy.sourceInvoiceNo)===p.customerRef.invoiceNo&&
+  String(policy.phone||'').replace(/\\D/g,'')===String(o.phone||'').replace(/\\D/g,'')&&
+  norm(policy.location)===norm(o.location),
+  'AI_PRICING_NOT_APPROVED','Điểm giao chưa có phê duyệt giá riêng');
+ var pct=policy.discountPercent,vatPct=policy.vatPercent,shipping=policy.shippingAmount;
+ need(typeof pct==='number'&&Number.isFinite(pct)&&pct>=0&&pct<=70,
+  'AI_PRICING_NOT_APPROVED','Mức chiết khấu chưa được xác thực');
+ need([0,5,8,10].includes(vatPct)&&Number.isSafeInteger(shipping)&&shipping>=0&&shipping<=1000000,
+  'AI_PRICING_NOT_APPROVED','Thuế và phí giao chưa được duyệt');
+ var phone=String(o.phone||'').replace(/\\D/g,''),loc=norm(o.location);
+ var name=norm(o.name),matches=[mem.name].concat(Array.isArray(mem.aliases)?mem.aliases:[]);
+ need(matches.some(function(n){return norm(n)===name}),'AI_CUSTOMER_UNVERIFIED',
+  'Tên khách chưa được xác minh trong sổ khách');
+ var addresses=[{phone:mem.defaultPhone,location:mem.defaultLocation}]
+  .concat(Array.isArray(mem.receivers)?mem.receivers:[]);
+ need(phone.length>=8&&loc.length>=5&&addresses.some(function(x){
+  return x&&String(x.phone||'').replace(/\\D/g,'')===phone&&norm(x.location)===loc;
+ }), 'AI_CUSTOMER_UNVERIFIED','Điểm giao hoặc số điện thoại chưa được duyệt');
+ need(typeof s.values.satori_catalogue_v15==='string','AI_SOURCE_CATALOGUE_MISSING',
+  'Chưa có bảng giá chuẩn trên Drive');
+ var source=JSON.parse(s.values.satori_catalogue_v15);
+ need(Array.isArray(source)&&source.length>0&&source.length<=200,
+  'AI_SOURCE_CATALOGUE_MISSING','Bảng giá nguồn không hợp lệ');
+ var codes={},sum=0,units=0,goods=0;
+ source.forEach(function(x){
+  need(x&&/^TP-[0-9]{5}$/.test(x.code||'')&&!codes[x.code]&&
+   Number.isSafeInteger(x.listPrice)&&x.listPrice>=0&&x.listPrice<=1e9,
+   'AI_SOURCE_CATALOGUE_INVALID','Bảng giá nguồn có mã hoặc giá không hợp lệ');
+  codes[x.code]=x;
+ });
+ need(Array.isArray(o.items)&&o.items.length>=1&&o.items.length<=6,
+  'AI_ITEM_LIMIT','Giỏ AI phải có 1 đến 6 mặt hàng');
+ o.items.forEach(function(i){
+  need(i&&typeof i.code==='string'&&codes[i.code]&&!codes[i.code]._aiSeen,
+   'AI_UNKNOWN_PRODUCT','Sản phẩm không được phép hoặc bị lặp');
+  var sourceItem=codes[i.code];sourceItem._aiSeen=true;
+  need(Number.isSafeInteger(i.qty)&&i.qty>=1&&i.qty<=500,
+   'AI_ITEM_LIMIT','Số lượng sản phẩm không hợp lệ');
+  units+=i.qty;
+  var cost=Math.round(sourceItem.listPrice*(100-pct)/100);
+  need(norm(i.product||i.name)===norm(sourceItem.name)&&
+   String(i.unit||'')===String(sourceItem.unit)&&
+   Number(i.listPrice)===sourceItem.listPrice&&Number(i.unitPrice)===cost,
+   'AI_PRICE_MISMATCH','Tên, đơn vị hoặc giá AI khác bảng giá đã duyệt');
+  goods+=cost*i.qty;sum++;
+ });
+ need(units<=500&&goods<=1e11,'AI_ITEM_LIMIT','Giỏ hàng vượt giới hạn');
+ var vat=Math.round(goods*vatPct/100),total=goods+shipping+vat;
+ need(Number(o.shippingAmount||0)===shipping&&Number(o.vatAmount||0)===vat&&
+  Number(o.total)===total,'AI_PRICE_MISMATCH',
+  'Thuế, phí giao hoặc tổng tiền không khớp duyệt giá trên Drive');
+}
+function create(s,all,p,aiMode){
  var req=String(p.requestId||'');need(/^[a-zA-Z0-9_-]{8,100}$/.test(req),'INVALID_REQUEST','Thiếu requestId hợp lệ');
- var old=all.find(function(o){return o.apiRequestId===req});if(old)return {modified:false,result:{order:visible(old),duplicate:true}};
+ var old=all.find(function(o){return o.apiRequestId===req});
+ if(old){
+  if(aiMode)need(old.source==='bot_api_ai'&&old.aiPricingMemoryId===p.customerMemoryId,
+   'REQUEST_ID_CONFLICT','Yêu cầu trùng mã nhưng không thuộc cùng khách AI');
+  need(sameCreateIntent(old,p.order),'REQUEST_ID_CONFLICT',
+   'Mã requestId đã được dùng cho nội dung đơn khác, cần tạo yêu cầu mới');
+  return {modified:false,result:{order:visible(old),duplicate:true}};
+ }
  var bin=JSON.parse(s.values.satori_trash_bin_v15||'[]');
  need(!bin.some(function(t){return t.order&&t.order.apiRequestId===req}),'REUSED_REQUEST_ID','Đơn cũ đã chuyển vào thùng rác');
  version(s,p);
@@ -161,6 +326,7 @@ function create(s,all,p){
  var name=String(o.name).trim(),phone=String(o.phone||''),location=String(o.location||'');
  need(name.length<=150&&phone.length<=60&&location.length<=500,'INVALID_ORDER','Thông tin khách quá dài');
  checkProfile(all,o,p);
+ if(aiMode)checkAIPricing(s,o,p);
  var items=o.items.map(function(i){
   need(i&&String(i.product||i.name||'').trim().length>=2,'INVALID_ITEM','Thiếu tên sản phẩm');
   var qty=Number(i.qty),price=money(i.unitPrice);need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Sai số lượng');
@@ -184,9 +350,12 @@ function create(s,all,p){
   date:Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','dd/MM/yyyy'),timestamp:Date.now(),
   name:name,phone:phone,location:location,items:items,
   product:items.map(function(i){return i.product+' x'+i.qty}).join(', '),qty:items.reduce(function(v,i){return v+i.qty},0),
-  goodsTotal:goods,shippingAmount:ship,vatAmount:vat,vat:vat?'yes':'no',total:total,status:'Chưa thanh toán',source:'bot_api'};
+  goodsTotal:goods,shippingAmount:ship,vatAmount:vat,vat:vat?'yes':'no',total:total,status:'Chưa thanh toán',source:aiMode?'bot_api_ai':'bot_api',
+  aiPricingMemoryId:aiMode?p.customerMemoryId:null,
+  deliveryNote:String(o.deliveryNote||'').slice(0,1000)};
  all.unshift(next);return {modified:true,result:{order:visible(next),duplicate:false}};
 }
+
 function markPaid(s,all,p){
  version(s,p);
  need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Thiếu số hóa đơn');
@@ -230,6 +399,32 @@ function markPaid(s,all,p){
 }
 function read(s,action,p){
  var all=rows(s);
+ if(action==='catalogue.list'){
+  // Fail closed: a browser-local catalogue is not the authoritative shared ledger.
+  need(typeof s.values.satori_catalogue_v15==='string','CATALOGUE_NOT_PERSISTED',
+    'Bảng giá chưa được lưu đồng bộ trên Drive');
+  var catalogue=JSON.parse(s.values.satori_catalogue_v15);
+  need(Array.isArray(catalogue)&&catalogue.length>0&&catalogue.length<=200,
+    'INVALID_CATALOGUE','Danh mục lưu trữ không hợp lệ');
+  var codes={};
+  var products=catalogue.map(function(item){
+    need(item&&typeof item==='object'&&!Array.isArray(item)&&
+      /^TP-[0-9]{5}$/.test(item.code||'')&&!codes[item.code],
+      'INVALID_CATALOGUE','Mã sản phẩm trùng hoặc không hợp lệ');
+    var name=String(item.name||'').trim(),unit=String(item.unit||'').trim(),
+      listPrice=Number(item.listPrice),standardPrice=Number(item.unitPrice);
+    need(name.length>=2&&name.length<=160&&unit.length>=1&&unit.length<=40&&
+      Number.isSafeInteger(listPrice)&&listPrice>=0&&listPrice<=1e9&&
+      Number.isSafeInteger(standardPrice)&&standardPrice>=0&&standardPrice<=1e9,
+      'INVALID_CATALOGUE','Thông tin hoặc giá sản phẩm không hợp lệ');
+    codes[item.code]=true;
+    return {code:item.code,name:name,brand:String(item.brand||'').slice(0,40),
+      spec:String(item.spec||'').slice(0,120),unit:unit,listPrice:listPrice,
+      standardUnitPrice:standardPrice,standardDiscountPercent:Number(item.discountPercent||0)};
+  });
+  return {revision:s.revision,updatedAt:s.updatedAt,products:products,
+    source:'drive-ledger:satori_catalogue_v15',total:products.length};
+ }
  if(action==='trash.list'){
   var now=Date.now(),bin=JSON.parse(s.values.satori_trash_bin_v15||'[]');
   need(Array.isArray(bin),'INVALID_STATE','Dữ liệu thùng rác hỏng');
@@ -256,7 +451,9 @@ function read(s,action,p){
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
 function write(s,action,p){
- var all=rows(s),result=action==='orders.create'?create(s,all,p):action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):markPaid(s,all,p);
+ var all=rows(s),result=action==='pricing.approve'?approveAIPricing(s,all,p):
+  (action==='orders.create'||action==='orders.create.ai')?create(s,all,p,action==='orders.create.ai'):
+  action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):markPaid(s,all,p);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
  need(!!fileId,'CONFIG_MISSING','Thiếu STATE_FILE_ID');
@@ -282,7 +479,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});

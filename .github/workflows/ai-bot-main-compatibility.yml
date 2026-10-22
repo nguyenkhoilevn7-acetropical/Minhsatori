@@ -1,0 +1,43 @@
+name: Satori AI Bot main compatibility (FAKE Drive only)
+on:
+  pull_request:
+    paths:
+      - 'api/BotApi.gs'
+      - 'tests/**'
+      - '.github/workflows/ai-bot-main-compatibility.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fake-api-and-ai-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out proposed shared Bot API (without credentials)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check existing production API behavior using fake Drive
+        run: |
+          node tests/satori-bot-api.test.js
+          node tests/bot-api-restore.cjs
+      - name: Get isolated Gemini fake-only preflight suite
+        uses: actions/checkout@v4
+        with:
+          ref: 'feature/gemini-signed-checkout-transport-20261022'
+          path: gemini-e2e
+          persist-credentials: false
+      - name: Test Gemini against new Bot API with no network or real ledger
+        run: |
+          mkdir -p gemini-e2e/bot-staging/api
+          cp api/BotApi.gs gemini-e2e/bot-staging/api/BotApi.gs
+          cd gemini-e2e
+          node customer-ai-chat-prototype/tests/checkout-preflight.test.mjs
+          node customer-ai-chat-prototype/tests/satori-checkout-transport.test.mjs
+          node customer-ai-chat-prototype/tests/ai-bot-fake-ledger-e2e.test.mjs
+      - name: Assert production endpoints are not used
+        run: |
+          echo 'Fake in-memory Google Drive, fake credentials and offline HMAC only.'
