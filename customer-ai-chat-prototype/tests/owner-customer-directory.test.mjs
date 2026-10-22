@@ -54,7 +54,7 @@ assert.doesNotMatch(endpoint,/orders\.create|payments\.markCustomerPaid|saveOrde
 console.log('PASS browser JavaScript syntax and admin-only/no-write boundary');
 
 const reviewHtml=html;
-assert.match(reviewHtml,/id="saveRealReview"[^>]+type="button"|id="saveRealReview" type="button"/);
+assert.match(reviewHtml,/<button type="button" id="saveRealReview"/);
 assert.match(reviewHtml,/\$\('addCustomerLocation'\)\.disabled=false/);
 assert.match(reviewHtml,/function appendNewCustomerLocation\(initial=\{\}\)/);
 assert.match(reviewHtml,/data-imported-locations/);
