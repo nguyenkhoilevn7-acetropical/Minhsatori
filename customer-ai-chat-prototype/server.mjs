@@ -1088,8 +1088,18 @@ function bootstrapEncryptedTestSnapshot(){
  try{
   if(encoded.length>6000000)throw Error('INVALID_BOOTSTRAP_SIZE');
   const key=Buffer.from(String(process.env.GEMINI_SANDBOX_DRIVE_ENCRYPTION_KEY_B64||''),'base64');
-  const envelope=JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
-  const restored=decryptArchive(envelope,key);
+  if(key.length!==32)throw Error('BOOTSTRAP_AES_KEY_SIZE');
+  let envelope;
+  try{envelope=JSON.parse(Buffer.from(encoded,'base64').toString('utf8'))}
+  catch{throw Error('BOOTSTRAP_ENVELOPE_JSON_INVALID')}
+  let restored;
+  try{restored=decryptArchive(envelope,key)}
+  catch(err){
+   const category=String(err?.message||'');
+   if(category==='INVALID_BACKUP_ENVELOPE')throw Error('BOOTSTRAP_ENVELOPE_INVALID');
+   if(category==='INVALID_SANDBOX_BACKUP')throw Error('BOOTSTRAP_CHECKSUM_OR_SCHEMA_INVALID');
+   throw Error('BOOTSTRAP_AES_AUTH_OR_CORRUPT_CIPHERTEXT');
+  }
   // Explicit snapshot age is checked before modifying any in-memory or on-disk data.
   const raw=Buffer.from(encoded,'base64');
   const payload=JSON.parse(raw.toString('utf8'));
@@ -1110,7 +1120,12 @@ function bootstrapEncryptedTestSnapshot(){
   console.info('SANDBOX_BOOTSTRAP_RESTORED','orders='+restored.orders.length,
    'drafts='+draftStore.snapshot().length,'customers='+restored.profiles.length);
  }catch(e){
-  console.error('SANDBOX_BOOTSTRAP_FAILED',e?.message==='STALE_BOOTSTRAP'?'STALE_BOOTSTRAP':'INTEGRITY_OR_STORAGE_ERROR');
+  // Only bounded fixed categories; never print secrets, ciphertext or raw errors.
+  const codes=new Set(['STALE_BOOTSTRAP','BOOTSTRAP_AES_KEY_SIZE',
+   'BOOTSTRAP_ENVELOPE_JSON_INVALID','BOOTSTRAP_ENVELOPE_INVALID',
+   'BOOTSTRAP_CHECKSUM_OR_SCHEMA_INVALID','BOOTSTRAP_AES_AUTH_OR_CORRUPT_CIPHERTEXT',
+   'INVALID_BOOTSTRAP_SIZE']);
+  console.error('SANDBOX_BOOTSTRAP_FAILED',codes.has(e?.message)?e.message:'INTEGRITY_OR_STORAGE_ERROR');
   throw Error('SANDBOX_BOOTSTRAP_FAILED');
  }
 }
