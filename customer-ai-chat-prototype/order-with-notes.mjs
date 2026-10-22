@@ -8,10 +8,29 @@ import {parseOneClause} from './multi-order.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 
 const noteStart=/(?:^|[\s,.;])((?:lưu\s*ý|luu\s*y|ghi\s*chú|ghi\s*chu|nhớ|nho|gọi\s+trước|goi\s+truoc|giao\s+(?:sau|lúc|luc|vào|vao|trước|truoc|tầm|tam|khoảng|khoang))(?=\s|$|[.,;]))/iu;
+
+/* Everyday Vietnamese delivery notes do not require the words "lưu ý".
+ * Preserve spoken instructions, never invent a guaranteed delivery time.
+ * Accent folding below maintains the original character offsets.
+ */
+const naturalNote=/\b(?:giao(?:\s+hang)?|ship)\s+(?:(?:giup|cho)\s+(?:anh|chi|em|minh|toi)\s+)?(?:som|nhanh|gap|ngay)\b|\b(?:can|muon|mong|nho)\s+(?:duoc\s+)?(?:giao|nhan)(?:\s+hang)?\s+(?:som|nhanh|gap|ngay)\b|\b(?:de|dat)\s+(?:o|truoc)\s+(?:cua|cong|bao ve|le tan)\b|\b(?:dung|khong)\s+(?:bam\s+chuong|goi\s+dien)\b/u;
+const customerQuestionOnly=/^(?:ben\s+(?:em|minh)\s+)?(?:co\s+)?(?:giao|ship)\s+(?:som|nhanh|gap)\s+(?:khong|ko|duoc\s+khong)\s*[?.!]*$/u;
+function foldedWithOffsets(v){return String(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d')}
+
 export function splitOrderAndNote(message){
  const raw=String(message||'').trim();
  const match=noteStart.exec(raw);
- if(!match)return {orderText:raw,noteText:''};
+ if(!match){
+  const folded=foldedWithOffsets(raw);
+  if(customerQuestionOnly.test(folded.trim()))return {orderText:raw,noteText:''};
+  const natural=naturalNote.exec(folded);
+  if(!natural)return {orderText:raw,noteText:''};
+  const before=raw.slice(0,natural.index).trim();
+  // Polite requests such as "Anh muốn giao sớm" have no ordered SKU.
+  if(!/\b\d{1,3}\s*(?:thung|thg|binh|loc|chai|lon|suoi|nuoc|oi|mang|me|satori|hikari|ml)\b/i.test(foldedWithOffsets(before)))
+   return {orderText:'',noteText:raw};
+  return {orderText:before.replace(/[\s,.;]+$/,'').trim(),noteText:raw.slice(natural.index).trim()};
+ }
  const start=match.index+match[0].indexOf(match[1]);
  return {orderText:raw.slice(0,start).replace(/[\s,.;]+$/,'').trim(),
   noteText:raw.slice(start).trim()};
