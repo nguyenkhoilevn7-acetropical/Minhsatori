@@ -42,7 +42,7 @@ function state(){
 }
 function rows(s){var x=JSON.parse(s.values[ORDER_KEY]);need(Array.isArray(x),'INVALID_STATE','Dữ liệu hóa đơn hỏng');return x;}
 function version(s,p){need(Number.isInteger(p.expectedRevision),'REVISION_REQUIRED','Thiếu expectedRevision');need(s.revision===p.expectedRevision,'REVISION_CONFLICT','Dữ liệu vừa được cập nhật, hãy đọc lại');}
-function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
+function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
 function iso(date){
  var m=String(date||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
  var d=new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
@@ -52,7 +52,7 @@ function iso(date){
 function select(all,p){
  var q=norm(p.query||''),digits=String(p.query||'').replace(/\D/g,'');
  return all.filter(function(o){
-  if(q&&![o.name,o.phone,o.customerCode,o.customerId,o.clientCode,o.invoiceNo].some(function(v){return norm(v).includes(q)})&&!(digits.length>=5&&String(o.phone||'').replace(/\D/g,'').includes(digits)))return false;
+  if(q&&![o.name,o.pairCustomerName,o.pairCollaboratorName,o.collaboratorId,o.phone,o.customerCode,o.customerId,o.clientCode,o.invoiceNo].some(function(v){return norm(v).includes(q)})&&!(digits.length>=5&&String(o.phone||'').replace(/\D/g,'').includes(digits)))return false;
   if(p.status&&o.status!==p.status)return false;
   var date=iso(o.date);if((p.from||p.to)&&(!date||(p.from&&date<p.from)||(p.to&&date>p.to)))return false;
   return true;
@@ -324,7 +324,7 @@ function collaborator(s,id){
  var list=JSON.parse(s.values.satori_collaborators_v1||'[]');
  need(Array.isArray(list)&&list.length<=10000,'INVALID_STATE','Danh sách cộng tác viên không hợp lệ');
  var rows=list.filter(function(x){return x&&String(x.id)===String(id)});
- need(rows.length===1&&rows[0].active===true,'COLLABORATOR_NOT_ACTIVE','Cộng tác viên chưa hoạt động');
+ need(rows.length===1&&rows[0].active===true&&typeof rows[0].name==='string'&&rows[0].name.trim().length>=2&&rows[0].name.length<=150,'COLLABORATOR_NOT_ACTIVE','Cộng tác viên chưa hoạt động');
  return rows[0];
 }
 function pairPolicyFor(s,id){
@@ -465,9 +465,11 @@ function createPair(s,all,p){
   return {id:idValue,__syncId:Utilities.getUuid(),apiRequestId:requestId,
    pairRequestId:requestId,pairIntent:fingerprint,pairGroupId:group,
    pairRole:role,pairInvoiceNo:other,collaboratorId:id,
+   pairCustomerName:p.order.name.trim(),pairCollaboratorName:partner.name.trim(),
    pairPolicyVersion:policy.policyVersion,pairDiscountPercent:percentage,
    pairShippingPercent:policy.shippingPercent,pairVatPercent:policy.vatPercent,
-   invoiceNo:invoiceNo,date:date,timestamp:Date.now(),name:p.order.name.trim(),
+   invoiceNo:invoiceNo,date:date,timestamp:Date.now(),
+   name:role==='collaborator'?partner.name.trim():p.order.name.trim(),
    phone:String(p.order.phone||''),location:String(p.order.location||''),items:items,
    product:items.map(function(i){return i.product+' x'+i.qty}).join(', '),
    qty:items.reduce(function(n,i){return n+i.qty},0),goodsTotal:goods,
