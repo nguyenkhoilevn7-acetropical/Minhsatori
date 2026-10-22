@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
@@ -473,6 +474,29 @@ class NativeMainActivity : AppCompatActivity() {
             }
             button(hero, "XEM TRẢI NGHIỆM ĐẶT HÀNG") {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "customer"))
+            }
+            button(hero, "🔗 MỞ CÙNG LINK KHÁCH TRÊN WEBSITE") {
+                val input = EditText(this).apply {
+                    hint = "https://minh-satori-customer-ai-gemini.onrender.com/c/..."
+                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+                    setSingleLine(true)
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("Mở giỏ hàng Gemini của khách")
+                    .setMessage("Dán link khách do Gemini cấp. App mở cùng phiên trên máy chủ; không lưu link vào điện thoại. Chỉ dùng thử, chưa ghi hóa đơn thật.")
+                    .setView(input)
+                    .setNegativeButton("Hủy", null)
+                    .setPositiveButton("Mở link") { _, _ ->
+                        val verified = AiSandboxContract.customerPortalUrl(input.text.toString())
+                        if (verified == null) {
+                            Toast.makeText(this, "Link không hợp lệ. Chỉ nhận link khách Gemini của Satori.", Toast.LENGTH_LONG).show()
+                        } else {
+                            startActivity(Intent(this, AiCustomerPortalActivity::class.java)
+                                .putExtra("mode", "customer")
+                                .putExtra("customer_url", verified))
+                        }
+                    }
+                    .show()
             }
             content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(14)
@@ -1260,6 +1284,9 @@ class NativeMainActivity : AppCompatActivity() {
         }
         wrapper.addView(content)
         label(content, "HÓA ĐƠN #" + invoice.number, 19f, true, teal)
+        if (invoice.isTest) {
+            label(content, "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ", 12f, true, gold, 8)
+        }
         label(content, invoice.customer, 16f, true, dark, 10)
         label(content, "Ngày: " + invoice.displayDate + " · " + invoice.status, 13f,
             false, muted, 7)
@@ -1293,7 +1320,15 @@ class NativeMainActivity : AppCompatActivity() {
             NativeInvoicePdf.preview(this, invoice)
         }
         var invoiceDialog: AlertDialog? = null
-        if (invoice.canEditOrDelete || invoice.canMarkCustomerPaid) {
+        // Legacy/partially restored rows may have a missing/non-numeric number.
+        // Continue read-only display, but never crash on toInt() or send a write.
+        val validInvoiceNumber = invoice.number.toIntOrNull()?.takeIf { it > 0 }
+        if (validInvoiceNumber == null) {
+            label(content, "⚠ Số hóa đơn cần kiểm tra. Đã khóa sửa, xóa và ghi thanh toán.",
+                12f, true, gold, 10)
+        }
+        if (validInvoiceNumber != null &&
+            (invoice.canEditOrDelete || invoice.canMarkCustomerPaid)) {
             if (invoice.canEditOrDelete && canAction("orders.update")) button(content, "SỬA HÓA ĐƠN") {
                 invoiceDialog?.dismiss()
                 launchEditor(editing = invoice)
@@ -1503,6 +1538,10 @@ class NativeMainActivity : AppCompatActivity() {
         val contents = JSONObject(payload.toString())
         if (!contents.has("requestId")) contents.put("requestId",
             UUID.randomUUID().toString().replace("-", ""))
+        if (SatoriOrderValidation.requiresTestLedger(action, contents)) {
+            completed(false, "Đơn TEST phải chuyển sang môi trường thử, không được lưu vào sổ hóa đơn thật.")
+            return
+        }
         val exactRetry = prior?.matches(endpoint.orEmpty(), actorId, action, contents) == true
         if (!hasServerAction(action) || endpoint == null || token == null || isLoading ||
             pendingStorageError || (prior != null && !exactRetry)) {

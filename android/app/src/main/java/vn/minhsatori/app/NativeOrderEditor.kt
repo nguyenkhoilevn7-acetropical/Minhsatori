@@ -245,6 +245,10 @@ object NativeOrderEditor {
                             payload.put("confirmedNewCustomer",true)
                         }
                     }
+                    val action = if (editing == null) "orders.create" else "orders.update"
+                    require(!SatoriOrderValidation.requiresTestLedger(action, payload)) {
+                        "Đơn có đánh dấu TEST chỉ được tạo trong môi trường thử, không lưu vào hóa đơn thật."
+                    }
                     val preview=StringBuilder(if(editing==null)"TẠO HÓA ĐƠN" else "SỬA HÓA ĐƠN #"+editing.number)
                         .append("\nKhách: ").append(cleanName)
                         .append("\nSĐT: ").append(cleanPhone)
