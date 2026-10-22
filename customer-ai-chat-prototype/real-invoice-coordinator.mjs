@@ -13,6 +13,7 @@
 import crypto from 'node:crypto';
 import {preflightCheckout} from './checkout-preflight.mjs';
 import {sendApprovedCheckout} from './satori-checkout-transport.mjs';
+import {previewCollaboratorPair} from './collaborator-pair-preview.mjs';
 
 const reject=(code)=>{const e=new Error(code);e.code=code;throw e};
 const clean=v=>typeof v==='string'?v.trim():'';
@@ -21,6 +22,8 @@ const qtyOk=n=>Number.isSafeInteger(n)&&n>=1&&n<=500;
 const expiresInMs=10*60_000;
 const canonical = value=>JSON.stringify(value);
 const fingerprint=(value)=>crypto.createHash('sha256').update(canonical(value)).digest('hex');
+const normalizedName=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+const requiresPair=ctx=>Boolean(ctx.collaboratorPolicy||ctx.customer.collaboratorId)||normalizedName(ctx.customer.name)==='ha minh nguyet';
 
 function trusted(raw){
  if(!raw||raw.verifiedByServer!==true||raw.pricingApprovedByOwner!==true||
@@ -60,6 +63,7 @@ function contextIdentity(ctx){
   customerRef:ctx.customer.sourceReference,
   name:ctx.customer.name,phone:ctx.customer.phone,location:ctx.customer.location,
   discount:ctx.customer.approvedDiscountPercent,
+  collaboratorPolicy:ctx.collaboratorPolicy||null,
   vatRate:ctx.vatRate,shipping:ctx.shippingAmount
  });
 }
@@ -76,31 +80,47 @@ export function createRealInvoiceCoordinator({
   // from the old SANDBOX customer links.
   const ctx=trusted(await resolveTrusted(session));
   if(typeof deliveryNote!=='string'||deliveryNote.length>300)reject('INVALID_DELIVERY_NOTE');
-  const price=basket(lines,ctx);
+  // For a known collaborator, never silently fall back to ONE live invoice.
+  // The two-price view is OWNER ONLY until Apps Script supports an atomic pair.
+  const pair=requiresPair(ctx)?previewCollaboratorPair({
+   policy:ctx.collaboratorPolicy,customer:ctx.customer,source:ctx.source,lines,
+   vatRate:ctx.vatRate,shippingAmount:ctx.shippingAmount,
+   ownerSessionVerified:ctx.ownerSessionVerified===true
+  }):null;
+  const price=pair?{goodsTotal:pair.customerBill.goodsTotal,
+   vatAmount:pair.customerBill.vatAmount,shippingAmount:pair.customerBill.shippingAmount,
+   total:pair.customerBill.total,units:pair.deliveryQuantity}:basket(lines,ctx);
   const id='ai_'+newId();
   if(!safeId(id))reject('INVALID_GENERATED_ID');
   const quote={
     quoteId:id,requestId:id,sessionKey:ctx.sessionKey,
+    kind:pair?'collaborator_pair':'single',
     contextHash:contextIdentity(ctx),revision:ctx.revision,
     lines:structuredClone(lines),deliveryNote,
-    total:price.total,expiresAt:now()+expiresInMs,status:'pending'
+    pair:pair||null,total:price.total,expiresAt:now()+expiresInMs,status:'pending'
   };
   // Validate with exact Bot API preflight math, but never expose this signed
   // capability. User confirmation happens in confirm(), not in preview().
-  preflightCheckout({revision:ctx.revision,requestId:id,customer:{...ctx.customer,deliveryNote},
+  if(!pair)preflightCheckout({revision:ctx.revision,requestId:id,customer:{...ctx.customer,deliveryNote},
    source:ctx.source,lines:quote.lines,expectedTotal:price.total,
    shippingAmount:ctx.shippingAmount,vatRate:ctx.vatRate,
    confirmedByCustomer:true});
   if(await intentStore.putIfAbsent(id,quote)!==true)reject('INTENT_ID_COLLISION');
   return Object.freeze({quoteId:id,revision:ctx.revision,items:lines.map(x=>({code:x.code,qty:x.qty})),
    goodsTotal:price.goodsTotal,shippingAmount:price.shippingAmount,vatAmount:price.vatAmount,
-   total:price.total,expiresAt:quote.expiresAt,requiresExplicitConfirmation:true});
+   total:price.total,expiresAt:quote.expiresAt,requiresExplicitConfirmation:true,
+   ...(pair?{ownerOnly:true,physicalOrderCount:1,priceViewCount:2,
+    customerBill:pair.customerBill,collaboratorBill:pair.collaboratorBill,
+    priceDifference:pair.priceDifference,requiresAtomicPairCommit:true}: {})});
  }
 
  async function confirm({session,quoteId,confirmedByCustomer=false}={}){
   if(!safeId(quoteId)||confirmedByCustomer!==true)reject('CONFIRMATION_REQUIRED');
   const item=await intentStore.get(quoteId);
   if(!item)reject('QUOTE_NOT_FOUND');
+  // CRITICAL: two separate orders.create.ai POSTs are not an atomic pair.
+  // Until an authoritative, idempotent pair action exists, NEVER post one side.
+  if(item.kind==='collaborator_pair')reject('COLLABORATOR_PAIR_ATOMIC_API_REQUIRED');
   // Already confirmed quotes are not resent to the Bot API, and uncertain
   // quotes are frozen until an authorised reconciliation using the SAME id.
   if(item.status==='confirmed')return Object.freeze({...item.receipt,duplicate:true});
