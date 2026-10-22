@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - 'feature/minhsatori-native-android-v020'
+      - 'release/android-v0.3.7-ui-ledger-20261022'
     paths:
       - 'android/release-request.json'
 
