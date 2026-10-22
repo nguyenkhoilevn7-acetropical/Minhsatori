@@ -76,7 +76,7 @@ try{
  assert.equal(quote2.status,200);
  const mismatch=await req('/api/confirm','POST',{token,quoteId:quote2.data.quote.quoteId,
   requestId:'wrong-draft-claim-004',expectedDraftRevision:rev});
- assert.equal(mismatch.status,409,'can't bind new quote to previous revision');
+ assert.equal(mismatch.status,409,'cannot bind new quote to previous revision');
  const second=await req('/api/confirm','POST',{token,quoteId:quote2.data.quote.quoteId,
   requestId:'legitimate-next-bill-005',expectedDraftRevision:add2.data.draft.revision});
  assert.equal(second.status,200,'different basket can create another TEST bill');
