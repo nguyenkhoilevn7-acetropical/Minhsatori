@@ -79,6 +79,12 @@ async function checkCase(label,encoded,shouldMaintain,port){
    }
    assert.ok(!existsSync(path.join(dir,'orders.json')),'cannot create empty replacement orders file');
    assert.match(logs,/SANDBOX_MAINTENANCE_LISTENING/);
+   if(label.startsWith('tampered'))
+    assert.match(logs,/SANDBOX_BOOTSTRAP_FAILED BOOTSTRAP_AES_AUTH_OR_CORRUPT_CIPHERTEXT/,
+     'tampered ciphertext receives fixed safe diagnostic without leaking contents');
+   if(label.startsWith('stale'))
+    assert.match(logs,/SANDBOX_BOOTSTRAP_FAILED STALE_BOOTSTRAP/,
+     'valid but expired archive is not mistaken for AES key corruption');
   }else{
    assert.notEqual(health.maintenance,true,'valid fresh bootstrap runs original application');
    assert.equal(health.orders,0);
