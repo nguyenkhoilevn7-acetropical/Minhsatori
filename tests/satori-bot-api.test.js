@@ -80,3 +80,38 @@ const debt=call('debt.summary',{query:'Khach CTV'});assert.equal(debt.ok,true);a
 assert.equal(call('debt.summary',{query:'102'}).data.due,0,'reference bill must not become debt when high sale outside filter');
 console.log('PASS — debt agrees with ledger: excludes low CTV reference using full-state pairing before filtering');
 console.log('PASS — authenticated customer profiles, create, soft delete, paid protection, backups, idempotency, revision, debt');
+
+
+// Regression: legacy rows with the same invoice number must not affect each other.
+// All customers, amounts and IDs here are synthetic fixtures, never real customer data.
+const duplicateRows=[
+ {id:200001,invoiceNo:85,name:'Fixture Shop A',location:'Address A',date:'10/10/2026',total:125000,status:'Chưa thanh toán'},
+ {id:200002,invoiceNo:85,name:'Fixture Shop B',location:'Address B',date:'10/10/2026',total:250000,status:'Không Tính'}
+];
+data={revision:30,updatedAt:'2026-10-21T23:33:56Z',values:{
+ satori_orders_v15:JSON.stringify(duplicateRows),satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'
+}};
+const uniqueTarget={expectedRevision:30,invoiceNo:85,id:200001,expectedName:'Fixture Shop A',expectedTotal:125000,confirmed:true,amount:125000};
+const initialWrites=writes;
+assert.equal(call('payments.markCustomerPaid',{expectedRevision:30,invoiceNo:85,confirmed:true,amount:125000}).error.code,'INVALID_ORDER');
+assert.equal(call('payments.markCustomerPaid',{...uniqueTarget,id:999}).error.code,'INVALID_ORDER');
+assert.equal(call('payments.markCustomerPaid',{...uniqueTarget,expectedName:'Fixture Shop B'}).error.code,'ORDER_CHANGED');
+assert.equal(call('payments.markCustomerPaid',{...uniqueTarget,amount:50000}).error.code,'TOTAL_MISMATCH');
+assert.equal(call('payments.markCustomerPaid',{...uniqueTarget,receiptUrl:'http://example.com/forged.png'}).error.code,'INVALID_RECEIPT');
+assert.equal(writes,initialWrites,'rejected payments must never persist');
+const receiptUrl='https://drive.google.com/file/d/1kZZZZZZZZZZZZZZZZZZZZ/view';
+const updatedReceipt=call('payments.markCustomerPaid',{...uniqueTarget,receiptUrl,receiptAt:'2026-10-22T16:10:00+07:00',paymentNote:'Offline test fixture: 125000 VND'});
+assert.equal(updatedReceipt.ok,true);
+assert.equal(updatedReceipt.data.order.status,'Đã thanh toán');
+assert.equal(updatedReceipt.data.order.customerPaymentReceiptUrl,receiptUrl);
+assert.equal(updatedReceipt.data.order.customerPaymentReceiptAt,'2026-10-22T16:10:00+07:00');
+assert.equal(updatedReceipt.revision,31);
+assert.equal(writes,initialWrites+1);
+const after=JSON.parse(data.values.satori_orders_v15);
+assert.equal(after[0].customerPaymentReceiptUrl,receiptUrl);
+assert.equal(after[1].status,'Không Tính','unrelated record with same invoice number must remain untouched');
+assert.equal(after[1].customerPaidAt,undefined);
+assert.equal(call('debt.summary',{query:'Fixture Shop A'}).data.due,0);
+assert.equal(call('payments.markCustomerPaid',{...uniqueTarget,expectedRevision:31}).data.alreadyPaid,true);
+assert.equal(data.revision,31,'idempotent repeat must not rewrite the state');
+console.log('PASS — duplicate invoice identity guard, receipt persistence, readback, shared revision, idempotency');
