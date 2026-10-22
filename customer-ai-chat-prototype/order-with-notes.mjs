@@ -15,7 +15,7 @@ const noteStart=/(?:^|[\s,.;])((?:lưu\s*ý|luu\s*y|ghi\s*chú|ghi\s*chu|nhớ|n
  */
 const naturalNote=/\b(?:giao(?:\s+hang)?|ship)\s+(?:(?:giup|cho)\s+(?:anh|chi|em|minh|toi)\s+)?(?:som|nhanh|gap|ngay)\b|\b(?:can|muon|mong|nho)\s+(?:duoc\s+)?(?:giao|nhan)(?:\s+hang)?\s+(?:som|nhanh|gap|ngay)\b|\b(?:de|dat)\s+(?:o|truoc)\s+(?:cua|cong|bao ve|le tan)\b|\b(?:dung|khong)\s+(?:bam\s+chuong|goi\s+dien)\b/u;
 const customerQuestionOnly=/^(?:ben\s+(?:em|minh)\s+)?(?:co\s+)?(?:giao|ship)\s+(?:som|nhanh|gap)\s+(?:khong|ko|duoc\s+khong)\s*[?.!]*$/u;
-function foldedWithOffsets(v){return String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase()}
+function foldedWithOffsets(v){return String(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d')}
 
 export function splitOrderAndNote(message){
  const raw=String(message||'').trim();
