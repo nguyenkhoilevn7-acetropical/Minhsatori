@@ -96,7 +96,7 @@ export async function readConfiguredPairPolicy(collaboratorId,options={}){
    policy:structuredClone(entries[0])};
 }
 export function createCollaboratorPairGateway({resolveTrusted,readPolicy,store,
- send,now=Date.now,newId=()=>crypto.randomBytes(18).toString('hex')}={}){
+ send=(approved)=>sendApprovedPair({approved}),now=Date.now,newId=()=>crypto.randomBytes(18).toString('hex')}={}){
  if(typeof resolveTrusted!=='function'||typeof readPolicy!=='function'||
     typeof send!=='function'||!store||
     !['putIfAbsent','get','claim','finish'].every(k=>typeof store[k]==='function'))
@@ -126,6 +126,14 @@ export function createCollaboratorPairGateway({resolveTrusted,readPolicy,store,
   if(!requestId(quoteId)||confirmedByCustomer!==true)fail('CTV_CONFIRMATION_REQUIRED');
   const record=await store.get(quoteId);
   if(!record)fail('CTV_QUOTE_NOT_FOUND');
+  // A leaked quoteId cannot act as an authentication token for an invoice.
+  // Revalidate the independent customer session even for successful replays.
+  const viewingContext=await resolveTrusted(session);
+  if(!viewingContext||viewingContext.verifiedByServer!==true||
+   viewingContext.customer?.verifiedByServer!==true||
+   viewingContext.sessionKey!==record.sessionKey||
+   viewingContext.collaboratorId!==record.collaboratorId)
+   fail('CUSTOMER_NOT_VERIFIED');
   if(record.status==='confirmed')return freezeTree({customerInvoiceNo:record.result.customerInvoiceNo,confirmedByAuthoritativeLedger:true,duplicate:true});
   if(record.status!=='pending')fail('CTV_COMMIT_UNCERTAIN_RECONCILE');
   if(record.expiresAt<=now())fail('CTV_QUOTE_EXPIRED');
