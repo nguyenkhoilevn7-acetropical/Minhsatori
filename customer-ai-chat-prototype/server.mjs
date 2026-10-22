@@ -25,6 +25,7 @@ import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
+import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
 import {auditDriveCatalogue} from './catalogue-drive-audit.mjs';
 import {getGeminiVersionStatus} from './version-status.mjs';
@@ -316,6 +317,36 @@ const server=http.createServer(async(req,res)=>{
     revision:latest.revision,totalMatches:profiles.total,shown:profiles.profiles.length,
     truncated:Number(profiles.total)>profiles.profiles.length,profiles:profiles.profiles});
   }catch{return fail(res,503,'LIVE_SOURCE_UNAVAILABLE','Không thể truy xuất dữ liệu thật. Không dùng dữ liệu mẫu thay thế.')}
+ }
+
+ // Owner-triggered, one-calendar-month customer screening. This only interprets
+ // the already-authorized READ-ONLY orders.list response. No real customer data
+ // is stored in sandbox files, used in Gemini prompts, or sent to public routes.
+ // No approval persistence and no customer-link creation is wired here.
+ if(req.method==='GET'&&p==='/api/admin/live-screen'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được sàng lọc khách.');
+  if(!rateLimit(req,'admin-production-read'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng giảm tần suất truy vấn.');
+  if(!readOnlyReady())
+   return fail(res,503,'READ_ONLY_NOT_CONFIGURED','Chưa cấu hình nguồn chỉ đọc.');
+  const month=url.searchParams.get('month')||'';
+  let lookup;
+  try{lookup=ownerLiveLookup(new URLSearchParams({kind:'invoices',month}));}
+  catch{return fail(res,400,'INVALID_MONTH','Chọn một tháng hợp lệ để sàng lọc.')}
+  try{
+   const source=await readMinhSatori(lookup.action,lookup.payload);
+   if(!Number.isSafeInteger(source.revision)||!Array.isArray(source.data?.orders))
+    return fail(res,503,'LIVE_SOURCE_INVALID','Nguồn hóa đơn chưa hợp lệ.');
+   const totalMatches=Number(source.data.totalMatches);
+   // Unknown counts must be treated as incomplete; no approval should be inferred.
+   const incomplete=!Number.isSafeInteger(totalMatches)||totalMatches>source.data.orders.length;
+   const candidates=screenMonthlyCustomers(source.data.orders,{truncated:incomplete});
+   return reply(res,200,{ok:true,readOnly:true,reviewOnly:true,month,
+    revision:source.revision,totalMatches:Number.isFinite(totalMatches)?totalMatches:null,
+    shown:source.data.orders.length,truncated:incomplete,
+    candidates,productionLinkEnabled:false,approvalsStored:false});
+  }catch{return fail(res,503,'LIVE_SCREEN_UNAVAILABLE','Chưa thể sàng lọc tháng này; không áp dụng dữ liệu mẫu.')}
  }
  // This route probes source-of-truth sync READINESS only. Admin-authenticated,
  // no catalogue/customer/order records returned and never any production writes.
