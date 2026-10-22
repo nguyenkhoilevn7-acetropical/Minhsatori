@@ -128,11 +128,11 @@ button:disabled{opacity:.55}
 </section>
 <section class="card" data-tab-panel="customers" hidden><h2>Tạo link riêng cho khách thử</h2><p class="hint">Mỗi link chỉ thuộc một hồ sơ. Thông tin khách và chiết khấu được kiểm tra ở máy chủ, không lấy từ tin nhắn AI.</p>
 <form id="create">
-<label for="customerSearch">Chọn khách đã có (sandbox)</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
-<p id="customerHelp" class="hint">Chọn hồ sơ từ gợi ý để tự điền thông tin. Chỉ tìm trong khách thử đã lưu; khách website thật sẽ kết nối sau.</p>
-<select id="existingCustomer" aria-label="Chọn khách đã có"><option value="">— Chọn khách có sẵn —</option></select>
+<label for="customerSearch">Tìm khách trong sổ kế toán thật hoặc hồ sơ thử</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
+<p id="customerHelp" class="hint">Chọn hồ sơ từ gợi ý để tự điền thông tin. Danh sách tự lấy tên từ 3 tháng gần nhất trong sổ kế toán thật, hoặc tìm theo tên nếu khách lâu chưa mua. Mọi địa chỉ thật chỉ được xem sau đăng nhập quản trị.</p>
+<select id="existingCustomer" aria-label="Chọn khách đã có"><option value="">— Đang tải danh sách khách có sẵn —</option></select><p class="hint" id="realCustomerState" role="status">Chưa tải tên khách từ sổ thật.</p><div id="realCustomerDetails" class="location-manager" hidden aria-live="polite"></div>
 <div id="customerSuggestions" class="suggestions" aria-live="polite"></div>
-<p id="selectedCustomer" class="selected" role="status"></p>
+<p id="selectedCustomer" class="selected" role="status"></p><p class="hint" id="realCustomerLinkWarning" hidden>🔒 Khách từ sổ thật chỉ được tự động điền để đối chiếu. Chưa cho phép cấp link thật hoặc ghi dữ liệu vào sandbox. Địa chỉ, SĐT, chiết khấu và phí giao phải được xác minh trước khi sử dụng.</p>
 <button type="button" id="newCustomer" class="secondary">+ Nhập khách mới</button>
 <label for="name">Tên khách</label><input id="name" required minlength="2" maxlength="120" placeholder="Khách Demo C">
 <label for="phone">Số điện thoại thử</label><input id="phone" required maxlength="30" type="tel" placeholder="000 000 0003">
@@ -178,7 +178,7 @@ button:disabled{opacity:.55}
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-let secret='',lastLink='',customerProfiles=[],selectedCustomerId='';
+let secret='',lastLink='',customerProfiles=[],selectedCustomerId='',realCustomers=[],selectedRealKey='',realQueryTimer=0,realFetchSeq=0;
 const clearError=()=>{$('error').textContent='';$('result').textContent=''};
 // Horizontal navigation: only show the chosen dashboard section.
 async function refreshVersionStatus(){
@@ -357,11 +357,123 @@ function matchesCustomer(c,query){
  const q=normalized(query),p=digits(query);
  return (q.length>=2&&normalized(c.name).includes(q))||(p.length>=3&&digits(c.phone).includes(p));
 }
+
+function markRealMode(enabled){
+ $('realCustomerDetails').hidden=!enabled;
+ $('realCustomerLinkWarning').hidden=!enabled;
+ for(const id of ['discount','ship','vatRate'])$(id).disabled=enabled;
+ if(!enabled)$('realCustomerDetails').replaceChildren();
+}
+function renderCustomerSelect(){
+ const select=$('existingCustomer'),old=selectedRealKey?'real:'+selectedRealKey:selectedCustomerId;
+ select.replaceChildren(new Option('— Chọn khách có sẵn —',''));
+ if(realCustomers.length){
+  const section=document.createElement('optgroup');section.label='📚 KHÁCH TỪ SỔ KẾ TOÁN • CHỈ ĐỌC';
+  for(const c of realCustomers){
+   const opt=document.createElement('option');opt.value='real:'+c.key;
+   opt.textContent=c.name+(c.aliases?.length>1?' • '+c.aliases.length+' tên/chi nhánh':'')+
+    (c.invoiceCount?' • '+c.invoiceCount+' bill gần đây':'');
+   section.append(opt);
+  }
+  select.append(section);
+ }
+ const sandbox=document.createElement('optgroup');sandbox.label='🧪 KHÁCH THỬ';
+ for(const c of customerProfiles)sandbox.append(new Option(c.name+' • '+c.phone,c.id));
+ select.append(sandbox);
+ if([...select.options].some(x=>x.value===old))select.value=old;
+}
+async function loadRealDirectory(){
+ if(!secret)return;
+ $('realCustomerState').textContent='Đang tổng hợp tên khách từ 3 tháng gần nhất…';
+ try{
+  const d=await request('/api/admin/customer-directory?mode=list');
+  realCustomers=d.customers||[];renderCustomerSelect();
+  $('realCustomerState').textContent='Đã lấy '+realCustomers.length+' tên/nhóm khách từ sổ thật • revision '+d.revision+
+   (d.sourceComplete?' • Chọn tên để tải tất cả điểm giao đã tìm được.':' • Một số tháng quá giới hạn; có thể tìm thêm khách theo tên.');
+ }catch(e){$('realCustomerState').textContent='Chưa tải được khách thật: '+e.message+' • Vẫn dùng được khách THỬ.';}
+}
+function makeRealField(labelText,value){
+ const label=document.createElement('label');label.textContent=labelText;
+ const input=document.createElement('input');input.readOnly=true;input.value=String(value||'Chưa xác minh');input.tabIndex=-1;
+ label.append(input);return label;
+}
+function fillRealCustomer(detail){
+ selectedCustomerId='';selectedRealKey=detail.key;
+ $('customerSuggestions').replaceChildren();
+ $('selectedCustomer').textContent='📚 Đã chọn '+detail.name+' từ sổ thật • chỉ để rà soát, KHÔNG cấp link.';
+ $('createButton').disabled=true;$('createButton').textContent='🔒 Khách thật • Chưa cấp link';
+ $('addCustomerLocation').disabled=true;$('manageSelectedLocations').hidden=true;
+ $('newCustomerLocations').replaceChildren();$('discount').value='';$('ship').value='';$('vatRate').value='';
+ markRealMode(true);
+ const root=$('realCustomerDetails');root.replaceChildren();
+ const intro=document.createElement('p');intro.className='hint';
+ intro.textContent=detail.count+' điểm giao đã tìm thấy'+(detail.sourceTotal==null?'':', nguồn báo '+detail.sourceTotal+' hồ sơ')+
+  (detail.complete?' • Đã khớp phạm vi dữ liệu tìm kiếm.':' • CHƯA ĐẦY ĐỦ: phải đối chiếu thêm.')+
+  (detail.multipleContacts?' • Có nhiều số điện thoại; hãy kiểm tra từng chi nhánh.':'');
+ root.append(intro);
+ const note=document.createElement('p');note.className='hint';
+ note.textContent='Danh sách địa chỉ sau đây chỉ để đối chiếu. Chọn một địa chỉ để điền mẫu thông tin ở phía dưới; không dùng để gửi đơn thật.';
+ root.append(note);
+ const places=detail.places||[];
+ if(!places.length){
+  $('name').value=detail.name;$('phone').value='';$('address').value='';
+  root.append('Chưa tìm được điểm giao hợp lệ trong sổ.');return;
+ }
+ const updatePrimary=i=>{
+  const p=places[i];
+  $('name').value=p.name;$('phone').value=p.phone||'';$('address').value=p.address||'';
+ };
+ for(const [i,p] of places.entries()){
+  const card=document.createElement('fieldset');card.className='new-location-item';
+  const legend=document.createElement('legend');legend.textContent=(i+1)+'. '+p.name;
+  card.append(legend);
+  const choice=document.createElement('label');choice.className='selected';
+  const radio=document.createElement('input');radio.type='radio';radio.name='readonly-real-location';radio.checked=i===0;
+  radio.style.width='auto';radio.style.minHeight='auto';radio.onchange=()=>updatePrimary(i);
+  choice.append(radio,document.createTextNode(' Xem điểm giao này trong ô thông tin'));card.append(choice);
+  card.append(makeRealField('Địa chỉ',p.address),makeRealField('Số điện thoại',p.phone||'Chưa có'),
+   makeRealField('Tên trên chứng từ',p.name));
+  root.append(card);
+ }
+ updatePrimary(0);
+ if(detail.aliases?.length>1){
+  const info=document.createElement('p');info.className='hint';
+  info.textContent='Các tên trên hóa đơn: '+detail.aliases.join(' • ')+' (nhóm để anh kiểm tra, không tự kết luận cùng một pháp nhân).';
+  root.prepend(info);
+ }
+}
+async function selectRealCustomer(name,key){
+ selectedCustomerId='';selectedRealKey=key||'';
+ $('customerSearch').value=name;
+ $('selectedCustomer').textContent='Đang lấy toàn bộ địa chỉ đã tìm được cho '+name+'…';
+ $('createButton').disabled=true;$('addCustomerLocation').disabled=true;
+ markRealMode(true);
+ const id=++realFetchSeq;
+ try{
+  const data=await request('/api/admin/customer-directory?mode=detail&name='+encodeURIComponent(name));
+  if(id!==realFetchSeq)return;
+  fillRealCustomer(data.selected);
+  if(!data.selected.complete)$('realCustomerState').textContent='⚠ '+name+': mới đối chiếu được '+data.selected.count+'/'+(data.selected.sourceTotal??'?')+
+   ' điểm giao theo nguồn. Chưa được dùng kết quả để tạo link.';
+ }catch(e){
+  if(id!==realFetchSeq)return;
+  $('realCustomerDetails').textContent='Chưa thể tải điểm giao: '+e.message;
+  $('selectedCustomer').textContent='Không xác minh được khách từ sổ thật. Chưa điền hoặc tạo link.';
+ }
+}
+
 function showMatches(query){
  const root=$('customerSuggestions');root.textContent='';
  if(!String(query||'').trim())return;
  const found=customerProfiles.filter(c=>matchesCustomer(c,query)).slice(0,8);
- if(!found.length){root.textContent='Không có khách thử phù hợp. Có thể nhập khách mới.';return}
+ const realFound=realCustomers.filter(c=>normalized(c.name).includes(normalized(query))||
+  (c.aliases||[]).some(alias=>normalized(alias).includes(normalized(query)))).slice(0,8);
+ for(const c of realFound){
+  const b=document.createElement('button');b.type='button';b.className='secondary';
+  b.textContent='📚 '+c.name+' • lấy địa chỉ từ sổ thật';b.onclick=()=>selectRealCustomer(c.key==='brand:traky'?'Traky':c.name,c.key);
+  root.append(b);
+ }
+ if(!found.length&&!realFound.length){root.textContent='Chưa có trong danh sách gần đây; nhập tên để tìm thêm trên sổ kế toán.';return}
  for(const c of found){
   const b=document.createElement('button');b.type='button';b.className='secondary';
   b.textContent=c.name+' • '+c.phone+' • '+c.address;
@@ -369,6 +481,8 @@ function showMatches(query){
  }
 }
 function chooseCustomer(c){
+ ++realFetchSeq;selectedRealKey='';markRealMode(false);
+ for(const id of ['discount','ship','vatRate'])$(id).disabled=false;
  selectedCustomerId=c.id;$('existingCustomer').value=c.id;
  $('name').value=c.name;$('phone').value=c.phone;$('address').value=c.address;
  $('discount').value=c.discount;$('ship').value=c.ship;$('vatRate').value=c.vatRate??0;
@@ -379,6 +493,8 @@ function chooseCustomer(c){
  $('createButton').disabled=true;$('createButton').textContent='Đã chọn khách có sẵn';
 }
 function clearCustomerSelection(){
+ ++realFetchSeq;selectedRealKey='';markRealMode(false);
+ for(const id of ['discount','ship','vatRate'])$(id).disabled=false;
  selectedCustomerId='';$('existingCustomer').value='';$('customerSearch').value='';
  $('create').reset();$('customerSuggestions').textContent='';$('selectedCustomer').textContent='';
  $('newCustomerLocations').replaceChildren();$('addCustomerLocation').disabled=false;$('manageSelectedLocations').hidden=true;
@@ -406,8 +522,35 @@ $('manageSelectedLocations').onclick=()=>{
  if(!panel){$('error').textContent='Chưa tải được điểm giao. Hãy mở lại tab Khách hàng.';return}
  panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'center'});
 };
-$('existingCustomer').onchange=()=>{const c=customerProfiles.find(x=>x.id===$('existingCustomer').value);if(c)chooseCustomer(c);else clearCustomerSelection()};
-$('customerSearch').addEventListener('input',e=>showMatches(e.target.value));
+$('existingCustomer').onchange=()=>{
+ const value=$('existingCustomer').value;
+ if(value.startsWith('real:')){
+  const key=value.slice(5),c=realCustomers.find(x=>x.key===key);
+  if(c)selectRealCustomer(key==='brand:traky'?'Traky':c.name,key);return;
+ }
+ const c=customerProfiles.find(x=>x.id===value);
+ if(c)chooseCustomer(c);else clearCustomerSelection();
+};
+$('customerSearch').addEventListener('input',e=>{
+ showMatches(e.target.value);
+ clearTimeout(realQueryTimer);
+ const query=e.target.value.trim(),id=++realFetchSeq;
+ if(query.length<3||!secret)return;
+ // Only explicit name lookups; never fetch real contacts for typing in the
+ // NEW fake-customer form or send real names to Gemini.
+ realQueryTimer=setTimeout(async()=>{
+  try{
+   const d=await request('/api/admin/customer-directory?mode=detail&name='+encodeURIComponent(query));
+   if(id!==realFetchSeq||!d.selected?.places?.length)return;
+   const key=d.selected.key;
+   if(!realCustomers.some(x=>x.key===key)){
+    realCustomers.push({key,name:d.selected.name,aliases:d.selected.aliases,invoiceCount:0});
+    renderCustomerSelect();
+   }
+   showMatches(query);
+  }catch{}
+ },800);
+});
 for(const id of ['name','phone']){
  $(id).addEventListener('input',e=>{
   if(selectedCustomerId)return;
@@ -551,10 +694,7 @@ async function load(){
  await loadRequests();
  const data=await request('/api/admin/customers');
  customerProfiles=data.customers;
- const select=$('existingCustomer'),previous=selectedCustomerId;
- select.replaceChildren(new Option('— Chọn khách có sẵn —',''));
- for(const c of customerProfiles){select.add(new Option(c.name+' • '+c.phone,c.id))}
- if(previous&&customerProfiles.some(c=>c.id===previous))select.value=previous;
+ renderCustomerSelect();
  if(!selectedCustomerId)showMatches($('customerSearch').value);
  const list=$('list');list.textContent='';
  if(!data.customers.length){list.textContent='Chưa có hồ sơ mới. Tạo một khách GIẢ để kiểm thử.';return}
@@ -690,9 +830,10 @@ $('restoreSandboxBackup').onclick=async()=>{
 
 function showNewLink(url){lastLink=url;$('newLink').hidden=false;$('linkText').textContent=url;$('result').textContent='Đã tạo link riêng. Nhớ lưu hoặc gửi cho khách THỬ.'}
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
- secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load();$('loginCard').hidden=true;showAdminTab('orders');await refreshOrderInbox()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
+ secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load();$('loginCard').hidden=true;showAdminTab('orders');void loadRealDirectory();await refreshOrderInbox()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
  const b=$('createButton');b.disabled=true;
+ if(selectedRealKey){$('error').textContent='Khách thật chỉ được đối chiếu, không được gửi vào hồ sơ thử.';b.disabled=true;return}
  if(selectedCustomerId){$('error').textContent='Khách đã có. Không tạo thêm hồ sơ trùng.';b.disabled=true;return}
  const payload={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),discount:Number($('discount').value),ship:Number($('ship').value),vatRate:Number($('vatRate').value),locations:[...$('newCustomerLocations').querySelectorAll('fieldset')].map(field=>Object.fromEntries([...field.querySelectorAll('[data-location-field]')].map(input=>[input.dataset.locationField,input.value.trim()])))};
  try{const data=await request('/api/admin/customers','POST',payload);showNewLink(data.customerLink);clearCustomerSelection();await load()}catch(err){$('error').textContent=err.message}finally{b.disabled=false}};

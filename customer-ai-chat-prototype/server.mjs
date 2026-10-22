@@ -26,6 +26,7 @@ import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
+import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
 import {auditDriveCatalogue} from './catalogue-drive-audit.mjs';
 import {getGeminiVersionStatus} from './version-status.mjs';
@@ -348,6 +349,74 @@ const server=http.createServer(async(req,res)=>{
     candidates,productionLinkEnabled:false,approvalsStored:false});
   }catch{return fail(res,503,'LIVE_SCREEN_UNAVAILABLE','Chưa thể sàng lọc tháng này; không áp dụng dữ liệu mẫu.')}
  }
+
+ // Signed-in owner only: ephemeral, read-only directory. No sandbox persistence.
+ if(req.method==='GET'&&p==='/api/admin/customer-directory'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị được xem danh bạ khách thật.');
+  if(!rateLimit(req,'admin-directory-read'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng đợi trước khi đọc lại.');
+  if(!readOnlyReady())
+   return fail(res,503,'READ_ONLY_NOT_CONFIGURED','Chưa kết nối sổ kế toán chỉ đọc.');
+  const mode=url.searchParams.get('mode');
+  const monthFromOffset=n=>{
+   const vn=new Date(Date.now()+7*3600000);
+   return new Date(Date.UTC(vn.getUTCFullYear(),vn.getUTCMonth()-n,1)).toISOString().slice(0,7);
+  };
+  const monthLookup=(month,query='')=>ownerLiveLookup(new URLSearchParams({kind:'invoices',month,...(query?{query}:{})}));
+  try{
+   if(mode==='list'){
+    const months=[monthFromOffset(0),monthFromOffset(1),monthFromOffset(2)];
+    const snapshots=await Promise.all(months.map(async m=>{
+     const l=monthLookup(m),r=await readMinhSatori(l.action,l.payload);
+     if(!Number.isSafeInteger(r.revision)||!Array.isArray(r.data?.orders))throw Error('INVALID_SCHEMA');
+     return r;
+    }));
+    if(snapshots.some(x=>x.revision!==snapshots[0].revision))
+     return fail(res,409,'SOURCE_REVISION_CHANGED','Sổ kế toán đã thay đổi, vui lòng tải lại.');
+    const full=snapshots.every(x=>Number.isSafeInteger(x.data.totalMatches)&&x.data.totalMatches<=x.data.orders.length);
+    return reply(res,200,{ok:true,readOnly:true,reviewOnly:true,
+     months,sourceComplete:full,revision:snapshots[0].revision,
+     customers:directoryFromInvoices(snapshots.flatMap(x=>x.data.orders),full),
+     realCustomerLinkIssuanceEnabled:false});
+   }
+   if(mode==='detail'){
+    const name=String(url.searchParams.get('name')||'').trim();
+    if(name.length<2||name.length>120||/[\u0000-\u001f]/.test(name))
+     return fail(res,400,'INVALID_CUSTOMER_QUERY','Tên khách cần từ 2 đến 120 ký tự.');
+    const response=await readMinhSatori('customers.search',{query:name,limit:20});
+    if(!Number.isSafeInteger(response.revision)||!Array.isArray(response.data?.profiles?.profiles))
+     throw Error('INVALID_SCHEMA');
+    const raw=response.data.profiles,found=raw.profiles;
+    const sourceTotal=Number.isSafeInteger(raw.total)?raw.total:null;
+    let selected=detailFromEvidence(name,found,[],{sourceTotal});
+    let scannedMonths=0,scanIncomplete=false,invoiceRows=[];
+    if(!selected.complete){
+     const months=Array.from({length:12},(_,i)=>monthFromOffset(i));
+     for(let at=0;at<months.length&&(!selected.complete||scannedMonths<3);at+=3){
+      const lookups=months.slice(at,at+3).map(m=>monthLookup(m,name));
+      const results=await Promise.all(lookups.map(l=>readMinhSatori(l.action,l.payload)));
+      if(results.some(r=>r.revision!==response.revision||!Array.isArray(r.data?.orders)))
+       return fail(res,409,'SOURCE_REVISION_CHANGED','Sổ kế toán vừa thay đổi. Hãy tải lại.');
+      for(const r of results){
+       scannedMonths++;
+       invoiceRows.push(...r.data.orders);
+       if(!Number.isSafeInteger(r.data.totalMatches)||r.data.totalMatches>r.data.orders.length)
+        scanIncomplete=true;
+      }
+      selected=detailFromEvidence(name,found,invoiceRows,{sourceTotal,invoicesIncomplete:scanIncomplete});
+     }
+    }
+    return reply(res,200,{ok:true,readOnly:true,reviewOnly:true,revision:response.revision,
+     scannedMonths,selected,realCustomerLinkIssuanceEnabled:false,
+     note:selected.complete?'Đã đối chiếu hồ sơ hiện có theo tên.':'Chưa thu thập đủ điểm giao; cần xác minh, không cấp link.'});
+   }
+   return fail(res,400,'INVALID_DIRECTORY_MODE','Chọn danh sách hoặc chi tiết.');
+  }catch{
+   return fail(res,503,'DIRECTORY_SOURCE_UNAVAILABLE','Không thể tải danh bạ thật. Không dùng dữ liệu giả thay thế.');
+  }
+ }
+
  // This route probes source-of-truth sync READINESS only. Admin-authenticated,
  // no catalogue/customer/order records returned and never any production writes.
  if(req.method==='GET'&&p==='/api/admin/source-check'){
