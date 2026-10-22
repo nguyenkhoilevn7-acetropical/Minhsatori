@@ -976,6 +976,28 @@ class NativeMainActivity : AppCompatActivity() {
             .show()
     }
 
+    // Native dark controls stay readable even when opened after render() finishes.
+    private fun darkSpinner(values: List<String>): Spinner = Spinner(this).apply {
+        adapter = object : ArrayAdapter<String>(
+            this@NativeMainActivity, android.R.layout.simple_spinner_item, values) {
+            private fun style(item: View): View = item.apply {
+                if (this is TextView) {
+                    setTextColor(white)
+                    setBackgroundColor(Color.rgb(19, 37, 64))
+                    setPadding(dp(12), dp(8), dp(12), dp(8))
+                    textSize = 13f
+                }
+            }
+            override fun getView(position: Int, convertView: View?,
+                parent: android.view.ViewGroup): View =
+                style(super.getView(position, convertView, parent))
+            override fun getDropDownView(position: Int, convertView: View?,
+                parent: android.view.ViewGroup): View =
+                style(super.getDropDownView(position, convertView, parent))
+        }
+        background = panelBackground(Color.rgb(19, 37, 64), 10)
+    }
+
     // Website-inspired ledger: filter invoices without writing or estimating profit.
     // Financial totals intentionally ignore "Không Tính" and "Đã hủy" statuses.
     private fun showLedger(data: SatoriSnapshot) {
@@ -1103,10 +1125,7 @@ class NativeMainActivity : AppCompatActivity() {
         })
         val statuses = listOf("Tất cả", "Chưa thanh toán", "Đã thanh toán",
             "Đã TT Satori", "Không Tính", "Đã hủy")
-        val filter = Spinner(this)
-        filter.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, statuses).also {
-            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        }
+        val filter = darkSpinner(statuses)
         parent.addView(filter, LinearLayout.LayoutParams(-1, dp(42)).apply {
             topMargin = dp(5)
         })
