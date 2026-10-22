@@ -270,7 +270,7 @@ const server=http.createServer(async(req,res)=>{
    approvedCustomerDiscountWired:false,
    durableTransactionalStoreWired:false,
    sandboxRestoreValidated:!EMERGENCY_PREVIEW,
-   sandboxDriveBackupBridgeConfigured:Boolean(driveWorker.status().enabled),
+   sandboxDriveBackupBridgeConfigured:Boolean(driveWorker.status().configured),
    readOnlyBotTransportConfigured:readOnlyReady()
   };
   const blockers=Object.entries(gates).filter(([,passed])=>!passed).map(([name])=>name);
