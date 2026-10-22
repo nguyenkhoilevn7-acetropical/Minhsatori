@@ -1,0 +1,29 @@
+name: Inspect signed Android release (read-only)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/android-release-inspect.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  release-inspection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report latest Android signed-release run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android-release-apk.yml/runs?branch=feature/minhsatori-native-android-v020&per_page=10" --jq '.workflow_runs | map(select(.event=="push")) | sort_by(.created_at) | reverse | .[] | [.id,.head_sha,.status,(.conclusion // "-"),.html_url] | @tsv' | tee "$RUNNER_TEMP/release-runs.txt"
+          test -s "$RUNNER_TEMP/release-runs.txt"
+          run_id="$(head -1 "$RUNNER_TEMP/release-runs.txt" | cut -f1)"
+          echo "Release run ID: $run_id"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs" --jq '.jobs[] | [.id,.name,.status,(.conclusion // "-")] | @tsv'
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" --jq '.artifacts[]? | [.id,.name,(.expired|tostring)] | @tsv'

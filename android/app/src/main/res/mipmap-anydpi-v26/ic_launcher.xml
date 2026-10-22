@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pinned original Satori logo. Inset foreground keeps all letters inside
+     round Samsung mask without showing a separate white square frame. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/satori_invoice_logo" />
+    <foreground android:drawable="@drawable/ic_launcher_satori_logo" />
+</adaptive-icon>
