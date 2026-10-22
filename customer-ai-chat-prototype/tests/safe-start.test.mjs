@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
-import {mkdtempSync,existsSync,rmSync} from 'node:fs';
+import {mkdtempSync,existsSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -11,6 +11,19 @@ import {createSandboxBackup} from '../sandbox-backup.mjs';
 import {encryptArchive} from '../drive-backup.mjs';
 
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+// The rescued preview intentionally disables its own backup worker, even
+// when the parent successfully uploaded and read back the authenticated archive.
+// Protect against falsely diagnosing missing Render Environment variables.
+const safeStartSource=readFileSync(path.join(root,'safe-start.mjs'),'utf8');
+const previewPart=safeStartSource.slice(safeStartSource.indexOf('function startPreview(){'),
+ safeStartSource.indexOf('async function attemptPreviewAfterVerifiedRescue(){'));
+assert.match(previewPart,/GEMINI_SANDBOX_DRIVE_BRIDGE_URL:'',GEMINI_SANDBOX_DRIVE_HMAC_KEY:''/,
+ 'ephemeral preview explicitly clears its own bridge credentials');
+assert.match(previewPart,/SANDBOX_PREVIEW_DRIVE_BACKUP_DISABLED_BY_DESIGN/,
+ 'startup diagnostic identifies intentional per-child shutdown');
+assert.match(safeStartSource,/const verified=await preserveRecoveryArchive\(\)/,
+ 'separate parent only opens preview after authenticated backup readback');
+
 const key=crypto.randomBytes(32);
 const archive=()=>createSandboxBackup({profiles:[],changeRequests:[],orders:[]});
 const stale=archive();
