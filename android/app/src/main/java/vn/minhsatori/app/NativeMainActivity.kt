@@ -83,12 +83,12 @@ class NativeMainActivity : AppCompatActivity() {
     private val syncTick = object : Runnable {
         override fun run() {
             if (!foreground) return
-            if (!isLoading && accessToken != null &&
-                lastOnlineReadElapsedMs > 0L &&
+            if (!isLoading && lastOnlineReadElapsedMs > 0L &&
                 SystemClock.elapsedRealtime() - lastOnlineReadElapsedMs >= syncIntervalMs) {
                 when (dataSource) {
-                    "Minh Satori API" -> refreshFromMobileApi()
-                    "Google Drive API" -> refreshFromDrive()
+                    "Minh Satori API" -> if (accessToken != null) refreshFromMobileApi()
+                    "Google Drive API" -> if (accessToken != null) refreshFromDrive()
+                    "file Google Drive" -> if (fileUri != null) refreshFromPicker()
                 }
             }
             syncHandler.postDelayed(this, syncIntervalMs)
@@ -116,7 +116,10 @@ class NativeMainActivity : AppCompatActivity() {
                 // Some providers grant only a session-scoped read URI.
             }
             fileUri = uri
-            getPreferences(MODE_PRIVATE).edit().putString("drive_file_uri", uri.toString()).apply()
+            getPreferences(MODE_PRIVATE).edit()
+                .putString("drive_file_uri", uri.toString())
+                .putString("satori_source_mode", "file")
+                .putBoolean("google_drive_auto_read", false).apply()
             refreshFromPicker()
         }
     }
@@ -203,7 +206,11 @@ class NativeMainActivity : AppCompatActivity() {
         }
         apiEndpoint = MobileApiClient.endpoint(this)
         render()
-        if (apiEndpoint != null || preferGoogleDrive()) connectGoogle()
+        // Preserve an explicitly selected live Drive file across app restarts.
+        // A stored SANDBOX API endpoint must not silently override it.
+        val preferred = getPreferences(MODE_PRIVATE).getString("satori_source_mode", "").orEmpty()
+        if (preferred == "file" && fileUri != null) refreshFromPicker()
+        else if (apiEndpoint != null || preferGoogleDrive()) connectGoogle()
         else if (fileUri != null) refreshFromPicker()
     }
 
@@ -214,12 +221,12 @@ class NativeMainActivity : AppCompatActivity() {
         syncHandler.postDelayed(syncTick, syncIntervalMs)
         // If returning from another app after a long time, refresh the authenticated
         // source rather than displaying a read-only file as live synced data.
-        if (!isLoading && accessToken != null &&
-            lastOnlineReadElapsedMs > 0L &&
+        if (!isLoading && lastOnlineReadElapsedMs > 0L &&
             SystemClock.elapsedRealtime() - lastOnlineReadElapsedMs >= syncIntervalMs) {
             when (dataSource) {
-                "Minh Satori API" -> refreshFromMobileApi()
-                "Google Drive API" -> refreshFromDrive()
+                "Minh Satori API" -> if (accessToken != null) refreshFromMobileApi()
+                "Google Drive API" -> if (accessToken != null) refreshFromDrive()
+                "file Google Drive" -> if (fileUri != null) refreshFromPicker()
             }
         }
     }
@@ -351,7 +358,8 @@ class NativeMainActivity : AppCompatActivity() {
                         // OAuth must request Drive read scope even when a sandbox
                         // Mobile API endpoint is already stored on the device.
                         getPreferences(MODE_PRIVATE).edit()
-                            .putBoolean("google_drive_auto_read", true).apply()
+                            .putBoolean("google_drive_auto_read", true)
+                            .putString("satori_source_mode", "drive").apply()
                         accessToken = null
                         actorId = ""
                         allowedActions = emptySet()
@@ -361,14 +369,16 @@ class NativeMainActivity : AppCompatActivity() {
                     }
                     1 -> {
                         getPreferences(MODE_PRIVATE).edit()
-                            .putBoolean("google_drive_auto_read", false).apply()
+                            .putBoolean("google_drive_auto_read", false)
+                            .putString("satori_source_mode", "api").apply()
                         if (apiEndpoint == null) configureMobileApi()
                         else if (accessToken == null) connectGoogle()
                         else refreshFromMobileApi()
                     }
                     2 -> {
                         getPreferences(MODE_PRIVATE).edit()
-                            .putBoolean("google_drive_auto_read", false).apply()
+                            .putBoolean("google_drive_auto_read", false)
+                            .putString("satori_source_mode", "api").apply()
                         configureMobileApi()
                     }
                     else -> {
@@ -585,10 +595,15 @@ class NativeMainActivity : AppCompatActivity() {
                 3 -> renderDebt(content, data)
                 else -> renderNewOrderInfo(content)
             }
-            button(content, if (dataSource == "Minh Satori API") "LÀM MỚI DỮ LIỆU"
+            button(content, if (dataSource in setOf("Minh Satori API",
+                        "Google Drive API", "file Google Drive")) "LÀM MỚI DỮ LIỆU"
                     else "CÀI ĐẶT KẾT NỐI") {
-                if (dataSource == "Minh Satori API") refreshFromMobileApi()
-                else showConnectionSettings()
+                when (dataSource) {
+                    "Minh Satori API" -> refreshFromMobileApi()
+                    "Google Drive API" -> refreshFromDrive()
+                    "file Google Drive" -> refreshFromPicker()
+                    else -> showConnectionSettings()
+                }
             }
         }
         if (pendingStorageError) section(content, "CẦN KIỂM TRA DỮ LIỆU ĐANG CHỜ",
@@ -1904,10 +1919,13 @@ class NativeMainActivity : AppCompatActivity() {
                         snapshot = it
                         dataSource = "file Google Drive"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
-                        statusMessage = "Đã đọc dữ liệu Drive."
+                        lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
+                        statusMessage = "Đã cập nhật file Google Drive (chỉ xem). Tự kiểm tra khi app đang mở."
                     },
                     onFailure = {
                         snapshot = null
+                        dataSource = ""
+                        lastOnlineReadElapsedMs = 0L
                         statusMessage = "Không đọc được dữ liệu: " +
                             (it.message ?: "không rõ nguyên nhân") +
                             ". Bấm CHỌN FILE DRIVE KHÁC để kết nối lại."
