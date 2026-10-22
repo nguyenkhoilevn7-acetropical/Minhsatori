@@ -246,7 +246,7 @@ const server=http.createServer(async(req,res)=>{
    'Đang dùng chế độ thử Gemini. Chưa cho tạo hóa đơn hoặc thay đổi hồ sơ khách.');
  }
  if(req.method==='GET'&&p==='/assets/logo-satori.jpg'){const logo=path.join(HERE,'assets','logo-satori.jpg');if(!fs.existsSync(logo))return fail(res,404,'NO_LOGO','Không tìm thấy logo');res.writeHead(200,{'content-type':'image/jpeg','cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});return fs.createReadStream(logo).pipe(res)}
- if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,ready:true,demoOnly:EMERGENCY_PREVIEW,orderSubmissionEnabled:!EMERGENCY_PREVIEW,durableStorage:false,draftPersistence:!EMERGENCY_PREVIEW,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
+ if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,ready:!EMERGENCY_PREVIEW,demoOnly:EMERGENCY_PREVIEW,mode:EMERGENCY_PREVIEW?'sandbox_emergency_preview':'sandbox_isolated',orderSubmissionEnabled:!EMERGENCY_PREVIEW,durableStorage:false,draftPersistence:!EMERGENCY_PREVIEW,productionCheckoutEnabled:false,productionLaunchReady:false,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
  if(req.method==='GET'&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&(p==='/admin'||p==='/admin/')){const html=previewHtml('admin.html');res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
  // Compare current server code with newest GitHub commit; never deploy from here.
@@ -255,6 +255,29 @@ const server=http.createServer(async(req,res)=>{
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần quyền quản trị để xem phiên bản hệ thống.');
   const status=await getGeminiVersionStatus();
   return reply(res,200,{ok:true,sandbox:true,...status});
+ }
+ // Operational launch preflight: metadata only, never expose credentials or PII.
+ // This isolated app cannot be promoted to a real checkout by setting a flag.
+ // An audited authenticated-customer, approved-price, durable-storage and
+ // source-verified Bot API integration must land before changing these gates.
+ if(req.method==='GET'&&p==='/api/admin/production-readiness'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị viên được kiểm tra điều kiện production.');
+  const gates={
+   productionCheckoutWired:false,
+   verifiedCustomerIdentityWired:false,
+   authoritativeCatalogPriceSyncWired:false,
+   approvedCustomerDiscountWired:false,
+   durableTransactionalStoreWired:false,
+   sandboxRestoreValidated:!EMERGENCY_PREVIEW,
+   sandboxDriveBackupBridgeConfigured:Boolean(driveWorker.status().enabled),
+   readOnlyBotTransportConfigured:readOnlyReady()
+  };
+  const blockers=Object.entries(gates).filter(([,passed])=>!passed).map(([name])=>name);
+  return reply(res,200,{ok:true,sandbox:true,productionLaunchReady:false,
+   productionCheckoutEnabled:false,demoOnly:EMERGENCY_PREVIEW,
+   gates,blockers,
+   message:'Hệ thống này chỉ dùng thử. Không được bật tạo đơn thật trước khi hoàn tất các cổng kiểm chứng.'});
  }
  // This route probes source-of-truth sync READINESS only. Admin-authenticated,
  // no catalogue/customer/order records returned and never any production writes.
