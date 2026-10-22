@@ -1166,6 +1166,7 @@ function bootstrapEncryptedTestSnapshot(){
 try{bootstrapEncryptedTestSnapshot()}catch{process.exit(78)}
 server.listen(PORT,HOST,()=>{
  driveWorker.start();
+ console.info('SATORI_OWNER_LIVE_READONLY_CONFIGURED',Number(readOnlyReady()));
  console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched');
  // One test with fake words only, no customer data, no stored orders, no API key printed.
  // This is intentionally an actual Gemini API call, and consumes at most one Free Tier request per deployment.
