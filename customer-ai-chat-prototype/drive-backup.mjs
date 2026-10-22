@@ -73,12 +73,21 @@ export function makeDriveBackupWorker(readState){
   inFlight=(async()=>{
    const cfg=config();if(!cfg)throw Error('DRIVE_BACKUP_NOT_CONFIGURED');
    const archive=readState();
+   // Include AI shorthand learning so a phrases-only mutation is never skipped.
+   // Exclude exportedAt because that timestamp changes on every readState().
    const fingerprint=digest(JSON.stringify(archive.snapshot?.profiles||[])+
     JSON.stringify(archive.snapshot?.changeRequests||[])+JSON.stringify(archive.snapshot?.orders||[])+
-    JSON.stringify(archive.snapshot?.drafts||[]));
+    JSON.stringify(archive.snapshot?.drafts||[])+JSON.stringify(archive.snapshot?.phrases||[]));
    if(lastFingerprint===fingerprint)return {ok:true,skipped:true,lastSuccessAt,lastFileId};
+   // Validate before upload; a successful HTTP acknowledgement is NOT a verified backup.
+   const expected=verifySandboxBackup(archive);
    const envelope=encryptArchive(archive,cfg.key);
    const response=await signedPost(cfg,'put',JSON.stringify(envelope));
+   // Round-trip encrypted Drive payload and authenticate+decrypt+checksum it BEFORE
+   // moving the "last verified" watermark or skipping unchanged future snapshots.
+   const fetched=await signedPost(cfg,'get',response.fileId);
+   const restored=decryptArchive(JSON.parse(fetched.payload),cfg.key);
+   if(JSON.stringify(restored)!==JSON.stringify(expected))throw Error('BACKUP_READBACK_MISMATCH');
    lastFingerprint=fingerprint;lastSuccessAt=new Date().toISOString();
    lastFileId=response.fileId;lastFailure=null;
    return {ok:true,skipped:false,lastSuccessAt,lastFileId};
