@@ -1,0 +1,27 @@
+name: Gemini authoritative pricing bridge (offline fake test)
+on:
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/authoritative-pricing-bridge.mjs'
+      - 'customer-ai-chat-prototype/tests/authoritative-pricing-bridge.test.mjs'
+      - '.github/workflows/gemini-authoritative-pricing-bridge.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fake-otp-ledger-pricing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify server-only bridge syntax
+        run: node --check customer-ai-chat-prototype/authoritative-pricing-bridge.mjs
+      - name: Signed owner approval and one-commit fake E2E
+        run: node customer-ai-chat-prototype/tests/authoritative-pricing-bridge.test.mjs
+      - name: Verify no real secrets, Render deployment or production bill writes
+        run: echo 'All source/sessions/HMAC/Drive responses are synthetic. No network or production.'
