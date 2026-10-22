@@ -286,17 +286,16 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(9), 0, dp(9), 0)
             stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(if (main) white else if (dashboardMode) cyan else teal)
-            background = if (main && dashboardMode) {
+            setTextColor(if (main) white else cyan)
+            background = if (main) {
                 GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                     intArrayOf(Color.rgb(37, 99, 235), Color.rgb(8, 145, 178))).apply {
                     cornerRadius = dp(12).toFloat()
                 }
-            } else if (dashboardMode) panelBackground(Color.rgb(19, 37, 64), 12)
-              else background(if (main) teal else Color.rgb(224, 242, 247), 10)
+            } else panelBackground(Color.rgb(19, 37, 64), 12)
             setOnClickListener { click() }
         }
-        parent.addView(b, LinearLayout.LayoutParams(-1, dp(if (dashboardMode) 41 else 43)).apply {
+        parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
             topMargin = dp(6)
         })
     }
@@ -306,15 +305,15 @@ class NativeMainActivity : AppCompatActivity() {
         val frame = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = if (dashboardMode) panelBackground() else background(white)
+            background = panelBackground()
             if (click != null) {
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { click() }
             }
         }
-        label(frame, title, 13.5f, true)
-        label(frame, detail, 11.5f, false, muted, 4)
+        label(frame, title, 13.5f, true, white)
+        label(frame, detail, 11.5f, false, softInk, 4)
         parent.addView(frame, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(6)
         })
@@ -1093,8 +1092,10 @@ class NativeMainActivity : AppCompatActivity() {
             hint = "Tìm hóa đơn…"
             textSize = 14f
             setSingleLine(true)
+            setTextColor(white)
+            setHintTextColor(softInk)
             setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = background(white)
+            background = panelBackground(Color.rgb(19, 37, 64), 11)
             setText(searchText)
         }
         parent.addView(input, LinearLayout.LayoutParams(-1, dp(48)).apply {
@@ -1120,11 +1121,15 @@ class NativeMainActivity : AppCompatActivity() {
             }
             label(list, "Tìm thấy " + matching.size + " hóa đơn" +
                 (if (status != "Tất cả") " • " + status else ""),
-                11.5f, true, teal, 7)
+                11.5f, true, cyan, 7)
             matching.take(120).forEach { inv ->
-                section(list, "#" + inv.number + " · " + inv.customer,
-                    inv.displayDate + " · " + SatoriData.money(inv.total) + " · " +
-                        inv.status + (if (inv.deliveryNote.isNotBlank()) " · Có ghi chú" else "")) {
+                section(list, "HÓA ĐƠN #" + inv.number + "   •   " +
+                    SatoriData.money(inv.total),
+                    inv.customer + "  •  " + inv.displayDate + "\n" +
+                    inv.status + "  •  " + inv.phone + "\n" +
+                    inv.address + "\n" +
+                    inv.lines.joinToString(", ") { it.description + " x" + it.quantity } +
+                    (if (inv.deliveryNote.isNotBlank()) "\nCó ghi chú giao hàng" else "")) {
                     openInvoice(inv)
                 }
             }
