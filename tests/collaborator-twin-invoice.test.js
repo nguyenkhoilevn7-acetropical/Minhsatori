@@ -111,6 +111,8 @@ const secondConfig=call('collaborators.pair.configure',policy2);
 assert.equal(secondConfig.ok,true);
 assert.equal(secondConfig.data.policy.customerDiscountPercent,10);
 assert.equal(call('collaborators.pair.list').data.policies.length,2);
+assert.equal(call('collaborators.pair.list').data.collaborators.length,2);
+assert.equal(call('collaborators.pair.list').data.collaborators[0].name,'CTV thử 01');
 const secondOrder={...quote,requestId:'order-ctv-00002',expectedRevision:4,
  collaboratorId:'ctv-02',expectedPolicyVersion:secondConfig.data.policy.policyVersion,
  order:{...quote.order,name:'Another Fake Customer',phone:'0900000033',location:'456 Example Road',
