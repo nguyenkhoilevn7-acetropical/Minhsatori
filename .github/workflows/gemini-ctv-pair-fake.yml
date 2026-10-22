@@ -1,0 +1,23 @@
+name: Gemini CTV Twin Checkout (fake backend only)
+on:
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/collaborator-pair-checkout.mjs'
+      - 'customer-ai-chat-prototype/authoritative-pricing-bridge.mjs'
+      - 'customer-ai-chat-prototype/tests/collaborator-pair-checkout.test.mjs'
+      - '.github/workflows/gemini-ctv-pair-fake.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fake-ctv-pair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check customer-ai-chat-prototype/collaborator-pair-checkout.mjs
+      - run: node customer-ai-chat-prototype/tests/collaborator-pair-checkout.test.mjs
+      - run: node customer-ai-chat-prototype/tests/authoritative-pricing-bridge.test.mjs
