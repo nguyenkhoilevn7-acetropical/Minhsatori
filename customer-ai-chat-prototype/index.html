@@ -447,6 +447,42 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 .quote .quantity-strong{font-weight:850;font-size:15px;color:#123b65;white-space:nowrap}
 .inline-cart-row .inline-qty-label{display:block;font-size:12px;font-weight:850;color:#094b90;line-height:1.2;white-space:nowrap}
 .server-mode .suggestion-steps input,.cart-qty{font-weight:800;color:#123b65}
+
+/* Chat-first mobile: use the *unobscured* WebView viewport, not static 100dvh.
+   Header and shared basket become one-row controls while composing/scrolling. */
+@media(max-width:760px){
+ body.server-mode{overflow:hidden}
+ .server-mode .app{height:var(--satori-visible-height);min-height:0;max-height:100%;padding:0;overflow:hidden}
+ .server-mode .layout{height:100%;min-height:0;overflow:hidden}
+ .server-mode .card.chat{height:100%;min-height:0;max-height:100%;overflow:hidden;display:flex;flex-direction:column}
+ .server-mode .chat-head{flex:0 0 auto;min-height:0;transition:padding .15s ease}
+ .server-mode .messages{flex:1 1 0%;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain}
+ .server-mode .composer{flex:0 0 auto;position:relative;z-index:3}
+ .server-mode .composer textarea{font-size:16px;line-height:1.35}
+ .server-mode .quick-cart{flex:0 0 auto;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto;gap:4px 7px;padding:5px 9px}
+ .server-mode .quick-cart #quickCartCount{grid-column:1;grid-row:1!important;min-width:0;margin:0!important;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .server-mode .quick-cart #quickCartEdit{grid-column:2;grid-row:1!important;justify-self:end;min-height:34px}
+ .server-mode .quick-cart #quickCartNew{grid-column:1/-1;grid-row:2!important;justify-self:start}
+ .server-mode .quick-cart #quickCartNew[hidden]{display:none!important}
+ .server-mode .quick-cart #inlineCartLines{grid-column:1/-1;grid-row:3}
+ .server-mode .quick-cart #quickCartQuote{grid-column:1/-1;grid-row:4}
+ .server-mode.chat-compact .chat-head{padding:4px 9px;min-height:39px;gap:6px}
+ .server-mode.chat-compact .chat-satori-logo{width:24px!important;height:24px!important;border-radius:8px}
+ .server-mode.chat-compact .chat-title p{display:none}
+ .server-mode.chat-compact .chat-head .chat-title h2{font-size:12px;line-height:1.25}
+ .server-mode.chat-compact .history-trigger{min-height:33px;max-width:82px;padding:4px 6px;font-size:10px}
+ .server-mode.chat-typing .catalog-launch-bar,
+ .server-mode.chat-typing .locations-panel,
+ .server-mode.chat-typing .suggestions-inline,
+ .server-mode.chat-typing .secondary-tools,
+ .server-mode.chat-typing #suggestionsToggle{display:none!important}
+ .server-mode.chat-typing .quick-cart{padding-top:3px;padding-bottom:3px}
+}
+@media(max-width:760px) and (max-height:460px){
+ .server-mode.chat-typing .chat-head{padding:3px 8px}
+ .server-mode.chat-typing .composer{padding-top:3px;padding-bottom:3px}
+}
+@media(prefers-reduced-motion:reduce){.server-mode .chat-head{transition:none}}
 </style>
 </head>
 <body>
@@ -530,11 +566,13 @@ const $=id=>document.getElementById(id);
  // visualViewport gives the actual unobscured area when Android IME is open.
  const syncVisibleHeight=()=>{
    const vv=window.visualViewport;
-   const pixels=vv ? Math.max(260,Math.floor(vv.height)) : window.innerHeight;
+   const visible=vv&&vv.height>0 ? Math.min(window.innerHeight||vv.height,vv.height) : window.innerHeight;
+   const pixels=Math.max(180,Math.floor(visible));
    document.documentElement.style.setProperty('--satori-visible-height',pixels+'px');
  };
  syncVisibleHeight();
  window.visualViewport?.addEventListener('resize',syncVisibleHeight,{passive:true});
+ window.visualViewport?.addEventListener('scroll',syncVisibleHeight,{passive:true});
  window.addEventListener('resize',syncVisibleHeight,{passive:true});
 
 const PRODUCTS=[{code:'S5L',name:'Nước tinh khiết Satori 5L có vòi',price:110000,keys:['5l','5 lít','5lit']},{code:'S500',name:'Nước tinh khiết Satori 500ml',price:98000,keys:['500ml','500 ml','nước suối 500','suối 500']},{code:'S350',name:'Nước tinh khiết Satori 350ml',price:88000,keys:['350ml','350 ml','suối 350']}];
@@ -683,7 +721,35 @@ $('toggleSettings').addEventListener('click',()=>{$('panel').classList.toggle('o
 let catalogItems=[],currentBrand='ALL',selectedProduct=null;
 const cart=new Map();let pendingCartMessage=null,pendingCartItems=null;
 
-let personalizedSuggestions=[],inlineCartCollapsed=false;
+let personalizedSuggestions=[],inlineCartCollapsed=true;
+
+/* The messages pane owns scrolling: condense the header at >32px and whenever
+   the composer is focused. No order mutation, new request or draft reset. */
+function syncChatCompact(){
+ if(!serverMode)return;
+ const compact=document.activeElement===$('messageInput') || $('messages').scrollTop>32;
+ document.body.classList.toggle('chat-compact',compact);
+ if(compact&&!inlineCartCollapsed){inlineCartCollapsed=true;renderInlineCart()}
+}
+$('messages').addEventListener('scroll',syncChatCompact,{passive:true});
+$('messageInput').addEventListener('focus',()=>{
+ if(!serverMode)return;
+ document.body.classList.add('chat-typing','chat-compact');
+ if(!inlineCartCollapsed){inlineCartCollapsed=true;renderInlineCart()}
+ $('suggestionsToggle').setAttribute('aria-expanded','false');
+ renderPersonalizedSuggestions();
+ $('locationsPanel').hidden=true;
+ $('locationsToggle').setAttribute('aria-expanded','false');
+ syncVisibleHeight();
+ setTimeout(()=>{syncVisibleHeight();bottom()},80);
+ setTimeout(syncVisibleHeight,300);
+});
+$('messageInput').addEventListener('blur',()=>{
+ if(!serverMode)return;
+ document.body.classList.remove('chat-typing');
+ setTimeout(()=>{syncVisibleHeight();syncChatCompact()},160);
+});
+
 function stepper(code,current){
  const el=document.createElement('div');el.className='suggestion-steps';
  const minus=document.createElement('button');minus.type='button';minus.textContent='−';minus.disabled=current<1;minus.setAttribute('aria-label','Bớt một sản phẩm');
@@ -783,6 +849,7 @@ function renderInlineCart(){
  $('quickCartEdit').setAttribute('aria-expanded',String(!inlineCartCollapsed));
  $('quickCartEdit').setAttribute('aria-controls','inlineCartLines');
  $('quickCartQuote').hidden=inlineCartCollapsed;
+ $('quickCartNew').hidden=inlineCartCollapsed;
  for(const item of cart.values()){
   const row=document.createElement('div');row.className='inline-cart-row';
   const title=document.createElement('span');title.textContent=item.name;title.title=item.name;
