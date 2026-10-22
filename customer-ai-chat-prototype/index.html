@@ -483,6 +483,52 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
  .server-mode.chat-typing .composer{padding-top:3px;padding-bottom:3px}
 }
 @media(prefers-reduced-motion:reduce){.server-mode .chat-head{transition:none}}
+
+/* Samsung/WebView first-open state: compact before focus, not only when typing.
+   Every action remains accessible with at least 35px touch height. */
+.satori-preview-banner{position:relative;z-index:9;display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;
+ padding:6px 12px;background:#203b63;color:#fff;font:650 11px/1.35 system-ui,sans-serif}
+.satori-preview-label{flex:1 1 225px;min-width:0}
+.satori-preview-banner details{flex:0 0 auto}
+.satori-preview-banner summary{cursor:pointer;list-style:none;border:1px solid #8aa8d1;border-radius:8px;
+ padding:4px 7px;color:#fff;font-weight:700;white-space:nowrap}
+.satori-preview-banner summary::-webkit-details-marker{display:none}
+.satori-preview-banner details[open]{flex-basis:100%}
+.satori-preview-banner details p{margin:5px 0;font-size:11px;font-weight:500;line-height:1.45}
+.satori-preview-banner summary:focus-visible{outline:3px solid #ffbb48;outline-offset:2px}
+@media(max-width:760px){
+ body.server-mode{background:#f5f8fc}
+ .server-mode .app{height:var(--satori-visible-height,100dvh);min-height:0}
+ .server-mode .card.chat{border:0;border-radius:0;box-shadow:none}
+ .server-mode .chat-head{min-height:47px;padding:6px 9px;gap:7px;background:#fff}
+ .server-mode .chat-satori-logo{width:29px!important;height:29px!important;border-radius:9px}
+ .server-mode .chat-title h2{font-size:13px;line-height:1.25;font-weight:750;overflow-wrap:normal}
+ .server-mode .chat-title p{display:none}
+ .server-mode #suggestionsToggle{min-height:35px;max-width:77px;padding:4px 6px;font-size:10.5px;line-height:1.2;border-radius:9px}
+ .server-mode .history-trigger{min-height:35px;max-width:78px;padding:4px 6px;font-size:10.5px;line-height:1.2;border-radius:9px}
+ .server-mode .catalog-launch-bar{padding:5px 9px;gap:7px;background:#fff}
+ .server-mode .catalog-launch-bar button,
+ .server-mode .catalog-launch-bar #locationsToggle{min-height:37px;padding:5px 6px;border-radius:9px;
+  background:#e7f1ff;color:#065abc;border:1px solid #b6d4fd;font-size:11.5px;font-weight:730;box-shadow:none}
+ .server-mode .messages{background:#f8fafd;padding:11px 10px 9px;gap:8px}
+ .server-mode .messages .bubble.assistant{max-width:95%;background:#e9f2ff;color:#18395b;
+  border:1px solid #d5e6ff;border-radius:14px;border-bottom-left-radius:5px;
+  font-size:13.5px;line-height:1.43;padding:10px 12px;box-shadow:none}
+ .server-mode .messages .bubble.note{max-width:94%;background:#f4f5f7;color:#6b7280;
+  border:1px solid #e5e9ee;font-size:11px;line-height:1.35;padding:6px 9px}
+ .server-mode .composer{padding:7px 9px calc(7px + env(safe-area-inset-bottom,0px));
+  gap:7px;background:#fff;border-top:1px solid #e0e9f3}
+ .server-mode .composer textarea{min-height:44px;max-height:92px;padding:10px 11px;
+  font-size:16px;line-height:1.35;border-radius:11px}
+ .server-mode .composer .btn.primary{min-height:44px;min-width:58px;padding:8px 10px;border-radius:11px}
+ .server-mode .quick-cart{border-top:1px solid #d6e5f1;background:#eef7fc}
+ .server-mode .quick-cart #quickCartEdit{min-height:35px;padding:5px 11px;font-size:11px;border-radius:9px}
+}
+@media(max-width:350px){
+ .server-mode .chat-head{gap:4px;padding:5px 7px}
+ .server-mode .chat-title h2{font-size:11.5px}
+ .server-mode #suggestionsToggle,.server-mode .history-trigger{max-width:64px;font-size:10px;padding:3px 4px}
+}
 </style>
 </head>
 <body>
@@ -567,13 +613,21 @@ const $=id=>document.getElementById(id);
  const syncVisibleHeight=()=>{
    const vv=window.visualViewport;
    const visible=vv&&vv.height>0 ? Math.min(window.innerHeight||vv.height,vv.height) : window.innerHeight;
-   const pixels=Math.max(180,Math.floor(visible));
+   // The persistent preview notice sits above the app, outside its flex layout.
+   // Subtract its real height, including when the user expands the safety details.
+   const notice=document.getElementById('satoriPreviewBanner');
+   const noticeHeight=notice?notice.getBoundingClientRect().height:0;
+   const pixels=Math.max(180,Math.floor(visible-noticeHeight));
    document.documentElement.style.setProperty('--satori-visible-height',pixels+'px');
  };
  syncVisibleHeight();
  window.visualViewport?.addEventListener('resize',syncVisibleHeight,{passive:true});
  window.visualViewport?.addEventListener('scroll',syncVisibleHeight,{passive:true});
  window.addEventListener('resize',syncVisibleHeight,{passive:true});
+ // Recalculate on every safety disclosure resize; never conceal the warning.
+ const previewNotice=document.getElementById('satoriPreviewBanner');
+ if(previewNotice && window.ResizeObserver)new ResizeObserver(syncVisibleHeight).observe(previewNotice);
+ document.getElementById('satoriPreviewDetails')?.addEventListener('toggle',syncVisibleHeight);
 
 const PRODUCTS=[{code:'S5L',name:'Nước tinh khiết Satori 5L có vòi',price:110000,keys:['5l','5 lít','5lit']},{code:'S500',name:'Nước tinh khiết Satori 500ml',price:98000,keys:['500ml','500 ml','nước suối 500','suối 500']},{code:'S350',name:'Nước tinh khiết Satori 350ml',price:88000,keys:['350ml','350 ml','suối 350']}];
 const FIXTURES={A:{id:'KH-DEMO-A',name:'Khách Demo A',phone:'000 000 0001',address:'123 Đường Thử Nghiệm, TP.HCM',discount:20,ship:8,favourite:'S5L',token:'satori-demo-A-no-identity'},B:{id:'KH-DEMO-B',name:'Khách Demo B',phone:'000 000 0002',address:'456 Đường Mẫu, TP.HCM',discount:35,ship:8,favourite:'S500',token:'satori-demo-B-no-identity'}};
@@ -603,7 +657,7 @@ function msg(text,who='assistant'){const e=document.createElement('div');e.class
 function bottom(){requestAnimationFrame(()=>$('messages').scrollTop=$('messages').scrollHeight)}
 function customer(){return FIXTURES[current]}
 function firstActiveProfile(){const fragment=location.hash.slice(1);const match=Object.entries(FIXTURES).find(([,v])=>fragment===v.token);return match?.[0]||'A'}
-function selectProfile(id){current=id;draft=null;const c=customer();$('customer').value=current;$('discount').value=c.discount;$('ship').value=c.ship;$('identity').textContent=`${c.name} · ${c.phone}\n${c.address}`;$('fixedLink').textContent=`#${c.token}`;$('chatSubtitle').textContent=`${c.name} • hồ sơ đặt hàng thử`;$('messages').innerHTML='';msg(`Xin chào ${c.name}! Mình đã mở cuộc trò chuyện riêng của bạn. Bạn muốn đặt gì hôm nay? Chỉ cần nhắn số lượng và tên sản phẩm, ví dụ: "10 ổi hồng".`);if(!serverMode)msg('Đây là DEMO giao diện: bộ nhận diện tin nhắn dùng quy tắc lập trình miễn phí. Giá và khách đều là dữ liệu giả.', 'note')}
+function selectProfile(id){current=id;draft=null;const c=customer();$('customer').value=current;$('discount').value=c.discount;$('ship').value=c.ship;$('identity').textContent=`${c.name} · ${c.phone}\n${c.address}`;$('fixedLink').textContent=`#${c.token}`;$('chatSubtitle').textContent=`${c.name} • hồ sơ đặt hàng thử`;$('messages').innerHTML='';msg(`Xin chào ${c.name}! Bạn muốn đặt nước nào hôm nay? Ví dụ: "10 ổi hồng, 5 mãng cầu".`);if(!serverMode)msg('Đây là DEMO giao diện: bộ nhận diện tin nhắn dùng quy tắc lập trình miễn phí. Giá và khách đều là dữ liệu giả.', 'note')}
 function matchRequest(message){const text=norm(message),c=customer();const amount=text.match(/\b(\d{1,4})\s*(thung|thg|kien|case)\b/),quantity=amount?Number(amount[1]):null;if(quantity!==null&&(quantity<1||quantity>500))return {error:'Số lượng cần từ 1 đến 500 thùng. Anh/chị vui lòng kiểm tra lại.'};const product=PRODUCTS.find(p=>p.keys.some(k=>text.includes(norm(k))));const previous=/(lan truoc|nhu cu|don cu|dat lai)/.test(text);const code=product?.code||(previous?c.favourite:null);const diffAddr=/(giao (den|toi|ve)\s+|doi dia chi|dia chi khac)/.test(text);const phone=message.match(/(?:\+84|0)\d[\d\s.\-]{8,14}/);if(diffAddr||phone)return {error:'Bạn đang đề nghị thay đổi địa chỉ hoặc SĐT. Đơn này không được tự động áp dụng chiết khấu riêng. Vui lòng liên hệ cửa hàng để xác minh và duyệt thủ công.'};if(!code||!PRODUCTS.some(p=>p.code===code))return {error:'Mình chưa xác định chắc chắn loại nước. Bạn cho biết dung tích 350ml, 500ml hay 5L nhé.'};if(quantity===null&&!previous)return {error:'Bạn muốn đặt bao nhiêu thùng? Ví dụ: “10 thùng nước 5L”.'};return {code,qty:quantity||(previous?10:0)};}
 function quote(code,qty){const p=PRODUCTS.find(p=>p.code===code),c=customer(),discount=c.discount,ship=c.ship,subtotal=Math.round(qty*p.price*(100-discount)/100),shipping=Math.round(subtotal*ship/100);return {profileId:c.id,code,qty,discount,ship,unitPrice:Math.round(p.price*(100-discount)/100),subtotal,shipping,total:subtotal+shipping,product:p.name,phone:c.phone,address:c.address,name:c.name,nonce:Math.random().toString(36).slice(2)}}
 function deactivateQuotes(){
