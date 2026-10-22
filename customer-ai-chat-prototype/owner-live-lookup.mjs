@@ -23,8 +23,10 @@ export function ownerLiveLookup(params){
   return {kind,action:'orders.list',payload};
  }
  if(kind==='customers'){
-  const query=clean(params.get('query'),120);
-  const phone=String(params.get('phone')||'').replace(/\D/g,'').slice(0,20);
+  const input=clean(params.get('query'),120);
+  const digits=String(params.get('phone')||input).replace(/\D/g,'').slice(0,20);
+  const phone=digits.length>=7 && /^\+?[\d\s().-]+$/.test(input)?digits:'';
+  const query=phone?'':input;
   if(query.length<2&&phone.length<7)fail('LIVE_CUSTOMER_QUERY_REQUIRED');
   return {kind,action:'customers.search',payload:{...(query?{query}:{}),...(phone?{phone}:{}),limit:20}};
  }
