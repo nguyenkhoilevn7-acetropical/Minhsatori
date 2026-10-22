@@ -10,7 +10,7 @@ import {parseRules} from '../free-parser.mjs';
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const html=readFileSync(path.join(root,'index.html'),'utf8');
 assert.match(html,/id="suggestionsToggle"[^>]*aria-expanded="false"/);
-assert.match(html,/<div class="catalog-launch-bar">\s*<button id="catalogLaunch"[\s\S]*?<button id="locationsToggle"/);
+assert.match(html,/<div class="catalog-launch-bar"[^>]*>\s*<button id="catalogLaunch"[\s\S]*?<button id="locationsToggle"[\s\S]*?<button id="suggestionsToggle"[\s\S]*?<button class="history-trigger"[^>]*id="historyButton"/);
 assert.ok(!html.includes('id="productsToggle"'),'removed redundant products toggle');
 assert.match(html,/class="secondary-tools" id="secondaryTools" hidden/);
 assert.match(html,/\.server-mode \.shop-hero\{display:none\}/);
