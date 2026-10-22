@@ -23,6 +23,12 @@ assert.match(previewPart,/SANDBOX_PREVIEW_DRIVE_BACKUP_DISABLED_BY_DESIGN/,
  'startup diagnostic identifies intentional per-child shutdown');
 assert.match(safeStartSource,/const verified=await preserveRecoveryArchive\(\)/,
  'separate parent only opens preview after authenticated backup readback');
+assert.match(safeStartSource,/code==='BRIDGE_REJECTED_BUSY'/,
+ 'Apps Script BUSY is eligible for bounded retry without bypassing authentication');
+assert.match(safeStartSource,/attempt<3/,
+ 'rescued archive retries are strictly bounded');
+assert.match(safeStartSource,/if\(!retryable\|\|attempt===2\)throw error/,
+ 'terminal rescue failures remain fail-closed');
 
 const key=crypto.randomBytes(32);
 const archive=()=>createSandboxBackup({profiles:[],changeRequests:[],orders:[]});
