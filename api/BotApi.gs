@@ -632,7 +632,13 @@ function readApprovedAIPricing(s,all,p){
 }
 function read(s,action,p){
  var all=rows(s);
- if(action==='collaborators.pair.list')return {revision:s.revision,policies:pairPolicies(s)};
+ if(action==='collaborators.pair.list'){
+  var ctv=JSON.parse(s.values.satori_collaborators_v1||'[]');
+  need(Array.isArray(ctv)&&ctv.length<=10000,'INVALID_STATE','Danh sách cộng tác viên bị lỗi');
+  return {revision:s.revision,policies:pairPolicies(s),collaborators:ctv.map(function(x){
+    return {id:String(x.id||''),name:String(x.name||'').slice(0,120),active:x.active===true};
+  }).filter(function(x){return /^[A-Za-z0-9_-]{4,100}$/.test(x.id)&&x.name.length>=2})};
+ }
  if(action==='pricing.eligibility')return readApprovedAIPricing(s,all,p);
  if(action==='catalogue.list'){
   // Fail closed: a browser-local catalogue is not the authoritative shared ledger.
