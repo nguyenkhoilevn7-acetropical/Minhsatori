@@ -179,6 +179,19 @@ function currentBasketQuote(token,profile){
  if(q){q.draftRevision=draft.revision;q.deliveryNote=draft.deliveryNote||'';q.requestedDeliveryAt=draft.requestedDeliveryAt||null;}
  return q;
 }
+/* Spoken complete order vs. explicit top-up: a full itemized order is an
+ * absolute basket snapshot, not a delta from a previous chat/session.
+ * Only "thêm / bổ sung / cộng thêm" deliberately increments quantities.
+ * A single newly named item updates that SKU without deleting other products.
+ */
+function chatBasketChanges(message,items){
+ const phrase=fold(message);
+ const isTopUp=/^(?:(?:cho|lay)\s+(?:(?:em|anh|chi|toi|minh)\s+)?)?(?:them|bo sung|cong them)\b/.test(phrase);
+ if(isTopUp)return items.map(x=>({action:'add',code:x.sku,qty:x.qty}));
+ if(items.length>1||/\b(?:don moi|dat lai tu dau|lam don moi)\b/.test(phrase))
+  return [{action:'replace',items:items.map(x=>({code:x.sku,qty:x.qty}))}];
+ return items.map(x=>({action:'set',code:x.sku,qty:x.qty}));
+}
 function applyChatBasket(res,token,profile,changes,revision,source,delivery){
  let draft;
  try{draft=draftStore.mutate(token,changes,revision,delivery)}catch(e){return draftFailure(res,e)}
@@ -188,7 +201,7 @@ function applyChatBasket(res,token,profile,changes,revision,source,delivery){
  // Do not reset the note when a later add/quantity edit has no delivery text.
  sessions.delete(token);
  return reply(res,200,{ok:true,sandbox:true,parserSource:source,draft,quote,
-  message:'Đã cập nhật cùng một giỏ: '+draft.items.length+' loại / '+draft.items.reduce((n,x)=>n+x.qty,0)+' đơn vị. Chưa tạo bill; bạn xác nhận báo giá cuối cùng một lần nhé.'});
+  message:(changes.some(x=>x.action==='replace')?'Đã thay giỏ cũ bằng đơn mới chính xác: ':'Đã cập nhật cùng một giỏ: ')+draft.items.length+' loại / '+draft.items.reduce((n,x)=>n+x.qty,0)+' đơn vị. Chưa tạo bill; bạn xác nhận báo giá cuối cùng một lần nhé.'});
 }
 
 function saveOrdersAtomic(){const data=JSON.stringify([...orders.values()],null,2);const tmp=DATA_FILE+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(tmp,data,{mode:0o600});fs.renameSync(tmp,DATA_FILE);driveWorker?.schedule()}
@@ -719,7 +732,7 @@ const server=http.createServer(async(req,res)=>{
         (mixed.water?'Em mặc định Satori. Anh/chị muốn nước suối 350ml, 500ml hay 1500ml?':
          mixed.delivery.clarification)+' Em chưa cộng hàng nào từ yêu cầu này.'});
      }
-     return applyChatBasket(res,token,c,mixed.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
+     return applyChatBasket(res,token,c,chatBasketChanges(message,mixed.items),
       draft.revision,'mixed-order-and-notes',mixed.delivery);
     }
    }
@@ -740,7 +753,7 @@ const server=http.createServer(async(req,res)=>{
    if(colloquial?.items){
     const draft=draftStore.read(token);
     if(b?.unifiedDraft===true&&b?.expectedRevision!==draft.revision)return fail(res,409,'DRAFT_CONFLICT','Giỏ vừa thay đổi, cần tải lại.');
-    return applyChatBasket(res,token,c,colloquial.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
+    return applyChatBasket(res,token,c,chatBasketChanges(message,colloquial.items),
      draft.revision,colloquial.source);
    }
    const incomplete=parseWaterClarificationBasket(message,c);
@@ -857,11 +870,19 @@ const server=http.createServer(async(req,res)=>{
     if(deliveryAll.clarification)return reply(res,200,{ok:true,needMoreDetails:true,
      draft:draftStore.read(token),clarificationType:'DELIVERY_TIME',message:deliveryAll.clarification});
     return applyChatBasket(res,token,c,
-     compound.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),
+     chatBasketChanges(message,compound.items),
      revision,compound.source,deliveryAll);
    }
+   // A natural-language multi-product order must be all-or-nothing.
+   // If the whole parser could not resolve every clause, never fall back to
+   // a single recognized SKU and silently discard an unknown line.
+   const requestedClauses=fold(message).split(/\s*[,;\n]\s*|\s+(?:va|voi)\s+/u).filter(Boolean);
+   if(requestedClauses.length>1&&requestedClauses.filter(part=>/\b\d{1,3}\b/.test(part)).length>1){
+    return reply(res,200,{ok:true,needMoreDetails:true,draft:draftStore.read(token),
+     message:'Em chưa nhận diện đủ tất cả món trong yêu cầu. Vui lòng nói rõ từng loại nước; giỏ hiện tại chưa thay đổi.'});
+   }
    const single=parseOneClause(message,c);
-   if(single)return applyChatBasket(res,token,c,[{action:'add',code:single.sku,qty:single.qty}],
+   if(single)return applyChatBasket(res,token,c,chatBasketChanges(message,[single]),
     revision,'catalogue-short-product');
    const edit=contextualDraftEdit(message,c,draftStore.read(token));
    if(edit?.clarification)return reply(res,200,{ok:true,needMoreDetails:true,draft:draftStore.read(token),message:edit.clarification});
@@ -921,7 +942,7 @@ const server=http.createServer(async(req,res)=>{
   if(multi){
    if(identityChange(parsedMessage,c))return reply(res,200,{ok:true,needsHuman:true,message:'Thay đổi địa chỉ, số điện thoại hoặc người nhận cần cửa hàng xác minh thủ công.'});
    if(multi.needMoreDetails)return reply(res,200,{ok:true,needMoreDetails:true,message:multi.message});
-   if(unified)return applyChatBasket(res,token,c,multi.items.map(x=>({action:'add',code:x.sku,qty:x.qty})),revision,multi.source,delivery);
+   if(unified)return applyChatBasket(res,token,c,chatBasketChanges(parsedMessage,multi.items),revision,multi.source,delivery);
    const quote=makeMultiQuote(token,c,multi.items);
    if(!quote)return fail(res,400,'INVALID_QUANTITY','Số lượng hoặc quy cách của đơn nhiều sản phẩm chưa hợp lệ');
    quote.deliveryNote=normalizeDeliveryNote(delivery.deliveryNote);
@@ -954,7 +975,7 @@ const server=http.createServer(async(req,res)=>{
    }
    return reply(res,200,{ok:true,needMoreDetails:true,message:fields?.reason==='UNSUPPORTED'?'Sản phẩm này chưa có trong danh mục Minh Satori. Bạn vui lòng chọn trong Tất cả sản phẩm.':!sku||parsed.reason==='PRODUCT_AMBIGUOUS'?(/\bsuoi\b/.test(normalized)&&!/\bhikari\b/.test(normalized)?'Em mặc định nước suối Satori. Anh/chị muốn loại 350ml, 500ml hay 1500ml?':'Bạn muốn đặt sản phẩm nào? Có thể chọn Premium 450ml, Hikari, Satori hoặc xem Tất cả sản phẩm.'):'Bạn muốn đặt bao nhiêu '+(productFor(sku)?.unit||'đơn vị')+'?'});
   }
-  if(unified)return applyChatBasket(res,token,c,[{action:'add',code:sku,qty}],revision,parsed.source||'rules',delivery);
+  if(unified)return applyChatBasket(res,token,c,chatBasketChanges(parsedMessage,[{sku,qty}]),revision,parsed.source||'rules',delivery);
   const quote=makeQuote(token,c,sku,qty);if(!quote)return fail(res,400,'INVALID_QUANTITY','Chỉ chấp nhận tối đa 500 thùng một đơn');
   quote.deliveryNote=normalizeDeliveryNote(delivery.deliveryNote);
   quote.requestedDeliveryAt=delivery.requestedDeliveryAt;

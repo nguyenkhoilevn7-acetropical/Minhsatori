@@ -529,6 +529,48 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
  .server-mode .chat-title h2{font-size:11.5px}
  .server-mode #suggestionsToggle,.server-mode .history-trigger{max-width:64px;font-size:10px;padding:3px 4px}
 }
+
+/* Samsung first-row toolbar: FOUR small blue actions side-by-side.
+   Do not hide these actions when the WebView keyboard is open. */
+.server-mode .chat-head>.catalog-launch-bar{flex:0 1 390px;min-width:0;width:auto;
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;
+ padding:0;background:transparent;border:0;align-items:stretch}
+.server-mode .chat-head>.catalog-launch-bar button,
+.server-mode .chat-head>.catalog-launch-bar #locationsToggle,
+.server-mode .chat-head>.catalog-launch-bar #suggestionsToggle,
+.server-mode .chat-head>.catalog-launch-bar #historyButton{
+ display:flex;align-items:center;justify-content:center;
+ width:100%;max-width:none;min-width:0;min-height:35px;height:100%;padding:4px 5px;
+ background:#0867d5;color:#fff;border:1px solid #0867d5;border-radius:9px;
+ box-shadow:0 2px 8px #0b63c528;font-size:10.5px;font-weight:750;
+ line-height:1.17;text-align:center;white-space:normal;overflow-wrap:break-word}
+.server-mode .chat-head>.catalog-launch-bar button[hidden]{display:none!important}
+@media(max-width:760px){
+ .server-mode .chat-head{display:grid;grid-template-columns:29px minmax(0,1fr);
+  grid-template-rows:auto auto;gap:4px 7px;min-height:0;padding:5px 8px 6px}
+ .server-mode .chat-head .chat-satori-logo{grid-column:1;grid-row:1;width:26px!important;height:26px!important}
+ .server-mode .chat-head .chat-title{grid-column:2;grid-row:1;min-width:0}
+ .server-mode .chat-head>.catalog-launch-bar{grid-column:1/-1;grid-row:2;width:100%;
+  grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+ .server-mode .chat-head>.catalog-launch-bar button,
+ .server-mode .chat-head>.catalog-launch-bar #locationsToggle,
+ .server-mode .chat-head>.catalog-launch-bar #suggestionsToggle,
+ .server-mode .chat-head>.catalog-launch-bar #historyButton{
+  min-height:36px;max-height:43px;font-size:10px;padding:4px 3px;border-radius:9px}
+ /* Earlier keyboard optimization hid catalogue and suggestion controls.
+    The toolbar is now INSIDE the header and must be interactive at all times. */
+ body.server-mode.chat-typing .chat-head>.catalog-launch-bar{display:grid!important}
+ body.server-mode.chat-typing .chat-head #suggestionsToggle{display:flex!important}
+ .server-mode.chat-compact .chat-head{padding:4px 8px 5px;min-height:0}
+ .server-mode.chat-compact .chat-head>.catalog-launch-bar{display:grid!important}
+}
+@media(max-width:360px){
+ .server-mode .chat-head>.catalog-launch-bar{gap:3px}
+ .server-mode .chat-head>.catalog-launch-bar button,
+ .server-mode .chat-head>.catalog-launch-bar #locationsToggle,
+ .server-mode .chat-head>.catalog-launch-bar #suggestionsToggle,
+ .server-mode .chat-head>.catalog-launch-bar #historyButton{font-size:9px;padding:3px 2px}
+}
 </style>
 </head>
 <body>
@@ -544,11 +586,13 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 <div class="actions"><button class="btn primary" id="apply">Cập nhật cấu hình thử</button><button class="btn alt" id="copy">Sao chép link</button><button class="btn" id="reset">Xóa đơn thử</button></div>
 <div class="info"><b>Lưu ý bảo mật:</b> Link này chỉ mô phỏng định danh. Bản thật phải dùng token ngẫu nhiên lưu băm ở server, kiểm tra người nhận và có xác minh số điện thoại khi cần. Không nhúng tên, SĐT, địa chỉ hay Gemini API key vào URL.</div>
 </div></aside>
-<main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div><button id="suggestionsToggle" type="button" aria-controls="suggestionsList" aria-expanded="false">✨ Gợi ý sản phẩm</button><button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button></div>
-<div class="catalog-launch-bar">
+<main class="card chat"><div class="chat-head"><img class="chat-satori-logo" src="/assets/logo-satori.jpg" alt="Satori" width="44" height="44"><div class="chat-title"><h2>Trợ lý đặt nước Minh Satori</h2><p id="chatSubtitle">Khách thử • mô phỏng luồng ChatGPT</p></div>
+<div class="catalog-launch-bar" role="group" aria-label="Bốn công cụ khách hàng luôn hiển thị">
 <button id="catalogLaunch" type="button" aria-haspopup="dialog" aria-controls="catalogBackdrop">🛍 Tất cả sản phẩm</button>
 <button id="locationsToggle" type="button" aria-expanded="false" aria-controls="locationsPanel" aria-label="Tất cả địa chỉ giao hàng của đại lý" hidden>📍 Tất cả địa chỉ</button>
-</div>
+<button id="suggestionsToggle" type="button" aria-controls="suggestionsList" aria-expanded="false">✨ Gợi ý sản phẩm</button>
+<button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button>
+</div></div>
 <section id="locationsPanel" class="locations-panel" aria-label="Tất cả địa chỉ giao của đại lý" hidden></section>
 <section class="suggestions-inline" id="suggestionsInline" aria-label="Gợi ý mặt hàng thường mua" hidden>
 <div class="suggestions-heading"><small id="suggestionsCaption">Các sản phẩm thường mua — chạm tên để mở danh sách</small></div>

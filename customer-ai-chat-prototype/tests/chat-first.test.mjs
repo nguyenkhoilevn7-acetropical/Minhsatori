@@ -10,7 +10,7 @@ import {parseRules} from '../free-parser.mjs';
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const html=readFileSync(path.join(root,'index.html'),'utf8');
 assert.match(html,/id="suggestionsToggle"[^>]*aria-expanded="false"/);
-assert.match(html,/<div class="catalog-launch-bar">\s*<button id="catalogLaunch"[\s\S]*?<button id="locationsToggle"/);
+assert.match(html,/<div class="catalog-launch-bar"[^>]*>\s*<button id="catalogLaunch"[\s\S]*?<button id="locationsToggle"[\s\S]*?<button id="suggestionsToggle"[\s\S]*?<button class="history-trigger"[^>]*id="historyButton"/);
 assert.ok(!html.includes('id="productsToggle"'),'removed redundant products toggle');
 assert.match(html,/class="secondary-tools" id="secondaryTools" hidden/);
 assert.match(html,/\.server-mode \.shop-hero\{display:none\}/);
@@ -59,7 +59,7 @@ try{
  assert.equal(r.data.draft.items.find(x=>x.code==='TP-00058').qty,13);
  r=await message('5 mãng cầu');
  assert.equal(r.status,200,JSON.stringify(r.data));
- assert.equal(r.data.draft.items.find(x=>x.code==='TP-00056').qty,7);
+ assert.equal(r.data.draft.items.find(x=>x.code==='TP-00056').qty,5,'unprefixed five cartons sets final quantity, not 2+5');
  assert.equal(r.data.quote.items.length,2,'typed and clicked products share a single quote');
  const old=r.data.quote;
  r=await message('thêm 1 ổi hồng');
