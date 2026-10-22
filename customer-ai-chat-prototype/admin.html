@@ -171,6 +171,27 @@ button:disabled{opacity:.55}
 <section class="card" data-tab-panel="settings" hidden><h2>Trạng thái kết nối website thật</h2><p class="hint">Đây là bảng kiểm tra điều kiện triển khai chính thức, không phải dữ liệu sản xuất. Không nhập mã API hoặc thông tin bí mật vào phần này.</p><div id="integrationStatus" role="status">Đăng nhập để kiểm tra trạng thái.</div><p><button type="button" class="secondary" id="checkSourceReadonly">Kiểm tra API nguồn • CHỈ ĐỌC</button></p><p id="sourceReadResult" class="hint" role="status">Không sao chép khách hàng hoặc hóa đơn thật vào sandbox.</p><div id="sourcePriceDifferences" class="hint" role="region" aria-label="Các sản phẩm lệch bảng giá Drive" hidden></div></section>
 <section class="card" data-tab-panel="changes" hidden><h2>🔔 Yêu cầu đổi thông tin khách <span id="changeCount">0</span></h2><p class="hint">Chỉ ghi nhận yêu cầu đổi số điện thoại, địa chỉ hoặc người nhận. Không tự áp dụng thay đổi vào link. Danh sách tự tải lại khi anh đang mở trang quản trị.</p><p><button id="refreshChanges" class="secondary" type="button">Kiểm tra yêu cầu</button></p><div id="changeList" role="status"></div></section>
 <section class="card" data-tab-panel="customers" hidden><h2>Danh sách hồ sơ đã tạo</h2><p class="hint">Thu hồi link sẽ ngăn truy cập mới nhưng giữ lịch sử đơn thử. Đổi link sẽ vô hiệu hóa link cũ.</p><div id="list"></div></section>
+<section class="card" data-tab-panel="settings" hidden id="collaboratorPairAdmin">
+<h2>👥 Hai hóa đơn cho cộng tác viên — bật/tắt theo từng CTV</h2>
+<p class="hint">Một đơn → bill khách theo CK 1 và bill đối soát CTV theo CK 2. Hai bill cùng mã liên kết, không cộng trùng doanh thu. <strong>Mặc định TẮT</strong>; chỉ quản trị viên được duyệt và lưu chính sách lên Bot API. Tỷ lệ gợi ý 20/35 không tự áp dụng khi chưa duyệt.</p>
+<p><button type="button" id="pairRefresh" class="secondary">↻ Đọc cấu hình thật</button></p>
+<p id="pairState" role="status" class="hint">Chưa xác minh kết nối. Không có thay đổi production.</p>
+<fieldset id="pairConfigFields" disabled>
+<label for="pairPartner">Cộng tác viên</label><select id="pairPartner"><option value="">— Chọn CTV từ sổ —</option></select>
+<label for="pairEnabled"><input id="pairEnabled" type="checkbox"> Bật chế độ hai hóa đơn (bỏ chọn để tắt)</label>
+<div class="row">
+<label>Chiết khấu bill gửi khách (%)<input id="pairCustomerDiscount" type="number" min="0" max="70" step="1" value="20"></label>
+<label>Chiết khấu bill CTV (%)<input id="pairCollaboratorDiscount" type="number" min="0" max="70" step="1" value="35"></label>
+</div>
+<div class="row">
+<label>Phí giao (%)<input id="pairShipping" type="number" min="0" max="30" step="1" value="0"></label>
+<label>VAT (%)<select id="pairVat"><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></label>
+</div>
+<p class="hint">Lưu đồng bộ theo mã CTV, không dựa vào tên. Giữa hai bill là chênh lệch đối soát, không cộng thành hai lần bán hàng. Hủy/đổi một bill yêu cầu kiểm tra cặp.</p>
+<button type="button" id="pairSave">Lưu chính sách CTV</button>
+</fieldset>
+<p id="pairResult" role="status" aria-live="polite" class="hint"></p>
+</section>
 <section class="card" data-tab-panel="settings" hidden><h2>💾 Sao lưu & khôi phục sandbox</h2>
 <p class="hint">Render Free không lưu dữ liệu lâu dài. Anh hãy tải bản sao lưu sau khi thêm khách hoặc tạo đơn thử. Tệp có thông tin khách và đơn THỬ, không có mã bí mật hay link khách dạng rõ. Chỉ giữ ở nơi an toàn, không gửi lên chat hoặc GitHub.</p>
 <button type="button" id="downloadSandboxBackup" class="secondary">⬇ Tải bản sao lưu JSON</button>
@@ -351,13 +372,92 @@ $('checkSourceReadonly').onclick=async()=>{
   finally{button.disabled=false}
  };
 })();
+// Scoped CTV configuration is owner-only and NEVER sent to public Gemini chat.
+// A missing server bridge is shown as unavailable instead of claiming saved state.
+let pairCurrentRevision=null,pairPolicies=[],pairLoadSuccessful=false;
+async function loadPairPolicies(){
+ const result=$('pairResult'),state=$('pairState'),form=$('pairConfigFields'),
+       selector=$('pairPartner');
+ form.disabled=true;pairLoadSuccessful=false;
+ state.textContent='Đang đọc cấu hình CTV từ Bot API (chỉ đọc)…';
+ try{
+  const d=await request('/api/admin/collaborator-pairs');
+  if(!Number.isSafeInteger(d.revision)||!Array.isArray(d.policies)||!Array.isArray(d.collaborators))
+   throw Error('Dữ liệu cấu hình CTV chưa hợp lệ');
+  pairCurrentRevision=d.revision;pairPolicies=d.policies;
+  const old=selector.value;
+  selector.replaceChildren(new Option('— Chọn CTV từ sổ —',''));
+  for(const c of d.collaborators){
+   if(!c||typeof c.id!=='string'||typeof c.name!=='string')continue;
+   selector.append(new Option(c.name+(c.active?'':' (tạm ngừng)'),c.id));
+  }
+  if([...selector.options].some(o=>o.value===old))selector.value=old;
+  updatePairControls();
+  pairLoadSuccessful=true;form.disabled=false;
+  state.textContent='Đã đọc cấu hình CTV • Revision '+d.revision+' • '+d.collaborators.length+
+   ' cộng tác viên. Không phát sinh hóa đơn.';
+  result.textContent='';
+ }catch(e){
+  pairCurrentRevision=null;pairPolicies=[];form.disabled=true;
+  state.textContent='Chưa kết nối tính năng hai bill trên Bot API. '+e.message+
+   ' Không có dữ liệu nào được ghi.';
+ }
+}
+function updatePairControls(){
+ const id=$('pairPartner').value,
+   row=pairPolicies.find(p=>p.collaboratorId===id);
+ $('pairEnabled').checked=row?.enabled===true;
+ $('pairCustomerDiscount').value=String(row?.customerDiscountPercent??20);
+ $('pairCollaboratorDiscount').value=String(row?.collaboratorDiscountPercent??35);
+ $('pairShipping').value=String(row?.shippingPercent??0);
+ $('pairVat').value=String(row?.vatPercent??0);
+}
+$('pairRefresh').onclick=loadPairPolicies;
+$('pairPartner').onchange=updatePairControls;
+$('pairSave').onclick=async()=>{
+ const id=$('pairPartner').value;
+ if(!pairLoadSuccessful||!id||!Number.isSafeInteger(pairCurrentRevision)){
+  $('pairResult').textContent='Chọn một CTV có cấu hình được tải thành công.';return;
+ }
+ const values=['pairCustomerDiscount','pairCollaboratorDiscount','pairShipping','pairVat'].map(k=>
+  Number($(k).value));
+ const [customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent]=values;
+ if(values.some(v=>!Number.isInteger(v))||customerDiscountPercent<0||
+ customerDiscountPercent>70||collaboratorDiscountPercent<=customerDiscountPercent||
+ collaboratorDiscountPercent>70||shippingPercent<0||shippingPercent>30||
+ ![0,5,8,10].includes(vatPercent)){
+  $('pairResult').textContent='Kiểm tra hai mức CK, phí giao và VAT hợp lệ trước khi lưu.';return;
+ }
+ const enabled=$('pairEnabled').checked;
+ if(!confirm('Xác nhận '+(enabled?'BẬT':'TẮT')+' hóa đơn đôi cho CTV đã chọn? Chỉ áp dụng cho đơn hàng MỚI sau khi lưu, không sửa bill cũ.'))return;
+ const button=$('pairSave');
+ button.disabled=true;$('pairResult').textContent='Đang gửi yêu cầu quản trị…';
+ // Never retry an uncertain confirmation automatically. Always re-read the policy.
+ try{
+  const requestId='ctv_'+crypto.randomUUID().replace(/-/g,'');
+  const d=await request('/api/admin/collaborator-pairs/configure','POST',{
+   collaboratorId:id,enabled,customerDiscountPercent,collaboratorDiscountPercent,
+   shippingPercent,vatPercent,expectedRevision:pairCurrentRevision,
+   requestId,confirmed:true
+  });
+  $('pairResult').textContent=d.policy?.enabled?
+   'Đã duyệt bật hóa đơn đôi, bản '+d.revision+'.':
+   'Đã duyệt tắt hóa đơn đôi, bản '+d.revision+'.';
+  await loadPairPolicies();
+ }catch(e){
+  $('pairResult').textContent='Chưa xác minh được trạng thái lưu: '+e.message+
+   '. Bấm “Đọc cấu hình thật” để đối soát. Không bấm lưu lặp ngay.';
+  $('pairConfigFields').disabled=true;
+ }finally{button.disabled=false}
+};
+
 function showAdminTab(name){
  for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
  for(const b of document.querySelectorAll('[data-admin-tab]')){
   const active=b.dataset.adminTab===name;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
  }
  if(name==='orders')refreshOrderInbox();
- if(name==='settings')refreshVersionStatus();
+ if(name==='settings'){refreshVersionStatus();void loadPairPolicies();}
  window.scrollTo({top:0,behavior:'instant'});
 }
 for(const b of document.querySelectorAll('[data-admin-tab]'))b.onclick=()=>showAdminTab(b.dataset.adminTab);
