@@ -237,7 +237,7 @@ for(const [needle,label] of [
  ["window.visualViewport?.addEventListener('scroll',syncVisibleHeight",'Android viewport pan tracked'],
  ["let personalizedSuggestions=[],inlineCartCollapsed=true;",'basket starts collapsed'],
  ["$('quickCartNew').hidden=inlineCartCollapsed;",'new basket action appears only after expansion'],
- ["$('messages').addEventListener('scroll',syncChatCompact",{passive:true})",'scroll triggers compact header'],
+ ["$('messages').addEventListener('scroll',syncChatCompact,{passive:true})",'scroll triggers compact header'],
  ["$('messageInput').addEventListener('focus',()=>{",'text focus enters keyboard mode'],
  ["$('messageInput').addEventListener('blur',()=>{",'keyboard mode exits on blur'],
  ["document.body.classList.add('chat-typing','chat-compact')",'typing shrinks header'],
