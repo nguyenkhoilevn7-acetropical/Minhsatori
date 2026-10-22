@@ -1,0 +1,29 @@
+name: Gemini Real Invoice Coordinator (fake backend only)
+on:
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/real-invoice-coordinator.mjs'
+      - 'customer-ai-chat-prototype/checkout-preflight.mjs'
+      - 'customer-ai-chat-prototype/satori-checkout-transport.mjs'
+      - 'customer-ai-chat-prototype/tests/real-invoice-coordinator.test.mjs'
+      - '.github/workflows/gemini-real-invoice-coordinator-fake.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  no-real-bills:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate production invoice coordinator source
+        run: node --check customer-ai-chat-prototype/real-invoice-coordinator.mjs
+      - name: Prove no duplicate or uncertain-response retry, synthetic only
+        run: node customer-ai-chat-prototype/tests/real-invoice-coordinator.test.mjs
+      - name: Verify no real cloud credentials or production connection
+        run: echo 'Only fake trusted resolver, fake store and fake HMAC sender; zero network calls.'
