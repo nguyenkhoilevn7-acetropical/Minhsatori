@@ -51,6 +51,12 @@ const customer={verifiedByServer:true,profileId:'trusted_100',approvedMemoryId:'
  location:'123 Đường Giả Lập, HCM',approvedDiscountPercent:20};
 const approved=preflightCheckout({revision:112,requestId:'real-test-001',customer,source:catalog,
  lines:[{code:'TP-00003',qty:2}],expectedTotal:156800,shippingAmount:0,vatRate:0,confirmedByCustomer:true});
+// Preflight locks every nested order field, preventing post-check price/quantity edits.
+for(const part of [approved,approved.payload,approved.payload.customerRef,
+ approved.payload.order,approved.payload.order.items,approved.payload.order.items[0],
+ approved.preview])assert.equal(Object.isFrozen(part),true);
+assert.throws(()=>{approved.payload.order.items[0].qty=9999},TypeError);
+assert.throws(()=>{approved.payload.order.total=1},TypeError);
 const realEnv={...env,SATORI_REAL_CHECKOUT_ENABLED:'1'};
 const real=await sendApprovedCheckout({mode:'real',checkout:approved,...opts,env:realEnv});
 assert.equal(real.action,'orders.create.ai');
@@ -74,9 +80,17 @@ await error('CHECKOUT_DISABLED',{mode:'real',checkout:approved,...opts});
 await error('CHECKOUT_NOT_CONFIGURED',{mode:'test',checkout:testOrder,...opts,
  env:{...env,SATORI_TEST_CHECKOUT_SECRET:''}});
 await error('TEST_REQUIRED',{mode:'test',checkout:{...testOrder,order:{...testOrder.order,isTest:false}},...opts});
-await error('UNVERIFIED_REAL_CHECKOUT',{mode:'real',checkout:{...approved,payload:{...approved.payload,confirmedNewCustomer:true}},
+await error('PREFLIGHT_REQUIRED',{mode:'real',checkout:{...approved,payload:{...approved.payload,confirmedNewCustomer:true}},
  ...opts,env:realEnv});
-await error('TEST_ORDER_REQUIRES_SANDBOX',{mode:'real',
+await error('PREFLIGHT_REQUIRED',{mode:'real',
  checkout:{...approved,payload:{...approved.payload,order:{...approved.payload.order,isTest:true}}},...opts,env:realEnv});
 await error('INVALID_CHECKOUT_MODE',{mode:'pretend',checkout:testOrder,...opts});
-console.log('PASS TEST/real scoped checkout HMAC and uncertain-commit fail-closed checks; all in-memory fake requests');
+// A client can spoof every "verified" field, but cannot obtain the
+// non-serializable, in-process preflight proof by cloning the JSON.
+const beforeForgery=networkCalls;
+await error('PREFLIGHT_REQUIRED',{mode:'real',checkout:structuredClone(approved),...opts,env:realEnv});
+await error('PREFLIGHT_REQUIRED',{mode:'real',checkout:JSON.parse(JSON.stringify(approved)),...opts,env:realEnv});
+await error('PREFLIGHT_REQUIRED',{mode:'real',checkout:{
+ action:'orders.create.ai',payload:approved.payload},...opts,env:realEnv});
+assert.equal(networkCalls,beforeForgery,'forged checkout must never reach the Bot API');
+console.log('PASS TEST/real scoped HMAC, immutable preflight and spoofing rejection; all in-memory fake requests');

@@ -8,6 +8,17 @@
 const fail=code=>{const e=new Error(code);e.code=code;throw e};
 const int=(n,min,max)=>Number.isSafeInteger(n)&&n>=min&&n<=max;
 const sku=/^TP-[0-9]{5}$/;
+// Only an in-process server preflight may be handed to the signed transport.
+// JSON from a browser, even with identical flags and fields, has no authority.
+const issuedPreflights=new WeakSet();
+const freezeTree=value=>{
+ if(value&&typeof value==='object'){
+  for(const child of Object.values(value))freezeTree(child);
+  Object.freeze(value);
+ }
+ return value;
+};
+export const isPreflightCheckoutResult=value=>issuedPreflights.has(value);
 export function preflightCheckout({revision,requestId,customer,source,lines,
  expectedTotal,shippingAmount=0,vatRate,confirmedByCustomer=false}){
  if(!confirmedByCustomer)fail('CONFIRMATION_REQUIRED');
@@ -51,7 +62,7 @@ export function preflightCheckout({revision,requestId,customer,source,lines,
  const vatAmount=Math.round(goodsTotal*vatRate/100);
  const total=goodsTotal+shippingAmount+vatAmount;
  if(!int(total,0,100000000000)||total!==expectedTotal)fail('QUOTE_STALE_OR_MISMATCH');
- return Object.freeze({
+ const checkout=freezeTree({
   action:'orders.create.ai',
   payload:{
    requestId,expectedRevision:revision,customerMemoryId:customer.approvedMemoryId,
@@ -64,4 +75,6 @@ export function preflightCheckout({revision,requestId,customer,source,lines,
   preview:{itemCount:items.length,totalUnits,goodsTotal,shippingAmount,vatAmount,total,
    sourceRevision:revision}
  });
+ issuedPreflights.add(checkout);
+ return checkout;
 }
