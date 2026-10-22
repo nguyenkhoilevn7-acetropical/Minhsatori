@@ -1,8 +1,8 @@
 {
-  "purpose": "android-0.3.8-fix-hidden-connection-dialog-and-real-drive-readonly-oauth",
+  "purpose": "android-0.3.9-drive-file-foreground-sync-and-source-persistence",
   "package": "vn.minhsatori.app",
-  "version": "0.3.8",
-  "versionCode": 15,
+  "version": "0.3.9",
+  "versionCode": 16,
   "branch": "release/android-v0.3.7-ui-ledger-20261022",
   "scope": "Owner-requested signed acceptance APK only; NO website, Render, Apps Script, Drive or real invoice writes",
   "requestedOn": "2026-10-22",
@@ -18,7 +18,10 @@
     "Keep real invoice write operations disabled until separate authorized end-to-end acceptance",
     "FIX: connection dialog must show source choices instead of only Close",
     "FIX: request drive.readonly when switching from 3-fake-invoice Mobile API sandbox to real Drive read-only",
-    "Real-invoice creation remains disabled; Samsung owner must verify revision/count before using data"
+    "Real-invoice creation remains disabled; Samsung owner must verify revision/count before using data",
+    "Read back selected MinhSatori_Live_Data.json every 120s while foregrounded; refresh on resume after elapsed time",
+    "Manual Drive selection overrides stale 3-invoice sandbox endpoint on app relaunch",
+    "No write to production Drive ledger; failed reads remove stale displayed snapshot"
   ],
   "safety": "Never rotate/bypass the original certificate pin; no production deployment or data changes."
 }
