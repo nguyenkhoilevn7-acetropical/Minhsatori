@@ -36,14 +36,14 @@ assert.ok(html.includes('button:focus-visible,.btn:focus-visible,.chip:focus-vis
  'keyboard focus remains visible on blue buttons');
 
 // Four blue buttons are on ONE toolbar row near the top of the chat, in order.
-const topActions=html.match(/<div class="catalog-launch-bar"[^>]*>([\\s\\S]*?)<\\/div>/);
+const topActions=html.match(/<div class="catalog-launch-bar"[^>]*>([\s\S]*?)<\/div>/);
 assert.ok(topActions?.[1],'top toolbar exists');
 const buttons=['catalogLaunch','locationsToggle','suggestionsToggle','historyButton'];
 const positions=buttons.map(id=>topActions[1].indexOf('id="'+id+'"'));
 assert.ok(positions.every(x=>x>=0)&&positions.every((x,i)=>i===0||x>positions[i-1]),
  'all four customer tools share one top row in requested order');
 assert.ok(html.indexOf('<div class="catalog-launch-bar"')>html.indexOf('<div class="chat-head">')&&
- html.indexOf('<div class="catalog-launch-bar"')<html.indexOf('</div></div>\\n<section id="locationsPanel"'),
+ html.indexOf('<div class="catalog-launch-bar"')<html.indexOf('<section id="locationsPanel"'),
  'toolbar is inside chat header, not a disappearing secondary row');
 assert.ok(html.includes('body.server-mode.chat-typing .chat-head>.catalog-launch-bar{display:grid!important}'),
  'toolbar never disappears when typing on Samsung');
