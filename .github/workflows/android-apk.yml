@@ -71,7 +71,7 @@ jobs:
       - name: Upload debug APK (trial only)
         uses: actions/upload-artifact@v4
         with:
-          name: MinhSatori-Samsung-Native-v0.3.6-debug
+          name: MinhSatori-Samsung-Native-v0.3.7-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
@@ -113,7 +113,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: MinhSatori-v0.3.6-outbox-emulator-tests
+          name: MinhSatori-v0.3.7-outbox-emulator-tests
           path: |
             android/app/build/reports/androidTests/
             android/app/build/outputs/androidTest-results/
