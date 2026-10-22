@@ -59,7 +59,7 @@ try{
  assert.equal(r.data.draft.items.find(x=>x.code==='TP-00058').qty,13);
  r=await message('5 mãng cầu');
  assert.equal(r.status,200,JSON.stringify(r.data));
- assert.equal(r.data.draft.items.find(x=>x.code==='TP-00056').qty,7);
+ assert.equal(r.data.draft.items.find(x=>x.code==='TP-00056').qty,5,'unprefixed five cartons sets final quantity, not 2+5');
  assert.equal(r.data.quote.items.length,2,'typed and clicked products share a single quote');
  const old=r.data.quote;
  r=await message('thêm 1 ổi hồng');
