@@ -117,6 +117,14 @@ button:disabled{opacity:.55}
 <p><button id="liveFindCustomers" type="button" class="secondary">Tra điểm giao của khách theo tên/SĐT</button></p>
 <p id="liveStatus" class="hint" role="status" aria-live="polite">Chưa đọc dữ liệu thật.</p>
 <div id="liveRows" aria-label="Kết quả hóa đơn hoặc khách hàng thật"></div>
+<details class="location-manager" id="screenPanel">
+ <summary>👥 Khách quen &amp; chiết khấu • Chờ anh duyệt</summary>
+ <p class="hint">Sàng lọc tự động theo tháng từ hóa đơn thật, chỉ đọc. Tên, số điện thoại, địa chỉ và chiết khấu có bằng chứng sẽ được tổng hợp một chỗ. Không lưu thông tin thật vào Gemini, không tự phát hành link.</p>
+ <button type="button" id="screenMonth">Sàng lọc khách tháng đã chọn</button>
+ <p id="screenStatus" class="hint" role="status" aria-live="polite">Chưa sàng lọc.</p>
+ <div id="screenRows" aria-label="Khách chờ đối chiếu"></div>
+ <p class="hint">Nút đánh dấu chỉ dùng trong phiên đang mở, không lưu phê duyệt vĩnh viễn. Để cấp link thật cần xác minh danh tính, giá và lưu trữ an toàn; không sử dụng form link THỬ để cấp cho khách thật.</p>
+</details>
 </section>
 <section class="card" data-tab-panel="customers" hidden><h2>Tạo link riêng cho khách thử</h2><p class="hint">Mỗi link chỉ thuộc một hồ sơ. Thông tin khách và chiết khấu được kiểm tra ở máy chủ, không lấy từ tin nhắn AI.</p>
 <form id="create">
@@ -280,6 +288,50 @@ $('checkSourceReadonly').onclick=async()=>{
  }
  $('liveFindInvoices').onclick=()=>lookup('invoices');
  $('liveFindCustomers').onclick=()=>lookup('customers');
+ const reviewInSession=new Set();
+ $('screenMonth').onclick=async()=>{
+  const month=$('liveMonth').value,button=$('screenMonth'),status=$('screenStatus'),root=$('screenRows');
+  if(!secret){status.textContent='Cần đăng nhập quản trị.';return}
+  if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)){status.textContent='Vui lòng chọn tháng hợp lệ.';return}
+  root.replaceChildren();button.disabled=true;status.textContent='Đang sàng lọc từ sổ Minh Satori…';
+  try{
+   const data=await request('/api/admin/live-screen?month='+encodeURIComponent(month));
+   const groups=data.candidates||[],recurring=groups.filter(c=>c.recurring).length;
+   status.textContent='Tháng '+month+' • '+groups.length+' nhóm khách • '+recurring+
+    ' khách mua lặp lại • revision '+data.revision+
+    (data.truncated?' • CẢNH BÁO: quá giới hạn 100 hóa đơn hoặc nguồn chưa xác nhận đủ, không được duyệt.':'');
+   if(!groups.length){root.textContent='Không có hóa đơn để sàng lọc tháng này.';return}
+   for(const c of groups){
+    const article=document.createElement('section');article.className='customer';
+    const headline=document.createElement('strong');
+    headline.textContent=(c.recurring?'Khách quen':'Cần đối chiếu thêm')+' • '+c.name+' • '+(c.phone||'Chưa rõ số điện thoại');
+    article.append(headline);
+    const detail=[
+     c.count+' hóa đơn • Tổng hóa đơn đã thấy: '+money(c.total)+' đ • Lần gần nhất: '+(c.lastDate||'chưa rõ'),
+     'Điểm giao: '+(c.addresses.join(' | ')||'chưa xác định'),
+     c.suggestedDiscount!==null?'Đề xuất CK theo chứng từ: '+c.suggestedDiscount+'%':
+      'Chiết khấu: CHỜ XÁC MINH'+(c.observedDiscounts.length?' • đã thấy '+c.observedDiscounts.join('%, ')+'%':' • hóa đơn không có tỷ lệ % rõ ràng'),
+     'Hóa đơn tham chiếu: '+(c.invoiceNos.join(', ')||'chưa có'),
+     c.identityConflict?'CẦN XÁC MINH: thiếu thông tin hoặc cùng số điện thoại xuất hiện nhiều tên.':'Thông tin đã nhóm theo điện thoại; anh vẫn cần xác minh khách.'
+    ];
+    for(const line of detail){const p=document.createElement('p');p.className='hint';p.textContent=line;article.append(p)}
+    const eligible=c.complete&&c.recurring&&!c.identityConflict&&c.suggestedDiscount!==null;
+    const mark=document.createElement('button');mark.type='button';mark.className='secondary';
+    const identity=month+'|'+data.revision+'|'+c.key;
+    const already=reviewInSession.has(identity);
+    mark.textContent=already?'✓ Đã đối chiếu • CHƯA TẠO LINK':'Đánh dấu đã đối chiếu (chỉ phiên)';
+    mark.disabled=!eligible||already;
+    if(!eligible){const warn=document.createElement('p');warn.className='hint';
+     warn.textContent='Chưa đủ điều kiện đánh dấu: cần khách mua lặp lại, % rõ ràng, danh tính nhất quán và danh sách đủ.';article.append(warn)}
+    mark.onclick=()=>{
+     if(!confirm('Đã tự đối chiếu đúng khách, các địa chỉ và mức chiết khấu? Thao tác chỉ đánh dấu trong trình duyệt; KHÔNG lưu phê duyệt và KHÔNG tạo link.'))return;
+     reviewInSession.add(identity);mark.textContent='✓ Đã đối chiếu • CHƯA TẠO LINK';mark.disabled=true;
+    };
+    article.append(mark);root.append(article);
+   }
+  }catch(e){status.textContent='Không sàng lọc được: '+e.message}
+  finally{button.disabled=false}
+ };
 })();
 function showAdminTab(name){
  for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
