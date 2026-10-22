@@ -3,7 +3,7 @@ from verify_release import validate
 
 
 class ReleaseIdentityTest(unittest.TestCase):
-    badge = "package: name='vn.minhsatori.app' versionCode='15' versionName='0.3.8' platformBuildVersionName='15'\n"
+    badge = "package: name='vn.minhsatori.app' versionCode='16' versionName='0.3.9' platformBuildVersionName='15'\n"
     digest = "ab" * 32
     certs = ("Signer #1 certificate DN: CN=Minh Satori Release\n"
              "Signer #1 certificate SHA-256 digest: " + digest + "\n"
