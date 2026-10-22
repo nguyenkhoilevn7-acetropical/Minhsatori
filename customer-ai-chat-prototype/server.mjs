@@ -263,14 +263,18 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&p==='/api/admin/production-readiness'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị viên được kiểm tra điều kiện production.');
+  const backupState=driveWorker.status();
   const gates={
    productionCheckoutWired:false,
    verifiedCustomerIdentityWired:false,
    authoritativeCatalogPriceSyncWired:false,
    approvedCustomerDiscountWired:false,
    durableTransactionalStoreWired:false,
-   sandboxRestoreValidated:!EMERGENCY_PREVIEW,
-   sandboxDriveBackupBridgeConfigured:Boolean(driveWorker.status().configured),
+   // A running process is NOT proof of a verified restore. Require a separate
+   // isolated restore acceptance before checking this gate.
+   sandboxRestoreValidated:false,
+   sandboxDriveBackupBridgeConfigured:backupState.configured===true,
+   sandboxDriveBackupReadbackVerified:Boolean(backupState.lastVerifiedUploadAt),
    readOnlyBotTransportConfigured:readOnlyReady()
   };
   const blockers=Object.entries(gates).filter(([,passed])=>!passed).map(([name])=>name);

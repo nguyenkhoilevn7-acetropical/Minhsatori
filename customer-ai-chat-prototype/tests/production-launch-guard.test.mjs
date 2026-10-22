@@ -51,6 +51,10 @@ for(const [index,preview] of [false,true].entries()){
   }
   check(data.gates.sandboxDriveBackupBridgeConfigured===false,
    'missing Drive bridge keeps backup gate red');
+  check(data.gates.sandboxRestoreValidated===false,
+   'a started runtime is not evidence of a verified recovery drill');
+  check(data.gates.sandboxDriveBackupReadbackVerified===false,
+   'no cryptographic readback receipt means backup remains unverified');
   check(data.demoOnly===preview,'mode independently checked in admin report');
   if(preview){
    const res=await fetch(origin+'/api/confirm',{method:'POST',
