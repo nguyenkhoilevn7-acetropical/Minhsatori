@@ -26,7 +26,7 @@ export async function readMinhSatori(action,payload={}){
   // A signed owner request may browse a single calendar month only, not
   // extract the full production ledger in one request.
   const from=String(payload.from||''),to=String(payload.to||'');
-  const validDate=x=>/^20\\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$/.test(x)&&
+  const validDate=x=>/^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(x)&&
    !Number.isNaN(Date.parse(x))&&new Date(x+'T00:00:00Z').toISOString().slice(0,10)===x;
   if(!validDate(from)||!validDate(to)||from>to||from.slice(0,7)!==to.slice(0,7))
    throw Error('BULK_ORDER_EXPORT_DENIED');
