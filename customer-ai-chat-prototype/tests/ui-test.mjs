@@ -248,6 +248,24 @@ for(const [needle,label] of [
  ["$('locationsToggle').addEventListener('click',()=>{",'addresses remain selectable'],
  ["$('catalogLaunch').addEventListener('click',openCatalog);",'catalogue remains accessible']
 ])assert.ok(html.includes(needle),'mobile keyboard regression: '+label);
+// Visual regression contracts for the FIRST mobile frame (not just focus mode).
+// Preview remains unmistakably SANDBOX and must not push the composer below WebView.
+const serverText=fs.readFileSync(path.join(root,'server.mjs'),'utf8');
+for(const [condition,label] of [
+ [serverText.includes('id="satoriPreviewBanner"'),'preview banner has stable DOM ID'],
+ [serverText.includes('SANDBOX · Chỉ chat và báo giá thử; KHÔNG tạo hóa đơn thật.'),'dangerous production mode never misrepresented'],
+ [serverText.includes('id="satoriPreviewDetails"')&&serverText.includes('KHÔNG đồng bộ production'),'expanded preview preserves full warning'],
+ [html.includes('const noticeHeight=notice?notice.getBoundingClientRect().height:0'),'viewport subtracts preview height'],
+ [html.includes('Math.floor(visible-noticeHeight)'),'composer remains inside available viewport'],
+ [html.includes('new ResizeObserver(syncVisibleHeight).observe(previewNotice)'),'expanded notice resizes chat'],
+ [html.includes('.server-mode .chat-head{min-height:47px;padding:6px 9px'),'initial header is compact'],
+ [html.includes('.server-mode .catalog-launch-bar button,')&&html.includes('min-height:37px;padding:5px 6px'),'two catalogue/address actions stay tappable but slim'],
+ [html.includes('.server-mode .messages .bubble.assistant{max-width:95%;background:#e9f2ff'),'bot messages use muted readable surface'],
+ [html.includes('.server-mode .composer textarea{min-height:44px;max-height:92px'),'keyboard composer has compact readable bounds'],
+ [html.includes('id="locationsToggle"')&&html.includes('id="catalogLaunch"'),'address and catalogue selection preserved'],
+ [html.includes('id="quickCartEdit"')&&html.includes('id="historyButton"'),'cart/history actions retained']
+])assert.ok(condition,'first-open compact Samsung WebView: '+label);
+console.log('PASS 12/12 first-open WebView, sandbox warning and tappable navigation checks');
 console.log('PASS mobile keyboard-visible chat layout, compact header and opt-in basket');
 console.log('PASS quantity x-prefix and create-cart accessibility labels');
 console.log('PASS '+(adminChecks.length+3)+'/'+(adminChecks.length+3)+' admin search and VAT UI checks');
