@@ -226,5 +226,28 @@ assert.ok(html.includes("quantityBadge.textContent='x'+item.qty")&&html.includes
  'inline chat basket displays bold x-prefixed quantities');
 assert.ok(html.includes("cartUnit=cartUnits.length===1?cartUnits[0]:'đơn vị'"),
  'mixed-unit totals remain honest while same-unit baskets display x count');
+// Regression: Samsung keyboard must not cover the message pane. The existing
+// catalogue, address picker, cart controls and order endpoints remain unchanged.
+for(const [needle,label] of [
+ ['.server-mode .card.chat{height:100%;min-height:0;max-height:100%;overflow:hidden','chat uses keyboard-aware viewport height on phones'],
+ ['.server-mode .messages{flex:1 1 0%;min-height:0;max-height:none;overflow-y:auto','messages, not page, scroll above composer'],
+ ['.server-mode .composer textarea{font-size:16px','prevent mobile input focus zoom'],
+ ["Math.min(window.innerHeight||vv.height,vv.height)",'keyboard uses visible viewport'],
+ ["window.visualViewport?.addEventListener('resize',syncVisibleHeight",'viewport resize tracked'],
+ ["window.visualViewport?.addEventListener('scroll',syncVisibleHeight",'Android viewport pan tracked'],
+ ["let personalizedSuggestions=[],inlineCartCollapsed=true;",'basket starts collapsed'],
+ ["$('quickCartNew').hidden=inlineCartCollapsed;",'new basket action appears only after expansion'],
+ ["$('messages').addEventListener('scroll',syncChatCompact",{passive:true})",'scroll triggers compact header'],
+ ["$('messageInput').addEventListener('focus',()=>{",'text focus enters keyboard mode'],
+ ["$('messageInput').addEventListener('blur',()=>{",'keyboard mode exits on blur'],
+ ["document.body.classList.add('chat-typing','chat-compact')",'typing shrinks header'],
+ [".server-mode.chat-typing .catalog-launch-bar",'optional navigation hides while typing'],
+ [".server-mode.chat-typing .secondary-tools",'secondary controls hide while typing'],
+ [".server-mode.chat-compact .chat-satori-logo{width:24px!important;height:24px!important",'logo scales down'],
+ ["$('quickCartEdit').addEventListener('click',()=>{",'cart still manually expandable'],
+ ["$('locationsToggle').addEventListener('click',()=>{",'addresses remain selectable'],
+ ["$('catalogLaunch').addEventListener('click',openCatalog);",'catalogue remains accessible']
+])assert.ok(html.includes(needle),'mobile keyboard regression: '+label);
+console.log('PASS mobile keyboard-visible chat layout, compact header and opt-in basket');
 console.log('PASS quantity x-prefix and create-cart accessibility labels');
 console.log('PASS '+(adminChecks.length+3)+'/'+(adminChecks.length+3)+' admin search and VAT UI checks');
