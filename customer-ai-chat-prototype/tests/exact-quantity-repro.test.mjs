@@ -56,7 +56,8 @@ try{
  check(set.status===200&&quantities(set.body.draft)['TP-00058']===7&&
    quantities(set.body.draft)['TP-00003']===13,'one-product quantity update sets selected SKU, preserves other SKU');
  const bad=await message('Cho em 4 trà sữa và 1 suối 500');
- check(bad.body.needMoreDetails===true&&bad.body.draft.items.reduce((n,i)=>n+i.qty,0)===20,
+ const afterBad=await request('/api/draft?token=demo-a');
+ check(bad.body.needMoreDetails===true&&afterBad.body.draft.items.reduce((n,i)=>n+i.qty,0)===20,
   'unknown product blocks mutation; never apply partial items');
  console.log('PASS '+checks+'/'+checks+' exact Vietnamese quantities, updates, additive edits, concurrency and no TEST invoice');
 }catch(e){console.error('FAIL '+e.stack+'\\n'+stderr.slice(-2300));process.exitCode=1}
