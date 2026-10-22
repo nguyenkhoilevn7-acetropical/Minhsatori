@@ -27,6 +27,7 @@ import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
+import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
 import {auditDriveCatalogue} from './catalogue-drive-audit.mjs';
 import {getGeminiVersionStatus} from './version-status.mjs';
@@ -391,9 +392,11 @@ const server=http.createServer(async(req,res)=>{
     const sourceTotal=Number.isSafeInteger(raw.total)?raw.total:null;
     let selected=detailFromEvidence(name,found,[],{sourceTotal});
     let scannedMonths=0,scanIncomplete=false,invoiceRows=[];
-    if(!selected.complete){
+    {
      const months=Array.from({length:12},(_,i)=>monthFromOffset(i));
-     for(let at=0;at<months.length&&(!selected.complete||scannedMonths<3);at+=3){
+     // Even when customers.search is complete, check the last three months
+     // of invoices to surface *evidence* for owner-reviewed discounts.
+     for(let at=0;at<months.length&&(at===0||!selected.complete);at+=3){
       const lookups=months.slice(at,at+3).map(m=>monthLookup(m,name));
       const results=await Promise.all(lookups.map(l=>readMinhSatori(l.action,l.payload)));
       if(results.some(r=>r.revision!==response.revision||!Array.isArray(r.data?.orders)))
@@ -407,8 +410,9 @@ const server=http.createServer(async(req,res)=>{
       selected=detailFromEvidence(name,found,invoiceRows,{sourceTotal,invoicesIncomplete:scanIncomplete});
      }
     }
+    const pricingEvidence=observedRealCustomerDiscounts(invoiceRows,name);
     return reply(res,200,{ok:true,readOnly:true,reviewOnly:true,revision:response.revision,
-     scannedMonths,selected,realCustomerLinkIssuanceEnabled:false,
+     scannedMonths,selected,pricingEvidence,realCustomerLinkIssuanceEnabled:false,
      note:selected.complete?'Đã đối chiếu hồ sơ hiện có theo tên.':'Chưa thu thập đủ điểm giao; cần xác minh, không cấp link.'});
    }
    return fail(res,400,'INVALID_DIRECTORY_MODE','Chọn danh sách hoặc chi tiết.');
