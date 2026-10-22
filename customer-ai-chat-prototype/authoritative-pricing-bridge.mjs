@@ -102,6 +102,12 @@ export function makeProductionCustomerResolver({authenticateSession,fetchPricing
   return Object.freeze({
    sessionKey:identity.sessionKey,revision:p.revision,
    verifiedByServer:true,pricingApprovedByOwner:true,
+   // Optional CTV link must originate in independently authenticated owner CRM,
+   // never in customer chat JSON or a public bearer URL.
+   ...(identity.ownerVerifiedCollaboratorAssociation===true&&
+       typeof identity.collaboratorId==='string'&&
+       /^[A-Za-z0-9_-]{4,100}$/.test(identity.collaboratorId)?
+       {ownerVerifiedCollaboratorAssociation:true,collaboratorId:identity.collaboratorId}:{}),
    source:cat.data.products,vatRate:p.vatRate,shippingAmount:p.shippingAmount,
    customer:Object.freeze({verifiedByServer:true,profileId:identity.customerMemoryId,
     approvedMemoryId:p.approvedMemoryId,
