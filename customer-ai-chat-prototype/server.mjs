@@ -962,9 +962,23 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='POST'&&p==='/api/confirm'){
   const b=await bodyJSON(req),token=b?.token,c=getProfile(token);if(!c)return fail(res,403,'INVALID_LINK','Không có quyền');
   const key=String(b.requestId||'');if(!/^[a-z0-9-]{8,80}$/i.test(key))return fail(res,400,'BAD_REQUEST_ID','Thiếu mã chống gửi trùng');
-  // Idempotency may persist to disk. NEVER use the raw customer link token here.
+  // Idempotency survives restart. NEVER use the raw bearer customer link token.
   const idemKey=c.id+'|'+key;if(idempotency.has(idemKey))return reply(res,200,{ok:true,duplicate:true,order:orders.get(idempotency.get(idemKey))});
-  const q=quotes.get(b.quoteId);if(!q||q.token!==token||q.expiresAt<Date.now())return fail(res,409,'QUOTE_EXPIRED','Báo giá hết hạn hoặc không thuộc khách này');
+  const q=quotes.get(b.quoteId);
+  if(q&&q.token!==token)return fail(res,409,'QUOTE_EXPIRED','Báo giá không thuộc khách này.');
+  const statedRev=b?.expectedDraftRevision;
+  const claimedRev=Number.isSafeInteger(statedRev)&&statedRev>=0?statedRev:null;
+  if(q&&q.draftRevision!==undefined&&claimedRev!==null&&q.draftRevision!==claimedRev)
+   return fail(res,409,'DRAFT_CONFLICT','Báo giá và phiên bản giỏ hàng không khớp.');
+  // Two phones may generate different quoteIds and requestIds for one shared
+  // server draft. Return the already committed TEST invoice for that revision
+  // even when the old quote was invalidated after the first confirmation.
+  const verifiedRev=q?.draftRevision!==undefined?q.draftRevision:claimedRev;
+  if(Number.isSafeInteger(verifiedRev)&&verifiedRev>=0){
+   const prior=[...orders.values()].find(o=>o.profileId===c.id&&o.draftRevision===verifiedRev);
+   if(prior)return reply(res,200,{ok:true,sandbox:true,duplicate:true,order:prior});
+  }
+  if(!q||q.expiresAt<Date.now())return fail(res,409,'QUOTE_EXPIRED','Báo giá hết hạn hoặc không thuộc khách này');
   const approved=q.deliveryLocationId?chosenLocation(c,q.deliveryLocationId):
     listLocations(c).length===1?listLocations(c)[0]:null;
    if(!approved||q.locationRequired)return fail(res,409,'LOCATION_REQUIRED','Chưa chọn điểm giao chính xác. Vui lòng chọn trong Tất cả địa chỉ.');
@@ -977,7 +991,14 @@ const server=http.createServer(async(req,res)=>{
   try{deliveryNote=normalizeDeliveryNote(b?.deliveryNote??q.deliveryNote)}catch{return fail(res,400,'INVALID_DELIVERY_NOTE','Lưu ý giao hàng phải là văn bản tối đa 300 ký tự')}
   const o={...q,deliveryNote,ref:'TEST-'+crypto.randomBytes(5).toString('hex').toUpperCase(),requestId:idemKey,createdAt:new Date().toISOString(),status:'Chờ thanh toán',sandbox:true};
   delete o.token; // Do not write the bearer link credential into invoice/order storage.
-  orders.set(o.ref,o);idempotency.set(idemKey,o.ref);saveOrdersAtomic();quotes.delete(q.quoteId);
+  orders.set(o.ref,o);idempotency.set(idemKey,o.ref);
+  try{saveOrdersAtomic()}
+  catch{
+   // A failed disk commit must not leave a successful-looking in-memory order.
+   orders.delete(o.ref);idempotency.delete(idemKey);
+   return fail(res,503,'TEST_STORAGE_FAILED','Chưa lưu được đơn thử an toàn. Vui lòng thử lại.');
+  }
+  quotes.delete(q.quoteId);
   if(q.draftRevision!==undefined){draftStore.mutate(token,[{action:'clear'}],q.draftRevision);invalidateQuotes(token);}
   pendingAmends.delete(c.id); // New confirmed invoice supersedes any earlier amendment proposal.
   return reply(res,200,{ok:true,duplicate:false,order:o});
