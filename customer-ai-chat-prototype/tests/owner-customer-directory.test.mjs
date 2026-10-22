@@ -27,3 +27,28 @@ assert.equal(duplicate.count,1);
 const incomplete=detailFromEvidence('Hà Minh Nguyệt',rows,[],{sourceTotal:2,invoicesIncomplete:true});
 assert.equal(incomplete.complete,false);
 console.log('PASS owner directory: name grouping, unique destinations, source coverage, no production links');
+
+import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+import vm from 'node:vm';
+const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const html=readFileSync(path.join(root,'admin.html'),'utf8');
+const script=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+assert.ok(script,'must have inline admin controller');
+new vm.Script(script,{filename:'admin.html.js'}); // Reject Samsung browser syntax errors.
+assert.match(html,/\/api\/admin\/customer-directory\?mode=list/);
+assert.match(html,/\/api\/admin\/customer-directory\?mode=detail/);
+assert.match(html,/if\(selectedRealKey\)/,'prevent sending real identity to sandbox');
+assert.match(html,/realCustomerLinkWarning/);
+const server=readFileSync(path.join(root,'server.mjs'),'utf8');
+const start=server.indexOf("p==='/api/admin/customer-directory'");
+const end=server.indexOf('// This route probes source-of-truth',start);
+assert.ok(start>0&&end>start);
+const endpoint=server.slice(start,end);
+assert.match(endpoint,/customerLinks\.adminAuthorized\(req\)/);
+assert.match(endpoint,/readOnlyReady\(\)/);
+assert.match(endpoint,/readMinhSatori\('customers.search'/);
+assert.match(endpoint,/readMinhSatori\(l.action,l.payload\)/);
+assert.doesNotMatch(endpoint,/orders\.create|payments\.markCustomerPaid|saveOrdersAtomic|customerLinks\.restoreState|customerLinks\.handleAdmin/);
+console.log('PASS browser JavaScript syntax and admin-only/no-write boundary');
