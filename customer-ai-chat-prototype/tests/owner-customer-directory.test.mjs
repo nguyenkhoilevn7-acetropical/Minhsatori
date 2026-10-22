@@ -78,7 +78,7 @@ assert.match(reviewHtml,/\.customer-link-actions\{display:grid;grid-template-col
 assert.match(reviewHtml,/id="createButton">🔗 Cấp link cho khách thử/);
 assert.match(reviewHtml,/id="realLinkBlockReason"/);
 assert.match(reviewHtml,/\$\('realLinkBlockReason'\)\.hidden=!enabled/);
-assert.match(reviewHtml,/selectedCustomerId\+'\/rotate'/,'reissue only explicitly confirmed TEST links');
+assert.match(reviewHtml,/encodeURIComponent\(selectedCustomerId\)\+'\/rotate'/,'reissue only explicitly confirmed TEST links');
 assert.match(reviewHtml,/Cấp LẠI link khách THỬ/,'reissue requires owner confirmation');
 assert.match(reviewHtml,/if\(selectedRealKey\)\{[\s\S]{0,200}khách THẬT từ bản sandbox/);
 assert.doesNotMatch(reviewHtml,/realCustomerPermission|canAddAddress|mayAddLocation|permissions\.grant/,'no dealer-address permission in this change');
