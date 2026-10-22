@@ -1,0 +1,35 @@
+name: Optional CTV Twin Invoice Safety (FAKE ledger)
+on:
+  pull_request:
+    paths:
+      - 'api/BotApi.gs'
+      - 'api/AccountingCore.gs'
+      - 'accounting-core.js'
+      - 'tests/collaborator-twin-invoice.test.js'
+      - '.github/workflows/collaborator-twin-invoice-fake.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-two-bills-one-sale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate API script syntax
+        run: |
+          node --check tests/collaborator-twin-invoice.test.js
+          node --check accounting-core.js
+      - name: Verify CTV policies, atomic pair and no double counted debt
+        run: node tests/collaborator-twin-invoice.test.js
+      - name: Existing API/regression must still pass
+        run: |
+          node tests/satori-bot-api.test.js
+          node tests/bot-api-restore.cjs
+      - name: Never touch production
+        run: echo 'Fake JS Apps Script Drive VM; no live writes, no deploy, no credentials'

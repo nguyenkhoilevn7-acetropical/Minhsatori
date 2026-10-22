@@ -20,11 +20,47 @@ function basket(o){
  return JSON.stringify([...map].sort((a,b)=>a[0].localeCompare(b[0])));
 }
 function pairOrders(all){
- const groups=new Map(),pairs=[],review=[],byId=new Map();
+ const groups=new Map(),explicit=new Map(),pairs=[],review=[],byId=new Map();
+ const explicitRows=new Set();
+ const pairEntry=(high,low,basis)=>{
+  const p={id:key(high)+'::'+key(low),high,low,
+   profit:Math.round(total(high)-total(low)),
+   collaboratorId:high.collaboratorId||low.collaboratorId||'',basis};
+  pairs.push(p);byId.set(key(high),p);byId.set(key(low),p);
+ };
+ // Explicit, server-created pairs MUST be matched by immutable group ID,
+ // never guessed by name + basket (two orders on the same day can be identical).
+ for(const o of all){
+  if(typeof o.pairGroupId!=='string'||!/^pair_[a-zA-Z0-9-]{16,80}$/.test(o.pairGroupId))continue;
+  explicitRows.add(key(o));
+  if(!explicit.has(o.pairGroupId))explicit.set(o.pairGroupId,[]);
+  explicit.get(o.pairGroupId).push(o);
+ }
+ for(const rows of explicit.values()){
+  const customer=rows.find(x=>x.pairRole==='customer');
+  const settlement=rows.find(x=>x.pairRole==='collaborator');
+  const valid=rows.length===2&&customer&&settlement&&
+   active(customer)&&active(settlement)&&
+   customer.collaboratorId===settlement.collaboratorId&&
+   !!customer.collaboratorId&&
+   String(customer.pairInvoiceNo)===String(settlement.invoiceNo)&&
+   String(settlement.pairInvoiceNo)===String(customer.invoiceNo)&&
+   customer.pairPolicyVersion===settlement.pairPolicyVersion&&
+   norm(customer.name)===norm(settlement.name)&&
+   norm(customer.location)===norm(settlement.location)&&
+   basket(customer)===basket(settlement)&&
+   total(customer)>total(settlement);
+  if(!valid){review.push({orders:rows,reason:'Cặp hóa đơn CTV có trạng thái hoặc dữ liệu sai, cần rà soát thủ công.'});continue;}
+  pairEntry(customer,settlement,'Hai bill chung mã liên kết, khách trả giá cao, bill CTV đối soát (gồm phí/thuế theo từng bill)');
+ }
  for(const o of all.filter(active)){
+  // Rows carrying a pair marker are NEVER sent to legacy heuristic matching,
+  // even if the other half is deleted, cancelled or the pair is malformed.
+  if(explicitRows.has(key(o)))continue;
   const name=norm(o.name),b=basket(o);
   if(!name||['khach vang lai','khach zalo'].includes(name)||!b)continue;
-  const key=name+'|'+b;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(o);
+  const group=name+'|'+b;if(!groups.has(group))groups.set(group,[]);
+  groups.get(group).push(o);
  }
  for(const rows of groups.values()){
   if(rows.length<2)continue;
@@ -34,8 +70,7 @@ function pairOrders(all){
   if(a.collaboratorId&&b.collaboratorId&&a.collaboratorId!==b.collaboratorId){review.push({orders:rows,reason:'Hai đơn thuộc hai cộng tác viên khác nhau.'});continue;}
   if(total(a)===total(b)){review.push({orders:rows,reason:'Hai hóa đơn bằng tiền; không phát sinh chênh lệch, cần kiểm tra trùng đơn.'});continue;}
   const high=total(a)>total(b)?a:b,low=high===a?b:a;
-  const p={id:key(high)+'::'+key(low),high,low,profit:Math.round(total(high)-total(low)),collaboratorId:high.collaboratorId||low.collaboratorId||'',basis:'Giá trị hóa đơn cao − thấp (gồm VAT/ship theo hóa đơn)'};
-  pairs.push(p);byId.set(key(high),p);byId.set(key(low),p);
+  pairEntry(high,low,'Giá trị hóa đơn cao − thấp (gồm VAT/ship theo hóa đơn)');
  }
  return {pairs,review,byId};
 }
