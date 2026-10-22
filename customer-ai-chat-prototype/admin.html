@@ -191,6 +191,7 @@ const $=id=>document.getElementById(id);
 let secret='',lastLink='',customerProfiles=[],selectedCustomerId='',realCustomers=[],selectedRealKey='',realQueryTimer=0,realFetchSeq=0;
 const realReviewDrafts=new Map(); // Browser memory only, never persist customer PII in sandbox.
 let currentRealEvidence=null;
+let reviewImportedLocations=[];
 const clearError=()=>{$('error').textContent='';$('result').textContent=''};
 // Horizontal navigation: only show the chosen dashboard section.
 async function refreshVersionStatus(){
@@ -416,16 +417,23 @@ async function loadRealDirectory(){
    (d.sourceComplete?' • Chọn tên để tải tất cả điểm giao đã tìm được.':' • Một số tháng quá giới hạn; có thể tìm thêm khách theo tên.');
  }catch(e){$('realCustomerState').textContent='Chưa tải được khách thật: '+e.message+' • Vẫn dùng được khách THỬ.';}
 }
-function makeRealField(labelText,value){
+function makeRealField(labelText,value,onChange,kind='text'){
  const label=document.createElement('label');label.textContent=labelText;
- const input=document.createElement('input');input.readOnly=true;input.value=String(value||'Chưa xác minh');input.tabIndex=-1;
+ const input=document.createElement('input');input.type=kind;input.value=String(value??'');
+ input.maxLength=kind==='tel'?30:300;input.autocomplete='off';
+ input.placeholder='Chưa xác minh • anh sửa tại đây';
+ input.oninput=()=>{onChange(input.value);markReviewChanged()};
  label.append(input);return label;
+}
+function markReviewChanged(){
+ if(selectedRealKey)$('realDraftStatus').textContent='✎ Đã chỉnh thông tin; hãy bấm Lưu bản nháp. Chưa sửa sổ thật.';
 }
 function fillRealCustomer(detail){
  selectedCustomerId='';selectedRealKey=detail.key;
  $('customerSuggestions').replaceChildren();
  $('selectedCustomer').textContent='📚 Đã chọn '+detail.name+' từ sổ thật • chỉ để rà soát, KHÔNG cấp link.';
- $('createButton').disabled=true;$('createButton').textContent='🔒 Link khách thật • Chờ hoàn thiện kết nối';
+ $('createButton').disabled=false;$('createButton').type='button';
+ $('createButton').textContent='🔗 Kiểm tra cấp link khách thật';
  $('addCustomerLocation').disabled=false;$('manageSelectedLocations').hidden=true;
  $('newCustomerLocations').replaceChildren();
  markRealMode(true);
@@ -447,7 +455,11 @@ function fillRealCustomer(detail){
  const note=document.createElement('p');note.className='hint';
  note.textContent='Em đã điền tên, SĐT và địa chỉ từ sổ thật; các địa chỉ còn lại sẽ hiện trong phần bên dưới. Đổi điểm giao để xem thông tin tương ứng. Chưa phải xác nhận đặt hàng.';
  root.append(note);
- const places=detail.places||[];
+ const places=(detail.places||[]).map((p,i)=>({
+  ...p,...(existing?.importedLocations?.length===detail.places.length?existing.importedLocations[i]:{}),
+  recipient:existing?.importedLocations?.length===detail.places.length?existing.importedLocations[i]?.recipient||'':''
+ }));
+ reviewImportedLocations=places;
  if(!places.length){
   $('name').value=detail.name;$('phone').value='';$('address').value='';
   root.append('Chưa tìm được điểm giao hợp lệ trong sổ.');return;
@@ -471,22 +483,31 @@ function fillRealCustomer(detail){
    const fieldset=document.createElement('fieldset');fieldset.className='new-location-item';
    const legend=document.createElement('legend');legend.textContent=(index+1)+'. '+p.name;
    fieldset.append(legend);
-   fieldset.append(makeRealField('Tên trên hóa đơn',p.name),
-    makeRealField('Số điện thoại nhận hàng (cần xác minh)',p.phone||'Chưa có'),
-    makeRealField('Địa chỉ giao',p.address));
+   fieldset.append(
+    makeRealField('Người nhận (anh xác minh)',p.recipient||'',v=>{p.recipient=v}),
+    makeRealField('Số điện thoại nhận hàng',p.phone||'',v=>{p.phone=v},'tel'),
+    makeRealField('Địa chỉ giao',p.address,v=>{p.address=v})
+   );
    panel.append(fieldset);
   }
   others.prepend(panel);
  }
+
+ const recipientEditor=document.createElement('div');root.append(recipientEditor);
  function updatePrimary(i){
-  const p=places[i];$('name').value=detail.name;$('phone').value=p.phone||'';
-  $('address').value=p.address||'';renderAdditionalLocations(i);
+  const p=places[i];$('phone').value=p.phone||'';$('address').value=p.address||'';
+  $('phone').oninput=()=>{p.phone=$('phone').value;markReviewChanged()};
+  $('address').oninput=()=>{p.address=$('address').value;markReviewChanged()};
+  recipientEditor.replaceChildren(makeRealField('Người nhận địa chỉ đang chọn',p.recipient||'',v=>{p.recipient=v}));
+  renderAdditionalLocations(i);
  }
  picker.onchange=()=>updatePrimary(Number(picker.value));
+ $('name').oninput=markReviewChanged;
+ $('name').value=existing?.name??detail.name;
  const oldIdx=existing&&Number.isInteger(existing.primaryIndex)&&existing.primaryIndex>=0&&existing.primaryIndex<places.length?existing.primaryIndex:0;
  picker.value=String(oldIdx);updatePrimary(oldIdx);
  if(existing){
-  $('name').value=existing.name;$('phone').value=existing.phone;$('address').value=existing.address;
+  $('name').value=existing.name;
   for(const extra of existing.manualLocations||[])appendNewCustomerLocation(extra);
  }
  if(detail.aliases?.length>1){
@@ -554,7 +575,7 @@ function chooseCustomer(c){
  $('customerSuggestions').textContent='';
  $('selectedCustomer').textContent='✓ Đã chọn hồ sơ: '+c.name+'. Không tạo trùng khách. Bấm "Thêm địa chỉ cho khách đã có" để quản lý.';
  $('newCustomerLocations').replaceChildren();$('addCustomerLocation').disabled=true;$('manageSelectedLocations').hidden=false;
- $('createButton').disabled=false;$('createButton').textContent='🔗 Cấp lại link khách THỬ';
+ $('createButton').disabled=false;$('createButton').type='submit';$('createButton').textContent='🔗 Cấp lại link khách THỬ';
 }
 function clearCustomerSelection(){
  ++realFetchSeq;selectedRealKey='';markRealMode(false);
@@ -562,7 +583,7 @@ function clearCustomerSelection(){
  selectedCustomerId='';$('existingCustomer').value='';$('customerSearch').value='';
  $('create').reset();$('customerSuggestions').textContent='';$('selectedCustomer').textContent='';
  $('newCustomerLocations').replaceChildren();$('addCustomerLocation').disabled=false;$('manageSelectedLocations').hidden=true;
- $('createButton').disabled=false;$('createButton').textContent='🔗 Cấp link cho khách THỬ';
+ $('createButton').disabled=false;$('createButton').type='submit';$('createButton').textContent='🔗 Cấp link cho khách THỬ';
 }
 $('newCustomer').onclick=clearCustomerSelection;
 function appendNewCustomerLocation(initial={}){
@@ -618,11 +639,14 @@ function saveRealReviewDraft(){
   const picker=$('realCustomerDetails').querySelector('select');
   const data={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),
    discount:percentage('discount',70),ship:percentage('ship',30),vatRate:vat,
-   primaryIndex:Number(picker?.value||0),manualLocations:extras};
+   primaryIndex:Number(picker?.value||0),manualLocations:extras,
+   importedLocations:reviewImportedLocations.map(p=>({
+    name:p.name,recipient:p.recipient||'',phone:p.phone||'',address:p.address||''
+   }))};
   realReviewDrafts.set(selectedRealKey,data);
   const missing=['discount','ship','vatRate'].filter(k=>data[k]==='');
   $('realDraftStatus').textContent='✓ Đã lưu bản nháp trong phiên cho '+data.name+
-   ' • thêm '+extras.length+' địa chỉ bằng tay • '+
+   ' • đã sửa '+reviewImportedLocations.length+' địa chỉ cũ, thêm '+extras.length+' địa chỉ • '+
    (missing.length?'Còn chờ kiểm tra: '+missing.map(k=>({discount:'chiết khấu',ship:'phí giao',vatRate:'VAT'})[k]).join(', ')+'. ':
     'Đã nhập đủ ba trường tỷ lệ, vẫn cần anh duyệt. ')+
    'Chưa ghi vào website, Drive hay cấp link. Tải lại trang sẽ mất bản nháp.';
@@ -976,6 +1000,12 @@ $('create').onsubmit=async e=>{e.preventDefault();clearError();
  }catch(err){$('error').textContent=err.message}
  finally{b.disabled=false}
 };
+$('createButton').addEventListener('click',()=>{
+ if(!selectedRealKey)return;
+ $('realLinkBlockReason').textContent='CHƯA THỂ CẤP LINK THẬT: Gemini chưa được phép ghi đơn sang Hóa đơn/Sổ kế toán và lưu thông tin khách có xác thực. Đã mở phần chỉnh nháp, nhưng không cấp link thử giả làm link thật.';
+ $('realLinkBlockReason').hidden=false;
+ $('realDraftStatus').textContent='🔒 Chưa phát hành link thật hoặc tạo hóa đơn. Anh có thể tiếp tục chỉnh các địa chỉ và lưu bản nháp.';
+});
 $('copyLink').onclick=async()=>{try{await navigator.clipboard.writeText(lastLink);$('result').textContent='Đã sao chép link để gửi cho khách thử.'}catch(e){$('result').textContent='Không tự sao chép được. Anh giữ lâu để chọn và sao chép link ở trên.'}};
 })();
 </script></body></html>
