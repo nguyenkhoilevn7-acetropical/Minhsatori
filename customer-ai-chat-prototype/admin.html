@@ -557,22 +557,70 @@ function clearCustomerSelection(){
  $('createButton').disabled=false;$('createButton').textContent='+ Tạo link khách';
 }
 $('newCustomer').onclick=clearCustomerSelection;
-$('addCustomerLocation').onclick=()=>{
- if(selectedCustomerId)return;
- const root=$('newCustomerLocations');
- if(root.children.length>=19){$('error').textContent='Một khách có tối đa 20 địa chỉ (gồm địa chỉ chính).';return}
+function appendNewCustomerLocation(initial={}){
+ const root=$('newCustomerLocations'),real=!!selectedRealKey;
+ const n=root.querySelectorAll('fieldset[data-manual-location]').length;
+ if(n>=19){$('error').textContent='Đã đạt 19 địa chỉ nhập thêm. Các địa chỉ từ sổ thật vẫn được giữ nguyên.';return}
  const fieldset=document.createElement('fieldset');fieldset.className='new-location-item';
- const legend=document.createElement('legend');legend.textContent='📍 Điểm giao thêm '+(root.children.length+1);fieldset.append(legend);
- for(const [key,title,placeholder] of [['label','Tên điểm giao','Chi nhánh Quận 7'],['recipient','Tên người nhận','Nguyễn Văn A'],['phone','Số điện thoại nhận hàng','0900000000'],['address','Địa chỉ chi tiết','Số nhà, tên đường, quận']]){
+ fieldset.dataset.manualLocation='true';
+ const legend=document.createElement('legend');legend.textContent='📍 Điểm giao thêm '+(n+1)+(real?' • Đang chờ duyệt':'');
+ fieldset.append(legend);
+ for(const [key,title,placeholder] of [
+  ['label','Tên điểm giao','Chi nhánh Quận 7'],
+  ['recipient','Tên người nhận','Nguyễn Văn A'],
+  ['phone','Số điện thoại nhận hàng','0900000000'],
+  ['address','Địa chỉ chi tiết','Số nhà, tên đường, quận']
+ ]){
   const label=document.createElement('label');label.textContent=title;
-  const input=document.createElement('input');input.required=true;input.dataset.locationField=key;input.placeholder=placeholder;
+  const input=document.createElement('input');input.required=!real||key==='address';
+  input.dataset.locationField=key;input.placeholder=placeholder;input.value=String(initial[key]||'');
   input.maxLength=key==='address'?300:key==='label'?80:key==='phone'?30:120;
   if(key==='phone')input.type='tel';
   label.append(input);fieldset.append(label);
  }
- const remove=document.createElement('button');remove.type='button';remove.className='secondary';remove.textContent='Xóa điểm giao này';
- remove.onclick=()=>fieldset.remove();fieldset.append(remove);root.append(fieldset);
+ const remove=document.createElement('button');remove.type='button';remove.className='secondary';
+ remove.textContent='Xóa địa chỉ vừa thêm';remove.onclick=()=>fieldset.remove();
+ fieldset.append(remove);root.append(fieldset);
+ if(real)$('realDraftStatus').textContent='Đã mở ô địa chỉ mới. Nhập xong, bấm Lưu bản nháp trong phiên.';
+}
+$('addCustomerLocation').onclick=()=>{
+ if(selectedCustomerId)return;
+ appendNewCustomerLocation();
 };
+function saveRealReviewDraft(){
+ if(!selectedRealKey)return;
+ const fields=[...$('newCustomerLocations').querySelectorAll('fieldset[data-manual-location]')];
+ const extras=fields.map(field=>Object.fromEntries(
+  [...field.querySelectorAll('input[data-location-field]')].map(input=>[input.dataset.locationField,input.value.trim()])));
+ if(extras.some(x=>!x.address)){
+  $('realDraftStatus').textContent='⚠ Mỗi địa chỉ vừa thêm cần có địa chỉ chi tiết. Chưa lưu bản nháp.';return;
+ }
+ const percentage=(id,max)=>{
+  const raw=$(id).value.trim();
+  if(!raw)return '';
+  const n=Number(raw);
+  if(!Number.isFinite(n)||n<0||n>max||!/^\d+(?:\.\d{1,2})?$/.test(raw))
+   throw Error(id+' phải là tỷ lệ 0–'+max+'%.');
+  return String(n);
+ };
+ try{
+  if(!$('name').value.trim()||!$('address').value.trim())throw Error('Cần có tên khách và địa chỉ chính.');
+  const vat=$('vatRate').value;
+  if(vat&&!['0','5','8','10'].includes(vat))throw Error('Thuế VAT chưa hợp lệ.');
+  const picker=$('realCustomerDetails').querySelector('select');
+  const data={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),
+   discount:percentage('discount',70),ship:percentage('ship',30),vatRate:vat,
+   primaryIndex:Number(picker?.value||0),manualLocations:extras};
+  realReviewDrafts.set(selectedRealKey,data);
+  const missing=['discount','ship','vatRate'].filter(k=>data[k]==='');
+  $('realDraftStatus').textContent='✓ Đã lưu bản nháp trong phiên cho '+data.name+
+   ' • thêm '+extras.length+' địa chỉ bằng tay • '+
+   (missing.length?'Còn chờ kiểm tra: '+missing.map(k=>({discount:'chiết khấu',ship:'phí giao',vatRate:'VAT'})[k]).join(', ')+'. ':
+    'Đã nhập đủ ba trường tỷ lệ, vẫn cần anh duyệt. ')+
+   'Chưa ghi vào website, Drive hay cấp link. Tải lại trang sẽ mất bản nháp.';
+ }catch(e){$('realDraftStatus').textContent='⚠ '+e.message}
+}
+$('saveRealReview').onclick=saveRealReviewDraft;
 $('manageSelectedLocations').onclick=()=>{
  const panel=[...document.querySelectorAll('.location-manager')].find(el=>el.dataset.customerId===selectedCustomerId);
  if(!panel){$('error').textContent='Chưa tải được điểm giao. Hãy mở lại tab Khách hàng.';return}
@@ -609,7 +657,7 @@ $('customerSearch').addEventListener('input',e=>{
 });
 for(const id of ['name','phone']){
  $(id).addEventListener('input',e=>{
-  if(selectedCustomerId)return;
+  if(selectedCustomerId||selectedRealKey)return;
   const value=e.target.value.trim();showMatches(value);
   const exact=customerProfiles.filter(c=>id==='name'?normalized(c.name)===normalized(value):digits(c.phone)===digits(value));
   if(exact.length===1&&value.length>3){
