@@ -143,7 +143,10 @@ button:disabled{opacity:.55}
 <p class="hint">Một đại lý dùng một link riêng cho tối đa 20 địa chỉ giao, có người nhận và số điện thoại riêng.</p>
 <div class="row"><div><label for="discount">Chiết khấu (%)</label><input id="discount" required type="number" min="0" max="70" step="1" value="20"></div><div><label for="ship">Phí giao hàng (%)</label><input id="ship" required type="number" min="0" max="30" step="1" value="8"></div><div><label for="vatRate">Thuế VAT (%)</label><select id="vatRate"><option value="0">0% — chưa áp dụng</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div></div>
 <p class="hint">VAT thử nghiệm tính trên tiền hàng sau chiết khấu, không tính phí giao. Thuế suất thật phải kiểm tra theo từng mặt hàng trước khi sử dụng.</p>
-<p><button type="submit" id="createButton">+ Tạo link khách</button></p></form>
+<p id="realPricingEvidence" class="hint" role="status" hidden></p>
+<p><button type="submit" id="createButton">+ Tạo link khách</button>
+<button type="button" id="saveRealReview" class="secondary" hidden>✓ Lưu bản nháp địa chỉ &amp; tỷ lệ (trong phiên)</button></p>
+<p id="realDraftStatus" class="hint" role="status" hidden></p></form>
 <div id="result" role="status"></div><div id="newLink" hidden><p class="hint">Sao chép ngay link này để chia sẻ. Mất link thì tạo lại; link cũ sẽ hết hiệu lực.</p><div id="linkText" class="link"></div><button id="copyLink" type="button">Sao chép link để gửi Zalo</button></div>
 </section>
 <section class="card" data-tab-panel="settings" hidden>
@@ -179,6 +182,8 @@ button:disabled{opacity:.55}
 'use strict';
 const $=id=>document.getElementById(id);
 let secret='',lastLink='',customerProfiles=[],selectedCustomerId='',realCustomers=[],selectedRealKey='',realQueryTimer=0,realFetchSeq=0;
+const realReviewDrafts=new Map(); // Browser memory only, never persist customer PII in sandbox.
+let currentRealEvidence=null;
 const clearError=()=>{$('error').textContent='';$('result').textContent=''};
 // Horizontal navigation: only show the chosen dashboard section.
 async function refreshVersionStatus(){
@@ -361,8 +366,19 @@ function matchesCustomer(c,query){
 function markRealMode(enabled){
  $('realCustomerDetails').hidden=!enabled;
  $('realCustomerLinkWarning').hidden=!enabled;
- for(const id of ['discount','ship','vatRate'])$(id).disabled=enabled;
- if(!enabled)$('realCustomerDetails').replaceChildren();
+ $('realPricingEvidence').hidden=!enabled;
+ $('realDraftStatus').hidden=!enabled;
+ $('saveRealReview').hidden=!enabled;
+ for(const id of ['discount','ship','vatRate'])$(id).disabled=false;
+ const vat=$('vatRate'),blank=vat.querySelector('option[value=""]');
+ if(enabled&&!blank)vat.insertBefore(new Option('— Chưa xác minh VAT —',''),vat.firstChild);
+ if(!enabled&&blank)blank.remove();
+ if(!enabled){
+  $('realCustomerDetails').replaceChildren();
+  $('realPricingEvidence').textContent='';
+  $('realDraftStatus').textContent='';
+  currentRealEvidence=null;
+ }
 }
 function renderCustomerSelect(){
  const select=$('existingCustomer'),old=selectedRealKey?'real:'+selectedRealKey:selectedCustomerId;
@@ -402,9 +418,16 @@ function fillRealCustomer(detail){
  $('customerSuggestions').replaceChildren();
  $('selectedCustomer').textContent='📚 Đã chọn '+detail.name+' từ sổ thật • chỉ để rà soát, KHÔNG cấp link.';
  $('createButton').disabled=true;$('createButton').textContent='🔒 Khách thật • Chưa cấp link';
- $('addCustomerLocation').disabled=true;$('manageSelectedLocations').hidden=true;
- $('newCustomerLocations').replaceChildren();$('discount').value='';$('ship').value='';$('vatRate').value='';
+ $('addCustomerLocation').disabled=false;$('manageSelectedLocations').hidden=true;
+ $('newCustomerLocations').replaceChildren();
  markRealMode(true);
+ $('discount').value='';$('ship').value='';$('vatRate').value='';
+ $('realDraftStatus').textContent='Thay đổi chỉ lưu trong phiên quản trị, tải lại trang sẽ mất. Không đổi hóa đơn thật.';
+ const existing=realReviewDrafts.get(detail.key);
+ if(existing){
+  $('discount').value=existing.discount;$('ship').value=existing.ship;$('vatRate').value=existing.vatRate;
+  $('realDraftStatus').textContent='Đã khôi phục bản nháp trong phiên. Chưa duyệt hay tạo link.';
+ }
  const root=$('realCustomerDetails');root.replaceChildren();
  const intro=document.createElement('p');intro.className='hint';
  const hasExtra=Number.isInteger(detail.sourceTotal)&&detail.count!==detail.sourceTotal;
@@ -427,10 +450,12 @@ function fillRealCustomer(detail){
  root.append(pickerLabel);
  const others=$('newCustomerLocations');
  function renderAdditionalLocations(primary){
-  others.replaceChildren();
+  const old=others.querySelector('details[data-imported-locations]');
+  if(old)old.remove();
   const extra=places.filter((_,i)=>i!==primary);
   if(!extra.length)return;
-  const panel=document.createElement('details');panel.className='location-manager';panel.open=extra.length<=6;
+  const panel=document.createElement('details');panel.className='location-manager';
+  panel.dataset.importedLocations='true';panel.open=extra.length<=6;
   const summary=document.createElement('summary');
   summary.textContent='📍 Đã tự thêm '+extra.length+' địa chỉ giao khác từ sổ thật (chỉ xem)';
   panel.append(summary);
@@ -443,14 +468,19 @@ function fillRealCustomer(detail){
     makeRealField('Địa chỉ giao',p.address));
    panel.append(fieldset);
   }
-  others.append(panel);
+  others.prepend(panel);
  }
  function updatePrimary(i){
   const p=places[i];$('name').value=detail.name;$('phone').value=p.phone||'';
   $('address').value=p.address||'';renderAdditionalLocations(i);
  }
  picker.onchange=()=>updatePrimary(Number(picker.value));
- updatePrimary(0);
+ const oldIdx=existing&&Number.isInteger(existing.primaryIndex)&&existing.primaryIndex>=0&&existing.primaryIndex<places.length?existing.primaryIndex:0;
+ picker.value=String(oldIdx);updatePrimary(oldIdx);
+ if(existing){
+  $('name').value=existing.name;$('phone').value=existing.phone;$('address').value=existing.address;
+  for(const extra of existing.manualLocations||[])appendNewCustomerLocation(extra);
+ }
  if(detail.aliases?.length>1){
   const info=document.createElement('p');info.className='hint';
   info.textContent='Tên/chi nhánh trên các hóa đơn: '+detail.aliases.join(' • ')+
@@ -468,7 +498,17 @@ async function selectRealCustomer(name,key){
  try{
   const data=await request('/api/admin/customer-directory?mode=detail&name='+encodeURIComponent(name));
   if(id!==realFetchSeq)return;
+  currentRealEvidence=data.pricingEvidence||null;
   fillRealCustomer(data.selected);
+  const evidence=currentRealEvidence,observed=evidence?.observedRates||[];
+  $('realPricingEvidence').textContent=
+   'Đối chiếu '+(evidence?.checkedInvoices||0)+' hóa đơn: '+
+   (observed.length?'đã thấy mức chiết khấu '+observed.map(v=>v+'%').join(', ')+'. ':'chưa có tỷ lệ chiết khấu đủ bằng chứng. ')+
+   (evidence?.suggestedDiscount!==null&&evidence?.suggestedDiscount!==undefined?'Tự gợi ý '+evidence.suggestedDiscount+'%; anh cần duyệt lại. ':
+    'Nhiều mức/thiếu bằng chứng nên không tự chọn %. ')+
+   'Phí giao hàng và VAT chưa có mức được xác minh; anh nhập sau khi kiểm tra.';
+  if(!realReviewDrafts.has(data.selected.key)&&evidence?.suggestedDiscount!==null&&evidence?.suggestedDiscount!==undefined)
+   $('discount').value=String(evidence.suggestedDiscount);
   if(!data.selected.complete)$('realCustomerState').textContent='⚠ '+name+': mới đối chiếu được '+data.selected.count+'/'+(data.selected.sourceTotal??'?')+
    ' điểm giao theo nguồn. Chưa được dùng kết quả để tạo link.';
  }catch(e){
