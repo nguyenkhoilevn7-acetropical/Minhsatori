@@ -23,8 +23,8 @@ function getConfig(mode,env){
  const enabled=mode==='test'?env.SATORI_TEST_CHECKOUT_ENABLED:env.SATORI_REAL_CHECKOUT_ENABLED;
  if(enabled!=='1')throw failure('CHECKOUT_DISABLED');
  const endpoint=String(env.SATORI_CHECKOUT_ENDPOINT||'').trim();
- const keyId=String(mode==='test'?env.SATORI_TEST_CHECKOUT_KEY_ID:env.SATORI_REAL_CHECKOUT_KEY_ID||'');
- const secret=String(mode==='test'?env.SATORI_TEST_CHECKOUT_SECRET:env.SATORI_REAL_CHECKOUT_SECRET||'');
+ const keyId=String((mode==='test'?env.SATORI_TEST_CHECKOUT_KEY_ID:env.SATORI_REAL_CHECKOUT_KEY_ID)||'');
+ const secret=String((mode==='test'?env.SATORI_TEST_CHECKOUT_SECRET:env.SATORI_REAL_CHECKOUT_SECRET)||'');
  if(!endpointPattern.test(endpoint)||!/^[A-Za-z0-9_-]{3,64}$/.test(keyId)||secret.length<32)
   throw failure('CHECKOUT_NOT_CONFIGURED');
  return {endpoint,keyId,secret};
@@ -43,7 +43,7 @@ function validatePayload(mode,checkout){
    throw failure('TEST_REQUIRED');
  }else{
   if(payload.expectedRevision<1||!payload.customerMemoryId||
-      !payload.customerRef||!payload.confirmedNewCustomer===false&&false)
+      !payload.customerRef||payload.confirmedNewCustomer!==false)
    throw failure('UNVERIFIED_REAL_CHECKOUT');
   if(payload.order.isTest===true||payload.order.testMode===true||
     ['test','sandbox'].includes(String(payload.order.environment||'').toLowerCase()))
