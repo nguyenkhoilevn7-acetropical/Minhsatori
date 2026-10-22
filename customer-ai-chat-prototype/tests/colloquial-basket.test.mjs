@@ -110,8 +110,9 @@ try{
   'only confirmed spout variant added, same basket');
  rev=r.data.draft.revision;
  r=await send('3 me, 2 ổi',rev);
- check(r.status===200&&r.data.draft?.items?.find(x=>x.code==='TP-00055')?.qty===12,
-  'two unique items in one natural sentence add atomically');
+ check(r.status===200&&r.data.draft?.items?.find(x=>x.code==='TP-00055')?.qty===3&&
+  r.data.draft?.items?.find(x=>x.code==='TP-00058')?.qty===2&&r.data.draft?.items?.length===2,
+  'new complete two-item sentence replaces stale basket atomically: exactly 3 me and 2 oi');
  const before=await draft();
  r=await send('3 me, 2 trà sữa',before.revision);
  check(r.data.needMoreDetails===true&&!r.data.quote,'unrecognized second product must not create a partial quote');
