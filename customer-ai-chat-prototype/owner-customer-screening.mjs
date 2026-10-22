@@ -12,13 +12,33 @@ const pct=value=>{
  const n=Number(raw);return Number.isFinite(n)&&n>=0&&n<=70?n:null;
 };
 function observedPct(order){
+ // Production BotApi.visible() omits top-level discount fields but returns
+ // items unchanged. A consistent explicit line-item percentage is evidence.
  const pricing=order.pricing&&typeof order.pricing==='object'?order.pricing:{};
- for(const value of [order.discountPercent,order.discountPct,order.customerDiscountPercent,order.discountPercentage,pricing.discountPercent,pricing.discountPct]){
-  const n=pct(value);if(n!==null)return n;
+ const top=[order.discountPercent,order.discountPct,order.customerDiscountPercent,order.discountPercentage,pricing.discountPercent,pricing.discountPct]
+  .filter(v=>v!==null&&v!==undefined&&v!=='').map(pct);
+ if(typeof order.discount==='string'&&order.discount.includes('%'))
+  top.push(pct(order.discount.replace('%','')));
+ else if(['percent','percentage','pct','%'].includes(txt(order.discountUnit||order.discountType).toLowerCase()))
+  top.push(pct(order.discount));
+ // An explicitly supplied but malformed percentage must not be ignored.
+ if(top.some(v=>v===null)||new Set(top).size>1)return null;
+ const items=Array.isArray(order.items)?order.items:[];
+ const lineRates=items.map(item=>{
+  if(!item||typeof item!=='object')return null;
+  const fields=[item.discountPercent,item.discountPct,item.discountPercentage];
+  const supplied=fields.filter(v=>v!==undefined&&v!==null&&v!=='');
+  if(!supplied.length)return null;
+  const values=supplied.map(pct);
+  return values.some(v=>v===null)||new Set(values).size>1?null:values[0];
+ });
+ // Every item on a bill must explicitly agree: never average mixed discounts.
+ if(lineRates.length){
+  if(lineRates.some(v=>v===null)||new Set(lineRates).size>1)return null;
+  if(top.length&&top[0]!==lineRates[0])return null;
+  return lineRates[0];
  }
- if(typeof order.discount==='string'&&order.discount.includes('%'))return pct(order.discount.replace('%',''));
- if(['percent','percentage','pct','%'].includes(txt(order.discountUnit||order.discountType).toLowerCase()))return pct(order.discount);
- return null; // A bare "discount" may be a money amount, never guess.
+ return top.length?top[0]:null; // Bare monetary discount is not a rate.
 }
 export function screenMonthlyCustomers(orders,{truncated=false}={}){
  const groups=new Map();
