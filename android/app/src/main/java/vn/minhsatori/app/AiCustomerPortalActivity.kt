@@ -88,7 +88,7 @@ class AiCustomerPortalActivity : AppCompatActivity() {
         }
         bar.addView(nav("‹ Quay lại") { if (view.canGoBack()) view.goBack() else finish() })
         bar.addView(TextView(this).apply {
-            text = if (ownerMode) "Quản lý link • SANDBOX" else "Khách đặt hàng • SANDBOX"
+            text = if (ownerMode) "Gemini • Quản trị chủ tài khoản" else "Khách đặt hàng • SANDBOX"
             textSize = 13f
             setTextColor(Color.rgb(143, 230, 238))
             setTypeface(typeface, Typeface.BOLD)
