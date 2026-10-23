@@ -1,18 +1,16 @@
 {
-  "purpose": "android-0.3.9-owner-ctv-pair-ledger-readonly-samsung-acceptance",
+  "purpose": "android-0.4.0-owner-auto-live-data-sync-samsung-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.3.9",
-  "versionCode": 16,
-  "branch": "release/android-v0.3.9-ctv-pair-readonly-20261023",
-  "scope": "Signed owner-only Samsung acceptance APK: explicit linked CTV customer/settlement invoice display, one-sale revenue/debt, owner PDF share warning; live ledger read-only, NO automatic production writes",
+  "version": "0.4.0",
+  "versionCode": 17,
+  "branch": "release/android-v0.4.0-owner-auto-sync-20261023",
+  "scope": "Same-package owner Samsung acceptance: auto-open live Drive OAuth when no saved source, reuse previously authorized Google consent and remembered source, re-sync in foreground after 2 minutes and after network recovery; no automatic real writes.",
   "requestedOn": "2026-10-23",
-  "sourcePRs": [
-    90
-  ],
+  "sourcePRs": [],
   "notes": [
-    "Incremental same-package update using the existing pinned release certificate; never generate a new signing identity.",
-    "Review linked CTV buyer vs internal settlement invoices from SAME live ledger, no double debt or revenue.",
-    "Gemini production checkout remains disabled until Apps Script Work deploy, owner-only auth, approved policy, durable idempotency and one real order E2E are verified.",
-    "Do not modify any live Apps Script or Render deployment or create test invoices in production."
+    "Update using the SAME pinned signing certificate; do not generate a new identity.",
+    "On the first install, the owner must consent to Google Drive once; later opens auto-read with no manual connect. OAuth cannot be bypassed.",
+    "Mobile API writes remain protected by independent Android OAuth owner role & server allowedActions; Drive source is read-only.",
+    "No sandbox records are copied into production and no test invoices are created."
   ]
 }

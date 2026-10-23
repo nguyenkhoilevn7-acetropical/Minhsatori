@@ -79,17 +79,19 @@ class NativeMainActivity : AppCompatActivity() {
     private val syncHandler = Handler(Looper.getMainLooper())
     private val syncIntervalMs = 120_000L
     private var lastOnlineReadElapsedMs = 0L
+    private var lastSyncAttemptElapsedMs = 0L
+    private var authorizationPending = false
+    private var authorizationDeclined = false
     private var foreground = false
+    // Never persist OAuth tokens. Re-authorize silently through Google when
+    // resuming; show a consent dialog only when Android actually requires it.
     private val syncTick = object : Runnable {
         override fun run() {
             if (!foreground) return
-            if (!isLoading && lastOnlineReadElapsedMs > 0L &&
-                SystemClock.elapsedRealtime() - lastOnlineReadElapsedMs >= syncIntervalMs) {
-                when (dataSource) {
-                    "Minh Satori API" -> if (accessToken != null) refreshFromMobileApi()
-                    "Google Drive API" -> if (accessToken != null) refreshFromDrive()
-                    "file Google Drive" -> if (fileUri != null) refreshFromPicker()
-                }
+            if (!isLoading && !authorizationPending && !authorizationDeclined &&
+                AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
+                    SystemClock.elapsedRealtime(), syncIntervalMs)) {
+                syncPreferredSource()
             }
             syncHandler.postDelayed(this, syncIntervalMs)
         }
@@ -177,16 +179,19 @@ class NativeMainActivity : AppCompatActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
+        authorizationPending = false
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             try {
                 applyAuthorization(Identity.getAuthorizationClient(this)
                     .getAuthorizationResultFromIntent(result.data!!))
             } catch (_: Exception) {
-                statusMessage = "Không hoàn tất cấp quyền Google Drive. Hãy thử lại."
+                statusMessage = "Không hoàn tất cấp quyền Google. Có thể thử lại trong Cài đặt."
+                authorizationDeclined = true
                 render()
             }
         } else {
-            statusMessage = "Anh chưa cấp quyền Google Drive; ứng dụng không tải dữ liệu."
+            authorizationDeclined = true
+            statusMessage = "Anh chưa cấp quyền Google; chạm biểu tượng Cài đặt để kết nối lần đầu."
             render()
         }
     }
@@ -205,13 +210,17 @@ class NativeMainActivity : AppCompatActivity() {
             Uri.parse(it)
         }
         apiEndpoint = MobileApiClient.endpoint(this)
+        // No manual "Đồng bộ Mobile API" step on each new app process.
+        // On first installation, choose authenticated LIVE Drive read.
+        // Never silently treat an old SANDBOX API as the production source.
+        val preferred = preferredSource()
+        if (preferred == AutoSyncPolicy.DRIVE) {
+            getPreferences(MODE_PRIVATE).edit()
+                .putString("satori_source_mode", AutoSyncPolicy.DRIVE)
+                .putBoolean("google_drive_auto_read", true).apply()
+        }
         render()
-        // Preserve an explicitly selected live Drive file across app restarts.
-        // A stored SANDBOX API endpoint must not silently override it.
-        val preferred = getPreferences(MODE_PRIVATE).getString("satori_source_mode", "").orEmpty()
-        if (preferred == "file" && fileUri != null) refreshFromPicker()
-        else if (apiEndpoint != null || preferGoogleDrive()) connectGoogle()
-        else if (fileUri != null) refreshFromPicker()
+        syncPreferredSource()
     }
 
     override fun onResume() {
@@ -219,15 +228,11 @@ class NativeMainActivity : AppCompatActivity() {
         foreground = true
         syncHandler.removeCallbacks(syncTick)
         syncHandler.postDelayed(syncTick, syncIntervalMs)
-        // If returning from another app after a long time, refresh the authenticated
-        // source rather than displaying a read-only file as live synced data.
-        if (!isLoading && lastOnlineReadElapsedMs > 0L &&
-            SystemClock.elapsedRealtime() - lastOnlineReadElapsedMs >= syncIntervalMs) {
-            when (dataSource) {
-                "Minh Satori API" -> if (accessToken != null) refreshFromMobileApi()
-                "Google Drive API" -> if (accessToken != null) refreshFromDrive()
-                "file Google Drive" -> if (fileUri != null) refreshFromPicker()
-            }
+        // Foreground refresh or silent reauthorization after Google token expiry.
+        if (!isLoading && !authorizationPending && !authorizationDeclined &&
+            AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
+                SystemClock.elapsedRealtime(), syncIntervalMs)) {
+            syncPreferredSource()
         }
     }
 
@@ -239,6 +244,23 @@ class NativeMainActivity : AppCompatActivity() {
 
     private fun preferGoogleDrive(): Boolean =
         getPreferences(MODE_PRIVATE).getBoolean("google_drive_auto_read", false)
+
+    private fun preferredSource(): String = AutoSyncPolicy.source(
+        getPreferences(MODE_PRIVATE).getString("satori_source_mode", null),
+        fileUri != null, apiEndpoint != null
+    )
+
+    private fun syncPreferredSource() {
+        if (isLoading || authorizationPending || authorizationDeclined) return
+        // This works after reopening the app, without storing an access token.
+        when (preferredSource()) {
+            AutoSyncPolicy.FILE -> refreshFromPicker()
+            AutoSyncPolicy.MOBILE_API -> if (accessToken == null) connectGoogle(automatic = true)
+                else refreshFromMobileApi()
+            else -> if (accessToken == null) connectGoogle(automatic = true)
+                else refreshFromDrive()
+        }
+    }
 
     override fun onDestroy() {
         syncHandler.removeCallbacks(syncTick)
@@ -461,13 +483,17 @@ class NativeMainActivity : AppCompatActivity() {
             background = panelBackground(if (connected) Color.rgb(8, 47, 53)
                   else Color.rgb(48, 35, 24))
         }
-        label(info, if (connected) "●  ĐÃ ĐỒNG BỘ DỮ LIỆU" else "●  CHƯA KẾT NỐI DỮ LIỆU",
+        label(info, when {
+            connected -> "●  ĐÃ ĐỒNG BỘ DỮ LIỆU"
+            isLoading || authorizationPending -> "●  ĐANG TỰ ĐỘNG KẾT NỐI…"
+            else -> "●  CHƯA KẾT NỐI DỮ LIỆU"
+        },
             12f, true, if (connected) Color.rgb(94, 234, 212)
                 else Color.rgb(253, 186, 116))
         label(info, if (connected)
             (dataSource.ifBlank { "Nguồn dữ liệu" } + "  •  Revision " +
                 data!!.revision + "  •  " + data.invoices.size + " hóa đơn")
-            else "Chỉ có thể xem dữ liệu hoặc lên đơn khi nguồn được kết nối.",
+            else statusMessage,
             12f, false, if (connected) Color.rgb(153, 246, 228)
                 else Color.rgb(254, 215, 170), 5)
         if (connected && lastReadAt.isNotBlank()) {
@@ -1690,6 +1716,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun refreshFromMobileApi() {
+        lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
         val endpoint = apiEndpoint ?: run {
             statusMessage = "Chưa cấu hình Mobile API."
             render()
@@ -1899,6 +1926,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun refreshFromPicker() {
+        lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
         val selected = fileUri ?: run {
             statusMessage = "Anh cần chọn file MinhSatori_Live_Data.json."
             render()
@@ -1965,8 +1993,11 @@ class NativeMainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun connectGoogle() {
-        if (isLoading) return
+    private fun connectGoogle(automatic: Boolean = false) {
+        if (isLoading || authorizationPending || (automatic && authorizationDeclined)) return
+        if (!automatic) authorizationDeclined = false
+        authorizationPending = true
+        lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
         // The secured Mobile API only needs verified email identity.
         // Avoid requesting restricted Drive access when the server reads Drive.
         // Direct Drive reads always require drive.readonly, even when a
@@ -1981,10 +2012,14 @@ class NativeMainActivity : AppCompatActivity() {
         statusMessage = "Đang xác thực tài khoản Google được cấp quyền Minh Satori."
         render()
         Identity.getAuthorizationClient(this).authorize(request)
-            .addOnSuccessListener { applyAuthorization(it) }
+            .addOnSuccessListener {
+                authorizationPending = false
+                applyAuthorization(it)
+            }
             .addOnFailureListener {
-                statusMessage = "Không thể cấp quyền Google. Kiểm tra tài khoản " +
-                    "và quyền ứng dụng trên điện thoại."
+                authorizationPending = false
+                statusMessage = "Google chưa xác thực được. Ứng dụng sẽ tự thử lại " +
+                    "khi đang mở và mạng hoạt động."
                 render()
             }
     }
@@ -1998,9 +2033,11 @@ class NativeMainActivity : AppCompatActivity() {
                 return
             }
             try {
+                authorizationPending = true
                 permissionLauncher.launch(IntentSenderRequest.Builder(pending.intentSender)
                     .build())
             } catch (_: Exception) {
+                authorizationPending = false
                 statusMessage = "Không mở được màn hình cấp quyền Google."
                 render()
             }
@@ -2029,6 +2066,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun refreshFromDrive() {
+        lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
         if (isLoading) return
         val token = accessToken ?: run { connectGoogle(); return }
         isLoading = true
