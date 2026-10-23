@@ -1,0 +1,44 @@
+name: Agency real website HTTP smoke (no writes)
+on:
+  push:
+    branches:
+      - 'prototype/customer-ai-gemini-free-20261020'
+    paths:
+      - '.github/workflows/agency-live-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Read-only smoke test current Minh Satori Gemini website
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="https://minh-satori-customer-ai-gemini.onrender.com"
+          code=$(curl -sSL --retry 3 --retry-all-errors --retry-delay 5 --max-time 30 -o /tmp/health.json -w '%{http_code}' "$root/health")
+          test "$code" = 200
+          python3 - <<'PY'
+          import json
+          h=json.load(open('/tmp/health.json'))
+          assert h.get('ok') and h.get('ready') and not h.get('demoOnly'), f"site is not ready for real invitation preview: {h.get('mode')}"
+          print("PASS existing website /health, not emergency demo")
+          PY
+          code=$(curl -sSL --retry 3 --retry-all-errors --retry-delay 5 --max-time 30 -o /tmp/real.html -w '%{http_code}' "$root/real")
+          test "$code" = 200
+          grep -q 'id="destination"' /tmp/real.html
+          grep -q 'id="interpret"' /tmp/real.html
+          echo "PASS private link checkout route, agency destination and chat UI"
+          code=$(curl -sSL --retry 3 --retry-all-errors --retry-delay 5 --max-time 30 -o /tmp/admin.html -w '%{http_code}' "$root/admin")
+          test "$code" = 200
+          grep -q 'id="agencyRealIssue"' /tmp/admin.html
+          echo "PASS existing owner admin link issue UI"
+          code=$(curl -sSL --max-time 30 -o /tmp/admin-reply -w '%{http_code}' "$root/api/admin/real-links/readiness")
+          test "$code" = 401
+          echo "PASS no anonymous owner policy access"
+          code=$(curl -sSL --max-time 30 -X POST -H 'content-type: application/json' -d '{"token":"invalid","accessCode":"invalid"}' -o /tmp/denied -w '%{http_code}' "$root/api/real/catalogue")
+          test "$code" = 409
+          echo "PASS private catalogue denies invalid credentials"
+          echo "PASS no orders created, no HMAC values read or logged"
