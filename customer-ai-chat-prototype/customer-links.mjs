@@ -68,7 +68,7 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
   res.end(JSON.stringify(object));
  };
  const no=(res,status,error,message)=>api(res,status,{ok:false,error,message});
- const publicProfile=p=>({id:p.id,name:p.name,phone:p.phone,address:p.address,locations:listLocations(p),discount:p.discount,ship:p.ship,vatRate:p.vatRate??0,enabled:p.enabled,createdAt:p.createdAt,updatedAt:p.updatedAt});
+ const publicProfile=p=>({id:p.id,name:p.name,phone:p.phone,address:p.address,locations:listLocations(p).map(x=>({...x,discountPercent:x.discountPercent??p.discount})),discount:p.discount,ship:p.ship,vatRate:p.vatRate??0,enabled:p.enabled,createdAt:p.createdAt,updatedAt:p.updatedAt});
  const link=(req,token)=>{
   // Host is derived from the trusted Render service rather than untrusted Host headers.
   const origin=process.env.CUSTOMER_LINKS_ORIGIN||'https://minh-satori-customer-ai-gemini.onrender.com';
@@ -125,7 +125,7 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
    const customer=profiles.find(x=>x.id===locRoute[1]);
    if(!customer){no(res,404,'NOT_FOUND','Không tìm thấy hồ sơ đại lý thử.');return true}
    if(req.method==='GET'&&!locRoute[2]){
-    api(res,200,{ok:true,sandbox:true,locations:listLocations(customer)});return true;
+    api(res,200,{ok:true,sandbox:true,locations:listLocations(customer).map(x=>({...x,discountPercent:x.discountPercent??customer.discount}))});return true;
    }
    if(!['POST','PATCH','DELETE'].includes(req.method)){
     no(res,405,'METHOD_NOT_ALLOWED','Phương thức quản lý địa chỉ không hợp lệ.');return true;
@@ -188,7 +188,7 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
    if(!Array.isArray(extraLocations)||extraLocations.length>=MAX_LOCATIONS){
     no(res,400,'LOCATION_LIMIT','Một đại lý có tối đa 20 địa chỉ, tính cả địa chỉ chính.');return true;
    }
-   const locations=[{id:'primary',label:'Địa chỉ chính',recipient:name,phone,address,enabled:true}];
+   const locations=[{id:'primary',label:'Địa chỉ chính',recipient:name,phone,address,enabled:true,discountPercent:discount}];
    for(const raw of extraLocations){
     const loc=validateLocation(raw);
     if(!loc){no(res,400,'INVALID_LOCATION','Điền đủ tên điểm giao, người nhận, số điện thoại và địa chỉ hợp lệ.');return true}
