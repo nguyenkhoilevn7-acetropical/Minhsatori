@@ -1,10 +1,10 @@
 {
-  "purpose": "android-0.4.0-owner-auto-live-data-sync-samsung-acceptance",
+  "purpose": "android-0.4.1-owner-samsung-final-after-owner-gemini-fix",
   "package": "vn.minhsatori.app",
-  "version": "0.4.0",
-  "versionCode": 17,
-  "branch": "release/android-v0.4.0-owner-auto-sync-20261023",
-  "scope": "Signed Samsung v0.4.0 owner-only: automatically read live Google Drive on app opening and in foreground; Gemini buttons launch /admin for owner-approved real invoices, not blocked public /c sandbox. No automatic invoice writes.",
+  "version": "0.4.1",
+  "versionCode": 18,
+  "branch": "release/android-v0.4.1-owner-final-20261023",
+  "scope": "Signed Android 0.4.1 owner-only acceptance: auto-read previously authorized Google Drive on open/resume, Gemini actions go to owner-only /admin; real customer checkout links and invoice writes remain disabled until independently verified production cutover.",
   "requestedOn": "2026-10-23",
   "sourcePRs": [
     100,
@@ -16,6 +16,8 @@
     "Mobile API writes remain protected by independent Android OAuth owner role & server allowedActions; Drive source is read-only.",
     "Release build requested only after Android CI compiled and unit tests passed on PR #100; no live customer data or invoices altered.",
     "Owner-only Gemini /admin launch replaces blocked customer demo links: PR #103 Android checks PASS.",
-    "No customer demo access, no real production invoice automatically created, and no secrets or OAuth tokens embedded in APK."
+    "No customer demo access, no real production invoice automatically created, and no secrets or OAuth tokens embedded in APK.",
+    "Final 0.4.1 contains PR #103 owner-only Gemini navigation fix after the prior signed 0.4.1 acceptance candidate.",
+    "This is an APK release candidate, not proof that customer checkout or write-enabled production API is live."
   ]
 }
