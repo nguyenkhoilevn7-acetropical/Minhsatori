@@ -51,6 +51,15 @@ let nextQuoteId=0;
 const engine=createOwnerRealInvoice({env,fetcher,now:()=>1792700000000,
  newId:()=>String(++nextQuoteId).padStart(32,'0')});
 assert.equal(engine.readiness().enabled,true);
+// Existing server-side bot credential names may already be provisioned.
+// Never allow the separate read-only identity to act as the writer.
+const reused={...env,SATORI_OWNER_CHECKOUT_ENDPOINT:'',
+ SATORI_OWNER_CHECKOUT_KEY_ID:'',SATORI_OWNER_CHECKOUT_SECRET:'',
+ SATORI_BOT_API_URL:endpoint,SATORI_BOT_KEY_ID:keyId,SATORI_BOT_SECRET:secret};
+assert.equal(createOwnerRealInvoice({env:reused,fetcher}).readiness().enabled,true);
+assert.equal(createOwnerRealInvoice({env:{...reused,SATORI_BOT_KEY_ID:'readonly_key'},
+ fetcher}).readiness().enabled,false);
+
 async function error(code,fn){await assert.rejects(fn,e=>e?.code===code,code)}
 await error('OWNER_AUTH_REQUIRED',()=>engine.preview({invoiceNo:5920}));
 await error('OWNER_PRICE_APPROVAL_REQUIRED',()=>engine.preview({authenticated:true,invoiceNo:5920,
