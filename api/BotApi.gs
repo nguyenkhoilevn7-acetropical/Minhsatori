@@ -354,7 +354,7 @@ function validatedCtvDestinations(s,refs){
   need(phone.length>=8&&address.length>=5&&norm(o.name).length>=2,'CTV_DESTINATION_UNVERIFIED','Thiếu điểm giao');
   var k=String(o.id)+'|'+o.invoiceNo,u=norm(o.name)+'|'+phone+'|'+address;
   need(!keys[k]&&!unique[u],'CTV_DESTINATIONS_DUPLICATE','Điểm giao trùng');keys[k]=true;unique[u]=true;
-  return {id:o.id,invoiceNo:o.invoiceNo};
+  return {id:o.id,invoiceNo:o.invoiceNo,name:o.name,phone:o.phone,location:o.location};
  });
 }
 function markCollaborator(s,p){
@@ -392,11 +392,18 @@ function configurePair(s,p){
  validPairPolicy(p);
  var policy=pairPolicyFor(s,id);
  var fields=['enabled','customerDiscountPercent','collaboratorDiscountPercent','shippingPercent','vatPercent'];
+ need(p.rotateLink===undefined||typeof p.rotateLink==='boolean',
+  'CTV_LINK_POLICY_INVALID','Thiếu trạng thái đổi link');
+ var linkEpoch=(!policy||p.rotateLink===true||p.enabled===false)?
+  Utilities.getUuid():String(policy.linkEpoch||Utilities.getUuid());
  var authorizedDestinations=p.authorizedDestinations===undefined?
   (Array.isArray(policy&&policy.authorizedDestinations)?policy.authorizedDestinations:[]):
   validatedCtvDestinations(s,p.authorizedDestinations);
+ if(p.enabled===true&&p.authorizedDestinations!==undefined)
+  need(authorizedDestinations.length>0,'CTV_DESTINATIONS_REQUIRED','Phải duyệt điểm giao');
  if(policy&&policy.configRequestId===requestId){
   need(fields.every(function(k){return policy[k]===p[k]})&&
+   policy.linkEpoch===linkEpoch&&
    JSON.stringify(policy.authorizedDestinations||[])===JSON.stringify(authorizedDestinations),'REQUEST_ID_CONFLICT',
    'Cùng mã yêu cầu nhưng chính sách khác');
   return {modified:false,result:{duplicate:true,policy:policy}};
@@ -405,7 +412,7 @@ function configurePair(s,p){
   'REQUEST_ID_CONFLICT','Mã duyệt chính sách đã dùng');
  version(s,p);
  var next=Object.assign({},Object.fromEntries(fields.map(function(k){return [k,p[k]]})),{
-  collaboratorId:id,authorizedDestinations:authorizedDestinations,policyVersion:Utilities.getUuid(),configRequestId:requestId,
+  collaboratorId:id,linkEpoch:linkEpoch,authorizedDestinations:authorizedDestinations,policyVersion:Utilities.getUuid(),configRequestId:requestId,
   updatedAt:Date.now(),reviewedByOwner:true
  });
  var list=pairPolicies(s).filter(function(x){return x.collaboratorId!==id});
