@@ -95,8 +95,13 @@ export function createOwnerRealInvoice({
      cat.data?.source!=='drive-ledger:satori_catalogue_v15'||
      !Array.isArray(cat.data?.products)||cat.data.products.length<1||
      !Array.isArray(old.data?.orders))fail('OWNER_LEDGER_SOURCE_MISMATCH');
+  // Duplicate historical invoice IDs are valid source evidence ONLY when
+  // exactly one record has a complete name, phone and delivery address.
+  // Never choose arbitrarily between two complete source records.
   const matched=old.data.orders.filter(o=>Number(o.invoiceNo)===invoiceNo&&
-    o.pairRole!=='collaborator');
+    o.pairRole!=='collaborator'&&o.id!=null&&
+    clean(o.name).length>=2&&String(o.phone||'').replace(/\D/g,'').length>=8&&
+    clean(o.location).length>=5);
   if(matched.length!==1||Number(old.data.totalMatches)>100)fail('OWNER_CUSTOMER_REFERENCE_AMBIGUOUS');
   const customer=matched[0];
   if(!customer.id||clean(customer.name).length<2||clean(customer.phone).length<8||
