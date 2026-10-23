@@ -28,6 +28,7 @@ import {ownerLiveLookup} from './owner-live-lookup.mjs';
 import {ownerPairAction,probeOwnerPairRead} from './owner-collaborator-pairs.mjs';
 import {createOwnerRealInvoice} from './owner-live-invoice.mjs';
 import {createProductionPrivateLinks} from './production-private-links.mjs';
+import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
 import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
@@ -45,6 +46,17 @@ const EMERGENCY_PREVIEW=process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1';
 const OWNER_ONLY_PILOT=process.env.GEMINI_OWNER_ONLY_REAL_PILOT==='1';
 const ownerInvoice=createOwnerRealInvoice();
 const realPrivateLinks=createProductionPrivateLinks({source:ownerInvoice.source,bot:ownerInvoice.bot});
+const ctvSingleLink=createCollaboratorSingleLink({
+ policyList:()=>ownerPairAction('collaborators.pair.list',{}),
+ invoiceSource:ownerInvoice.source,
+ createPair:payload=>ownerPairAction('orders.create.pair',payload),
+ invoiceLookup:async invoiceNo=>{
+  const result=await ownerInvoice.bot('orders.list',{query:String(invoiceNo),limit:100});
+  if(!Array.isArray(result.data?.orders)||result.data?.totalMatches>100)
+   throw Error('CTV_INVOICE_SEARCH_INCOMPLETE');
+  return result.data.orders;
+ }
+});
 const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'minh-satori-customer-chat-SANDBOX'));
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
@@ -263,7 +275,9 @@ const server=http.createServer(async(req,res)=>{
    p==='/assets/logo-satori.jpg'||p.startsWith('/api/admin/')||
    (realPrivateLinks.readiness().configured===true&&
     (p==='/real'||p==='/real/'||
-     /^\/api\/real\/(?:catalogue|quote|confirm)$/.test(p)))
+     /^\/api\/real\/(?:catalogue|quote|confirm)$/.test(p)))||
+   (ctvSingleLink.readiness().enabled===true&&
+    (p==='/ctv'||p==='/ctv/'||/^\/api\/ctv\/(?:catalogue|quote|confirm|pdf\/(?:customer|collaborator))$/.test(p)))
  ))return fail(res,403,'OWNER_ONLY_NO_CUSTOMER_ACCESS',
     'Tính năng này đang được chủ tài khoản kiểm thử. Khách chưa được sử dụng.');
  // Private customer invitations can be issued ONLY after the owner has approved
@@ -278,6 +292,54 @@ const server=http.createServer(async(req,res)=>{
    'x-content-type-options':'nosniff','x-frame-options':'DENY',
    'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"});
   return res.end(html);
+ }
+ // The public CTV portal is one link per marked account, never per location.
+ // It exposes no raw source ledger and no internal 35% invoice to recipients.
+ if(req.method==='GET'&&(p==='/ctv'||p==='/ctv/')){
+  if(!ctvSingleLink.readiness().enabled)
+   return fail(res,503,'CTV_PORTAL_NOT_READY','Chưa thể cấp link CTV thật.');
+  const html=fs.readFileSync(path.join(HERE,'ctv-order.html'),'utf8');
+  res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store',
+   'referrer-policy':'no-referrer','x-content-type-options':'nosniff',
+   'x-frame-options':'DENY',
+   'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"});
+  return res.end(html);
+ }
+ if(req.method==='GET'&&p==='/api/admin/ctv-links/readiness'){
+  if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần xác thực quản trị.');
+  return reply(res,200,{ok:true,...ctvSingleLink.readiness()});
+ }
+ if(req.method==='POST'&&p==='/api/admin/ctv-links/issue'){
+  if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được cấp link CTV.');
+  if(!rateLimit(req,'owner-ctv-link-issue'))return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
+  try{
+   const input=await bodyJSON(req,1024);
+   return reply(res,200,{ok:true,...await ctvSingleLink.issue(input)});
+  }catch(e){return fail(res,409,e?.code||'CTV_LINK_ISSUE_FAILED',
+   'CTV chưa được phê duyệt đầy đủ hoặc Bot API chưa có quyền; chưa cấp link.')}
+ }
+ if(req.method==='POST'&&/^\/api\/ctv\/(?:catalogue|quote|confirm|pdf\/(?:customer|collaborator))$/.test(p)){
+  if(!ctvSingleLink.readiness().enabled)
+   return fail(res,503,'CTV_NOT_READY','Cổng CTV chưa được bật.');
+  if(!rateLimit(req,'ctv-private:'+p))return fail(res,429,'RATE_LIMIT','Thử lại sau.');
+  try{
+   const input=await bodyJSON(req,12000);
+   if(p==='/api/ctv/catalogue')return reply(res,200,{ok:true,...await ctvSingleLink.catalogue(input)});
+   if(p==='/api/ctv/quote')return reply(res,200,{ok:true,...await ctvSingleLink.quote(input)});
+   if(p==='/api/ctv/confirm')return reply(res,200,{ok:true,...await ctvSingleLink.confirm(input)});
+   const role=p.endsWith('/customer')?'customer':'collaborator';
+   const pdfData=await ctvSingleLink.invoiceForPdf(input,role);
+   const buf=await generatePdf(pdfData);
+   res.writeHead(200,{'content-type':'application/pdf','cache-control':'private, no-store',
+    'referrer-policy':'no-referrer','x-content-type-options':'nosniff',
+    'content-disposition':'inline; filename="MinhSatori-'+role+'-'+pdfData.invoiceNo+'.pdf"'});
+   return res.end(buf);
+  }catch(e){
+   const unknown=e?.code==='CTV_COMMIT_UNCERTAIN_CHECK_LEDGER';
+   return fail(res,unknown?503:409,e?.code||'CTV_ACTION_FAILED',
+    unknown?'Trạng thái ghi hóa đơn chưa rõ: không gửi lại, cần đối chiếu sổ.':
+    'Yêu cầu bị từ chối: kiểm tra quyền CTV, điểm giao hoặc báo giá.');
+  }
  }
  if(p==='/api/admin/real-links/readiness'&&req.method==='GET'){
   if(!customerLinks.adminAuthorized(req))
@@ -384,6 +446,77 @@ const server=http.createServer(async(req,res)=>{
    return reply(res,200,{ok:true,source:'owner-approved-bot-api',...policies});
   }catch(e){
    return fail(res,503,e?.code||'CTV_PAIR_NOT_READY','Chưa xác minh được cấu hình hóa đơn đôi trên Bot API.');
+  }
+ }
+ // Generic, owner-only account activation: ANY verified ledger customer may
+ // become a CTV. One CTV has one link, multiple owner-approved destinations.
+ // No personal names, discounts, or addresses are hard-coded.
+ if(p==='/api/admin/ctv-activate'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị viên được duyệt CTV.');
+  if(EMERGENCY_PREVIEW)
+   return fail(res,503,'PREVIEW_ONLY_NO_WRITES','Không ghi quyền CTV trong bản xem thử.');
+  if(!rateLimit(req,'owner-ctv-activate'))
+   return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
+  let input;
+  try{input=await bodyJSON(req,6000)}catch{return fail(res,400,'INVALID_REQUEST','Thông tin duyệt CTV sai.')}
+  if(!input||input.confirmation!=='OWNER_ACTIVATES_COLLABORATOR'||
+     !Number.isSafeInteger(input.sourceInvoiceNo)||input.sourceInvoiceNo<1||
+     !Array.isArray(input.destinationInvoiceNos)||
+     input.destinationInvoiceNos.length<1||input.destinationInvoiceNos.length>20||
+     input.destinationInvoiceNos.some(n=>!Number.isSafeInteger(n)||n<1)||
+     new Set(input.destinationInvoiceNos).size!==input.destinationInvoiceNos.length||
+     ![input.customerDiscountPercent,input.collaboratorDiscountPercent,input.shippingPercent].every(Number.isSafeInteger)||
+     input.customerDiscountPercent<0||input.customerDiscountPercent>70||
+     input.collaboratorDiscountPercent<=input.customerDiscountPercent||input.collaboratorDiscountPercent>70||
+     input.shippingPercent<0||input.shippingPercent>30||
+     ![0,5,8,10].includes(input.vatPercent))
+   return fail(res,400,'CTV_SETUP_INVALID','Cần duyệt đúng CTV, điểm giao, hai mức CK, phí giao và VAT.');
+  try{
+   // Read scope must work before making any write. This is not a TEST invoice.
+   await ownerPairAction('collaborators.pair.list',{});
+   const numbers=[...new Set([input.sourceInvoiceNo,...input.destinationInvoiceNos])];
+   const verified=await Promise.all(numbers.map(n=>ownerInvoice.source(n)));
+   const revision=verified[0].revision;
+   if(verified.some(x=>x.revision!==revision))
+    return fail(res,409,'CTV_SOURCE_CHANGED','Sổ kế toán thay đổi trong lúc kiểm tra.');
+   const original=verified[0].customer;
+   // Additional destinations may have different recipient or branch names,
+   // but ONLY references explicitly reviewed by the owner may be used.
+   const destinations=input.destinationInvoiceNos.map(n=>{
+    const src=verified[numbers.indexOf(n)].customer;
+    return {id:src.id,invoiceNo:n};
+   });
+   // Fail closed on an attempt to relabel another existing CTV using
+   // the same canonical source invoice without owner review.
+   const marked=await ownerPairAction('collaborators.mark',{
+    requestId:'ctv_mark_'+crypto.randomBytes(16).toString('hex'),
+    expectedRevision:revision,customerRef:{id:original.id,invoiceNo:input.sourceInvoiceNo},
+    enabled:true,confirmed:true
+   });
+   // After mark, use the authoritative revision returned by the committed
+   // ledger. Bot API validates EACH destination before storing the policy.
+   const configured=await ownerPairAction('collaborators.pair.configure',{
+    requestId:'ctv_policy_'+crypto.randomBytes(16).toString('hex'),
+    expectedRevision:marked.revision,collaboratorId:marked.collaboratorId,
+    enabled:true,confirmed:true,
+    authorizedDestinations:destinations,rotateLink:false,
+    customerDiscountPercent:input.customerDiscountPercent,
+    collaboratorDiscountPercent:input.collaboratorDiscountPercent,
+    shippingPercent:input.shippingPercent,vatPercent:input.vatPercent
+   });
+   let invitation=null;
+   try{invitation=await ctvSingleLink.issue({collaboratorId:marked.collaboratorId})}
+   catch{} // A policy can be approved before link/read/write launch gates are ready.
+   return reply(res,200,{ok:true,production:true,collaboratorId:marked.collaboratorId,
+    revision:configured.revision,authorizedDestinations:destinations.length,
+    policyConfigured:true,linkEnabled:Boolean(invitation),
+    ... (invitation?{invitation}:{}),
+    message:invitation?'Đã cấp 1 link CTV dùng cho mọi điểm giao được duyệt.':
+     'Đã lưu vai trò và hai chiết khấu, nhưng chưa phát hành link vì cổng CTV chưa sẵn sàng.'});
+  }catch(e){
+   return fail(res,409,e?.code||'CTV_SETUP_UNCERTAIN_RECONCILE',
+    'Chưa xác minh trạng thái kích hoạt CTV. Không bấm lặp; kiểm tra chính sách trong sổ thật.');
   }
  }
  if(p==='/api/admin/collaborator-pairs/configure'&&req.method==='POST'){

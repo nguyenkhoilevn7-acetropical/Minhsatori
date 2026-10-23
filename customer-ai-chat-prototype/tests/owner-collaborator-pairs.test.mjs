@@ -42,7 +42,7 @@ assert.equal(saved.policy.enabled,true);
 assert.equal(latestPayload.collaboratorDiscountPercent,35);
 assert.equal(requests,2);
 await assert.rejects(()=>ownerPairAction('orders.create.pair',config,opts),
- e=>e?.code==='INVALID_CTV_ACTION');
+ e=>e?.code==='CTV_PAIR_WRITE_DISABLED');
 await assert.rejects(()=>ownerPairAction('collaborators.pair.list',{},
  {...opts,env:{...env,SATORI_CTV_PAIR_READ_SECRET:''}}),
  e=>e?.code==='CTV_PAIR_NOT_CONFIGURED');
