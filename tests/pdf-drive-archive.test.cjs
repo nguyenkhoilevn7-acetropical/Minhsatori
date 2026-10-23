@@ -14,6 +14,13 @@ assert(html.includes('window.satoriArchiveSavedInvoicePdf(lastSavedPdfOrder)'));
 assert(html.includes('onclick="archiveModalInvoicePDF()"'), 'old bills must have Drive export action');
 assert(html.includes('function archiveModalInvoicePDF()'), 'archive action must not require editing invoices');
 assert(html.includes('window.satoriArchiveSavedInvoicePdf(JSON.parse(JSON.stringify(o)))'), 'archive original saved invoice');
+assert(html.includes("window.satoriArchiveCloudInvoices(JSON.parse(remote.satori_orders_v15||'[]'))"),
+  'after authoritative Drive sync, queue new Bot API invoices without another bill write');
+assert(browser.includes('window.satoriArchiveCloudInvoices=function(cloudOrders)'),
+  'website must offer external invoice PDF reconciliation');
+assert(browser.includes('satori_pdf_archive_confirmed_v1'),
+  'persist per-version archive confirmations to avoid repeated PDF rendering');
+
 
 assert(browser.includes('prepareInvoicePdf(o)'), 'reuse website PDF');
 assert(browser.includes('window.__SATORI_DRIVE_READY__'), 'wait for Drive sync');
