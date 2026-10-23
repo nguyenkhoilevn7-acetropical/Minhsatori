@@ -8,6 +8,7 @@
  * Google Drive Bot API owns invoice numbers, concurrency and requestId dedupe.
  */
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 
 const error=code=>Object.assign(new Error(code),{code});
 const safe=v=>String(v??'').trim();
@@ -38,7 +39,10 @@ export function createProductionPrivateLinks({
  function seal(value,context){
   const iv=rand(12),cipher=crypto.createCipheriv('aes-256-gcm',key(),iv);
   cipher.setAAD(Buffer.from(context));
-  const ciphertext=Buffer.concat([cipher.update(JSON.stringify(value)),cipher.final()]);
+  const source=Buffer.from(JSON.stringify(value),'utf8');
+  const contents=context==='customer-invite'&&value?.type==='agency-invite'?
+   zlib.deflateRawSync(source):source;
+  const ciphertext=Buffer.concat([cipher.update(contents),cipher.final()]);
   return [iv,cipher.getAuthTag(),ciphertext].map(v=>v.toString('base64url')).join('.');
  }
  function unseal(token,context){
@@ -51,7 +55,13 @@ export function createProductionPrivateLinks({
    if(iv.length!==12||tag.length!==16)throw Error('TOKEN_BYTES');
    const d=crypto.createDecipheriv('aes-256-gcm',key(),iv);
    d.setAAD(Buffer.from(context));d.setAuthTag(tag);
-   return JSON.parse(Buffer.concat([d.update(Buffer.from(p[2],'base64url')),d.final()]).toString());
+   const plaintext=Buffer.concat([d.update(Buffer.from(p[2],'base64url')),d.final()]);
+   try{return JSON.parse(plaintext.toString('utf8'))}
+   catch{
+    if(context!=='customer-invite')throw error('INVALID_REAL_LINK');
+    const raw=zlib.inflateRawSync(plaintext,{maxOutputLength:25000});
+    return JSON.parse(raw.toString('utf8'));
+   }
   }catch(e){if(e?.code==='REAL_LINKS_NOT_ENABLED')throw e;throw error('INVALID_REAL_LINK')}
  }
  function access(inviteToken,accessCode){
