@@ -14,6 +14,7 @@
     "Google Drive read-only live sync works independently of new owner Mobile API activation.",
     "Soft delete/restore are deliberately unavailable until owner OAuth Apps Script production endpoint is deployed and configured.",
     "No production invoice is created, deleted or restored during this build.",
-    "No local HMAC secrets or hard-coded owner credentials are allowed."
+    "No local HMAC secrets or hard-coded owner credentials are allowed.",
+    "Release artifact is an owner field-test; Apps Script production delete/restore remain gated until private owner API activation and readback."
   ]
 }
