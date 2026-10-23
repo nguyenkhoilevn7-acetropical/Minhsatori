@@ -26,6 +26,7 @@ import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
 import {ownerPairAction,probeOwnerPairRead} from './owner-collaborator-pairs.mjs';
+import {createOwnerRealInvoice} from './owner-live-invoice.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
 import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
@@ -40,6 +41,8 @@ const PORT=Number(process.env.PORT||8787);
 const MODEL='gemini-3.5-flash-lite';
 // Emergency preview is isolated/ephemeral: Gemini chat and draft only.
 const EMERGENCY_PREVIEW=process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1';
+const OWNER_ONLY_PILOT=process.env.GEMINI_OWNER_ONLY_REAL_PILOT==='1';
+const ownerInvoice=createOwnerRealInvoice();
 const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'minh-satori-customer-chat-SANDBOX'));
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
@@ -243,6 +246,48 @@ function sendHtml(res){const html=previewHtml('index.html');res.writeHead(200,{'
 const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
+ // Owner real pilot is a sealed, admin-only path. Public customer/chat/bearer
+ // URLs are completely blocked when this mode is enabled (not just hidden).
+ if(OWNER_ONLY_PILOT&&!(
+   p==='/health'||p==='/admin'||p==='/admin/'||
+   p==='/assets/logo-satori.jpg'||p.startsWith('/api/admin/')
+ ))return fail(res,403,'OWNER_ONLY_NO_CUSTOMER_ACCESS',
+    'Tính năng này đang được chủ tài khoản kiểm thử. Khách chưa được sử dụng.');
+ if(p==='/api/admin/owner-live/readiness'&&req.method==='GET'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Đăng nhập quản trị để xem điều kiện tạo đơn.');
+  return reply(res,200,{ok:true,...ownerInvoice.readiness()});
+ }
+ if(p==='/api/admin/owner-live/preview'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được lập báo giá.');
+  if(!rateLimit(req,'owner-live-preview'))return fail(res,429,'RATE_LIMIT','Thử lại sau ít phút.');
+  try{
+   const input=await bodyJSON(req,4096);
+   const quote=await ownerInvoice.preview({authenticated:true,invoiceNo:input?.invoiceNo,
+    message:input?.message,discountPercent:input?.discountPercent,
+    shippingPercent:input?.shippingPercent,vatPercent:input?.vatPercent});
+   return reply(res,200,{ok:true,ownerOnly:true,...quote});
+  }catch(e){
+   return fail(res,409,e?.code||'OWNER_PREVIEW_FAILED',
+     'Chưa tạo báo giá thật. Kiểm tra quyền Bot API, bảng giá và thông tin khách.');
+  }
+ }
+ if(p==='/api/admin/owner-live/confirm'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được duyệt ghi hóa đơn.');
+  if(!rateLimit(req,'owner-live-confirm'))return fail(res,429,'RATE_LIMIT','Thử lại sau ít phút.');
+  try{
+   const input=await bodyJSON(req,7000);
+   const receipt=await ownerInvoice.confirm({authenticated:true,quoteToken:input?.quoteToken,
+    confirmedByOwner:input?.confirmation==='OWNER_APPROVES_REAL_INVOICE'});
+   return reply(res,200,{ok:true,ownerOnly:true,...receipt});
+  }catch(e){
+   return fail(res,409,e?.code||'OWNER_COMMIT_UNCERTAIN_RECONCILE',
+     'Chưa xác nhận được ghi đơn. Không bấm gửi lại khi trạng thái chưa rõ; hãy đối chiếu sổ thật.');
+  }
+ }
+
  if(EMERGENCY_PREVIEW&&req.method!=='GET'&&!(req.method==='POST'&&
    (p==='/api/message'||p==='/api/draft'))&&
    !(['POST','PATCH','DELETE'].includes(req.method)&&
@@ -251,7 +296,7 @@ const server=http.createServer(async(req,res)=>{
    'Đang dùng chế độ thử Gemini. Chưa cho tạo hóa đơn hoặc thay đổi hồ sơ khách.');
  }
  if(req.method==='GET'&&p==='/assets/logo-satori.jpg'){const logo=path.join(HERE,'assets','logo-satori.jpg');if(!fs.existsSync(logo))return fail(res,404,'NO_LOGO','Không tìm thấy logo');res.writeHead(200,{'content-type':'image/jpeg','cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});return fs.createReadStream(logo).pipe(res)}
- if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,ready:!EMERGENCY_PREVIEW,demoOnly:EMERGENCY_PREVIEW,mode:EMERGENCY_PREVIEW?'sandbox_emergency_preview':'sandbox_isolated',orderSubmissionEnabled:!EMERGENCY_PREVIEW,durableStorage:false,draftPersistence:!EMERGENCY_PREVIEW,productionCheckoutEnabled:false,productionLaunchReady:false,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
+ if(req.method==='GET'&&p==='/health')return reply(res,200,{ok:true,sandbox:true,ready:!EMERGENCY_PREVIEW,demoOnly:EMERGENCY_PREVIEW,mode:EMERGENCY_PREVIEW?'sandbox_emergency_preview':'sandbox_isolated',orderSubmissionEnabled:!EMERGENCY_PREVIEW,durableStorage:false,draftPersistence:!EMERGENCY_PREVIEW,productionCheckoutEnabled:false,ownerPilotMode:OWNER_ONLY_PILOT,ownerPilotReady:ownerInvoice.readiness().enabled,productionLaunchReady:false,aiProvider:'Gemini Free Tier (optional) + rules',aiConfigured:geminiConfigured(),rulesReady:true,model:MODEL,orders:orders.size,geminiProbe});
  if(req.method==='GET'&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&(p==='/admin'||p==='/admin/')){const html=previewHtml('admin.html');res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
  // Compare current server code with newest GitHub commit; never deploy from here.
