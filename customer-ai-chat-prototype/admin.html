@@ -550,25 +550,27 @@ function syncCtvCandidate(){
  }
  if([...select.options].some(o=>o.value===old))select.value=old;
 }
-let ctvDraft=null,ctvIssuedLink='';
+let ctvDraft=null,ctvIssuedLink='',ctvExistingTarget=null;
 function clearCtvWizard(){
  ctvDraft=null;ctvIssuedLink='';
  $('ctvWizard').hidden=true;$('ctvWizardLocations').replaceChildren();
  $('ctvWizardIssued').hidden=true;$('ctvWizardResult').textContent='';
+ $('ctvWizardExistingLink').hidden=true;$('ctvWizardPolicyState').textContent='';
 }
 $('ctvCandidate').onchange=()=>{clearCtvWizard();$('ctvSearchName').value=''};
 $('ctvSearchName').oninput=()=>{clearCtvWizard();$('ctvCandidate').value=''};
+async function openCtvWizard(name,id){
+ $('ctvCandidate').value='';$('ctvSearchName').value=name;
+ ctvExistingTarget=id;
+ await $('ctvAdd').onclick();
+}
 $('ctvAdd').onclick=async()=>{
  clearCtvWizard();
  const c=realCustomers.find(v=>v.key===$('ctvCandidate').value);
  const name=(c?.name||$('ctvSearchName').value).trim();
  if(name.length<2){$('ctvAddGuide').textContent='Chọn hoặc nhập tên khách trong sổ thật.';return}
  const existing=pairCollaborators.find(v=>v.active===true&&normalized(v.name)===normalized(name));
- if(existing){
-  $('ctvAddGuide').textContent='Khách này đã là CTV, không tạo trùng. Mở chương trình bên dưới để cấp link.';
-  $('pairPartner').value=existing.id;updatePairControls();$('ctvPolicyDetails').open=true;
-  $('ctvPolicyDetails').scrollIntoView({behavior:'smooth',block:'center'});return;
- }
+ ctvExistingTarget=existing?.id||null;
  const b=$('ctvAdd');b.disabled=true;
  $('ctvAddGuide').textContent='Đang đọc địa chỉ từ sổ thật (không tạo khách mới)…';
  try{
@@ -584,16 +586,31 @@ $('ctvAdd').onclick=async()=>{
    used.add(invoiceNo);places.push({invoiceNo,name:x.name||p.name,address:x.address||'',phone:x.phone||''});
   }
   if(!places.length||places.length>20)throw Error('Cần 1–20 địa chỉ giao hợp lệ từ sổ thật.');
-  ctvDraft={name:p.name,places};
-  $('ctvWizardHeading').textContent='CTV: '+p.name+' • '+places.length+' điểm giao có sẵn';
+  const policy=ctvExistingTarget?pairPolicies.find(v=>v.collaboratorId===ctvExistingTarget):null;
+  ctvDraft={name:p.name,places,collaboratorId:ctvExistingTarget};
+  $('ctvWizardHeading').textContent=(ctvExistingTarget?'Chỉnh CTV đã có: ':'Duyệt CTV mới: ')+p.name+' • '+places.length+' điểm giao';
+  $('ctvWizardCustomerDiscount').value=String(policy?.customerDiscountPercent??20);
+  $('ctvWizardCollaboratorDiscount').value=String(policy?.collaboratorDiscountPercent??35);
+  $('ctvWizardShipping').value=String(policy?.shippingPercent??8);
+  $('ctvWizardVat').value=String(policy?.vatPercent??0);
+  const selectedPreviously=new Set((policy?.authorizedDestinations||[]).map(z=>z.invoiceNo));
   for(const x of places){
    const label=document.createElement('label');label.style.display='flex';label.style.gap='10px';label.style.alignItems='flex-start';
    const box=document.createElement('input');box.type='checkbox';box.style.width='auto';box.value=String(x.invoiceNo);
-   box.dataset.ctvSourceInvoice='1';label.append(box,document.createTextNode('#'+x.invoiceNo+' • '+x.name+' • '+x.address+' • '+x.phone));
+   box.dataset.ctvSourceInvoice='1';box.checked=selectedPreviously.has(x.invoiceNo);label.append(box,document.createTextNode('#'+x.invoiceNo+' • '+x.name+' • '+x.address+' • '+x.phone));
    $('ctvWizardLocations').append(label);
   }
   $('ctvWizard').hidden=false;
-  $('ctvAddGuide').textContent='Đã tải khách từ sổ thật. Tích địa chỉ đúng, xác nhận để nhận link ngay tại đây.';
+  $('ctvWizardExistingLink').hidden=!(ctvExistingTarget&&policy?.enabled===true);
+  $('ctvWizardPolicyState').textContent=ctvExistingTarget?
+   (policy?.enabled?'✅ Chính sách đã BẬT. Kiểm tra địa chỉ/CK hoặc lấy một link đã duyệt.':
+    'CTV đã có trong sổ, nhưng chưa có chính sách hai hóa đơn. Không tạo trùng.'):
+   'Khách đã có trong sổ, chưa là CTV. Không tạo khách mới.';
+  $('ctvWizardConfirm').textContent=ctvExistingTarget?
+   '✅ LƯU ĐỊA CHỈ / CHIẾT KHẤU & CẤP LINK':
+   '✅ XÁC NHẬN CTV & CẤP 1 LINK THẬT';
+  $('ctvAddGuide').textContent='Đã mở hồ sơ thật. Tích địa chỉ và xác nhận tại một chỗ.';
+  $('ctvWizard').scrollIntoView({behavior:'smooth',block:'start'});
  }catch(e){$('ctvAddGuide').textContent='⚠ '+e.message+' Không tạo khách mới.'}
  finally{b.disabled=false}
 };
