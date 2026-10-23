@@ -516,15 +516,15 @@ class NativeMainActivity : AppCompatActivity() {
                 }
             }
             label(hero, "BÁN HÀNG VỚI SATORI AI", 20f, true, white)
-            label(hero, "Tạo link riêng • Giá và chiết khấu theo khách • Đặt hàng trực tiếp",
+            label(hero, "Chủ tài khoản tạo hóa đơn thật • Xem trước và xác nhận với Gemini",
                 12f, false, Color.rgb(202, 239, 249), 7)
-            button(hero, "＋ TẠO LINK CHO KHÁCH", true) {
+            button(hero, "＋ MỞ QUẢN TRỊ GEMINI", true) {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
-            button(hero, "XEM TRẢI NGHIỆM ĐẶT HÀNG") {
-                startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "customer"))
+            button(hero, "LÊN HÓA ĐƠN THẬT • CHỈ CHỦ TÀI KHOẢN") {
+                startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
-            button(hero, "🔗 MỞ CÙNG LINK KHÁCH TRÊN WEBSITE") {
+            button(hero, "🔗 XEM LINK KHÁCH (CHƯA MỞ CHO KHÁCH)") {
                 val input = EditText(this).apply {
                     hint = "https://minh-satori-customer-ai-gemini.onrender.com/c/..."
                     inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
@@ -550,11 +550,11 @@ class NativeMainActivity : AppCompatActivity() {
             content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(14)
             })
-            label(content, "SANDBOX: quản lý link yêu cầu mã quản trị riêng. Chỉ dữ liệu DEMO, chưa nhận đơn thật.",
+            label(content, "Chế độ chỉ chủ tài khoản. Gemini tạo hóa đơn thật tại màn hình quản trị sau khi anh xác nhận. Link khách tạm khóa.",
                 11f, false, muted, 6)
         }
-        button(content, "✦ AI CHAT • ĐẦY ĐỦ CHỨC NĂNG WEBSITE") {
-            startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "customer"))
+        button(content, "✦ GEMINI • QUẢN TRỊ & TẠO HÓA ĐƠN THẬT") {
+            startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
         }
         if (isLoading) {
             label(content, "Đang đồng bộ dữ liệu…", 12f, true, cyan, 12)
