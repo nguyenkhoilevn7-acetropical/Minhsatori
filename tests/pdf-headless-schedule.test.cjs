@@ -21,10 +21,12 @@ const pending={jobs:[{order,versionKey:version}]};
 const cache=new Map();
 const ctx={
   Date,JSON,Number,Math,String,Error,Array,console,
+  OWNER_EMAIL:'owner@example.com',
+  Session:{getEffectiveUser:()=>({getEmail:()=> 'owner@example.com'})},
   requireOwner_(){preflights++},
   readState_(){return {revision:900,values:{satori_orders_v15:JSON.stringify([order])}}},
   PropertiesService:{getScriptProperties:()=>({getProperty:k=>k==='SATORI_PDF_RENDER_SECRET'?secret:null})},
-  SatoriInvoicePdfArchive:{pending:()=>pending,archive:x=>{archives.push(x);
+  SatoriInvoicePdfArchive:{pending:()=>pending,archive:(x,isOwnerTrigger)=>{assert.equal(isOwnerTrigger,true);archives.push(x);
     assert.equal(x.versionKey,version);
     assert.equal(x.invoiceNo,9001);
     assert.equal(x.pdfSha256,digest(pdf));
