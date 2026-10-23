@@ -39,7 +39,11 @@ export async function ownerPairAction(action,payload={},{
   refuse('INVALID_CTV_REQUEST');
  const msg=[keyId,timestamp,id,action,JSON.stringify(payload)].join('\n');
  const signature=crypto.createHmac('sha256',secret).update(msg,'utf8').digest('hex');
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
+ // GAS may hold its ScriptLock while copying a verified Drive backup before
+ // a real CTV policy write. An 8s timeout can give the owner an ambiguous
+ // result even if the ledger eventually commits; never automatically retry.
+ const timeoutMs=action==='collaborators.pair.list'?12000:30000;
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
  try{
   const response=await fetcher(url,{method:'POST',redirect:'follow',signal:controller.signal,
    headers:{'content-type':'application/json'},
