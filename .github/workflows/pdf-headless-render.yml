@@ -1,0 +1,32 @@
+name: Original Website Headless PDF (FAKE only)
+on:
+  push:
+    branches:
+      - feature/headless-pdf-render-20261023
+  pull_request:
+    paths:
+      - "customer-ai-chat-prototype/original-*.mjs"
+      - "customer-ai-chat-prototype/tests/original-website-pdf.test.mjs"
+      - "customer-ai-chat-prototype/package.json"
+      - "customer-ai-chat-prototype/Dockerfile"
+jobs:
+  headless-pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser-compatible pdfmake
+        working-directory: customer-ai-chat-prototype
+        run: npm install --omit=dev --no-audit --no-fund
+      - name: Stage official local logo (same location as Docker)
+        run: |
+          mkdir -p customer-ai-chat-prototype/assets
+          cp logo-satori-3394.jpg customer-ai-chat-prototype/assets/logo-satori.jpg
+      - name: Compare renderer source with production website main
+        run: |
+          git fetch --depth=1 origin main
+          node customer-ai-chat-prototype/tests/original-pdf-parity.cjs
+      - name: Execute strictly offline fake PDF tests
+        run: node customer-ai-chat-prototype/tests/original-website-pdf.test.mjs

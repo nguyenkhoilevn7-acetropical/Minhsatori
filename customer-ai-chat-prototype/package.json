@@ -2,6 +2,14 @@
   "name": "minh-satori-customer-ai-chat-sandbox",
   "private": true,
   "type": "module",
-  "scripts": {"start": "node server.mjs", "check": "node --check server.mjs"},
-  "engines": {"node": ">=20"}
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pdfmake": "0.2.10"
+  }
 }

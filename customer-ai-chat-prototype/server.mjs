@@ -27,6 +27,7 @@ import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
 import {ownerPairAction,probeOwnerPairRead,ownerPairConfigReadiness} from './owner-collaborator-pairs.mjs';
 import {createOwnerRealInvoice} from './owner-live-invoice.mjs';
+import {createOriginalPdfGateway} from './original-pdf-gateway.mjs';
 import {createProductionPrivateLinks} from './production-private-links.mjs';
 import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
@@ -45,6 +46,7 @@ const MODEL='gemini-3.5-flash-lite';
 const EMERGENCY_PREVIEW=process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1';
 const OWNER_ONLY_PILOT=process.env.GEMINI_OWNER_ONLY_REAL_PILOT==='1';
 const ownerInvoice=createOwnerRealInvoice();
+const ownerPdfGateway=createOriginalPdfGateway();
 const realPrivateLinks=createProductionPrivateLinks({source:ownerInvoice.source,bot:ownerInvoice.bot});
 const ctvSingleLink=createCollaboratorSingleLink({
  policyList:()=>ownerPairAction('collaborators.pair.list',{}),
@@ -260,6 +262,25 @@ function sendHtml(res){const html=previewHtml('index.html');res.writeHead(200,{'
 const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
+ // Headless PDF generation is a private HMAC service for the OWNER's
+ // Apps Script scheduler. It uses the website's exact pdfmake definition;
+ // never exposes real customer data to a public/Gemini route.
+ if(req.method==='POST'&&p==='/api/internal/original-pdf'){
+  if(!ownerPdfGateway.configured())return fail(res,404,'NOT_FOUND','Not found');
+  try{
+   const input=await bodyJSON(req,75_000);
+   const pdf=await ownerPdfGateway.process(input);
+   return reply(res,200,pdf);
+  }catch(e){
+   const code=String(e?.message||'');
+   const known=new Set(['PDF_RENDER_BAD_REQUEST','PDF_RENDER_AUTH_FAILED',
+     'PDF_RENDER_REPLAYED','PDF_RENDER_VERSION_MISMATCH',
+     'PDF_ORDER_TOTAL_MISMATCH','PDF_ORDER_INVALID','PDF_RENDER_TIMEOUT',
+     'PDF_RENDER_OUTPUT_INVALID','PDF_INVALID_BYTES']);
+   const safe=known.has(code)?code:'PDF_RENDER_FAILED';
+   return fail(res,400,safe,'Không thể tạo PDF đã xác thực.');
+  }
+ }
  // When the OWNER opens the old "Xem trải nghiệm đặt hàng" deep link
  // from a pre-update Android APK, send it to the authenticated owner UI.
  // This is navigation only; NO customer API, order URL or auth bypass is opened.
