@@ -166,8 +166,8 @@ button:disabled{opacity:.55}
 </details>
 </section>
 <section class="card" data-tab-panel="customers" hidden id="collaboratorPairAdmin">
-<h2>👥 Cộng tác viên (CTV)</h2>
-<p class="hint">Một đơn → bill khách theo CK 1 và bill đối soát CTV theo CK 2. Hai bill cùng mã liên kết, không cộng trùng doanh thu. <strong>Mặc định TẮT</strong>; chỉ quản trị viên được duyệt và lưu chính sách lên Bot API. Tỷ lệ gợi ý 20/35 không tự áp dụng khi chưa duyệt.</p>
+<h2>👥 Cộng tác viên (CTV) · Quản lý trên sổ thật</h2>
+<p class="hint">Một đơn thật → hóa đơn khách và hóa đơn đối soát CTV liên kết. Anh là người duy nhất quyết định BẬT/TẮT và mức chiết khấu; không chờ bên thứ ba duyệt. BẬT chỉ thành công sau khi máy chủ xác minh dữ liệu trên Google Drive. Chương trình chưa bật sẽ không tạo hóa đơn đôi.</p>
 <p><button type="button" id="pairRefresh" class="secondary">↻ Đọc cấu hình thật</button></p>
 <p id="pairState" role="status" class="hint">Đang chờ đọc dữ liệu CTV từ sổ thật.</p>
 <p id="pairLastSaved" class="ctv-save-status" role="status" aria-live="polite"></p>
@@ -183,7 +183,16 @@ button:disabled{opacity:.55}
 <details id="ctvPolicyDetails"><summary>⚙️ Chỉnh chương trình & chiết khấu CTV đã có</summary>
 <fieldset id="pairConfigFields" disabled><legend>Chính sách hai hóa đơn</legend>
 <label for="pairPartner">Cộng tác viên</label><select id="pairPartner"><option value="">— Chọn CTV từ sổ —</option></select>
-<label for="pairEnabled"><input id="pairEnabled" type="checkbox"> Bật chế độ hai hóa đơn (bỏ chọn để tắt)</label>
+<p id="pairActiveState" class="ctv-save-status" role="status">Chọn CTV để xem trạng thái thật.</p>
+<label for="pairEnabled"><input id="pairEnabled" type="checkbox"> BẬT hai hóa đơn cho các đơn mới (bỏ chọn là TẮT; sẽ có xác nhận rõ ràng)</label>
+<p class="hint"><b>Không có bước chờ người khác duyệt.</b> Anh là quản trị viên: chọn điểm giao, xác nhận mức chiết khấu và bấm BẬT để lưu ngay vào sổ thật.</p>
+<div class="ctv-add-box">
+<strong>📍 Điểm giao áp dụng cho CTV</strong>
+<p class="hint">Lấy địa chỉ từ những hóa đơn có thật. Anh đánh dấu địa chỉ thuộc CTV này. Không phát hành link nếu chưa chọn điểm giao đã kiểm tra.</p>
+<button type="button" id="pairGetLocations" class="secondary">↻ Tìm các điểm giao của CTV trong sổ</button>
+<p id="pairLocationState" class="hint" role="status">Chưa chọn điểm giao.</p>
+<div id="pairLocationOptions" aria-label="Chọn địa chỉ giao đã có hóa đơn thật"></div>
+</div>
 <div class="row">
 <label>Chiết khấu bill gửi khách (%)<input id="pairCustomerDiscount" type="number" min="0" max="70" step="1" value="20"></label>
 <label>Chiết khấu bill CTV (%)<input id="pairCollaboratorDiscount" type="number" min="0" max="70" step="1" value="35"></label>
@@ -193,7 +202,8 @@ button:disabled{opacity:.55}
 <label>VAT (%)<select id="pairVat"><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></label>
 </div>
 <p class="hint">Lưu đồng bộ theo mã CTV, không dựa vào tên. Giữa hai bill là chênh lệch đối soát, không cộng thành hai lần bán hàng. Hủy/đổi một bill yêu cầu kiểm tra cặp.</p>
-<button type="button" id="pairSave">Lưu chính sách CTV</button>
+<button type="button" id="pairSave">✅ BẬT & LƯU CHƯƠNG TRÌNH CTV THẬT</button>
+<p class="hint">Để tắt một chương trình đã bật: bỏ chọn ô BẬT, sau đó bấm nút lưu và xác nhận thông báo “TẮT”.</p>
 </fieldset>
 <p id="pairResult" role="status" aria-live="polite" class="ctv-save-status"></p>
 </details>
@@ -435,7 +445,7 @@ $('checkSourceReadonly').onclick=async()=>{
 })();
 // Scoped CTV configuration is owner-only and NEVER sent to public Gemini chat.
 // A missing server bridge is shown as unavailable instead of claiming saved state.
-let pairCurrentRevision=null,pairPolicies=[],pairLoadSuccessful=false;
+let pairCurrentRevision=null,pairPolicies=[],pairLoadSuccessful=false,pairCollaborators=[];
 function showPairStatus(message){$('pairLastSaved').textContent=message;$('pairResult').textContent=message}
 function renderCtvDirectory(collaborators,policies,revision){
  const box=$('pairDirectory');box.replaceChildren();
@@ -500,7 +510,7 @@ async function loadPairPolicies(preserveResult=false){
   const d=await request('/api/admin/collaborator-pairs');
   if(!Number.isSafeInteger(d.revision)||!Array.isArray(d.policies)||!Array.isArray(d.collaborators))
    throw Error('Dữ liệu cấu hình CTV chưa hợp lệ');
-  pairCurrentRevision=d.revision;pairPolicies=d.policies;
+  pairCurrentRevision=d.revision;pairPolicies=d.policies;pairCollaborators=d.collaborators;
   const old=selector.value;
   selector.replaceChildren(new Option('— Chọn CTV từ sổ —',''));
   for(const c of d.collaborators){
@@ -512,24 +522,69 @@ async function loadPairPolicies(preserveResult=false){
   renderCtvDirectory(d.collaborators,d.policies,d.revision);
   pairLoadSuccessful=true;form.disabled=false;
   state.textContent='Đã đọc cấu hình CTV • Revision '+d.revision+' • '+d.collaborators.length+
-   ' cộng tác viên. Không phát sinh hóa đơn.';
+   ' cộng tác viên. Không phát sinh hóa đơn. Trạng thái chính sách được đọc từ sổ thật.';
   if(!preserveResult)result.textContent='';
  }catch(e){
-  pairCurrentRevision=null;pairPolicies=[];form.disabled=true;
+  pairCurrentRevision=null;pairPolicies=[];pairCollaborators=[];form.disabled=true;
   state.textContent='Chưa kết nối tính năng hai bill trên Bot API. '+e.message+
    ' Không có dữ liệu nào được ghi.';
   if(!preserveResult)showPairStatus('⚠ Không đọc được danh sách CTV; chưa xác nhận lưu: '+e.message);
  }
 }
 function updatePairControls(){
- const id=$('pairPartner').value,
-   row=pairPolicies.find(p=>p.collaboratorId===id);
- $('pairEnabled').checked=row?.enabled===true;
+ const id=$('pairPartner').value,row=pairPolicies.find(p=>p.collaboratorId===id);
+ $('pairEnabled').checked=row?row.enabled===true:Boolean(id);
  $('pairCustomerDiscount').value=String(row?.customerDiscountPercent??20);
  $('pairCollaboratorDiscount').value=String(row?.collaboratorDiscountPercent??35);
  $('pairShipping').value=String(row?.shippingPercent??0);
  $('pairVat').value=String(row?.vatPercent??0);
+ $('pairActiveState').textContent=!id?'Chọn CTV trước khi thao tác.':
+  row?.enabled?'✅ Chính sách hai hóa đơn đã BẬT trên sổ thật.':
+  '⚠ CHƯA BẬT trên sổ thật. Đang chuẩn bị cấu hình BẬT, chưa ghi cho tới khi anh xác nhận.';
+ $('pairLocationOptions').replaceChildren();$('pairLocationState').textContent='Chưa tải điểm giao.';
+ const existing=Array.isArray(row?.authorizedDestinations)?row.authorizedDestinations:[];
+ for(const p of existing){
+  if(!Number.isSafeInteger(p.invoiceNo)||p.invoiceNo<1)continue;
+  appendPairDestination(p.invoiceNo,p.name||'Địa chỉ đã được duyệt',p.location||'',true);
+ }
+ if(existing.length)$('pairLocationState').textContent='Đã tải '+existing.length+' điểm giao của chính sách trước đó. Kiểm tra lại trước khi lưu.';
+ $('pairSave').textContent=$('pairEnabled').checked?'✅ BẬT & LƯU CHƯƠNG TRÌNH CTV THẬT':'Lưu trạng thái TẮT (không tạo hóa đơn đôi)';
 }
+function appendPairDestination(invoiceNo,name,address,checked){
+ const container=$('pairLocationOptions');
+ if([...container.querySelectorAll('input[data-source-invoice]')].some(i=>Number(i.value)===invoiceNo))return;
+ const label=document.createElement('label');label.style.display='flex';label.style.alignItems='flex-start';label.style.gap='9px';
+ const box=document.createElement('input');box.type='checkbox';box.style.width='auto';box.style.flex='0 0 auto';
+ box.dataset.sourceInvoice='1';box.value=String(invoiceNo);box.checked=checked;
+ label.append(box,document.createTextNode('Hóa đơn #'+invoiceNo+' • '+name+' • '+address));
+ container.append(label);
+}
+async function loadCtvPairDestinations(){
+ const c=pairCollaborators.find(x=>x.id===$('pairPartner').value);
+ if(!c){$('pairLocationState').textContent='Chọn đúng CTV trước.';return}
+ const b=$('pairGetLocations');b.disabled=true;
+ $('pairLocationState').textContent='Đang tìm các điểm giao thật của '+c.name+'…';
+ try{
+  const d=await request('/api/admin/customer-directory?mode=detail&name='+encodeURIComponent(c.name));
+  if(!d.selected?.places?.length)throw Error('Không tìm thấy hóa đơn có điểm giao hợp lệ.');
+  const nameOk=[d.selected.name,...(d.selected.aliases||[])].some(x=>normalized(x)===normalized(c.name));
+  if(!nameOk)throw Error('Tên hồ sơ không khớp CTV; hãy tìm đúng khách trong phần Hồ sơ khách hàng.');
+  let n=0;
+  for(const p of d.selected.places){
+   const number=Number(p.invoiceNos?.[0]);
+   if(!Number.isSafeInteger(number)||number<1)continue;
+   appendPairDestination(number,p.name||d.selected.name,p.address||'',false);n++;
+  }
+  const all=$('pairLocationOptions').querySelectorAll('input[data-source-invoice]');
+  $('pairLocationState').textContent='Tìm thấy '+n+' điểm giao từ sổ thật; tổng cộng '+all.length+
+   '. Anh TÍCH chọn những điểm giao của CTV trước khi bấm BẬT & LƯU. Không tự chọn hộ.';
+ }catch(e){$('pairLocationState').textContent='⚠ '+e.message+' Không lưu chính sách khi thiếu địa chỉ nguồn.'}
+ finally{b.disabled=false}
+}
+$('pairGetLocations').onclick=loadCtvPairDestinations;
+$('pairEnabled').onchange=()=>{
+ $('pairSave').textContent=$('pairEnabled').checked?'✅ BẬT & LƯU CHƯƠNG TRÌNH CTV THẬT':'Lưu trạng thái TẮT (không tạo hóa đơn đôi)';
+};
 $('pairRefresh').onclick=()=>loadPairPolicies(false);
 $('pairPartner').onchange=updatePairControls;
 $('pairSave').onclick=async()=>{
@@ -547,7 +602,15 @@ $('pairSave').onclick=async()=>{
   $('pairResult').textContent='Kiểm tra hai mức CK, phí giao và VAT hợp lệ trước khi lưu.';return;
  }
  const enabled=$('pairEnabled').checked;
- if(!confirm('Xác nhận '+(enabled?'BẬT':'TẮT')+' hóa đơn đôi cho CTV đã chọn? Chỉ áp dụng cho đơn hàng MỚI sau khi lưu, không sửa bill cũ.'))return;
+ const destinationInvoiceNos=[...$('pairLocationOptions').querySelectorAll('input[data-source-invoice]:checked')].map(i=>Number(i.value));
+ if(enabled&&(destinationInvoiceNos.length<1||destinationInvoiceNos.length>20)){
+  showPairStatus('⚠ CHƯA LƯU: phải chọn 1–20 địa chỉ giao từ hóa đơn thật. Bấm “Tìm các điểm giao” rồi tích chọn.');return;
+ }
+ const c=pairCollaborators.find(c=>c.id===id);
+ if(!confirm('ANH XÁC NHẬN '+(enabled?'BẬT':'TẮT')+' CHƯƠNG TRÌNH HAI HÓA ĐƠN THẬT cho '+(c?.name||'CTV đã chọn')+
+  '?\nChiết khấu khách '+customerDiscountPercent+'%, CTV '+collaboratorDiscountPercent+'%.\n'+
+  (enabled?'Điểm giao đã chọn: '+destinationInvoiceNos.length+'.\n':'')+
+  'Áp dụng cho đơn MỚI, không sửa các hóa đơn trước đây.'))return;
  const button=$('pairSave');
  button.disabled=true;$('pairResult').textContent='Đang gửi yêu cầu quản trị…';
  // Never retry an uncertain confirmation automatically. Always re-read the policy.
@@ -556,13 +619,20 @@ $('pairSave').onclick=async()=>{
   const d=await request('/api/admin/collaborator-pairs/configure','POST',{
    collaboratorId:id,enabled,customerDiscountPercent,collaboratorDiscountPercent,
    shippingPercent,vatPercent,expectedRevision:pairCurrentRevision,
+   ...(enabled?{destinationInvoiceNos}:{}),
    requestId,confirmed:true
   });
   const person=$('pairPartner').selectedOptions?.[0]?.textContent||'CTV đã chọn';
-  showPairStatus('✓ ĐÃ LƯU VÀO SỔ THẬT • '+person+' • '+
-   (d.policy?.enabled?'BẬT':'TẮT')+' hai hóa đơn • CK khách '+customerDiscountPercent+
-   '% / CTV '+collaboratorDiscountPercent+'% • revision '+d.revision);
   await loadPairPolicies(true);
+  const confirmedPolicy=pairPolicies.find(p=>p.collaboratorId===id);
+  if(!confirmedPolicy||confirmedPolicy.enabled!==enabled){
+   showPairStatus('⚠ Đã nhận phản hồi ghi nhưng đọc lại sổ chưa khớp. Chưa xác nhận thành công, KHÔNG bấm lặp.');
+  }else{
+   showPairStatus('✓ ĐÃ XÁC MINH TRÊN SỔ THẬT • '+person+' • '+(enabled?'BẬT':'TẮT')+
+    ' hai hóa đơn • CK khách '+confirmedPolicy.customerDiscountPercent+'% / CTV '+
+    confirmedPolicy.collaboratorDiscountPercent+'% • '+(confirmedPolicy.authorizedDestinations?.length||0)+
+    ' điểm giao • revision '+pairCurrentRevision);
+  }
  }catch(e){
   $('pairResult').textContent='Chưa xác minh được trạng thái lưu: '+e.message+
    '. Bấm “Đọc cấu hình thật” để đối soát. Không bấm lưu lặp ngay.';
