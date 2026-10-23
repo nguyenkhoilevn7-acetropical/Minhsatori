@@ -1404,6 +1404,21 @@ server.listen(PORT,HOST,()=>{
 
  // Only boolean readiness / fixed codes. NEVER log HMAC values or key IDs.
  const pilot=ownerInvoice.readiness();
+ if(OWNER_ONLY_PILOT&&pilot.enabled===true){
+  void ownerInvoice.probeWriter().then(proof=>{
+   console.info('SATORI_OWNER_HMAC_LIVE_PROBE',
+    'PASS', 'revision='+proof.revision,
+    'invoices='+proof.invoiceCount,
+    'products='+proof.catalogueProducts);
+  }).catch(e=>{
+   // Do not expose signed responses, clients, credentials or customer records.
+   const safe=new Set(['FORBIDDEN','AUTH_FAILED','CATALOGUE_NOT_PERSISTED',
+    'OWNER_BOT_UPSTREAM_REJECTED','OWNER_BOT_UNCERTAIN',
+    'OWNER_BOT_RESPONSE_INVALID','OWNER_WRITER_READ_SCHEMA_INVALID']);
+   console.warn('SATORI_OWNER_HMAC_LIVE_PROBE','NOT_READY',
+    safe.has(e?.code)?e.code:'OTHER');
+  });
+ }
  console.info('SATORI_OWNER_PILOT_STATUS',
   'enabled='+Number(OWNER_ONLY_PILOT),
   'configured='+Number(pilot.enabled===true),

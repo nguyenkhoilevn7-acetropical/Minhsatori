@@ -22,12 +22,15 @@ const fetcher=async(url,options)=>{
  assert.equal(body.signature,crypto.createHmac('sha256',secret).update([
   body.keyId,body.timestamp,body.nonce,body.action,
   JSON.stringify(body.payload)].join('\n')).digest('hex'));
+ if(body.action==='system.status')return {ok:true,text:async()=>JSON.stringify({
+  ok:true,action:body.action,revision,data:{revision,orders:115}})};
  if(body.action==='catalogue.list')return {ok:true,text:async()=>JSON.stringify({
   ok:true,action:body.action,revision,data:{...catalogue,revision}})};
  if(body.action==='orders.list'){
-  assert.equal(body.payload.query,'5920');
+  const probing=body.payload.query==='GEMINI_OWNER_PROBE_NO_MATCH_20261023';
+  if(!probing)assert.equal(body.payload.query,'5920');
   return {ok:true,text:async()=>JSON.stringify({ok:true,action:body.action,
-    revision,data:{revision,totalMatches:1,orders:[customer]}})};
+    revision,data:{revision,totalMatches:probing?0:1,orders:probing?[]:[customer]}})};
  }
  if(body.action==='orders.create'){
   createCount++;lastWrite=body.payload;
@@ -51,6 +54,10 @@ let nextQuoteId=0;
 const engine=createOwnerRealInvoice({env,fetcher,now:()=>1792700000000,
  newId:()=>String(++nextQuoteId).padStart(32,'0')});
 assert.equal(engine.readiness().enabled,true);
+const probe=await engine.probeWriter();
+assert.equal(probe.verified,true);
+assert.equal(probe.invoiceCount,115);
+assert.equal(probe.catalogueProducts,1);
 // Existing server-side bot credential names may already be provisioned.
 // Never allow the separate read-only identity to act as the writer.
 const reused={...env,SATORI_OWNER_CHECKOUT_ENDPOINT:'',
