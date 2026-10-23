@@ -5203,6 +5203,8 @@
         }
         function invoicePdfShareMessage(o) {
             const payment=invoicePaymentDetails(o);
+            if(payment.total<=0) return 'Hóa đơn #'+o.invoiceNo+' — '+(o.name||'Đơn nội bộ')+
+                ': tổng tiền 0 đ, không cần chuyển khoản hoặc quét QR thanh toán.';
             return 'Kính gửi '+(o.name || 'Quý khách')+' hóa đơn bán nước Satori #'+o.invoiceNo+':\n'
                 +'- Tổng thanh toán: '+payment.total.toLocaleString('vi-VN')+' đ\n'
                 +'- STK VPBank: 658489418 (HKD MINH SATORI)\n'
@@ -5229,9 +5231,11 @@
                 const lp=Number(it.listPrice || 0),up=Number(it.unitPrice || 0),pct=it.discountPercent ?? (lp?(lp-up)/lp*100:0);
                 return [String(i+1),String(it.product || ''),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
             });
-            const bank=[{text:'THÔNG TIN THANH TOÁN',bold:true,color:'#0369a1',margin:[0,8,0,6]},'Ngân hàng: VPBank','Số tài khoản: 658489418','Chủ tài khoản: HKD MINH SATORI',{text:'Nội dung: '+memo,margin:[0,4,0,0]}];
-            // Always render an amount-specific scannable VietQR. Never silently omit it.
-            bank.push({qr:invoiceVietQrPayload(o),fit:100,foreground:'#0f172a',background:'#ffffff',margin:[0,8,0,0]});
+            const bank=total>0?
+                [{text:'THÔNG TIN THANH TOÁN',bold:true,color:'#0369a1',margin:[0,8,0,6]},'Ngân hàng: VPBank','Số tài khoản: 658489418','Chủ tài khoản: HKD MINH SATORI',{text:'Nội dung: '+memo,margin:[0,4,0,0]}]:
+                [{text:'HÓA ĐƠN NỘI BỘ — KHÔNG CẦN THANH TOÁN',bold:true,color:'#92400e',margin:[0,8,0,6]}];
+            // Paid invoices always contain an amount-specific VietQR. Zero-value bills have no payment QR.
+            if(total>0)bank.push({qr:invoiceVietQrPayload(o),fit:100,foreground:'#0f172a',background:'#ffffff',margin:[0,8,0,0]});
             return {pageSize:'A4',pageMargins:[30,30,30,35],defaultStyle:{font:'Roboto',fontSize:9,color:'#0f172a'},info:{title:'Hóa đơn #'+o.invoiceNo+' - '+(o.name || ''),author:'HKD Minh Satori'},
                 footer:(page,count)=>({text:page+' / '+count,alignment:'right',fontSize:8,margin:[30,8,30,0],color:'#64748b'}),
                 content:[
@@ -8767,7 +8771,7 @@ window.SatoriRecon = (() => {
     setInterval(tick,15000);
 })();
 </script>
-<script src="pdf-drive-archive.js?v=1"></script>
+<script src="pdf-drive-archive.js?v=2"></script>
 <script>
 (() => {
     if (window.__SATORI_DRIVE_APP__) return;

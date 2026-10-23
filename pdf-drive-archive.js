@@ -8,6 +8,8 @@
   var origin='https://n-odiq6uswj4btzrnvxzkeunjxowbbmowt7yh4sqa-0lu-script.googleusercontent.com';
   var channel='minhsatori-pdf-archive-v1';
   var storageKey='satori_pdf_archive_pending_v1';
+  // Acknowledged versions are local metadata only; the original PDF stays on Drive.
+  var completedKey='satori_pdf_archive_completed_v1';
   var templateVersion='SATORI_PDF_VIETQR_20261021';
   var enabled=false,busy=false,seq=0,timer=null,inFlight=null;
   function readQueue(){try{var v=JSON.parse(localStorage.getItem(storageKey)||'[]');return Array.isArray(v)?v:[];}catch(_){return [];}}
@@ -22,6 +24,40 @@
     schedule(100);
   }
   function schedule(ms){clearTimeout(timer);timer=setTimeout(run,ms||0);}
+  function versionFor(o){
+    return invoicePdfKey(o)+'\n'+templateVersion;
+  }
+  function readCompleted(){
+    try {var x=JSON.parse(localStorage.getItem(completedKey)||'{}');return x&&typeof x==='object'&&!Array.isArray(x)?x:{};}
+    catch(_){return {};}
+  }
+  function rememberCompleted(ref,version){
+    var completed=readCompleted(),key=String(ref.id)+'|'+Number(ref.invoiceNo);
+    delete completed[key];completed[key]=version;
+    // Bound localStorage use even on devices with years of invoices.
+    var keys=Object.keys(completed);
+    keys.slice(0,Math.max(0,keys.length-350)).forEach(function(k){delete completed[k];});
+    localStorage.setItem(completedKey,JSON.stringify(completed));
+  }
+  function enqueueBotCreatedOrders(){
+    if(typeof orders==='undefined'||!Array.isArray(orders)||typeof invoicePdfKey!=='function')return;
+    var q=readQueue(),completed=readCompleted(),changed=false;
+    // Only bot-created invoices need recovery: website-created ones are queued by save().
+    // Queue at most four at a time to avoid flooding Drive on a new phone.
+    if(q.length>=4)return;
+    var recent=orders.filter(function(o){
+      return o && (o.apiRequestId || o.botRequestId) &&
+        Number.isSafeInteger(Number(o.invoiceNo)) && Number(o.invoiceNo)>0 && o.id!=null;
+    }).sort(function(a,b){return Number(b.invoiceNo)-Number(a.invoiceNo);});
+    for(var i=0;i<recent.length && q.length<4;i++){
+      var o=recent[i],ref={id:String(o.id),invoiceNo:Number(o.invoiceNo)};
+      var key=ref.id+'|'+ref.invoiceNo;
+      if(completed[key]===versionFor(o))continue;
+      if(q.some(function(x){return String(x.id)===ref.id&&Number(x.invoiceNo)===ref.invoiceNo;}))continue;
+      q.push(ref);changed=true;
+    }
+    if(changed)saveQueue(q);
+  }
   function current(ref){
     if(typeof orders==='undefined'||!Array.isArray(orders))return null;
     var matches=orders.filter(function(o){return String(o.id)===String(ref.id)&&Number(o.invoiceNo)===Number(ref.invoiceNo);});
@@ -38,6 +74,7 @@
   function hex(buffer){return Array.from(new Uint8Array(buffer),function(b){return b.toString(16).padStart(2,'0');}).join('');}
   async function run(){
     if(!enabled||busy||!window.__SATORI_DRIVE_READY__||document.hidden)return;
+    enqueueBotCreatedOrders();
     var q=readQueue();if(!q.length)return;
     var ref=q[0],o=current(ref);
     if(!o){saveQueue(q.slice(1));return schedule(100);}
@@ -75,11 +112,14 @@
     if(!inFlight||!busy)return;
     if(m.type==='stored'&&m.invoiceNo===inFlight.ref.invoiceNo&&m.versionKey===inFlight.versionKey&&m.fileId){
       var saved=inFlight.ref;
+      rememberCompleted(saved,inFlight.versionKey);
       saveQueue(readQueue().filter(function(x){return !(String(x.id)===String(saved.id)&&Number(x.invoiceNo)===Number(saved.invoiceNo));}));
       busy=false;inFlight=null;schedule(300);return;
     }
     if(m.type==='error'){
       console.warn('Drive từ chối lưu PDF:',String(m.error||'không xác định'));
+      // Let other pending invoices proceed if one PDF repeatedly fails.
+      var retry=readQueue();if(retry.length>1)saveQueue(retry.slice(1).concat(retry[0]));
       busy=false;inFlight=null;schedule(15000);
     }
   });
