@@ -515,46 +515,23 @@ class NativeMainActivity : AppCompatActivity() {
                     cornerRadius = dp(18).toFloat()
                 }
             }
-            label(hero, "BÁN HÀNG VỚI SATORI AI", 20f, true, white)
-            label(hero, "Tạo link riêng • Giá và chiết khấu theo khách • Đặt hàng trực tiếp",
+            label(hero, "GEMINI • TẠO HÓA ĐƠN THẬT", 20f, true, white)
+            label(hero, "Chỉ tài khoản quản trị • Giá lấy từ Google Drive • Anh duyệt rồi mới ghi hóa đơn",
                 12f, false, Color.rgb(202, 239, 249), 7)
-            button(hero, "＋ TẠO LINK CHO KHÁCH", true) {
+            button(hero, "＋ TẠO HÓA ĐƠN THẬT VỚI GEMINI", true) {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
-            button(hero, "XEM TRẢI NGHIỆM ĐẶT HÀNG") {
-                startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "customer"))
-            }
-            button(hero, "🔗 MỞ CÙNG LINK KHÁCH TRÊN WEBSITE") {
-                val input = EditText(this).apply {
-                    hint = "https://minh-satori-customer-ai-gemini.onrender.com/c/..."
-                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-                    setSingleLine(true)
-                }
-                AlertDialog.Builder(this)
-                    .setTitle("Mở giỏ hàng Gemini của khách")
-                    .setMessage("Dán link khách do Gemini cấp. App mở cùng phiên trên máy chủ; không lưu link vào điện thoại. Chỉ dùng thử, chưa ghi hóa đơn thật.")
-                    .setView(input)
-                    .setNegativeButton("Hủy", null)
-                    .setPositiveButton("Mở link") { _, _ ->
-                        val verified = AiSandboxContract.customerPortalUrl(input.text.toString())
-                        if (verified == null) {
-                            Toast.makeText(this, "Link không hợp lệ. Chỉ nhận link khách Gemini của Satori.", Toast.LENGTH_LONG).show()
-                        } else {
-                            startActivity(Intent(this, AiCustomerPortalActivity::class.java)
-                                .putExtra("mode", "customer")
-                                .putExtra("customer_url", verified))
-                        }
-                    }
-                    .show()
+            button(hero, "MỞ TRANG QUẢN TRỊ GEMINI") {
+                startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
             content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(14)
             })
-            label(content, "SANDBOX: quản lý link yêu cầu mã quản trị riêng. Chỉ dữ liệu DEMO, chưa nhận đơn thật.",
+            label(content, "CHỈ CHỦ TÀI KHOẢN: Gemini quản trị tạo hóa đơn thật khi anh xác nhận. Các link khách đang tắt.",
                 11f, false, muted, 6)
         }
-        button(content, "✦ AI CHAT • ĐẦY ĐỦ CHỨC NĂNG WEBSITE") {
-            startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "customer"))
+        button(content, "✦ GEMINI • QUẢN TRỊ & TẠO HÓA ĐƠN THẬT") {
+            startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
         }
         if (isLoading) {
             label(content, "Đang đồng bộ dữ liệu…", 12f, true, cyan, 12)
