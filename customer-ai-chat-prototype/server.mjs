@@ -48,6 +48,14 @@ const OWNER_ONLY_PILOT=process.env.GEMINI_OWNER_ONLY_REAL_PILOT==='1';
 const ownerInvoice=createOwnerRealInvoice();
 const ownerPdfGateway=createOriginalPdfGateway();
 const realPrivateLinks=createProductionPrivateLinks({source:ownerInvoice.source,bot:ownerInvoice.bot});
+if(realPrivateLinks.readiness().configured){
+ // Non-mutating scope probe: orders.create with no requestId always fails
+ // validation before Google Drive backup or ledger writes.
+ void realPrivateLinks.probeWriteScope()
+  .then(()=>console.info('SATORI_AGENCY_SINGLE_INVOICE_WRITE_SCOPE', 'PASS'))
+  .catch(e=>console.warn('SATORI_AGENCY_SINGLE_INVOICE_WRITE_SCOPE', String(e?.code||'NOT_VERIFIED')));
+}else console.info('SATORI_AGENCY_SINGLE_INVOICE_WRITE_SCOPE','DISABLED');
+
 const ctvSingleLink=createCollaboratorSingleLink({
  policyList:()=>ownerPairAction('collaborators.pair.list',{}),
  invoiceSource:ownerInvoice.source,
