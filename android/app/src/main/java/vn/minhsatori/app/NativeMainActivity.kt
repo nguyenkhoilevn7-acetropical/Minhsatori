@@ -234,7 +234,20 @@ class NativeMainActivity : AppCompatActivity() {
         // On first installation, choose authenticated LIVE Drive read.
         // Never silently treat an old SANDBOX API as the production source.
         val preferred = preferredSource()
-        if (preferred == AutoSyncPolicy.DRIVE) {
+        val prefs = getPreferences(MODE_PRIVATE)
+        // One-time migration from a document-picker snapshot to the actual
+        // live Drive ledger. Document providers may hand back stale local copies.
+        // Explicitly selecting a file again remains possible in Settings.
+        if (!prefs.getBoolean("live_sync_source_migrated_v043", false)) {
+            val editor = prefs.edit().putBoolean("live_sync_source_migrated_v043", true)
+            if (preferred == AutoSyncPolicy.FILE) {
+                editor.putString("satori_source_mode", AutoSyncPolicy.DRIVE)
+                    .putBoolean("google_drive_auto_read", true)
+                statusMessage = "Đang chuyển từ file tĩnh sang Google Drive live để tự nhận thay đổi từ web."
+            }
+            editor.apply()
+        }
+        if (preferredSource() == AutoSyncPolicy.DRIVE) {
             getPreferences(MODE_PRIVATE).edit()
                 .putString("satori_source_mode", AutoSyncPolicy.DRIVE)
                 .putBoolean("google_drive_auto_read", true).apply()
@@ -274,6 +287,32 @@ class NativeMainActivity : AppCompatActivity() {
         getPreferences(MODE_PRIVATE).getString("satori_source_mode", null),
         fileUri != null, apiEndpoint != null
     )
+
+    /**
+     * Owner-requested emergency refresh: bypass revision polling and timers,
+     * fetch the complete current ledger, and reauthorize if the token expired.
+     * A previously selected file is not live; switch to authenticated Drive.
+     */
+    private fun refreshNow() {
+        if (isLoading || authorizationPending) {
+            Toast.makeText(this, "Đang đồng bộ, vui lòng kiểm tra trạng thái trên màn hình.",
+                Toast.LENGTH_SHORT).show()
+            return
+        }
+        authorizationDeclined = false
+        if (preferredSource() == AutoSyncPolicy.FILE) {
+            getPreferences(MODE_PRIVATE).edit()
+                .putString("satori_source_mode", AutoSyncPolicy.DRIVE)
+                .putBoolean("google_drive_auto_read", true).apply()
+            // An API/email-only token cannot read Drive; obtain Drive scope.
+            accessToken = null
+            allowedActions = emptySet()
+            actorId = ""
+            statusMessage = "Đang chuyển sang Google Drive live; file thủ công không tự cập nhật."
+        }
+        lastSyncAttemptElapsedMs = 0L
+        if (accessToken == null) connectGoogle() else syncPreferredSource()
+    }
 
     private fun syncPreferredSource() {
         if (isLoading || authorizationPending || authorizationDeclined) return
@@ -489,6 +528,17 @@ class NativeMainActivity : AppCompatActivity() {
         label(brandText, "HÓA ĐƠN  •  SỔ KẾ TOÁN", 10f,
             false, Color.rgb(186, 230, 253), 5)
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
+        val refreshButton = TextView(this).apply {
+            text = "↻ Refresh"
+            textSize = 11.5f
+            gravity = Gravity.CENTER
+            setTextColor(white)
+            contentDescription = "Refresh trang và đồng bộ hóa đơn ngay từ server"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { refreshNow() }
+        }
+        brand.addView(refreshButton, LinearLayout.LayoutParams(dp(88), dp(46)))
         val options = TextView(this).apply {
             text = "⚙"
             textSize = 23f
@@ -532,6 +582,10 @@ class NativeMainActivity : AppCompatActivity() {
                 else Color.rgb(254, 215, 170), 5)
         if (stale) label(info, statusMessage, 11.5f, true,
             Color.rgb(253, 186, 116), 6)
+        if (preferredSource() == AutoSyncPolicy.FILE) {
+            label(info, "⚠ File được chọn có thể là bản tĩnh. Bấm ↻ Refresh để chuyển sang đồng bộ Drive live.",
+                11f, true, Color.rgb(253, 186, 116), 6)
+        }
         if (connected && lastReadAt.isNotBlank()) {
             label(info, "Cập nhật lúc " + lastReadAt +
                 (if (preferredSource() != AutoSyncPolicy.FILE)
@@ -1762,7 +1816,7 @@ class NativeMainActivity : AppCompatActivity() {
                     onSuccess = { revision ->
                         if (LiveSyncPolicy.mobileChanged(current.revision, revision) ||
                             AutoSyncPolicy.due(lastOnlineReadElapsedMs,
-                                SystemClock.elapsedRealtime(), fallbackReadMs * 10))
+                                SystemClock.elapsedRealtime(), fallbackReadMs))
                             refreshFromMobileApi()
                     },
                     onFailure = { error ->
@@ -1772,6 +1826,7 @@ class NativeMainActivity : AppCompatActivity() {
                             error.apiCode in setOf("AUTH_FAILED", "FORBIDDEN")) {
                             accessToken = null
                             allowedActions = emptySet()
+                            lastSyncAttemptElapsedMs = 0L
                         }
                         render()
                     }
@@ -2053,7 +2108,7 @@ class NativeMainActivity : AppCompatActivity() {
                         dataSource = "file Google Drive"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
-                        statusMessage = "Đã cập nhật file Google Drive (chỉ xem). Tự kiểm tra khi app đang mở."
+                        statusMessage = "⚠ Đã đọc file thủ công. Đây có thể là bản tĩnh; bấm ↻ Refresh để đồng bộ từ Google Drive live."
                     },
                     onFailure = {
                         snapshot = null
@@ -2163,7 +2218,7 @@ class NativeMainActivity : AppCompatActivity() {
                     onSuccess = { version ->
                         if (LiveSyncPolicy.driveChanged(lastDriveVersion, version) ||
                             AutoSyncPolicy.due(lastOnlineReadElapsedMs,
-                                SystemClock.elapsedRealtime(), fallbackReadMs * 10)) {
+                                SystemClock.elapsedRealtime(), fallbackReadMs)) {
                             refreshFromDrive()
                         }
                     },
@@ -2171,7 +2226,10 @@ class NativeMainActivity : AppCompatActivity() {
                         statusMessage = "⚠ Chưa kiểm tra được đơn mới: " +
                             (error.message ?: "Lỗi mạng") +
                             ". Dữ liệu hiển thị là lần đồng bộ trước."
-                        if (error.message?.contains("hết hạn") == true) accessToken = null
+                        if (error.message?.contains("hết hạn") == true) {
+                            accessToken = null
+                            lastSyncAttemptElapsedMs = 0L
+                        }
                         render()
                     }
                 )
