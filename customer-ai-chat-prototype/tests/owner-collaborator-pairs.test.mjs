@@ -85,5 +85,13 @@ for(const [,src] of scripts)new vm.Script(src,{filename:'CTV owner dashboard'});
 for(const id of ['pairPartner','pairEnabled','pairCustomerDiscount','pairCollaboratorDiscount',
  'pairShipping','pairVat','pairSave','pairRefresh'])assert.ok(admin.includes('id="'+id+'"'));
 assert.ok(admin.includes("pairLoadSuccessful=false"));
+assert.ok(admin.includes('id="pairLinkPanel"'),'CTV must show verified single link in customers');
+assert.ok(admin.includes("issueSavedPairLink(id)"),'post-save verified policy should issue link');
+assert.ok(admin.includes("JSON.stringify(savedRefs)===JSON.stringify(expectedRefs)"),
+ 'readback must match exact selected delivery source IDs');
+assert.ok(admin.includes("confirmedPolicy.reviewedByOwner===true"),
+ 'readback must require owner-approved policy');
+assert.ok(admin.includes("CTV_LINKS_NOT_READY"),
+ 'link credentials and production write readiness must remain guarded');
 assert.ok(admin.includes("disabled"),'owner UI disabled until backend is verified');
 console.log('PASS scoped owner-only CTV policy admin HMAC, default-off writes, 20/35 flexible GUI syntax (FAKE only)');
