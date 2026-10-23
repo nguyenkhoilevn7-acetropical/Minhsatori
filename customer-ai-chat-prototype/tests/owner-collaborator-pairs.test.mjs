@@ -103,6 +103,8 @@ for(const id of ['pairPartner','pairEnabled','pairCustomerDiscount','pairCollabo
 assert.ok(admin.includes("pairLoadSuccessful=false"));
 assert.ok(admin.includes('id="pairLinkPanel"'),'CTV must show verified single link in customers');
 assert.ok(admin.includes("issueSavedPairLink(id)"),'post-save verified policy should issue link');
+assert.ok(admin.includes("phone.length<8||address.length<5"),
+ 'CTV owner wizard must exclude incomplete legacy destination sources');
 assert.ok(admin.includes("JSON.stringify(savedRefs)===JSON.stringify(expectedRefs)"),
  'readback must match exact selected delivery source IDs');
 assert.ok(admin.includes("confirmedPolicy.reviewedByOwner===true"),
