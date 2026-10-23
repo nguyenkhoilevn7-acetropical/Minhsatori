@@ -23,8 +23,10 @@ function pairOrders(all){
  const groups=new Map(),explicit=new Map(),pairs=[],review=[],byId=new Map();
  const explicitRows=new Set();
  const pairEntry=(high,low,basis)=>{
+  const explicit=!!(high.pairGroupId&&high.pairGroupId===low.pairGroupId);
+  const amount=explicit?Math.round(goods(high)-goods(low)):Math.round(total(high)-total(low));
   const p={id:key(high)+'::'+key(low),high,low,
-   profit:Math.round(total(high)-total(low)),
+   profit:amount,
    collaboratorId:high.collaboratorId||low.collaboratorId||'',basis};
   pairs.push(p);byId.set(key(high),p);byId.set(key(low),p);
  };
@@ -52,7 +54,7 @@ function pairOrders(all){
    basket(customer)===basket(settlement)&&
    total(customer)>total(settlement);
   if(!valid){review.push({orders:rows,reason:'Cặp hóa đơn CTV có trạng thái hoặc dữ liệu sai, cần rà soát thủ công.'});continue;}
-  pairEntry(customer,settlement,'Hai bill chung mã liên kết, khách trả giá cao, bill CTV đối soát (gồm phí/thuế theo từng bill)');
+  pairEntry(customer,settlement,'Hoa hồng: tiền HÀNG bill khách − tiền HÀNG bill CTV, KHÔNG tính VAT và phí giao');
  }
  for(const o of all.filter(active)){
   // Rows carrying a pair marker are NEVER sent to legacy heuristic matching,
@@ -176,6 +178,7 @@ function paymentGroup(all,ids,{id,target,markPaid=true,receipt=null,at,scope=''}
 
 root.SatoriAccountingCore={key,norm,number,active,statusClass,paid,resolveReceipt,preserveReceiptAssets,customerMatches,paymentGroup,items,goods,listed,total,basket,pairOrders,calculate,groupCompanyRows,addressSimilarity,identityMatch};
 })(typeof window!=='undefined'?window:globalThis);
+
 
 
 
