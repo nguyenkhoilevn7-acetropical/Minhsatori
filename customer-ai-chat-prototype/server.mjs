@@ -528,7 +528,7 @@ const server=http.createServer(async(req,res)=>{
   const x=await bodyJSON(req);
   const allowed=['collaboratorId','enabled','customerDiscountPercent',
    'collaboratorDiscountPercent','shippingPercent','vatPercent','expectedRevision',
-   'requestId','confirmed'];
+   'requestId','confirmed','destinationInvoiceNos'];
   if(!x||typeof x!=='object'||Array.isArray(x)||Object.keys(x).some(k=>!allowed.includes(k))||
    !/^[A-Za-z0-9_-]{4,100}$/.test(x.collaboratorId||'')||
    !/^[A-Za-z0-9_-]{8,100}$/.test(x.requestId||'')||
@@ -540,11 +540,29 @@ const server=http.createServer(async(req,res)=>{
    !Number.isSafeInteger(x.shippingPercent)||x.shippingPercent<0||x.shippingPercent>30||
    ![0,5,8,10].includes(x.vatPercent))
    return fail(res,400,'CTV_PAIR_POLICY_INVALID','Cần mã CTV, quyền duyệt và các tỷ lệ hợp lệ.');
+  if(x.enabled&&(!Array.isArray(x.destinationInvoiceNos)||
+     x.destinationInvoiceNos.length<1||x.destinationInvoiceNos.length>20||
+     x.destinationInvoiceNos.some(n=>!Number.isSafeInteger(n)||n<1)||
+     new Set(x.destinationInvoiceNos).size!==x.destinationInvoiceNos.length))
+   return fail(res,400,'CTV_DESTINATIONS_REQUIRED','Chọn 1–20 điểm giao thật không trùng trước khi bật.');
+  if(x.destinationInvoiceNos!==undefined&&!Array.isArray(x.destinationInvoiceNos))
+   return fail(res,400,'CTV_DESTINATIONS_INVALID','Danh sách điểm giao không hợp lệ.');
   try{
-   const out=await ownerPairAction('collaborators.pair.configure',x);
+   const {destinationInvoiceNos,...payload}=x;
+   if(x.enabled){
+    // Explicit owner-selected invoice evidence, verified via existing HMAC read.
+    // The Bot API revalidates the same references within a revision-locked write.
+    const sources=await Promise.all(destinationInvoiceNos.map(no=>ownerInvoice.source(no)));
+    if(sources.some(s=>s.revision!==x.expectedRevision))
+     return fail(res,409,'CTV_SOURCE_CHANGED','Sổ thật đã cập nhật: đọc lại CTV rồi xác nhận.');
+    payload.authorizedDestinations=sources.map((source,i)=>({
+     id:source.customer.id,invoiceNo:destinationInvoiceNos[i]
+    }));
+   }
+   const out=await ownerPairAction('collaborators.pair.configure',payload);
    return reply(res,200,{ok:true,source:'owner-approved-bot-api',...out});
   }catch(e){
-   return fail(res,503,e?.code||'CTV_PAIR_NOT_READY','Chưa lưu được chính sách. Đọc lại trạng thái trước khi thử tiếp.');
+   return fail(res,503,e?.code||'CTV_PAIR_NOT_READY','Chưa lưu được chính sách thật. Không tự thử lại hoặc báo đã duyệt khi thất bại.');
   }
  }
 
