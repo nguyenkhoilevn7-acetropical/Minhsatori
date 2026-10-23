@@ -76,7 +76,7 @@ assert.equal(forbidden.reason,'FORBIDDEN');
 assert.equal(JSON.stringify(forbidden).includes('upstream'),false);
 assert.equal((await probeOwnerPairRead({...opts,env:{}})).reason,'CTV_PAIR_NOT_CONFIGURED');
 const server=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
-assert.match(server,/p==='\\/api\\/admin\\/collaborator-pairs\\/readiness'/);
+assert.ok(server.includes("p==='/api/admin/collaborator-pairs/readiness'"));
 
 const admin=fs.readFileSync(new URL('../admin.html',import.meta.url),'utf8');
 const scripts=[...admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
