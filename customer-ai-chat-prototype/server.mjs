@@ -25,7 +25,7 @@ import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
-import {ownerPairAction,probeOwnerPairRead} from './owner-collaborator-pairs.mjs';
+import {ownerPairAction,probeOwnerPairRead,ownerPairConfigReadiness} from './owner-collaborator-pairs.mjs';
 import {createOwnerRealInvoice} from './owner-live-invoice.mjs';
 import {createProductionPrivateLinks} from './production-private-links.mjs';
 import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
@@ -432,8 +432,11 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&p==='/api/admin/collaborator-pairs/readiness'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần quyền quản trị.');
-  return reply(res,200,{ok:true,sandbox:true,probe:await probeOwnerPairRead(),
-   writesEnabled:false,customerAccessEnabled:false});
+  return reply(res,200,{ok:true,probe:await probeOwnerPairRead(),
+   credentials:ownerPairConfigReadiness(),
+   linkIssuance:ctvSingleLink.readiness(),
+   // Credential presence does not prove Apps Script scope or successful write.
+   writesEnabled:false,customerAccessEnabled:ctvSingleLink.readiness().enabled===true});
  }
  // Scoped owner-only CTV policy controls. Never call this from customer chat.
  // Until deployment has explicit separate keys, read fails closed and writes
@@ -1619,6 +1622,12 @@ server.listen(PORT,HOST,()=>{
    x.ready?'active_policies='+x.activePolicies:'no_policy_read'));
 
  // Only boolean readiness / fixed codes. NEVER log HMAC values or key IDs.
+ const ctvCredentials=ownerPairConfigReadiness(),ctvLink=ctvSingleLink.readiness();
+ console.info('SATORI_CTV_CONFIGURATION_READINESS',
+  'read='+ctvCredentials.read.reason,
+  'configure='+ctvCredentials.configure.reason,
+  'orderWrite='+ctvCredentials.orderWrite.reason,
+  'link='+String(ctvLink.reason||'CONFIGURED'));
  const pilot=ownerInvoice.readiness();
  if(OWNER_ONLY_PILOT&&pilot.enabled===true){
   void ownerInvoice.probeWriter().then(proof=>{
