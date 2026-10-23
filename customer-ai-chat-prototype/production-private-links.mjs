@@ -136,8 +136,8 @@ export function createProductionPrivateLinks({
      !pct(input.shippingPercent,30)||![0,5,8,10].includes(input.vatPercent)||
      !Number.isSafeInteger(input.daysValid)||input.daysValid<1||input.daysValid>30||
      (multi?(!cleanText(input.agentName,150)||input.destinations.length<1||
-       input.destinations.length>20||input.destinations.some(x=>!validRef(x?.customerRef)||!pct(x.discountPercent))||
-       new Set(input.destinations.map(x=>String(x.customerRef.id)+'|'+x.customerRef.invoiceNo)).size!==input.destinations.length):
+       input.destinations.length>20||input.destinations.some(x=>!Number.isSafeInteger(x?.customerRef?.invoiceNo)||x.customerRef.invoiceNo<1||!pct(x.discountPercent))||
+       new Set(input.destinations.map(x=>x.customerRef.invoiceNo)).size!==input.destinations.length):
       (!validRef(input.customerRef)||!pct(input.discountPercent))))
     throw error('REAL_LINK_APPROVAL_REQUIRED');
   await probeWriteScope();
