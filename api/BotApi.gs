@@ -12,6 +12,7 @@ var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
  'orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','pricing.eligibility':'orders:ai:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
  'payments.markCustomerPaid':'payments:write',
+ 'pdf.pending':'pdf:read','pdf.archive':'pdf:write',
  'collaborators.pair.list':'collaborators:pair:read',
  'collaborators.pair.configure':'collaborators:pair:approve','collaborators.mark':'collaborators:pair:approve',
  'orders.create.pair':'collaborators:pair:write'};
@@ -749,6 +750,11 @@ function read(s,action,p){
   return {revision:s.revision,totalMatches:candidates.length,invoices:candidates.slice(0,Math.min(100,Math.max(1,Number(p.limit)||30))).map(function(t){return {order:visible(t.order),deletedAt:t.deletedAt,expiresAt:t.expiresAt||t.deletedAt+30*86400000}})};
  }
  if(action==='system.status')return {revision:s.revision,updatedAt:s.updatedAt,orders:all.length};
+ if(action==='pdf.pending'){
+  need(typeof SatoriInvoicePdfArchive!=='undefined'&&typeof SatoriInvoicePdfArchive.pending==='function',
+    'PDF_ARCHIVE_UNAVAILABLE','Bộ lưu PDF chưa được triển khai');
+  return SatoriInvoicePdfArchive.pending(s,p);
+ }
  if(action==='customers.search')return {revision:s.revision,profiles:searchProfiles(all,p)};
  var found=select(all,p);
  if(action==='orders.list')return {revision:s.revision,totalMatches:found.length,orders:found.slice(0,Math.min(100,Math.max(1,Number(p.limit)||30))).map(visible)};
@@ -792,8 +798,28 @@ function write(s,action,p){
 function handle(e){
  try{
   var raw=e&&e.postData&&e.postData.contents;
-  need(typeof raw==='string'&&raw.length<=100000,'INVALID_REQUEST','Request quá lớn');
-  var identity=auth(JSON.parse(raw)),lock=LockService.getScriptLock();lock.waitLock(30000);
+  need(typeof raw==='string'&&raw.length<=4300000,'INVALID_REQUEST','Request quá lớn');
+  var request=JSON.parse(raw);
+  // Only the scoped PDF upload action is allowed a multi-megabyte payload.
+  need(raw.length<=(request.action==='pdf.archive'?4300000:100000),
+    'INVALID_REQUEST','Request quá lớn');
+  var identity=auth(request);
+  if(identity.action==='pdf.archive'){
+    need(typeof SatoriInvoicePdfArchive!=='undefined'&&typeof SatoriInvoicePdfArchive.archive==='function',
+      'PDF_ARCHIVE_UNAVAILABLE','Bộ lưu PDF chưa được triển khai');
+    // Do not hold the script lock while archive() obtains its own lock for
+    // current-order checks and Drive deduplication.
+    var nonceLock=LockService.getScriptLock();nonceLock.waitLock(30000);
+    try{
+      var nonceCache=CacheService.getScriptCache(),nonceKey='satoriapi:'+identity.nonce;
+      need(!nonceCache.get(nonceKey),'REPLAYED','Lệnh đã sử dụng');
+      nonceCache.put(nonceKey,'1',600);
+    }finally{nonceLock.releaseLock()}
+    var saved=SatoriInvoicePdfArchive.archive(identity.payload,true);
+    return json({ok:true,action:identity.action,revision:state().revision,
+      data:saved,backupCreated:false});
+  }
+  var lock=LockService.getScriptLock();lock.waitLock(30000);
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
