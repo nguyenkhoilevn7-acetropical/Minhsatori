@@ -25,7 +25,7 @@
   }
   function schedule(ms){clearTimeout(timer);timer=setTimeout(run,ms||0);}
   function versionFor(o){
-    return invoicePdfKey(o)+'\\n'+templateVersion;
+    return invoicePdfKey(o)+'\n'+templateVersion;
   }
   function readCompleted(){
     try {var x=JSON.parse(localStorage.getItem(completedKey)||'{}');return x&&typeof x==='object'&&!Array.isArray(x)?x:{};}
