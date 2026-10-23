@@ -3,7 +3,6 @@ package vn.minhsatori.app
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
-import org.json.JSONObject
 
 /**
  * Direct Drive read-only API. All mutations must go through the owner's
@@ -55,12 +54,7 @@ object DriveReadClient {
                 output.toByteArray()
             }
             if (bytes.size > 8192) throw IOException("Phản hồi phiên bản Drive quá lớn.")
-            val raw = try { JSONObject(String(bytes, Charsets.UTF_8)) }
-                catch (_: Exception) { throw IOException("Phiên bản Drive không hợp lệ.") }
-            val version = raw.optString("version").toLongOrNull()
-                ?: throw IOException("Drive không trả về phiên bản dữ liệu.")
-            if (version <= 0L) throw IOException("Phiên bản Drive không hợp lệ.")
-            return version
+            return LiveSyncPolicy.driveVersion(String(bytes, Charsets.UTF_8))
         } finally {
             connection.disconnect()
         }
