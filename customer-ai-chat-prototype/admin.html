@@ -1129,13 +1129,15 @@ function appendNewCustomerLocation(initial={}){
   ['label','Tên điểm giao','Chi nhánh Quận 7'],
   ['recipient','Tên người nhận','Nguyễn Văn A'],
   ['phone','Số điện thoại nhận hàng','0900000000'],
-  ['address','Địa chỉ chi tiết','Số nhà, tên đường, quận']
+  ['address','Địa chỉ chi tiết','Số nhà, tên đường, quận'],
+  ['discountPercent','Chiết khấu địa chỉ (%)','20, 25 hoặc 30']
  ]){
   const label=document.createElement('label');label.textContent=title;
   const input=document.createElement('input');input.required=!real||key==='address';
-  input.dataset.locationField=key;input.placeholder=placeholder;input.value=String(initial[key]||'');
+  input.dataset.locationField=key;input.placeholder=placeholder;input.value=String(initial[key]??(key==='discountPercent'?$('discount').value:''));
   input.maxLength=key==='address'?300:key==='label'?80:key==='phone'?30:120;
   if(key==='phone')input.type='tel';
+  if(key==='discountPercent'){input.type='number';input.min='0';input.max='70';input.step='1';}
   label.append(input);fieldset.append(label);
  }
  const remove=document.createElement('button');remove.type='button';remove.className='secondary';
@@ -1437,9 +1439,12 @@ async function load(){
    input.maxLength=key==='address'?300:key==='phone'?30:key==='label'?80:120;
    if(key==='phone')input.type='tel';label.append(input);form.append(label);
   }
+  const rateLabel=document.createElement('label');rateLabel.textContent='Chiết khấu địa chỉ (%)';
+  const rateField=document.createElement('input');rateField.name='discountPercent';rateField.type='number';rateField.min='0';rateField.max='70';rateField.step='1';rateField.required=true;rateField.value=String(c.discount);
+  rateLabel.append(rateField);form.append(rateLabel);
   const submit=document.createElement('button');submit.type='submit';submit.textContent='+ Thêm điểm giao';
   const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Nhập địa chỉ mới';cancel.className='secondary';
-  cancel.onclick=()=>{form.reset();delete form.dataset.editId;submit.textContent='+ Thêm điểm giao';};
+  cancel.onclick=()=>{form.reset();form.elements.discountPercent.value=String(c.discount);delete form.dataset.editId;submit.textContent='+ Thêm điểm giao';};
   form.append(submit,cancel);
   form.onsubmit=async e=>{e.preventDefault();submit.disabled=true;
    const body=Object.fromEntries(new FormData(form)),id=form.dataset.editId;
@@ -1450,9 +1455,9 @@ async function load(){
   };
   for(const loc of c.locations||[]){
    const card=document.createElement('div');card.className='customer';
-   const text=document.createElement('p');text.textContent=loc.label+' • '+loc.recipient+' • '+loc.phone+' • '+loc.address;
+   const text=document.createElement('p');text.textContent=loc.label+' • '+loc.recipient+' • '+loc.phone+' • '+loc.address+' • CK '+(loc.discountPercent??c.discount)+'%';
    const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='Sửa';
-   edit.onclick=()=>{for(const key of ['label','recipient','phone','address'])form.elements[key].value=loc[key];form.dataset.editId=loc.id;submit.textContent='Lưu thay đổi';panel.open=true};
+   edit.onclick=()=>{for(const key of ['label','recipient','phone','address'])form.elements[key].value=loc[key];form.elements.discountPercent.value=String(loc.discountPercent??c.discount);form.dataset.editId=loc.id;submit.textContent='Lưu thay đổi';panel.open=true};
    card.append(text,edit);
    if(loc.id!=='primary'){
     const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='Xóa';
