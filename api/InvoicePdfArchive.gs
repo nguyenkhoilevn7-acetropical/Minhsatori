@@ -17,10 +17,8 @@ var SatoriInvoicePdfArchive=(function(){
     return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
       .map(function(b){return ('0'+(b&255).toString(16)).slice(-2);}).join('');
   }
-  function archive(p,authenticatedBot){
-    // The existing owner web UI still requires owner login. The Bot API route
-    // passes true only AFTER verifying a scoped HMAC signature and replay nonce.
-    if(authenticatedBot!==true)requireOwner_();
+  function archive(p){
+    requireOwner_();
     if(!p||typeof p!=='object')fail('Thiếu nội dung PDF.');
     var no=Number(p.invoiceNo),total=Number(p.total);
     if(!Number.isSafeInteger(no)||no<1||!Number.isSafeInteger(total)||total<0||
@@ -59,7 +57,7 @@ var SatoriInvoicePdfArchive=(function(){
         return {fileId:file.getId(),invoiceNo:no,versionKey:p.versionKey,duplicate:true};
       }
       var saved=folder.createFile(Utilities.newBlob(bytes,'application/pdf',name));
-      saved.setDescription(JSON.stringify({source:authenticatedBot===true?'Minh Satori original pdfmake template (headless)':'Minh Satori website pdfmake',
+      saved.setDescription(JSON.stringify({source:'Minh Satori website pdfmake',
         invoiceNo:no,total:total,version:version,createdAt:new Date().toISOString()}));
       if(saved.getSize()!==bytes.length)fail('Drive chưa xác minh đúng kích thước PDF.');
       return {fileId:saved.getId(),invoiceNo:no,versionKey:p.versionKey,duplicate:false};
