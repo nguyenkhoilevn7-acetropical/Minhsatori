@@ -524,28 +524,9 @@ class NativeMainActivity : AppCompatActivity() {
             button(hero, "LÊN HÓA ĐƠN THẬT • CHỈ CHỦ TÀI KHOẢN") {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
-            button(hero, "🔗 XEM LINK KHÁCH (CHƯA MỞ CHO KHÁCH)") {
-                val input = EditText(this).apply {
-                    hint = "https://minh-satori-customer-ai-gemini.onrender.com/c/..."
-                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-                    setSingleLine(true)
-                }
-                AlertDialog.Builder(this)
-                    .setTitle("Mở giỏ hàng Gemini của khách")
-                    .setMessage("Dán link khách do Gemini cấp. App mở cùng phiên trên máy chủ; không lưu link vào điện thoại. Chỉ dùng thử, chưa ghi hóa đơn thật.")
-                    .setView(input)
-                    .setNegativeButton("Hủy", null)
-                    .setPositiveButton("Mở link") { _, _ ->
-                        val verified = AiSandboxContract.customerPortalUrl(input.text.toString())
-                        if (verified == null) {
-                            Toast.makeText(this, "Link không hợp lệ. Chỉ nhận link khách Gemini của Satori.", Toast.LENGTH_LONG).show()
-                        } else {
-                            startActivity(Intent(this, AiCustomerPortalActivity::class.java)
-                                .putExtra("mode", "customer")
-                                .putExtra("customer_url", verified))
-                        }
-                    }
-                    .show()
+            button(hero, "🔗 MỞ GEMINI TRÊN CHROME (QUẢN TRỊ)") {
+                startActivity(Intent(Intent.ACTION_VIEW,
+                    Uri.parse(AiSandboxContract.BASE_URL + "/admin")))
             }
             content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(14)
