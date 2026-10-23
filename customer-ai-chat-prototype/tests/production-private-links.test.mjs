@@ -17,7 +17,9 @@ function fixture(){
   return {revision,customer:{...customer},products};
  };
  const bot=async(action,payload)=>{
-  assert.equal(action,'orders.create');writes++;lastRequest=payload;
+  assert.equal(action,'orders.create');
+  if(!payload.requestId)throw Object.assign(Error('INVALID_REQUEST'),{code:'INVALID_REQUEST'});
+  writes++;lastRequest=payload;
   return {revision:revision+1,data:{order:{invoiceNo:6000+revision,name:customer.name,
    location:customer.location,total:payload.order.total},duplicate:false}};
  };
