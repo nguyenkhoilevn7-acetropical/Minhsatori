@@ -572,7 +572,14 @@ const server=http.createServer(async(req,res)=>{
    if(x.enabled){
     // Explicit owner-selected invoice evidence, verified via existing HMAC read.
     // The Bot API revalidates the same references within a revision-locked write.
-    const sources=await Promise.all(destinationInvoiceNos.map(no=>ownerInvoice.source(no)));
+    // Apps Script reads share a single ScriptLock. Preserve destination order
+    // and limit concurrency instead of flooding it with 2*N simultaneous Bot calls.
+    const sources=[];
+    for(let i=0;i<destinationInvoiceNos.length;i+=2){
+     const batch=await Promise.all(destinationInvoiceNos.slice(i,i+2)
+      .map(no=>ownerInvoice.source(no)));
+     sources.push(...batch);
+    }
     if(sources.some(s=>s.revision!==x.expectedRevision))
      return fail(res,409,'CTV_SOURCE_CHANGED','Sổ thật đã cập nhật: đọc lại CTV rồi xác nhận.');
     payload.authorizedDestinations=sources.map((source,i)=>({
@@ -582,6 +589,9 @@ const server=http.createServer(async(req,res)=>{
    const out=await ownerPairAction('collaborators.pair.configure',payload);
    return reply(res,200,{ok:true,source:'owner-approved-bot-api',...out});
   }catch(e){
+   // Fixed-category server diagnostic only; no personal data, HMAC, or invoice refs.
+   const category=String(e?.code||'CTV_PAIR_NOT_READY').replace(/[^A-Z0-9_]/g,'').slice(0,64);
+   console.warn('CTV_OWNER_POLICY_SAVE_FAILED',category||'CTV_PAIR_NOT_READY');
    return fail(res,503,e?.code||'CTV_PAIR_NOT_READY','Chưa lưu được chính sách thật. Không tự thử lại hoặc báo đã duyệt khi thất bại.');
   }
  }
