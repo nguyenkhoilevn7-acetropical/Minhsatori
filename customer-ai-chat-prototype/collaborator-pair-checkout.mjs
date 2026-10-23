@@ -130,6 +130,7 @@ export function createCollaboratorPairGateway({resolveTrusted,readPolicy,store,
   // Revalidate the independent customer session even for successful replays.
   const viewingContext=await resolveTrusted(session);
   if(!viewingContext||viewingContext.verifiedByServer!==true||
+   viewingContext.ownerVerifiedCollaboratorAssociation!==true||
    viewingContext.customer?.verifiedByServer!==true||
    viewingContext.sessionKey!==record.sessionKey||
    viewingContext.collaboratorId!==record.collaboratorId)
@@ -163,8 +164,15 @@ export function createCollaboratorPairGateway({resolveTrusted,readPolicy,store,
    await store.finish(quoteId,'sending','uncertain',{});
    fail('CTV_COMMIT_UNCERTAIN_RECONCILE');
   }
-  if(!result?.confirmedByAuthoritativeLedger||!result.customerInvoiceNo||
-     !result.collaboratorInvoiceNo){
+  if(!result?.confirmedByAuthoritativeLedger||
+     !Number.isSafeInteger(result.customerInvoiceNo)||result.customerInvoiceNo<=0||
+     !Number.isSafeInteger(result.collaboratorInvoiceNo)||result.collaboratorInvoiceNo<=0||
+     result.customerInvoiceNo===result.collaboratorInvoiceNo||
+     !Number.isSafeInteger(result.customerTotal)||
+     result.customerTotal!==record.customerTotal||
+     !Number.isSafeInteger(result.collaboratorTotal)||
+     result.collaboratorTotal!==record.collaboratorTotal||
+     typeof result.pairGroupId!=='string'||!/^pair_[A-Za-z0-9-]{16,80}$/.test(result.pairGroupId)){
    await store.finish(quoteId,'sending','uncertain',{});
    fail('CTV_COMMIT_UNCERTAIN_RECONCILE');
   }
@@ -198,12 +206,30 @@ export async function sendApprovedPair({approved,env=process.env,fetcher=fetch,
   const txt=await res.text();
   if(txt.length>30000)fail('CTV_PAIR_COMMIT_UNCERTAIN');
   const data=JSON.parse(txt);
-  if(!data?.ok||data.action!==action||!data.data?.customerInvoice?.invoiceNo||
-      !data.data?.collaboratorInvoice?.invoiceNo)
+  const c=data?.data?.customerInvoice,s=data?.data?.collaboratorInvoice,gid=data?.data?.pairGroupId;
+  // A successful HTTP response alone is never evidence of a valid pair.
+  // Verify linked roles, IDs and monetary totals before finalising the intent.
+  if(data?.ok!==true||data.action!==action||
+    !Number.isSafeInteger(data.revision)||data.revision<1||
+    typeof gid!=='string'||!/^pair_[A-Za-z0-9-]{16,80}$/.test(gid)||
+    c?.pairRole!=='customer'||s?.pairRole!=='collaborator'||
+    c.pairGroupId!==gid||s.pairGroupId!==gid||
+    c.collaboratorId!==payload.collaboratorId||
+    s.collaboratorId!==payload.collaboratorId||
+    !Number.isSafeInteger(c.invoiceNo)||c.invoiceNo<=0||
+    !Number.isSafeInteger(s.invoiceNo)||s.invoiceNo<=0||
+    c.invoiceNo===s.invoiceNo||c.pairInvoiceNo!==s.invoiceNo||
+    s.pairInvoiceNo!==c.invoiceNo||
+    !Number.isSafeInteger(c.total)||!Number.isSafeInteger(s.total)||
+    c.total<=s.total||s.total<0||
+    c.name!==payload.order.name||
+    c.phone!==payload.order.phone||c.location!==payload.order.location||
+    s.location!==payload.order.location)
    fail('CTV_PAIR_COMMIT_UNCERTAIN');
   return freezeTree({confirmedByAuthoritativeLedger:true,
-   duplicate:data.data.duplicate===true,customerInvoiceNo:data.data.customerInvoice.invoiceNo,
-   collaboratorInvoiceNo:data.data.collaboratorInvoice.invoiceNo,revision:data.revision});
+   duplicate:data.data.duplicate===true,customerInvoiceNo:c.invoiceNo,
+   collaboratorInvoiceNo:s.invoiceNo,customerTotal:c.total,
+   collaboratorTotal:s.total,pairGroupId:gid,revision:data.revision});
  }catch{
   fail('CTV_PAIR_COMMIT_UNCERTAIN');
  }finally{clearTimeout(timer)}
