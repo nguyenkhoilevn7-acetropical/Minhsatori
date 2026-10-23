@@ -17,8 +17,13 @@ var SatoriInvoicePdfArchive=(function(){
     return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
       .map(function(b){return ('0'+(b&255).toString(16)).slice(-2);}).join('');
   }
-  function archive(p){
-    requireOwner_();
+  function archive(p,fromOwnerTrigger){
+    if(fromOwnerTrigger===true){
+      // Clock triggers have no interacting browser user. They execute as the
+      // owner who created the installed trigger, not the anonymous caller.
+      var effective=Session.getEffectiveUser().getEmail().toLowerCase();
+      if(effective!==String(OWNER_EMAIL).toLowerCase())fail('Sai chủ sở hữu tác vụ PDF');
+    }else requireOwner_();
     if(!p||typeof p!=='object')fail('Thiếu nội dung PDF.');
     var no=Number(p.invoiceNo),total=Number(p.total);
     if(!Number.isSafeInteger(no)||no<1||!Number.isSafeInteger(total)||total<0||
@@ -63,7 +68,42 @@ var SatoriInvoicePdfArchive=(function(){
       return {fileId:saved.getId(),invoiceNo:no,versionKey:p.versionKey,duplicate:false};
     } finally {lock.releaseLock();}
   }
-  return {archive:archive};
+function pending(s,p){
+    if(!s||!s.values||typeof s.values.satori_orders_v15!=='string')
+      fail('Chưa có dữ liệu hóa đơn đồng bộ');
+    var folderId=PropertiesService.getScriptProperties().getProperty('SATORI_PDF_ARCHIVE_FOLDER_ID');
+    if(!folderId)fail('Chưa cấu hình thư mục lưu PDF');
+    var folder=DriveApp.getFolderById(folderId);
+    var list=JSON.parse(s.values.satori_orders_v15||'[]');
+    if(!Array.isArray(list))fail('Dữ liệu hóa đơn không hợp lệ');
+    var cutoff=Date.now()-7*86400000,limit=Math.min(4,Math.max(1,Number(p&&p.limit)||4));
+    var found=[];
+    // Owner's installed time trigger archives newly created saved invoices
+    // from either website or Bot API, without any browser session. Never send
+    // unrelated historical orders or deleted invoices to Render.
+    var eligible=list.filter(function(o){
+      return o&&Number.isSafeInteger(Number(o.id))&&Number(o.id)>=cutoff&&
+        Number.isSafeInteger(Number(o.invoiceNo))&&Number(o.invoiceNo)>0&&
+        Number.isSafeInteger(Number(o.total))&&Number(o.total)>=0&&
+        Array.isArray(o.items)&&o.items.length>0;
+    }).sort(function(a,b){return Number(b.invoiceNo)-Number(a.invoiceNo);}).slice(0,40);
+    for(var i=0;i<eligible.length&&found.length<limit;i++){
+      var o=eligible[i],key=canonical(o);
+      var hash=digest(Utilities.newBlob(key).getBytes()).slice(0,16);
+      var name='MinhSatori_HD'+o.invoiceNo+'_v'+hash+'.pdf';
+      if(folder.getFilesByName(name).hasNext())continue;
+      // Copy only the canonical PDF fields. Never expose internal commission,
+      // unrelated customers, user tokens, HMAC keys or ledger backup content.
+      var fields=['id','invoiceNo','date','name','phone','location','deliveryNote',
+        'taxCode','status','items','product','qty','listPrice','unitPrice',
+        'vat','vatAmount','shippingAmount','total'];
+      var order={};fields.forEach(function(k){if(o[k]!==undefined)order[k]=o[k]});
+      found.push({order:order,versionKey:key});
+    }
+    return {revision:s.revision,jobs:found,limit:limit};
+  }
+  return {archive:archive,pending:pending};
+
 })();
 /**
  * Read-only owner preflight. Run from the Apps Script editor before redeploying.
