@@ -6,11 +6,14 @@
   "branch": "release/android-v0.4.0-owner-auto-sync-20261023",
   "scope": "Same-package owner Samsung acceptance: auto-open live Drive OAuth when no saved source, reuse previously authorized Google consent and remembered source, re-sync in foreground after 2 minutes and after network recovery; no automatic real writes.",
   "requestedOn": "2026-10-23",
-  "sourcePRs": [],
+  "sourcePRs": [
+    100
+  ],
   "notes": [
     "Update using the SAME pinned signing certificate; do not generate a new identity.",
     "On the first install, the owner must consent to Google Drive once; later opens auto-read with no manual connect. OAuth cannot be bypassed.",
     "Mobile API writes remain protected by independent Android OAuth owner role & server allowedActions; Drive source is read-only.",
-    "No sandbox records are copied into production and no test invoices are created."
+    "No sandbox records are copied into production and no test invoices are created.",
+    "Release build requested only after Android CI compiled and unit tests passed on PR #100; no live customer data or invoices altered."
   ]
 }
