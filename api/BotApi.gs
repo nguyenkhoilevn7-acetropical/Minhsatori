@@ -804,8 +804,35 @@ function handle(e){
   }finally{lock.releaseLock()}
  }catch(err){return json({ok:false,error:{code:err.code||'ERROR',message:err.code?err.message:'Không xử lý được; kiểm tra nhật ký hệ thống'}})}
 }
-return {handle:handle};
+// This entry is called ONLY after AndroidOwnerMobileApi verifies the
+// owner Google OAuth access token, allowed signing client and request shape.
+// Reuse the SAME revision lock, prewrite backup and soft-delete/restore checks.
+function ownerMobileWrite(action,p,nonce){
+ need(action==='orders.delete'||action==='orders.restore',
+   'FORBIDDEN','Mobile owner action not supported');
+ need(/^[A-Za-z0-9_-]{16,128}$/.test(String(nonce||'')),
+   'INVALID_REQUEST','Invalid mobile nonce');
+ var lock=LockService.getScriptLock();lock.waitLock(30000);
+ try{
+   var cache=CacheService.getScriptCache(),key='satoriandroid:'+nonce;
+   need(!cache.get(key),'REPLAYED','Mobile request already used');
+   var s=state(),result=write(s,action,p);
+   cache.put(key,'1',600);
+   return {revision:result.revision,data:result.data,
+     backupCreated:!!result.backupCreated};
+ }finally{lock.releaseLock()}
+}
+return {handle:handle,ownerMobileWrite:ownerMobileWrite};
 })();
-function doPost(e){return SatoriBotApi.handle(e)}
+function doPost(e){
+  if(e&&e.parameter&&e.parameter.route==='android'){
+    if(typeof AndroidOwnerMobileApi==='undefined')
+      return ContentService.createTextOutput(JSON.stringify({ok:false,
+        error:{code:'ANDROID_NOT_READY',message:'Owner Mobile API not configured'}}))
+        .setMimeType(ContentService.MimeType.JSON);
+    return AndroidOwnerMobileApi.handle(e);
+  }
+  return SatoriBotApi.handle(e);
+}
 
 
