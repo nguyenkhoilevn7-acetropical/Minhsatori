@@ -1,20 +1,18 @@
 {
-  "purpose": "android-0.4.2-owner-live-foreground-sync-restore-samsung",
+  "purpose": "android-0.4.3-owner-refresh-web-sync-20261024",
   "package": "vn.minhsatori.app",
-  "version": "0.4.2",
-  "versionCode": 19,
-  "branch": "release/android-v0.4.2-live-sync-trash-20261023",
-  "scope": "Foreground Drive version or owner Mobile API canonical ledger polling roughly every 20 seconds; changed-only refresh without restarting; encrypted request-id deletion and 30-day restore UI only after private owner Apps Script API authorization.",
-  "requestedOn": "2026-10-23",
+  "version": "0.4.3",
+  "versionCode": 20,
+  "branch": "release/android-v0.4.3-owner-refresh-20261024",
+  "scope": "Live foreground Android owner ledger polling every 20 seconds; fallback full snapshot every two minutes; one-time migration of stale document-picker source to authenticated Drive; always-visible manual Refresh in native header.",
+  "requestedOn": "2026-10-24",
   "sourcePRs": [
-    115
+    118
   ],
   "notes": [
-    "Use SAME pinned release signing identity and cert for in-place Android update over 0.4.0/0.4.1.",
-    "Google Drive read-only live sync works independently of new owner Mobile API activation.",
-    "Soft delete/restore are deliberately unavailable until owner OAuth Apps Script production endpoint is deployed and configured.",
-    "No production invoice is created, deleted or restored during this build.",
-    "No local HMAC secrets or hard-coded owner credentials are allowed.",
-    "Release artifact is an owner field-test; Apps Script production delete/restore remain gated until private owner API activation and readback."
+    "Signed in-place update using the SAME protected release certificate and private keystore as v0.4.2.",
+    "No invoice writes or production Apps Script configuration changes.",
+    "Owner must validate real Web -> Android sync and manual Refresh on Samsung after installing the signed APK.",
+    "WebSocket real-time pushes are not supported by the current Apps Script owner Mobile API; this release uses verified Drive/mobile revision polling plus snapshot fallback."
   ]
 }
