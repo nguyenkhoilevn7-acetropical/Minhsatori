@@ -12,8 +12,12 @@ export function listLocations(profile){
 export function validateLocation(input){
  const label=clean(input?.label,80),recipient=clean(input?.recipient,120);
  const phone=clean(input?.phone,30),address=clean(input?.address,300);
- if(label.length<2||recipient.length<2||address.length<5||!/^\+?[\d\s().-]{8,30}$/.test(phone))return null;
- return {label,recipient,phone,address,enabled:true};
+ const rawDiscount=input?.discountPercent;
+ const discount=rawDiscount===undefined||rawDiscount===null||rawDiscount===''?undefined:Number(rawDiscount);
+ if(label.length<2||recipient.length<2||address.length<5||!/^\+?[\d\s().-]{8,30}$/.test(phone)||
+   (discount!==undefined&&(!Number.isSafeInteger(discount)||discount<0||discount>70)))return null;
+ return {label,recipient,phone,address,enabled:true,
+  ...(discount===undefined?{}:{discountPercent:discount})};
 }
 export function matchLocation(profile,message){
  const locations=listLocations(profile),spoken=foldLocation(message);
@@ -27,6 +31,15 @@ export function matchLocation(profile,message){
  if(byAddress.length===1)return {status:'matched',location:byAddress[0],source:'full-address'};
  if(byAddress.length>1)return {status:'ambiguous',locations:byAddress};
  return {status:'unresolved',locations};
+}
+// Pricing is owned by the server, never by a chat message or a browser quote.
+// Existing profiles without per-address rates retain their approved base rate.
+export function effectiveLocationDiscount(profile,location){
+ const d=location?.discountPercent;
+ if(Number.isSafeInteger(d)&&d>=0&&d<=70)return d;
+ const base=profile?.discount;
+ if(Number.isSafeInteger(base)&&base>=0&&base<=70)return base;
+ throw Error('LOCATION_DISCOUNT_NOT_CONFIGURED');
 }
 export function chosenLocation(profile,id){
  return listLocations(profile).find(x=>x.id===id)||null;
