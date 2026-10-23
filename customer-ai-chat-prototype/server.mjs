@@ -19,7 +19,7 @@ import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificatio
 import {parseCustomerMessage,splitOrderAndNote,waterAnswer,finishWater,deliveryAnswer} from './order-with-notes.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct,fold} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
-import {listLocations,chosenLocation,matchLocation,foldLocation} from './delivery-locations.mjs';
+import {listLocations,chosenLocation,matchLocation,foldLocation,effectiveLocationDiscount} from './delivery-locations.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
@@ -157,6 +157,7 @@ function deliveryProfile(profile,locationId){
  const location=locationId?chosenLocation(profile,locationId):points.length===1?points[0]:null;
  if(!location)return {...profile,recipient:'',phone:'',address:'Chưa chọn điểm giao',deliveryLocationId:null,locationRequired:true};
  return {...profile,recipient:location.recipient,phone:location.phone,address:location.address,
+  discount:effectiveLocationDiscount(profile,location),
   deliveryLocationId:location.id,locationLabel:location.label,locationRequired:false};
 }
 async function bodyJSON(req,maxBytes=8_192){const chunks=[];let size=0;for await(const buf of req){size+=buf.length;if(size>maxBytes)throw new Error('PAYLOAD_TOO_LARGE');chunks.push(buf)}return safeJSON(Buffer.concat(chunks).toString('utf8'))}
@@ -938,16 +939,18 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method==='GET'&&p==='/api/history')return customerLinks.history(res,url.searchParams.get('token')||'',orders,FIXTURES);
  if(req.method==='GET'&&p==='/api/catalogue'){
-  const profile=getProfile(url.searchParams.get('token')||'');if(!profile)return fail(res,403,'DEMO_LINK_REQUIRED','Chỉ hiển thị giá riêng trong link khách thử hợp lệ');
-  return reply(res,200,{ok:true,sandbox:true,source:'official-default-snapshot',catalogueSync:'snapshot_only',count:CATALOGUE.length,products:CATALOGUE.map(item=>({code:item.code,name:item.name,brand:item.brand,unit:item.unit,spec:item.spec,listPrice:item.listPrice,discount:profile.discount,unitPrice:money(item.listPrice*(1-profile.discount/100))}))});
+  const token=url.searchParams.get('token')||'';const profile=getProfile(token);if(!profile)return fail(res,403,'DEMO_LINK_REQUIRED','Chỉ hiển thị giá riêng trong link khách thử hợp lệ');
+  const priced=deliveryProfile(profile,draftStore.read(token).locationId);
+  return reply(res,200,{ok:true,sandbox:true,source:'official-default-snapshot',catalogueSync:'snapshot_only',locationRequired:priced.locationRequired,count:CATALOGUE.length,products:CATALOGUE.map(item=>({code:item.code,name:item.name,brand:item.brand,unit:item.unit,spec:item.spec,listPrice:item.listPrice,discount:priced.locationRequired?null:priced.discount,unitPrice:priced.locationRequired?null:money(item.listPrice*(1-priced.discount/100))}))});
  }
  // Publicly share only this customer's ranked catalog SKU suggestions, never raw order history.
  if(req.method==='GET'&&p==='/api/suggestions'){
   const profile=getProfile(url.searchParams.get('token')||'');
   if(!profile)return fail(res,403,'INVALID_LINK','Liên kết khách không hợp lệ.');
+  const priced=deliveryProfile(profile,draftStore.read(url.searchParams.get('token')||'').locationId);
   const suggestions=customerSuggestions(profile,orders.values(),3).map(item=>{
    const p=productFor(item.code);
-   return {...item,unitPrice:money(p.listPrice*(1-profile.discount/100))};
+   return {...item,unitPrice:priced.locationRequired?null:money(p.listPrice*(1-priced.discount/100))};
   });
   return reply(res,200,{ok:true,sandbox:true,suggestions,
    source:'per-customer-test-invoice-history',historyLimitedToSandbox:true});
@@ -1533,7 +1536,7 @@ const server=http.createServer(async(req,res)=>{
   const approved=q.deliveryLocationId?chosenLocation(c,q.deliveryLocationId):
     listLocations(c).length===1?listLocations(c)[0]:null;
    if(!approved||q.locationRequired)return fail(res,409,'LOCATION_REQUIRED','Chưa chọn điểm giao chính xác. Vui lòng chọn trong Tất cả địa chỉ.');
-   if(q.profileId!==c.id||q.discount!==c.discount||q.ship!==c.ship||
+   if(q.profileId!==c.id||q.discount!==effectiveLocationDiscount(c,approved)||q.ship!==c.ship||
       q.vatRate!==(c.vatRate??0)||q.address!==approved.address||
       q.phone!==approved.phone||(q.recipient!==undefined&&q.recipient!==approved.recipient))
     return fail(res,409,'PROFILE_CHANGED','Thông tin điểm giao hoặc giá đã đổi. Vui lòng lập lại báo giá.');
