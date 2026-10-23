@@ -4,6 +4,10 @@
 export const MAX_LOCATIONS=20;
 const clean=(x,max)=>typeof x==='string'?x.replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max):'';
 export const foldLocation=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+export function effectiveLocationDiscount(profile,location){
+ const value=location?.discountPercent;
+ return Number.isSafeInteger(value)&&value>=0&&value<=70?value:profile?.discount;
+}
 export function listLocations(profile){
  const saved=Array.isArray(profile?.locations)?profile.locations.filter(x=>x&&x.enabled!==false):[];
  if(saved.length)return saved.map(x=>({...x}));
@@ -12,8 +16,11 @@ export function listLocations(profile){
 export function validateLocation(input){
  const label=clean(input?.label,80),recipient=clean(input?.recipient,120);
  const phone=clean(input?.phone,30),address=clean(input?.address,300);
+ const hasDiscount=input?.discountPercent!==undefined&&input?.discountPercent!==null&&input?.discountPercent!=='';
+ const discountPercent=hasDiscount?Number(input.discountPercent):null;
  if(label.length<2||recipient.length<2||address.length<5||!/^\+?[\d\s().-]{8,30}$/.test(phone))return null;
- return {label,recipient,phone,address,enabled:true};
+ if(hasDiscount&&(!Number.isSafeInteger(discountPercent)||discountPercent<0||discountPercent>70))return null;
+ return {label,recipient,phone,address,enabled:true,...(hasDiscount?{discountPercent}:{})};
 }
 export function matchLocation(profile,message){
  const locations=listLocations(profile),spoken=foldLocation(message);
