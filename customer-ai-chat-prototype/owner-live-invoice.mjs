@@ -63,7 +63,7 @@ export function createOwnerRealInvoice({
    if(parsed?.ok!==true||parsed.action!==action){
     const code=String(parsed?.error?.code||'');
     if(['FORBIDDEN','AUTH_FAILED','REVISION_CONFLICT','PROFILE_MISMATCH',
-      'CATALOGUE_NOT_PERSISTED','REQUEST_ID_CONFLICT','REUSED_REQUEST_ID'].includes(code))
+      'CATALOGUE_NOT_PERSISTED','REQUEST_ID_CONFLICT','REUSED_REQUEST_ID','INVALID_REQUEST'].includes(code))
       fail(code);
     fail('OWNER_BOT_UPSTREAM_REJECTED');
    }
@@ -236,5 +236,5 @@ export function createOwnerRealInvoice({
   intents.set(q.id,{status:'confirmed',fingerprint:digest(q),result});
   return result;
  }
- return Object.freeze({readiness,probeWriter,preview,confirm});
+ return Object.freeze({readiness,probeWriter,preview,confirm,source,bot});
 }

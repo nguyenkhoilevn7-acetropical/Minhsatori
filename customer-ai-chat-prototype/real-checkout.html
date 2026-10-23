@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minh Satori • Đặt hàng thật</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+body{margin:0;background:#071827;color:#f3f8fc}main{max-width:760px;margin:auto;padding:18px}
+h1{font-size:24px;margin-bottom:6px}h2{font-size:18px}
+section{background:#10273c;border:1px solid #28485c;border-radius:18px;padding:18px;margin:18px 0}
+label{display:block;margin:12px 0;font-weight:600}
+input,textarea{box-sizing:border-box;width:100%;border:1px solid #4f728a;border-radius:10px;
+ background:#f8fbff;color:#10253e;padding:12px;font:inherit}
+button{border:0;border-radius:12px;background:#2bbcb0;color:#07232e;padding:13px 18px;
+ font:inherit;font-weight:700;cursor:pointer;min-height:48px}
+button:disabled{opacity:.5;cursor:not-allowed}
+.secondary{background:#254660;color:white}
+.muted{color:#b9cdd9;font-size:14px;line-height:1.6}
+.warning{color:#ffc97b}.success{color:#9bffdc}
+.row{display:flex;align-items:center;gap:12px;justify-content:space-between;border-bottom:1px solid #31506a;padding:12px 0}
+.row input{max-width:86px}.row div{flex:1}
+summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
+</style></head>
+<body><main>
+<h1>MINH SATORI</h1><p class="muted">Đặt hàng trên sổ kế toán thật • Giá theo chính sách được duyệt riêng</p>
+<section id="login"><h2>Nhập mã truy cập riêng</h2>
+<p class="muted">Mã do Minh Satori cung cấp riêng, không nằm trong đường link. Nếu không có mã, liên hệ trực tiếp người quản lý.</p>
+<label>Mã truy cập<input id="code" type="password" autocomplete="off" inputmode="text" maxlength="100"></label>
+<button id="open">Mở bảng giá của tôi</button></section>
+<section id="shop" hidden>
+<h2 id="customerName">Đang tải</h2><p class="muted" id="customerLocation"></p>
+<p class="muted" id="pricing"></p><div id="products"></div>
+<label>Ghi chú giao hàng<textarea id="note" rows="3" maxlength="300" placeholder="Ví dụ: Giao trước 2 giờ chiều"></textarea></label>
+<button id="review">Xem báo giá thật</button>
+</section>
+<section id="reviewPanel" hidden>
+<h2>Kiểm tra đơn trước khi ghi vào sổ</h2>
+<div id="summary"></div>
+<p class="warning">Nhấn xác nhận sẽ tạo đúng một hóa đơn THẬT trên Google Drive. Không phải đơn thử.</p>
+<button id="confirm">XÁC NHẬN ĐẶT HÀNG THẬT</button>
+<button class="secondary" id="edit">Sửa giỏ hàng</button>
+</section>
+<section><p id="status" role="status" aria-live="polite" class="muted">Chưa truy cập bảng giá.</p></section>
+</main>
+<script>
+(()=>{
+ 'use strict';
+ const $=id=>document.getElementById(id);
+ const token=decodeURIComponent(location.hash.slice(1));let code='',quote=null,loading=false;
+ const cash=n=>Number(n||0).toLocaleString('vi-VN')+' đ';
+ const status=(text,kind)=>{$('status').textContent=text;$('status').className=kind||'muted'};
+ const request=async(path,payload)=>{
+  const res=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({token,accessCode:code,...payload}),cache:'no-store',credentials:'omit'});
+  const data=await res.json();
+  if(!res.ok||!data.ok)throw Error(data.message||data.code||'Kết nối thất bại');
+  return data;
+ };
+ async function act(fn){
+  if(loading)return;loading=true;
+  ['open','review','confirm','edit'].forEach(id=>$(id).disabled=true);
+  try{await fn()}catch(e){status('Không thể hoàn tất: '+e.message+
+   '. Nếu đã nhấn xác nhận và không rõ kết quả, KHÔNG gửi lại; hãy liên hệ chủ tài khoản.','warning')}
+  finally{loading=false;['open','review','confirm','edit'].forEach(id=>$(id).disabled=false)}
+ }
+ if(!/^[A-Za-z0-9_.-]{80,8000}$/.test(token)){
+  status('Link chưa hợp lệ hoặc thiếu mã mời. Vui lòng yêu cầu cấp lại.','warning');
+  $('open').disabled=true;return;
+ }
+ $('open').onclick=()=>act(async()=>{
+  code=$('code').value.trim();
+  if(!code)throw Error('Vui lòng nhập mã riêng.');
+  const d=await request('/api/real/catalogue',{});
+  $('customerName').textContent=d.customer.name;
+  $('customerLocation').textContent='Điểm giao cố định: '+d.customer.location;
+  $('pricing').textContent='Chiết khấu '+d.discountPercent+
+   '% • Phí giao '+d.shippingPercent+'% • VAT '+d.vatPercent+'%';
+  const root=$('products');root.replaceChildren();
+  for(const p of d.products){
+   const line=document.createElement('div');line.className='row';
+   const text=document.createElement('div');const name=document.createElement('strong');
+   name.textContent=p.name;
+   const price=document.createElement('p');price.className='muted';
+   price.textContent=cash(p.unitPrice)+' / '+p.unit;
+   text.append(name,price);
+   const label=document.createElement('label');label.textContent='Số lượng';
+   const qty=document.createElement('input');qty.type='number';qty.min='0';qty.max='500';qty.step='1';
+   qty.value='0';qty.dataset.sku=p.code;qty.setAttribute('aria-label','Số lượng '+p.name);
+   label.append(qty);line.append(text,label);root.append(line);
+  }
+  $('login').hidden=true;$('shop').hidden=false;
+  status('Đã xác minh quyền truy cập. Chưa có hóa đơn nào được tạo.','success');
+ });
+ $('review').onclick=()=>act(async()=>{
+  const items=[...document.querySelectorAll('input[data-sku]')]
+   .map(e=>({code:e.dataset.sku,qty:Number(e.value)})).filter(x=>x.qty>0);
+  if(!items.length||items.length>6)throw Error('Chọn 1 đến 6 sản phẩm.');
+  if(items.some(x=>!Number.isSafeInteger(x.qty)||x.qty>500))
+   throw Error('Số lượng không hợp lệ.');
+  const d=await request('/api/real/quote',{items,deliveryNote:$('note').value});
+  quote=d.quoteToken;
+  $('summary').textContent=d.customer.name+' — '+d.customer.location+
+   '\nTiền hàng: '+cash(d.subtotal)+'\nPhí giao: '+cash(d.shippingAmount)+
+   '\nVAT: '+cash(d.vatAmount)+'\nTỔNG: '+cash(d.total);
+  $('reviewPanel').hidden=false;$('shop').hidden=true;
+  status('Đã tạo báo giá thật từ dữ liệu hiện hành. Chưa ghi hóa đơn.');
+ });
+ $('edit').onclick=()=>{$('reviewPanel').hidden=true;$('shop').hidden=false;quote=null};
+ $('confirm').onclick=()=>act(async()=>{
+  if(!quote)throw Error('Chưa có báo giá hợp lệ.');
+  const d=await request('/api/real/confirm',{quoteToken:quote,
+   confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
+  $('reviewPanel').hidden=true;
+  status('ĐÃ GHI THÀNH CÔNG hóa đơn thật #'+d.invoiceNo+
+   ' • Tổng '+cash(d.total)+'. Mã hóa đơn đã được cấp từ hệ thống Minh Satori.','success');
+ });
+})();
+</script>
+</body></html>

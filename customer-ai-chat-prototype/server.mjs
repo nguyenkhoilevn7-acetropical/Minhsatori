@@ -27,6 +27,7 @@ import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
 import {ownerPairAction,probeOwnerPairRead} from './owner-collaborator-pairs.mjs';
 import {createOwnerRealInvoice} from './owner-live-invoice.mjs';
+import {createProductionPrivateLinks} from './production-private-links.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
 import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
@@ -43,6 +44,7 @@ const MODEL='gemini-3.5-flash-lite';
 const EMERGENCY_PREVIEW=process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1';
 const OWNER_ONLY_PILOT=process.env.GEMINI_OWNER_ONLY_REAL_PILOT==='1';
 const ownerInvoice=createOwnerRealInvoice();
+const realPrivateLinks=createProductionPrivateLinks({source:ownerInvoice.source,bot:ownerInvoice.bot});
 const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'minh-satori-customer-chat-SANDBOX'));
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
@@ -258,9 +260,64 @@ const server=http.createServer(async(req,res)=>{
  // URLs are completely blocked when this mode is enabled (not just hidden).
  if(OWNER_ONLY_PILOT&&!(
    p==='/health'||p==='/admin'||p==='/admin/'||
-   p==='/assets/logo-satori.jpg'||p.startsWith('/api/admin/')
+   p==='/assets/logo-satori.jpg'||p.startsWith('/api/admin/')||
+   (realPrivateLinks.readiness().configured===true&&
+    (p==='/real'||p==='/real/'||
+     /^\/api\/real\/(?:catalogue|quote|confirm)$/.test(p)))
  ))return fail(res,403,'OWNER_ONLY_NO_CUSTOMER_ACCESS',
     'Tính năng này đang được chủ tài khoản kiểm thử. Khách chưa được sử dụng.');
+ // Private customer invitations can be issued ONLY after the owner has approved
+ // an exact historical address and pricing policy. The public page is useless
+ // without a second 160-bit access code provided out of band.
+ if(req.method==='GET'&&(p==='/real'||p==='/real/')){
+  if(!realPrivateLinks.readiness().configured)
+   return fail(res,503,'REAL_LINKS_NOT_ENABLED','Chưa bật link khách thật.');
+  const html=fs.readFileSync(path.join(HERE,'real-checkout.html'),'utf8');
+  res.writeHead(200,{'content-type':'text/html; charset=utf-8',
+   'cache-control':'no-store','referrer-policy':'no-referrer',
+   'x-content-type-options':'nosniff','x-frame-options':'DENY',
+   'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"});
+  return res.end(html);
+ }
+ if(p==='/api/admin/real-links/readiness'&&req.method==='GET'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Yêu cầu đăng nhập chủ tài khoản.');
+  return reply(res,200,{ok:true,...realPrivateLinks.readiness()});
+ }
+ if(p==='/api/admin/real-links/issue'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản có quyền cấp link.');
+  if(!rateLimit(req,'owner-real-link-issue'))
+   return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
+  try{
+   const input=await bodyJSON(req,3000);
+   const result=await realPrivateLinks.issue(input);
+   return reply(res,200,result);
+  }catch(e){
+   return fail(res,409,e?.code||'REAL_LINK_ISSUE_FAILED',
+    'Không cấp được link: cần đúng hóa đơn gốc, địa chỉ và giá chủ tài khoản duyệt.');
+  }
+ }
+ if(req.method==='POST'&&/^\/api\/real\/(?:catalogue|quote|confirm)$/.test(p)){
+  if(!realPrivateLinks.readiness().configured)
+   return fail(res,503,'REAL_LINKS_NOT_ENABLED','Hệ thống đặt hàng thật chưa được bật.');
+  if(!rateLimit(req,'private-real-checkout:'+p))
+   return fail(res,429,'RATE_LIMIT','Vui lòng thử lại sau.');
+  try{
+   const input=await bodyJSON(req,12000);
+   let result;
+   if(p==='/api/real/catalogue')result=await realPrivateLinks.catalogue(input);
+   if(p==='/api/real/quote')result=await realPrivateLinks.quote(input);
+   if(p==='/api/real/confirm')result=await realPrivateLinks.confirm(input);
+   return reply(res,200,{ok:true,...result});
+  }catch(e){
+   const code=e?.code||'REAL_CHECKOUT_UNAVAILABLE';
+   const uncertain=code==='REAL_WRITE_UNCERTAIN_RECONCILE_WITH_OWNER';
+   return fail(res,uncertain?503:409,code,uncertain?
+    'Chưa xác minh trạng thái lưu hóa đơn thật. Không gửi lại; hãy liên hệ Minh Satori đối chiếu.':
+    'Không thể thực hiện giao dịch thật; hãy xác minh mã, điểm giao hoặc báo giá lại.');
+  }
+ }
  if(p==='/api/admin/owner-live/readiness'&&req.method==='GET'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Đăng nhập quản trị để xem điều kiện tạo đơn.');

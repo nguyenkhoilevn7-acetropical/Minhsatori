@@ -175,11 +175,11 @@ button:disabled{opacity:.55}
 <div class="customer-link-actions" role="group" aria-label="Lưu nháp và cấp link">
 <button type="button" id="saveRealReview" class="secondary" hidden>✓ Lưu bản nháp địa chỉ &amp; tỷ lệ (trong phiên)</button>
 <button type="submit" id="createButton">🔗 Cấp link cho khách thử</button>
-<button type="button" id="realLinkCheck" hidden>🔗 Kiểm tra cấp link khách thật</button>
-<p id="realLinkBlockReason" class="hint" hidden>Để khách đặt đơn thật và vào sổ kế toán, cần kết nối ghi đơn có xác thực, cấp mã từ sổ và lưu phê duyệt. Phần này chưa được nghiệm thu; không phát hành link giả như link thật.</p>
+<button type="button" id="realLinkCheck" hidden>🔗 Cấp link đặt hàng THẬT cho điểm giao đã chọn</button>
+<p id="realLinkBlockReason" class="hint" hidden>Không cấp link thử dưới tên khách thật. Mỗi điểm giao thật nhận một link riêng, kèm mã truy cập bí mật gửi qua kênh khác. Link chỉ cấp khi backend thật đang bật và anh duyệt rõ giá, VAT, địa chỉ.</p>
 </div>
 <p id="realDraftStatus" class="hint" role="status" hidden></p></form>
-<div id="result" role="status"></div><div id="newLink" hidden><p class="hint">Sao chép ngay link này để chia sẻ. Mất link thì tạo lại; link cũ sẽ hết hiệu lực.</p><div id="linkText" class="link"></div><button id="copyLink" type="button">Sao chép link để gửi Zalo</button></div>
+<div id="result" role="status"></div><div id="newLink" hidden><p class="hint">Giữ link này và mã truy cập riêng. Link thật không tự chứa mã truy cập. Gửi mã qua kênh khác để xác minh người nhận.</p><div id="linkText" class="link"></div><button id="copyLink" type="button">Sao chép link để gửi Zalo</button></div>
 </section>
 <section class="card" data-tab-panel="settings" hidden>
 <h2>🔄 Phiên bản hệ thống</h2>
@@ -809,21 +809,41 @@ for(const field of ['name','phone','address']){
   $('realDraftStatus').textContent='✎ Đang sửa thông tin điểm giao chính — nhớ bấm Lưu bản nháp.';
  });
 }
-$('realLinkCheck').onclick=()=>{
+$('realLinkCheck').onclick=async()=>{
  if(!selectedRealKey)return;
- // Do not generate a test token for real customers or claim orders sync.
- const missing=[];
- if(!$('name').value.trim())missing.push('tên khách');
- if(!$('phone').value.trim())missing.push('số điện thoại');
- if(!$('address').value.trim())missing.push('địa chỉ chính');
- if(!$('discount').value.trim())missing.push('chiết khấu được duyệt');
- if(!$('ship').value.trim())missing.push('phí giao hàng được duyệt');
- if($('vatRate').value==='')missing.push('thuế VAT được xác minh');
- const info=missing.length?'Cần bổ sung: '+missing.join(', ')+'. ':'Các ô chính đã được điền. ';
- $('realDraftStatus').textContent=info+
-  'Chưa thể phát hành link đặt đơn THẬT vì API Gemini hiện mới được cấp quyền đọc 115 hóa đơn, chưa ghi đơn vào sổ kế toán. '+
-  'Không cấp link thử dưới tên khách thật để tránh khách đặt đơn không vào kế toán.';
- $('realDraftStatus').scrollIntoView({behavior:'smooth',block:'nearest'});
+ const b=$('realLinkCheck');b.disabled=true;
+ try{
+  const src=realOriginalLocations[realPrimaryLocationIndex];
+  const invoiceNo=Number(src?.invoiceNos?.[0]);
+  if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1)
+   throw Error('Chưa tìm được số hóa đơn gốc của đúng điểm giao.');
+  const discount=Number($('discount').value),shippingPercent=Number($('ship').value),
+   vatPercent=Number($('vatRate').value);
+  if(!$('discount').value||!Number.isSafeInteger(discount)||discount<0||discount>70||
+     !$('ship').value||!Number.isSafeInteger(shippingPercent)||shippingPercent<0||
+     shippingPercent>30||!['0','5','8','10'].includes($('vatRate').value))
+   throw Error('Anh cần duyệt chiết khấu, phí giao và VAT hợp lệ.');
+  const readiness=await request('/api/admin/real-links/readiness');
+  if(!readiness.configured)throw Error('Backend thật chưa bật: '+(readiness.reason||'cần xác minh HMAC và cổng ghi đơn.'));
+  if(!confirm('CẤP LINK ĐẶT HÀNG THẬT cho '+$('name').value+' tại '+$('address').value+
+   '?\nHóa đơn nguồn #'+invoiceNo+'\nChiết khấu '+discount+
+   '% • Giao hàng '+shippingPercent+'% • VAT '+vatPercent+
+   '%\nLink chỉ có hiệu lực 30 ngày, có mã truy cập riêng. Tiếp tục?'))return;
+  const d=await request('/api/admin/real-links/issue','POST',{
+   confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+   customerRef:{invoiceNo},name:$('name').value.trim(),
+   phone:$('phone').value.trim(),location:$('address').value.trim(),
+   discountPercent:discount,shippingPercent,vatPercent,daysValid:30
+  });
+  lastLink=d.link;$('newLink').hidden=false;$('linkText').textContent=d.link;
+  $('result').textContent='✓ Đã tạo link đặt hàng THẬT cho '+d.customer.name+
+   ' • hóa đơn gốc #'+d.customer.sourceInvoiceNo;
+  $('realDraftStatus').textContent='MÃ TRUY CẬP RIÊNG (CHỈ HIỂN THỊ MỘT LẦN): '+d.accessCode+
+   '. Gửi mã này qua kênh khác với link. Hạn dùng: '+new Date(d.expiresAt).toLocaleString('vi-VN')+
+   '. Mỗi điểm giao cần cấp link riêng.';
+  $('newLink').scrollIntoView({behavior:'smooth',block:'nearest'});
+ }catch(e){$('realDraftStatus').textContent='⚠ Không cấp được link thật: '+e.message}
+ finally{b.disabled=false}
 };
 $('manageSelectedLocations').onclick=()=>{
  const panel=[...document.querySelectorAll('.location-manager')].find(el=>el.dataset.customerId===selectedCustomerId);
@@ -1244,6 +1264,6 @@ $('create').onsubmit=async e=>{e.preventDefault();clearError();
  }catch(err){$('error').textContent=err.message}
  finally{b.disabled=false}
 };
-$('copyLink').onclick=async()=>{try{await navigator.clipboard.writeText(lastLink);$('result').textContent='Đã sao chép link để gửi cho khách thử.'}catch(e){$('result').textContent='Không tự sao chép được. Anh giữ lâu để chọn và sao chép link ở trên.'}};
+$('copyLink').onclick=async()=>{try{await navigator.clipboard.writeText(lastLink);$('result').textContent='Đã sao chép link. Nếu là link thật, gửi mã truy cập bằng kênh riêng.'}catch(e){$('result').textContent='Không tự sao chép được. Anh giữ lâu để chọn và sao chép link ở trên.'}};
 })();
 </script></body></html>
