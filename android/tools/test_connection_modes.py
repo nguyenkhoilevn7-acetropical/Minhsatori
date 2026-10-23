@@ -46,6 +46,18 @@ class ConnectionModeTests(unittest.TestCase):
         self.assertNotIn('putString("accessToken"', SOURCE)
         self.assertNotIn("SATORI_OWNER_CHECKOUT_SECRET", SOURCE)
 
+    def test_owner_only_gemini_buttons_do_not_open_blocked_customer_route(self):
+        home = SOURCE.split('label(hero, "GEMINI • TẠO HÓA ĐƠN THẬT"', 1)[1]
+        section = home.split('if (isLoading)', 1)[0]
+        self.assertIn('putExtra("mode", "admin")', section)
+        self.assertNotIn('putExtra("mode", "customer")', section)
+        self.assertNotIn('XEM TRẢI NGHIỆM ĐẶT HÀNG', section)
+        self.assertIn('GEMINI • QUẢN TRỊ & TẠO HÓA ĐƠN THẬT', section)
+        portal = (Path(__file__).resolve().parent.parent /
+            'app/src/main/java/vn/minhsatori/app/AiCustomerPortalActivity.kt').read_text(encoding='utf-8')
+        self.assertIn('val initialUrl = if (ownerMode) AiSandboxContract.BASE_URL + "/admin"', portal)
+        self.assertIn('Gemini • Quản trị chủ tài khoản', portal)
+
     def test_writes_remain_server_scoped(self):
         self.assertIn('dataSource == "Minh Satori API" && allowedActions.contains(action)', SOURCE)
 
