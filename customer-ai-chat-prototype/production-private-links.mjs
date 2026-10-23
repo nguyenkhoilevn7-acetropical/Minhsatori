@@ -104,12 +104,12 @@ export function createProductionPrivateLinks({
  async function issue(input){
   key();
   if(!input||input.confirmation!=='OWNER_APPROVES_REAL_CUSTOMER_LINK'||
-     !validRef(input.customerRef)||!pct(input.discountPercent)||
+     !(input.customerRef&&Number.isSafeInteger(input.customerRef.invoiceNo)&&input.customerRef.invoiceNo>0)||!pct(input.discountPercent)||
      !pct(input.shippingPercent,30)||![0,5,8,10].includes(input.vatPercent)||
      !Number.isSafeInteger(input.daysValid)||input.daysValid<1||input.daysValid>30)
    throw error('REAL_LINK_APPROVAL_REQUIRED');
   const live=await source(input.customerRef.invoiceNo);
-  if(String(live.customer.id)!==String(input.customerRef.id)||
+  if((input.customerRef.id!=null&&String(live.customer.id)!==String(input.customerRef.id))||
      !cleanText(live.customer.name,150)||!cleanText(live.customer.location,500)||
      digits(live.customer.phone).length<8||
      safe(input.name)!==live.customer.name||
