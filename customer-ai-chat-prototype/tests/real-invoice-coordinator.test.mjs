@@ -25,11 +25,10 @@ const sender=async({mode,checkout})=>{
  if(failNext){failNext=false;throw Object.assign(Error('COMMIT_UNCERTAIN'),{code:'COMMIT_UNCERTAIN'})}
  return {invoiceNo:6012,revision:114,duplicate:false,confirmedByAuthoritativeLedger:true,requestId:checkout.payload.requestId};
 };
-let nextId=0,now=1792700000000;
-const engine=createRealInvoiceCoordinator({resolveTrusted:async(s)=>{
- assert.equal(s,'signed-cookie');
- return current;
-},intentStore:store,send:sender,now:()=>now,
+let nextId=0,now=1792700000000,sessionAllowed=true;
+const engine=createRealInvoiceCoordinator({resolveTrusted:async(s)=>
+ s==='signed-cookie'&&sessionAllowed?current:null,
+ intentStore:store,send:sender,now:()=>now,
  newId:()=>String(++nextId).padStart(32,'0')});
 async function error(code,fn){await assert.rejects(fn,e=>e.code===code,'expected '+code)}
 const quote=await engine.preview({session:'signed-cookie',lines:[{code:'TP-00003',qty:10}],
@@ -43,6 +42,19 @@ const receipt=await engine.confirm({session:'signed-cookie',quoteId:quote.quoteI
 assert.equal(receipt.invoiceNo,6012);assert.equal(sends,1);
 const duplicate=await engine.confirm({session:'signed-cookie',quoteId:quote.quoteId,confirmedByCustomer:true});
 assert.equal(duplicate.duplicate,true);assert.equal(sends,1,'second click must NEVER resend');
+// An attacker with only the quote ID must NEVER read the cached real bill.
+await error('TRUSTED_CONTEXT_UNAVAILABLE',()=>engine.confirm({session:'stolen-quote-id',
+ quoteId:quote.quoteId,confirmedByCustomer:true}));
+sessionAllowed=false;
+await error('TRUSTED_CONTEXT_UNAVAILABLE',()=>engine.confirm({session:'signed-cookie',
+ quoteId:quote.quoteId,confirmedByCustomer:true}));
+sessionAllowed=true;
+current={...context,customer:{...customer,approvedDiscountPercent:40}};
+await error('CUSTOMER_OR_PRICE_CHANGED',()=>engine.confirm({session:'signed-cookie',
+ quoteId:quote.quoteId,confirmedByCustomer:true}));
+current=context;
+assert.equal(sends,1,'rejected receipt reads never resend');
+
 const uncertainty=await engine.preview({session:'signed-cookie',lines:[{code:'TP-00003',qty:1}]});
 failNext=true;
 await error('COMMIT_UNCERTAIN',()=>engine.confirm({session:'signed-cookie',

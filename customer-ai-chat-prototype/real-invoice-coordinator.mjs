@@ -101,14 +101,16 @@ export function createRealInvoiceCoordinator({
   if(!safeId(quoteId)||confirmedByCustomer!==true)reject('CONFIRMATION_REQUIRED');
   const item=await intentStore.get(quoteId);
   if(!item)reject('QUOTE_NOT_FOUND');
+  // Quote IDs are not authentication tokens. Revalidate the server-side owner/
+  // customer session BEFORE returning a confirmed receipt, not just on first send.
+  const ctx=trusted(await resolveTrusted(session));
+  if(ctx.sessionKey!==item.sessionKey||contextIdentity(ctx)!==item.contextHash)
+   reject('CUSTOMER_OR_PRICE_CHANGED');
   // Already confirmed quotes are not resent to the Bot API, and uncertain
   // quotes are frozen until an authorised reconciliation using the SAME id.
   if(item.status==='confirmed')return Object.freeze({...item.receipt,duplicate:true});
   if(item.status!=='pending')reject('COMMIT_UNCERTAIN_RECONCILE');
   if(item.expiresAt<=now())reject('QUOTE_EXPIRED');
-  const ctx=trusted(await resolveTrusted(session));
-  if(ctx.sessionKey!==item.sessionKey||contextIdentity(ctx)!==item.contextHash)
-   reject('CUSTOMER_OR_PRICE_CHANGED');
   if(ctx.revision!==item.revision)reject('QUOTE_STALE');
   const price=basket(item.lines,ctx);
   if(price.total!==item.total)reject('QUOTE_STALE');
