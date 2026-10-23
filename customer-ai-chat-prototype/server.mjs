@@ -475,6 +475,11 @@ const server=http.createServer(async(req,res)=>{
      input.shippingPercent<0||input.shippingPercent>30||
      ![0,5,8,10].includes(input.vatPercent))
    return fail(res,400,'CTV_SETUP_INVALID','Cần duyệt đúng CTV, điểm giao, hai mức CK, phí giao và VAT.');
+  const credentialState=ownerPairConfigReadiness(),linkState=ctvSingleLink.readiness();
+  if(credentialState.configure.ready!==true||credentialState.mark.ready!==true||
+     credentialState.orderWrite.ready!==true||linkState.enabled!==true)
+   return fail(res,503,'CTV_ACTIVATION_NOT_READY',
+    'Thiếu cấu hình HMAC quyền duyệt/ghi hoặc khóa link CTV. Chưa ghi CTV và không tạo khách mới.');
   try{
    // Read scope must work before making any write. This is not a TEST invoice.
    await ownerPairAction('collaborators.pair.list',{});

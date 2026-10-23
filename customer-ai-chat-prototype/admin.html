@@ -177,8 +177,30 @@ button:disabled{opacity:.55}
 <p class="hint">Chọn bất kỳ khách nào có hồ sơ trong sổ thật, xác minh địa chỉ và chiết khấu rồi bấm duyệt. Không giới hạn một CTV.</p>
 <label for="ctvCandidate">Khách hàng muốn chuyển thành CTV</label>
 <select id="ctvCandidate"><option value="">— Chọn khách trong sổ thật —</option></select>
-<button type="button" id="ctvAdd">＋ Thêm CTV</button>
-<p id="ctvAddGuide" class="hint" role="status">Nếu chưa thấy khách trong danh sách, tìm theo tên ở phần Hồ sơ khách hàng bên dưới.</p>
+<label for="ctvSearchName">Hoặc tìm tên khách trong sổ thật</label>
+<input id="ctvSearchName" autocomplete="off" maxlength="120" placeholder="Tên khách muốn thêm làm CTV">
+<button type="button" id="ctvAdd">＋ Chọn khách làm CTV</button>
+<p id="ctvAddGuide" class="hint" role="status">Chọn khách đã có, không tạo hồ sơ hoặc hóa đơn mới.</p>
+<div id="ctvWizard" hidden>
+<h3 id="ctvWizardHeading">Duyệt CTV và các điểm giao</h3>
+<p class="hint">Tích đúng những địa chỉ thuộc CTV. Dữ liệu lấy từ hóa đơn có sẵn, không phải khách hàng mới.</p>
+<div id="ctvWizardLocations"></div>
+<div class="row">
+<label>CK khách (%)<input id="ctvWizardCustomerDiscount" type="number" min="0" max="70" value="20"></label>
+<label>CK CTV (%)<input id="ctvWizardCollaboratorDiscount" type="number" min="0" max="70" value="35"></label>
+</div>
+<div class="row">
+<label>Phí giao (%)<input id="ctvWizardShipping" type="number" min="0" max="30" value="8"></label>
+<label>VAT (%)<select id="ctvWizardVat"><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></label>
+</div>
+<button type="button" id="ctvWizardConfirm">✅ XÁC NHẬN CTV &amp; CẤP 1 LINK THẬT</button>
+<p id="ctvWizardResult" class="ctv-save-status" role="status" aria-live="polite"></p>
+<div id="ctvWizardIssued" hidden>
+<div id="ctvWizardLink" class="link"></div>
+<p id="ctvWizardAccessCode" class="hint"></p>
+<button type="button" id="ctvWizardCopyLink" class="secondary">Sao chép link CTV</button>
+</div>
+</div>
 </div>
 <details id="ctvPolicyDetails"><summary>⚙️ Chỉnh chương trình & chiết khấu CTV đã có</summary>
 <fieldset id="pairConfigFields" disabled><legend>Chính sách hai hóa đơn</legend>
@@ -542,16 +564,99 @@ function syncCtvCandidate(){
  }
  if([...select.options].some(o=>o.value===old))select.value=old;
 }
+let ctvDraft=null,ctvIssuedLink='';
+function clearCtvWizard(){
+ ctvDraft=null;ctvIssuedLink='';
+ $('ctvWizard').hidden=true;$('ctvWizardLocations').replaceChildren();
+ $('ctvWizardIssued').hidden=true;$('ctvWizardResult').textContent='';
+}
+$('ctvCandidate').onchange=()=>{clearCtvWizard();$('ctvSearchName').value=''};
+$('ctvSearchName').oninput=()=>{clearCtvWizard();$('ctvCandidate').value=''};
 $('ctvAdd').onclick=async()=>{
- const key=$('ctvCandidate').value,c=realCustomers.find(x=>x.key===key);
- if(!c){
-  $('ctvAddGuide').textContent='Hãy chọn khách trong danh sách hoặc nhập tên ở ô Tìm khách phía dưới.';
-  $('customerSearch').scrollIntoView({behavior:'smooth',block:'center'});
-  $('customerSearch').focus();return;
+ clearCtvWizard();
+ const c=realCustomers.find(v=>v.key===$('ctvCandidate').value);
+ const name=(c?.name||$('ctvSearchName').value).trim();
+ if(name.length<2){$('ctvAddGuide').textContent='Chọn hoặc nhập tên khách trong sổ thật.';return}
+ const existing=pairCollaborators.find(v=>v.active===true&&normalized(v.name)===normalized(name));
+ if(existing){
+  $('ctvAddGuide').textContent='Khách này đã là CTV, không tạo trùng. Mở chương trình bên dưới để cấp link.';
+  $('pairPartner').value=existing.id;updatePairControls();$('ctvPolicyDetails').open=true;
+  $('ctvPolicyDetails').scrollIntoView({behavior:'smooth',block:'center'});return;
  }
- $('ctvAddGuide').textContent='Đang mở hồ sơ thật của '+c.name+'. Kiểm tra điểm giao và bấm “Bật CỘNG TÁC VIÊN” ở cuối hồ sơ để lưu duyệt.';
- await selectRealCustomer(key==='brand:traky'?'Traky':c.name,key);
- $('customerManagement').scrollIntoView({behavior:'smooth',block:'start'});
+ const b=$('ctvAdd');b.disabled=true;
+ $('ctvAddGuide').textContent='Đang đọc địa chỉ từ sổ thật (không tạo khách mới)…';
+ try{
+  const d=await request('/api/admin/customer-directory?mode=detail&name='+encodeURIComponent(name));
+  const p=d.selected;
+  if(!p||!Array.isArray(p.places)||!p.places.length)throw Error('Không tìm thấy điểm giao trong hóa đơn thật.');
+  if(![p.name,...(p.aliases||[])].some(v=>normalized(v)===normalized(name)))
+   throw Error('Tên khách nguồn chưa khớp khách được chọn.');
+  const used=new Set(),places=[];
+  for(const x of p.places){
+   const invoiceNo=Number(x.invoiceNos?.[0]);
+   if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1||used.has(invoiceNo))continue;
+   used.add(invoiceNo);places.push({invoiceNo,name:x.name||p.name,address:x.address||'',phone:x.phone||''});
+  }
+  if(!places.length||places.length>20)throw Error('Cần 1–20 địa chỉ giao hợp lệ từ sổ thật.');
+  ctvDraft={name:p.name,places};
+  $('ctvWizardHeading').textContent='CTV: '+p.name+' • '+places.length+' điểm giao có sẵn';
+  for(const x of places){
+   const label=document.createElement('label');label.style.display='flex';label.style.gap='10px';label.style.alignItems='flex-start';
+   const box=document.createElement('input');box.type='checkbox';box.style.width='auto';box.value=String(x.invoiceNo);
+   box.dataset.ctvSourceInvoice='1';label.append(box,document.createTextNode('#'+x.invoiceNo+' • '+x.name+' • '+x.address+' • '+x.phone));
+   $('ctvWizardLocations').append(label);
+  }
+  $('ctvWizard').hidden=false;
+  $('ctvAddGuide').textContent='Đã tải khách từ sổ thật. Tích địa chỉ đúng, xác nhận để nhận link ngay tại đây.';
+ }catch(e){$('ctvAddGuide').textContent='⚠ '+e.message+' Không tạo khách mới.'}
+ finally{b.disabled=false}
+};
+$('ctvWizardConfirm').onclick=async()=>{
+ if(!ctvDraft)return;
+ const nums=[...$('ctvWizardLocations').querySelectorAll('input[data-ctv-source-invoice]:checked')].map(v=>Number(v.value));
+ const [customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent]=
+ ['ctvWizardCustomerDiscount','ctvWizardCollaboratorDiscount','ctvWizardShipping','ctvWizardVat'].map(k=>Number($(k).value));
+ if(!nums.length||nums.length>20||new Set(nums).size!==nums.length||
+    ![customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent].every(Number.isSafeInteger)||
+    customerDiscountPercent<0||customerDiscountPercent>70||
+    collaboratorDiscountPercent<=customerDiscountPercent||collaboratorDiscountPercent>70||
+    shippingPercent<0||shippingPercent>30||![0,5,8,10].includes(vatPercent)){
+  $('ctvWizardResult').textContent='Chọn 1–20 điểm giao và kiểm tra các tỷ lệ chiết khấu, phí giao, VAT.';return;
+ }
+ const b=$('ctvWizardConfirm');b.disabled=true;
+ $('ctvWizardResult').textContent='Đang kiểm tra quyền HMAC trước khi lưu…';
+ try{
+  const readiness=await request('/api/admin/collaborator-pairs/readiness');
+  if(!readiness.credentials?.configure?.ready||!readiness.credentials?.mark?.ready||
+     !readiness.credentials?.orderWrite?.ready||!readiness.linkIssuance?.enabled)
+   throw Error('Render chưa đủ HMAC duyệt/ghi và khóa link CTV. CHƯA ghi hoặc tạo hồ sơ mới.');
+  if(!confirm('BẬT CTV THẬT cho '+ctvDraft.name+'?\\n'+nums.length+
+   ' điểm giao; CK khách '+customerDiscountPercent+'%, CK CTV '+collaboratorDiscountPercent+
+   '%.\\nLưu chương trình và cấp MỘT link ngay, không tạo khách mới.'))return;
+  $('ctvWizardResult').textContent='Đang lưu CTV và cấp link thật. Không bấm lại.';
+  const d=await request('/api/admin/ctv-activate','POST',{
+   confirmation:'OWNER_ACTIVATES_COLLABORATOR',sourceInvoiceNo:nums[0],destinationInvoiceNos:nums,
+   customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent
+  });
+  await loadPairPolicies(true);
+  const saved=pairPolicies.find(p=>p.collaboratorId===d.collaboratorId&&p.enabled===true);
+  const actual=(saved?.authorizedDestinations||[]).map(x=>x.invoiceNo).sort((a,b)=>a-b);
+  if(!saved||JSON.stringify(actual)!==JSON.stringify([...nums].sort((a,b)=>a-b)))
+   throw Error('Chưa xác minh được đủ địa chỉ trong sổ Drive. Không bấm lưu lại.');
+  if(!d.linkEnabled||!d.invitation?.url||!d.invitation?.accessCode)
+   throw Error('Đã lưu chính sách nhưng cổng link chưa sẵn sàng. Không tạo khách trùng.');
+  ctvIssuedLink=d.invitation.url;
+  $('ctvWizardLink').textContent=ctvIssuedLink;
+  $('ctvWizardAccessCode').textContent='Mã truy cập CTV, gửi riêng cho CTV: '+d.invitation.accessCode;
+  $('ctvWizardIssued').hidden=false;
+  $('ctvWizardResult').textContent='✅ ĐÃ DUYỆT VÀ CẤP 1 LINK THẬT • '+ctvDraft.name+' • '+nums.length+' điểm giao.';
+ }catch(e){$('ctvWizardResult').textContent='⚠ '+e.message+' Nếu trạng thái ghi chưa rõ, đọc sổ trước, không bấm lại.'}
+ finally{b.disabled=false}
+};
+$('ctvWizardCopyLink').onclick=async()=>{
+ if(!ctvIssuedLink)return;
+ try{await navigator.clipboard.writeText(ctvIssuedLink);$('ctvWizardResult').textContent='Đã sao chép link, gửi mã truy cập riêng.'}
+ catch{$('ctvWizardResult').textContent='Nhấn giữ vào link để sao chép.'}
 };
 async function loadPairPolicies(preserveResult=false){
  const result=$('pairResult'),state=$('pairState'),form=$('pairConfigFields'),
@@ -737,7 +842,7 @@ function markRealMode(enabled){
  $('realCustomerLinkWarning').hidden=!enabled;
  $('realLinkBlockReason').hidden=!enabled;
  $('realLinkCheck').hidden=!enabled;
- $('activateCtv').hidden=!enabled;
+ $('activateCtv').hidden=true;
  $('ctvLocationChoices').hidden=!enabled;
  $('ctvDiscountLabel').hidden=!enabled;
  $('ctvHelp').hidden=!enabled;
