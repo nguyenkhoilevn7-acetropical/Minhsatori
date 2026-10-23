@@ -28,6 +28,7 @@ import {ownerLiveLookup} from './owner-live-lookup.mjs';
 import {ownerPairAction,probeOwnerPairRead} from './owner-collaborator-pairs.mjs';
 import {createOwnerRealInvoice} from './owner-live-invoice.mjs';
 import {createProductionPrivateLinks} from './production-private-links.mjs';
+import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
 import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
@@ -45,6 +46,17 @@ const EMERGENCY_PREVIEW=process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1';
 const OWNER_ONLY_PILOT=process.env.GEMINI_OWNER_ONLY_REAL_PILOT==='1';
 const ownerInvoice=createOwnerRealInvoice();
 const realPrivateLinks=createProductionPrivateLinks({source:ownerInvoice.source,bot:ownerInvoice.bot});
+const ctvSingleLink=createCollaboratorSingleLink({
+ policyList:()=>ownerPairAction('collaborators.pair.list',{}),
+ invoiceSource:ownerInvoice.source,
+ createPair:payload=>ownerPairAction('orders.create.pair',payload),
+ invoiceLookup:async invoiceNo=>{
+  const result=await ownerInvoice.bot('orders.list',{query:String(invoiceNo),limit:100});
+  if(!Array.isArray(result.data?.orders)||result.data?.totalMatches>100)
+   throw Error('CTV_INVOICE_SEARCH_INCOMPLETE');
+  return result.data.orders;
+ }
+});
 const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'minh-satori-customer-chat-SANDBOX'));
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
@@ -263,7 +275,9 @@ const server=http.createServer(async(req,res)=>{
    p==='/assets/logo-satori.jpg'||p.startsWith('/api/admin/')||
    (realPrivateLinks.readiness().configured===true&&
     (p==='/real'||p==='/real/'||
-     /^\/api\/real\/(?:catalogue|quote|confirm)$/.test(p)))
+     /^\/api\/real\/(?:catalogue|quote|confirm)$/.test(p)))||
+   (ctvSingleLink.readiness().enabled===true&&
+    (p==='/ctv'||p==='/ctv/'||/^\/api\/ctv\/(?:catalogue|quote|confirm|pdf\/(?:customer|collaborator))$/.test(p)))
  ))return fail(res,403,'OWNER_ONLY_NO_CUSTOMER_ACCESS',
     'Tính năng này đang được chủ tài khoản kiểm thử. Khách chưa được sử dụng.');
  // Private customer invitations can be issued ONLY after the owner has approved
@@ -278,6 +292,54 @@ const server=http.createServer(async(req,res)=>{
    'x-content-type-options':'nosniff','x-frame-options':'DENY',
    'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"});
   return res.end(html);
+ }
+ // The public CTV portal is one link per marked account, never per location.
+ // It exposes no raw source ledger and no internal 35% invoice to recipients.
+ if(req.method==='GET'&&(p==='/ctv'||p==='/ctv/')){
+  if(!ctvSingleLink.readiness().enabled)
+   return fail(res,503,'CTV_PORTAL_NOT_READY','Chưa thể cấp link CTV thật.');
+  const html=fs.readFileSync(path.join(HERE,'ctv-order.html'),'utf8');
+  res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store',
+   'referrer-policy':'no-referrer','x-content-type-options':'nosniff',
+   'x-frame-options':'DENY',
+   'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"});
+  return res.end(html);
+ }
+ if(req.method==='GET'&&p==='/api/admin/ctv-links/readiness'){
+  if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần xác thực quản trị.');
+  return reply(res,200,{ok:true,...ctvSingleLink.readiness()});
+ }
+ if(req.method==='POST'&&p==='/api/admin/ctv-links/issue'){
+  if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được cấp link CTV.');
+  if(!rateLimit(req,'owner-ctv-link-issue'))return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
+  try{
+   const input=await bodyJSON(req,1024);
+   return reply(res,200,{ok:true,...await ctvSingleLink.issue(input)});
+  }catch(e){return fail(res,409,e?.code||'CTV_LINK_ISSUE_FAILED',
+   'CTV chưa được phê duyệt đầy đủ hoặc Bot API chưa có quyền; chưa cấp link.')}
+ }
+ if(req.method==='POST'&&/^\/api\/ctv\/(?:catalogue|quote|confirm|pdf\/(?:customer|collaborator))$/.test(p)){
+  if(!ctvSingleLink.readiness().enabled)
+   return fail(res,503,'CTV_NOT_READY','Cổng CTV chưa được bật.');
+  if(!rateLimit(req,'ctv-private:'+p))return fail(res,429,'RATE_LIMIT','Thử lại sau.');
+  try{
+   const input=await bodyJSON(req,12000);
+   if(p==='/api/ctv/catalogue')return reply(res,200,{ok:true,...await ctvSingleLink.catalogue(input)});
+   if(p==='/api/ctv/quote')return reply(res,200,{ok:true,...await ctvSingleLink.quote(input)});
+   if(p==='/api/ctv/confirm')return reply(res,200,{ok:true,...await ctvSingleLink.confirm(input)});
+   const role=p.endsWith('/customer')?'customer':'collaborator';
+   const pdfData=await ctvSingleLink.invoiceForPdf(input,role);
+   const buf=await generatePdf(pdfData);
+   res.writeHead(200,{'content-type':'application/pdf','cache-control':'private, no-store',
+    'referrer-policy':'no-referrer','x-content-type-options':'nosniff',
+    'content-disposition':'inline; filename="MinhSatori-'+role+'-'+pdfData.invoiceNo+'.pdf"'});
+   return res.end(buf);
+  }catch(e){
+   const unknown=e?.code==='CTV_COMMIT_UNCERTAIN_CHECK_LEDGER';
+   return fail(res,unknown?503:409,e?.code||'CTV_ACTION_FAILED',
+    unknown?'Trạng thái ghi hóa đơn chưa rõ: không gửi lại, cần đối chiếu sổ.':
+    'Yêu cầu bị từ chối: kiểm tra quyền CTV, điểm giao hoặc báo giá.');
+  }
  }
  if(p==='/api/admin/real-links/readiness'&&req.method==='GET'){
   if(!customerLinks.adminAuthorized(req))
