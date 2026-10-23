@@ -4,6 +4,7 @@ on:
     branches:
       - 'prototype/customer-ai-gemini-free-20261020'
     paths:
+      - 'customer-ai-chat-prototype/**'
       - '.github/workflows/agency-link-offline.yml'
   pull_request:
     paths:
