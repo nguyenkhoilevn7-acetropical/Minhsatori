@@ -145,6 +145,18 @@ object MobileApiClient {
         return MobileSnapshot(SatoriData.fromDriveState(data.toString()), actions, actor)
     }
 
+    /**
+     * Minimal owner-authorized revision probe. Unlike mobile.snapshot, this
+     * never transfers customer rows when the ledger hasn't changed.
+     */
+    fun revision(endpoint: String, token: String): Long {
+        val data = request(endpoint, token, "mobile.revision").getJSONObject("data")
+        val revision = data.optString("revision").toLongOrNull()
+            ?: throw IOException("Mobile API không trả về revision hợp lệ.")
+        if (revision < 1L) throw IOException("Mobile API trả revision không hợp lệ.")
+        return revision
+    }
+
     fun trash(endpoint: String, token: String): JSONObject =
         request(endpoint, token, "mobile.trash").getJSONObject("data")
 }
