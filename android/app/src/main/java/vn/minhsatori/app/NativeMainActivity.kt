@@ -83,6 +83,8 @@ class NativeMainActivity : AppCompatActivity() {
     private var lastDriveVersion: Long? = null
     private var lastVersionProbeElapsedMs = 0L
     private var isCheckingVersion = false
+    private var isCheckingMobileRevision = false
+    private var lastMobileRevisionProbeElapsedMs = 0L
     private var lastOnlineReadElapsedMs = 0L
     private var lastSyncAttemptElapsedMs = 0L
     private var authorizationPending = false
@@ -98,6 +100,12 @@ class NativeMainActivity : AppCompatActivity() {
                     accessToken != null) {
                     if (AutoSyncPolicy.due(lastVersionProbeElapsedMs,
                             SystemClock.elapsedRealtime(), syncIntervalMs)) checkDriveVersion()
+                } else if (preferredSource() == AutoSyncPolicy.MOBILE_API &&
+                    dataSource == "Minh Satori API" &&
+                    allowedActions.contains("mobile.revision") && accessToken != null) {
+                    if (AutoSyncPolicy.due(lastMobileRevisionProbeElapsedMs,
+                            SystemClock.elapsedRealtime(), syncIntervalMs))
+                        checkMobileRevision()
                 } else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
                         SystemClock.elapsedRealtime(), fallbackReadMs)) {
                     syncPreferredSource()
@@ -242,6 +250,10 @@ class NativeMainActivity : AppCompatActivity() {
         if (!isLoading && !authorizationPending && !authorizationDeclined) {
             if (preferredSource() == AutoSyncPolicy.DRIVE && snapshot != null &&
                 accessToken != null) checkDriveVersion()
+            else if (preferredSource() == AutoSyncPolicy.MOBILE_API &&
+                dataSource == "Minh Satori API" &&
+                allowedActions.contains("mobile.revision") && accessToken != null)
+                checkMobileRevision()
             else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
                     SystemClock.elapsedRealtime(), fallbackReadMs)) syncPreferredSource()
         }
@@ -1703,6 +1715,48 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    /**
+     * Production owner Mobile API: compare canonical Drive ledger revision
+     * without transferring customer records on every timer tick.
+     */
+    private fun checkMobileRevision() {
+        if (!foreground || isLoading || isCheckingMobileRevision ||
+            authorizationPending || authorizationDeclined ||
+            preferredSource() != AutoSyncPolicy.MOBILE_API) return
+        val endpoint = apiEndpoint ?: return
+        val token = accessToken ?: return
+        val current = snapshot ?: run { refreshFromMobileApi(); return }
+        if (!allowedActions.contains("mobile.revision")) return
+        isCheckingMobileRevision = true
+        lastMobileRevisionProbeElapsedMs = SystemClock.elapsedRealtime()
+        Thread {
+            val latest = runCatching { MobileApiClient.revision(endpoint, token) }
+            runOnUiThread {
+                isCheckingMobileRevision = false
+                if (!foreground || accessToken != token || apiEndpoint != endpoint ||
+                    preferredSource() != AutoSyncPolicy.MOBILE_API) return@runOnUiThread
+                latest.fold(
+                    onSuccess = { revision ->
+                        if (revision != current.revision ||
+                            AutoSyncPolicy.due(lastOnlineReadElapsedMs,
+                                SystemClock.elapsedRealtime(), fallbackReadMs * 10))
+                            refreshFromMobileApi()
+                    },
+                    onFailure = { error ->
+                        statusMessage = "⚠ Mobile API chưa xác minh được đơn mới: " +
+                            (error.message ?: "Lỗi kết nối")
+                        if (error is MobileApiError &&
+                            error.apiCode in setOf("AUTH_FAILED", "FORBIDDEN")) {
+                            accessToken = null
+                            allowedActions = emptySet()
+                        }
+                        render()
+                    }
+                )
+            }
+        }.start()
+    }
+
     private fun refreshFromMobileApi() {
         lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
         val endpoint = apiEndpoint ?: run {
@@ -1727,7 +1781,17 @@ class NativeMainActivity : AppCompatActivity() {
                 isLoading = false
                 outcome.fold(
                     onSuccess = {
+                        val prior = snapshot
+                        if (prior != null && it.snapshot.revision < prior.revision) {
+                            statusMessage = "⚠ Mobile API trả revision cũ. Không ghi đè hóa đơn."
+                            allowedActions = emptySet()
+                            actorId = ""
+                            dataSource = ""
+                            render()
+                            return@runOnUiThread
+                        }
                         snapshot = it.snapshot
+                        lastMobileRevisionProbeElapsedMs = SystemClock.elapsedRealtime()
                         allowedActions = it.allowedActions
                         actorId = it.actorId
                         dataSource = "Minh Satori API"
@@ -1740,10 +1804,11 @@ class NativeMainActivity : AppCompatActivity() {
                         }
                     },
                     onFailure = {
-                        snapshot = null
+                        // Retain the last verified view, but revoke write
+                        // capabilities until a fresh owner snapshot succeeds.
                         allowedActions = emptySet()
                         dataSource = ""
-                        statusMessage = "Không kết nối được Mobile API: " +
+                        statusMessage = "⚠ Không kiểm tra được Mobile API: " +
                             (it.message ?: "không rõ lỗi") +
                             ". Chưa bật chức năng lưu đơn."
                         if (it is MobileApiError &&
