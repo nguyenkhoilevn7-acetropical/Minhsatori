@@ -101,6 +101,17 @@ export function createProductionPrivateLinks({
   catch(e){return {configured:false,customerLinkIssuanceWired:true,reason:e.code||'NO_PRIVATE_KEY',
     backendWriteVerified:false}}
  }
+ async function probeWriteScope(){
+  // The current Bot API checks write scope before validating the empty payload.
+  // Empty payload fails INVALID_REQUEST prior to version check or mutation.
+  // This is a non-mutating scope proof; never create a test invoice in production.
+  try{await bot('orders.create',{});}
+  catch(e){
+   if(e?.code==='INVALID_REQUEST')return true;
+   throw error('REAL_BOT_WRITE_SCOPE_NOT_VERIFIED');
+  }
+  throw error('REAL_BOT_WRITE_PROBE_INVALID');
+ }
  async function issue(input){
   key();
   if(!input||input.confirmation!=='OWNER_APPROVES_REAL_CUSTOMER_LINK'||
@@ -108,6 +119,7 @@ export function createProductionPrivateLinks({
      !pct(input.shippingPercent,30)||![0,5,8,10].includes(input.vatPercent)||
      !Number.isSafeInteger(input.daysValid)||input.daysValid<1||input.daysValid>30)
    throw error('REAL_LINK_APPROVAL_REQUIRED');
+  await probeWriteScope();
   const live=await source(input.customerRef.invoiceNo);
   if((input.customerRef.id!=null&&String(live.customer.id)!==String(input.customerRef.id))||
      !cleanText(live.customer.name,150)||!cleanText(live.customer.location,500)||
