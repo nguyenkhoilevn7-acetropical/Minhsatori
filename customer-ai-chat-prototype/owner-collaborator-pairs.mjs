@@ -95,3 +95,22 @@ export async function probeOwnerPairRead(options={}){
    reason:allowed.has(e?.code)?e.code:'CTV_PAIR_PROBE_FAILED'});
  }
 }
+
+/**
+ * Credentials/configuration health without any network or ledger mutation.
+ * Return fixed categories only: never expose URLs, HMAC keys or secrets.
+ */
+export function ownerPairConfigReadiness({env=process.env}={}){
+ const check=action=>{
+  try{configuration(action,env);return Object.freeze({ready:true,reason:'CONFIGURED'})}
+  catch(e){return Object.freeze({ready:false,reason:[
+   'CTV_PAIR_WRITE_DISABLED','CTV_PAIR_NOT_CONFIGURED'].includes(e?.code)?
+   e.code:'CTV_PAIR_NOT_READY'})}
+ };
+ return Object.freeze({
+  read:check('collaborators.pair.list'),
+  configure:check('collaborators.pair.configure'),
+  mark:check('collaborators.mark'),
+  orderWrite:check('orders.create.pair')
+ });
+}
