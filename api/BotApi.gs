@@ -109,6 +109,8 @@ function removeOrder(s,all,p){
  var found=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo&&String(o.id)===String(p.id)});
  need(found.length===1,'INVALID_ORDER','Hóa đơn không còn tồn tại hoặc mã bị trùng');
  var o=found[0];
+ need(!o.pairGroupId,'PAIRED_ORDER_LOCKED',
+  'Không thể xóa riêng một hóa đơn của cặp CTV; cần xử lý đồng bộ cả cặp');
  need(norm(o.name)===norm(p.expectedName)&&Number(o.total)===p.expectedTotal,
    'ORDER_CHANGED','Tên khách hoặc tổng tiền đã khác');
  need(!['Đã thanh toán','Đã TT Satori'].includes(o.status)&&!o.customerPaidAt,
@@ -548,6 +550,8 @@ function markPaid(s,all,p){
  var match=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo&&(!hasId||String(o.id)===String(p.id))});
  need(match.length===1&&active(match[0]),'INVALID_ORDER','Hóa đơn không duy nhất, không tồn tại hoặc đã hủy');
  var old=match[0];
+ need(old.pairRole!=='collaborator','CTV_INTERNAL_NOT_RECEIVABLE',
+  'Bill CTV nội bộ chỉ để đối soát, không ghi nhận thanh toán khách');
  // For a duplicate invoice number, require the name and total as additional guards.
  if(hasId){
    need(typeof p.expectedName==='string'&&p.expectedName.trim().length>=2&&Number.isFinite(p.expectedTotal),

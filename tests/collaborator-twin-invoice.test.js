@@ -104,6 +104,25 @@ assert.equal(call('orders.list',{query:'CTV thử 01'}).data.totalMatches,2,
 assert.equal(call('orders.list',{query:'Synthetic Customer'}).data.totalMatches,2,
  'buyer search must also find the internal paired invoice for bookkeeping');
 
+const customerOrder=all.find(o=>o.pairRole==='customer');
+const ctvOrder=all.find(o=>o.pairRole==='collaborator');
+const beforeReject=writes;
+const del=call('orders.delete',{expectedRevision:3,requestId:'del-pair-test-01',
+ confirmed:true,id:customerOrder.id,invoiceNo:customerOrder.invoiceNo,
+ expectedName:customerOrder.name,expectedTotal:customerOrder.total});
+assert.equal(del.error.code,'FORBIDDEN','pair deletion also needs owner deletion scope');
+const withDeletion=JSON.parse(props.SATORI_BOT_CLIENTS_JSON);
+withDeletion.bot.scopes.push('orders:delete','payments:write');
+props.SATORI_BOT_CLIENTS_JSON=JSON.stringify(withDeletion);
+assert.equal(call('orders.delete',{expectedRevision:3,requestId:'del-pair-test-02',
+ confirmed:true,id:customerOrder.id,invoiceNo:customerOrder.invoiceNo,
+ expectedName:customerOrder.name,expectedTotal:customerOrder.total}).error.code,'PAIRED_ORDER_LOCKED');
+assert.equal(call('payments.markCustomerPaid',{expectedRevision:3,
+ invoiceNo:ctvOrder.invoiceNo,id:ctvOrder.id,
+ expectedName:ctvOrder.name,expectedTotal:ctvOrder.total,
+ confirmed:true,amount:ctvOrder.total}).error.code,'CTV_INTERNAL_NOT_RECEIVABLE');
+assert.equal(writes,beforeReject,'unsafe pair operations must never write Drive');
+
 const duplicate=call('orders.create.pair',quote);
 assert.equal(duplicate.data.duplicate,true);
 assert.equal(duplicate.data.customerInvoice.invoiceNo,pair.data.customerInvoice.invoiceNo);
