@@ -78,11 +78,11 @@ function pending(s,p){
     if(!Array.isArray(list))fail('Dữ liệu hóa đơn không hợp lệ');
     var cutoff=Date.now()-7*86400000,limit=Math.min(4,Math.max(1,Number(p&&p.limit)||4));
     var found=[];
-    // This HMAC-authenticated endpoint returns only a bounded number of fresh
-    // Bot-created orders, not all customer records or deleted invoices.
+    // Owner's installed time trigger archives newly created saved invoices
+    // from either website or Bot API, without any browser session. Never send
+    // unrelated historical orders or deleted invoices to Render.
     var eligible=list.filter(function(o){
-      return o&&typeof o.apiRequestId==='string'&&o.apiRequestId.length>=8&&
-        Number.isSafeInteger(Number(o.id))&&Number(o.id)>=cutoff&&
+      return o&&Number.isSafeInteger(Number(o.id))&&Number(o.id)>=cutoff&&
         Number.isSafeInteger(Number(o.invoiceNo))&&Number(o.invoiceNo)>0&&
         Number.isSafeInteger(Number(o.total))&&Number(o.total)>=0&&
         Array.isArray(o.items)&&o.items.length>0;
