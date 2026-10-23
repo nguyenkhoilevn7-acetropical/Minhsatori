@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
-import {ownerPairAction,probeOwnerPairRead} from '../owner-collaborator-pairs.mjs';
+import {ownerPairAction,probeOwnerPairRead,ownerPairConfigReadiness} from '../owner-collaborator-pairs.mjs';
 
 const url='https://script.google.com/macros/s/FAKE_SANDBOX_ENDPOINT_0123456789abcde/exec';
 const key='test_owner_scope',secret='OFFLINE_FAKE_HMAC_SECRET_12345678901234567890';
@@ -24,6 +24,12 @@ const fetcher=async (endpoint,req)=>{
    {policy:{collaboratorId:body.payload.collaboratorId,enabled:body.payload.enabled}}
  })};
 };
+const configCheck=ownerPairConfigReadiness({env});
+assert.equal(configCheck.read.ready,true);
+assert.equal(configCheck.configure.ready,false);
+assert.equal(configCheck.configure.reason,'CTV_PAIR_WRITE_DISABLED');
+assert.equal(configCheck.orderWrite.reason,'CTV_PAIR_WRITE_DISABLED');
+assert.equal(ownerPairConfigReadiness({env:{}}).read.reason,'CTV_PAIR_NOT_CONFIGURED');
 const opts={env,fetcher,now:()=>1792700000000,
  nonce:()=> 'owner_nonce_1234567890abcdef'};
 const response=await ownerPairAction('collaborators.pair.list',{},opts);
@@ -77,6 +83,7 @@ assert.equal(JSON.stringify(forbidden).includes('upstream'),false);
 assert.equal((await probeOwnerPairRead({...opts,env:{}})).reason,'CTV_PAIR_NOT_CONFIGURED');
 const server=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
 assert.ok(server.includes("p==='/api/admin/collaborator-pairs/readiness'"));
+assert.ok(server.includes("SATORI_CTV_CONFIGURATION_READINESS"),'startup must report credential readiness without secrets');
 
 const admin=fs.readFileSync(new URL('../admin.html',import.meta.url),'utf8');
 const scripts=[...admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
