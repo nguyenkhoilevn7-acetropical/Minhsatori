@@ -45,7 +45,14 @@ object DriveReadClient {
             if (connection.contentLengthLong > 8192)
                 throw IOException("Phản hồi phiên bản Drive không hợp lệ.")
             val bytes = connection.inputStream.use { input ->
-                input.readNBytes(8193)
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(1024)
+                while (output.size() <= 8192) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    output.write(buffer, 0, n)
+                }
+                output.toByteArray()
             }
             if (bytes.size > 8192) throw IOException("Phản hồi phiên bản Drive quá lớn.")
             val raw = try { JSONObject(String(bytes, Charsets.UTF_8)) }
