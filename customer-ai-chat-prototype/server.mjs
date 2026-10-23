@@ -448,6 +448,77 @@ const server=http.createServer(async(req,res)=>{
    return fail(res,503,e?.code||'CTV_PAIR_NOT_READY','Chưa xác minh được cấu hình hóa đơn đôi trên Bot API.');
   }
  }
+ // Generic, owner-only account activation: ANY verified ledger customer may
+ // become a CTV. One CTV has one link, multiple owner-approved destinations.
+ // No personal names, discounts, or addresses are hard-coded.
+ if(p==='/api/admin/ctv-activate'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị viên được duyệt CTV.');
+  if(EMERGENCY_PREVIEW)
+   return fail(res,503,'PREVIEW_ONLY_NO_WRITES','Không ghi quyền CTV trong bản xem thử.');
+  if(!rateLimit(req,'owner-ctv-activate'))
+   return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
+  let input;
+  try{input=await bodyJSON(req,6000)}catch{return fail(res,400,'INVALID_REQUEST','Thông tin duyệt CTV sai.')}
+  if(!input||input.confirmation!=='OWNER_ACTIVATES_COLLABORATOR'||
+     !Number.isSafeInteger(input.sourceInvoiceNo)||input.sourceInvoiceNo<1||
+     !Array.isArray(input.destinationInvoiceNos)||
+     input.destinationInvoiceNos.length<1||input.destinationInvoiceNos.length>20||
+     input.destinationInvoiceNos.some(n=>!Number.isSafeInteger(n)||n<1)||
+     new Set(input.destinationInvoiceNos).size!==input.destinationInvoiceNos.length||
+     ![input.customerDiscountPercent,input.collaboratorDiscountPercent,input.shippingPercent].every(Number.isSafeInteger)||
+     input.customerDiscountPercent<0||input.customerDiscountPercent>70||
+     input.collaboratorDiscountPercent<=input.customerDiscountPercent||input.collaboratorDiscountPercent>70||
+     input.shippingPercent<0||input.shippingPercent>30||
+     ![0,5,8,10].includes(input.vatPercent))
+   return fail(res,400,'CTV_SETUP_INVALID','Cần duyệt đúng CTV, điểm giao, hai mức CK, phí giao và VAT.');
+  try{
+   // Read scope must work before making any write. This is not a TEST invoice.
+   await ownerPairAction('collaborators.pair.list',{});
+   const numbers=[...new Set([input.sourceInvoiceNo,...input.destinationInvoiceNos])];
+   const verified=await Promise.all(numbers.map(n=>ownerInvoice.source(n)));
+   const revision=verified[0].revision;
+   if(verified.some(x=>x.revision!==revision))
+    return fail(res,409,'CTV_SOURCE_CHANGED','Sổ kế toán thay đổi trong lúc kiểm tra.');
+   const original=verified[0].customer;
+   // Additional destinations may have different recipient or branch names,
+   // but ONLY references explicitly reviewed by the owner may be used.
+   const destinations=input.destinationInvoiceNos.map(n=>{
+    const src=verified[numbers.indexOf(n)].customer;
+    return {id:src.id,invoiceNo:n};
+   });
+   // Fail closed on an attempt to relabel another existing CTV using
+   // the same canonical source invoice without owner review.
+   const marked=await ownerPairAction('collaborators.mark',{
+    requestId:'ctv_mark_'+crypto.randomBytes(16).toString('hex'),
+    expectedRevision:revision,customerRef:{id:original.id,invoiceNo:input.sourceInvoiceNo},
+    enabled:true,confirmed:true
+   });
+   // After mark, use the authoritative revision returned by the committed
+   // ledger. Bot API validates EACH destination before storing the policy.
+   const configured=await ownerPairAction('collaborators.pair.configure',{
+    requestId:'ctv_policy_'+crypto.randomBytes(16).toString('hex'),
+    expectedRevision:marked.revision,collaboratorId:marked.collaboratorId,
+    enabled:true,confirmed:true,
+    authorizedDestinations:destinations,rotateLink:false,
+    customerDiscountPercent:input.customerDiscountPercent,
+    collaboratorDiscountPercent:input.collaboratorDiscountPercent,
+    shippingPercent:input.shippingPercent,vatPercent:input.vatPercent
+   });
+   let invitation=null;
+   try{invitation=await ctvSingleLink.issue({collaboratorId:marked.collaboratorId})}
+   catch{} // A policy can be approved before link/read/write launch gates are ready.
+   return reply(res,200,{ok:true,production:true,collaboratorId:marked.collaboratorId,
+    revision:configured.revision,authorizedDestinations:destinations.length,
+    policyConfigured:true,linkEnabled:Boolean(invitation),
+    ... (invitation?{invitation}:{}),
+    message:invitation?'Đã cấp 1 link CTV dùng cho mọi điểm giao được duyệt.':
+     'Đã lưu vai trò và hai chiết khấu, nhưng chưa phát hành link vì cổng CTV chưa sẵn sàng.'});
+  }catch(e){
+   return fail(res,409,e?.code||'CTV_SETUP_UNCERTAIN_RECONCILE',
+    'Chưa xác minh trạng thái kích hoạt CTV. Không bấm lặp; kiểm tra chính sách trong sổ thật.');
+  }
+ }
  if(p==='/api/admin/collaborator-pairs/configure'&&req.method==='POST'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần quyền quản trị để bật/tắt hóa đơn đôi.');
