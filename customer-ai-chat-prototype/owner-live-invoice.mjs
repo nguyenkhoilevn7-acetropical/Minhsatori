@@ -23,8 +23,12 @@ const secretKey=secret=>crypto.createHash('sha256').update('MINH-SATORI-OWNER-QU
 function policy(env){
  if(env.GEMINI_OWNER_ONLY_REAL_PILOT!=='1'||env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1')
   fail('OWNER_REAL_PILOT_DISABLED');
- const endpoint=clean(env.SATORI_OWNER_CHECKOUT_ENDPOINT||env.SATORI_CTV_PAIR_ENDPOINT);
- const keyId=clean(env.SATORI_OWNER_CHECKOUT_KEY_ID),secret=String(env.SATORI_OWNER_CHECKOUT_SECRET||'');
+ // Reuse an EXISTING server-only Bot writer if provisioned, rather than making
+ // the owner retype the same protected HMAC key into another environment field.
+ // Never use the separate read-only client as a writer.
+ const endpoint=clean(env.SATORI_OWNER_CHECKOUT_ENDPOINT||env.SATORI_BOT_API_URL||env.SATORI_CTV_PAIR_ENDPOINT);
+ const keyId=clean(env.SATORI_OWNER_CHECKOUT_KEY_ID||env.SATORI_BOT_KEY_ID);
+ const secret=String(env.SATORI_OWNER_CHECKOUT_SECRET||env.SATORI_BOT_SECRET||'');
  const adminSecret=String(env.CUSTOMER_LINKS_ADMIN_TOKEN||'');
  if(!urlRx.test(endpoint)||!okId(keyId)||secret.length<32||adminSecret.length<32)
   fail('OWNER_REAL_HMAC_NOT_CONFIGURED');
