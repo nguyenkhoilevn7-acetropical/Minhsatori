@@ -151,10 +151,7 @@ object MobileApiClient {
      */
     fun revision(endpoint: String, token: String): Long {
         val data = request(endpoint, token, "mobile.revision").getJSONObject("data")
-        val revision = data.optString("revision").toLongOrNull()
-            ?: throw IOException("Mobile API không trả về revision hợp lệ.")
-        if (revision < 1L) throw IOException("Mobile API trả revision không hợp lệ.")
-        return revision
+        return LiveSyncPolicy.mobileRevision(data)
     }
 
     fun trash(endpoint: String, token: String): JSONObject =
