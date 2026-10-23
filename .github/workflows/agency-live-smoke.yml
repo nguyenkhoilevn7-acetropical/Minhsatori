@@ -5,6 +5,7 @@ on:
       - 'prototype/customer-ai-gemini-free-20261020'
     paths:
       - '.github/workflows/agency-live-smoke.yml'
+      - 'customer-ai-chat-prototype/**'
   workflow_dispatch:
 permissions:
   contents: read
