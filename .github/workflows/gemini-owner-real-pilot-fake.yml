@@ -1,0 +1,28 @@
+name: Gemini Owner Real Invoice Pilot (fake backend only)
+on:
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/owner-live-invoice.mjs'
+      - 'customer-ai-chat-prototype/server.mjs'
+      - 'customer-ai-chat-prototype/admin.html'
+      - 'customer-ai-chat-prototype/tests/owner-live-invoice.test.mjs'
+      - '.github/workflows/gemini-owner-real-pilot-fake.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verified-owner-checkout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check customer-ai-chat-prototype/server.mjs
+      - run: node --check customer-ai-chat-prototype/owner-live-invoice.mjs
+      - run: node customer-ai-chat-prototype/tests/owner-live-invoice.test.mjs
+      - run: node customer-ai-chat-prototype/tests/collaborator-pair-checkout.test.mjs
+      - run: node customer-ai-chat-prototype/tests/owner-collaborator-pairs.test.mjs
+      - run: node customer-ai-chat-prototype/tests/real-invoice-coordinator.test.mjs
+      - run: echo 'ALL FAKE. No Google production writes and no secret access.'
