@@ -84,6 +84,15 @@ assert.equal((await probeOwnerPairRead({...opts,env:{}})).reason,'CTV_PAIR_NOT_C
 const server=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
 assert.ok(server.includes("p==='/api/admin/collaborator-pairs/readiness'"));
 assert.ok(server.includes("SATORI_CTV_CONFIGURATION_READINESS"),'startup must report credential readiness without secrets');
+assert.ok(server.includes('destinationInvoiceNos.slice(i,i+2)'),
+ 'existing CTV policy must verify 17 destinations in bounded groups');
+assert.ok(!server.includes('Promise.all(destinationInvoiceNos.map('),
+ 'existing CTV path must never flood the Apps Script lock');
+assert.ok(server.includes('CTV_OWNER_POLICY_SAVE_FAILED'),
+ 'policy save errors must have privacy-safe server diagnostics');
+const transport=fs.readFileSync(new URL('../owner-collaborator-pairs.mjs',import.meta.url),'utf8');
+assert.ok(transport.includes("action==='collaborators.pair.list'?12000:30000"),
+ 'Drive-backed policy writes must not use the former 8-second deadline');
 
 const admin=fs.readFileSync(new URL('../admin.html',import.meta.url),'utf8');
 const scripts=[...admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
