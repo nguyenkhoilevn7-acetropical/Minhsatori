@@ -46,7 +46,8 @@ function call(action,payload={}){
 }
 const policy={collaboratorId:'ctv-01',enabled:true,customerDiscountPercent:20,
  collaboratorDiscountPercent:35,shippingPercent:8,vatPercent:0,
- confirmed:true,requestId:'config-ctv-01',expectedRevision:1};
+ confirmed:true,requestId:'config-ctv-01',expectedRevision:1,
+ authorizedDestinations:[{id:'source-customer-01',invoiceNo:9001}]};
 
 
 const noConfig=call('orders.create.pair',{
@@ -56,6 +57,13 @@ const noConfig=call('orders.create.pair',{
 });
 assert.equal(noConfig.error.code,'PAIR_NOT_ENABLED');
 assert.equal(backups,0);assert.equal(writes,0);
+// Only synthetic historical rows, never production Drive data.
+assert.equal(call('collaborators.pair.configure',{...policy,authorizedDestinations:undefined,
+ requestId:'empty-dest-01'}).error.code,'CTV_DESTINATIONS_REQUIRED');
+assert.equal(backups,0);assert.equal(writes,0);
+const seed1={id:'source-customer-01',invoiceNo:9001,name:'Synthetic Customer',
+ phone:'0900000011',location:'123 Fake Test Road',status:'Đã thanh toán',total:0};
+ledger.values.satori_orders_v15=JSON.stringify([seed1]);
 
 const createConfig=call('collaborators.pair.configure',policy);
 assert.equal(createConfig.ok,true);
@@ -67,11 +75,21 @@ assert.equal(call('collaborators.pair.configure',{...policy,enabled:false}).erro
 const v1=createConfig.data.policy.policyVersion;
 
 const quote={expectedRevision:2,requestId:'order-ctv-00001',collaboratorId:'ctv-01',
- expectedPolicyVersion:v1,confirmedNewCustomer:true,
+ expectedPolicyVersion:v1,customerRef:{id:'source-customer-01',invoiceNo:9001},
  order:{name:'Synthetic Customer',phone:'0900000011',location:'123 Fake Test Road',
   items:[{code:'TP-00003',qty:10}],
   deliveryNote:'Giao sớm'}};
 const beforePairBackups=backups,beforePairWrites=writes;
+assert.equal(call('orders.create.pair',{...quote,requestId:'unapproved-01',
+ customerRef:undefined,confirmedNewCustomer:true}).error.code,'CTV_DESTINATION_NOT_APPROVED');
+const savedPolicies=ledger.values.satori_collaborator_pair_policies_v1;
+const invalidPolicies=JSON.parse(savedPolicies);
+invalidPolicies[0].authorizedDestinations=[];
+ledger.values.satori_collaborator_pair_policies_v1=JSON.stringify(invalidPolicies);
+assert.equal(call('orders.create.pair',{...quote,requestId:'legacy-no-dest-01'}).error.code,
+ 'CTV_DESTINATIONS_REQUIRED');
+ledger.values.satori_collaborator_pair_policies_v1=savedPolicies;
+assert.equal(writes,beforePairWrites);
 const pair=call('orders.create.pair',quote);
 assert.equal(pair.ok,true,JSON.stringify(pair.error));
 assert.equal(pair.data.duplicate,false);
@@ -89,6 +107,8 @@ assert.equal(pair.data.collaboratorInvoice.pairInvoiceNo,pair.data.customerInvoi
 assert.equal(backups,beforePairBackups+1,'one Drive backup for both invoices');
 assert.equal(writes,beforePairWrites+1,'one atomic Drive commit for both invoices');
 assert.equal(ledger.revision,3);
+ledger.values.satori_orders_v15=JSON.stringify(JSON.parse(ledger.values.satori_orders_v15)
+ .filter(o=>String(o.id)!=='source-customer-01'));
 const all=JSON.parse(ledger.values.satori_orders_v15);
 assert.equal(all.length,2);assert.equal(new Set(all.map(o=>o.pairGroupId)).size,1);
 const calc=context.SatoriAccountingCore.calculate(all,collaborators);
@@ -133,7 +153,11 @@ assert.equal(call('orders.create.pair',{...quote,order:{...quote.order,items:[{c
 assert.equal(call('orders.create.pair',{...quote,order:{...quote.order,phone:'0900000099'}}).error.code,'REQUEST_ID_CONFLICT');
 assert.equal(call('orders.create',quote).error.code,'FORBIDDEN');
 
+const seed2={id:'source-customer-02',invoiceNo:9004,name:'Another Fake Customer',
+ phone:'0900000033',location:'456 Example Road',status:'Đã thanh toán',total:0};
+ledger.values.satori_orders_v15=JSON.stringify([...JSON.parse(ledger.values.satori_orders_v15),seed2]);
 const policy2={...policy,collaboratorId:'ctv-02',
+ authorizedDestinations:[{id:'source-customer-02',invoiceNo:9004}],
  customerDiscountPercent:10,collaboratorDiscountPercent:30,
  shippingPercent:0,requestId:'config-ctv-02',expectedRevision:3};
 const secondConfig=call('collaborators.pair.configure',policy2);
@@ -144,10 +168,13 @@ assert.equal(call('collaborators.pair.list').data.collaborators.length,2);
 assert.equal(call('collaborators.pair.list').data.collaborators[0].name,'CTV thử 01');
 const secondOrder={...quote,requestId:'order-ctv-00002',expectedRevision:4,
  collaboratorId:'ctv-02',expectedPolicyVersion:secondConfig.data.policy.policyVersion,
+ customerRef:{id:'source-customer-02',invoiceNo:9004},
  order:{...quote.order,name:'Another Fake Customer',phone:'0900000033',location:'456 Example Road',
   items:[{code:'TP-00136',qty:3}]}};
 const other=call('orders.create.pair',secondOrder);
 assert.equal(other.ok,true);
+ledger.values.satori_orders_v15=JSON.stringify(JSON.parse(ledger.values.satori_orders_v15)
+ .filter(o=>String(o.id)!=='source-customer-02'));
 assert.equal(other.data.customerInvoice.total,297000);
 assert.equal(other.data.collaboratorInvoice.total,231000);
 assert.equal(other.data.difference,66000);
@@ -158,7 +185,8 @@ assert.equal(call('debt.summary').data.orders,2);
 assert.equal(call('debt.summary').data.excludedReferenceCount,2);
 
 const disabled=call('collaborators.pair.configure',{...policy,
- requestId:'disable-ctv-01',enabled:false,expectedRevision:5});
+ requestId:'disable-ctv-01',enabled:false,expectedRevision:5,
+ authorizedDestinations:undefined});
 assert.equal(disabled.ok,true);
 const disabledOrder=call('orders.create.pair',{...quote,requestId:'order-ctv-00003',
  expectedRevision:6,expectedPolicyVersion:disabled.data.policy.policyVersion});
