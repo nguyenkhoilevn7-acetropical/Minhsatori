@@ -236,5 +236,5 @@ export function createOwnerRealInvoice({
   intents.set(q.id,{status:'confirmed',fingerprint:digest(q),result});
   return result;
  }
- return Object.freeze({readiness,probeWriter,preview,confirm});
+ return Object.freeze({readiness,probeWriter,preview,confirm,source,bot});
 }
