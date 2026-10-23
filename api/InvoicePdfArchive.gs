@@ -17,8 +17,13 @@ var SatoriInvoicePdfArchive=(function(){
     return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
       .map(function(b){return ('0'+(b&255).toString(16)).slice(-2);}).join('');
   }
-  function archive(p){
-    requireOwner_();
+  function archive(p,fromOwnerTrigger){
+    if(fromOwnerTrigger===true){
+      // Clock triggers have no interacting browser user. They execute as the
+      // owner who created the installed trigger, not the anonymous caller.
+      var effective=Session.getEffectiveUser().getEmail().toLowerCase();
+      if(effective!==String(OWNER_EMAIL).toLowerCase())fail('Sai chủ sở hữu tác vụ PDF');
+    }else requireOwner_();
     if(!p||typeof p!=='object')fail('Thiếu nội dung PDF.');
     var no=Number(p.invoiceNo),total=Number(p.total);
     if(!Number.isSafeInteger(no)||no<1||!Number.isSafeInteger(total)||total<0||
