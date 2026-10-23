@@ -206,6 +206,13 @@ button:disabled{opacity:.55}
 <p class="hint">Để tắt một chương trình đã bật: bỏ chọn ô BẬT, sau đó bấm nút lưu và xác nhận thông báo “TẮT”.</p>
 </fieldset>
 <p id="pairResult" role="status" aria-live="polite" class="ctv-save-status"></p>
+<div id="pairLinkPanel" class="ctv-add-box" hidden>
+<strong>🔗 Một link CTV cho toàn bộ điểm giao đã lưu</strong>
+<p id="pairLinkStatus" class="ctv-save-status" role="status" aria-live="polite"></p>
+<div id="pairLinkUrl" class="link" style="overflow-wrap:anywhere"></div>
+<p id="pairLinkAccessCode" class="hint" style="overflow-wrap:anywhere"></p>
+<button id="pairCopyLink" type="button" class="secondary">Sao chép link CTV</button>
+</div>
 </details>
 </section>
 <section class="card" data-tab-panel="customers" hidden id="customerManagement"><h2>👤 Hồ sơ khách hàng & điểm giao</h2><p class="hint">Chọn khách THẬT từ sổ để duyệt làm CTV, xác nhận chiết khấu và các điểm giao bên dưới. Khách chưa có hóa đơn nguồn cần được tạo hồ sơ hợp lệ trong hệ thống chính trước; không tạo hóa đơn giả để thêm CTV. Hồ sơ khách thử luôn tách riêng.</p>
@@ -446,6 +453,37 @@ $('checkSourceReadonly').onclick=async()=>{
 // Scoped CTV configuration is owner-only and NEVER sent to public Gemini chat.
 // A missing server bridge is shown as unavailable instead of claiming saved state.
 let pairCurrentRevision=null,pairPolicies=[],pairLoadSuccessful=false,pairCollaborators=[];
+function resetPairLink(){
+ $('pairLinkPanel').hidden=true;$('pairLinkUrl').textContent='';
+ $('pairLinkAccessCode').textContent='';$('pairLinkStatus').textContent='';
+}
+async function issueSavedPairLink(id){
+ const policy=pairPolicies.find(p=>p.collaboratorId===id&&p.enabled===true);
+ const partner=pairCollaborators.find(p=>p.id===id&&p.active===true);
+ if(!pairLoadSuccessful||!partner||!policy||!Array.isArray(policy.authorizedDestinations)||
+    !policy.authorizedDestinations.length||policy.reviewedByOwner!==true)
+  throw Error('Chính sách CTV chưa được bật và xác minh trong sổ thật.');
+ const readiness=await request('/api/admin/ctv-links/readiness');
+ if(readiness.enabled!==true)
+  throw Error('Máy chủ chưa đủ quyền phát hành link thật: '+(readiness.reason||'CTV_LINKS_NOT_READY'));
+ const invitation=await request('/api/admin/ctv-links/issue','POST',{collaboratorId:id});
+ if(invitation.production!==true||invitation.oneLink!==true||
+    invitation.deliveryLocations!==policy.authorizedDestinations.length||
+    !invitation.url||!invitation.accessCode)
+  throw Error('Thông tin link hoặc số điểm giao không khớp sổ thật.');
+ $('pairLinkUrl').textContent=invitation.url;
+ $('pairLinkAccessCode').textContent='Mã truy cập CTV (gửi riêng, không gửi cho khách): '+invitation.accessCode;
+ $('pairLinkStatus').textContent='✓ '+partner.name+' • 1 link • '+invitation.deliveryLocations+
+   ' điểm giao • khách '+invitation.customerDiscountPercent+'% / CTV '+invitation.collaboratorDiscountPercent+'%.';
+ $('pairLinkPanel').hidden=false;
+ return invitation;
+}
+$('pairCopyLink').onclick=async()=>{
+ const url=$('pairLinkUrl').textContent;
+ if(!url)return;
+ try{await navigator.clipboard.writeText(url);$('pairLinkStatus').textContent='✓ Đã sao chép 1 link CTV. Mã truy cập gửi riêng cho CTV.'}
+ catch{$('pairLinkStatus').textContent='Không thể tự sao chép: hãy chọn và sao chép đường link ở trên.'}
+};
 function showPairStatus(message){$('pairLastSaved').textContent=message;$('pairResult').textContent=message}
 function renderCtvDirectory(collaborators,policies,revision){
  const box=$('pairDirectory');box.replaceChildren();
@@ -478,7 +516,21 @@ function renderCtvDirectory(collaborators,policies,revision){
    $('ctvPolicyDetails').open=true;
    $('ctvPolicyDetails').scrollIntoView({behavior:'smooth',block:'center'});
   };
-  card.append(edit);box.append(card);
+  card.append(edit);
+  if(c.active===true&&p?.enabled===true){
+   const issue=document.createElement('button');issue.className='secondary';issue.type='button';
+   issue.textContent='🔗 Lấy 1 link CTV đã duyệt';
+   issue.onclick=async()=>{
+    issue.disabled=true;resetPairLink();
+    const field=$('pairPartner');field.value=c.id;updatePairControls();
+    $('ctvPolicyDetails').open=true;
+    try{await issueSavedPairLink(c.id);$('pairLinkPanel').scrollIntoView({behavior:'smooth',block:'center'})}
+    catch(e){showPairStatus('⚠ Chính sách đã bật, nhưng chưa cấp được link: '+e.message)}
+    finally{issue.disabled=false}
+   };
+   card.append(issue);
+  }
+  box.append(card);
  }
 }
 function syncCtvCandidate(){
@@ -533,7 +585,8 @@ async function loadPairPolicies(preserveResult=false){
 }
 function updatePairControls(){
  const id=$('pairPartner').value,row=pairPolicies.find(p=>p.collaboratorId===id);
- $('pairEnabled').checked=row?row.enabled===true:Boolean(id);
+ $('pairEnabled').checked=row?.enabled===true;
+ resetPairLink();
  $('pairCustomerDiscount').value=String(row?.customerDiscountPercent??20);
  $('pairCollaboratorDiscount').value=String(row?.collaboratorDiscountPercent??35);
  $('pairShipping').value=String(row?.shippingPercent??0);
@@ -616,7 +669,7 @@ $('pairSave').onclick=async()=>{
  // Never retry an uncertain confirmation automatically. Always re-read the policy.
  try{
   const requestId='ctv_'+crypto.randomUUID().replace(/-/g,'');
-  const d=await request('/api/admin/collaborator-pairs/configure','POST',{
+  await request('/api/admin/collaborator-pairs/configure','POST',{
    collaboratorId:id,enabled,customerDiscountPercent,collaboratorDiscountPercent,
    shippingPercent,vatPercent,expectedRevision:pairCurrentRevision,
    ...(enabled?{destinationInvoiceNos}:{}),
@@ -625,13 +678,26 @@ $('pairSave').onclick=async()=>{
   const person=$('pairPartner').selectedOptions?.[0]?.textContent||'CTV đã chọn';
   await loadPairPolicies(true);
   const confirmedPolicy=pairPolicies.find(p=>p.collaboratorId===id);
-  if(!confirmedPolicy||confirmedPolicy.enabled!==enabled){
+  const savedRefs=(confirmedPolicy?.authorizedDestinations||[]).map(x=>x.invoiceNo).sort((a,b)=>a-b);
+  const expectedRefs=[...destinationInvoiceNos].sort((a,b)=>a-b);
+  const verified=confirmedPolicy&&confirmedPolicy.enabled===enabled&&
+   confirmedPolicy.customerDiscountPercent===customerDiscountPercent&&
+   confirmedPolicy.collaboratorDiscountPercent===collaboratorDiscountPercent&&
+   confirmedPolicy.shippingPercent===shippingPercent&&confirmedPolicy.vatPercent===vatPercent&&
+   (!enabled||(confirmedPolicy.reviewedByOwner===true&&
+     JSON.stringify(savedRefs)===JSON.stringify(expectedRefs)));
+  if(!verified){
    showPairStatus('⚠ Đã nhận phản hồi ghi nhưng đọc lại sổ chưa khớp. Chưa xác nhận thành công, KHÔNG bấm lặp.');
   }else{
    showPairStatus('✓ ĐÃ XÁC MINH TRÊN SỔ THẬT • '+person+' • '+(enabled?'BẬT':'TẮT')+
     ' hai hóa đơn • CK khách '+confirmedPolicy.customerDiscountPercent+'% / CTV '+
     confirmedPolicy.collaboratorDiscountPercent+'% • '+(confirmedPolicy.authorizedDestinations?.length||0)+
     ' điểm giao • revision '+pairCurrentRevision);
+   if(enabled){
+    try{await issueSavedPairLink(id)}
+    catch(linkError){showPairStatus('✓ CHÍNH SÁCH ĐÃ LƯU VÀ ĐỌC LẠI ĐÚNG • '+person+
+      ' • '+expectedRefs.length+' điểm giao. ⚠ CHƯA CẤP ĐƯỢC LINK: '+linkError.message)}
+   }
   }
  }catch(e){
   $('pairResult').textContent='Chưa xác minh được trạng thái lưu: '+e.message+
