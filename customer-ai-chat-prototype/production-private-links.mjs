@@ -254,5 +254,5 @@ export function createProductionPrivateLinks({
    revision:receipt.revision,total:order.total,duplicate:receipt.data?.duplicate===true,
    message:'Đã ghi hóa đơn thật vào sổ kế toán Minh Satori.'};
  }
- return Object.freeze({readiness,issue,catalogue,quote,confirm});
+ return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm});
 }
