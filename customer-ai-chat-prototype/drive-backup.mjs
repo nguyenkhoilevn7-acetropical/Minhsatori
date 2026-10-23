@@ -104,6 +104,10 @@ export function makeDriveBackupWorker(readState){
   timer.unref?.();
  };
  const start=()=>{
+  if(emergencyPreview()){
+   console.info('SANDBOX_PREVIEW_DRIVE_BACKUP_DISABLED_BY_DESIGN');
+   return;
+  }
   const urlOk=validUrl(String(process.env.GEMINI_SANDBOX_DRIVE_BRIDGE_URL||'').trim());
   const hmacOk=String(process.env.GEMINI_SANDBOX_DRIVE_HMAC_KEY||'').length>=32;
   const aesOk=Buffer.from(String(process.env.GEMINI_SANDBOX_DRIVE_ENCRYPTION_KEY_B64||''),'base64').length===32;
