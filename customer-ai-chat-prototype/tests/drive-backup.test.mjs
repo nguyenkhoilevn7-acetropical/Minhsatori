@@ -22,7 +22,8 @@ assert.throws(()=>decryptArchive(envelope,wrong));checks++;
 assert.throws(()=>decryptArchive({...envelope,tag:'AAAAAAAAAAAAAAAAAAAAAA=='},key));checks++;
 const saved={GEMINI_SANDBOX_DRIVE_BRIDGE_URL:process.env.GEMINI_SANDBOX_DRIVE_BRIDGE_URL,
  GEMINI_SANDBOX_DRIVE_HMAC_KEY:process.env.GEMINI_SANDBOX_DRIVE_HMAC_KEY,
- GEMINI_SANDBOX_DRIVE_ENCRYPTION_KEY_B64:process.env.GEMINI_SANDBOX_DRIVE_ENCRYPTION_KEY_B64};
+ GEMINI_SANDBOX_DRIVE_ENCRYPTION_KEY_B64:process.env.GEMINI_SANDBOX_DRIVE_ENCRYPTION_KEY_B64,
+ GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY:process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY};
 process.env.GEMINI_SANDBOX_DRIVE_BRIDGE_URL='https://script.google.com/macros/s/'+'A'.repeat(48)+'/exec';
 process.env.GEMINI_SANDBOX_DRIVE_HMAC_KEY='fake-hmac-key-just-for-tests-12345678901234567890';
 process.env.GEMINI_SANDBOX_DRIVE_ENCRYPTION_KEY_B64=key.toString('base64');
@@ -50,6 +51,16 @@ globalThis.fetch=async(url,options)=>{
  throw Error('unexpected operation');
 };
 try{
+ process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY='1';
+ const previewWorker=makeDriveBackupWorker(()=>archive);
+ test(previewWorker.status().configured===false,
+  'emergency preview must report Drive backup not active despite intact credentials');
+ previewWorker.start();
+ await assert.rejects(previewWorker.syncNow(),/PREVIEW_ONLY_NO_BACKUP_WRITES/);
+ checks++;
+ test(writes===0&&reads===0,
+  'emergency preview must not upload empty ephemeral data or touch Drive');
+ delete process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY;
  const worker=makeDriveBackupWorker(()=>archive);
  test(worker.status().configured,'bridge configured in isolated unit test');
  const first=await worker.syncNow();
