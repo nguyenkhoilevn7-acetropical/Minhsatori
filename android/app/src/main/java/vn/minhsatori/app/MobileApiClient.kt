@@ -145,6 +145,15 @@ object MobileApiClient {
         return MobileSnapshot(SatoriData.fromDriveState(data.toString()), actions, actor)
     }
 
+    /**
+     * Minimal owner-authorized revision probe. Unlike mobile.snapshot, this
+     * never transfers customer rows when the ledger hasn't changed.
+     */
+    fun revision(endpoint: String, token: String): Long {
+        val data = request(endpoint, token, "mobile.revision").getJSONObject("data")
+        return LiveSyncPolicy.mobileRevision(data)
+    }
+
     fun trash(endpoint: String, token: String): JSONObject =
         request(endpoint, token, "mobile.trash").getJSONObject("data")
 }

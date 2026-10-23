@@ -68,6 +68,8 @@ class NativeMainActivity : AppCompatActivity() {
     private var fileUri: Uri? = null
     private var dataSource = ""
     private var lastReadAt = ""
+    private var previousScrollView: ScrollView? = null
+    private var previousRenderedTab = -1
     private var apiEndpoint: String? = null
     private var allowedActions: Set<String> = emptySet()
     private var actorId = ""
@@ -77,7 +79,14 @@ class NativeMainActivity : AppCompatActivity() {
     // Owner opt-in: Google read-only access replaces repeated manual Drive file selection.
     // Poll only while the app is foregrounded, and only after successful authorization.
     private val syncHandler = Handler(Looper.getMainLooper())
-    private val syncIntervalMs = 120_000L
+    // Foreground metadata polling avoids full Drive downloads on every tick.
+    private val syncIntervalMs = 20_000L
+    private val fallbackReadMs = 120_000L
+    private var lastDriveVersion: Long? = null
+    private var lastVersionProbeElapsedMs = 0L
+    private var isCheckingVersion = false
+    private var isCheckingMobileRevision = false
+    private var lastMobileRevisionProbeElapsedMs = 0L
     private var lastOnlineReadElapsedMs = 0L
     private var lastSyncAttemptElapsedMs = 0L
     private var authorizationPending = false
@@ -88,10 +97,21 @@ class NativeMainActivity : AppCompatActivity() {
     private val syncTick = object : Runnable {
         override fun run() {
             if (!foreground) return
-            if (!isLoading && !authorizationPending && !authorizationDeclined &&
-                AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
-                    SystemClock.elapsedRealtime(), syncIntervalMs)) {
-                syncPreferredSource()
+            if (!isLoading && !authorizationPending && !authorizationDeclined) {
+                if (preferredSource() == AutoSyncPolicy.DRIVE && snapshot != null &&
+                    accessToken != null) {
+                    if (AutoSyncPolicy.due(lastVersionProbeElapsedMs,
+                            SystemClock.elapsedRealtime(), syncIntervalMs)) checkDriveVersion()
+                } else if (preferredSource() == AutoSyncPolicy.MOBILE_API &&
+                    dataSource == "Minh Satori API" &&
+                    allowedActions.contains("mobile.revision") && accessToken != null) {
+                    if (AutoSyncPolicy.due(lastMobileRevisionProbeElapsedMs,
+                            SystemClock.elapsedRealtime(), syncIntervalMs))
+                        checkMobileRevision()
+                } else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
+                        SystemClock.elapsedRealtime(), fallbackReadMs)) {
+                    syncPreferredSource()
+                }
             }
             syncHandler.postDelayed(this, syncIntervalMs)
         }
@@ -228,11 +248,16 @@ class NativeMainActivity : AppCompatActivity() {
         foreground = true
         syncHandler.removeCallbacks(syncTick)
         syncHandler.postDelayed(syncTick, syncIntervalMs)
-        // Foreground refresh or silent reauthorization after Google token expiry.
-        if (!isLoading && !authorizationPending && !authorizationDeclined &&
-            AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
-                SystemClock.elapsedRealtime(), syncIntervalMs)) {
-            syncPreferredSource()
+        // Resume promptly checks orders written while another app was open.
+        if (!isLoading && !authorizationPending && !authorizationDeclined) {
+            if (preferredSource() == AutoSyncPolicy.DRIVE && snapshot != null &&
+                accessToken != null) checkDriveVersion()
+            else if (preferredSource() == AutoSyncPolicy.MOBILE_API &&
+                dataSource == "Minh Satori API" &&
+                allowedActions.contains("mobile.revision") && accessToken != null)
+                checkMobileRevision()
+            else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
+                    SystemClock.elapsedRealtime(), fallbackReadMs)) syncPreferredSource()
         }
     }
 
@@ -368,7 +393,7 @@ class NativeMainActivity : AppCompatActivity() {
         val items = arrayOf(
             "☁ Google Drive — xem hóa đơn thật (chỉ đọc)",
             "Đăng nhập Google / Đồng bộ Mobile API",
-            "Cài đặt Mobile API (SANDBOX)",
+            "Cấu hình Mobile API quản lý hóa đơn",
             "Chọn file dữ liệu thủ công — chỉ xem"
         )
         AlertDialog.Builder(this)
@@ -414,6 +439,11 @@ class NativeMainActivity : AppCompatActivity() {
 
     private fun render() {
         dashboardMode = true
+        // New orders should not jump the owner to the top of a long invoice
+        // list during an automatic refresh.
+        val oldScrollY = if (previousRenderedTab == activeTab)
+            previousScrollView?.scrollY ?: 0 else 0
+        previousRenderedTab = activeTab
         val shell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(night)
@@ -429,6 +459,8 @@ class NativeMainActivity : AppCompatActivity() {
         }
         scroll.addView(content)
         shell.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        previousScrollView = scroll
+        if (oldScrollY > 0) scroll.post { scroll.scrollTo(0, oldScrollY) }
 
         // Web brand parity: midnight header, cyan gradient and original Satori logo.
         val brand = LinearLayout(this).apply {
@@ -483,7 +515,9 @@ class NativeMainActivity : AppCompatActivity() {
             background = panelBackground(if (connected) Color.rgb(8, 47, 53)
                   else Color.rgb(48, 35, 24))
         }
+        val stale = statusMessage.startsWith("⚠")
         label(info, when {
+            stale -> "●  CẢNH BÁO ĐỒNG BỘ"
             connected -> "●  ĐÃ ĐỒNG BỘ DỮ LIỆU"
             isLoading || authorizationPending -> "●  ĐANG TỰ ĐỘNG KẾT NỐI…"
             else -> "●  CHƯA KẾT NỐI DỮ LIỆU"
@@ -496,8 +530,13 @@ class NativeMainActivity : AppCompatActivity() {
             else statusMessage,
             12f, false, if (connected) Color.rgb(153, 246, 228)
                 else Color.rgb(254, 215, 170), 5)
+        if (stale) label(info, statusMessage, 11.5f, true,
+            Color.rgb(253, 186, 116), 6)
         if (connected && lastReadAt.isNotBlank()) {
-            label(info, "Cập nhật lúc " + lastReadAt, 11f, false, muted, 5)
+            label(info, "Cập nhật lúc " + lastReadAt +
+                (if (preferredSource() != AutoSyncPolicy.FILE)
+                    " • Kiểm tra đơn mới mỗi 20 giây khi mở app" else ""),
+                11f, false, muted, 5)
         }
         content.addView(info, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(10)
@@ -1278,7 +1317,14 @@ class NativeMainActivity : AppCompatActivity() {
         button(parent, "▤ SỔ KẾ TOÁN · LỌC TRẠNG THÁI") { showLedger(data) }
         if (canWrite) button(parent, "+ TẠO HÓA ĐƠN", true) { launchEditor() }
         if (canAction("mobile.trash") && canAction("orders.restore")) {
-            button(parent, "THÙNG RÁC 30 NGÀY") { showTrash() }
+            button(parent, "♻ THÙNG RÁC 30 NGÀY · KHÔI PHỤC") { showTrash() }
+        } else if (preferredSource() == AutoSyncPolicy.DRIVE) {
+            label(parent, "Google Drive chỉ cho phép xem và tự đồng bộ. " +
+                "Muốn xóa mềm/khôi phục, kết nối Mobile API chủ tài khoản đã xác thực.",
+                12f, false, softInk, 9)
+            button(parent, "⚙ KẾT NỐI QUYỀN XÓA / KHÔI PHỤC") {
+                showConnectionSettings()
+            }
         }
         label(parent, "Tìm số hóa đơn, khách hàng, số điện thoại hoặc địa chỉ", 12f,
             false, muted, 14)
@@ -1692,6 +1738,48 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    /**
+     * Production owner Mobile API: compare canonical Drive ledger revision
+     * without transferring customer records on every timer tick.
+     */
+    private fun checkMobileRevision() {
+        if (!foreground || isLoading || isCheckingMobileRevision ||
+            authorizationPending || authorizationDeclined ||
+            preferredSource() != AutoSyncPolicy.MOBILE_API) return
+        val endpoint = apiEndpoint ?: return
+        val token = accessToken ?: return
+        val current = snapshot ?: run { refreshFromMobileApi(); return }
+        if (!allowedActions.contains("mobile.revision")) return
+        isCheckingMobileRevision = true
+        lastMobileRevisionProbeElapsedMs = SystemClock.elapsedRealtime()
+        Thread {
+            val latest = runCatching { MobileApiClient.revision(endpoint, token) }
+            runOnUiThread {
+                isCheckingMobileRevision = false
+                if (!foreground || accessToken != token || apiEndpoint != endpoint ||
+                    preferredSource() != AutoSyncPolicy.MOBILE_API) return@runOnUiThread
+                latest.fold(
+                    onSuccess = { revision ->
+                        if (LiveSyncPolicy.mobileChanged(current.revision, revision) ||
+                            AutoSyncPolicy.due(lastOnlineReadElapsedMs,
+                                SystemClock.elapsedRealtime(), fallbackReadMs * 10))
+                            refreshFromMobileApi()
+                    },
+                    onFailure = { error ->
+                        statusMessage = "⚠ Mobile API chưa xác minh được đơn mới: " +
+                            (error.message ?: "Lỗi kết nối")
+                        if (error is MobileApiError &&
+                            error.apiCode in setOf("AUTH_FAILED", "FORBIDDEN")) {
+                            accessToken = null
+                            allowedActions = emptySet()
+                        }
+                        render()
+                    }
+                )
+            }
+        }.start()
+    }
+
     private fun refreshFromMobileApi() {
         lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
         val endpoint = apiEndpoint ?: run {
@@ -1716,7 +1804,17 @@ class NativeMainActivity : AppCompatActivity() {
                 isLoading = false
                 outcome.fold(
                     onSuccess = {
+                        val prior = snapshot
+                        if (prior != null && !LiveSyncPolicy.canApplySnapshot(prior.revision, it.snapshot.revision)) {
+                            statusMessage = "⚠ Mobile API trả revision cũ. Không ghi đè hóa đơn."
+                            allowedActions = emptySet()
+                            actorId = ""
+                            dataSource = ""
+                            render()
+                            return@runOnUiThread
+                        }
                         snapshot = it.snapshot
+                        lastMobileRevisionProbeElapsedMs = SystemClock.elapsedRealtime()
                         allowedActions = it.allowedActions
                         actorId = it.actorId
                         dataSource = "Minh Satori API"
@@ -1729,10 +1827,11 @@ class NativeMainActivity : AppCompatActivity() {
                         }
                     },
                     onFailure = {
-                        snapshot = null
+                        // Retain the last verified view, but revoke write
+                        // capabilities until a fresh owner snapshot succeeds.
                         allowedActions = emptySet()
                         dataSource = ""
-                        statusMessage = "Không kết nối được Mobile API: " +
+                        statusMessage = "⚠ Không kiểm tra được Mobile API: " +
                             (it.message ?: "không rõ lỗi") +
                             ". Chưa bật chức năng lưu đơn."
                         if (it is MobileApiError &&
@@ -2042,6 +2141,44 @@ class NativeMainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Lightweight foreground probe. Only reload a full Drive ledger if its
+     * Google file.version changed from the last verified snapshot. No UI
+     * reconstruction when no invoice changed.
+     */
+    private fun checkDriveVersion() {
+        if (!foreground || isLoading || isCheckingVersion || authorizationPending ||
+            authorizationDeclined || preferredSource() != AutoSyncPolicy.DRIVE) return
+        val token = accessToken ?: return
+        if (snapshot == null) { refreshFromDrive(); return }
+        isCheckingVersion = true
+        lastVersionProbeElapsedMs = SystemClock.elapsedRealtime()
+        Thread {
+            val response = runCatching { DriveReadClient.versionWithToken(token) }
+            runOnUiThread {
+                isCheckingVersion = false
+                if (!foreground || accessToken != token ||
+                    preferredSource() != AutoSyncPolicy.DRIVE) return@runOnUiThread
+                response.fold(
+                    onSuccess = { version ->
+                        if (LiveSyncPolicy.driveChanged(lastDriveVersion, version) ||
+                            AutoSyncPolicy.due(lastOnlineReadElapsedMs,
+                                SystemClock.elapsedRealtime(), fallbackReadMs * 10)) {
+                            refreshFromDrive()
+                        }
+                    },
+                    onFailure = { error ->
+                        statusMessage = "⚠ Chưa kiểm tra được đơn mới: " +
+                            (error.message ?: "Lỗi mạng") +
+                            ". Dữ liệu hiển thị là lần đồng bộ trước."
+                        if (error.message?.contains("hết hạn") == true) accessToken = null
+                        render()
+                    }
+                )
+            }
+        }.start()
+    }
+
     private fun refreshFromDrive() {
         lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
         if (isLoading) return
@@ -2050,25 +2187,37 @@ class NativeMainActivity : AppCompatActivity() {
         statusMessage = "Đang đọc dữ liệu thật từ Google Drive."
         render()
         Thread {
-            val response = try {
-                Result.success(DriveReadClient.loadWithToken(token))
-            } catch (error: Exception) {
-                Result.failure(error)
+            val response = runCatching {
+                // Read the version BEFORE the snapshot; any concurrent
+                // change triggers another check on the next foreground tick.
+                val version = DriveReadClient.versionWithToken(token)
+                Pair(DriveReadClient.loadWithToken(token), version)
             }
             runOnUiThread {
                 isLoading = false
                 response.fold(
-                    onSuccess = {
-                        snapshot = it
-                        dataSource = "Google Drive API"
-                        lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
-                        lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
-                        statusMessage = "Đã đồng bộ Google Drive (chỉ xem)."
+                    onSuccess = { (current, version) ->
+                        val old = snapshot
+                        if (old != null && !LiveSyncPolicy.canApplySnapshot(old.revision, current.revision)) {
+                            statusMessage = "⚠ Drive trả revision " + current.revision +
+                                " cũ hơn dữ liệu đã xác minh " + old.revision +
+                                ". Không ghi đè hóa đơn."
+                        } else {
+                            snapshot = current
+                            lastDriveVersion = version
+                            lastVersionProbeElapsedMs = SystemClock.elapsedRealtime()
+                            dataSource = "Google Drive API"
+                            lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+                            lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
+                            statusMessage = "Đã đồng bộ • kiểm tra đơn mới mỗi 20 giây khi mở app."
+                        }
                     },
                     onFailure = {
-                        snapshot = null
-                        statusMessage = it.message ?: "Không đọc được Drive."
-                        // Do not silently show stale results after a failed refresh.
+                        // Do not discard verified invoice rows after a temporary
+                        // outage; flag possible staleness visibly instead.
+                        statusMessage = "⚠ Chưa đồng bộ được đơn mới: " +
+                            (it.message ?: "Lỗi mạng") +
+                            ". Dữ liệu đang hiển thị có thể đã cũ."
                         if (statusMessage.contains("hết hạn")) accessToken = null
                     }
                 )
