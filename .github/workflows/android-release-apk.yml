@@ -12,6 +12,7 @@ on:
       - 'release/android-v0.3.9-ctv-pair-readonly-20261023'
       - 'release/android-v0.4.0-owner-auto-sync-20261023'
       - 'release/android-v0.4.2-live-sync-trash-20261023'
+      - 'release/android-v0.4.4-web-live-refresh-20261024'
     paths:
       - 'android/release-request.json'
 
