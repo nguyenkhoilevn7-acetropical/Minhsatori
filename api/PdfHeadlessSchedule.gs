@@ -41,7 +41,9 @@ function install(){
   return {ok:true,installed:true,intervalMinutes:1};
 }
 function tick(){
-  requireOwner_();
+  // Time-driven Apps Script has no browser user; check the effective owner.
+  if(Session.getEffectiveUser().getEmail().toLowerCase()!==
+     String(OWNER_EMAIL).toLowerCase())throw Error('PDF_TRIGGER_OWNER_DENIED');
   var secret=ready(),lock=CacheService.getScriptCache();
   if(lock.get('satori-pdf-headless-running')==='1')return {ok:true,busy:true};
   lock.put('satori-pdf-headless-running','1',110);
@@ -76,7 +78,7 @@ function tick(){
         // never mutates the ledger. It deduplicates by invoice/version filename.
         var saved=SatoriInvoicePdfArchive.archive({id:String(o.id),invoiceNo:Number(o.invoiceNo),
           total:Number(o.total),versionKey:versionKey,pdfSha256:answer.pdfSha256,
-          pdfBase64:answer.pdfBase64});
+          pdfBase64:answer.pdfBase64},true);
         if(saved&&saved.fileId)archived++;
       }catch(e){
         // Fixed error class only, never log customer name, address, secret,
