@@ -126,7 +126,7 @@ export function createProductionPrivateLinks({
    vatPercent:input.vatPercent,codeDigest:sha(id+'\0'+accessCode)};
   const token=seal(invite,'customer-invite');
   return {ok:true,production:true,oneLocationPerLink:true,
-   link:origin.replace(/\/$/,'')+'/real/'+token,
+   link:origin.replace(/\/$/,'')+'/real/#'+token,
    accessCode,expiresAt:new Date(invite.expiresAt).toISOString(),
    customer:{name:invite.name,location:invite.location,sourceInvoiceNo:input.customerRef.invoiceNo},
    note:'Chia sẻ link và mã truy cập qua hai kênh riêng. Mã chỉ hiển thị một lần.'};
