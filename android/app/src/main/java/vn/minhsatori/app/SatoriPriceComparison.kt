@@ -61,12 +61,57 @@ object SatoriPriceComparison {
     fun compare(invoices: List<SatoriInvoice>): SatoriInternalComparison {
         // Cancelled invoices remain visible elsewhere but are not candidates.
         val candidates = invoices.filterNot { it.status == "Đã hủy" }
-        val group = candidates.groupBy { invoice ->
+        val matched = mutableListOf<SatoriPricePair>()
+        val reviews = mutableListOf<SatoriComparisonReview>()
+        // New Bot API provides immutable explicit pair linkage, not guesses based
+        // on same customer name/date. The two bill-to names may DIFFER by design.
+        val tagged = candidates.filter { it.isLinkedPairBill }
+        val explicitGroups = tagged.groupBy { bill ->
+            bill.pairGroupId.ifBlank { "orphan_" + bill.id }
+        }
+        for (rows in explicitGroups.values) {
+            val buyer = rows.singleOrNull { it.isCustomerPairBill }
+            val internal = rows.singleOrNull { it.isInternalCollaboratorBill }
+            val buyerPhone = buyer?.phone?.filter(Char::isDigit).orEmpty()
+            val settlementPhone = internal?.phone?.filter(Char::isDigit).orEmpty()
+            val buyerName = buyer?.customer?.let(SatoriData::normalized).orEmpty()
+            val collaboratorName = internal?.customer?.let(SatoriData::normalized).orEmpty()
+            val valid = rows.size == 2 && buyer != null && internal != null &&
+                buyer.pairGroupId.isNotBlank() &&
+                buyer.pairGroupId == internal.pairGroupId &&
+                buyer.pairInvoiceNo == internal.number &&
+                internal.pairInvoiceNo == buyer.number &&
+                buyer.number != internal.number &&
+                buyer.collaboratorId.isNotBlank() &&
+                buyer.collaboratorId == internal.collaboratorId &&
+                SatoriData.normalized(internal.pairCustomerName) == buyerName &&
+                SatoriData.normalized(buyer.pairCollaboratorName) == collaboratorName &&
+                buyerPhone.length >= 8 && buyerPhone == settlementPhone &&
+                SatoriData.normalized(buyer.address).isNotBlank() &&
+                SatoriData.normalized(buyer.address) ==
+                    SatoriData.normalized(internal.address) &&
+                buyer.hasValidDate && internal.hasValidDate &&
+                buyer.sortDate == internal.sortDate &&
+                basket(buyer) != null && basket(buyer) == basket(internal) &&
+                !buyer.isExcluded && internal.isExcluded &&
+                buyer.total > internal.total
+            if (!valid) {
+                reviews += SatoriComparisonReview(rows,
+                    "Cặp hóa đơn CTV thiếu liên kết, người nhận hoặc sản phẩm khớp. " +
+                        "Không tự gộp hoặc ghi nhận hai lần.")
+                continue
+            }
+            // Smart cast with explicit null check; Kotlin contracts are not
+            // required for the malformed-link branch.
+            matched += SatoriPricePair(buyer!!, internal!!, buyer.total - internal.total)
+        }
+        // Old unmarked rows retain legacy conservative matching. Never feed
+        // orphaned / malformed new linked invoices into that heuristic.
+        val legacy = candidates.filterNot { it.isLinkedPairBill }
+        val group = legacy.groupBy { invoice ->
             SatoriData.normalized(invoice.customer) + "|" + invoice.sortDate +
                 "|" + (basket(invoice) ?: "")
         }
-        val matched = mutableListOf<SatoriPricePair>()
-        val reviews = mutableListOf<SatoriComparisonReview>()
         for (rows in group.values.filter { it.size > 1 }) {
             if (rows.size != 2) {
                 reviews += SatoriComparisonReview(rows,
