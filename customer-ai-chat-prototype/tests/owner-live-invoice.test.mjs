@@ -14,6 +14,7 @@ const customer={id:99901,invoiceNo:5920,name:'Khách giả TEST',phone:'09000000
 const catalogue={revision:113,source:'drive-ledger:satori_catalogue_v15',
  products:[{code:'TP-00003',name:'Nước Satori 500ml',unit:'Thùng',listPrice:98000}]};
 let revision=113,postCount=0,createCount=0,lastWrite=null,networkUncertain=false;
+let legacyInvalidTwin=false,legacyAmbiguousTwins=false;
 const fetcher=async(url,options)=>{
  assert.equal(url,endpoint);
  postCount++;
@@ -29,8 +30,10 @@ const fetcher=async(url,options)=>{
  if(body.action==='orders.list'){
   const probing=body.payload.query==='GEMINI_OWNER_PROBE_NO_MATCH_20261023';
   if(!probing)assert.equal(body.payload.query,'5920');
+  const sourceRows=legacyAmbiguousTwins?[customer,{...customer,phone:'0900000001'}]:
+   legacyInvalidTwin?[{...customer,phone:''},customer]:[customer];
   return {ok:true,text:async()=>JSON.stringify({ok:true,action:body.action,
-    revision,data:{revision,totalMatches:probing?0:1,orders:probing?[]:[customer]}})};
+    revision,data:{revision,totalMatches:probing?0:sourceRows.length,orders:probing?[]:sourceRows}})};
  }
  if(body.action==='orders.create'){
   createCount++;lastWrite=body.payload;
@@ -110,6 +113,17 @@ assert.equal(previewMode.readiness().enabled,false,'emergency cannot write');
 await error('OWNER_REAL_PILOT_DISABLED',()=>previewMode.preview({
  authenticated:true,invoiceNo:5920,message:'10 thùng suối 500',
  discountPercent:20,shippingPercent:8}));
+// One incomplete historical duplicate must not block the unique valid source.
+legacyInvalidTwin=true;revision=113;
+const verifiedTwin=await engine.preview({authenticated:true,invoiceNo:5920,
+ message:'Cho anh 10 thùng nước Satori 500ml',
+ discountPercent:20,shippingPercent:8,vatPercent:0});
+assert.equal(verifiedTwin.customer.phone,customer.phone);
+legacyInvalidTwin=false;legacyAmbiguousTwins=true;
+await error('OWNER_CUSTOMER_REFERENCE_AMBIGUOUS',()=>engine.preview({
+ authenticated:true,invoiceNo:5920,message:'Cho anh 10 thùng nước Satori 500ml',
+ discountPercent:20,shippingPercent:8,vatPercent:0}));
+legacyAmbiguousTwins=false;
 const admin=fs.readFileSync(new URL('../admin.html',import.meta.url),'utf8');
 const scripts=[...admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 for(const [,src] of scripts)new vm.Script(src,{filename:'owner-admin'});
