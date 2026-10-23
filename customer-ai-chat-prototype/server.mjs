@@ -1402,6 +1402,12 @@ server.listen(PORT,HOST,()=>{
    x.ready?'revision='+x.revision:'not_ready',
    x.ready?'active_policies='+x.activePolicies:'no_policy_read'));
 
+ // Only boolean readiness / fixed codes. NEVER log HMAC values or key IDs.
+ const pilot=ownerInvoice.readiness();
+ console.info('SATORI_OWNER_PILOT_STATUS',
+  'enabled='+Number(OWNER_ONLY_PILOT),
+  'configured='+Number(pilot.enabled===true),
+  'reason='+(pilot.reason||'CONFIGURED'));
  console.info('SATORI_OWNER_LIVE_READONLY_CONFIGURED',Number(readOnlyReady()));
  console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched');
  // One test with fake words only, no customer data, no stored orders, no API key printed.
