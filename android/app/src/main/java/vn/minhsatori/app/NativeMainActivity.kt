@@ -1760,7 +1760,7 @@ class NativeMainActivity : AppCompatActivity() {
                     preferredSource() != AutoSyncPolicy.MOBILE_API) return@runOnUiThread
                 latest.fold(
                     onSuccess = { revision ->
-                        if (revision != current.revision ||
+                        if (LiveSyncPolicy.mobileChanged(current.revision, revision) ||
                             AutoSyncPolicy.due(lastOnlineReadElapsedMs,
                                 SystemClock.elapsedRealtime(), fallbackReadMs * 10))
                             refreshFromMobileApi()
@@ -1805,7 +1805,7 @@ class NativeMainActivity : AppCompatActivity() {
                 outcome.fold(
                     onSuccess = {
                         val prior = snapshot
-                        if (prior != null && it.snapshot.revision < prior.revision) {
+                        if (prior != null && !LiveSyncPolicy.canApplySnapshot(prior.revision, it.snapshot.revision)) {
                             statusMessage = "⚠ Mobile API trả revision cũ. Không ghi đè hóa đơn."
                             allowedActions = emptySet()
                             actorId = ""
@@ -2161,7 +2161,7 @@ class NativeMainActivity : AppCompatActivity() {
                     preferredSource() != AutoSyncPolicy.DRIVE) return@runOnUiThread
                 response.fold(
                     onSuccess = { version ->
-                        if (lastDriveVersion == null || lastDriveVersion != version ||
+                        if (LiveSyncPolicy.driveChanged(lastDriveVersion, version) ||
                             AutoSyncPolicy.due(lastOnlineReadElapsedMs,
                                 SystemClock.elapsedRealtime(), fallbackReadMs * 10)) {
                             refreshFromDrive()
@@ -2198,7 +2198,7 @@ class NativeMainActivity : AppCompatActivity() {
                 response.fold(
                     onSuccess = { (current, version) ->
                         val old = snapshot
-                        if (old != null && current.revision < old.revision) {
+                        if (old != null && !LiveSyncPolicy.canApplySnapshot(old.revision, current.revision)) {
                             statusMessage = "⚠ Drive trả revision " + current.revision +
                                 " cũ hơn dữ liệu đã xác minh " + old.revision +
                                 ". Không ghi đè hóa đơn."
