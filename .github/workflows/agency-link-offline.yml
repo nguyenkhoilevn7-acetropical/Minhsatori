@@ -1,5 +1,10 @@
 name: Agency One-Link 17-Address Security (offline)
 on:
+  push:
+    branches:
+      - 'prototype/customer-ai-gemini-free-20261020'
+    paths:
+      - '.github/workflows/agency-link-offline.yml'
   pull_request:
     paths:
       - 'customer-ai-chat-prototype/**'
@@ -34,4 +39,5 @@ jobs:
           }
           NODE
       - name: Keep all agency tests offline
-        run: echo "PASS: fake profiles, one simulated invoice; never touch production credentials or Google Drive"
+        run: |
+          echo "PASS: fake profiles, one simulated invoice; never touch production credentials or Google Drive"
