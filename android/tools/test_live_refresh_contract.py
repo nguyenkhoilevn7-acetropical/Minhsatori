@@ -43,7 +43,7 @@ class LiveRefreshContractTest(unittest.TestCase):
         self.assertIn("syncIntervalMs = 20_000L", self.code)
         self.assertIn("fallbackReadMs = 60_000L", self.code)
         self.assertEqual(len(re.findall(
-            r"SystemClock\.elapsedRealtime\(\), fallbackReadMs\)\)", self.code)), 4)
+            r"SystemClock\.elapsedRealtime\(\), fallbackReadMs\)\)", self.code)), 6)
         self.assertNotIn("fallbackReadMs * 10", self.code)
         resume = self.code.split("override fun onResume() {", 1)[1].split(
             "override fun onPause()", 1)[0]
