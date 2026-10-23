@@ -106,4 +106,49 @@ await error('CTV_COMMIT_UNCERTAIN_RECONCILE',()=>forged.confirm({
 await error('CTV_COMMIT_UNCERTAIN_RECONCILE',()=>forged.confirm({
  session:'OTP_SESSION',quoteId:fq.quoteId,confirmedByCustomer:true}));
 assert.equal(receiptCalls,1,'bad receipt cannot cause a replay write');
+// Signed HTTP transport acceptance: matching pairs only, no partial/wrong
+// receipt is ever called successful. All fake URLs and credentials.
+const transportEnv={...env,SATORI_CTV_PAIR_LIVE_CHECKOUT_ENABLED:'1',
+ SATORI_CTV_PAIR_WRITE_KEY_ID:'ctv_writer_test',
+ SATORI_CTV_PAIR_WRITE_SECRET:'FAKE_LONG_SERVER_SIGNING_012345678901234567890'};
+let brokenLink=false,transportCalls=0;
+const transportFetch=async(url,req)=>{
+ transportCalls++;
+ const body=JSON.parse(req.body);
+ assert.equal(body.action,'orders.create.pair');
+ assert.equal(body.signature,crypto.createHmac('sha256',transportEnv.SATORI_CTV_PAIR_WRITE_SECRET)
+  .update([body.keyId,body.timestamp,body.nonce,body.action,
+   JSON.stringify(body.payload)].join('\\n')).digest('hex'));
+ const pairGroupId='pair_12345678901234567890';
+ const buyer={invoiceNo:9011,pairRole:'customer',pairGroupId,
+  collaboratorId:'ctv-01',pairInvoiceNo:9012,total:846720,
+  name:body.payload.order.name,phone:body.payload.order.phone,
+  location:body.payload.order.location};
+ const settlement={invoiceNo:9012,pairRole:'collaborator',pairGroupId,
+  collaboratorId:'ctv-01',pairInvoiceNo:brokenLink?9999:9011,total:687960,
+  location:body.payload.order.location};
+ return {ok:true,text:async()=>JSON.stringify({ok:true,action:body.action,
+  revision:114,data:{pairGroupId,customerInvoice:buyer,collaboratorInvoice:settlement}})};
+};
+const full=createCollaboratorPairGateway({
+ resolveTrusted:async s=>s==='OTP_SESSION'?ctx:null,
+ readPolicy:async()=>ownerResponse,store,now:()=>1792700000000,
+ newId:()=>String(++ids).padStart(32,'0'),
+ send:approved=>sendApprovedPair({approved,env:transportEnv,fetcher:transportFetch,
+  now:()=>1792700000000,nonce:()=> 'transport_nonce_12345678901234567890'})
+});
+const goodQuote=await full.preview({session:'OTP_SESSION',lines:[{code:'TP-00003',qty:10}]});
+const good=await full.confirm({session:'OTP_SESSION',quoteId:goodQuote.quoteId,
+ confirmedByCustomer:true});
+assert.equal(good.customerInvoiceNo,9011);
+assert.equal(JSON.stringify(good).includes('9012'),false,'transport CTV invoice never public');
+assert.equal(transportCalls,1,'only one signed pair POST');
+brokenLink=true;
+const badQuote=await full.preview({session:'OTP_SESSION',lines:[{code:'TP-00003',qty:10}]});
+await error('CTV_COMMIT_UNCERTAIN_RECONCILE',()=>full.confirm({session:'OTP_SESSION',
+ quoteId:badQuote.quoteId,confirmedByCustomer:true}));
+await error('CTV_COMMIT_UNCERTAIN_RECONCILE',()=>full.confirm({session:'OTP_SESSION',
+ quoteId:badQuote.quoteId,confirmedByCustomer:true}));
+assert.equal(transportCalls,2,'broken pair blocked and never automatically retried');
+
 console.log('PASS HMAC owner-CTV 20/35 policy, server-only linked 2-bill checkout, one commit, customer-only receipt, no automatic replay (ALL FAKE)');
