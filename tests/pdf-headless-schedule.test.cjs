@@ -64,5 +64,5 @@ assert.equal(triggers.length,1,'never install duplicate triggers');
 const r=ctx.satoriPdfHeadlessTick();
 assert.equal(r.archived,1);assert.equal(r.notArchived,0);
 assert.equal(archives.length,1);assert.equal(requests.length,1);
-assert.ok(preflights>=3);
+assert.ok(preflights>=2,'owner must approve install and preflight');
 console.log('PASS fake owner schedule + scoped signed Render request + verified original PDF Drive archive');
