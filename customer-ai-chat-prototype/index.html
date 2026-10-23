@@ -920,13 +920,13 @@ function renderLocations(){
  for(const loc of deliveryLocations){
   const item=document.createElement('button');item.type='button';
   item.setAttribute('aria-pressed',String(selectedLocationId===loc.id));
-  item.textContent=loc.label+' · '+loc.recipient+' · '+loc.phone+' · '+loc.address;
+  item.textContent=loc.label+' · '+loc.recipient+' · '+loc.phone+' · '+loc.address+' · CK '+(loc.discountPercent??customer().discount)+'%';
   item.addEventListener('click',async()=>{
    item.disabled=true;
    const done=await orderedDraftJob(async()=>{
     try{
      const result=await serverPost('/api/draft',{token:serverToken,action:'destination',locationId:loc.id,expectedRevision:draftRevision});
-     renderSharedDraft(result.draft);deactivateQuotes();
+     renderSharedDraft(result.draft);deactivateQuotes();catalogItems=[];
      msg('Đã chọn nơi giao: '+loc.label+'.','note');return true;
     }catch(err){msg('Chưa chọn được điểm giao: '+err.message,'note');await restoreDraft().catch(()=>{});return false}
    });
@@ -1018,7 +1018,7 @@ function changeSharedDraft(action,code=null,qty=null){
   draftBusy=true;
   try{
    const result=await serverPost('/api/draft',{token:serverToken,action,code,qty,expectedRevision:draftRevision});
-   renderSharedDraft(result.draft);deactivateQuotes();
+   renderSharedDraft(result.draft);deactivateQuotes();catalogItems=[];
    return true;
   }catch(e){
    msg('Chưa cập nhật giỏ: '+e.message,'note');
@@ -1156,7 +1156,7 @@ async function ensureCatalog() {
  if(catalogItems.length) return true;
  if(serverMode){
   try{
-   const resp=await fetch('/api/catalogue?token='+encodeURIComponent(serverToken),{cache:'no-store'});
+   const resp=await fetch('/api/catalogue?token='+encodeURIComponent(serverToken)+'&locationId='+encodeURIComponent(selectedLocationId||''),{cache:'no-store'});
    const json=await resp.json();
    if(!resp.ok||!json.ok||!Array.isArray(json.products))throw Error('Không thể mở danh mục.');
    catalogItems=json.products;
@@ -1280,7 +1280,7 @@ async function openCatalog(){
  for(const b of $('catalogFilters').querySelectorAll('button'))b.classList.toggle('active',b.dataset.brand==='ALL');
  if(!catalogItems.length && serverMode){
   try{
-   const res=await fetch('/api/catalogue?token='+encodeURIComponent(serverToken),{cache:'no-store'});
+   const res=await fetch('/api/catalogue?token='+encodeURIComponent(serverToken)+'&locationId='+encodeURIComponent(selectedLocationId||''),{cache:'no-store'});
    const data=await res.json();if(!res.ok||!data.ok||!Array.isArray(data.products))throw new Error('Không tải được danh mục');
    catalogItems=data.products;
   }catch(e){
