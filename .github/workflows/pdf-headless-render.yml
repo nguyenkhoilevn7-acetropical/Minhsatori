@@ -24,5 +24,9 @@ jobs:
         run: |
           mkdir -p customer-ai-chat-prototype/assets
           cp logo-satori-3394.jpg customer-ai-chat-prototype/assets/logo-satori.jpg
+      - name: Compare renderer source with production website main
+        run: |
+          git fetch --depth=1 origin main
+          node customer-ai-chat-prototype/tests/original-pdf-parity.cjs
       - name: Execute strictly offline fake PDF tests
         run: node customer-ai-chat-prototype/tests/original-website-pdf.test.mjs
