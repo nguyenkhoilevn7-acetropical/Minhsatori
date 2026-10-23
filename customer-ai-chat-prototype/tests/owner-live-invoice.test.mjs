@@ -47,8 +47,9 @@ const fetcher=async(url,options)=>{
  }
  throw Error('unrecognized fake action '+body.action);
 };
+let nextQuoteId=0;
 const engine=createOwnerRealInvoice({env,fetcher,now:()=>1792700000000,
- newId:()=> '12345678901234567890123456789012'});
+ newId:()=>String(++nextQuoteId).padStart(32,'0')});
 assert.equal(engine.readiness().enabled,true);
 async function error(code,fn){await assert.rejects(fn,e=>e?.code===code,code)}
 await error('OWNER_AUTH_REQUIRED',()=>engine.preview({invoiceNo:5920}));
