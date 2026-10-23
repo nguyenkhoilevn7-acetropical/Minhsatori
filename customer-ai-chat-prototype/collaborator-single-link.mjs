@@ -184,7 +184,7 @@ export function createCollaboratorSingleLink({
   if(input.confirmation!=='CTV_CONFIRMS_BOTH_REAL_INVOICES')fail('CTV_CONFIRMATION_REQUIRED');
   const q=unseal(input.quoteToken);
   if(q?.type!=='ctv-quote'||q.id!==data.id||
-     !integer(q.expiresAt,1)||q.expiresAt<=now()||q.expiresAt>now()+600000||
+     !Number.isSafeInteger(q.expiresAt)||q.expiresAt<=now()||q.expiresAt>now()+600000||
      !/^ctv_order_[a-f0-9]{36}$/.test(q.requestId||'')||
      q.policyVersion!==data.policy.policyVersion)fail('CTV_QUOTE_STALE');
   const place=placeFor(data,q.ref),src=await verifiedSource(place);
