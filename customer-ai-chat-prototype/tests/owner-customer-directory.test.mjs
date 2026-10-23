@@ -21,7 +21,8 @@ assert.equal(traky.needsReview,true);
 assert.equal(traky.multipleContacts,true);
 assert.equal(traky.canIssueRealLinks,false);
 const more=detailFromEvidence('Hà Minh Nguyệt',[rows[0]], [rows[1]], {sourceTotal:2});
-assert.equal(more.places.length,2);assert.equal(more.complete,true);
+assert.equal(more.places.length,2);assert.equal(more.complete,false,
+ 'sourceTotal describes source profiles; one historical invoice cannot prove every source profile has been scanned');
 const duplicate=detailFromEvidence('Hà Minh Nguyệt',[rows[0]], [rows[0]], {sourceTotal:1});
 assert.equal(duplicate.count,1);
 const incomplete=detailFromEvidence('Hà Minh Nguyệt',rows,[],{sourceTotal:2,invoicesIncomplete:true});
