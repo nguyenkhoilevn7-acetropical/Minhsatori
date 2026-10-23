@@ -77,7 +77,12 @@ class NativeMainActivity : AppCompatActivity() {
     // Owner opt-in: Google read-only access replaces repeated manual Drive file selection.
     // Poll only while the app is foregrounded, and only after successful authorization.
     private val syncHandler = Handler(Looper.getMainLooper())
-    private val syncIntervalMs = 120_000L
+    // Foreground metadata polling avoids full Drive downloads on every tick.
+    private val syncIntervalMs = 20_000L
+    private val fallbackReadMs = 120_000L
+    private var lastDriveVersion: Long? = null
+    private var lastVersionProbeElapsedMs = 0L
+    private var isCheckingVersion = false
     private var lastOnlineReadElapsedMs = 0L
     private var lastSyncAttemptElapsedMs = 0L
     private var authorizationPending = false
@@ -88,10 +93,15 @@ class NativeMainActivity : AppCompatActivity() {
     private val syncTick = object : Runnable {
         override fun run() {
             if (!foreground) return
-            if (!isLoading && !authorizationPending && !authorizationDeclined &&
-                AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
-                    SystemClock.elapsedRealtime(), syncIntervalMs)) {
-                syncPreferredSource()
+            if (!isLoading && !authorizationPending && !authorizationDeclined) {
+                if (preferredSource() == AutoSyncPolicy.DRIVE && snapshot != null &&
+                    accessToken != null) {
+                    if (AutoSyncPolicy.due(lastVersionProbeElapsedMs,
+                            SystemClock.elapsedRealtime(), syncIntervalMs)) checkDriveVersion()
+                } else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
+                        SystemClock.elapsedRealtime(), fallbackReadMs)) {
+                    syncPreferredSource()
+                }
             }
             syncHandler.postDelayed(this, syncIntervalMs)
         }
@@ -228,11 +238,12 @@ class NativeMainActivity : AppCompatActivity() {
         foreground = true
         syncHandler.removeCallbacks(syncTick)
         syncHandler.postDelayed(syncTick, syncIntervalMs)
-        // Foreground refresh or silent reauthorization after Google token expiry.
-        if (!isLoading && !authorizationPending && !authorizationDeclined &&
-            AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
-                SystemClock.elapsedRealtime(), syncIntervalMs)) {
-            syncPreferredSource()
+        // Resume promptly checks orders written while another app was open.
+        if (!isLoading && !authorizationPending && !authorizationDeclined) {
+            if (preferredSource() == AutoSyncPolicy.DRIVE && snapshot != null &&
+                accessToken != null) checkDriveVersion()
+            else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
+                    SystemClock.elapsedRealtime(), fallbackReadMs)) syncPreferredSource()
         }
     }
 
