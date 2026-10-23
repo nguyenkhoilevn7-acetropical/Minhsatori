@@ -25,7 +25,7 @@ import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
-import {ownerPairAction} from './owner-collaborator-pairs.mjs';
+import {ownerPairAction,probeOwnerPairRead} from './owner-collaborator-pairs.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
 import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
@@ -255,6 +255,14 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&/^\/c\/(?:demo-[ab]|[A-Za-z0-9_-]{40,96})$/.test(p))return sendHtml(res);
  if(req.method==='GET'&&(p==='/admin'||p==='/admin/')){const html=previewHtml('admin.html');res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'"});return res.end(html)}
  // Compare current server code with newest GitHub commit; never deploy from here.
+ // Read-only CTV scope diagnostics; only authenticated admin, no secrets,
+ // no policies or PII. Still works in emergency preview without write access.
+ if(req.method==='GET'&&p==='/api/admin/collaborator-pairs/readiness'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần quyền quản trị.');
+  return reply(res,200,{ok:true,sandbox:true,probe:await probeOwnerPairRead(),
+   writesEnabled:false,customerAccessEnabled:false});
+ }
  // Scoped owner-only CTV policy controls. Never call this from customer chat.
  // Until deployment has explicit separate keys, read fails closed and writes
  // remain disabled. Gemini/public customer link credentials are never accepted.
@@ -1342,6 +1350,13 @@ async function verifyOwnerReadOnlyAtBoot(){
 server.listen(PORT,HOST,()=>{
  driveWorker.start();
  if(readOnlyReady())void verifyOwnerReadOnlyAtBoot();
+ // A real non-mutating HMAC probe, using already-configured owner read key.
+ // Reports FORBIDDEN if Apps Script has not granted the CTV read scope.
+ if(readOnlyReady())void probeOwnerPairRead().then(x=>
+  console.info('SATORI_CTV_POLICY_READ_PROBE',x.reason,
+   x.ready?'revision='+x.revision:'not_ready',
+   x.ready?'active_policies='+x.activePolicies:'no_policy_read'));
+
  console.info('SATORI_OWNER_LIVE_READONLY_CONFIGURED',Number(readOnlyReady()));
  console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched');
  // One test with fake words only, no customer data, no stored orders, no API key printed.

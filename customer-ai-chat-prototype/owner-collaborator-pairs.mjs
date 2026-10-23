@@ -9,10 +9,18 @@ const refuse=code=>{const e=new Error(code);e.code=code;throw e};
 const endpoint=/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,180}\/exec$/;
 const actions=new Set(['collaborators.pair.list','collaborators.pair.configure']);
 function configuration(action,env){
- const url=String(env.SATORI_CTV_PAIR_ENDPOINT||'').trim();
  const write=action==='collaborators.pair.configure';
- const keyId=String(env[write?'SATORI_CTV_PAIR_APPROVE_KEY_ID':'SATORI_CTV_PAIR_READ_KEY_ID']||'');
- const secret=String(env[write?'SATORI_CTV_PAIR_APPROVE_SECRET':'SATORI_CTV_PAIR_READ_SECRET']||'');
+ // Read-only probe can reuse the existing owner READ key without copying the
+ // HMAC secret or granting it new scope. Apps Script itself decides FORBIDDEN.
+ // Approval/writes NEVER fall back to an existing key.
+ const useOwnerRead=!write&&!env.SATORI_CTV_PAIR_READ_KEY_ID&&!env.SATORI_CTV_PAIR_READ_SECRET;
+ const url=String(useOwnerRead?
+  (env.SATORI_READ_ENDPOINT||env.SATORI_CTV_PAIR_ENDPOINT):
+  env.SATORI_CTV_PAIR_ENDPOINT||'').trim();
+ const keyId=String(useOwnerRead?env.SATORI_READ_KEY_ID:
+  env[write?'SATORI_CTV_PAIR_APPROVE_KEY_ID':'SATORI_CTV_PAIR_READ_KEY_ID']||'');
+ const secret=String(useOwnerRead?env.SATORI_READ_HMAC_SECRET:
+  env[write?'SATORI_CTV_PAIR_APPROVE_SECRET':'SATORI_CTV_PAIR_READ_SECRET']||'');
  if(write&&env.SATORI_CTV_PAIR_CONFIG_ENABLED!=='1')refuse('CTV_PAIR_WRITE_DISABLED');
  if(!endpoint.test(url)||!/^[A-Za-z0-9_-]{3,64}$/.test(keyId)||secret.length<32)
   refuse('CTV_PAIR_NOT_CONFIGURED');
@@ -58,4 +66,24 @@ export async function ownerPairAction(action,payload={},{
   if(e?.code)throw e;
   refuse('CTV_PAIR_RESPONSE_UNCERTAIN');
  }finally{clearTimeout(timer)}
+}
+
+// A side-effect-free check of whether the running Bot API grants CTV policy
+// visibility to the existing owner read client. Logs only fixed categories;
+// never expose key IDs, URLs, customer records or HMAC contents.
+export async function probeOwnerPairRead(options={}){
+ try{
+  const info=await ownerPairAction('collaborators.pair.list',{},options);
+  if(!Array.isArray(info.collaborators))
+   return Object.freeze({ready:false,reason:'CTV_DIRECTORY_NOT_RETURNED'});
+  return Object.freeze({ready:true,reason:'READ_SCOPE_CONFIRMED',
+   revision:info.revision,collaborators:info.collaborators.length,
+   activePolicies:info.policies.filter(p=>p?.enabled===true).length});
+ }catch(e){
+  const allowed=new Set(['FORBIDDEN','CTV_PAIR_NOT_CONFIGURED',
+   'CTV_PAIR_UPSTREAM_UNAVAILABLE','CTV_PAIR_RESPONSE_INVALID',
+   'CTV_PAIR_RESPONSE_UNCERTAIN','CTV_PAIR_UPSTREAM_REJECTED']);
+  return Object.freeze({ready:false,
+   reason:allowed.has(e?.code)?e.code:'CTV_PAIR_PROBE_FAILED'});
+ }
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
-import {ownerPairAction} from '../owner-collaborator-pairs.mjs';
+import {ownerPairAction,probeOwnerPairRead} from '../owner-collaborator-pairs.mjs';
 
 const url='https://script.google.com/macros/s/FAKE_SANDBOX_ENDPOINT_0123456789abcde/exec';
 const key='test_owner_scope',secret='OFFLINE_FAKE_HMAC_SECRET_12345678901234567890';
@@ -46,6 +46,38 @@ await assert.rejects(()=>ownerPairAction('orders.create.pair',config,opts),
 await assert.rejects(()=>ownerPairAction('collaborators.pair.list',{},
  {...opts,env:{...env,SATORI_CTV_PAIR_READ_SECRET:''}}),
  e=>e?.code==='CTV_PAIR_NOT_CONFIGURED');
+// Existing read-only key must be usable for a no-write policy probe, but
+// it must NEVER gain the ability to approve policies or create invoices.
+const inheritedEnv={
+ SATORI_READ_ENDPOINT:url,SATORI_READ_KEY_ID:key,
+ SATORI_READ_HMAC_SECRET:secret,SATORI_CTV_PAIR_CONFIG_ENABLED:'0'
+};
+const read=await ownerPairAction('collaborators.pair.list',{},{
+ ...opts,env:inheritedEnv
+});
+assert.equal(read.revision,8);
+const proof=await probeOwnerPairRead({...opts,env:inheritedEnv});
+assert.equal(proof.ready,true);
+assert.equal(proof.revision,8);
+assert.equal(proof.collaborators,1);
+assert.equal(proof.activePolicies,0);
+const writesBefore=requests;
+await assert.rejects(()=>ownerPairAction('collaborators.pair.configure',config,{
+ ...opts,env:inheritedEnv
+}),e=>e?.code==='CTV_PAIR_WRITE_DISABLED');
+assert.equal(writesBefore,requests,'inherited read credentials cannot write');
+// If Bot API returns FORBIDDEN, diagnostic must fail closed without leaks.
+const forbidden=await probeOwnerPairRead({...opts,env:inheritedEnv,
+ fetcher:async()=>({ok:true,text:async()=>JSON.stringify({
+   ok:false,error:{code:'FORBIDDEN',message:'do not expose upstream details'}
+ })})});
+assert.equal(forbidden.ready,false);
+assert.equal(forbidden.reason,'FORBIDDEN');
+assert.equal(JSON.stringify(forbidden).includes('upstream'),false);
+assert.equal((await probeOwnerPairRead({...opts,env:{}})).reason,'CTV_PAIR_NOT_CONFIGURED');
+const server=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+assert.ok(server.includes("p==='/api/admin/collaborator-pairs/readiness'"));
+
 const admin=fs.readFileSync(new URL('../admin.html',import.meta.url),'utf8');
 const scripts=[...admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 assert.ok(scripts.length>0,'admin has inline script');
