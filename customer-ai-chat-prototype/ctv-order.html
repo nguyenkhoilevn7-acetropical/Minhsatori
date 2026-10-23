@@ -1,0 +1,137 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minh Satori • Cộng tác viên</title>
+<style>:root{color-scheme:dark;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}body{margin:0;background:#091827;color:#edf7ff}
+main{padding:16px;max-width:760px;margin:0 auto}section{border-radius:17px;background:#122b40;border:1px solid #365569;padding:16px;margin:16px 0}
+label{display:block;margin:12px 0;font-weight:600}input,select,textarea{box-sizing:border-box;width:100%;padding:12px;border-radius:10px;border:1px solid #7190a2;background:#f5fbff;color:#13283c;font-size:16px}
+button{background:#2abaae;color:#092b35;border:0;border-radius:10px;padding:13px 15px;min-height:48px;font-weight:700;font-size:16px;cursor:pointer;margin:5px 5px 5px 0}
+button.secondary{background:#365871;color:white}button:disabled{opacity:.45}p{line-height:1.55}
+.muted{color:#b5cbd9;font-size:14px}.warn{color:#ffcc7c}.ok{color:#92ebc8}.row{display:grid;grid-template-columns:1fr 110px;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #365569}
+.row input{text-align:center}h1{font-size:24px}h2{font-size:19px}strong.price{font-size:21px}#status{white-space:pre-wrap}
+</style></head><body><main>
+<h1>MINH SATORI · Cộng tác viên</h1><p class="muted">Một tài khoản, một link, nhiều địa chỉ giao hàng được chủ tài khoản duyệt.</p>
+<section id="login"><h2>Xác minh cộng tác viên</h2>
+<p>Nhập mã truy cập được Minh Satori gửi riêng. Không chia sẻ mã này cho người nhận hàng.</p>
+<label>Mã truy cập CTV<input id="code" type="password" autocomplete="off" maxlength="32"></label>
+<button id="unlock">Mở tài khoản CTV</button></section>
+<section id="shop" hidden><h2 id="who"></h2>
+<p class="muted" id="rates"></p>
+<label>Chọn điểm giao<select id="delivery"></select></label>
+<p class="muted">Tên người nhận, số điện thoại và địa chỉ đã được chủ tài khoản xác minh. Không thể tự thay đổi tại đây.</p>
+<div id="products"></div>
+<label>Lưu ý giao hàng<textarea rows="3" maxlength="300" id="note" placeholder="Ví dụ: Giao trước 2 giờ chiều"></textarea></label>
+<button id="review">Xem hai hóa đơn trước khi đặt</button></section>
+<section id="preview" hidden><h2>Xác nhận một lần, tạo hai hóa đơn</h2>
+<p id="locationPreview"></p><p id="pricePreview"></p>
+<p class="warn">Chỉ hóa đơn giá khách được gửi cho khách. Hóa đơn chiết khấu CTV là chứng từ nội bộ, không chuyển tiếp cho khách.</p>
+<button id="commit">Xác nhận tạo HAI hóa đơn thật</button><button class="secondary" id="change">Sửa đơn</button></section>
+<section id="complete" hidden><h2 class="ok">Đã ghi nhận cặp hóa đơn</h2>
+<p id="numbers"></p>
+<button id="customerPdf">Xem PDF KHÁCH (gửi khách)</button>
+<button id="customerShare">Chia sẻ PDF khách qua Zalo/Messenger</button>
+<button id="privatePdf" class="secondary">PDF CTV (NỘI BỘ — không gửi khách)</button>
+<p class="warn">Không chia sẻ mã truy cập CTV hoặc PDF nội bộ cho người nhận hàng.</p></section>
+<section><p class="muted" id="status" role="status" aria-live="polite">Chưa đăng nhập cộng tác viên.</p></section>
+</main>
+<script>
+(()=>{
+ 'use strict';
+ const $=id=>document.getElementById(id);
+ const token=decodeURIComponent(location.hash.slice(1)),money=v=>Number(v||0).toLocaleString('vi-VN')+'đ';
+ let accessCode='',quote=null,receipt=null,disabled=false;
+ const status=(message,css='muted')=>{$('status').textContent=message;$('status').className=css};
+ const request=async(path,payload={})=>{
+  const response=await fetch(path,{method:'POST',cache:'no-store',credentials:'omit',
+   headers:{'Content-Type':'application/json'},body:JSON.stringify({token,accessCode,...payload})});
+  const data=await response.json();if(!response.ok||!data.ok)throw Error(data.message||data.code||'Yêu cầu bị từ chối');
+  return data;
+ };
+ async function run(fn){
+  if(disabled)return;disabled=true;
+  for(const x of document.querySelectorAll('button'))x.disabled=true;
+  try{await fn()}catch(e){status('⚠ '+e.message+
+   '. Nếu đã bấm xác nhận và không nhận được kết quả, đừng gửi lại. Liên hệ Minh Satori để đối chiếu.','warn')}
+  finally{disabled=false;for(const x of document.querySelectorAll('button'))x.disabled=false}
+ }
+ if(!/^[A-Za-z0-9_-]+\.[a-f0-9]{64}$/.test(token)){
+  status('Link CTV không hợp lệ. Yêu cầu chủ tài khoản cấp lại.','warn');$('unlock').disabled=true;return;
+ }
+ $('unlock').onclick=()=>run(async()=>{
+  accessCode=$('code').value.trim();if(accessCode.length!==32)throw Error('Mã truy cập CTV chưa hợp lệ.');
+  const result=await request('/api/ctv/catalogue');
+  $('who').textContent='CTV: '+result.collaborator.name;
+  $('rates').textContent='Giá gửi khách giảm '+result.customerDiscountPercent+'% • Giá đối soát CTV giảm '+result.collaboratorDiscountPercent+'%';
+  const picker=$('delivery');picker.replaceChildren();
+  for(const d of result.destinations){
+   const opt=document.createElement('option');
+   opt.value=JSON.stringify({id:d.id,invoiceNo:d.invoiceNo});
+   opt.textContent=d.name+' • '+d.location+' • '+d.phone;picker.append(opt);
+  }
+  const root=$('products');root.replaceChildren();
+  for(const p of result.products){
+   const row=document.createElement('div');row.className='row';
+   const name=document.createElement('div');name.textContent=p.name+' ('+p.unit+')';
+   const price=document.createElement('p');price.className='muted';
+   price.textContent='Giá khách: '+money(p.customerUnitPrice);
+   name.append(price);
+   const qty=document.createElement('input');qty.type='number';qty.min='0';qty.max='500';qty.step='1';qty.value='0';
+   qty.dataset.sku=p.code;qty.setAttribute('aria-label','Số lượng '+p.name);
+   row.append(name,qty);root.append(row);
+  }
+  $('login').hidden=true;$('shop').hidden=false;
+  status('Đã xác thực. Chọn điểm giao và sản phẩm; chưa có hóa đơn được tạo.','ok');
+ });
+ $('review').onclick=()=>run(async()=>{
+  const items=[...document.querySelectorAll('[data-sku]')].map(e=>({code:e.dataset.sku,qty:Number(e.value)})).filter(x=>x.qty>0);
+  if(items.length<1||items.length>6||items.some(i=>!Number.isSafeInteger(i.qty)||i.qty>500))
+   throw Error('Chọn 1–6 sản phẩm và số lượng hợp lệ.');
+  const destination=JSON.parse($('delivery').value);
+  const result=await request('/api/ctv/quote',{destination,items,deliveryNote:$('note').value});
+  quote=result.quoteToken;
+  $('locationPreview').textContent='Giao đến: '+result.customer.name+' • '+result.customer.location;
+  $('pricePreview').textContent='Tổng hóa đơn KHÁCH: '+money(result.customerTotal)+
+   '\nTổng hóa đơn CTV (NỘI BỘ): '+money(result.collaboratorTotal)+
+   '\nHoa hồng tiền hàng: '+money(result.commission)+' (chưa gồm VAT/phí giao)';
+  $('pricePreview').style.whiteSpace='pre-wrap';
+  $('shop').hidden=true;$('preview').hidden=false;status('Hai mức giá đã đối chiếu với sổ thật. Chưa ghi đơn.');
+ });
+ $('change').onclick=()=>{$('preview').hidden=true;$('shop').hidden=false;quote=null};
+ $('commit').onclick=()=>run(async()=>{
+  if(!quote)throw Error('Chưa có báo giá.');
+  receipt=await request('/api/ctv/confirm',{quoteToken:quote,
+   confirmation:'CTV_CONFIRMS_BOTH_REAL_INVOICES'});
+  $('preview').hidden=true;$('complete').hidden=false;
+  $('numbers').textContent='Hóa đơn khách #'+receipt.customerInvoice.invoiceNo+
+   ' • Hóa đơn CTV nội bộ #'+receipt.collaboratorInvoice.invoiceNo+
+   ' • Hoa hồng tiền hàng: '+money(receipt.commission);
+  status('Đã ghi cặp hóa đơn thật. Bản khách và bản nội bộ được phân quyền riêng.','ok');
+ });
+ async function pdf(role){
+  if(!receipt)throw Error('Chưa có hóa đơn.');
+  const invoiceNo=role==='customer'?receipt.customerInvoice.invoiceNo:receipt.collaboratorInvoice.invoiceNo;
+  const response=await fetch('/api/ctv/pdf/'+role,{method:'POST',cache:'no-store',credentials:'omit',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({token,accessCode,invoiceNo})});
+  if(!response.ok)throw Error('Không thể lấy PDF đã xác minh. Liên hệ quản trị.');
+  return await response.blob();
+ }
+ $('customerPdf').onclick=()=>run(async()=>{
+  const blob=await pdf('customer'),url=URL.createObjectURL(blob);
+  window.open(url,'_blank','noopener');status('Đã mở hóa đơn khách, không chứa chiết khấu nội bộ.','ok');
+ });
+ $('privatePdf').onclick=()=>run(async()=>{
+  const blob=await pdf('collaborator'),url=URL.createObjectURL(blob);
+  window.open(url,'_blank','noopener');status('Đã mở hóa đơn đối soát CTV NỘI BỘ.','ok');
+ });
+ $('customerShare').onclick=()=>run(async()=>{
+  const blob=await pdf('customer'),file=new File([blob],'MinhSatori-Khach-'+receipt.customerInvoice.invoiceNo+'.pdf',{type:'application/pdf'});
+  if(navigator.canShare?.({files:[file]})){
+   await navigator.share({files:[file],title:'Hóa đơn khách Minh Satori'});
+   status('Đã mở bảng chia sẻ chỉ với hóa đơn KHÁCH.','ok');
+  }else{
+   const url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download=file.name;a.click();
+   status('Thiết bị chưa hỗ trợ chia sẻ trực tiếp: đã xuất riêng PDF KHÁCH để gửi.','ok');
+  }
+ });
+})();
+</script></body></html>
