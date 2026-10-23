@@ -66,3 +66,33 @@ assert.equal(r.archived,1);assert.equal(r.notArchived,0);
 assert.equal(archives.length,1);assert.equal(requests.length,1);
 assert.ok(preflights>=2,'owner must approve install and preflight');
 console.log('PASS fake owner schedule + scoped signed Render request + verified original PDF Drive archive');
+// Exercise REAL pending() code on fake owner Drive state: recent website and
+// Bot invoices both enter queue; deleted/old bills never return.
+const fileNames=new Set();
+const extra={...order,id:order.id-10,invoiceNo:9002,apiRequestId:'bot-fake-req-9002',
+  pairCommissionAmount:999};
+const old={...order,id:11,invoiceNo:25};
+const fakeCtx={JSON,Number,Math,Date,Array,String,Error,console,
+  requireOwner_(){},OWNER_EMAIL:'owner@example.com',
+  Session:{getEffectiveUser:()=>({getEmail:()=> 'owner@example.com'})},
+  PropertiesService:{getScriptProperties:()=>({getProperty:k=>k==='SATORI_PDF_ARCHIVE_FOLDER_ID'?'FAKE_FOLDER':null})},
+  DriveApp:{getFolderById:id=>{assert.equal(id,'FAKE_FOLDER');return {
+    getFilesByName:name=>({hasNext:()=>fileNames.has(name)})
+  }}},
+  Utilities:ctx.Utilities
+};
+vm.createContext(fakeCtx);vm.runInContext(archive,fakeCtx);
+const originalState={revision:5,values:{satori_orders_v15:JSON.stringify([order,extra,old])}};
+const first=fakeCtx.SatoriInvoicePdfArchive.pending(originalState,{limit:4});
+assert.equal(first.jobs.length,2,'both direct-website and Bot API invoices are eligible');
+assert.ok(first.jobs.every(x=>x.order.id!==11),'historical entries excluded');
+assert.ok(first.jobs.every(x=>!('apiRequestId' in x.order)&&
+  !('pairCommissionAmount' in x.order)),'do not expose internal request/commission metadata');
+for(const job of first.jobs){
+ const name='MinhSatori_HD'+job.order.invoiceNo+'_v'+digest(Buffer.from(job.versionKey)).slice(0,16)+'.pdf';
+ fileNames.add(name);
+}
+const repeated=fakeCtx.SatoriInvoicePdfArchive.pending(originalState,{limit:4});
+assert.equal(repeated.jobs.length,0,'already archived versions are skipped');
+console.log('PASS current-order eligibility, private metadata redaction and Drive-version dedup');
+
