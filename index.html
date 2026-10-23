@@ -8755,6 +8755,12 @@ window.SatoriRecon = (() => {
             const pending=!equal(snapshot(),base),count=JSON.parse(remote.satori_orders_v15).length;
             updateSync(recoveredConflict?'Đã tải '+count+' bản ghi từ Drive. Thay đổi cũ trên máy đã được giữ trong bản đối chiếu; chưa ghi đè Drive.':pending?'Dữ liệu trên máy đang chờ gửi lên Drive…':'Đã đồng bộ Google Drive · bản '+m.state.revision+' · '+count+' bản ghi',pending?'pending':recoveredConflict?'error':'synced');
             status.style.background=pending || recoveredConflict?'#7c2d12':'#065f46';
+            // Invoices created through Bot API arrive in the authoritative Drive snapshot.
+            // Queue only the recent unseen PDF versions; never create or edit invoices here.
+            if(!pending && !recoveredConflict && typeof window.satoriArchiveCloudInvoices==='function'){
+                try{window.satoriArchiveCloudInvoices(JSON.parse(remote.satori_orders_v15||'[]'));}
+                catch(e){console.warn('Không thể xếp hàng PDF từ dữ liệu Drive:',e.message);}
+            }
             if(pending)schedule();
         }catch(e){pauseSync('Không xử lý được dữ liệu Drive: '+e.message);}
     });
