@@ -13,7 +13,7 @@ var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
  'trash.list':'orders:read','orders.restore':'orders:write',
  'payments.markCustomerPaid':'payments:write',
  'collaborators.pair.list':'collaborators:pair:read',
- 'collaborators.pair.configure':'collaborators:pair:approve',
+ 'collaborators.pair.configure':'collaborators:pair:approve','collaborators.mark':'collaborators:pair:approve',
  'orders.create.pair':'collaborators:pair:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
@@ -42,7 +42,7 @@ function state(){
 }
 function rows(s){var x=JSON.parse(s.values[ORDER_KEY]);need(Array.isArray(x),'INVALID_STATE','Dữ liệu hóa đơn hỏng');return x;}
 function version(s,p){need(Number.isInteger(p.expectedRevision),'REVISION_REQUIRED','Thiếu expectedRevision');need(s.revision===p.expectedRevision,'REVISION_CONFLICT','Dữ liệu vừa được cập nhật, hãy đọc lại');}
-function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
+function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCommissionAmount:o.pairCommissionAmount??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
 function iso(date){
  var m=String(date||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
  var d=new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
@@ -343,6 +343,46 @@ function validPairPolicy(p){
  [0,5,8,10].includes(p.vatPercent),
  'PAIR_POLICY_INVALID','Phải cấu hình CK khách, CK CTV, phí giao, VAT hợp lệ và CK CTV cao hơn CK khách');
 }
+function validatedCtvDestinations(s,refs){
+ need(Array.isArray(refs)&&refs.length>=1&&refs.length<=20,'CTV_DESTINATIONS_INVALID','Duyệt 1–20 điểm giao');
+ var all=rows(s),keys={},unique={};
+ return refs.map(function(r){
+  need(r&&r.id!=null&&Number.isSafeInteger(r.invoiceNo)&&r.invoiceNo>0,'CTV_DESTINATIONS_INVALID','Thiếu tham chiếu');
+  var source=all.filter(function(o){return String(o.id)===String(r.id)&&Number(o.invoiceNo)===r.invoiceNo&&!o.pairRole});
+  need(source.length===1,'CTV_DESTINATION_UNVERIFIED','Điểm giao không có hóa đơn gốc duy nhất');
+  var o=source[0],phone=String(o.phone||'').replace(/\D/g,''),address=norm(o.location);
+  need(phone.length>=8&&address.length>=5&&norm(o.name).length>=2,'CTV_DESTINATION_UNVERIFIED','Thiếu điểm giao');
+  var k=String(o.id)+'|'+o.invoiceNo,u=norm(o.name)+'|'+phone+'|'+address;
+  need(!keys[k]&&!unique[u],'CTV_DESTINATIONS_DUPLICATE','Điểm giao trùng');keys[k]=true;unique[u]=true;
+  return {id:o.id,invoiceNo:o.invoiceNo};
+ });
+}
+function markCollaborator(s,p){
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Chưa phê duyệt vai trò');
+ need(typeof p.requestId==='string'&&/^[A-Za-z0-9_-]{8,100}$/.test(p.requestId),'INVALID_REQUEST','Thiếu requestId');
+ need(p.customerRef&&p.customerRef.id!=null&&Number.isSafeInteger(p.customerRef.invoiceNo),'INVALID_REQUEST','Chọn hóa đơn nguồn');
+ var all=rows(s),matches=all.filter(function(o){
+  return String(o.id)===String(p.customerRef.id)&&Number(o.invoiceNo)===p.customerRef.invoiceNo&&!o.pairRole;
+ });
+ need(matches.length===1&&norm(matches[0].name).length>=2,'CTV_SOURCE_UNVERIFIED','Không tìm được khách trong sổ');
+ var source=matches[0],id='ctv_'+String(source.id).replace(/[^A-Za-z0-9_-]/g,'');
+ need(/^[A-Za-z0-9_-]{4,100}$/.test(id),'CTV_INVALID_ID','Không tạo được mã CTV');
+ var list=JSON.parse(s.values.satori_collaborators_v1||'[]');
+ need(Array.isArray(list)&&list.length<=10000,'INVALID_STATE','Danh sách CTV không hợp lệ');
+ var same=list.filter(function(x){return x.id===id});
+ need(same.length<=1,'INVALID_STATE','Trùng mã CTV');
+ if(same.length&&same[0].markRequestId===p.requestId)
+  return {modified:false,result:{duplicate:true,collaboratorId:id,active:same[0].active}};
+ need(!list.some(function(x){return x.markRequestId===p.requestId}),'REQUEST_ID_CONFLICT','Mã yêu cầu đã sử dụng');
+ version(s,p);
+ var next={id:id,name:source.name,active:p.enabled===true,
+  sourceInvoiceNo:source.invoiceNo,sourceOrderId:source.id,
+  markRequestId:p.requestId,updatedAt:Date.now(),reviewedByOwner:true};
+ list=list.filter(function(x){return x.id!==id});
+ list.push(next);
+ return {modified:true,extras:{satori_collaborators_v1:JSON.stringify(list)},
+  result:{collaboratorId:id,active:next.active,duplicate:false}};
+}
 function configurePair(s,p){
  var id=String(p.collaboratorId||''),requestId=String(p.requestId||'');
  need(/^[A-Za-z0-9_-]{4,100}$/.test(id)&&/^[A-Za-z0-9_-]{8,100}$/.test(requestId),
@@ -352,8 +392,12 @@ function configurePair(s,p){
  validPairPolicy(p);
  var policy=pairPolicyFor(s,id);
  var fields=['enabled','customerDiscountPercent','collaboratorDiscountPercent','shippingPercent','vatPercent'];
+ var authorizedDestinations=p.authorizedDestinations===undefined?
+  (Array.isArray(policy&&policy.authorizedDestinations)?policy.authorizedDestinations:[]):
+  validatedCtvDestinations(s,p.authorizedDestinations);
  if(policy&&policy.configRequestId===requestId){
-  need(fields.every(function(k){return policy[k]===p[k]}),'REQUEST_ID_CONFLICT',
+  need(fields.every(function(k){return policy[k]===p[k]})&&
+   JSON.stringify(policy.authorizedDestinations||[])===JSON.stringify(authorizedDestinations),'REQUEST_ID_CONFLICT',
    'Cùng mã yêu cầu nhưng chính sách khác');
   return {modified:false,result:{duplicate:true,policy:policy}};
  }
@@ -361,7 +405,7 @@ function configurePair(s,p){
   'REQUEST_ID_CONFLICT','Mã duyệt chính sách đã dùng');
  version(s,p);
  var next=Object.assign({},Object.fromEntries(fields.map(function(k){return [k,p[k]]})),{
-  collaboratorId:id,policyVersion:Utilities.getUuid(),configRequestId:requestId,
+  collaboratorId:id,authorizedDestinations:authorizedDestinations,policyVersion:Utilities.getUuid(),configRequestId:requestId,
   updatedAt:Date.now(),reviewedByOwner:true
  });
  var list=pairPolicies(s).filter(function(x){return x.collaboratorId!==id});
@@ -422,6 +466,11 @@ function createPair(s,all,p){
  validPairPolicy(policy);
  need(p.expectedPolicyVersion===policy.policyVersion,
   'PAIR_POLICY_CHANGED','Chính sách giảm giá vừa đổi, cần xác nhận lại');
+ if(Array.isArray(policy.authorizedDestinations)&&policy.authorizedDestinations.length>0){
+  need(p.customerRef&&policy.authorizedDestinations.some(function(d){
+   return String(d.id)===String(p.customerRef.id)&&d.invoiceNo===p.customerRef.invoiceNo;
+  }),'CTV_DESTINATION_NOT_APPROVED','Địa chỉ chưa được chủ duyệt');
+ }
  checkProfile(all,p.order,p);
  var catalogue=JSON.parse(s.values.satori_catalogue_v15||'[]');
  need(Array.isArray(catalogue)&&catalogue.length>0&&catalogue.length<=200,
@@ -484,10 +533,14 @@ function createPair(s,all,p){
  var settlement=one('collaborator',second,rawId+1,policy.collaboratorDiscountPercent,first);
  need(customer.total>settlement.total,'PAIR_POLICY_INVALID',
   'Bill khách phải cao hơn bill CTV');
+ var commissionAmount=customer.goodsTotal-settlement.goodsTotal;
+ need(commissionAmount>0,'PAIR_POLICY_INVALID','Hoa hồng CTV phải dương');
+ customer.pairCommissionAmount=commissionAmount;
+ settlement.pairCommissionAmount=commissionAmount;
  all.unshift(customer,settlement);
  return {modified:true,result:{duplicate:false,pairGroupId:group,
   customerInvoice:visible(customer),collaboratorInvoice:visible(settlement),
-  difference:customer.total-settlement.total}};
+  difference:customer.total-settlement.total,commissionAmount:commissionAmount,customerGoodsTotal:customer.goodsTotal,collaboratorGoodsTotal:settlement.goodsTotal}};
 }
 
 function create(s,all,p,aiMode){
@@ -698,7 +751,8 @@ function read(s,action,p){
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
 function write(s,action,p){
- var all=rows(s),result=action==='collaborators.pair.configure'?configurePair(s,p):
+ var all=rows(s),result=action==='collaborators.mark'?markCollaborator(s,p):
+  action==='collaborators.pair.configure'?configurePair(s,p):
   action==='orders.create.pair'?createPair(s,all,p):
   action==='pricing.approve'?approveAIPricing(s,all,p):
   (action==='orders.create'||action==='orders.create.ai')?create(s,all,p,action==='orders.create.ai'):
@@ -728,7 +782,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='collaborators.mark'||identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
