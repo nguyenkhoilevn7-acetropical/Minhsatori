@@ -67,8 +67,12 @@ function reportBackupFailure(error){
 }
 export function makeDriveBackupWorker(readState){
  let lastSuccessAt=null,lastFileId=null,lastFingerprint=null,lastFailure=null,inFlight=null,timer=null,interval=null;
- const active=()=>config()!==null;
+ const emergencyPreview=()=>process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1';
+ // Rescue/owner-preview must never upload empty ephemeral data to Drive,
+ // even when historical bridge credentials remain stored securely on Render.
+ const active=()=>!emergencyPreview()&&config()!==null;
  async function syncNow(){
+  if(emergencyPreview())throw Error('PREVIEW_ONLY_NO_BACKUP_WRITES');
   if(inFlight)return inFlight;
   inFlight=(async()=>{
    const cfg=config();if(!cfg)throw Error('DRIVE_BACKUP_NOT_CONFIGURED');
