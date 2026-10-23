@@ -94,7 +94,7 @@ export function createProductionPrivateLinks({
  }
  async function checked(invite,destination){
   const d=destination||chosen(invite);
-  const live=await source(d.customerRef.invoiceNo);
+  const live=await source(d.customerRef.invoiceNo,d.customerRef.id);
   if(String(live.customer.id)!==String(d.customerRef.id)||
      live.customer.name!==d.name||digits(live.customer.phone)!==digits(d.phone)||
      live.customer.location!==d.location)throw error('REAL_CUSTOMER_SOURCE_CHANGED');
@@ -147,7 +147,7 @@ export function createProductionPrivateLinks({
      !Number.isSafeInteger(input.daysValid)||input.daysValid<1||input.daysValid>30||
      (multi?(!cleanText(input.agentName,150)||input.destinations.length<1||
        input.destinations.length>20||input.destinations.some(x=>!Number.isSafeInteger(x?.customerRef?.invoiceNo)||x.customerRef.invoiceNo<1||!pct(x.discountPercent))||
-       new Set(input.destinations.map(x=>x.customerRef.invoiceNo)).size!==input.destinations.length):
+       new Set(input.destinations.map(x=>String(x.customerRef.id)+'|'+x.customerRef.invoiceNo)).size!==input.destinations.length):
       (!validRef(input.customerRef)||!pct(input.discountPercent))))
     throw error('REAL_LINK_APPROVAL_REQUIRED');
   await probeWriteScope();
@@ -156,7 +156,7 @@ export function createProductionPrivateLinks({
   const refs=multi?input.destinations:[input];
   const approved=[];
   for(const requested of refs){
-   const live=await source(requested.customerRef.invoiceNo);
+   const live=await source(requested.customerRef.invoiceNo,requested.customerRef.id);
    if((requested.customerRef.id!=null&&String(live.customer.id)!==String(requested.customerRef.id))||
       !cleanText(live.customer.name,150)||!cleanText(live.customer.location,500)||
       digits(live.customer.phone).length<8||
