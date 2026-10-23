@@ -68,6 +68,8 @@ class NativeMainActivity : AppCompatActivity() {
     private var fileUri: Uri? = null
     private var dataSource = ""
     private var lastReadAt = ""
+    private var previousScrollView: ScrollView? = null
+    private var previousRenderedTab = -1
     private var apiEndpoint: String? = null
     private var allowedActions: Set<String> = emptySet()
     private var actorId = ""
@@ -391,7 +393,7 @@ class NativeMainActivity : AppCompatActivity() {
         val items = arrayOf(
             "☁ Google Drive — xem hóa đơn thật (chỉ đọc)",
             "Đăng nhập Google / Đồng bộ Mobile API",
-            "Cài đặt Mobile API (SANDBOX)",
+            "Cấu hình Mobile API quản lý hóa đơn",
             "Chọn file dữ liệu thủ công — chỉ xem"
         )
         AlertDialog.Builder(this)
@@ -437,6 +439,11 @@ class NativeMainActivity : AppCompatActivity() {
 
     private fun render() {
         dashboardMode = true
+        // New orders should not jump the owner to the top of a long invoice
+        // list during an automatic refresh.
+        val oldScrollY = if (previousRenderedTab == activeTab)
+            previousScrollView?.scrollY ?: 0 else 0
+        previousRenderedTab = activeTab
         val shell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(night)
@@ -452,6 +459,8 @@ class NativeMainActivity : AppCompatActivity() {
         }
         scroll.addView(content)
         shell.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        previousScrollView = scroll
+        if (oldScrollY > 0) scroll.post { scroll.scrollTo(0, oldScrollY) }
 
         // Web brand parity: midnight header, cyan gradient and original Satori logo.
         val brand = LinearLayout(this).apply {
@@ -506,7 +515,9 @@ class NativeMainActivity : AppCompatActivity() {
             background = panelBackground(if (connected) Color.rgb(8, 47, 53)
                   else Color.rgb(48, 35, 24))
         }
+        val stale = statusMessage.startsWith("⚠")
         label(info, when {
+            stale -> "●  CẢNH BÁO ĐỒNG BỘ"
             connected -> "●  ĐÃ ĐỒNG BỘ DỮ LIỆU"
             isLoading || authorizationPending -> "●  ĐANG TỰ ĐỘNG KẾT NỐI…"
             else -> "●  CHƯA KẾT NỐI DỮ LIỆU"
@@ -519,8 +530,13 @@ class NativeMainActivity : AppCompatActivity() {
             else statusMessage,
             12f, false, if (connected) Color.rgb(153, 246, 228)
                 else Color.rgb(254, 215, 170), 5)
+        if (stale) label(info, statusMessage, 11.5f, true,
+            Color.rgb(253, 186, 116), 6)
         if (connected && lastReadAt.isNotBlank()) {
-            label(info, "Cập nhật lúc " + lastReadAt, 11f, false, muted, 5)
+            label(info, "Cập nhật lúc " + lastReadAt +
+                (if (preferredSource() != AutoSyncPolicy.FILE)
+                    " • Kiểm tra đơn mới mỗi 20 giây khi mở app" else ""),
+                11f, false, muted, 5)
         }
         content.addView(info, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(10)
@@ -1301,7 +1317,14 @@ class NativeMainActivity : AppCompatActivity() {
         button(parent, "▤ SỔ KẾ TOÁN · LỌC TRẠNG THÁI") { showLedger(data) }
         if (canWrite) button(parent, "+ TẠO HÓA ĐƠN", true) { launchEditor() }
         if (canAction("mobile.trash") && canAction("orders.restore")) {
-            button(parent, "THÙNG RÁC 30 NGÀY") { showTrash() }
+            button(parent, "♻ THÙNG RÁC 30 NGÀY · KHÔI PHỤC") { showTrash() }
+        } else if (preferredSource() == AutoSyncPolicy.DRIVE) {
+            label(parent, "Google Drive chỉ cho phép xem và tự đồng bộ. " +
+                "Muốn xóa mềm/khôi phục, kết nối Mobile API chủ tài khoản đã xác thực.",
+                12f, false, softInk, 9)
+            button(parent, "⚙ KẾT NỐI QUYỀN XÓA / KHÔI PHỤC") {
+                showConnectionSettings()
+            }
         }
         label(parent, "Tìm số hóa đơn, khách hàng, số điện thoại hoặc địa chỉ", 12f,
             false, muted, 14)
