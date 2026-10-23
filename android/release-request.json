@@ -16,6 +16,7 @@
     "Stable pinned release certificate required; must upgrade same installed Android package, no debug signing",
     "Google Drive/ledger live read verified separately before owner installation",
     "Gemini real link and production checkout remain blocked until idempotent end-to-end invoice tests",
-    "Do not deploy Mobile API Apps Script production or alter real invoices in this workflow"
+    "Do not deploy Mobile API Apps Script production or alter real invoices in this workflow",
+    "2026-10-23: re-run signed APK acceptance with version verifier reading this reviewed release-request; keep same package and pinned signer."
   ]
 }
