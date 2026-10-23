@@ -64,6 +64,8 @@ const reused={...env,SATORI_OWNER_CHECKOUT_ENDPOINT:'',
  SATORI_OWNER_CHECKOUT_KEY_ID:'',SATORI_OWNER_CHECKOUT_SECRET:'',
  SATORI_BOT_API_URL:endpoint,SATORI_BOT_KEY_ID:keyId,SATORI_BOT_SECRET:secret};
 assert.equal(createOwnerRealInvoice({env:reused,fetcher}).readiness().enabled,true);
+assert.equal(createOwnerRealInvoice({env:{...reused,SATORI_BOT_API_URL:'',SATORI_READ_ENDPOINT:endpoint},fetcher}).readiness().enabled,true);
+
 assert.equal(createOwnerRealInvoice({env:{...reused,SATORI_BOT_KEY_ID:'readonly_key'},
  fetcher}).readiness().enabled,false);
 
