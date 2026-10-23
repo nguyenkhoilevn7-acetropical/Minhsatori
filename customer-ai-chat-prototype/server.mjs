@@ -1627,6 +1627,8 @@ server.listen(PORT,HOST,()=>{
   'read='+ctvCredentials.read.reason,
   'configure='+ctvCredentials.configure.reason,
   'orderWrite='+ctvCredentials.orderWrite.reason,
+  'approveCredentials='+ctvCredentials.approveCredentials.reason,
+  'orderCredentials='+ctvCredentials.orderCredentials.reason,
   'link='+String(ctvLink.reason||'CONFIGURED'));
  const pilot=ownerInvoice.readiness();
  if(OWNER_ONLY_PILOT&&pilot.enabled===true){
