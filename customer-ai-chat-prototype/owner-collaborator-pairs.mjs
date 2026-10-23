@@ -101,8 +101,8 @@ export async function probeOwnerPairRead(options={}){
  * Return fixed categories only: never expose URLs, HMAC keys or secrets.
  */
 export function ownerPairConfigReadiness({env=process.env}={}){
- const check=action=>{
-  try{configuration(action,env);return Object.freeze({ready:true,reason:'CONFIGURED'})}
+ const check=(action,probeEnv=env)=>{
+  try{configuration(action,probeEnv);return Object.freeze({ready:true,reason:'CONFIGURED'})}
   catch(e){return Object.freeze({ready:false,reason:[
    'CTV_PAIR_WRITE_DISABLED','CTV_PAIR_NOT_CONFIGURED'].includes(e?.code)?
    e.code:'CTV_PAIR_NOT_READY'})}
@@ -111,6 +111,11 @@ export function ownerPairConfigReadiness({env=process.env}={}){
   read:check('collaborators.pair.list'),
   configure:check('collaborators.pair.configure'),
   mark:check('collaborators.mark'),
-  orderWrite:check('orders.create.pair')
+  orderWrite:check('orders.create.pair'),
+  // Presence only, evaluated as though flags were enabled: never sends a request.
+  approveCredentials:check('collaborators.pair.configure',
+   {...env,SATORI_CTV_PAIR_CONFIG_ENABLED:'1'}),
+  orderCredentials:check('orders.create.pair',
+   {...env,SATORI_CTV_PAIR_ORDER_ENABLED:'1'})
  });
 }
