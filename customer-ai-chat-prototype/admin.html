@@ -637,23 +637,59 @@ $('ctvWizardConfirm').onclick=async()=>{
    ' điểm giao; CK khách '+customerDiscountPercent+'%, CK CTV '+collaboratorDiscountPercent+
    '%.\\nLưu chương trình và cấp MỘT link ngay, không tạo khách mới.'))return;
   $('ctvWizardResult').textContent='Đang lưu CTV và cấp link thật. Không bấm lại.';
-  const d=await request('/api/admin/ctv-activate','POST',{
-   confirmation:'OWNER_ACTIVATES_COLLABORATOR',sourceInvoiceNo:nums[0],destinationInvoiceNos:nums,
-   customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent
-  });
+  let collaboratorId=ctvDraft.collaboratorId,invitation=null;
+  if(collaboratorId){
+   if(!pairLoadSuccessful||!Number.isSafeInteger(pairCurrentRevision))
+    throw Error('Chưa đọc đúng phiên bản CTV từ sổ Drive.');
+   await request('/api/admin/collaborator-pairs/configure','POST',{
+    collaboratorId,enabled:true,customerDiscountPercent,collaboratorDiscountPercent,
+    shippingPercent,vatPercent,expectedRevision:pairCurrentRevision,
+    destinationInvoiceNos:nums,requestId:'ctv_'+crypto.randomUUID().replace(/-/g,''),confirmed:true
+   });
+  }else{
+   const d=await request('/api/admin/ctv-activate','POST',{
+    confirmation:'OWNER_ACTIVATES_COLLABORATOR',sourceInvoiceNo:nums[0],destinationInvoiceNos:nums,
+    customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent
+   });
+   collaboratorId=d.collaboratorId;invitation=d.invitation||null;
+  }
   await loadPairPolicies(true);
-  const saved=pairPolicies.find(p=>p.collaboratorId===d.collaboratorId&&p.enabled===true);
-  const actual=(saved?.authorizedDestinations||[]).map(x=>x.invoiceNo).sort((a,b)=>a-b);
-  if(!saved||JSON.stringify(actual)!==JSON.stringify([...nums].sort((a,b)=>a-b)))
-   throw Error('Chưa xác minh được đủ địa chỉ trong sổ Drive. Không bấm lưu lại.');
-  if(!d.linkEnabled||!d.invitation?.url||!d.invitation?.accessCode)
-   throw Error('Đã lưu chính sách nhưng cổng link chưa sẵn sàng. Không tạo khách trùng.');
-  ctvIssuedLink=d.invitation.url;
+  const saved=pairPolicies.find(p=>p.collaboratorId===collaboratorId&&p.enabled===true);
+  const actual=(saved?.authorizedDestinations||[]).map(v=>v.invoiceNo).sort((m,n)=>m-n);
+  const expected=[...nums].sort((m,n)=>m-n);
+  if(!saved||saved.reviewedByOwner!==true||
+     saved.customerDiscountPercent!==customerDiscountPercent||
+     saved.collaboratorDiscountPercent!==collaboratorDiscountPercent||
+     JSON.stringify(actual)!==JSON.stringify(expected))
+   throw Error('Chưa xác minh được chính sách và điểm giao trên Drive. Không bấm lưu lại.');
+  ctvDraft.collaboratorId=collaboratorId;
+  if(!invitation)invitation=await request('/api/admin/ctv-links/issue','POST',{collaboratorId});
+  if(invitation.production!==true||invitation.oneLink!==true||
+     !invitation.url||!invitation.accessCode||
+     invitation.deliveryLocations!==nums.length)
+   throw Error('Link hoặc số điểm giao không khớp hồ sơ đã duyệt.');
+  ctvIssuedLink=invitation.url;
   $('ctvWizardLink').textContent=ctvIssuedLink;
-  $('ctvWizardAccessCode').textContent='Mã truy cập CTV, gửi riêng cho CTV: '+d.invitation.accessCode;
-  $('ctvWizardIssued').hidden=false;
-  $('ctvWizardResult').textContent='✅ ĐÃ DUYỆT VÀ CẤP 1 LINK THẬT • '+ctvDraft.name+' • '+nums.length+' điểm giao.';
+  $('ctvWizardAccessCode').textContent='Mã truy cập của CTV, gửi riêng: '+invitation.accessCode;
+  $('ctvWizardIssued').hidden=false;$('ctvWizardExistingLink').hidden=false;
+  $('ctvWizardResult').textContent='✅ ĐÃ LƯU VÀ CẤP 1 LINK THẬT • '+ctvDraft.name+
+   ' • '+nums.length+' điểm giao • CK khách '+customerDiscountPercent+'% / CTV '+collaboratorDiscountPercent+'%.';
  }catch(e){$('ctvWizardResult').textContent='⚠ '+e.message+' Nếu trạng thái ghi chưa rõ, đọc sổ trước, không bấm lại.'}
+ finally{b.disabled=false}
+};
+$('ctvWizardExistingLink').onclick=async()=>{
+ if(!ctvDraft?.collaboratorId)return;
+ const b=$('ctvWizardExistingLink');b.disabled=true;
+ $('ctvWizardResult').textContent='Đang cấp lại cùng link CTV từ chương trình đã duyệt…';
+ try{
+  const d=await request('/api/admin/ctv-links/issue','POST',{collaboratorId:ctvDraft.collaboratorId});
+  if(d.production!==true||d.oneLink!==true||!d.url||!d.accessCode)
+   throw Error('Cổng link chưa trả kết quả hợp lệ.');
+  ctvIssuedLink=d.url;$('ctvWizardLink').textContent=d.url;
+  $('ctvWizardAccessCode').textContent='Mã truy cập CTV, gửi riêng: '+d.accessCode;
+  $('ctvWizardIssued').hidden=false;
+  $('ctvWizardResult').textContent='✅ Lấy lại 1 link CTV hiện có. Không tạo thêm khách.';
+ }catch(e){$('ctvWizardResult').textContent='⚠ '+e.message}
  finally{b.disabled=false}
 };
 $('ctvWizardCopyLink').onclick=async()=>{
