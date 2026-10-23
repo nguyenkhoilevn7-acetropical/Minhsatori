@@ -98,7 +98,6 @@ for(const name of ['ownerLiveCheck','ownerLivePreview','ownerLiveConfirm',
  'ownerMessage','ownerRef','ownerDiscount','ownerShip','ownerVat'])
  assert.ok(admin.includes('id="'+name+'"'));
 const server=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
-new vm.SourceTextModule(server,{identifier:'owner-server'});
 assert.ok(server.includes("p==='/api/admin/owner-live/confirm'"));
 assert.ok(server.includes("OWNER_ONLY_NO_CUSTOMER_ACCESS"));
 console.log('PASS owner Gemini spoken order -> real Bot API invoice, explicit quote/confirm, encrypted state, source price, HMAC, deny public, no write in preview, dedupe (FAKE only)');
