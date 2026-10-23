@@ -164,6 +164,7 @@ export function createOwnerRealInvoice({
    name:live.customer.name,phone:live.customer.phone,location:live.customer.location,
    items,shippingAmount:ship,vatAmount:vat,total,deliveryNote:order.note,
    discountPercent,shippingPercent,vatPercent,expiresAt:now()+600000};
+  if(intents.has(q.id))fail('OWNER_REQUEST_ID_COLLISION');
   const sealed=seal(q);
   return {quoteToken:sealed,expiresAt:q.expiresAt,
    quoteId:q.id,revision:q.revision,
@@ -182,6 +183,7 @@ export function createOwnerRealInvoice({
      !Number.isSafeInteger(q.expiresAt)||q.expiresAt<=now()||
      q.expiresAt>now()+600000)fail('OWNER_QUOTE_EXPIRED');
   const previous=intents.get(q.id);
+  if(previous&&previous.fingerprint!==digest(q))fail('OWNER_REQUEST_ID_COLLISION');
   if(previous?.status==='confirmed')
    return {...previous.result,duplicate:true};
   if(previous)fail('OWNER_COMMIT_UNCERTAIN_RECONCILE');
@@ -196,7 +198,7 @@ export function createOwnerRealInvoice({
      subtotal+q.shippingAmount+q.vatAmount!==q.total)
    fail('OWNER_QUOTE_STALE');
   // Do not allow a second POST after lost reply, even within the same process.
-  intents.set(q.id,{status:'sending'});
+  intents.set(q.id,{status:'sending',fingerprint:digest(q)});
   let reply;
   try{
    reply=await bot('orders.create',{requestId:q.id,expectedRevision:q.revision,
@@ -204,7 +206,7 @@ export function createOwnerRealInvoice({
     order:{name:q.name,phone:q.phone,location:q.location,items:q.items,
      shippingAmount:q.shippingAmount,vatAmount:q.vatAmount,total:q.total,
      deliveryNote:q.deliveryNote}});
-  }catch(e){intents.set(q.id,{status:'uncertain'});throw e}
+  }catch(e){intents.set(q.id,{status:'uncertain',fingerprint:digest(q)});throw e}
   const saved=reply.data?.order;
   if(!Number.isSafeInteger(saved?.invoiceNo)||saved.invoiceNo<1||
     Number(saved.total)!==q.total||saved.name!==q.name||
@@ -214,7 +216,7 @@ export function createOwnerRealInvoice({
   const result={invoiceNo:saved.invoiceNo,revision:reply.revision,
    total:saved.total,duplicate:reply.data.duplicate===true,
    confirmedByAuthoritativeLedger:true};
-  intents.set(q.id,{status:'confirmed',result});
+  intents.set(q.id,{status:'confirmed',fingerprint:digest(q),result});
   return result;
  }
  return Object.freeze({readiness,preview,confirm});
