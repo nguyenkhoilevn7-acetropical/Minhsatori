@@ -83,12 +83,14 @@ function searchProfiles(all,p){
 function checkProfile(all,o,p){
  if(p.customerRef){
    var r=p.customerRef;
+   // An old invoice may have a duplicate reference where only one row has
+   // the owner's exact verified destination. Never choose an arbitrary row.
    var refs=all.filter(function(v){return String(v.id)===String(r.id)&&Number(v.invoiceNo)===Number(r.invoiceNo)});
-   need(refs.length===1,'PROFILE_CHANGED','Khách tham chiếu không còn hợp lệ');
-   var v=refs[0];
-   need(norm(v.name)===norm(o.name)&&norm(v.location)===norm(o.location)&&
-      String(v.phone||'').replace(/\D/g,'')===String(o.phone||'').replace(/\D/g,''),
-      'PROFILE_MISMATCH','Tên, địa chỉ hoặc số điện thoại chưa khớp điểm giao đã chọn');
+   need(refs.length>=1,'PROFILE_CHANGED','Khách tham chiếu không còn hợp lệ');
+   var exact=refs.filter(function(v){return norm(v.name)===norm(o.name)&&
+    norm(v.location)===norm(o.location)&&
+    String(v.phone||'').replace(/\D/g,'')===String(o.phone||'').replace(/\D/g,'')});
+   need(exact.length===1,'PROFILE_MISMATCH','Tên, địa chỉ hoặc số điện thoại chưa khớp điểm giao đã chọn');
  } else {
    need(p.confirmedNewCustomer===true,'PROFILE_CONFIRMATION_REQUIRED','Chọn đúng điểm giao hoặc xác nhận khách mới');
    need(String(o.location||'').trim().length>=5,'INVALID_ORDER','Khách mới phải có địa chỉ');
@@ -348,10 +350,15 @@ function validatedCtvDestinations(s,refs){
  var all=rows(s),keys={},unique={};
  return refs.map(function(r){
   need(r&&r.id!=null&&Number.isSafeInteger(r.invoiceNo)&&r.invoiceNo>0,'CTV_DESTINATIONS_INVALID','Thiếu tham chiếu');
-  var source=all.filter(function(o){return String(o.id)===String(r.id)&&Number(o.invoiceNo)===r.invoiceNo&&!o.pairRole});
-  need(source.length===1,'CTV_DESTINATION_UNVERIFIED','Điểm giao không có hóa đơn gốc duy nhất');
+  // Historical duplicate invoice references are safe only when exactly one
+  // corresponding row has a complete, verifiable phone/address/name.
+  // Do not rewrite or renumber original invoices.
+  var source=all.filter(function(o){return String(o.id)===String(r.id)&&
+   Number(o.invoiceNo)===r.invoiceNo&&!o.pairRole&&
+   String(o.phone||'').replace(/\D/g,'').length>=8&&
+   norm(o.location).length>=5&&norm(o.name).length>=2});
+  need(source.length===1,'CTV_DESTINATION_UNVERIFIED','Điểm giao chưa xác minh duy nhất');
   var o=source[0],phone=String(o.phone||'').replace(/\D/g,''),address=norm(o.location);
-  need(phone.length>=8&&address.length>=5&&norm(o.name).length>=2,'CTV_DESTINATION_UNVERIFIED','Thiếu điểm giao');
   var k=String(o.id)+'|'+o.invoiceNo,u=norm(o.name)+'|'+phone+'|'+address;
   need(!keys[k]&&!unique[u],'CTV_DESTINATIONS_DUPLICATE','Điểm giao trùng');keys[k]=true;unique[u]=true;
   return {id:o.id,invoiceNo:o.invoiceNo,name:o.name,phone:o.phone,location:o.location};
