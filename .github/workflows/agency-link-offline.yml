@@ -1,0 +1,37 @@
+name: Agency One-Link 17-Address Security (offline)
+on:
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/**'
+      - '.github/workflows/agency-link-offline.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  agency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check source modules and 17-destination isolation and pricing
+        run: |
+          node --check customer-ai-chat-prototype/server.mjs
+          node --check customer-ai-chat-prototype/production-private-links.mjs
+          node --test customer-ai-chat-prototype/tests/production-private-links.test.mjs customer-ai-chat-prototype/tests/delivery-locations.test.mjs
+      - name: Syntax check inline Javascript in existing admin and checkout HTML
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs'),vm=require('node:vm');
+          for(const file of ['customer-ai-chat-prototype/admin.html','customer-ai-chat-prototype/real-checkout.html']){
+            const source=fs.readFileSync(file,'utf8');
+            const matches=[...source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
+            if(matches.length===0)throw Error('NO_INLINE_SCRIPT: '+file);
+            for(const m of matches)new vm.Script(m[1],{filename:file});
+            process.stdout.write('PASS inline JavaScript '+file+'\n');
+          }
+          NODE
+      - name: Keep all agency tests offline
+        run: echo "PASS: fake profiles, one simulated invoice; never touch production credentials or Google Drive"
