@@ -1,0 +1,28 @@
+name: Minh Satori Owner Android Mobile API (FAKE only)
+on:
+  pull_request:
+    paths:
+      - 'api/AndroidOwnerMobileApi.gs'
+      - 'api/BotApi.gs'
+      - 'tests/android-owner-mobile-production.test.cjs'
+      - '.github/workflows/android-owner-mobile-fake.yml'
+  push:
+    branches:
+      - 'fix/android-live-foreground-sync-trash-20261023'
+    paths:
+      - 'api/AndroidOwnerMobileApi.gs'
+      - 'api/BotApi.gs'
+      - 'tests/android-owner-mobile-production.test.cjs'
+      - '.github/workflows/android-owner-mobile-fake.yml'
+permissions:
+  contents: read
+jobs:
+  fake-owner-mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test private OAuth owner mobile API with fake only
+        run: node tests/android-owner-mobile-production.test.cjs
