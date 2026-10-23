@@ -12,6 +12,7 @@ on:
       - 'release/android-v0.3.9-ctv-pair-readonly-20261023'
       - 'release/android-v0.4.0-owner-auto-sync-20261023'
       - 'release/android-v0.4.2-live-sync-trash-20261023'
+      - 'release/android-v0.4.3-owner-refresh-20261024'
     paths:
       - 'android/release-request.json'
 
@@ -86,7 +87,7 @@ jobs:
       - name: Upload signed APK for Samsung acceptance test
         uses: actions/upload-artifact@v4
         with:
-          name: MinhSatori-Samsung-Native-v0.4.2-LIVE-SYNC-TRASH-SIGNED-RELEASE
+          name: MinhSatori-Samsung-Native-v0.4.3-AUTO-REFRESH-SIGNED-RELEASE
           path: |
             android/app/build/outputs/apk/release/app-release.apk
             android/app/build/outputs/apk/release/release-verification.json
