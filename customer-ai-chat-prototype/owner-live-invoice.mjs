@@ -72,6 +72,19 @@ export function createOwnerRealInvoice({
   }catch(e){if(e?.code)throw e;fail('OWNER_BOT_UNCERTAIN')}
   finally{clearTimeout(timer)}
  }
+ async function probeWriter(){
+  // Scope-only proof with zero writes and zero PII returned or logged.
+  const status=await bot('system.status',{});
+  const catalogue=await bot('catalogue.list',{});
+  const orders=await bot('orders.list',{query:'GEMINI_OWNER_PROBE_NO_MATCH_20261023',limit:1});
+  if(!Number.isSafeInteger(status.data?.orders)||
+     !Array.isArray(catalogue.data?.products)||catalogue.data.products.length<1||
+     catalogue.data?.source!=='drive-ledger:satori_catalogue_v15'||
+     !Array.isArray(orders.data?.orders))fail('OWNER_WRITER_READ_SCHEMA_INVALID');
+  return Object.freeze({verified:true,revision:status.revision,
+   invoiceCount:status.data.orders,catalogueProducts:catalogue.data.products.length,
+   permissions:'orders_read_catalogue_read'});
+ }
  async function source(invoiceNo){
   if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1)fail('OWNER_CUSTOMER_REFERENCE_REQUIRED');
   const [cat,old]=await Promise.all([
@@ -223,5 +236,5 @@ export function createOwnerRealInvoice({
   intents.set(q.id,{status:'confirmed',fingerprint:digest(q),result});
   return result;
  }
- return Object.freeze({readiness,preview,confirm});
+ return Object.freeze({readiness,probeWriter,preview,confirm});
 }
