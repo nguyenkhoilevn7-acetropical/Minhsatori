@@ -32,11 +32,11 @@ function fixture(){
 test('owner may create a private link for one exact historical location, not a TEST link',async()=>{
  const f=fixture(),p=await f.issue();
  assert.equal(p.production,true);
- assert.match(p.link,/^https:\/\/example.test\/real\/[a-zA-Z0-9_.-]+$/);
+ assert.match(p.link,/^https:\/\/example.test\/real\/#?[a-zA-Z0-9_.-]+$/);
  assert.ok(!p.link.includes('Nguyệt'));
  assert.ok(!p.link.includes('40 Võ'));
  assert.equal(p.accessCode.length,27);
- const token=p.link.split('/real/')[1];
+ const token=p.link.split('/real/#')[1];
  await assert.rejects(()=>f.app.catalogue({token,accessCode:'wrong'}),{code:'ACCESS_CODE_REQUIRED'});
  const view=await f.app.catalogue({token,accessCode:p.accessCode});
  assert.equal(view.products[0].unitPrice,80000);
@@ -62,14 +62,14 @@ test('no link without explicit approval or valid phone and original address',asy
 });
 test('link is disabled by default and quote cannot authorize itself',async()=>{
  const f=fixture(),p=await f.issue();
- const token=p.link.split('/real/')[1];
+ const token=p.link.split('/real/#')[1];
  f.env.GEMINI_PRODUCTION_LINKS_ENABLED='0';
  await assert.rejects(()=>f.app.catalogue({token,accessCode:p.accessCode}),
   {code:'REAL_LINKS_NOT_ENABLED'});
  assert.equal(f.writes,0);
 });
 test('stale Drive revision prevents a real invoice write',async()=>{
- const f=fixture(),p=await f.issue(),token=p.link.split('/real/')[1];
+ const f=fixture(),p=await f.issue(),token=p.link.split('/real/#')[1];
  const q=await f.app.quote({token,accessCode:p.accessCode,items:[{code:'TP-00001',qty:1}]});
  f.updateRevision(114);
  await assert.rejects(()=>f.app.confirm({token,accessCode:p.accessCode,
@@ -78,7 +78,7 @@ test('stale Drive revision prevents a real invoice write',async()=>{
  assert.equal(f.writes,0);
 });
 test('tampered link is rejected and writes require explicit customer confirmation',async()=>{
- const f=fixture(),p=await f.issue(),token=p.link.split('/real/')[1];
+ const f=fixture(),p=await f.issue(),token=p.link.split('/real/#')[1];
  const fake=token.slice(0,-2)+'XX';
  await assert.rejects(()=>f.app.catalogue({token:fake,accessCode:p.accessCode}),
  {code:'INVALID_REAL_LINK'});
