@@ -484,7 +484,15 @@ const server=http.createServer(async(req,res)=>{
    // Read scope must work before making any write. This is not a TEST invoice.
    await ownerPairAction('collaborators.pair.list',{});
    const numbers=[...new Set([input.sourceInvoiceNo,...input.destinationInvoiceNos])];
-   const verified=await Promise.all(numbers.map(n=>ownerInvoice.source(n)));
+   // Apps Script serializes Bot API reads behind a script lock. Avoid
+   // flooding the single deployment with 2*N concurrent requests when a CTV
+   // selects many verified destinations (each source lookup reads a catalogue
+   // and invoice). Read in small batches; no ledger writes occur here.
+   const verified=[];
+   for(let i=0;i<numbers.length;i+=2){
+    const batch=await Promise.all(numbers.slice(i,i+2).map(n=>ownerInvoice.source(n)));
+    verified.push(...batch);
+   }
    const revision=verified[0].revision;
    if(verified.some(x=>x.revision!==revision))
     return fail(res,409,'CTV_SOURCE_CHANGED','Sổ kế toán thay đổi trong lúc kiểm tra.');
@@ -523,6 +531,10 @@ const server=http.createServer(async(req,res)=>{
     message:invitation?'Đã cấp 1 link CTV dùng cho mọi điểm giao được duyệt.':
      'Đã lưu vai trò và hai chiết khấu, nhưng chưa phát hành link vì cổng CTV chưa sẵn sàng.'});
   }catch(e){
+   // A fixed category helps diagnose failed source validation without logging
+   // names, addresses, HMAC credentials, or customer invoice details.
+   const category=String(e?.code||'CTV_SETUP_UNCERTAIN_RECONCILE').replace(/[^A-Z0-9_]/g,'').slice(0,64);
+   console.warn('CTV_OWNER_ACTIVATION_FAILED',category||'CTV_SETUP_UNCERTAIN_RECONCILE');
    return fail(res,409,e?.code||'CTV_SETUP_UNCERTAIN_RECONCILE',
     'Chưa xác minh trạng thái kích hoạt CTV. Không bấm lặp; kiểm tra chính sách trong sổ thật.');
   }
