@@ -374,7 +374,7 @@ const server=http.createServer(async(req,res)=>{
   if(!rateLimit(req,'owner-real-link-issue'))
    return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
   try{
-   const input=await bodyJSON(req,3000);
+   const input=await bodyJSON(req,12000);
    const result=await realPrivateLinks.issue(input);
    return reply(res,200,result);
   }catch(e){
@@ -382,7 +382,7 @@ const server=http.createServer(async(req,res)=>{
     'Không cấp được link: cần đúng hóa đơn gốc, địa chỉ và giá chủ tài khoản duyệt.');
   }
  }
- if(req.method==='POST'&&/^\/api\/real\/(?:catalogue|quote|confirm)$/.test(p)){
+ if(req.method==='POST'&&/^\/api\/real\/(?:catalogue|quote|confirm|interpret)$/.test(p)){
   if(!realPrivateLinks.readiness().configured)
    return fail(res,503,'REAL_LINKS_NOT_ENABLED','Hệ thống đặt hàng thật chưa được bật.');
   if(!rateLimit(req,'private-real-checkout:'+p))
@@ -391,6 +391,35 @@ const server=http.createServer(async(req,res)=>{
    const input=await bodyJSON(req,12000);
    let result;
    if(p==='/api/real/catalogue')result=await realPrivateLinks.catalogue(input);
+   if(p==='/api/real/interpret'){
+    const profile=await realPrivateLinks.catalogue(input); // First verify link, PIN and destination.
+    const message=String(input.message||'').trim();
+    if(!profile.customer||message.length<3||message.length>500||
+       identityChange(message,profile.customer))
+     return fail(res,400,'REAL_CHAT_NEEDS_CLARIFICATION','Vui lòng chọn địa chỉ trong danh sách và chỉ nhập tên/số lượng sản phẩm.');
+    let match=parseMultiOrder(message,{}),source='rules';
+    if(match?.needMoreDetails)match=null;
+    if(!match){
+     const ai=await parseComplexOrderWithGemini(message,{});
+     if(ai?.items){match=ai;source=ai.source}
+    }
+    let lines=match?.items?.map(i=>({code:productFor(i.sku)?.code,qty:i.qty}));
+    if(!lines||!lines.length){
+     const parsed=await parseOrder(message,{});
+     if(parsed?.intent!=='order'||parsed.needMoreDetails||parsed.needsHuman||
+        !productFor(parsed.sku)||!Number.isSafeInteger(parsed.qty)||parsed.qty<1)
+      return reply(res,200,{ok:true,needsClarification:true,parserSource:parsed?.source||'rules',
+       message:'Em cần tên sản phẩm và số lượng rõ ràng, ví dụ: 2 thùng Satori 500ml. Chưa tạo hóa đơn.'});
+     lines=[{code:productFor(parsed.sku).code,qty:parsed.qty}];
+     source=parsed.source||'rules';
+    }
+    if(lines.length>6||lines.some(x=>!x.code||!Number.isSafeInteger(x.qty)||x.qty<1||x.qty>500||
+       !profile.products.some(p=>p.code===x.code))||
+       lines.reduce((n,x)=>n+x.qty,0)>500)
+     return fail(res,400,'REAL_CHAT_PRODUCT_INVALID','Sản phẩm hoặc số lượng không hợp lệ theo danh mục hiện tại.');
+    result={production:true,items:lines,parserSource:source,
+      message:'Đã hiểu yêu cầu. Anh/chị kiểm tra sản phẩm và số lượng trong giỏ, sau đó xem báo giá để xác nhận.'};
+   }
    if(p==='/api/real/quote')result=await realPrivateLinks.quote(input);
    if(p==='/api/real/confirm')result=await realPrivateLinks.confirm(input);
    return reply(res,200,{ok:true,...result});
