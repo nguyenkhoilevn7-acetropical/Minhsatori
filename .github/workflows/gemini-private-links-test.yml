@@ -1,0 +1,30 @@
+name: Gemini Private Production Links (offline only)
+on:
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/production-private-links.mjs'
+      - 'customer-ai-chat-prototype/real-checkout.html'
+      - 'customer-ai-chat-prototype/server.mjs'
+      - 'customer-ai-chat-prototype/admin.html'
+      - 'customer-ai-chat-prototype/tests/production-private-links.test.mjs'
+      - '.github/workflows/gemini-private-links-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  private-links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and real invite/PIN/checkout tests, isolated from live ledger
+        run: |
+          node --check customer-ai-chat-prototype/production-private-links.mjs
+          node --check customer-ai-chat-prototype/owner-live-invoice.mjs
+          node --check customer-ai-chat-prototype/server.mjs
+          node --test customer-ai-chat-prototype/tests/production-private-links.test.mjs
+      - name: Never accept test credentials or live writes in this workflow
+        run: echo "PASS offline-only fake source and bot; no real invoices written"
