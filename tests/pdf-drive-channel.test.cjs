@@ -19,6 +19,21 @@ window.satoriArchiveSavedInvoicePdf({id:11,invoiceNo:9001});
 assert.deepEqual(JSON.parse(storage.get('satori_pdf_archive_pending_v1')),[{id:'11',invoiceNo:9001}]);
 window.satoriArchiveSavedInvoicePdf({id:11,invoiceNo:9001});
 assert.equal(JSON.parse(storage.get('satori_pdf_archive_pending_v1')).length,1,'dedupe pending requests');
+const botInvoice={id:Date.parse('2026-10-23T12:25:00Z'),invoiceNo:5932,
+  name:'TEST ONLY',items:[{product:'Water',qty:1,unitPrice:100}],total:100,status:'Unpaid'};
+const historic={...botInvoice,id:11,invoiceNo:70};
+mockBrowser.orders=[botInvoice];
+mockBrowser.invoicePdfKey=o=>JSON.stringify([o.invoiceNo,o.name,o.items,o.total,o.status]);
+window.__SATORI_DRIVE_READY__=true;
+assert.equal(window.satoriArchiveCloudInvoices([historic,botInvoice]),1,
+  'queue an externally created recent invoice after a confirmed Drive sync');
+assert.deepEqual(JSON.parse(storage.get('satori_pdf_archive_pending_v1')),
+  [{id:'11',invoiceNo:9001},{id:String(botInvoice.id),invoiceNo:5932}],
+  'do not alter the invoice ledger or queue historic invoices');
+assert.equal(window.satoriArchiveCloudInvoices([botInvoice]),1);
+assert.equal(JSON.parse(storage.get('satori_pdf_archive_pending_v1')).length,2,
+  'repeated Drive reads never duplicate an outstanding PDF job');
+
 const capability={channel:'minhsatori-pdf-archive-v1',type:'capabilities',enabled:true};
 browserListeners.message({origin:'https://evil.example',source:parent,data:capability});
 assert.equal(messages.length,1,'ignore untrusted origin');
