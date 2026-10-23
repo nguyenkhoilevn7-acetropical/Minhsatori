@@ -1,22 +1,18 @@
 {
-  "purpose": "android-0.3.8-owner-live-readonly-samsung-acceptance",
+  "purpose": "android-0.3.9-owner-ctv-pair-ledger-readonly-samsung-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.3.8",
-  "versionCode": 15,
-  "branch": "release/android-v0.3.8-owner-live-readonly-20261022",
-  "scope": "Signed acceptance APK from current main: latest Android ledger read sync, NO automatic production invoice writes, NO Apps Script/Render changes",
-  "requestedOn": "2026-10-22",
+  "version": "0.3.9",
+  "versionCode": 16,
+  "branch": "release/android-v0.3.9-ctv-pair-readonly-20261023",
+  "scope": "Signed owner-only Samsung acceptance APK: explicit linked CTV customer/settlement invoice display, one-sale revenue/debt, owner PDF share warning; live ledger read-only, NO automatic production writes",
+  "requestedOn": "2026-10-23",
   "sourcePRs": [
-    50,
-    51,
-    61,
-    62
+    90
   ],
   "notes": [
-    "Stable pinned release certificate required; must upgrade same installed Android package, no debug signing",
-    "Google Drive/ledger live read verified separately before owner installation",
-    "Gemini real link and production checkout remain blocked until idempotent end-to-end invoice tests",
-    "Do not deploy Mobile API Apps Script production or alter real invoices in this workflow",
-    "2026-10-23: re-run signed APK acceptance with version verifier reading this reviewed release-request; keep same package and pinned signer."
+    "Incremental same-package update using the existing pinned release certificate; never generate a new signing identity.",
+    "Review linked CTV buyer vs internal settlement invoices from SAME live ledger, no double debt or revenue.",
+    "Gemini production checkout remains disabled until Apps Script Work deploy, owner-only auth, approved policy, durable idempotency and one real order E2E are verified.",
+    "Do not modify any live Apps Script or Render deployment or create test invoices in production."
   ]
 }
