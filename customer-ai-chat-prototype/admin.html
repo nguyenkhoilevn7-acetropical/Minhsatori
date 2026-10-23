@@ -30,6 +30,7 @@ h2{color:#1b3554;letter-spacing:-.3px}
 label{color:#354b65}
 input,select{background:#f8faff;border:1px solid #d4dfec;color:#19283b;min-height:45px}
 input:focus,select:focus{outline:2px solid #82b8fb}
+textarea{display:block;background:#f8faff;border:1px solid #d4dfec;border-radius:12px;width:100%;padding:12px;color:#19283b;font:inherit;resize:vertical}
 button{background:#087bfa;color:#fff;border-radius:12px;font-size:14px;min-height:44px;padding:10px 14px}
 button.secondary{background:#eff5fd;color:#23598c;border:1px solid #d4e1f0}
 button.danger{background:#fbeff1;color:#a63245;border:1px solid #f2ccd3}
@@ -114,6 +115,25 @@ button:disabled{opacity:.55}
 <button id="showMoreOrders" type="button" class="secondary" hidden>Xem thêm đơn</button>
 </section>
 
+<section class="card" data-tab-panel="live" hidden id="ownerRealInvoiceCard">
+<h2>🤖 Gemini → Hóa đơn thật • CHỈ CHỦ TÀI KHOẢN</h2>
+<p class="warning">Khách chưa có quyền sử dụng. Chỉ anh được tạo hóa đơn sau khi đọc lại tên, địa chỉ, sản phẩm và tổng tiền. Nếu chưa đủ quyền HMAC, chức năng tự khóa.</p>
+<p><button type="button" class="secondary" id="ownerLiveCheck">Kiểm tra quyền tạo đơn thật</button></p>
+<p class="hint" id="ownerLiveStatus">Chưa xác minh quyền ghi. Không tạo hóa đơn.</p>
+<div class="row">
+ <div><label for="ownerRef">Số hóa đơn cũ của đúng điểm giao</label><input id="ownerRef" type="number" min="1" step="1" placeholder="Ví dụ: 5920"></div>
+ <div><label for="ownerDiscount">Chiết khấu khách (%)</label><input id="ownerDiscount" type="number" min="0" max="70" step="1" placeholder="Nhập % đã duyệt"></div>
+ <div><label for="ownerShip">Phí giao (%)</label><input id="ownerShip" type="number" min="0" max="30" step="1" placeholder="Nhập % đã duyệt"></div>
+ <div><label for="ownerVat">VAT (%)</label><select id="ownerVat"><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div>
+</div>
+<label for="ownerMessage">Anh nói đơn hàng tự nhiên với Gemini</label>
+<textarea id="ownerMessage" rows="3" maxlength="600" placeholder="Ví dụ: Cho khách 10 thùng nước suối Satori 500ml, giao sớm giúp anh"></textarea>
+<p class="hint">Gemini chỉ hiểu câu nói; đơn giá lấy từ bảng giá thật trên Drive. Địa chỉ/số điện thoại lấy từ điểm giao anh chọn, không theo lời AI.</p>
+<p><button id="ownerLivePreview" type="button" disabled>Xem trước hóa đơn thật — chưa ghi</button></p>
+<div id="ownerLiveQuote" role="status" class="link" hidden></div>
+<p><button id="ownerLiveConfirm" type="button" class="danger" disabled>XÁC NHẬN GHI 1 HÓA ĐƠN THẬT</button></p>
+<p id="ownerLiveResult" role="status" class="hint">Chưa ghi dữ liệu thật.</p>
+</section>
 <section class="card" data-tab-panel="live" hidden>
 <h2>📚 Hóa đơn & khách hàng Minh Satori • CHỈ ĐỌC</h2>
 <p class="hint">Đọc trực tiếp từ sổ kế toán website qua Bot API. Chỉ quản trị viên đăng nhập mới xem được. Không sao chép khách thật vào Gemini Free và không tạo/sửa bill.</p>
@@ -1117,6 +1137,78 @@ $('restoreSandboxBackup').onclick=async()=>{
 };
 
 function showNewLink(url){lastLink=url;$('newLink').hidden=false;$('linkText').textContent=url;$('result').textContent='Đã tạo link riêng. Nhớ lưu hoặc gửi cho khách THỬ.'}
+
+let ownerQuoteToken=null,ownerLiveAvailable=false;
+function resetOwnerQuote(){
+ ownerQuoteToken=null;
+ $('ownerLiveQuote').hidden=true;
+ $('ownerLiveConfirm').disabled=true;
+}
+['ownerRef','ownerDiscount','ownerShip','ownerVat','ownerMessage'].forEach(id=>
+ $(id).addEventListener('input',resetOwnerQuote));
+$('ownerLiveCheck').onclick=async()=>{
+ resetOwnerQuote();ownerLiveAvailable=false;$('ownerLivePreview').disabled=true;
+ try{
+  const s=await request('/api/admin/owner-live/readiness');
+  ownerLiveAvailable=s.enabled===true;
+  $('ownerLiveStatus').textContent=ownerLiveAvailable?
+   'Đã xác minh quyền chủ tài khoản và HMAC của máy chủ. Anh có thể xem báo giá thật.':
+   'CHƯA ĐỦ ĐIỀU KIỆN: '+String(s.reason||'OWNER_DISABLED')+'. Chưa thể tạo đơn thật.';
+  $('ownerLivePreview').disabled=!ownerLiveAvailable;
+ }catch(e){$('ownerLiveStatus').textContent='Kiểm tra thất bại: '+e.message}
+};
+$('ownerLivePreview').onclick=async()=>{
+ resetOwnerQuote();
+ if(!ownerLiveAvailable)return;
+ const invoiceNo=Number($('ownerRef').value);
+ const discountPercent=Number($('ownerDiscount').value);
+ const shippingPercent=Number($('ownerShip').value);
+ if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1||
+  !$('ownerDiscount').value.trim()||!$('ownerShip').value.trim()||
+  !Number.isSafeInteger(discountPercent)||!Number.isSafeInteger(shippingPercent)){
+  $('ownerLiveResult').textContent='Chọn đúng hóa đơn cũ và nhập đủ % chiết khấu, phí giao.';return;
+ }
+ const b=$('ownerLivePreview');b.disabled=true;
+ try{
+  const q=await request('/api/admin/owner-live/preview','POST',{
+   invoiceNo,message:$('ownerMessage').value.trim(),discountPercent,
+   shippingPercent,vatPercent:Number($('ownerVat').value)
+  });
+  if(!q.confirmationRequired||!q.quoteToken)throw new Error('Chưa có báo giá có thể xác nhận.');
+  ownerQuoteToken=q.quoteToken;
+  $('ownerLiveQuote').textContent=[
+   'KHÁCH: '+q.customer.name+' • '+q.customer.phone,
+   'ĐỊA CHỈ: '+q.customer.location,
+   'SẢN PHẨM: '+q.items.map(x=>x.qty+' '+x.unit+' '+x.product+' ('+Number(x.unitPrice).toLocaleString('vi-VN')+'đ/đv)').join('; '),
+   'LƯU Ý: '+(q.deliveryNote||'Không có'),
+   'CK: '+q.discountPercent+'% • PHÍ GIAO: '+q.shippingPercent+'% • VAT: '+q.vatPercent+'%',
+   'TỔNG TIỀN: '+Number(q.total).toLocaleString('vi-VN')+'đ',
+   'ĐÂY MỚI LÀ XEM TRƯỚC. CHƯA GHI HÓA ĐƠN.'
+  ].join('\n');
+  $('ownerLiveQuote').hidden=false;$('ownerLiveConfirm').disabled=false;
+  $('ownerLiveResult').textContent='Anh kiểm tra tất cả thông tin trên trước khi xác nhận.';
+ }catch(e){$('ownerLiveResult').textContent='Chưa tạo báo giá: '+e.message}
+ finally{b.disabled=!ownerLiveAvailable}
+};
+$('ownerLiveConfirm').onclick=async()=>{
+ if(!ownerQuoteToken||!ownerLiveAvailable)return;
+ if(!confirm('ANH XÁC NHẬN ghi hóa đơn THẬT vào Google Drive? Chỉ bấm nếu tên khách, địa chỉ, giá và sản phẩm đã đúng.'))return;
+ const t=ownerQuoteToken;resetOwnerQuote();
+ const b=$('ownerLiveConfirm');b.disabled=true;
+ $('ownerLiveResult').textContent='Đang gửi MỘT yêu cầu ghi hóa đơn thật. KHÔNG bấm gửi lại.';
+ try{
+  const saved=await request('/api/admin/owner-live/confirm','POST',{
+   quoteToken:t,confirmation:'OWNER_APPROVES_REAL_INVOICE'
+  });
+  $('ownerLiveResult').textContent='ĐÃ GHI THÀNH CÔNG: Hóa đơn #'+
+   saved.invoiceNo+' • revision '+saved.revision+' • tổng tiền '+
+   Number(saved.total).toLocaleString('vi-VN')+'đ. Vào web/app để đối chiếu.';
+ }catch(e){
+  $('ownerLiveResult').textContent='CHƯA XÁC NHẬN ĐƯỢC TRẠNG THÁI GHI: '+
+   e.message+'. KHÔNG bấm lại; kiểm tra sổ hóa đơn thật trước.';
+ }
+};
+
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
  secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực • bản thử';$('access').value='';await load();$('loginCard').hidden=true;showAdminTab('orders');void loadRealDirectory();await refreshOrderInbox()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
