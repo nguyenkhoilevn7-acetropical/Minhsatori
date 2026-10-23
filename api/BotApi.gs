@@ -394,7 +394,8 @@ function configurePair(s,p){
  var fields=['enabled','customerDiscountPercent','collaboratorDiscountPercent','shippingPercent','vatPercent'];
  need(p.rotateLink===undefined||typeof p.rotateLink==='boolean',
   'CTV_LINK_POLICY_INVALID','Thiếu trạng thái đổi link');
- var linkEpoch=(!policy||p.rotateLink===true||p.enabled===false)?
+ var linkEpoch=policy&&policy.configRequestId===requestId?policy.linkEpoch:
+  (!policy||p.rotateLink===true||p.enabled===false)?
   Utilities.getUuid():String(policy.linkEpoch||Utilities.getUuid());
  var authorizedDestinations=p.authorizedDestinations===undefined?
   (Array.isArray(policy&&policy.authorizedDestinations)?policy.authorizedDestinations:[]):
