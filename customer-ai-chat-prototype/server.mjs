@@ -246,6 +246,14 @@ function sendHtml(res){const html=previewHtml('index.html');res.writeHead(200,{'
 const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
+ // When the OWNER opens the old "Xem trải nghiệm đặt hàng" deep link
+ // from a pre-update Android APK, send it to the authenticated owner UI.
+ // This is navigation only; NO customer API, order URL or auth bypass is opened.
+ if(OWNER_ONLY_PILOT&&req.method==='GET'&&/^\/c\/demo-[ab]$/.test(p)){
+  res.writeHead(302,{'location':'/admin','cache-control':'no-store',
+   'referrer-policy':'no-referrer','x-content-type-options':'nosniff'});
+  return res.end();
+ }
  // Owner real pilot is a sealed, admin-only path. Public customer/chat/bearer
  // URLs are completely blocked when this mode is enabled (not just hidden).
  if(OWNER_ONLY_PILOT&&!(
