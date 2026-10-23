@@ -188,7 +188,7 @@ export function makeCustomerLinks(dataDir,onSaved=()=>{}){
    if(!Array.isArray(extraLocations)||extraLocations.length>=MAX_LOCATIONS){
     no(res,400,'LOCATION_LIMIT','Một đại lý có tối đa 20 địa chỉ, tính cả địa chỉ chính.');return true;
    }
-   const locations=[{id:'primary',label:'Địa chỉ chính',recipient:name,phone,address,enabled:true}];
+   const locations=[{id:'primary',label:'Địa chỉ chính',recipient:name,phone,address,discountPercent:discount,enabled:true}];
    for(const raw of extraLocations){
     const loc=validateLocation(raw);
     if(!loc){no(res,400,'INVALID_LOCATION','Điền đủ tên điểm giao, người nhận, số điện thoại và địa chỉ hợp lệ.');return true}

@@ -26,8 +26,17 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
 <label>Mã truy cập<input id="code" type="password" autocomplete="off" inputmode="text" maxlength="100"></label>
 <button id="open">Mở bảng giá của tôi</button></section>
 <section id="shop" hidden>
-<h2 id="customerName">Đang tải</h2><p class="muted" id="customerLocation"></p>
-<p class="muted" id="pricing"></p><div id="products"></div>
+<h2 id="customerName">Đang tải</h2>
+<label id="destinationPanel" hidden>Chọn địa chỉ giao đã được Minh Satori duyệt
+<select id="destination" style="box-sizing:border-box;width:100%;padding:12px;border-radius:10px;font:inherit"></select>
+</label>
+<p class="muted" id="customerLocation"></p>
+<p class="muted" id="pricing"></p>
+<label>Chat đặt nước bằng tiếng Việt (Gemini khi được kết nối)
+<textarea id="message" rows="3" maxlength="500" placeholder="Ví dụ: Cho tôi 2 thùng Satori 500ml và 1 thùng Premium"></textarea></label>
+<button class="secondary" id="interpret" type="button">Thêm đơn bằng chat</button>
+<p id="chatStatus" class="muted" role="status">Chat chỉ thêm sản phẩm vào giỏ; không tự đặt hàng.</p>
+<div id="products"></div>
 <label>Ghi chú giao hàng<textarea id="note" rows="3" maxlength="300" placeholder="Ví dụ: Giao trước 2 giờ chiều"></textarea></label>
 <button id="review">Xem báo giá thật</button>
 </section>
@@ -44,7 +53,7 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
 (()=>{
  'use strict';
  const $=id=>document.getElementById(id);
- const token=decodeURIComponent(location.hash.slice(1));let code='',quote=null,loading=false;
+ const token=decodeURIComponent(location.hash.slice(1));let code='',quote=null,loading=false,selectedRef=null;
  const cash=n=>Number(n||0).toLocaleString('vi-VN')+' đ';
  const status=(text,kind)=>{$('status').textContent=text;$('status').className=kind||'muted'};
  const request=async(path,payload)=>{
@@ -56,38 +65,74 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
  };
  async function act(fn){
   if(loading)return;loading=true;
-  ['open','review','confirm','edit'].forEach(id=>$(id).disabled=true);
+  ['open','review','confirm','edit','interpret'].forEach(id=>$(id).disabled=true);
   try{await fn()}catch(e){status('Không thể hoàn tất: '+e.message+
    '. Nếu đã nhấn xác nhận và không rõ kết quả, KHÔNG gửi lại; hãy liên hệ chủ tài khoản.','warning')}
-  finally{loading=false;['open','review','confirm','edit'].forEach(id=>$(id).disabled=false)}
+  finally{loading=false;['open','review','confirm','edit','interpret'].forEach(id=>$(id).disabled=false)}
  }
- if(!/^[A-Za-z0-9_.-]{80,8000}$/.test(token)){
+ if(!/^[A-Za-z0-9_.-]{80,30000}$/.test(token)){
   status('Link chưa hợp lệ hoặc thiếu mã mời. Vui lòng yêu cầu cấp lại.','warning');
   $('open').disabled=true;return;
  }
- $('open').onclick=()=>act(async()=>{
-  code=$('code').value.trim();
-  if(!code)throw Error('Vui lòng nhập mã riêng.');
-  const d=await request('/api/real/catalogue',{});
-  $('customerName').textContent=d.customer.name;
-  $('customerLocation').textContent='Điểm giao cố định: '+d.customer.location;
-  $('pricing').textContent='Chiết khấu '+d.discountPercent+
+ function renderCatalogue(d){
+  $('customerName').textContent=d.agentName||d.customer.name;
+  $('customerLocation').textContent='Giao cho: '+d.customer.name+' • '+d.customer.location;
+  $('pricing').textContent='Chiết khấu riêng '+d.discountPercent+
    '% • Phí giao '+d.shippingPercent+'% • VAT '+d.vatPercent+'%';
   const root=$('products');root.replaceChildren();
   for(const p of d.products){
    const line=document.createElement('div');line.className='row';
-   const text=document.createElement('div');const name=document.createElement('strong');
-   name.textContent=p.name;
-   const price=document.createElement('p');price.className='muted';
-   price.textContent=cash(p.unitPrice)+' / '+p.unit;
+   const text=document.createElement('div');const name=document.createElement('strong');name.textContent=p.name;
+   const price=document.createElement('p');price.className='muted';price.textContent=cash(p.unitPrice)+' / '+p.unit;
    text.append(name,price);
    const label=document.createElement('label');label.textContent='Số lượng';
    const qty=document.createElement('input');qty.type='number';qty.min='0';qty.max='500';qty.step='1';
    qty.value='0';qty.dataset.sku=p.code;qty.setAttribute('aria-label','Số lượng '+p.name);
    label.append(qty);line.append(text,label);root.append(line);
   }
+ }
+ $('open').onclick=()=>act(async()=>{
+  code=$('code').value.trim();
+  if(!code)throw Error('Vui lòng nhập mã riêng.');
+  const d=await request('/api/real/catalogue',{});
+  if(d.agency){
+   const list=d.destinations||[];
+   if(!list.length)throw Error('Đại lý chưa có điểm giao được duyệt.');
+   $('destinationPanel').hidden=false;
+   const select=$('destination');select.replaceChildren(new Option('— Chọn địa chỉ giao —',''));
+   for(const dest of list){
+    const option=new Option(dest.name+' • '+dest.location+' • CK '+dest.discountPercent+'%',String(dest.customerRef.invoiceNo));
+    option.dataset.id=String(dest.customerRef.id);select.append(option);
+   }
+   $('customerName').textContent=d.agentName||'Đại lý';
+   $('products').replaceChildren();$('review').disabled=true;
+   status('Đã xác minh link. Chọn địa chỉ trước khi xem giá và đặt hàng.','success');
+  }else{
+   renderCatalogue(d);$('destinationPanel').hidden=true;
+  }
   $('login').hidden=true;$('shop').hidden=false;
-  status('Đã xác minh quyền truy cập. Chưa có hóa đơn nào được tạo.','success');
+ });
+ $('destination').onchange=()=>act(async()=>{
+  const select=$('destination'),option=select.selectedOptions[0];
+  if(!select.value||!option?.dataset.id){selectedRef=null;return}
+  selectedRef={id:option.dataset.id,invoiceNo:Number(select.value)};
+  const d=await request('/api/real/catalogue',{destination:selectedRef});
+  renderCatalogue(d);quote=null;$('reviewPanel').hidden=true;
+  status('Đã áp dụng đúng giá của địa chỉ được chọn. Chưa tạo hóa đơn.','success');
+ });
+ $('interpret').onclick=()=>act(async()=>{
+  const message=$('message').value.trim();
+  if(!message)throw Error('Vui lòng nhập yêu cầu đặt sản phẩm.');
+  const d=await request('/api/real/interpret',{destination:selectedRef,message});
+  if(d.needsClarification){$('chatStatus').textContent=d.message;return}
+  for(const item of d.items){
+   const field=[...document.querySelectorAll('input[data-sku]')].find(x=>x.dataset.sku===item.code);
+   if(!field)throw Error('Mặt hàng không có trong danh mục đã duyệt.');
+   field.value=String(Math.min(500,Number(field.value||0)+item.qty));
+  }
+  $('chatStatus').textContent=(String(d.parserSource).startsWith('gemini')?'Gemini':'Bộ phân tích')+
+   ': '+d.message;
+  $('message').value='';
  });
  $('review').onclick=()=>act(async()=>{
   const items=[...document.querySelectorAll('input[data-sku]')]
@@ -95,9 +140,9 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
   if(!items.length||items.length>6)throw Error('Chọn 1 đến 6 sản phẩm.');
   if(items.some(x=>!Number.isSafeInteger(x.qty)||x.qty>500))
    throw Error('Số lượng không hợp lệ.');
-  const d=await request('/api/real/quote',{items,deliveryNote:$('note').value});
+  const d=await request('/api/real/quote',{destination:selectedRef,items,deliveryNote:$('note').value});
   quote=d.quoteToken;
-  $('summary').textContent=d.customer.name+' — '+d.customer.location+
+  $('summary').textContent=d.customer.name+' — '+d.customer.location+' • CK '+d.discountPercent+'%' +
    '\nTiền hàng: '+cash(d.subtotal)+'\nPhí giao: '+cash(d.shippingAmount)+
    '\nVAT: '+cash(d.vatAmount)+'\nTỔNG: '+cash(d.total);
   $('reviewPanel').hidden=false;$('shop').hidden=true;

@@ -239,6 +239,29 @@ button:disabled{opacity:.55}
 </div>
 </details>
 </section>
+<section class="card" data-tab-panel="customers" hidden id="agencyRealLinks">
+<h2>🔗 Link đặt hàng đại lý • một link, nhiều điểm giao</h2>
+<p class="hint">Không dùng cộng tác viên và không tạo hóa đơn đôi. Chủ cửa hàng chọn từng địa chỉ lịch sử và chiết khấu riêng. Không ghi hóa đơn khi chỉ cấp link. Link thật chỉ phát hành nếu Backend có quyền ghi hóa đơn được xác minh.</p>
+<label>Tên đại lý / người quản lý các điểm giao
+<input id="agencyRealName" placeholder="Nhập tên từ sổ kế toán thật" maxlength="120"></label>
+<button type="button" class="secondary" id="agencyRealFind">↻ Tìm các điểm giao từ hóa đơn</button>
+<p id="agencyRealStatus" class="hint" role="status">Chưa tải địa chỉ.</p>
+<div id="agencyRealPlaces" class="location-manager"></div>
+<div class="row">
+<label>Phí giao (%)<input id="agencyRealShipping" type="number" min="0" max="30" step="1" value="0"></label>
+<label>VAT (%)<select id="agencyRealVat"><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></label>
+<label>Thời hạn (ngày)<input id="agencyRealDays" type="number" min="1" max="30" value="30"></label>
+</div>
+<button type="button" id="agencyRealIssue">🔗 LƯU MỨC GIẢM & CẤP MỘT LINK CHO ĐẠI LÝ</button>
+<p class="hint">Chiết khấu và điểm giao của link là bản đã duyệt tại thời điểm cấp. Muốn sửa tỷ lệ cần cấp link mới, chưa có chức năng lưu chính sách theo tài khoản bền vững.</p>
+<div id="agencyRealIssued" hidden>
+<p class="hint">Chỉ gửi link cho đúng đại lý; gửi mã truy cập qua kênh riêng.</p>
+<div id="agencyRealUrl" class="link" style="overflow-wrap:anywhere"></div>
+<button type="button" class="secondary" id="agencyRealCopy">Sao chép link</button>
+<p id="agencyRealCode" class="hint"></p>
+<button type="button" class="secondary" id="agencyRealCopyCode">Sao chép mã truy cập</button>
+</div>
+</section>
 <section class="card" data-tab-panel="customers" hidden id="customerManagement"><details id="regularCustomerPanel"><summary><strong>👤 Hồ sơ khách thường & điểm giao (không phải CTV)</strong></summary><p class="hint">Đây là hồ sơ khách thường. Chuyển khách thành CTV trong bảng Cộng tác viên ở phía trên; không tạo khách mới.</p>
 <form id="create">
 <label for="customerSearch">Tìm khách trong sổ kế toán thật hoặc hồ sơ thử</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
@@ -1129,13 +1152,14 @@ function appendNewCustomerLocation(initial={}){
   ['label','Tên điểm giao','Chi nhánh Quận 7'],
   ['recipient','Tên người nhận','Nguyễn Văn A'],
   ['phone','Số điện thoại nhận hàng','0900000000'],
-  ['address','Địa chỉ chi tiết','Số nhà, tên đường, quận']
+  ['address','Địa chỉ chi tiết','Số nhà, tên đường, quận'],
+  ['discountPercent','Chiết khấu riêng cho điểm giao (%)','20']
  ]){
   const label=document.createElement('label');label.textContent=title;
   const input=document.createElement('input');input.required=!real||key==='address';
   input.dataset.locationField=key;input.placeholder=placeholder;input.value=String(initial[key]||'');
-  input.maxLength=key==='address'?300:key==='label'?80:key==='phone'?30:120;
-  if(key==='phone')input.type='tel';
+  if(key==='discountPercent'){input.type='number';input.min='0';input.max='70';input.step='1';input.value=String(initial[key]??$('discount').value??'0');}
+  else{input.maxLength=key==='address'?300:key==='label'?80:key==='phone'?30:120;if(key==='phone')input.type='tel';}
   label.append(input);fieldset.append(label);
  }
  const remove=document.createElement('button');remove.type='button';remove.className='secondary';
@@ -1430,12 +1454,13 @@ async function load(){
   const panel=document.createElement('details');panel.className='location-manager';panel.dataset.customerId=c.id;
   const summary=document.createElement('summary');summary.textContent='📍 Điểm giao ('+(c.locations?.length||1)+') • Quản lý địa chỉ';panel.append(summary);
   const form=document.createElement('form');form.className='location-form';
-  const fields=[['label','Tên điểm giao','Chi nhánh Quận 1'],['recipient','Người nhận','Tên người nhận'],['phone','Số điện thoại','09...'],['address','Địa chỉ giao','Số nhà, đường...']];
+  const fields=[['label','Tên điểm giao','Chi nhánh Quận 1'],['recipient','Người nhận','Tên người nhận'],['phone','Số điện thoại','09...'],['address','Địa chỉ giao','Số nhà, đường...'],['discountPercent','Chiết khấu riêng (%)','20']];
   for(const [key,title,placeholder] of fields){
    const label=document.createElement('label');label.textContent=title;
    const input=document.createElement('input');input.name=key;input.placeholder=placeholder;input.required=true;
-   input.maxLength=key==='address'?300:key==='phone'?30:key==='label'?80:120;
-   if(key==='phone')input.type='tel';label.append(input);form.append(label);
+   if(key==='discountPercent'){input.type='number';input.min='0';input.max='70';input.step='1';input.value=String(c.discount);}
+   else{input.maxLength=key==='address'?300:key==='phone'?30:key==='label'?80:120;if(key==='phone')input.type='tel';}
+   label.append(input);form.append(label);
   }
   const submit=document.createElement('button');submit.type='submit';submit.textContent='+ Thêm điểm giao';
   const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Nhập địa chỉ mới';cancel.className='secondary';
@@ -1450,9 +1475,9 @@ async function load(){
   };
   for(const loc of c.locations||[]){
    const card=document.createElement('div');card.className='customer';
-   const text=document.createElement('p');text.textContent=loc.label+' • '+loc.recipient+' • '+loc.phone+' • '+loc.address;
+   const text=document.createElement('p');text.textContent=loc.label+' • CK '+(loc.discountPercent??c.discount)+'% • '+loc.recipient+' • '+loc.phone+' • '+loc.address;
    const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='Sửa';
-   edit.onclick=()=>{for(const key of ['label','recipient','phone','address'])form.elements[key].value=loc[key];form.dataset.editId=loc.id;submit.textContent='Lưu thay đổi';panel.open=true};
+   edit.onclick=()=>{for(const key of ['label','recipient','phone','address'])form.elements[key].value=loc[key];form.elements.discountPercent.value=String(loc.discountPercent??c.discount);form.dataset.editId=loc.id;submit.textContent='Lưu thay đổi';panel.open=true};
    card.append(text,edit);
    if(loc.id!=='primary'){
     const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='Xóa';
@@ -1464,6 +1489,74 @@ async function load(){
   panel.append(form);section.append(panel);list.append(section);
  }
 }
+let agencyReviewed=[];
+$('agencyRealFind').onclick=async()=>{
+ const b=$('agencyRealFind');b.disabled=true;
+ $('agencyRealIssued').hidden=true;
+ $('agencyRealPlaces').replaceChildren();agencyReviewed=[];
+ const name=$('agencyRealName').value.trim();
+ if(name.length<2){$('agencyRealStatus').textContent='Nhập tên đại lý trước.';b.disabled=false;return}
+ $('agencyRealStatus').textContent='Đang kiểm tra địa chỉ lịch sử theo tên, chưa cấp link.';
+ try{
+  const d=await request('/api/admin/customer-directory?mode=detail&name='+encodeURIComponent(name));
+  const places=d.selected?.places||[];
+  if(!places.length)throw Error('Không tìm thấy địa chỉ có hóa đơn nguồn.');
+  const seen=new Set(),duplicates=[];
+  for(const p of places){
+   const no=Number(p.invoiceNos?.[0]);
+   if(!Number.isSafeInteger(no)||no<1){duplicates.push(p.address+' (thiếu hóa đơn)');continue}
+   if(seen.has(no)){duplicates.push('Hóa đơn #'+no+' xuất hiện nhiều lần');continue}
+   seen.add(no);
+   const row=document.createElement('div');row.className='customer';
+   row.style.display='grid';row.style.gridTemplateColumns='1fr minmax(75px,100px)';row.style.gap='8px';
+   const check=document.createElement('label');check.style.display='flex';check.style.alignItems='flex-start';
+   const tick=document.createElement('input');tick.type='checkbox';tick.style.width='auto';tick.style.marginRight='8px';
+   tick.dataset.agencyInvoice=String(no);
+   const title=document.createElement('span');title.textContent='#'+no+' • '+p.name+' • '+p.address;
+   check.append(tick,title);
+   const label=document.createElement('label');label.textContent='CK (%)';
+   const rate=document.createElement('input');rate.type='number';rate.min='0';rate.max='70';rate.step='1';rate.value='20';rate.dataset.agencyRate=String(no);
+   label.append(rate);row.append(check,label);$('agencyRealPlaces').append(row);
+   agencyReviewed.push({invoiceNo:no,checkbox:tick,rate});
+  }
+  $('agencyRealStatus').textContent='Tìm thấy '+places.length+' hồ sơ; '+agencyReviewed.length+
+   ' tham chiếu hóa đơn riêng để chủ chọn. '+(duplicates.length?'Có '+duplicates.length+' hồ sơ trùng/thiếu tham chiếu cần kiểm tra, không tự chọn.':'')+
+   ' Tích chọn và duyệt mức giảm từng điểm giao.';
+ }catch(e){$('agencyRealStatus').textContent='⚠ '+e.message;}
+ finally{b.disabled=false}
+};
+$('agencyRealIssue').onclick=async()=>{
+ const selected=agencyReviewed.filter(x=>x.checkbox.checked);
+ if(!selected.length||selected.length>20){$('agencyRealStatus').textContent='Chọn 1–20 điểm giao đã xác minh.';return}
+ const destinations=selected.map(x=>({customerRef:{invoiceNo:x.invoiceNo},discountPercent:Number(x.rate.value)}));
+ if(destinations.some(d=>!Number.isSafeInteger(d.discountPercent)||d.discountPercent<0||d.discountPercent>70)){
+  $('agencyRealStatus').textContent='Chiết khấu từng địa chỉ phải là số nguyên từ 0 đến 70.';return
+ }
+ const shippingPercent=Number($('agencyRealShipping').value),vatPercent=Number($('agencyRealVat').value),
+  daysValid=Number($('agencyRealDays').value),agentName=$('agencyRealName').value.trim();
+ if(!confirm('Xác nhận cấp MỘT LINK thật cho '+agentName+' với '+selected.length+
+    ' địa chỉ đã kiểm tra và chiết khấu tương ứng? Link này cho phép đặt hóa đơn THẬT sau khi khách xác nhận.'))return;
+ const b=$('agencyRealIssue');b.disabled=true;$('agencyRealIssued').hidden=true;
+ $('agencyRealStatus').textContent='Đang xác minh từng hóa đơn nguồn và quyền cấp link; chưa tạo hóa đơn.';
+ try{
+  const d=await request('/api/admin/real-links/issue','POST',{
+   confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',agentName,destinations,
+   shippingPercent,vatPercent,daysValid
+  });
+  $('agencyRealUrl').textContent=d.link;
+  $('agencyRealCode').textContent='Mã truy cập riêng: '+d.accessCode;
+  $('agencyRealIssued').hidden=false;
+  $('agencyRealStatus').textContent='Đã cấp một link với '+d.deliveryLocations+' địa chỉ. Hãy thử xác thực, chọn địa chỉ và xem giá trước.';
+ }catch(e){$('agencyRealStatus').textContent='KHÔNG CẤP ĐƯỢC: '+e.message;}
+ finally{b.disabled=false}
+};
+$('agencyRealCopy').onclick=()=>navigator.clipboard.writeText($('agencyRealUrl').textContent)
+ .then(()=>{$('agencyRealStatus').textContent='Đã sao chép link.'})
+ .catch(()=>{$('agencyRealStatus').textContent='Không sao chép được; nhấn giữ link để sao chép.'});
+$('agencyRealCopyCode').onclick=()=>navigator.clipboard.writeText($('agencyRealCode').textContent.replace('Mã truy cập riêng: ',''))
+ .then(()=>{$('agencyRealStatus').textContent='Đã sao chép mã truy cập.'})
+ .catch(()=>{$('agencyRealStatus').textContent='Không sao chép được mã.'});
+
 async function loadRequests(){
  const data=await request('/api/admin/change-requests');
  $('changeCount').textContent=data.pendingCount;

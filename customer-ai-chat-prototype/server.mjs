@@ -19,7 +19,7 @@ import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificatio
 import {parseCustomerMessage,splitOrderAndNote,waterAnswer,finishWater,deliveryAnswer} from './order-with-notes.mjs';
 import {CATALOGUE,productFor,productList,resolveProduct,fold} from './catalogue.mjs';
 import {makeCustomerLinks} from './customer-links.mjs';
-import {listLocations,chosenLocation,matchLocation,foldLocation} from './delivery-locations.mjs';
+import {listLocations,chosenLocation,matchLocation,foldLocation,effectiveLocationDiscount} from './delivery-locations.mjs';
 import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
@@ -157,6 +157,7 @@ function deliveryProfile(profile,locationId){
  const location=locationId?chosenLocation(profile,locationId):points.length===1?points[0]:null;
  if(!location)return {...profile,recipient:'',phone:'',address:'Chưa chọn điểm giao',deliveryLocationId:null,locationRequired:true};
  return {...profile,recipient:location.recipient,phone:location.phone,address:location.address,
+  discount:effectiveLocationDiscount(profile,location),
   deliveryLocationId:location.id,locationLabel:location.label,locationRequired:false};
 }
 async function bodyJSON(req,maxBytes=8_192){const chunks=[];let size=0;for await(const buf of req){size+=buf.length;if(size>maxBytes)throw new Error('PAYLOAD_TOO_LARGE');chunks.push(buf)}return safeJSON(Buffer.concat(chunks).toString('utf8'))}
@@ -373,7 +374,7 @@ const server=http.createServer(async(req,res)=>{
   if(!rateLimit(req,'owner-real-link-issue'))
    return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
   try{
-   const input=await bodyJSON(req,3000);
+   const input=await bodyJSON(req,12000);
    const result=await realPrivateLinks.issue(input);
    return reply(res,200,result);
   }catch(e){
@@ -381,7 +382,7 @@ const server=http.createServer(async(req,res)=>{
     'Không cấp được link: cần đúng hóa đơn gốc, địa chỉ và giá chủ tài khoản duyệt.');
   }
  }
- if(req.method==='POST'&&/^\/api\/real\/(?:catalogue|quote|confirm)$/.test(p)){
+ if(req.method==='POST'&&/^\/api\/real\/(?:catalogue|quote|confirm|interpret)$/.test(p)){
   if(!realPrivateLinks.readiness().configured)
    return fail(res,503,'REAL_LINKS_NOT_ENABLED','Hệ thống đặt hàng thật chưa được bật.');
   if(!rateLimit(req,'private-real-checkout:'+p))
@@ -390,6 +391,35 @@ const server=http.createServer(async(req,res)=>{
    const input=await bodyJSON(req,12000);
    let result;
    if(p==='/api/real/catalogue')result=await realPrivateLinks.catalogue(input);
+   if(p==='/api/real/interpret'){
+    const profile=await realPrivateLinks.catalogue(input); // First verify link, PIN and destination.
+    const message=String(input.message||'').trim();
+    if(!profile.customer||message.length<3||message.length>500||
+       identityChange(message,profile.customer))
+     return fail(res,400,'REAL_CHAT_NEEDS_CLARIFICATION','Vui lòng chọn địa chỉ trong danh sách và chỉ nhập tên/số lượng sản phẩm.');
+    let match=parseMultiOrder(message,{}),source='rules';
+    if(match?.needMoreDetails)match=null;
+    if(!match){
+     const ai=await parseComplexOrderWithGemini(message,{});
+     if(ai?.items){match=ai;source=ai.source}
+    }
+    let lines=match?.items?.map(i=>({code:productFor(i.sku)?.code,qty:i.qty}));
+    if(!lines||!lines.length){
+     const parsed=await parseOrder(message,{});
+     if(parsed?.intent!=='order'||parsed.needMoreDetails||parsed.needsHuman||
+        !productFor(parsed.sku)||!Number.isSafeInteger(parsed.qty)||parsed.qty<1)
+      return reply(res,200,{ok:true,needsClarification:true,parserSource:parsed?.source||'rules',
+       message:'Em cần tên sản phẩm và số lượng rõ ràng, ví dụ: 2 thùng Satori 500ml. Chưa tạo hóa đơn.'});
+     lines=[{code:productFor(parsed.sku).code,qty:parsed.qty}];
+     source=parsed.source||'rules';
+    }
+    if(lines.length>6||lines.some(x=>!x.code||!Number.isSafeInteger(x.qty)||x.qty<1||x.qty>500||
+       !profile.products.some(p=>p.code===x.code))||
+       lines.reduce((n,x)=>n+x.qty,0)>500)
+     return fail(res,400,'REAL_CHAT_PRODUCT_INVALID','Sản phẩm hoặc số lượng không hợp lệ theo danh mục hiện tại.');
+    result={production:true,items:lines,parserSource:source,
+      message:'Đã hiểu yêu cầu. Anh/chị kiểm tra sản phẩm và số lượng trong giỏ, sau đó xem báo giá để xác nhận.'};
+   }
    if(p==='/api/real/quote')result=await realPrivateLinks.quote(input);
    if(p==='/api/real/confirm')result=await realPrivateLinks.confirm(input);
    return reply(res,200,{ok:true,...result});
@@ -938,16 +968,18 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method==='GET'&&p==='/api/history')return customerLinks.history(res,url.searchParams.get('token')||'',orders,FIXTURES);
  if(req.method==='GET'&&p==='/api/catalogue'){
-  const profile=getProfile(url.searchParams.get('token')||'');if(!profile)return fail(res,403,'DEMO_LINK_REQUIRED','Chỉ hiển thị giá riêng trong link khách thử hợp lệ');
-  return reply(res,200,{ok:true,sandbox:true,source:'official-default-snapshot',catalogueSync:'snapshot_only',count:CATALOGUE.length,products:CATALOGUE.map(item=>({code:item.code,name:item.name,brand:item.brand,unit:item.unit,spec:item.spec,listPrice:item.listPrice,discount:profile.discount,unitPrice:money(item.listPrice*(1-profile.discount/100))}))});
+  const token=url.searchParams.get('token')||'';const profile=getProfile(token);if(!profile)return fail(res,403,'DEMO_LINK_REQUIRED','Chỉ hiển thị giá riêng trong link khách thử hợp lệ');
+  const priced=deliveryProfile(profile,draftStore.read(token).locationId);
+  return reply(res,200,{ok:true,sandbox:true,source:'official-default-snapshot',catalogueSync:'snapshot_only',locationRequired:priced.locationRequired,count:CATALOGUE.length,products:CATALOGUE.map(item=>({code:item.code,name:item.name,brand:item.brand,unit:item.unit,spec:item.spec,listPrice:item.listPrice,discount:priced.locationRequired?null:priced.discount,unitPrice:priced.locationRequired?null:money(item.listPrice*(1-priced.discount/100))}))});
  }
  // Publicly share only this customer's ranked catalog SKU suggestions, never raw order history.
  if(req.method==='GET'&&p==='/api/suggestions'){
   const profile=getProfile(url.searchParams.get('token')||'');
   if(!profile)return fail(res,403,'INVALID_LINK','Liên kết khách không hợp lệ.');
+  const priced=deliveryProfile(profile,draftStore.read(url.searchParams.get('token')||'').locationId);
   const suggestions=customerSuggestions(profile,orders.values(),3).map(item=>{
    const p=productFor(item.code);
-   return {...item,unitPrice:money(p.listPrice*(1-profile.discount/100))};
+   return {...item,unitPrice:priced.locationRequired?null:money(p.listPrice*(1-priced.discount/100))};
   });
   return reply(res,200,{ok:true,sandbox:true,suggestions,
    source:'per-customer-test-invoice-history',historyLimitedToSandbox:true});
@@ -1533,7 +1565,7 @@ const server=http.createServer(async(req,res)=>{
   const approved=q.deliveryLocationId?chosenLocation(c,q.deliveryLocationId):
     listLocations(c).length===1?listLocations(c)[0]:null;
    if(!approved||q.locationRequired)return fail(res,409,'LOCATION_REQUIRED','Chưa chọn điểm giao chính xác. Vui lòng chọn trong Tất cả địa chỉ.');
-   if(q.profileId!==c.id||q.discount!==c.discount||q.ship!==c.ship||
+   if(q.profileId!==c.id||q.discount!==effectiveLocationDiscount(c,approved)||q.ship!==c.ship||
       q.vatRate!==(c.vatRate??0)||q.address!==approved.address||
       q.phone!==approved.phone||(q.recipient!==undefined&&q.recipient!==approved.recipient))
     return fail(res,409,'PROFILE_CHANGED','Thông tin điểm giao hoặc giá đã đổi. Vui lòng lập lại báo giá.');
