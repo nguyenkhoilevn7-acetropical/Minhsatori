@@ -130,6 +130,10 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
    if(!field)throw Error('Mặt hàng không có trong danh mục đã duyệt.');
    field.value=String(Math.min(500,Number(field.value||0)+item.qty));
   }
+  if(d.deliveryNote){
+   const note=$('note'),current=note.value.trim();
+   if(!current.includes(d.deliveryNote))note.value=[current,d.deliveryNote].filter(Boolean).join('; ').slice(0,300);
+  }
   $('chatStatus').textContent=(String(d.parserSource).startsWith('gemini')?'Gemini':'Bộ phân tích')+
    ': '+d.message;
   $('message').value='';

@@ -85,7 +85,7 @@ export function createOwnerRealInvoice({
    invoiceCount:status.data.orders,catalogueProducts:catalogue.data.products.length,
    permissions:'orders_read_catalogue_read'});
  }
- async function source(invoiceNo){
+ async function source(invoiceNo,customerId=null){
   if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1)fail('OWNER_CUSTOMER_REFERENCE_REQUIRED');
   const [cat,old]=await Promise.all([
    bot('catalogue.list',{}),
@@ -99,6 +99,7 @@ export function createOwnerRealInvoice({
   // exactly one record has a complete name, phone and delivery address.
   // Never choose arbitrarily between two complete source records.
   const matched=old.data.orders.filter(o=>Number(o.invoiceNo)===invoiceNo&&
+    (customerId==null||String(o.id)===String(customerId))&&
     o.pairRole!=='collaborator'&&o.id!=null&&
     clean(o.name).length>=2&&String(o.phone||'').replace(/\D/g,'').length>=8&&
     clean(o.location).length>=5);

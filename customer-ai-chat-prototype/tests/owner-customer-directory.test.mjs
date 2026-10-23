@@ -21,11 +21,37 @@ assert.equal(traky.needsReview,true);
 assert.equal(traky.multipleContacts,true);
 assert.equal(traky.canIssueRealLinks,false);
 const more=detailFromEvidence('Hà Minh Nguyệt',[rows[0]], [rows[1]], {sourceTotal:2});
-assert.equal(more.places.length,2);assert.equal(more.complete,true);
+assert.equal(more.places.length,2);assert.equal(more.complete,false,
+ 'sourceTotal describes source profiles; one historical invoice cannot prove every source profile has been scanned');
 const duplicate=detailFromEvidence('Hà Minh Nguyệt',[rows[0]], [rows[0]], {sourceTotal:1});
 assert.equal(duplicate.count,1);
 const incomplete=detailFromEvidence('Hà Minh Nguyệt',rows,[],{sourceTotal:2,invoicesIncomplete:true});
 assert.equal(incomplete.complete,false);
+const repeatProfiles=Array.from({length:17},(_,i)=>({
+ name:'Hà Minh Nguyệt',phone:i===1?'0358707777':i===11?'':'0901000001',
+ location:'Số '+(i<2?1:i===11?10:i<11?i:i-1)+' Đường Thử, Q1',
+ sourceInvoiceNo:i===10||i===11?68:100+i,
+ ref:{id:10000+i,invoiceNo:i===10||i===11?68:100+i}
+}));
+const purchases=Array.from({length:10},(_,i)=>({
+ name:'Hà Minh Nguyệt',phone:'0901000001',location:'Số 1 Đường Thử, Q1',
+ invoiceNo:200+i,id:30000+i
+}));
+const grouped=detailFromEvidence('Hà Minh Nguyệt',repeatProfiles,purchases,{sourceTotal:17});
+assert.equal(grouped.complete,true,'17 raw profile records may belong to fewer physical delivery locations');
+assert.equal(grouped.sourceProfilesObserved,17);
+assert.equal(grouped.places.length,15,'17 source profiles collapse to 15 actual delivery points');
+const first=grouped.places.find(p=>p.address==='Số 1 Đường Thử, Q1');
+assert.equal(first.purchaseCount,10,'ten purchases are separate invoices under one delivery point');
+assert.equal(first.phones.length,2,'different contact numbers must not split one address');
+assert.equal(first.invoiceNos.length,12);
+assert.equal(first.needsReview,true,'different contact names/numbers may require owner review, not global block');
+assert.equal(grouped.places.filter(x=>x.approvedCandidate).length,15,
+ 'review status must not disable other eligible locations');
+const sameInvoiceDifferentRecords=grouped.places.flatMap(x=>x.references).filter(x=>x.invoiceNo===68);
+assert.equal(sameInvoiceDifferentRecords.length,2,'two historical records with invoice #68 are preserved');
+assert.ok(!grouped.canIssueRealLinks,'reading directory alone must never grant production write privilege');
+console.log('PASS repeat-purchase domain rules: ten purchases, 17 raw profiles, 15 locations, duplicate #68, different phones');
 console.log('PASS owner directory: name grouping, unique destinations, source coverage, no production links');
 
 import {readFileSync} from 'node:fs';

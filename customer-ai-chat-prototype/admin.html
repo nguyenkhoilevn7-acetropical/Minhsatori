@@ -1496,39 +1496,71 @@ $('agencyRealFind').onclick=async()=>{
  $('agencyRealPlaces').replaceChildren();agencyReviewed=[];
  const name=$('agencyRealName').value.trim();
  if(name.length<2){$('agencyRealStatus').textContent='Nhập tên đại lý trước.';b.disabled=false;return}
- $('agencyRealStatus').textContent='Đang kiểm tra địa chỉ lịch sử theo tên, chưa cấp link.';
+ $('agencyRealStatus').textContent='Đang nhóm các đơn đã mua theo địa chỉ thực tế. Chưa cấp link.';
  try{
   const d=await request('/api/admin/customer-directory?mode=detail&name='+encodeURIComponent(name));
   const places=d.selected?.places||[];
-  if(!places.length)throw Error('Không tìm thấy địa chỉ có hóa đơn nguồn.');
-  const seen=new Set(),duplicates=[];
+  if(!places.length)throw Error('Không tìm thấy điểm giao trong lịch sử.');
+  const root=$('agencyRealPlaces');
+  const review=document.createElement('div'),ready=document.createElement('div');
+  const reviewHeading=document.createElement('h3'),readyHeading=document.createElement('h3');
+  reviewHeading.textContent='⚠ Điểm cần anh kiểm tra';readyHeading.textContent='✓ Điểm giao có thể duyệt';
+  review.append(reviewHeading);ready.append(readyHeading);
+  let needsReview=0;
   for(const p of places){
-   const no=Number(p.invoiceNos?.[0]);
-   if(!Number.isSafeInteger(no)||no<1){duplicates.push(p.address+' (thiếu hóa đơn)');continue}
-   if(seen.has(no)){duplicates.push('Hóa đơn #'+no+' xuất hiện nhiều lần');continue}
-   seen.add(no);
+   const refs=Array.isArray(p.references)?p.references.filter(r=>r.id!=null&&Number.isSafeInteger(r.invoiceNo)&&r.invoiceNo>0):[];
    const row=document.createElement('div');row.className='customer';
-   row.style.display='grid';row.style.gridTemplateColumns='1fr minmax(75px,100px)';row.style.gap='8px';
+   row.style.display='grid';row.style.gridTemplateColumns='minmax(0,1fr) minmax(85px,110px)';
+   row.style.gap='8px';
    const check=document.createElement('label');check.style.display='flex';check.style.alignItems='flex-start';
    const tick=document.createElement('input');tick.type='checkbox';tick.style.width='auto';tick.style.marginRight='8px';
-   tick.dataset.agencyInvoice=String(no);
-   const title=document.createElement('span');title.textContent='#'+no+' • '+p.name+' • '+p.address;
+   tick.disabled=!refs.length||!p.phone;
+   const title=document.createElement('span');
+   const bought=Array.isArray(p.invoiceNos)?p.invoiceNos.length:0;
+   title.textContent=p.address+' • '+bought+' số hóa đơn lịch sử'+
+    (p.phones?.length>1?' • '+p.phones.length+' số liên hệ':'');
    check.append(tick,title);
-   const label=document.createElement('label');label.textContent='CK (%)';
-   const rate=document.createElement('input');rate.type='number';rate.min='0';rate.max='70';rate.step='1';rate.value='20';rate.dataset.agencyRate=String(no);
-   label.append(rate);row.append(check,label);$('agencyRealPlaces').append(row);
-   agencyReviewed.push({invoiceNo:no,checkbox:tick,rate});
+   const label=document.createElement('label');label.textContent='CK riêng (%)';
+   const rate=document.createElement('input');rate.type='number';rate.min='0';rate.max='70';
+   rate.step='1';rate.placeholder='Nhập %';rate.required=true;rate.value='';
+   label.append(rate);row.append(check,label);
+   if(refs.length){
+    const selLabel=document.createElement('label');selLabel.textContent='Hóa đơn tham chiếu (chọn một giao dịch đúng địa chỉ)';
+    const select=document.createElement('select');
+    for(const ref of refs){
+     const option=new Option('HĐ #'+ref.invoiceNo+' • ID '+String(ref.id).slice(-7),
+      JSON.stringify({id:ref.id,invoiceNo:ref.invoiceNo}));
+     select.append(option);
+    }
+    selLabel.append(select);selLabel.style.gridColumn='1 / -1';row.append(selLabel);
+    agencyReviewed.push({select,checkbox:tick,rate,place:p});
+   }else{
+    const note=document.createElement('p');note.className='hint';
+    note.textContent='Chưa có bản ghi nguồn đủ tin cậy. Chưa đưa vào link.';
+    note.style.gridColumn='1 / -1';row.append(note);
+   }
+   if(p.needsReview){
+    const reason=document.createElement('p');reason.className='hint';reason.style.gridColumn='1 / -1';
+    reason.textContent='⚠ Cần đối chiếu: '+(p.reviewReasons||[]).map(x=>({
+     MISSING_PHONE:'thiếu số điện thoại',HISTORIC_PHONE_MISSING:'có giao dịch cũ thiếu liên hệ',
+     MULTIPLE_CONTACTS_REVIEW:'nhiều số liên hệ tại cùng địa chỉ',
+     MISSING_HISTORIC_REFERENCE:'thiếu tham chiếu hóa đơn'}[x]||x)).join(', ')+
+     '. Các điểm khác vẫn được cấp link bình thường.';
+    row.append(reason);review.append(row);needsReview++;
+   }else ready.append(row);
   }
-  $('agencyRealStatus').textContent='Tìm thấy '+places.length+' hồ sơ; '+agencyReviewed.length+
-   ' tham chiếu hóa đơn riêng để chủ chọn. '+(duplicates.length?'Có '+duplicates.length+' hồ sơ trùng/thiếu tham chiếu cần kiểm tra, không tự chọn.':'')+
-   ' Tích chọn và duyệt mức giảm từng điểm giao.';
+  root.append(ready,review);
+  $('agencyRealStatus').textContent='Lịch sử có '+(d.selected?.sourceProfilesObserved??'?')+
+   ' hồ sơ nguồn, đã nhóm thành '+places.length+' điểm giao thực tế. '+needsReview+
+   ' điểm cần đối chiếu. Các điểm hợp lệ có thể chọn ngay; khách mua lại không phải lỗi.';
  }catch(e){$('agencyRealStatus').textContent='⚠ '+e.message;}
  finally{b.disabled=false}
 };
 $('agencyRealIssue').onclick=async()=>{
  const selected=agencyReviewed.filter(x=>x.checkbox.checked);
  if(!selected.length||selected.length>20){$('agencyRealStatus').textContent='Chọn 1–20 điểm giao đã xác minh.';return}
- const destinations=selected.map(x=>({customerRef:{invoiceNo:x.invoiceNo},discountPercent:Number(x.rate.value)}));
+ const destinations=selected.map(x=>({customerRef:JSON.parse(x.select.value),
+  discountPercent:x.rate.value===''?NaN:Number(x.rate.value)}));
  if(destinations.some(d=>!Number.isSafeInteger(d.discountPercent)||d.discountPercent<0||d.discountPercent>70)){
   $('agencyRealStatus').textContent='Chiết khấu từng địa chỉ phải là số nguyên từ 0 đến 70.';return
  }
