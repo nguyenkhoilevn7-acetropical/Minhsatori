@@ -78,6 +78,7 @@ jobs:
           python3 android/tools/verify_release.py "$APK" \
             --build-tools "$ANDROID_HOME/build-tools/35.0.0" \
             --certificate-sha256 "$RELEASE_CERT_SHA256" \
+            --release-request android/release-request.json \
             --report android/app/build/outputs/apk/release/release-verification.json
       - name: Upload signed APK for Samsung acceptance test
         uses: actions/upload-artifact@v4
