@@ -3,6 +3,7 @@ package vn.minhsatori.app
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONObject
 
 /**
  * Direct Drive read-only API. All mutations must go through the owner's
@@ -11,6 +12,52 @@ import java.net.URL
 object DriveReadClient {
     const val LIVE_FILE_ID = "14XWSPrxLnKXATwmuHeXGZnCvjDbalghV"
     private const val MAX_BYTES = 12_000_000
+
+    /**
+     * Cheap foreground change probe: Google Drive file.version changes after a
+     * successful website/Bot API write. Never download 118+ invoice rows when
+     * the file version is unchanged. Requires the same drive.readonly OAuth
+     * permission already granted for the existing full snapshot.
+     */
+    @Throws(IOException::class)
+    fun versionWithToken(accessToken: String): Long {
+        require(accessToken.isNotBlank()) { "Chưa cấp quyền Google Drive." }
+        val url = URL("https://www.googleapis.com/drive/v3/files/" +
+            LIVE_FILE_ID + "?fields=version%2CmodifiedTime")
+        val connection = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 10_000
+            readTimeout = 10_000
+            setRequestProperty("Authorization", "Bearer " + accessToken)
+            setRequestProperty("Accept", "application/json")
+            useCaches = false
+            instanceFollowRedirects = false
+        }
+        try {
+            when (connection.responseCode) {
+                200 -> Unit
+                401 -> throw IOException("Phiên Google đã hết hạn. Hãy kết nối lại.")
+                403 -> throw IOException("Tài khoản Google không có quyền đọc dữ liệu Minh Satori.")
+                404 -> throw IOException("Không tìm thấy dữ liệu Minh Satori.")
+                else -> throw IOException("Không đọc được phiên bản Drive (HTTP " +
+                    connection.responseCode + ").")
+            }
+            if (connection.contentLengthLong > 8192)
+                throw IOException("Phản hồi phiên bản Drive không hợp lệ.")
+            val bytes = connection.inputStream.use { input ->
+                input.readNBytes(8193)
+            }
+            if (bytes.size > 8192) throw IOException("Phản hồi phiên bản Drive quá lớn.")
+            val raw = try { JSONObject(String(bytes, Charsets.UTF_8)) }
+                catch (_: Exception) { throw IOException("Phiên bản Drive không hợp lệ.") }
+            val version = raw.optString("version").toLongOrNull()
+                ?: throw IOException("Drive không trả về phiên bản dữ liệu.")
+            if (version <= 0L) throw IOException("Phiên bản Drive không hợp lệ.")
+            return version
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     @Throws(IOException::class)
     fun loadWithToken(accessToken: String): SatoriSnapshot {
