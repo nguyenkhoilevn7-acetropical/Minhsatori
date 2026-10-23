@@ -118,7 +118,7 @@ const transportFetch=async(url,req)=>{
  assert.equal(body.action,'orders.create.pair');
  assert.equal(body.signature,crypto.createHmac('sha256',transportEnv.SATORI_CTV_PAIR_WRITE_SECRET)
   .update([body.keyId,body.timestamp,body.nonce,body.action,
-   JSON.stringify(body.payload)].join('\\n')).digest('hex'));
+   JSON.stringify(body.payload)].join('\n')).digest('hex'));
  const pairGroupId='pair_12345678901234567890';
  const buyer={invoiceNo:9011,pairRole:'customer',pairGroupId,
   collaboratorId:'ctv-01',pairInvoiceNo:9012,total:846720,
