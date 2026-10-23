@@ -65,16 +65,34 @@ data class SatoriInvoice(
     val restoreRequestId: String = "",
     val taxCode: String = "",
     val paymentRequestId: String = "",
-    val isTest: Boolean = false
+    val isTest: Boolean = false,
+    val pairGroupId: String = "",
+    val pairRole: String = "",
+    val pairInvoiceNo: String = "",
+    val collaboratorId: String = "",
+    val pairCustomerName: String = "",
+    val pairCollaboratorName: String = "",
+    val pairDiscountPercent: Double? = null
 ) {
-    val isExcluded: Boolean get() = isTest ||
+    val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
+    val isCustomerPairBill: Boolean get() = pairRole == "customer"
+    val isLinkedPairBill: Boolean get() =
+        pairGroupId.isNotBlank() || pairRole.isNotBlank()
+    val pairLabel: String get() = when (pairRole) {
+        "customer" -> "BILL KHÁCH · liên kết #" + pairInvoiceNo
+        "collaborator" -> "BILL CTV NỘI BỘ · liên kết #" + pairInvoiceNo
+        else -> ""
+    }
+    // A CTV's settlement is a price reference, not a second physical sale.
+    val isExcluded: Boolean get() = isTest || isInternalCollaboratorBill ||
         status.equals("Không Tính", ignoreCase = true) ||
         status.equals("Đã hủy", ignoreCase = true)
     val customerHasPaid: Boolean get() =
         status.equals("Đã thanh toán", ignoreCase = true) || customerPaidAt.isNotBlank()
     // "Đã TT Satori" reflects settlement with Satori, NOT payment by customer.
     // Keep edits/deletes protected but allow recording the customer's payment.
-    val canEditOrDelete: Boolean get() = !isExcluded && !customerHasPaid &&
+    // Editing/deleting only one half would corrupt a paired CTV delivery.
+    val canEditOrDelete: Boolean get() = !isLinkedPairBill && !isExcluded && !customerHasPaid &&
         !status.equals("Đã TT Satori", ignoreCase = true)
     val canMarkCustomerPaid: Boolean get() = !isExcluded && !customerHasPaid && total > 0L
     val isOutstanding: Boolean get() = !isExcluded && !customerHasPaid && total > 0L
@@ -116,9 +134,28 @@ data class SatoriSnapshot(
     // After a lost HTTP response, this can confirm a write without resending it.
     fun confirmedWrite(action: String, requestId: String): SatoriInvoice? {
         if (requestId.isBlank()) return null
+        // A pair is committed by ONE Bot API request. Never report success
+        // after seeing only one half, even if its requestId matches.
+        if (action == "orders.create.pair") {
+            val rows = invoices.filter {
+                !it.isTest && it.requestId == requestId && it.pairGroupId.isNotBlank()
+            }
+            val buyer = rows.singleOrNull { it.isCustomerPairBill } ?: return null
+            val partner = rows.singleOrNull { it.isInternalCollaboratorBill } ?: return null
+            return buyer.takeIf {
+                rows.size == 2 && buyer.pairGroupId == partner.pairGroupId &&
+                    buyer.pairInvoiceNo == partner.number &&
+                    partner.pairInvoiceNo == buyer.number &&
+                    buyer.collaboratorId.isNotBlank() &&
+                    buyer.collaboratorId == partner.collaboratorId &&
+                    buyer.total > partner.total &&
+                    SatoriData.normalized(buyer.address) ==
+                        SatoriData.normalized(partner.address)
+            }
+        }
         return invoices.firstOrNull { invoice ->
             !invoice.isTest && when (action) {
-                "orders.create" -> invoice.requestId == requestId
+                "orders.create" -> invoice.requestId == requestId && !invoice.isLinkedPairBill
                 "orders.update" -> invoice.updateRequestId == requestId
                 "orders.restore" -> invoice.restoreRequestId == requestId
                 else -> false
@@ -204,7 +241,16 @@ object SatoriData {
                 restoreRequestId = string(x, "apiRestoreRequestId"),
                 paymentRequestId = string(x, "apiPaymentRequestId"),
                 taxCode = string(x, "taxCode"),
-                isTest = SatoriOrderValidation.requiresTestLedger("orders.create", x)
+                isTest = SatoriOrderValidation.requiresTestLedger("orders.create", x),
+                pairGroupId = string(x, "pairGroupId"),
+                pairRole = string(x, "pairRole"),
+                pairInvoiceNo = string(x, "pairInvoiceNo"),
+                collaboratorId = string(x, "collaboratorId"),
+                pairCustomerName = string(x, "pairCustomerName"),
+                pairCollaboratorName = string(x, "pairCollaboratorName"),
+                pairDiscountPercent = if (x.has("pairDiscountPercent") &&
+                    !x.isNull("pairDiscountPercent"))
+                    x.optDouble("pairDiscountPercent").takeIf { it.isFinite() } else null
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
@@ -281,7 +327,9 @@ object SatoriData {
         if (needle.matches(Regex("""\d{1,4}"""))) {
             return invoice.number.trimStart('0') == needle.trimStart('0')
         }
-        val content = normalized(listOf(invoice.number, invoice.customer, invoice.phone,
+        val content = normalized(listOf(invoice.number, invoice.customer,
+            invoice.pairCustomerName, invoice.pairCollaboratorName,
+            invoice.collaboratorId, invoice.pairInvoiceNo, invoice.phone,
             invoice.address, invoice.lines.joinToString(" ") { it.description })
             .joinToString(" "))
         if (content.contains(needle)) return true
