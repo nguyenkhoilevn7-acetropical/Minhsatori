@@ -1219,6 +1219,7 @@ class NativeMainActivity : AppCompatActivity() {
                 section(rows, "HÓA ĐƠN #" + inv.number + "  •  " +
                     SatoriData.money(inv.total),
                     inv.displayDate + "  •  " + inv.status + "\n" +
+                    (if (inv.isLinkedPairBill) inv.pairLabel + "\n" else "") +
                     inv.customer + "  •  " + inv.phone + "\n" +
                     inv.address + "\n" +
                     inv.lines.joinToString(", ") { it.description + " x" + it.quantity }) {
@@ -1313,6 +1314,7 @@ class NativeMainActivity : AppCompatActivity() {
                 section(list, "HÓA ĐƠN #" + inv.number + "   •   " +
                     SatoriData.money(inv.total),
                     inv.customer + "  •  " + inv.displayDate + "\n" +
+                    (if (inv.isLinkedPairBill) inv.pairLabel + "\n" else "") +
                     inv.status + "  •  " + inv.phone + "\n" +
                     inv.address + "\n" +
                     inv.lines.joinToString(", ") { it.description + " x" + it.quantity } +
@@ -1340,7 +1342,9 @@ class NativeMainActivity : AppCompatActivity() {
     private fun renderCustomers(parent: LinearLayout, data: SatoriSnapshot) {
         label(parent, "Khách trùng tên nhưng khác địa chỉ hoặc điện thoại được tách riêng.",
             12f, false, muted, 12)
-        val groups = data.invoices.groupBy { SatoriData.customerKey(it) }
+        // Internal CTV settlement is not a second buyer or customer profile.
+        val groups = data.invoices.filterNot { it.isInternalCollaboratorBill }
+            .groupBy { SatoriData.customerKey(it) }
             .values.sortedWith(compareByDescending<List<SatoriInvoice>> { it.size }
                 .thenBy { it.first().customer })
         label(parent, groups.size.toString() + " hồ sơ theo tên + SĐT + địa chỉ",
@@ -1489,6 +1493,15 @@ class NativeMainActivity : AppCompatActivity() {
         if (invoice.isTest) label(content,
             "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ",
             12f, true, Color.rgb(253, 186, 116), 9)
+        if (invoice.isLinkedPairBill) {
+            label(content, invoice.pairLabel, 13f, true, cyan, 10)
+            if (invoice.isInternalCollaboratorBill) label(content,
+                "BẢN ĐỐI SOÁT CTV • KHÔNG CỘNG DOANH THU, KHÔNG THU TIỀN KHÁCH",
+                12f, true, Color.rgb(253, 186, 116), 6)
+            if (invoice.pairDiscountPercent != null) label(content,
+                "Chiết khấu đã lưu: " + invoice.pairDiscountPercent + "%",
+                12f, false, softInk, 6)
+        }
 
         label(content, "THÔNG TIN KHÁCH HÀNG", 12f, true, cyan, 15)
         label(content, invoice.customer, 17f, true, white, 7)
@@ -1589,18 +1602,32 @@ class NativeMainActivity : AppCompatActivity() {
                     }.show()
             }
         }
+        fun confirmInternalShare(action: () -> Unit) {
+            if (!invoice.isInternalCollaboratorBill) { action(); return }
+            AlertDialog.Builder(this)
+                .setTitle("PDF CTV NỘI BỘ • KHÔNG GỬI KHÁCH")
+                .setMessage("Bill này có giá chiết khấu riêng cho cộng tác viên. " +
+                    "Chỉ gửi đúng CTV, không gửi cho khách mua hàng. Anh xác nhận?")
+                .setNegativeButton("Hủy", null)
+                .setPositiveButton("Đúng CTV, tiếp tục") { _, _ -> action() }
+                .show()
+        }
         button(content, "GỬI PDF QUA ZALO") {
+            confirmInternalShare {
             try { NativeInvoicePdf.shareZalo(this, invoice) }
             catch (error: Exception) {
                 Toast.makeText(this, "Không chia sẻ được Zalo: " +
                     (error.message ?: ""), Toast.LENGTH_LONG).show()
             }
+            }
         }
         button(content, "GỬI PDF QUA MESSENGER") {
+            confirmInternalShare {
             try { NativeInvoicePdf.shareMessenger(this, invoice) }
             catch (error: Exception) {
                 Toast.makeText(this, "Không chia sẻ được Messenger: " +
                     (error.message ?: ""), Toast.LENGTH_LONG).show()
+            }
             }
         }
         val dialog = AlertDialog.Builder(this)
@@ -1614,11 +1641,13 @@ class NativeMainActivity : AppCompatActivity() {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(cyan)
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(cyan)
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                try {
-                    NativeInvoicePdf.share(this, invoice)
-                } catch (_: Exception) {
-                    Toast.makeText(this, "Không xuất được PDF, hãy thử lại.",
-                        Toast.LENGTH_LONG).show()
+                confirmInternalShare {
+                    try {
+                        NativeInvoicePdf.share(this, invoice)
+                    } catch (_: Exception) {
+                        Toast.makeText(this, "Không xuất được PDF, hãy thử lại.",
+                            Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }
