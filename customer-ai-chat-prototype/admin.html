@@ -579,10 +579,17 @@ $('ctvAdd').onclick=async()=>{
   if(!p||!Array.isArray(p.places)||!p.places.length)throw Error('Không tìm thấy điểm giao trong hóa đơn thật.');
   if(![p.name,...(p.aliases||[])].some(v=>normalized(v)===normalized(name)))
    throw Error('Tên khách nguồn chưa khớp khách được chọn.');
-  const used=new Set(),places=[];
+  const used=new Set(),places=[];let excludedIncomplete=0;
   for(const x of p.places){
    const invoiceNo=Number(x.invoiceNos?.[0]);
-   if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1||used.has(invoiceNo))continue;
+   const phone=String(x.phone||'').replace(/\D/g,'');
+   const address=String(x.address||'').trim();
+   // Bot API requires an existing verified source with a full destination.
+   // An old duplicate invoice with no phone must not displace its valid twin.
+   if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1||phone.length<8||address.length<5){
+    excludedIncomplete++;continue;
+   }
+   if(used.has(invoiceNo))continue;
    used.add(invoiceNo);places.push({invoiceNo,name:x.name||p.name,address:x.address||'',phone:x.phone||''});
   }
   if(!places.length||places.length>20)throw Error('Cần 1–20 địa chỉ giao hợp lệ từ sổ thật.');
@@ -609,7 +616,9 @@ $('ctvAdd').onclick=async()=>{
   $('ctvWizardConfirm').textContent=ctvExistingTarget?
    '✅ LƯU ĐỊA CHỈ / CHIẾT KHẤU & CẤP LINK':
    '✅ XÁC NHẬN CTV & CẤP 1 LINK THẬT';
-  $('ctvAddGuide').textContent='Đã mở hồ sơ thật. Tích địa chỉ và xác nhận tại một chỗ.';
+  $('ctvAddGuide').textContent='Đã mở '+places.length+
+   ' điểm giao đủ thông tin. Tích đúng địa chỉ trước khi xác nhận.'+
+   (excludedIncomplete?' Đã loại '+excludedIncomplete+' hồ sơ thiếu dữ liệu, không chỉnh sửa hóa đơn gốc.':'');
   $('ctvWizard').scrollIntoView({behavior:'smooth',block:'start'});
  }catch(e){$('ctvAddGuide').textContent='⚠ '+e.message+' Không tạo khách mới.'}
  finally{b.disabled=false}
