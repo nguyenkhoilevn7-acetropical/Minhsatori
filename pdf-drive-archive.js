@@ -12,6 +12,53 @@
   var enabled=false,busy=false,seq=0,timer=null,inFlight=null;
   function readQueue(){try{var v=JSON.parse(localStorage.getItem(storageKey)||'[]');return Array.isArray(v)?v:[];}catch(_){return [];}}
   function saveQueue(q){localStorage.setItem(storageKey,JSON.stringify(q));}
+  // The Drive app can receive invoices written by Bot API while this browser was closed.
+  // Track confirmed PDF versions separately from the invoice ledger: never write bill data.
+  var confirmedKey='satori_pdf_archive_confirmed_v1';
+  function readConfirmed(){
+    try{var v=JSON.parse(localStorage.getItem(confirmedKey)||'[]');return Array.isArray(v)?v:[];}
+    catch(_){return [];}
+  }
+  function versionFingerprint(key){
+    // Local retry deduplication only; Apps Script checks the full version key and SHA-256.
+    var hash=2166136261;
+    for(var i=0;i<key.length;i++)hash=Math.imul(hash^key.charCodeAt(i),16777619);
+    return (hash>>>0).toString(16)+':'+key.length;
+  }
+  function invoiceVersion(o){
+    if(typeof invoicePdfKey!=='function')return '';
+    return invoicePdfKey(o)+'\n'+templateVersion;
+  }
+  function confirmArchived(ref,key){
+    var found=current(ref);
+    if(!found||invoiceVersion(found)!==key)return;
+    var rows=readConfirmed().filter(function(x){
+      return !(x.id===String(ref.id)&&x.invoiceNo===Number(ref.invoiceNo));
+    });
+    rows.push({id:String(ref.id),invoiceNo:Number(ref.invoiceNo),fingerprint:versionFingerprint(key)});
+    localStorage.setItem(confirmedKey,JSON.stringify(rows.slice(-80)));
+  }
+  window.satoriArchiveCloudInvoices=function(cloudOrders){
+    if(!window.__SATORI_DRIVE_READY__||!Array.isArray(cloudOrders)||
+       typeof invoicePdfKey!=='function')return 0;
+    var confirmed=readConfirmed(),count=0;
+    // Only recent, timestamp-identified invoices: do not mass-backfill old ledgers
+    // or reproduce historic deleted records when an owner opens a new device.
+    var cutoff=Date.parse('2026-10-21T00:00:00+07:00');
+    var recent=cloudOrders.filter(function(o){
+      var id=Number(o?.id),no=Number(o?.invoiceNo);
+      return Number.isSafeInteger(id)&&id>=cutoff&&id<=Date.now()+86400000&&
+        Number.isSafeInteger(no)&&no>0&&Number.isFinite(Number(o.total))&&
+        Array.isArray(o.items)&&o.items.length>0;
+    }).sort(function(a,b){return Number(a.invoiceNo)-Number(b.invoiceNo);}).slice(-30);
+    for(var i=0;i<recent.length;i++){
+      var o=recent[i],version=invoiceVersion(o),fp=versionFingerprint(version);
+      if(confirmed.some(function(x){return x.id===String(o.id)&&
+         x.invoiceNo===Number(o.invoiceNo)&&x.fingerprint===fp;}))continue;
+      queueOrder(o);count++;
+    }
+    return count;
+  };
   function queueOrder(o){
     if(!o || !Number.isSafeInteger(Number(o.invoiceNo)) || o.id==null)return;
     var q=readQueue(),id=String(o.id),no=Number(o.invoiceNo);
@@ -76,6 +123,7 @@
     if(m.type==='stored'&&m.invoiceNo===inFlight.ref.invoiceNo&&m.versionKey===inFlight.versionKey&&m.fileId){
       var saved=inFlight.ref;
       saveQueue(readQueue().filter(function(x){return !(String(x.id)===String(saved.id)&&Number(x.invoiceNo)===Number(saved.invoiceNo));}));
+      try{confirmArchived(saved,m.versionKey);}catch(e){console.warn('Không ghi được dấu xác nhận PDF:',e.message);}
       busy=false;inFlight=null;schedule(300);return;
     }
     if(m.type==='error'){
