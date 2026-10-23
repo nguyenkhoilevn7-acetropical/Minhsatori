@@ -41,10 +41,16 @@ class LiveRefreshContractTest(unittest.TestCase):
 
     def test_revision_probe_has_short_periodic_full_read(self):
         self.assertIn("syncIntervalMs = 20_000L", self.code)
-        self.assertIn("fallbackReadMs = 120_000L", self.code)
+        self.assertIn("fallbackReadMs = 60_000L", self.code)
         self.assertEqual(len(re.findall(
             r"SystemClock\.elapsedRealtime\(\), fallbackReadMs\)\)", self.code)), 4)
         self.assertNotIn("fallbackReadMs * 10", self.code)
+        resume = self.code.split("override fun onResume() {", 1)[1].split(
+            "override fun onPause()", 1)[0]
+        self.assertIn("refreshFromDrive()", resume)
+        self.assertIn("refreshFromMobileApi()", resume)
+        self.assertIn("checkDriveVersion()", resume)
+        self.assertIn("checkMobileRevision()", resume)
 
 
 if __name__ == "__main__":
