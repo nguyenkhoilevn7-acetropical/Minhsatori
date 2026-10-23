@@ -405,15 +405,17 @@ const server=http.createServer(async(req,res)=>{
     if(!profile.customer||message.length<3||message.length>500||
        identityChange(message,profile.customer))
      return fail(res,400,'REAL_CHAT_NEEDS_CLARIFICATION','Vui lòng chọn địa chỉ trong danh sách và chỉ nhập tên/số lượng sản phẩm.');
-    let match=parseMultiOrder(message,{}),source='rules';
+    const {orderText,noteText}=splitOrderAndNote(message);
+    const productMessage=(orderText||message).trim();
+    let match=parseMultiOrder(productMessage,{}),source='rules';
     if(match?.needMoreDetails)match=null;
     if(!match){
-     const ai=await parseComplexOrderWithGemini(message,{});
+     const ai=await parseComplexOrderWithGemini(productMessage,{});
      if(ai?.items){match=ai;source=ai.source}
     }
     let lines=match?.items?.map(i=>({code:productFor(i.sku)?.code,qty:i.qty}));
     if(!lines||!lines.length){
-     const parsed=await parseOrder(message,{});
+     const parsed=await parseOrder(productMessage,{});
      if(parsed?.intent!=='order'||parsed.needMoreDetails||parsed.needsHuman||
         !productFor(parsed.sku)||!Number.isSafeInteger(parsed.qty)||parsed.qty<1)
       return reply(res,200,{ok:true,needsClarification:true,parserSource:parsed?.source||'rules',
@@ -425,7 +427,7 @@ const server=http.createServer(async(req,res)=>{
        !profile.products.some(p=>p.code===x.code))||
        lines.reduce((n,x)=>n+x.qty,0)>500)
      return fail(res,400,'REAL_CHAT_PRODUCT_INVALID','Sản phẩm hoặc số lượng không hợp lệ theo danh mục hiện tại.');
-    result={production:true,items:lines,parserSource:source,
+    result={production:true,items:lines,deliveryNote:String(noteText||'').slice(0,300),parserSource:source,
       message:'Đã hiểu yêu cầu. Anh/chị kiểm tra sản phẩm và số lượng trong giỏ, sau đó xem báo giá để xác nhận.'};
    }
    if(p==='/api/real/quote')result=await realPrivateLinks.quote(input);
