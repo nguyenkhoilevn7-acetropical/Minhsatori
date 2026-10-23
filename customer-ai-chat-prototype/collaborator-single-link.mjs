@@ -44,6 +44,8 @@ export function createCollaboratorSingleLink({
   const raw=text(env.GEMINI_CTV_LINK_SECRET);
   if(env.GEMINI_COLLABORATOR_SINGLE_LINKS_ENABLED!=='1'||
      env.SATORI_CTV_PAIR_ORDER_ENABLED!=='1'||
+     !/^[A-Za-z0-9_-]{3,64}$/.test(text(env.SATORI_CTV_PAIR_WRITE_KEY_ID))||
+     text(env.SATORI_CTV_PAIR_WRITE_SECRET).length<32||
      env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1'||raw.length<32)
    fail('CTV_LINKS_NOT_READY');
   return crypto.createHash('sha256').update('MINH-SATORI-CTV-ONE-LINK-V1\0'+raw).digest();
