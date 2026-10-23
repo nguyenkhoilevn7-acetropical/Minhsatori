@@ -26,7 +26,7 @@ function policy(env){
  // Reuse an EXISTING server-only Bot writer if provisioned, rather than making
  // the owner retype the same protected HMAC key into another environment field.
  // Never use the separate read-only client as a writer.
- const endpoint=clean(env.SATORI_OWNER_CHECKOUT_ENDPOINT||env.SATORI_BOT_API_URL||env.SATORI_CTV_PAIR_ENDPOINT);
+ const endpoint=clean(env.SATORI_OWNER_CHECKOUT_ENDPOINT||env.SATORI_READ_ENDPOINT||env.SATORI_BOT_API_URL||env.SATORI_CTV_PAIR_ENDPOINT);
  const keyId=clean(env.SATORI_OWNER_CHECKOUT_KEY_ID||env.SATORI_BOT_KEY_ID);
  const secret=String(env.SATORI_OWNER_CHECKOUT_SECRET||env.SATORI_BOT_SECRET||'');
  const adminSecret=String(env.CUSTOMER_LINKS_ADMIN_TOKEN||'');
