@@ -1129,13 +1129,14 @@ function appendNewCustomerLocation(initial={}){
   ['label','Tên điểm giao','Chi nhánh Quận 7'],
   ['recipient','Tên người nhận','Nguyễn Văn A'],
   ['phone','Số điện thoại nhận hàng','0900000000'],
-  ['address','Địa chỉ chi tiết','Số nhà, tên đường, quận']
+  ['address','Địa chỉ chi tiết','Số nhà, tên đường, quận'],
+  ['discountPercent','Chiết khấu riêng cho điểm giao (%)','20']
  ]){
   const label=document.createElement('label');label.textContent=title;
   const input=document.createElement('input');input.required=!real||key==='address';
   input.dataset.locationField=key;input.placeholder=placeholder;input.value=String(initial[key]||'');
-  input.maxLength=key==='address'?300:key==='label'?80:key==='phone'?30:120;
-  if(key==='phone')input.type='tel';
+  if(key==='discountPercent'){input.type='number';input.min='0';input.max='70';input.step='1';input.value=String(initial[key]??$('discount').value??'0');}
+  else{input.maxLength=key==='address'?300:key==='label'?80:key==='phone'?30:120;if(key==='phone')input.type='tel';}
   label.append(input);fieldset.append(label);
  }
  const remove=document.createElement('button');remove.type='button';remove.className='secondary';
@@ -1430,12 +1431,13 @@ async function load(){
   const panel=document.createElement('details');panel.className='location-manager';panel.dataset.customerId=c.id;
   const summary=document.createElement('summary');summary.textContent='📍 Điểm giao ('+(c.locations?.length||1)+') • Quản lý địa chỉ';panel.append(summary);
   const form=document.createElement('form');form.className='location-form';
-  const fields=[['label','Tên điểm giao','Chi nhánh Quận 1'],['recipient','Người nhận','Tên người nhận'],['phone','Số điện thoại','09...'],['address','Địa chỉ giao','Số nhà, đường...']];
+  const fields=[['label','Tên điểm giao','Chi nhánh Quận 1'],['recipient','Người nhận','Tên người nhận'],['phone','Số điện thoại','09...'],['address','Địa chỉ giao','Số nhà, đường...'],['discountPercent','Chiết khấu riêng (%)','20']];
   for(const [key,title,placeholder] of fields){
    const label=document.createElement('label');label.textContent=title;
    const input=document.createElement('input');input.name=key;input.placeholder=placeholder;input.required=true;
-   input.maxLength=key==='address'?300:key==='phone'?30:key==='label'?80:120;
-   if(key==='phone')input.type='tel';label.append(input);form.append(label);
+   if(key==='discountPercent'){input.type='number';input.min='0';input.max='70';input.step='1';input.value=String(c.discount);}
+   else{input.maxLength=key==='address'?300:key==='phone'?30:key==='label'?80:120;if(key==='phone')input.type='tel';}
+   label.append(input);form.append(label);
   }
   const submit=document.createElement('button');submit.type='submit';submit.textContent='+ Thêm điểm giao';
   const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Nhập địa chỉ mới';cancel.className='secondary';
@@ -1450,9 +1452,9 @@ async function load(){
   };
   for(const loc of c.locations||[]){
    const card=document.createElement('div');card.className='customer';
-   const text=document.createElement('p');text.textContent=loc.label+' • '+loc.recipient+' • '+loc.phone+' • '+loc.address;
+   const text=document.createElement('p');text.textContent=loc.label+' • CK '+(loc.discountPercent??c.discount)+'% • '+loc.recipient+' • '+loc.phone+' • '+loc.address;
    const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='Sửa';
-   edit.onclick=()=>{for(const key of ['label','recipient','phone','address'])form.elements[key].value=loc[key];form.dataset.editId=loc.id;submit.textContent='Lưu thay đổi';panel.open=true};
+   edit.onclick=()=>{for(const key of ['label','recipient','phone','address'])form.elements[key].value=loc[key];form.elements.discountPercent.value=String(loc.discountPercent??c.discount);form.dataset.editId=loc.id;submit.textContent='Lưu thay đổi';panel.open=true};
    card.append(text,edit);
    if(loc.id!=='primary'){
     const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='Xóa';
