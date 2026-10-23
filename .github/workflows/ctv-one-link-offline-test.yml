@@ -1,0 +1,26 @@
+name: Minh Satori CTV One-Link Two-Invoice Security (offline)
+on:
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/**'
+      - '.github/workflows/ctv-one-link-offline-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ctv-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check CTV single-link and backend modules
+        run: |
+          node --check customer-ai-chat-prototype/collaborator-single-link.mjs
+          node --check customer-ai-chat-prototype/owner-collaborator-pairs.mjs
+          node --check customer-ai-chat-prototype/server.mjs
+          node --test customer-ai-chat-prototype/tests/collaborator-single-link.test.mjs
+      - name: No production write
+        run: echo "OFFLINE PASS — fake catalog and signed source only, no production credentials"
