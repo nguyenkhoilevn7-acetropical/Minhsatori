@@ -1,0 +1,20 @@
+name: Owner Headless PDF Scheduler (FAKE only)
+on:
+  push:
+    branches:
+      - feature/headless-pdf-gas-20261023
+  pull_request:
+    paths:
+      - "api/PdfHeadlessSchedule.gs"
+      - "api/InvoicePdfArchive.gs"
+      - "tests/pdf-headless-schedule.test.cjs"
+jobs:
+  fake-headless-scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify syntax, idempotent trigger, HMAC and archive
+        run: node tests/pdf-headless-schedule.test.cjs
