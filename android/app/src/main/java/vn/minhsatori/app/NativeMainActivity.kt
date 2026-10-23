@@ -2053,6 +2053,44 @@ class NativeMainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Lightweight foreground probe. Only reload a full Drive ledger if its
+     * Google file.version changed from the last verified snapshot. No UI
+     * reconstruction when no invoice changed.
+     */
+    private fun checkDriveVersion() {
+        if (!foreground || isLoading || isCheckingVersion || authorizationPending ||
+            authorizationDeclined || preferredSource() != AutoSyncPolicy.DRIVE) return
+        val token = accessToken ?: return
+        if (snapshot == null) { refreshFromDrive(); return }
+        isCheckingVersion = true
+        lastVersionProbeElapsedMs = SystemClock.elapsedRealtime()
+        Thread {
+            val response = runCatching { DriveReadClient.versionWithToken(token) }
+            runOnUiThread {
+                isCheckingVersion = false
+                if (!foreground || accessToken != token ||
+                    preferredSource() != AutoSyncPolicy.DRIVE) return@runOnUiThread
+                response.fold(
+                    onSuccess = { version ->
+                        if (lastDriveVersion == null || lastDriveVersion != version ||
+                            AutoSyncPolicy.due(lastOnlineReadElapsedMs,
+                                SystemClock.elapsedRealtime(), fallbackReadMs * 10)) {
+                            refreshFromDrive()
+                        }
+                    },
+                    onFailure = { error ->
+                        statusMessage = "⚠ Chưa kiểm tra được đơn mới: " +
+                            (error.message ?: "Lỗi mạng") +
+                            ". Dữ liệu hiển thị là lần đồng bộ trước."
+                        if (error.message?.contains("hết hạn") == true) accessToken = null
+                        render()
+                    }
+                )
+            }
+        }.start()
+    }
+
     private fun refreshFromDrive() {
         lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
         if (isLoading) return
@@ -2061,25 +2099,37 @@ class NativeMainActivity : AppCompatActivity() {
         statusMessage = "Đang đọc dữ liệu thật từ Google Drive."
         render()
         Thread {
-            val response = try {
-                Result.success(DriveReadClient.loadWithToken(token))
-            } catch (error: Exception) {
-                Result.failure(error)
+            val response = runCatching {
+                // Read the version BEFORE the snapshot; any concurrent
+                // change triggers another check on the next foreground tick.
+                val version = DriveReadClient.versionWithToken(token)
+                Pair(DriveReadClient.loadWithToken(token), version)
             }
             runOnUiThread {
                 isLoading = false
                 response.fold(
-                    onSuccess = {
-                        snapshot = it
-                        dataSource = "Google Drive API"
-                        lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
-                        lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
-                        statusMessage = "Đã đồng bộ Google Drive (chỉ xem)."
+                    onSuccess = { (current, version) ->
+                        val old = snapshot
+                        if (old != null && current.revision < old.revision) {
+                            statusMessage = "⚠ Drive trả revision " + current.revision +
+                                " cũ hơn dữ liệu đã xác minh " + old.revision +
+                                ". Không ghi đè hóa đơn."
+                        } else {
+                            snapshot = current
+                            lastDriveVersion = version
+                            lastVersionProbeElapsedMs = SystemClock.elapsedRealtime()
+                            dataSource = "Google Drive API"
+                            lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+                            lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
+                            statusMessage = "Đã đồng bộ • kiểm tra đơn mới mỗi 20 giây khi mở app."
+                        }
                     },
                     onFailure = {
-                        snapshot = null
-                        statusMessage = it.message ?: "Không đọc được Drive."
-                        // Do not silently show stale results after a failed refresh.
+                        // Do not discard verified invoice rows after a temporary
+                        // outage; flag possible staleness visibly instead.
+                        statusMessage = "⚠ Chưa đồng bộ được đơn mới: " +
+                            (it.message ?: "Lỗi mạng") +
+                            ". Dữ liệu đang hiển thị có thể đã cũ."
                         if (statusMessage.contains("hết hạn")) accessToken = null
                     }
                 )
