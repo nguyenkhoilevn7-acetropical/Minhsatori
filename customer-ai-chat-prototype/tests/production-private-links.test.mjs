@@ -447,7 +447,7 @@ test('private historical invoices limited to owner-approved exact name phone and
    throw Error('DO NOT WRITE');
   },
   historyReader:async({query,limit})=>{
-   assert.equal(query,'Traky Sài Gòn');assert.equal(limit,100);reads++;
+   assert.equal(query,'traky sai gon');assert.equal(limit,100);reads++;
    return {revision:140,data:{orders:rows,totalMatches:rows.length}};
   }
  });
