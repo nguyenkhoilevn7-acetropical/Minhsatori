@@ -435,6 +435,27 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
 .catalog-purchase-row button{touch-action:manipulation}
 @media(max-width:390px){.catalog-purchase-row{grid-template-columns:27px minmax(0,1fr) 108px;gap:5px}
  .catalog-purchase-row .catalog-quantity-controls{width:108px;grid-template-columns:29px minmax(0,1fr) 29px}}
+/* Production: direct catalogue quantity controls, visible selection and persistent account badge. */
+.production-gemini .catalog-purchase-row{cursor:pointer;grid-template-columns:34px minmax(0,1fr) 132px}
+.production-gemini .catalog-purchase-row .real-catalog-stepper{width:132px;grid-template-columns:34px minmax(0,1fr) 34px;min-width:0}
+.production-gemini .catalog-purchase-row .real-catalog-stepper input{font-size:16px;min-height:41px}
+.production-gemini .catalog-purchase-row .real-catalog-stepper button{min-height:41px;background:#f0f8ff;font-size:20px}
+.production-gemini .catalog-purchase-row.in-cart{background:#dff6f1!important;border-left:4px solid #008b70!important;box-shadow:inset 0 0 0 1px #48b6a1;border-radius:10px}
+.production-gemini .catalog-purchase-row.in-cart .catalog-label{color:#075a4c;font-weight:800}
+.production-gemini .catalog-purchase-row:focus-visible{outline:3px solid #1878d2;outline-offset:-3px}
+.production-gemini .real-submitted-badge{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:50px;background:#e34239;color:#fff;font-weight:850;font-size:12px;margin-left:3px}
+.production-gemini .real-submitted-badge[hidden]{display:none!important}
+.production-gemini .real-submitted-card{margin:12px 4px;padding:16px;border:2px solid #058664;border-radius:15px;background:#eafbf4;color:#115b46}
+.production-gemini .real-submitted-card>strong{display:block;font-size:17px;font-weight:850}
+.production-gemini .real-submitted-card p{margin:9px 0;font-weight:700}
+.production-gemini .real-submitted-actions{display:flex;flex-wrap:wrap;gap:8px}
+.production-gemini .real-submitted-actions button{background:#087f66;color:#fff;font-weight:750;padding:10px;border-radius:9px}
+.production-gemini .live-real-confirm.real-order-locked{background:#158062;color:white;opacity:1;font-weight:850;border-color:#0e7056}
+.production-gemini .live-real-confirm[disabled]{cursor:not-allowed;opacity:1}
+@media(max-width:390px){
+ .production-gemini .catalog-purchase-row{grid-template-columns:28px minmax(0,1fr) 110px}
+ .production-gemini .catalog-purchase-row .real-catalog-stepper{width:110px;grid-template-columns:30px minmax(0,1fr) 30px}
+}
 /* Dealer-specific destinations stay beside the product catalogue action. */
 .location-picker-hint{font-size:12px;line-height:1.4;color:#44657e;margin:2px 4px 7px}
 /* Compact branch picker stays outside the message scroller on narrow phones. */
