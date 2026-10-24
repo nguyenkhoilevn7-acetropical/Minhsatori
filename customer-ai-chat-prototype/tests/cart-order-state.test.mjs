@@ -49,7 +49,7 @@ function fixture({storage=new Map(),failConfirm=false,deferConfirm=false}={}){
  const root=new Element('body'),documentElement=new Element('html');
  const initial=new Map();for(const [,id] of html.matchAll(/id="([^"]+)"/g)){const e=new Element();e.id=id;initial.set(id,e);root.append(e)}
  const send=new Element('button');send.type='submit';initial.get('sendForm').append(send);
- const document={body:root,documentElement,createElement:t=>new Element(t),getElementById:id=>[...nodes].find(n=>n.id===id)||null,querySelectorAll:s=>descendants(root).filter(e=>matches(e,s)),querySelector:s=>document.querySelectorAll(s)[0]||null,addEventListener(){},get activeElement(){return activeElement}};
+ const document={body:root,documentElement,createElement:t=>new Element(t),createElementNS:(namespace,t)=>new Element(t),getElementById:id=>[...nodes].find(n=>n.id===id)||null,querySelectorAll:s=>descendants(root).filter(e=>matches(e,s)),querySelector:s=>document.querySelectorAll(s)[0]||null,addEventListener(){},get activeElement(){return activeElement}};
  const calls=[];let releaseConfirm;
  const customer={name:'Khách giả',phone:'0000000000',location:'Địa chỉ test'};
  const products=[{code:'WATER',name:'Nước test',unit:'thùng',unitPrice:100}];
