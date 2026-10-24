@@ -10,7 +10,9 @@ test('confirmed invoice never disables next catalogue plus/minus inputs',()=>{
   source.indexOf('function showLockNoticeOnce('));
  assert.match(controlCode,/for\(const control of document\.querySelectorAll\('\.real-catalog-stepper button/);
  assert.match(controlCode,/control\.disabled=confirming\|\|submissionUncertain\|\|requestsBusy\|\|!catalogue/);
- assert.doesNotMatch(controlCode,/control\.disabled=locked\|\|requestsBusy/);
+ const catalogueOnly=controlCode.slice(0,
+  controlCode.indexOf("for(const control of document.querySelectorAll('.inline-cart-row"));
+ assert.doesNotMatch(catalogueOnly,/control\.disabled=locked\|\|requestsBusy/);
  assert.match(source,/down\.dataset\.qtyAction='minus'/);
  assert.match(source,/qty\.value=String\(submitted\?0:/);
  new vm.Script(source,{filename:'real-gemini-adapter.js'});
