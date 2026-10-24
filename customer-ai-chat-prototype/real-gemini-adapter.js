@@ -236,6 +236,8 @@
   $('composeCart').disabled=!entries.length||submitted||submissionUncertain||confirming;
   $('quickCartQuote').disabled=!entries.length||submitted||submissionUncertain||confirming;
   $('quickCartQuote').hidden=!entries.length||cartCollapsed;
+  $('quickCartQuote').textContent='Thanh toán';
+  $('quickCartQuote').setAttribute('aria-label','Thanh toán — kiểm tra tổng tiền và xác nhận đơn');
   $('quickCartEdit').setAttribute('aria-expanded',String(!cartCollapsed));
   const list=$('inlineCartLines'),sheet=$('cartList');list.replaceChildren();sheet.replaceChildren();
   list.hidden=cartCollapsed;
@@ -383,7 +385,7 @@
   $('quickCartNew').hidden=true;
  $('clearCart').onclick=()=>{cart.clear();invalidate();updateCart()};
  $('composeCart').onclick=()=>{quoteNow()};
- $('quickCartQuote').onclick=()=>quoteNow();
+ $('quickCartQuote').onclick=()=>{setCartMode('collapsed');void quoteNow()};
  function renderSuggestions(){
   const root=$('suggestionsList');root.replaceChildren();
   if(!catalogue)return;
