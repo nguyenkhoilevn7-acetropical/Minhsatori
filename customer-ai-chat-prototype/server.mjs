@@ -31,7 +31,8 @@ import {createOriginalPdfGateway} from './original-pdf-gateway.mjs';
 import {createProductionPrivateLinks} from './production-private-links.mjs';
 import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
-import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
+import {directoryFromInvoices,detailFromEvidence,directorySourceQuery} from './owner-customer-directory.mjs';
+import {renderOriginalGeminiProduction} from './production-gemini-shell.mjs';
 import {ownerSelectedLocations,selectedLocationEvidence} from './owner-approved-location-refs.mjs';
 import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
@@ -317,7 +318,12 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&(p==='/real'||p==='/real/')){
   if(!realPrivateLinks.readiness().configured)
    return fail(res,503,'REAL_LINKS_NOT_ENABLED','Chưa bật link khách thật.');
-  const html=fs.readFileSync(path.join(HERE,'real-checkout.html'),'utf8');
+  // The original index.html owns ALL mobile Gemini UI markup and CSS.
+  // Replace only its sandbox controller with a sealed-link Production adapter;
+  // never maintain a second checkout layout or reuse demo API endpoints.
+  const html=renderOriginalGeminiProduction(
+   fs.readFileSync(path.join(HERE,'index.html'),'utf8'),
+   fs.readFileSync(path.join(HERE,'real-gemini-adapter.js'),'utf8'));
   res.writeHead(200,{'content-type':'text/html; charset=utf-8',
    'cache-control':'no-store','referrer-policy':'no-referrer',
    'x-content-type-options':'nosniff','x-frame-options':'DENY',
@@ -696,6 +702,31 @@ const server=http.createServer(async(req,res)=>{
    gates,blockers,
    message:'Hệ thống này chỉ dùng thử. Không được bật tạo đơn thật trước khi hoàn tất các cổng kiểm chứng.'});
  }
+ // In-app CTV financial calculator uses live Product catalogue. This is an
+ // owner-only read route: no private Google Sheet OAuth, no demo data, no
+ // unaudited server-side recipient writes or two-invoice configuration.
+ if(req.method==='GET'&&p==='/api/admin/ctv-live-catalogue'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị được tính hoa hồng CTV.');
+  if(!rateLimit(req,'admin-production-read'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng tải chậm lại.');
+  if(!readOnlyReady())return fail(res,503,'READ_ONLY_NOT_CONFIGURED','Sổ thật chưa kết nối.');
+  try{
+   const productSource=await readMinhSatori('catalogue.list');
+   if(!Number.isSafeInteger(productSource.revision)||
+      !Array.isArray(productSource.data?.products)||
+      productSource.data.source!=='drive-ledger:satori_catalogue_v15')
+    throw Error('CATALOGUE_SOURCE_INVALID');
+   const products=productSource.data.products.map(p=>({
+     code:p.code,name:p.name,unit:p.unit,listPrice:p.listPrice
+   })).filter(p=>/^TP-[0-9]{5}$/.test(p.code)&&typeof p.name==='string'&&
+     typeof p.unit==='string'&&Number.isSafeInteger(p.listPrice)&&p.listPrice>0);
+   if(products.length!==productSource.data.products.length)throw Error('CATALOGUE_ROW_INVALID');
+   return reply(res,200,{ok:true,readOnly:true,liveSource:true,revision:productSource.revision,
+    products,receiverWritesEnabled:false,commissionIsInternalOnly:true});
+  }catch(e){return fail(res,503,'CTV_CATALOGUE_NOT_VERIFIED',
+    'Không đọc được giá niêm yết thật; chưa thể tính hoa hồng CTV.');}
+ }
  // Owner-only production READ access. Read it directly from the authoritative
  // Bot API on each request; never copy PII to the ephemeral sandbox disk.
  // This is separate from the public Gemini chat and cannot create/change bills.
@@ -794,7 +825,8 @@ const server=http.createServer(async(req,res)=>{
     const name=String(url.searchParams.get('name')||'').trim();
     if(name.length<2||name.length>120||/[\u0000-\u001f]/.test(name))
      return fail(res,400,'INVALID_CUSTOMER_QUERY','Tên khách cần từ 2 đến 120 ký tự.');
-    const response=await readMinhSatori('customers.search',{query:name,limit:20});
+    const sourceQuery=directorySourceQuery(name);
+    const response=await readMinhSatori('customers.search',{query:sourceQuery,limit:20});
     if(!Number.isSafeInteger(response.revision)||!Array.isArray(response.data?.profiles?.profiles))
      throw Error('INVALID_SCHEMA');
     const raw=response.data.profiles,found=raw.profiles;
@@ -806,7 +838,7 @@ const server=http.createServer(async(req,res)=>{
      // Even when customers.search is complete, check the last three months
      // of invoices to surface *evidence* for owner-reviewed discounts.
      for(let at=0;at<months.length&&(at===0||!selected.complete);at+=3){
-      const lookups=months.slice(at,at+3).map(m=>monthLookup(m,name));
+      const lookups=months.slice(at,at+3).map(m=>monthLookup(m,sourceQuery));
       const results=await Promise.all(lookups.map(l=>readMinhSatori(l.action,l.payload)));
       if(results.some(r=>r.revision!==response.revision||!Array.isArray(r.data?.orders)))
        return fail(res,409,'SOURCE_REVISION_CHANGED','Sổ kế toán vừa thay đổi. Hãy tải lại.');

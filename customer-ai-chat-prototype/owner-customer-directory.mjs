@@ -7,7 +7,14 @@ export const foldCustomerName=v=>compact(v).normalize('NFD').replace(/[\u0300-\u
 export function directoryKey(name){
  const folded=foldCustomerName(name);
  if(/^traky(?:\s|$)/.test(folded))return 'brand:traky';
+ // Tracy is a different literal brand from Traky; do NOT merge them.
  return folded?'name:'+folded:'';
+}
+// The UI label is not a valid invoice/customer search term. Search by the
+// literal source-family prefix but group all matching branch names only
+// after receiving exact ledger records.
+export function directorySourceQuery(name){
+ return directoryKey(name)==='brand:traky'?'Traky':compact(name,120);
 }
 const baseName=key=>key==='brand:traky'?'Traky (các chi nhánh)':'';
 const phoneOf=v=>compact(v,40).replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0');

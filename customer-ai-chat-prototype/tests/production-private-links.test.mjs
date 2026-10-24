@@ -197,7 +197,7 @@ test('rollback: working agency links are isolated from the new CTV Drive table',
  assert.match(html,/id="agencyRealIssue"/);
  assert.match(html,/data-admin-tab="ctv-ledger"/);
  assert.match(html,/id="independentCtvLedger"/);
- assert.match(html,/1gCHmXCSz4yrcIklFP75L9vfyDQFJGN4_ia_ICpYXz1c/);
+ assert.match(html,/id="ctvReadLive"/,'owner CTV tab must work without opening a blocked external Sheet');
  assert.match(html,/id="collaboratorPairAdmin" style="display:none!important"/);
  assert.doesNotMatch(code,/commissionPolicy|ownerCommissionPreview/);
  assert.doesNotMatch(html,/id="agencyCommissionEnabled"|agency-commission\/preview/);
@@ -225,4 +225,87 @@ test('production checkout matches chat-first demo: inline invoice, cart and acti
   'invoice actions are inline ABOVE the composer, not on a separate screen');
  for(const [,src] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
   new vm.Script(src,{filename:'live-ai-checkout.js'});
+});
+
+test('Production reuses literal original Gemini DOM/CSS rather than rebuilding demo-like chat',async()=>{
+ const {renderOriginalGeminiProduction}=await import('../production-gemini-shell.mjs');
+ const demo=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ const adapter=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
+ const page=renderOriginalGeminiProduction(demo,adapter);
+ const originalHtml=demo.slice(0,demo.indexOf('<script>'));
+ for(const id of ['catalogLaunch','locationsToggle','suggestionsToggle','historyButton',
+  'catalogBackdrop','catalogItems','cartFooter','quickCart','sendForm','messageInput',
+  'messages','historyBackdrop','invoice','printPaper']){
+  assert.match(originalHtml,new RegExp('id="'+id+'"'));
+  assert.match(page,new RegExp('id="'+id+'"'),'live shell must use authentic existing HTML');
+ }
+ assert.match(page,/id="realCode"/);
+ assert.match(page,/id="productionGeminiApp" hidden/);
+ assert.match(page,/id="realOpen"/);
+ assert.doesNotMatch(page,/id="panel"/,'demo account selector must not appear');
+ assert.doesNotMatch(page,/KH-DEMO-A/,'no fake customer profile');
+ assert.match(page,/production-gemini/);
+ assert.match(page,/live-real-confirm/);
+ assert.doesNotMatch(page,/MSATORI_SANDBOX_DEMO_ONLY/);
+ assert.match(adapter,/\/api\/real\/catalogue/);
+ assert.match(adapter,/\/api\/real\/interpret/);
+ assert.match(adapter,/\/api\/real\/quote/);
+ assert.match(adapter,/\/api\/real\/confirm/);
+ assert.doesNotMatch(adapter,/\/api\/draft|\/api\/chat|\/api\/catalogue/,'real adapter never uses demo APIs');
+ assert.match(adapter,/CUSTOMER_CONFIRMS_REAL_ORDER/);
+ assert.match(adapter,/KHÔNG xác nhận lại/);
+ for(const [,script] of page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(script,{filename:'production-original-gemini.js'});
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ assert.match(server,/renderOriginalGeminiProduction\(/);
+ assert.doesNotMatch(server,/const html=fs\.readFileSync\(path\.join\(HERE,'real-checkout\.html'\)/);
+});
+
+test('real links render EXACT Gemini original HTML/CSS with a Production adapter',async()=>{
+ const {renderOriginalGeminiProduction}=await import('../production-gemini-shell.mjs');
+ const original=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ const adapter=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
+ const view=renderOriginalGeminiProduction(original,adapter);
+ const old=original.slice(0,original.indexOf('<script>'));
+ for(const id of ['catalogLaunch','locationsToggle','suggestionsToggle','historyButton',
+  'messages','sendForm','messageInput','catalogBackdrop','catalogItems','cartFooter',
+  'quickCart','invoice','printPaper','historyBackdrop']){
+  assert.match(old,new RegExp('id="'+id+'"'));
+  assert.match(view,new RegExp('id="'+id+'"'),'the old component MUST be reused');
+ }
+ assert.match(view,/id="realOpen"/);
+ assert.match(view,/id="realCode"/);
+ assert.match(view,/id="productionGeminiApp" hidden/);
+ assert.match(view,/class="server-mode production-gemini"/);
+ assert.doesNotMatch(view,/KH-DEMO-A|id="panel"/,'sandbox customer panel excluded');
+ assert.match(adapter,/\/api\/real\/catalogue/);
+ assert.match(adapter,/\/api\/real\/interpret/);
+ assert.match(adapter,/\/api\/real\/quote/);
+ assert.match(adapter,/\/api\/real\/confirm/);
+ assert.doesNotMatch(adapter,/\/api\/draft|\/api\/chat|\/api\/catalogue/,'no sandbox routes');
+ assert.match(adapter,/CUSTOMER_CONFIRMS_REAL_ORDER/);
+ assert.match(adapter,/KHÔNG xác nhận lại/,'ambiguous write must not be resubmitted');
+ for(const [,js] of view.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(js,{filename:'real-original-gemini.js'});
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ assert.match(server,/renderOriginalGeminiProduction\(/);
+ assert.doesNotMatch(server,/const html=fs\.readFileSync\(path\.join\(HERE,'real-checkout\.html'\)/);
+});
+
+test('standalone CTV finance is an owner-only live read, independent of agency link /real',()=>{
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ const route=server.slice(server.indexOf("p==='/api/admin/ctv-live-catalogue'"),
+  server.indexOf('// Owner-only production READ access.',server.indexOf("p==='/api/admin/ctv-live-catalogue'")));
+ assert.match(route,/customerLinks\.adminAuthorized\(req\)/);
+ assert.match(route,/readMinhSatori\('catalogue\.list'\)/);
+ assert.match(route,/receiverWritesEnabled:false/);
+ assert.doesNotMatch(route,/orders\.create|orders\.create\.pair|ctv\.recipients\.upsert/);
+ const html=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ for(const id of ['ctvReadLive','ctvLedgerName','ctvReceiverName','ctvReceiverPhone',
+  'ctvReceiverAddress','ctvCustomerPct','ctvPartnerPct','ctvLiveProduct',
+  'ctvLiveQty','ctvCalculateLive','ctvAddReceiverDraft'])
+  assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(html,/CHƯA ghi Google Drive/);
+ for(const [,js] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(js,{filename:'real-owner-ctv.js'});
 });

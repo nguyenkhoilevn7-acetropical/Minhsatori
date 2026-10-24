@@ -118,6 +118,10 @@ button:disabled{opacity:.55}
 .directory-places ul{padding:0;list-style:none;margin:7px 0 0}.directory-places li{padding:9px 0;border-bottom:1px solid #eef3f7;font-size:13px;line-height:1.4}.directory-places li small{color:#6e7d90;display:block}
 #legacyDemoProfiles,#customerManagement{display:none!important}
 @media(max-width:560px){.directory-stat strong{font-size:21px}.directory-stat{padding:10px 7px}.directory-stat span{font-size:10px}.directory-toolbar{flex-wrap:wrap}.directory-toolbar button{width:100%}}
+.ctv-live-receiver{background:#f8fbff;border:1px solid #dae8f6;border-radius:13px;padding:11px 13px;margin:9px 0}
+.ctv-live-receiver strong{color:#185c92}
+.ctv-live-receiver p{margin:6px 0;font-size:13px;color:#617487;line-height:1.45}
+#ctvLiveResult{line-height:1.8;white-space:pre-line;margin-top:12px;padding:11px;border-radius:12px;background:#f1f8ff}
 </style></head><body><main>
 <header class="admin-branded-header"><span class="production-tag">● PRODUCTION</span><span class="admin-brand"><img src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="46" height="46"><strong>MINH SATORI <small id="adminModeTag">• Đang kiểm tra</small></strong></span></header>
 <h1>Quản lý Minh Satori</h1>
@@ -189,12 +193,41 @@ button:disabled{opacity:.55}
 </details>
 </section>
 <section class="card" data-tab-panel="ctv-ledger" hidden id="independentCtvLedger">
-<h2>📊 Người nhận &amp; tính hoa hồng CTV • Google Drive</h2>
-<p class="hint">Bảng tính riêng biệt, không can thiệp vào link đang cấp, giá đặt hàng, giỏ hay hóa đơn. Anh nhập mức CK cho từng khách, và mức CK đối soát CTV riêng tùy ý; <strong>không mặc định 20% hoặc 35%</strong>.</p>
-<p><a class="secondary" href="https://docs.google.com/spreadsheets/d/1gCHmXCSz4yrcIklFP75L9vfyDQFJGN4_ia_ICpYXz1c/edit" target="_blank" rel="noopener noreferrer">↗ Mở bảng tính CTV trên Google Drive</a></p>
-<p><strong>Tab “Người nhận CTV”:</strong> chọn cộng tác viên, thêm tên người nhận mới, điện thoại, địa chỉ giao, CK khách (%) và CK CTV (%). Mỗi dòng là một người nhận; mọi mức phần trăm đều do anh tự điền, không có giá trị mặc định.</p>
-<p><strong>Tab “Bảng tính hoa hồng”:</strong> nhập giá niêm yết, số lượng, CK khách và CK CTV, hệ thống tự tính giá khách, giá đối soát và số tiền chênh lệch theo từng sản phẩm.</p>
-<p class="warning"><strong>Giới hạn hiện tại:</strong> sửa bảng Drive không thay đổi link đã cấp, nhưng cũng <strong>chưa tự bổ sung người nhận vào link cũ</strong>. Link hiện tại chứa danh sách điểm giao cố định. Để thêm địa chỉ trực tiếp qua cùng link cần chuyển sang danh sách điểm giao lưu bền vững ở backend và duyệt quyền tạo người nhận mới; tuyệt đối không lưu tạm trên Render Free rồi báo thành công.</p>
+ <div class="production-heading"><div><h2>📊 Bảng CTV • Trực tiếp trong Minh Satori</h2>
+ <p>Đối soát theo giá niêm yết trong Google Drive Production. Độc lập với link và hóa đơn.</p></div>
+ <span class="production-tag">Chỉ quản trị</span></div>
+ <div class="directory-stats">
+  <div class="directory-stat"><strong id="ctvLiveProductCount">—</strong><span>Sản phẩm thật</span></div>
+  <div class="directory-stat"><strong id="ctvLiveRevision">—</strong><span>Revision Drive</span></div>
+  <div class="directory-stat"><strong id="ctvLiveRecipientCount">0</strong><span>Người nhận trong phiên</span></div></div>
+ <button type="button" class="secondary" id="ctvReadLive">↻ Nạp bảng giá Production</button>
+ <p id="ctvLiveStatus" class="hint" role="status">Chưa đọc bảng giá.</p>
+ <div class="ctv-add-box">
+  <strong>👤 Thêm người nhận của cộng tác viên</strong>
+  <p class="hint">Không có mức chiết khấu mặc định. Anh quyết định từng tỷ lệ, không tạo hóa đơn hoặc thay đổi link.</p>
+  <div class="location-form">
+   <label>Cộng tác viên<input id="ctvLedgerName" autocomplete="off" maxlength="120" placeholder="Ví dụ: Hà Minh Nguyệt"></label>
+   <label>Tên người nhận<input id="ctvReceiverName" autocomplete="off" maxlength="120" placeholder="Tên khách nhận nước"></label>
+   <label>Điện thoại người nhận<input id="ctvReceiverPhone" type="tel" autocomplete="off" maxlength="30" placeholder="Số liên hệ"></label>
+   <label>Địa chỉ giao<input id="ctvReceiverAddress" autocomplete="off" maxlength="300" placeholder="Số nhà, đường, tỉnh/thành"></label>
+   <label>Chiết khấu khách (%)<input id="ctvCustomerPct" type="number" min="0" max="70" step="0.01" placeholder="Anh tự chọn %"></label>
+   <label>Mức chiết khấu CTV (%)<input id="ctvPartnerPct" type="number" min="0" max="70" step="0.01" placeholder="Anh tự chọn %"></label>
+  </div>
+  <button id="ctvAddReceiverDraft" type="button">＋ Thêm vào bảng đối soát trong phiên</button>
+  <p id="ctvDraftStatus" class="hint" role="status"></p>
+  <div id="ctvReceiversLive" class="directory-grid"></div>
+ </div>
+ <div class="ctv-add-box">
+  <strong>🧮 Tính tiền khách và chênh lệch CTV</strong>
+  <p class="hint">Giá sản phẩm được đọc từ Production; VAT và phí giao không nằm trong khoản chênh lệch.</p>
+  <div class="location-form">
+   <label>Sản phẩm<select id="ctvLiveProduct"><option value="">— Nạp giá thật trước —</option></select></label>
+   <label>Số lượng<input id="ctvLiveQty" type="number" min="1" max="500" step="1" value="1"></label>
+  </div>
+  <button type="button" id="ctvCalculateLive">Tính theo chiết khấu đã nhập</button>
+  <div id="ctvLiveResult" class="ctv-save-status" role="status"></div>
+ </div>
+ <p class="warning"><strong>Giới hạn ghi dữ liệu:</strong> Bảng này đã đọc giá thật và tính được ngay trong Production, nhưng người nhận nhập ở đây vẫn là <strong>bản nháp trong phiên</strong>, chưa ghi vào Google Drive. Cơ chế cập nhật cùng link cũ vẫn cần API lưu người nhận bền vững có kiểm soát. Không thông báo “đã lưu” khi thực tế chưa lưu.</p>
 </section>
 <!-- Kept for backwards-compatible JS initialization, but no longer shown to
      owner; legacy two-invoice workflow is retired in favor of separate Drive sheet. -->
@@ -926,6 +959,77 @@ $('pairSave').onclick=async()=>{
  }finally{button.disabled=false}
 };
 
+let ctvCatalogueProducts=new Map(),ctvReceiverDrafts=[];
+async function loadCtvLive(){
+ $('ctvLiveStatus').textContent='Đang đối chiếu bảng giá thật qua Bot API…';
+ const btn=$('ctvReadLive');btn.disabled=true;
+ try{
+  const d=await request('/api/admin/ctv-live-catalogue');
+  if(!d.liveSource||!Number.isSafeInteger(d.revision)||!Array.isArray(d.products))throw Error('Nguồn chưa xác thực.');
+  ctvCatalogueProducts=new Map(d.products.map(p=>[p.code,p]));
+  const sel=$('ctvLiveProduct');sel.replaceChildren(new Option('— Chọn sản phẩm —',''));
+  for(const p of d.products)sel.append(new Option(p.name+' • '+money(p.listPrice)+' đ / '+p.unit,p.code));
+  $('ctvLiveProductCount').textContent=String(d.products.length);
+  $('ctvLiveRevision').textContent=String(d.revision);
+  $('ctvLiveStatus').textContent='✅ Đã đọc '+d.products.length+' sản phẩm từ sổ thật, revision '+d.revision+'.';
+ }catch(e){$('ctvLiveStatus').textContent='⚠ '+e.message}
+ finally{btn.disabled=false}
+}
+$('ctvReadLive').onclick=loadCtvLive;
+function checkedPct(value){
+ const v=Number(value);
+ if(String(value).trim()===''||!Number.isFinite(v)||v<0||v>70)
+  throw Error('Nhập chiết khấu riêng từ 0–70% cho cả khách và cộng tác viên.');
+ return v;
+}
+function readCtvForm(){
+ const collaborator=$('ctvLedgerName').value.trim(),name=$('ctvReceiverName').value.trim(),
+  phone=$('ctvReceiverPhone').value.trim(),address=$('ctvReceiverAddress').value.trim();
+ const customerPct=checkedPct($('ctvCustomerPct').value),partnerPct=checkedPct($('ctvPartnerPct').value);
+ if(!collaborator||!name||!address||digits(phone).length<9||digits(phone).length>11)
+  throw Error('Nhập đầy đủ tên CTV, tên người nhận, điện thoại và địa chỉ hợp lệ.');
+ return {collaborator,name,phone,address,customerPct,partnerPct};
+}
+$('ctvAddReceiverDraft').onclick=()=>{
+ try{
+  const entry=readCtvForm();
+  if(ctvReceiverDrafts.length>=100)throw Error('Tối đa 100 người nhận trong phiên.');
+  if(ctvReceiverDrafts.some(x=>normalized(x.collaborator)===normalized(entry.collaborator)&&
+    normalized(x.address)===normalized(entry.address)))
+   throw Error('Địa chỉ này đã có trong bảng nháp của CTV.');
+  ctvReceiverDrafts.push(entry);
+  const card=document.createElement('article');card.className='ctv-live-receiver';
+  const title=document.createElement('strong');title.textContent=entry.name;
+  const desc=document.createElement('p');
+  desc.textContent=entry.collaborator+' • '+entry.phone+' • '+entry.address+' • CK khách '+
+    entry.customerPct+'% • CK CTV '+entry.partnerPct+'%';
+  const del=document.createElement('button');del.type='button';del.className='secondary';del.textContent='Bỏ khỏi nháp';
+  del.onclick=()=>{ctvReceiverDrafts=ctvReceiverDrafts.filter(x=>x!==entry);card.remove();
+   $('ctvLiveRecipientCount').textContent=String(ctvReceiverDrafts.length)};
+  card.append(title,desc,del);$('ctvReceiversLive').append(card);
+  $('ctvLiveRecipientCount').textContent=String(ctvReceiverDrafts.length);
+  $('ctvDraftStatus').textContent='Đã thêm vào BẢN NHÁP trong phiên; CHƯA ghi Google Drive hoặc link.';
+ }catch(e){$('ctvDraftStatus').textContent='⚠ '+e.message}
+};
+$('ctvCalculateLive').onclick=()=>{
+ try{
+  if(!ctvCatalogueProducts.size)throw Error('Bấm Nạp bảng giá Production trước.');
+  const p=ctvCatalogueProducts.get($('ctvLiveProduct').value);
+  if(!p)throw Error('Chọn sản phẩm có trên sổ thật.');
+  const qty=Number($('ctvLiveQty').value);
+  if(!Number.isSafeInteger(qty)||qty<1||qty>500)throw Error('Số lượng cần từ 1–500.');
+  const customer=checkedPct($('ctvCustomerPct').value),partner=checkedPct($('ctvPartnerPct').value);
+  const customerUnit=Math.round(p.listPrice*(100-customer)/100);
+  const partnerUnit=Math.round(p.listPrice*(100-partner)/100);
+  const spread=(customerUnit-partnerUnit)*qty;
+  $('ctvLiveResult').textContent='🧾 '+p.name+' × '+qty+' '+p.unit+'\n'+
+   'Giá niêm yết: '+money(p.listPrice)+' đ/đv\n'+
+   'Giá khách sau CK '+customer+'%: '+money(customerUnit*qty)+' đ\n'+
+   'Giá đối soát CTV CK '+partner+'%: '+money(partnerUnit*qty)+' đ\n'+
+   'Chênh lệch tính cho CTV: '+money(spread)+' đ\n'+
+   'Nội bộ • chưa ghi doanh thu, hóa đơn hoặc tiền phải trả.';
+ }catch(e){$('ctvLiveResult').textContent='⚠ '+e.message}
+};
 function showAdminTab(name){
  for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
  for(const b of document.querySelectorAll('[data-admin-tab]')){
@@ -933,6 +1037,7 @@ function showAdminTab(name){
  }
  if(name==='orders')refreshOrderInbox();
  if(name==='settings')refreshVersionStatus();
+ if(name==='ctv-ledger'&&secret&&!ctvCatalogueProducts.size)void loadCtvLive();
  if(name==='customers'&&secret&&!realCustomers.length)void loadRealDirectory();
  window.scrollTo({top:0,behavior:'instant'});
 }
