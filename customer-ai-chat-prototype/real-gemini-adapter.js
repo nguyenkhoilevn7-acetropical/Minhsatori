@@ -317,6 +317,7 @@
  };
  $('realCode').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('realOpen').click()}};
  async function interpretMessage(message){
+  if(submittedCart)throw Error('Đơn vừa gửi đã khóa giỏ. Bấm ＋ Giỏ hàng mới để đặt đơn khác.');
   if(!catalogue){bubble('Hãy chọn địa chỉ giao trước.','note');return}
   // The server now uses the original sandbox's change semantics and verifies
   // that ALL recognized items fit an atomic basket update before replying.
@@ -377,27 +378,48 @@
   const delivery=document.createElement('p');delivery.className='mini';
   delivery.textContent='📍 '+q.customer.name+' • '+q.customer.location;box.append(delivery);
   const confirm=document.createElement('button');confirm.type='button';confirm.className='btn primary live-real-confirm';
-  confirm.textContent='✅ Xác nhận tạo MỘT hóa đơn thật';
+  confirm.textContent='🔵 XÁC NHẬN & GỬI ĐƠN HÀNG THẬT';
+  confirm.dataset.submitted='false';
   confirm.onclick=async()=>{
    if(requestsBusy||!quoteToken)return;
    if(!window.confirm('Xác nhận tạo đúng MỘT hóa đơn thật trên Google Drive?'))return;
-   confirm.disabled=true;disabledBusy(true);
+   confirm.disabled=true;confirm.textContent='⏳ Đang gửi và xác minh hóa đơn…';
+   confirm.classList.add('is-submitting');disabledBusy(true);
    try{
     const saved=await call('/api/real/confirm',{quoteToken,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
-    quoteToken=null;lastReceipt={quote:q,result:saved};
-    confirm.textContent='✅ Đã lưu hóa đơn #'+saved.invoiceNo;
+    quoteToken=null;lastReceipt={quote:q,result:saved};submittedCart=true;
+    if(!confirmedReceipts.some(x=>x.invoiceNo===saved.invoiceNo))confirmedReceipts.push({
+      invoiceNo:saved.invoiceNo,total:saved.total,receiptToken:saved.receiptToken,
+      date:new Date().toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}),
+      name:q.customer?.name||'',phone:q.customer?.phone||'',location:q.customer?.location||'',
+      items:(q.items||[]).map(i=>({product:i.product,qty:i.qty,unit:i.unit,unitPrice:i.unitPrice})),
+      paid:false,paidAt:null,sessionVerified:true
+    });
+    confirm.dataset.submitted='true';confirm.classList.remove('is-submitting');
+    confirm.classList.add('is-submitted');box.classList.add('quote-submitted');
+    heading.textContent='✅ ĐƠN ĐÃ GỬI • HÓA ĐƠN THẬT #'+saved.invoiceNo;
+    confirm.textContent='✅ ĐÃ GỬI THÀNH CÔNG • #'+saved.invoiceNo;
+    const view=document.createElement('button');view.type='button';
+    view.className='btn real-view-submitted';view.textContent='🧾 Xem hóa đơn #'+saved.invoiceNo;
+    view.onclick=()=>{lastReceipt={quote:q,result:saved};void showReceipt()};
+    box.append(view);
+    setText('cartFeedback','✅ Đơn #'+saved.invoiceNo+' đã gửi. Bấm ＋ Giỏ hàng mới để đặt đơn tiếp.');
     bubble('✅ Minh Satori đã lưu hóa đơn thật #'+saved.invoiceNo+' • '+cash(saved.total)+'. Bấm ＋ Giỏ hàng mới để đặt đơn tiếp theo; mọi hóa đơn xem trong mục Hóa đơn.');
     updateSessionReceipt();
     // After successful ledger write, display the canonical PDF from the
     // website template in chat, never the manually formatted 0đ summary.
     await showReceipt();
    }catch(err){
+    confirm.classList.remove('is-submitting');
+    confirm.textContent='⚠ CHƯA XÁC ĐỊNH ĐƠN ĐÃ GỬI';
+    confirm.classList.add('is-uncertain');confirm.disabled=true;
     bubble('⚠ Trạng thái hóa đơn chưa xác định: '+err.message+' KHÔNG xác nhận lại; liên hệ chủ tài khoản kiểm tra sổ thật.','note');
    }finally{disabledBusy(false)}
   };
   box.append(confirm);$('messages').append(box);$('messages').scrollTop=$('messages').scrollHeight;
  }
  async function quoteNow(){
+  if(submittedCart){bubble('✅ Đơn này đã gửi thành công. Bấm ＋ Giỏ hàng mới để bắt đầu đơn tiếp theo.','note');return}
   if(requestsBusy)return;if(!catalogue){bubble('Chọn địa chỉ trước.','note');return}
   if(!cart.size){bubble('Giỏ đang trống; hãy thêm món trước.','note');return}
   disabledBusy(true);
