@@ -1090,7 +1090,9 @@ async function loadIssuedRecords(reset=true){
  if(reset){issuedRecords=[];issuedHasMore=false;renderIssuedRecords()}
  $('issuedLinkStatus').textContent='Đang đồng bộ sổ link Google Drive…';
  try{
-  const d=await request('/api/admin/issued-links?offset='+issuedRecords.length+'&limit=8');
+  const d=await request('/api/admin/issued-links?offset='+issuedRecords.length+'&limit=8'+
+   '&query='+encodeURIComponent($('issuedLinkSearch').value.trim())+
+   '&kind='+encodeURIComponent($('issuedLinkType').value));
   if(d.source!=='drive-ledger:satori_issued_links_v1'||!Array.isArray(d.items)||
      !Number.isSafeInteger(d.total)||typeof d.hasMore!=='boolean')
    throw Error('Phản hồi chưa được xác minh.');
@@ -1106,8 +1108,10 @@ async function loadIssuedRecords(reset=true){
 }
 $('issuedLinkRefresh').onclick=()=>void loadIssuedRecords(true);
 $('issuedLinkMore').onclick=()=>void loadIssuedRecords(false);
-$('issuedLinkSearch').oninput=renderIssuedRecords;
-$('issuedLinkType').onchange=renderIssuedRecords;
+let issuedSearchTimer=null;
+$('issuedLinkSearch').oninput=()=>{clearTimeout(issuedSearchTimer);
+ issuedSearchTimer=setTimeout(()=>void loadIssuedRecords(true),350)};
+$('issuedLinkType').onchange=()=>void loadIssuedRecords(true);
 function showAdminTab(name){
  for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
  for(const b of document.querySelectorAll('[data-admin-tab]')){
