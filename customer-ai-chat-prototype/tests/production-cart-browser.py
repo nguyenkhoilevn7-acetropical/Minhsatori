@@ -230,6 +230,9 @@ def success_case(browser, origin, html, viewport, ua, label):
     expect(page.locator("#messageInput")).to_be_enabled()
     expect(page.locator("#sendForm button[type=submit]")).to_be_enabled()
     expect(page.locator(".real-submitted-card")).to_be_visible()
+    actions = page.locator(".real-submitted-card .real-submitted-actions button")
+    expect(actions).to_have_count(2)
+    assert all((actions.nth(i).bounding_box() or {}).get("height", 999) <= 43 for i in range(2)), "Success actions should be compact"
     assert api.count("confirm") == 1 and len(api.saved) == 1
     page.locator("#closeInvoice").click()
     # An explicit NEW chat message after an acknowledged invoice opens a NEW
@@ -408,6 +411,8 @@ def pending_confirm_case(browser, origin, html):
     create_quote(page, api)
     oid = order_id(page)
     page.locator(".live-real-confirm").click()
+    expect(page.locator(".real-checkout-progress")).to_be_visible()
+    expect(page.locator(".real-checkout-progress")).to_contain_text("⏳ Đang xử lý đơn hàng")
     expect(page.locator("#messageInput")).to_be_disabled()
     expect(page.locator("#sendForm button[type=submit]")).to_be_disabled()
     expect(page.locator("#realNewCartButton")).to_be_disabled()
