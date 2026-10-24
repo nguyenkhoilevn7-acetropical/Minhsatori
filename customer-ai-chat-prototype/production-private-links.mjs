@@ -209,12 +209,18 @@ export function createProductionPrivateLinks({
    products:[...live.products.values()].map(p=>({code:p.code,name:p.name,unit:p.unit,
     listPrice:p.listPrice,unitPrice:Math.round(p.listPrice*(100-d.discountPercent)/100)}))};
  }
- async function quote({token,accessCode,destination:ref,items,deliveryNote=''}={}){
+ async function quote({token,accessCode,destination:ref,items,deliveryNote='',clientOrderId=null}={}){
   const invite=access(token,accessCode),d=chosen(invite,ref);
   if(!cleanText(deliveryNote,300))throw error('INVALID_DELIVERY_NOTE');
   const live=await checked(invite,d),amount=priced(d,live,items);
+  // Idempotent at the Google Drive ledger, even for multiple quote confirmations of the same cart.
+  // The client cannot choose an arbitrary ledger key; bind its per-cart UUID to the signed invite.
+  const requestId=typeof clientOrderId==='string'&&
+   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientOrderId)?
+   'rl_'+sha(invite.id+'\0'+clientOrderId.toLowerCase()).slice(0,36):
+   'rl_'+rand(18).toString('hex');
   const q={type:'customer-real-quote',inviteId:invite.id,
-   sourceRevision:live.revision,requestId:'rl_'+rand(18).toString('hex'),
+   sourceRevision:live.revision,requestId,
    customerRef:d.customerRef,issuedAt:now(),expiresAt:now()+600000,
    items:amount.items,deliveryNote,shippingAmount:amount.shippingAmount,
    vatAmount:amount.vatAmount,total:amount.total,discountPercent:d.discountPercent};
