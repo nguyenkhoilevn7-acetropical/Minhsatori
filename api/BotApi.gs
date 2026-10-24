@@ -756,9 +756,23 @@ function linkRegister(s,p){
  var list=storedLinks(s),prior=list.filter(function(x){return x&&x.id===record.id});
  need(prior.length<=1,'LINK_REGISTRY_INVALID','Trùng mã link');
  if(prior.length){
-  need(prior[0].link===record.link&&prior[0].kind===record.kind&&prior[0].name===record.name,
+  var before=prior[0];
+  need(before.link===record.link&&before.kind===record.kind&&before.name===record.name,
    'LINK_REGISTRY_CONFLICT','Mã đã có nội dung khác');
-  return {modified:false,result:{saved:true,duplicate:true,id:record.id}};
+  // Agency invitations contain immutable recipients. CTV links are stable
+  // across owner-approved policy changes: refresh their current delivery list.
+  var same=JSON.stringify(before.recipients)===JSON.stringify(record.recipients)&&
+   before.shippingPercent===record.shippingPercent&&before.vatPercent===record.vatPercent;
+  if(before.kind!=='collaborator'||same)
+   return {modified:false,result:{saved:true,duplicate:true,id:record.id}};
+  version(s,p);
+  record.issuedAt=before.issuedAt;
+  record.updatedAt=new Date().toISOString();
+  list=list.map(function(x){return x.id===record.id?record:x});
+  var updatedRaw=JSON.stringify(list);
+  need(updatedRaw.length<1750000,'LINK_REGISTRY_FULL','Sổ link quá lớn');
+  return {modified:true,extras:{satori_issued_links_v1:updatedRaw},
+   result:{saved:true,duplicate:false,updated:true,id:record.id}};
  }
  version(s,p);
  need(list.length<500,'LINK_REGISTRY_FULL','Sổ link đã đầy');
