@@ -756,7 +756,7 @@ function linkRegister(s,p){
  var list=storedLinks(s),prior=list.filter(function(x){return x&&x.id===record.id});
  need(prior.length<=1,'LINK_REGISTRY_INVALID','Trùng mã link');
  if(prior.length){
-  need(JSON.stringify(prior[0])===JSON.stringify(record),
+  need(prior[0].link===record.link&&prior[0].kind===record.kind&&prior[0].name===record.name,
    'LINK_REGISTRY_CONFLICT','Mã đã có nội dung khác');
   return {modified:false,result:{saved:true,duplicate:true,id:record.id}};
  }
