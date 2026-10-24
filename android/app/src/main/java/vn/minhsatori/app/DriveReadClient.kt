@@ -29,6 +29,8 @@ object DriveReadClient {
             readTimeout = 10_000
             setRequestProperty("Authorization", "Bearer " + accessToken)
             setRequestProperty("Accept", "application/json")
+            setRequestProperty("Cache-Control", "no-cache, no-store")
+            setRequestProperty("Pragma", "no-cache")
             useCaches = false
             instanceFollowRedirects = false
         }
@@ -71,6 +73,8 @@ object DriveReadClient {
             readTimeout = 20000
             setRequestProperty("Authorization", "Bearer " + accessToken)
             setRequestProperty("Accept", "application/json")
+            setRequestProperty("Cache-Control", "no-cache, no-store")
+            setRequestProperty("Pragma", "no-cache")
             useCaches = false
             instanceFollowRedirects = false
         }

@@ -79,9 +79,10 @@ class NativeMainActivity : AppCompatActivity() {
     // Owner opt-in: Google read-only access replaces repeated manual Drive file selection.
     // Poll only while the app is foregrounded, and only after successful authorization.
     private val syncHandler = Handler(Looper.getMainLooper())
-    // Foreground metadata polling avoids full Drive downloads on every tick.
+    // Probe change metadata every 20 seconds; reconcile full ledger every minute.
+    // Full reconciliation covers delayed or missed version notifications.
     private val syncIntervalMs = 20_000L
-    private val fallbackReadMs = 120_000L
+    private val fallbackReadMs = 60_000L
     private var lastDriveVersion: Long? = null
     private var lastVersionProbeElapsedMs = 0L
     private var isCheckingVersion = false
@@ -264,11 +265,19 @@ class NativeMainActivity : AppCompatActivity() {
         // Resume promptly checks orders written while another app was open.
         if (!isLoading && !authorizationPending && !authorizationDeclined) {
             if (preferredSource() == AutoSyncPolicy.DRIVE && snapshot != null &&
-                accessToken != null) checkDriveVersion()
-            else if (preferredSource() == AutoSyncPolicy.MOBILE_API &&
+                accessToken != null) {
+                // Reopening after a long pause must reconcile the full ledger,
+                // even when Drive file.version was cached or delayed.
+                if (AutoSyncPolicy.due(lastOnlineReadElapsedMs,
+                        SystemClock.elapsedRealtime(), fallbackReadMs)) refreshFromDrive()
+                else checkDriveVersion()
+            } else if (preferredSource() == AutoSyncPolicy.MOBILE_API &&
                 dataSource == "Minh Satori API" &&
-                allowedActions.contains("mobile.revision") && accessToken != null)
-                checkMobileRevision()
+                allowedActions.contains("mobile.revision") && accessToken != null) {
+                if (AutoSyncPolicy.due(lastOnlineReadElapsedMs,
+                        SystemClock.elapsedRealtime(), fallbackReadMs)) refreshFromMobileApi()
+                else checkMobileRevision()
+            }
             else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
                     SystemClock.elapsedRealtime(), fallbackReadMs)) syncPreferredSource()
         }
@@ -589,7 +598,7 @@ class NativeMainActivity : AppCompatActivity() {
         if (connected && lastReadAt.isNotBlank()) {
             label(info, "Cập nhật lúc " + lastReadAt +
                 (if (preferredSource() != AutoSyncPolicy.FILE)
-                    " • Kiểm tra đơn mới mỗi 20 giây khi mở app" else ""),
+                    " • Kiểm tra mỗi 20 giây; đối chiếu đầy đủ mỗi 60 giây" else ""),
                 11f, false, muted, 5)
         }
         content.addView(info, LinearLayout.LayoutParams(-1, -2).apply {
@@ -2267,7 +2276,7 @@ class NativeMainActivity : AppCompatActivity() {
                             dataSource = "Google Drive API"
                             lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                             lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
-                            statusMessage = "Đã đồng bộ • kiểm tra đơn mới mỗi 20 giây khi mở app."
+                            statusMessage = "Đã đồng bộ • kiểm tra mỗi 20 giây; đối chiếu đầy đủ mỗi 60 giây."
                         }
                     },
                     onFailure = {
