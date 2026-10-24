@@ -142,7 +142,13 @@ object MobileApiClient {
         val actions = (0 until allowed.length()).map { allowed.getString(it) }.toSet()
         val actor = data.optString("actorId")
         if (actor.isBlank()) throw IOException("Server chưa hỗ trợ định danh khôi phục thao tác. Cần cập nhật Mobile API.")
-        return MobileSnapshot(SatoriData.fromDriveState(data.toString()), actions, actor)
+        val parsed = SatoriData.fromDriveState(data.toString())
+        // Do not accept a three-invoice demonstration server as Production,
+        // even when its login succeeds and its rows lack an explicit TEST flag.
+        ProductionLedgerPolicy.rejection(parsed)?.let { problem ->
+            throw MobileApiError("PRODUCTION_LEDGER_MISMATCH", problem)
+        }
+        return MobileSnapshot(parsed, actions, actor)
     }
 
     /**
