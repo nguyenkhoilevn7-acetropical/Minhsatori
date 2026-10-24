@@ -364,7 +364,7 @@ test('Samsung restored cart and reply sequence never hides a third row or clips 
  assert.match(adapter,/const rows=result\.cart/,'use server-validated atomic cart');
  assert.match(adapter,/bubble\(message,'user'\);\$\('messageInput'\)\.value=''/);
  assert.ok(adapter.indexOf("bubble(message,'user')")<adapter.indexOf("try{await interpretMessage(message)}"));
- assert.match(adapter,/cartCollapsed=!cartCollapsed;updateCart\(\)/);
+ assert.match(adapter,/\$\('quickCartEdit'\)\.onclick=\(\)=>setCartMode\(cartCollapsed\?'half':'collapsed'\)/);
  assert.match(shell,/max-height:min\(32dvh,250px\)/,'all rows scroll in original cart');
  assert.doesNotMatch(shell,/quick-cart\{display:flex;flex-direction:column\}/,
   'flex override must not displace original grid controls');
@@ -583,7 +583,7 @@ test('iPhone-like checkout regression: one cart button with quantity badge, red 
  const css=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  assert.match(client,/\$\('quickCartNew'\)\.hidden=true/,'remove duplicate bottom new-cart');
  assert.match(client,/real-cart-count/,'show quantity count in right-side icon');
- assert.match(client,/cartClose\.onclick=\(\)=>\{cartCollapsed=true;updateCart\(\)\}/);
+ assert.match(client,/cartClose\.onclick=\(\)=>setCartMode\('collapsed'\)/);
  assert.match(client,/\$\('messages'\)\.addEventListener\('click'/);
  assert.match(client,/real-keyboard-open/,'resize when Samsung keyboard appears');
  assert.match(css,/\.production-gemini #productionGeminiApp \.quick-cart #realCartClose/);
@@ -593,4 +593,28 @@ test('iPhone-like checkout regression: one cart button with quantity badge, red 
  assert.match(client,/historyPromise/,'deduplicate slow account history fetch');
  assert.match(shell,/production-gemini/);
  new vm.Script(client,{filename:'mobile-real-checkout.js'});
+});
+
+test('iOS cart: three states, swipe handle, color-separated chat and verified invoice metadata',()=>{
+ const client=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ const gateway=readFileSync(new URL('../production-private-links.mjs',import.meta.url),'utf8');
+ assert.match(client,/cartMode='collapsed'/);
+ assert.match(client,/function setCartMode\(mode\)/);
+ assert.match(client,/function slideCart\(direction\)/);
+ assert.match(client,/pointerdown/);
+ assert.match(client,/pointermove/);
+ assert.match(client,/pointerup/);
+ assert.match(css,/\.quick-cart\[data-cart-mode="half"\]/);
+ assert.match(css,/\.quick-cart\[data-cart-mode="full"\]/);
+ assert.match(css,/\.messages \.bubble\.assistant\{\s*background:#086bd7!important/);
+ assert.match(css,/\.messages \.bubble\.user\{\s*background:#078468!important/);
+ assert.match(client,/function invoiceBrand\(\)/);
+ assert.match(client,/function deliveryNoteLine\(note\)/);
+ assert.match(client,/Thời gian đặt/);
+ assert.match(client,/Tải PDF chính thức/);
+ assert.match(client,/function vnTimestamp\(iso\)/);
+ assert.match(gateway,/verifiedCreatedAt\(order\)/);
+ assert.match(gateway,/phone:d\.phone/);
+ assert.match(gateway,/deliveryNote:safe\(o\.deliveryNote\)/);
 });
