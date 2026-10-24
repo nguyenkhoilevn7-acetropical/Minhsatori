@@ -191,10 +191,19 @@
    const logo=document.createElement('span');logo.className='catalog-icon';logo.textContent=category(p)==='JUICE'?'🍹':'💧';
    const label=document.createElement('span');label.className='catalog-label';label.textContent=p.name;
    const secondary=document.createElement('small');secondary.textContent=cash(p.unitPrice)+' / '+p.unit;label.append(secondary);
-   const arrow=document.createElement('span');arrow.className='catalog-arrow';arrow.textContent='＋';
-   button.append(logo,label,arrow);
-   button.onclick=()=>{lastProduct=p;setText('selectedProductName',p.name+' • '+cash(p.unitPrice)+' / '+p.unit);
-    $('selectedQuantity').value='1';$('productSelection').classList.add('active');};
+   const controls=document.createElement('span');controls.className='suggestion-steps real-catalog-stepper';
+   const down=document.createElement('button');down.type='button';down.textContent='−';down.setAttribute('aria-label','Giảm '+p.name);
+   const qty=document.createElement('input');qty.type='number';qty.inputMode='numeric';qty.min='0';qty.max='500';qty.step='1';
+   qty.value=String(cart.get(p.code)?.qty||0);qty.setAttribute('aria-label','Số lượng '+p.name);
+   const up=document.createElement('button');up.type='button';up.textContent='＋';up.setAttribute('aria-label','Tăng '+p.name);
+   const apply=value=>{try{changeQty(p.code,value);renderCatalogue()}catch(e){bubble(e.message,'note');renderCatalogue()}};
+   down.onclick=()=>apply(Math.max(0,(cart.get(p.code)?.qty||0)-1));
+   up.onclick=()=>apply((cart.get(p.code)?.qty||0)+1);
+   qty.onchange=()=>apply(Number(qty.value));
+   controls.append(down,qty,up);button.append(logo,label,controls);
+   button.classList.add('catalog-purchase-row');
+   if(cart.has(p.code)){button.classList.add('in-cart');button.setAttribute('aria-pressed','true')}
+   button.onclick=e=>{if(e.target.closest('.real-catalog-stepper'))return;apply((cart.get(p.code)?.qty||0)+1)};
    root.append(button);
   }
   if(!arr.length){const p=document.createElement('p');p.className='catalog-empty';p.textContent='Không tìm thấy sản phẩm phù hợp.';root.append(p)}
