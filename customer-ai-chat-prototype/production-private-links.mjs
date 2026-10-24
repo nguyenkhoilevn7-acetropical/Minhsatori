@@ -258,9 +258,33 @@ export function createProductionPrivateLinks({
   if(!order||!Number.isSafeInteger(order.invoiceNo)||
      order.name!==destination.name||order.location!==destination.location||
      Number(order.total)!==q.total)throw error('REAL_WRITE_UNCERTAIN_RECONCILE_WITH_OWNER');
+  // A receipt capability is issued ONLY after the Bot API has verified a
+  // committed one-invoice write. Unlike a bare invoice number, this token
+  // cannot be used to view unrelated customer invoices.
+  const receiptToken=seal({type:'customer-real-receipt',inviteId:invite.id,
+   invoiceNo:order.invoiceNo,total:order.total,customerRef:q.customerRef,
+   name:destination.name,phone:destination.phone,location:destination.location,
+   expiresAt:Math.min(invite.expiresAt,now()+7*86400000)},'customer-receipt');
   return {production:true,saved:true,invoiceNo:order.invoiceNo,
    revision:receipt.revision,total:order.total,duplicate:receipt.data?.duplicate===true,
-   message:'Đã ghi hóa đơn thật vào sổ kế toán Minh Satori.'};
+   receiptToken,message:'Đã ghi hóa đơn thật vào sổ kế toán Minh Satori.'};
  }
- return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm,chatContext});
+ // Verify the immutable invite, separate code AND proof returned by
+ // confirmed real order creation. Never grant PDF access by invoiceNo alone.
+ function receiptContext({token,accessCode,receiptToken}={}){
+  const invite=access(token,accessCode);
+  const proof=unseal(receiptToken,'customer-receipt');
+  if(proof.type!=='customer-real-receipt'||proof.inviteId!==invite.id||
+     !Number.isSafeInteger(proof.invoiceNo)||proof.invoiceNo<1||
+     !Number.isSafeInteger(proof.total)||proof.total<0||
+     !validRef(proof.customerRef)||!Number.isSafeInteger(proof.expiresAt)||
+     proof.expiresAt<=now()||proof.expiresAt>now()+7*86400000)
+   throw error('REAL_RECEIPT_PROOF_INVALID');
+  const dest=chosen(invite,proof.customerRef);
+  if(dest.name!==proof.name||dest.phone!==proof.phone||
+     dest.location!==proof.location)throw error('REAL_RECEIPT_CUSTOMER_MISMATCH');
+  return {invoiceNo:proof.invoiceNo,total:proof.total,
+   name:dest.name,phone:dest.phone,location:dest.location};
+ }
+ return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm,chatContext,receiptContext});
 }
