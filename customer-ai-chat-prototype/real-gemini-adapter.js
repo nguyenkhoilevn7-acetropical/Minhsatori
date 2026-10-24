@@ -498,6 +498,7 @@
   // do not pretend the last in-memory order is full account history.
   if($('historyBackdrop').classList.contains('open'))void loadInvoiceHistory();
  }
+ let historyPromise=null,historyLastLoaded=0,historyError='';
  function renderInvoiceHistory(){
   const root=$('historyItems');root.replaceChildren();
   const month=$('historyMonth').value,term=($('historySearch').value||'').trim().toLocaleLowerCase('vi'),
@@ -509,8 +510,8 @@
      .join(' ').toLocaleLowerCase('vi').includes(term)));
   setText('historyCount',rows.length+' hóa đơn phù hợp'+
    (historyIncomplete?' • dữ liệu chưa đầy đủ':'')+' • Google Drive');
-  if(!rows.length){const p=document.createElement('p');p.className='mini';
-   p.textContent=historyOrders.length?'Không có hóa đơn phù hợp bộ lọc.':'Không có hóa đơn trong phạm vi link đã duyệt.';
+  if(!rows.length&&sessionInvoices.size===0){const p=document.createElement('p');p.className='mini';
+   p.textContent=historyOrders.length?'Không có hóa đơn phù hợp bộ lọc.':'Chưa có hóa đơn nào được xác minh trong phạm vi link.';
    root.append(p);}
   for(const o of rows){
    const card=document.createElement('article');card.className='real-history-order';
@@ -529,18 +530,41 @@
    };
    card.append(title,status,receiver,items,open);root.append(card);
   }
+  // Immediate acknowledgement is based only on verified /api/real/confirm.
+  // Show it while the official Drive history and PDF are still loading.
+  const fromDrive=new Set(historyOrders.map(o=>Number(o.invoiceNo)));
+  for(const invoiceNo of [...sessionInvoices].filter(n=>!fromDrive.has(n)).reverse()){
+   const overview=savedRecord?.overview?.invoiceNo===invoiceNo?savedRecord.overview:null;
+   const card=document.createElement('article');card.className='real-history-order pending';
+   const head=document.createElement('strong');head.textContent='✓ Đã ghi nhận đơn #'+invoiceNo+(overview?' • '+cash(overview.total):'');
+   const text=document.createElement('small');text.className='real-history-status';
+   text.textContent='Đã được hệ thống xác nhận. Hóa đơn chính thức đang đồng bộ từ Google Drive.';
+   const view=document.createElement('button');view.type='button';view.textContent='Xem phiếu xác nhận';
+   view.onclick=()=>{$('historyBackdrop').classList.remove('open');showOrderOverview(invoiceNo)};
+   card.append(head,text,view);root.prepend(card);
+  }
+  if(historyError){
+   const msg=document.createElement('p');msg.className='real-history-loading';
+   msg.textContent='⚠ Chưa tải được lịch sử mới từ Drive: '+historyError+'. Các đơn đã xác nhận vẫn được giữ. Bấm Làm mới để thử lại.';
+   root.prepend(msg);
+  }
  }
- async function loadInvoiceHistory(openPanel=true){
+ async function loadInvoiceHistory(openPanel=true,force=false){
   if(openPanel){
    $('historyBackdrop').classList.add('open');
    unreadInvoices.clear();writeSession(unreadKey,'[]');updateInvoiceBadge();
   }
-  setText('historyCount','Đang đọc hóa đơn thật từ Google Drive…');
+  // Show previously confirmed invoices without waiting for Drive, even on failure.
+  renderInvoiceHistory();
+  if(historyPromise){await historyPromise;return}
+  if(!force&&historyLastLoaded&&Date.now()-historyLastLoaded<45000)return;
+  setText('historyCount','Đang đồng bộ lịch sử từ Google Drive…');
+  historyPromise=(async()=>{
   try{
    const d=await call('/api/real/history');
    if(!Array.isArray(d.orders)||!Number.isSafeInteger(d.revision))
     throw Error('Nguồn lịch sử không hợp lệ.');
-   historyOrders=d.orders;historyIncomplete=!d.complete;
+   historyOrders=d.orders;historyIncomplete=!d.complete;historyError='';historyLastLoaded=Date.now();
    persistedInvoiceCount=d.orders.length;updateInvoiceBadge();
    const months=[...new Set(historyOrders.map(o=>{
     const m=String(o.date||'').match(/(?:\d{1,2}\/)?(\d{1,2})\/(\d{4})$/);
@@ -553,17 +577,20 @@
    const notice=document.querySelector('#historyBackdrop .history-caution');
    if(notice)notice.textContent=d.complete?
     '✅ Hóa đơn thật từ Google Drive • Chỉ tên, điện thoại, địa chỉ đã duyệt. Thanh toán cập nhật theo dữ liệu hiện hành.':
-    '⚠ Kết quả hiện chưa đầy đủ do giới hạn 100 hóa đơn mỗi lần đọc. Không dùng số liệu này để chốt công nợ.';
+    '⚠ Lịch sử chưa đầy đủ; một số dữ liệu nguồn chưa xác minh. Không dùng số liệu này để chốt công nợ.';
    renderInvoiceHistory();
   }catch(e){
-   rootHistoryError(e.message);
+   historyError=e.message||'Không kết nối được Google Drive';
+   // Preserve confirmed order receipts and the last valid Drive snapshot.
+   rootHistoryError(historyError);
   }
+  })();
+  try{await historyPromise}finally{historyPromise=null}
  }
  function rootHistoryError(message){
-  setText('historyCount','Chưa thể đọc đầy đủ lịch sử hóa đơn');
-  const root=$('historyItems');root.replaceChildren();
-  const warning=document.createElement('p');warning.className='warn';
-  warning.textContent='⚠ '+message+' • Không thay bằng dữ liệu thử.';root.append(warning);
+  historyError=message;
+  renderInvoiceHistory();
+  setText('historyCount','Đơn đã ghi nhận được giữ lại • lịch sử Drive tạm thời chưa tải xong');
  }
  function invoiceLine(label,value,css=''){
   const row=document.createElement('div');row.className='real-invoice-line '+css;
@@ -690,6 +717,10 @@
    paper.append(warning);
   }
  }
+ const refreshHistory=document.createElement('button');refreshHistory.type='button';
+ refreshHistory.id='realHistoryRefresh';refreshHistory.textContent='↻ Làm mới';
+ refreshHistory.onclick=()=>void loadInvoiceHistory(true,true);
+ $('historyClose').parentElement.insertBefore(refreshHistory,$('historyClose'));
  $('historyButton').onclick=()=>void loadInvoiceHistory();
  $('historyMonth').onchange=renderInvoiceHistory;
  $('historySearch').oninput=renderInvoiceHistory;
