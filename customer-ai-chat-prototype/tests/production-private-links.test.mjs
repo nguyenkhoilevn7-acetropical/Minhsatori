@@ -401,7 +401,7 @@ test('PDF same as website and real owner-only order notification; no 0đ summary
  assert.match(frontend,/await showReceipt\(\)/,'show PDF immediately after real write');
  assert.match(frontend,/fetch\('\/api\/real\/pdf'/);
  assert.match(frontend,/frame\.src=pdfObjectUrl/);
- assert.match(frontend,/pdf\.type!=='application\/pdf'/);
+ assert.match(frontend,/blob\.type!=='application\/pdf'/);
  assert.doesNotMatch(frontend,/row\.subtotal/,'original incorrect zero-price summary removed');
  assert.match(admin,/function pollRealOrderFeed\(force=false\)/);
  assert.match(admin,/\/api\/admin\/live-search\?kind=invoices&month=/);
@@ -441,7 +441,10 @@ test('private historical invoices limited to owner-approved exact name phone and
    revision:140,customer:{id,name:'Traky Sài Gòn',phone:'0901234567',location:'75 Quang Trung, Gò Vấp'},
    products:new Map([['TP-00001',{name:'Satori 500ml',code:'TP-00001',listPrice:100000,unit:'Thùng'}]])
   }),
-  bot:async()=>{throw Error('DO NOT WRITE')},
+  bot:async(action,payload)=>{
+   if(action==='orders.create'&&!payload.requestId)throw Object.assign(Error('INVALID_REQUEST'),{code:'INVALID_REQUEST'});
+   throw Error('DO NOT WRITE');
+  },
   historyReader:async({query,limit})=>{
    assert.equal(query,'Traky Sài Gòn');assert.equal(limit,100);reads++;
    return {revision:140,data:{orders:rows,totalMatches:rows.length}};
