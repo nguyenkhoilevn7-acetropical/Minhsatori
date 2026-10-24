@@ -7,7 +7,7 @@
  const $=id=>document.getElementById(id);
  const token=decodeURIComponent(location.hash.slice(1));
  let accessCode='',catalogue=null,selectedRef=null,agency=false,requestsBusy=false;
- let quoteToken=null,lastQuote=null,lastReceipt=null,deliveryNote='';
+ let quoteToken=null,lastQuote=null,lastReceipt=null,deliveryNote='',pdfObjectUrl=null;
  let destinations=[],lastProduct=null;
  const products=new Map(),cart=new Map();
  // Restore the original Gemini Samsung keyboard/viewport behavior.  The
@@ -337,6 +337,9 @@
     confirm.textContent='✅ Đã lưu hóa đơn #'+saved.invoiceNo;
     bubble('✅ Minh Satori đã lưu hóa đơn thật #'+saved.invoiceNo+' • '+cash(saved.total)+'. Có thể xem lại hóa đơn trong phiên này.');
     updateSessionReceipt();
+    // After successful ledger write, display the canonical PDF from the
+    // website template in chat, never the manually formatted 0đ summary.
+    await showReceipt();
    }catch(err){
     bubble('⚠ Trạng thái hóa đơn chưa xác định: '+err.message+' KHÔNG xác nhận lại; liên hệ chủ tài khoản kiểm tra sổ thật.','note');
    }finally{disabledBusy(false)}
@@ -362,22 +365,61 @@
   const title=document.createElement('h3');title.textContent='Hóa đơn thật #'+lastReceipt.result.invoiceNo;
   const info=document.createElement('p');info.textContent='Tổng thanh toán: '+cash(lastReceipt.result.total);
   const button=document.createElement('button');button.className='btn';button.textContent='🧾 Xem hóa đơn';
-  button.onclick=()=>{showReceipt();$('historyBackdrop').classList.remove('open')};
+  button.onclick=()=>{void showReceipt();$('historyBackdrop').classList.remove('open')};
   item.append(title,info,button);root.append(item);
  }
- function showReceipt(){
-  if(!lastReceipt){bubble('Chưa có hóa đơn đã xác nhận trong phiên này.');return}
-  const paper=$('printPaper');paper.replaceChildren();
-  const h=document.createElement('h2');h.textContent='MINH SATORI — HÓA ĐƠN #'+lastReceipt.result.invoiceNo;
-  const p=document.createElement('p');p.textContent=lastReceipt.quote.customer.name+' • '+lastReceipt.quote.customer.location;
-  const total=document.createElement('p');total.className='total';total.textContent='TỔNG: '+cash(lastReceipt.result.total);
-  const caution=document.createElement('p');caution.className='warn';
-  caution.textContent='Hóa đơn đã lưu trên hệ thống. Đây là bản tóm tắt trong chat, không phải PDF gốc.';
-  paper.append(h,p,caution);
-  for(const row of lastReceipt.quote.items||[]){
-   const line=document.createElement('p');line.textContent=row.product+' × '+row.qty+' — '+cash(row.subtotal);paper.append(line);
+ async function showReceipt(){
+  if(!lastReceipt?.result?.receiptToken){
+   bubble('Chưa có hóa đơn thật với quyền xem PDF trong phiên này.','note');
+   return;
   }
-  paper.append(total);$('invoice').style.display='block';
+  const paper=$('printPaper');
+  const invoiceNo=lastReceipt.result.invoiceNo;
+  $('invoice').style.display='block';
+  paper.replaceChildren();
+  const loading=document.createElement('p');
+  loading.textContent='Đang tải PDF hóa đơn Minh Satori #'+invoiceNo+' từ sổ kế toán thật…';
+  paper.append(loading);
+  try{
+   // PDF bytes are produced by the SAME pdfmake source as the website and
+   // looked up using the sealed confirmed-order proof. No fake PDF rendering.
+   const response=await fetch('/api/real/pdf',{method:'POST',cache:'no-store',
+    headers:{'content-type':'application/json'},credentials:'omit',
+    body:JSON.stringify({token,accessCode,receiptToken:lastReceipt.result.receiptToken})});
+   if(!response.ok){
+    const data=await response.json().catch(()=>({}));
+    throw Error(data.message||'Chưa tải được PDF gốc.');
+   }
+   const pdf=await response.blob();
+   if(pdf.type!=='application/pdf'||pdf.size<100||
+      pdf.size>3*1024*1024)throw Error('PDF trả về chưa được xác thực.');
+   if(pdfObjectUrl)URL.revokeObjectURL(pdfObjectUrl);
+   pdfObjectUrl=URL.createObjectURL(pdf);
+   paper.replaceChildren();
+   const title=document.createElement('strong');
+   title.textContent='HÓA ĐƠN MINH SATORI #'+invoiceNo+' • PDF CHÍNH THỨC';
+   title.style.cssText='display:block;padding:8px 0 13px;color:#075e94;font-size:15px';
+   const frame=document.createElement('iframe');
+   frame.title='PDF hóa đơn Minh Satori #'+invoiceNo;
+   frame.src=pdfObjectUrl;
+   frame.setAttribute('aria-label','Xem PDF hóa đơn chính thức');
+   frame.style.cssText='width:100%;min-height:70dvh;border:1px solid #d6e3ef;border-radius:9px;background:white';
+   paper.append(title,frame);
+   // On Samsung browsers without inline PDF support, the separate view link
+   // opens the SAME PDF blob. Download is always an explicit user action.
+   $('viewInvoice').href=pdfObjectUrl;$('viewInvoice').hidden=false;
+   $('printInvoice').href=pdfObjectUrl;
+   $('printInvoice').download='MinhSatori-'+invoiceNo+'.pdf';
+   $('printInvoice').hidden=false;
+   $('viewInvoice').textContent='👁 Mở PDF';
+   $('printInvoice').textContent='⬇ Tải PDF';
+  }catch(e){
+   paper.replaceChildren();
+   const error=document.createElement('p');error.className='warn';
+   error.textContent='⚠ '+e.message+' Hóa đơn đã lưu; không gửi lại đơn hàng.';
+   paper.append(error);
+   $('viewInvoice').hidden=true;$('printInvoice').hidden=true;
+  }
  }
  $('historyButton').onclick=()=>{$('historyBackdrop').classList.add('open');updateSessionReceipt()};
  $('historyClose').onclick=()=>{$('historyBackdrop').classList.remove('open')};
