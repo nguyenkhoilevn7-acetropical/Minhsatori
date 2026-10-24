@@ -396,28 +396,32 @@ export function createProductionPrivateLinks({
   */
  async function receiptStatuses({token,accessCode,invoiceNos}={}){
   const invite=access(token,accessCode),allowed=destinations(invite);
-  if(!Array.isArray(invoiceNos)||invoiceNos.length<1||invoiceNos.length>12||
+  if(!Array.isArray(invoiceNos)||invoiceNos.length<1||invoiceNos.length>6||
      invoiceNos.some(n=>!Number.isSafeInteger(n)||n<1)||
      new Set(invoiceNos).size!==invoiceNos.length)throw error('REAL_RECEIPT_STATUS_INVALID');
   const reader=historyReader||(payload=>bot('orders.list',payload));
-  let revision=null;
-  const checks=[];
-  for(const invoiceNo of invoiceNos){
-   const source=await reader({query:String(invoiceNo),limit:100});
-   if(!Number.isSafeInteger(source?.revision)||!Array.isArray(source.data?.orders)||
-      !Number.isSafeInteger(source.data?.totalMatches)||source.data.totalMatches<0||
+  // Queries are independent read-only requests. Fetch in parallel so one slow
+  // upstream / HMAC fallback does not make the second invoice time out.
+  const responses=await Promise.all(invoiceNos.map(invoiceNo=>
+   reader({query:String(invoiceNo),limit:100})
+  ));
+  const revisions=new Set(responses.map(source=>source?.revision));
+  if(revisions.size!==1||!Number.isSafeInteger(responses[0]?.revision))
+   throw error('REAL_HISTORY_REVISION_CHANGED');
+  const revision=responses[0].revision;
+  const checks=responses.map((source,i)=>{
+   const invoiceNo=invoiceNos[i];
+   if(!Array.isArray(source.data?.orders)||
+      !Number.isSafeInteger(source.data?.totalMatches)||
+      source.data.totalMatches<0||
       source.data.totalMatches>source.data.orders.length)
     throw error('REAL_RECEIPT_STATUS_INCOMPLETE');
-   if(revision!==null&&revision!==source.revision)
-    throw error('REAL_HISTORY_REVISION_CHANGED');
-   revision=source.revision;
    const matched=source.data.orders.filter(o=>Number(o.invoiceNo)===invoiceNo);
    const ours=matched.some(o=>o.pairRole!=='collaborator'&&
     allowed.some(d=>normalized(d.name)===normalized(o.name)&&
      normalized(d.location)===normalized(o.location)&&digits(d.phone)===digits(o.phone)));
-   // A matching number owned by somebody else is never disclosed as deleted.
-   checks.push({invoiceNo,status:ours?'active':matched.length?'unverified':'absent'});
-  }
+   return {invoiceNo,status:ours?'active':matched.length?'unverified':'absent'};
+  });
   return {production:true,complete:true,revision,checks};
  }
  function receiptContext({token,accessCode,receiptToken}={}){
