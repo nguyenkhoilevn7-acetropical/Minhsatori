@@ -4,8 +4,9 @@ const code=fs.readFileSync(__dirname+'/../api/AndroidOwnerMobileApi.gs','utf8');
 new vm.Script(code,{filename:'AndroidOwnerMobileApi.gs'});
 const clientId='1234567890-ownerandroid.apps.googleusercontent.com',owner='owner@example.test';
 const config={'SATORI_ANDROID_OWNER_EMAIL':owner,
- 'SATORI_ANDROID_ALLOWED_CLIENT_IDS_JSON':JSON.stringify([clientId])};
-const ledger={revision:132,updatedAt:'2026-10-23T22:40:00+07:00',
+ 'SATORI_ANDROID_ALLOWED_CLIENT_IDS_JSON':JSON.stringify([clientId]),
+ 'STATE_FILE_ID':'14XWSPrxLnKXATwmuHeXGZnCvjDbalghV'};
+const ledger={revision:133,updatedAt:'2026-10-23T22:40:00+07:00',
  values:{satori_orders_v15:JSON.stringify([{id:11,invoiceNo:8001,name:'FAKE A'}]),
  satori_catalogue_v15:'[]',satori_ai_customer_memory:'[]',
  satori_trash_bin_v15:JSON.stringify([{deletedAt:Date.now()-300000,
@@ -44,7 +45,7 @@ function request(action,payload={},token='FAKE_TEST_OWNER_TOKEN_EXPLICIT'){
    parameter:{route:'android'}}).body);
 }
 let snap=request('mobile.snapshot');assert.equal(snap.ok,true);
-assert.equal(snap.data.revision,132);
+assert.equal(snap.data.revision,133);
 assert.equal(snap.data.actorId,'12345678901234567890');
 assert.ok(snap.data.allowedActions.includes('orders.restore'));
 assert.ok(snap.data.allowedActions.includes('orders.delete'));
@@ -52,12 +53,22 @@ assert.equal(snap.data.values.satori_orders_v15,ledger.values.satori_orders_v15)
 assert.ok(!('satori_trash_bin_v15' in snap.data.values),'trash not exposed with general snapshot');
 assert.ok(!JSON.stringify(snap).includes('FAKE_TEST_OWNER_TOKEN_EXPLICIT'),'token not echoed');
 let rev=request('mobile.revision');assert.equal(rev.ok,true);
-assert.equal(rev.data.revision,132);assert.ok(!('values' in rev.data));
+assert.equal(rev.data.revision,133);assert.ok(!('values' in rev.data));
+assert.equal(snap.data.ledgerFileId,config.STATE_FILE_ID);
+assert.equal(snap.data.ledgerKind,'minh-satori-owner-drive-v15');
+assert.equal(rev.data.ledgerFileId,config.STATE_FILE_ID);
+config.STATE_FILE_ID='sandbox-file';
+assert.equal(request('mobile.snapshot').error.code,'WRONG_LEDGER_SOURCE');
+assert.equal(request('mobile.revision').error.code,'WRONG_LEDGER_SOURCE');
+config.STATE_FILE_ID='14XWSPrxLnKXATwmuHeXGZnCvjDbalghV';
+ledger.revision=1;
+assert.equal(request('mobile.snapshot').error.code,'WRONG_LEDGER_SOURCE');
+ledger.revision=133;
 let bin=request('mobile.trash');assert.equal(bin.ok,true);
 assert.equal(bin.data.orders[0].invoiceNo,8000);
 assert.equal(bin.data.orders[0].deleteRequestId,'fakedelete-id-8001');
 const payload={id:12,invoiceNo:8000,expectedName:'FAKE DELETED',
- expectedTotal:0,expectedRevision:132,confirmed:true,requestId:'delete-req-0001'};
+ expectedTotal:0,expectedRevision:133,confirmed:true,requestId:'delete-req-0001'};
 assert.equal(request('orders.delete',payload).ok,true);
 assert.equal(mobileWrites.length,1);
 assert.equal(mobileWrites[0].action,'orders.delete');
