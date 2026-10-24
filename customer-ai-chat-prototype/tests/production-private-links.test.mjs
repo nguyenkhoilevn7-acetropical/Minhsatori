@@ -189,3 +189,19 @@ test('Vietnamese two-product shorthand is one locally validated real cart reques
  assert.deepEqual(match.items.map(x=>x.qty),[10,2]);
  assert.equal(new Set(match.items.map(x=>x.sku)).size,2);
 });
+
+test('rollback: working agency links are isolated from the new CTV Drive table',()=>{
+ const html=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ const code=readFileSync(new URL('../production-private-links.mjs',import.meta.url),'utf8');
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ assert.match(html,/id="agencyRealIssue"/);
+ assert.match(html,/data-admin-tab="ctv-ledger"/);
+ assert.match(html,/id="independentCtvLedger"/);
+ assert.match(html,/1gCHmXCSz4yrcIklFP75L9vfyDQFJGN4_ia_ICpYXz1c/);
+ assert.match(html,/id="collaboratorPairAdmin" style="display:none!important"/);
+ assert.doesNotMatch(code,/commissionPolicy|ownerCommissionPreview/);
+ assert.doesNotMatch(html,/id="agencyCommissionEnabled"|agency-commission\/preview/);
+ assert.match(server,/const result=await realPrivateLinks\.issue\(input\)/);
+ for(const [,source] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(source,{filename:'restored-owner-admin.html.js'});
+});
