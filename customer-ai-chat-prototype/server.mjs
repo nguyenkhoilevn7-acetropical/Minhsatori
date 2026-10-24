@@ -13,6 +13,7 @@ import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {parseOrder,parseRules,parseComplexOrderWithGemini,geminiConfigured,identityChange} from './free-parser.mjs';
 import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
+import {chatBasketChanges,applyCartChanges} from './cart-semantics.mjs';
 import {customerSuggestions} from './customer-suggestions.mjs';
 import {businessReply} from './business-reply.mjs';
 import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificationBasket,waterClarificationAnswer,parseColloquialBasket,colloquialQuestion,completeColloquialFollowup} from './multi-order.mjs';
@@ -219,14 +220,6 @@ function currentBasketQuote(token,profile){
  * Only "thêm / bổ sung / cộng thêm" deliberately increments quantities.
  * A single newly named item updates that SKU without deleting other products.
  */
-function chatBasketChanges(message,items){
- const phrase=fold(message);
- const isTopUp=/^(?:(?:cho|lay)\s+(?:(?:em|anh|chi|toi|minh)\s+)?)?(?:them|bo sung|cong them)\b/.test(phrase);
- if(isTopUp)return items.map(x=>({action:'add',code:x.sku,qty:x.qty}));
- if(items.length>1||/\b(?:don moi|dat lai tu dau|lam don moi)\b/.test(phrase))
-  return [{action:'replace',items:items.map(x=>({code:x.sku,qty:x.qty}))}];
- return items.map(x=>({action:'set',code:x.sku,qty:x.qty}));
-}
 function applyChatBasket(res,token,profile,changes,revision,source,delivery){
  let draft;
  try{draft=draftStore.mutate(token,changes,revision,delivery)}catch(e){return draftFailure(res,e)}
@@ -407,45 +400,72 @@ const server=http.createServer(async(req,res)=>{
    let result;
    if(p==='/api/real/catalogue')result=await realPrivateLinks.catalogue(input);
    if(p==='/api/real/interpret'){
-    const profile=await realPrivateLinks.catalogue(input); // First verify link, PIN and destination.
+    // Reuse the old multi-order, colloquial and edit engines. Unlike the
+    // previous adapter this request includes the current cart, so a "thêm",
+    // "giảm", "đổi" or a full order has the SAME meaning as old Gemini.
+    // Authenticated link/PIN/destination lookup is local; current source price,
+    // discount and revision are checked again by real quote and confirmation.
+    const context=realPrivateLinks.chatContext(input),profile=context.customer;
     const message=String(input.message||'').trim();
-    if(!profile.customer||message.length<3||message.length>500||
-       identityChange(message,profile.customer))
-     return fail(res,400,'REAL_CHAT_NEEDS_CLARIFICATION','Vui lòng chọn địa chỉ trong danh sách và chỉ nhập tên/số lượng sản phẩm.');
+    if(message.length<2||message.length>500||identityChange(message,profile))
+     return fail(res,400,'REAL_CHAT_NEEDS_CLARIFICATION',
+      'Vui lòng chỉ nhập sản phẩm hoặc ghi chú; đổi thông tin nhận hàng cần chủ tài khoản duyệt.');
+    const current=Array.isArray(input.cart)?input.cart:[];
+    const authorizedSkus=new Set(CATALOGUE.map(x=>x.code));
+    try{applyCartChanges(current,[],authorizedSkus)}
+    catch{return fail(res,400,'REAL_CART_STATE_INVALID','Giỏ hàng chưa hợp lệ, vui lòng kiểm tra lại.')}
     const {orderText,noteText}=splitOrderAndNote(message);
-    const productMessage=(orderText||message).trim();
-    let match=parseMultiOrder(productMessage,{}),source=match?.source||'rules';
-    // Never discard an unresolved product and quietly add only one item.
-    if(match?.needMoreDetails)
-     return reply(res,200,{ok:true,needsClarification:true,parserSource:'rules',
-      message:match.message||'Có mặt hàng chưa rõ tên hoặc số lượng. Vui lòng nói rõ từng món; giỏ chưa thay đổi.'});
-    if(!match){
-     match=parseColloquialBasket(productMessage,{});
-     if(match?.needMoreDetails)
-      return reply(res,200,{ok:true,needsClarification:true,parserSource:'rules',
-       message:match.message||'Vui lòng xác nhận số lượng, đơn vị hoặc quy cách. Giỏ chưa thay đổi.'});
-     if(match?.items)source=match.source||'rules';
+    const productMessage=(orderText||(!noteText?message:'')).trim();
+    let match=null,source='rules',changes=null;
+    const clarify=text=>reply(res,200,{ok:true,needsClarification:true,parserSource:source,
+     message:text||'Vui lòng xác nhận số lượng, loại và quy cách. Giỏ chưa thay đổi.'});
+    if(productMessage){
+     match=parseMultiOrder(productMessage,profile);
+     if(match?.needMoreDetails)return clarify(match.message);
+     if(!match){
+      match=parseColloquialBasket(productMessage,profile);
+      if(match?.needMoreDetails)return clarify(match.message);
+     }
+     if(match?.items)source=match.source||'old-multi-order';
+     // If the old Gemini sees multiple clauses, never downgrade them to a
+     // single recognized SKU and silently lose the second product.
+     if(!match&&looksCompoundOrder(productMessage)){
+      const parsed=await parseComplexOrderWithGemini(productMessage,profile);
+      if(parsed?.items){match=parsed;source=parsed.source}
+      else return clarify('Em chưa xác định đầy đủ tất cả sản phẩm; vui lòng nói rõ món còn thiếu. Giỏ chưa thay đổi.');
+     }
+     if(match?.items){
+      if(match.items.some(x=>!productFor(x.sku)))return clarify('Có sản phẩm không thuộc bảng giá; giỏ chưa thay đổi.');
+      changes=chatBasketChanges(productMessage,match.items);
+     }else{
+      // This is exactly the original sandbox contextualDraftEdit implementation.
+      // It accepts current basket and distinguishes subtraction/removal/set/add.
+      const edit=contextualDraftEdit(productMessage,profile,{items:current});
+      if(edit?.clarification)return clarify(edit.clarification);
+      if(edit?.changes){changes=edit.changes;source='old-contextual-edit'}
+      else{
+       const single=parseOneClause(productMessage,profile);
+       if(single){changes=chatBasketChanges(productMessage,[single]);source='old-single-clause'}
+       else{
+        const parsed=await parseOrder(productMessage,profile);
+        if(parsed?.intent!=='order'||parsed.needMoreDetails||parsed.needsHuman||
+           !productFor(parsed.sku)||!Number.isSafeInteger(parsed.qty)||parsed.qty<1)
+         return clarify('Em cần tên sản phẩm và số lượng rõ ràng. Có thể nhắn: 2 thùng Satori 500ml.');
+        changes=chatBasketChanges(productMessage,[{sku:parsed.sku,qty:parsed.qty}]);
+        source=parsed.source||'rules';
+       }
+      }
+     }
     }
-    if(!match){
-     const ai=await parseComplexOrderWithGemini(productMessage,{});
-     if(ai?.items){match=ai;source=ai.source}
-    }
-    let lines=match?.items?.map(i=>({code:productFor(i.sku)?.code,qty:i.qty}));
-    if(!lines||!lines.length){
-     const parsed=await parseOrder(productMessage,{});
-     if(parsed?.intent!=='order'||parsed.needMoreDetails||parsed.needsHuman||
-        !productFor(parsed.sku)||!Number.isSafeInteger(parsed.qty)||parsed.qty<1)
-      return reply(res,200,{ok:true,needsClarification:true,parserSource:parsed?.source||'rules',
-       message:'Em cần tên sản phẩm và số lượng rõ ràng, ví dụ: 2 thùng Satori 500ml. Chưa tạo hóa đơn.'});
-     lines=[{code:productFor(parsed.sku).code,qty:parsed.qty}];
-     source=parsed.source||'rules';
-    }
-    if(lines.length>6||lines.some(x=>!x.code||!Number.isSafeInteger(x.qty)||x.qty<1||x.qty>500||
-       !profile.products.some(p=>p.code===x.code))||
-       lines.reduce((n,x)=>n+x.qty,0)>500)
-     return fail(res,400,'REAL_CHAT_PRODUCT_INVALID','Sản phẩm hoặc số lượng không hợp lệ theo danh mục hiện tại.');
-    result={production:true,items:lines,deliveryNote:String(noteText||'').slice(0,300),parserSource:source,
-      message:'Đã thêm '+lines.length+' loại sản phẩm vào cùng một giỏ. Kiểm tra số lượng và báo giá trước khi xác nhận.'};
+    if(!changes?.length&&!noteText)return clarify('Em chưa nhận được mặt hàng hay ghi chú cần xử lý.');
+    let updated;
+    try{updated=applyCartChanges(current,changes||[],authorizedSkus)}
+    catch{return clarify('Giỏ vượt giới hạn hoặc số lượng chỉnh sửa không hợp lệ; giỏ chưa thay đổi.')}
+    result={production:true,parserSource:source,changes:changes||[],cart:updated,
+     deliveryNote:String(noteText||'').slice(0,300),
+     message:changes?.length?'Đã cập nhật giỏ chung: '+updated.length+' loại / '+
+       updated.reduce((n,x)=>n+x.qty,0)+' đơn vị. Chưa tạo hóa đơn.':
+       'Đã ghi nhận ghi chú giao hàng. Giỏ sản phẩm không đổi.'};
    }
    if(p==='/api/real/quote')result=await realPrivateLinks.quote(input);
    if(p==='/api/real/confirm')result=await realPrivateLinks.confirm(input);
