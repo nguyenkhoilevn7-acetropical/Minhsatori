@@ -643,6 +643,78 @@ body.production-gemini.real-session-open{margin:0;overflow:hidden}
  .production-gemini #productionGeminiApp .quick-cart{max-height:36vh}
 }
 
+
+/* Human Interface style: one primary action, clear hierarchy and generous touch areas. */
+body.production-gemini{--ios-blue:#0a6ce0;--ios-bg:#f5f6f8;--ios-ink:#172334;--ios-line:#dce5ef;background:var(--ios-bg);color:var(--ios-ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+.production-gemini #productionGeminiApp .card.chat{background:#fff;border-color:var(--ios-line);box-shadow:none}
+.production-gemini #productionGeminiApp .chat-head{background:rgba(255,255,255,.97);border-bottom:1px solid #e7edf4;z-index:6}
+.production-gemini #productionGeminiApp .chat-head .chat-title h2{font-size:clamp(14px,1.45vw,18px);letter-spacing:-.3px;font-weight:760;color:#15243a}
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar button,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #locationsToggle,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #suggestionsToggle,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #historyButton,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #realNewCartButton{background:#f2f6fb!important;border:1px solid #dce7f4!important;color:#125dab!important;box-shadow:none!important;border-radius:12px!important;padding:9px!important;font-size:13px!important;font-weight:710!important;min-height:45px!important}
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #catalogLaunch{background:var(--ios-blue)!important;color:#fff!important;border-color:var(--ios-blue)!important}
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar button:active{transform:scale(.985)}
+.production-gemini #productionGeminiApp .messages{background:#f7f8fa}
+.production-gemini #productionGeminiApp .messages .bubble.assistant{background:#fff!important;color:#25384c!important;border:1px solid #e2e9f2!important;box-shadow:0 1px 4px #1a3b6a0a;border-radius:17px!important;font-size:15px!important;line-height:1.48}
+.production-gemini #productionGeminiApp .messages .bubble.user{background:#e5f0ff!important;color:#173f76!important;border:1px solid #d3e5ff!important;box-shadow:none;border-radius:17px!important;font-size:15px!important}
+.production-gemini #productionGeminiApp .messages .bubble.note{background:#f2f3f6!important;border:1px solid #e6e9ee!important;color:#526373!important;border-radius:999px!important;font-size:12px!important}
+.production-gemini #productionGeminiApp .messages .bubble.assistant::before,
+.production-gemini #productionGeminiApp .messages .bubble.user::before{display:none!important}
+.production-gemini #productionGeminiApp .quote{border:1px solid #d5e5f6;background:#fff;color:#25394d;border-radius:18px;padding:15px;box-shadow:0 3px 12px #365a8020}
+.production-gemini #productionGeminiApp .quote h3{color:#174676;font-size:16px}
+.production-gemini #productionGeminiApp .quote .line{font-size:14px;color:#27394f}
+.production-gemini #productionGeminiApp .quote .line span:first-child{color:#4a617b}
+.production-gemini #productionGeminiApp .quote .total{color:#0768cf;font-size:22px}
+.production-gemini #productionGeminiApp .quote .btn.primary,
+.production-gemini #productionGeminiApp .real-submitted-actions button{min-height:47px;background:#096cdb;border:0;border-radius:13px;color:#fff;font-weight:760;font-size:14px}
+.production-gemini #productionGeminiApp .quick-cart{background:#eef6ff;border-top:1px solid #dbe9f5}
+.production-gemini #productionGeminiApp .quick-cart .inline-cart-row{background:#fff;border:1px solid #dfebf5;border-radius:12px;padding:7px;gap:7px}
+.production-gemini #productionGeminiApp .quick-cart .inline-cart-row .suggestion-steps button{background:#096cdb;color:#fff;border:0;border-radius:9px;min-height:37px;font-size:18px}
+.production-gemini #productionGeminiApp .quick-cart .inline-cart-row .suggestion-steps input{background:#fff;color:#173f66;border:1px solid #c9d9e6;min-height:37px;font-size:16px}
+.production-gemini #productionGeminiApp .composer{background:rgba(255,255,255,.98);border-top:1px solid #e5ebf2;box-shadow:0 -2px 10px #20497709}
+.production-gemini #productionGeminiApp .composer textarea{border-radius:15px;border:1px solid #cbd9e8;background:#fff;font-size:16px;line-height:1.45;min-height:46px;color:#15293f}
+.production-gemini #productionGeminiApp .composer .btn.primary{background:#0a6ce0;color:#fff;border-radius:13px;min-height:46px}
+.production-gemini button:focus-visible,.production-gemini input:focus-visible,.production-gemini textarea:focus-visible{outline:3px solid #5bb0ff;outline-offset:2px}
+.production-gemini .history-sheet{background:#fff;color:#1d3045;border:1px solid #dae5ef;border-radius:19px}
+.production-gemini .history-sheet h2{color:#173650}
+.production-gemini .history-close{background:#edf3f8;color:#155697}
+.production-gemini .history-tools label{color:#38516c}
+.production-gemini .history-tools select,.production-gemini .history-tools input{background:#f8fafc;color:#162b45;border:1px solid #cbd8e5;border-radius:12px;min-height:45px}
+.production-gemini .history-caution{font-size:12px;color:#66778b}
+.production-gemini .real-submitted-card{background:#eefaf5;border:1px solid #a6dfc4;box-shadow:none;border-radius:17px;color:#10543d}
+.production-gemini .real-submitted-card>strong{font-size:16px}
+.production-gemini .real-submitted-card p{line-height:1.45}
+.production-gemini .invoice{background:rgba(10,18,30,.62);backdrop-filter:blur(6px)}
+.production-gemini .paper{border-radius:20px;box-shadow:0 24px 60px #001e3640}
+.production-gemini #catalogBackdrop .catalog-sheet{border-radius:22px 22px 0 0}
+.production-gemini #catalogBackdrop .catalog-search{font-size:16px;border-radius:12px}
+.production-gemini #catalogBackdrop .catalog-filter{border-radius:999px}
+.production-gemini #catalogBackdrop .catalog-purchase-row{border-radius:11px;margin:3px 0;padding:10px 9px;gap:10px}
+.production-gemini #catalogBackdrop .catalog-purchase-row .catalog-label{font-size:14px;font-weight:700;line-height:1.4}
+.production-gemini #catalogBackdrop .catalog-purchase-row .catalog-label small{font-size:12px;color:#526981}
+.production-gemini #catalogBackdrop .catalog-purchase-row .real-catalog-stepper button{min-height:44px!important}
+.production-gemini #catalogBackdrop .catalog-purchase-row .real-catalog-stepper input{min-height:44px}
+.production-gemini #catalogBackdrop .catalog-purchase-row:not(.in-cart){border-bottom:1px solid #e8edf4}
+.production-gemini .shop-hero{display:none!important}
+@media(max-width:760px){
+ .production-gemini #productionGeminiApp .chat-head{padding:8px 10px!important;gap:7px}
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar{gap:6px}
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar button,
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #locationsToggle,
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #suggestionsToggle,
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #historyButton,
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #realNewCartButton{font-size:12px!important;padding:5px!important;min-height:42px!important}
+ .production-gemini.real-keyboard-open #productionGeminiApp .chat-head>.catalog-launch-bar{display:none!important}
+ .production-gemini.real-keyboard-open #productionGeminiApp .chat-head{grid-template-rows:auto!important}
+ .production-gemini.real-keyboard-open #productionGeminiApp .chat-head .chat-title h2{font-size:13px}
+ .production-gemini #productionGeminiApp .messages{padding:11px 10px!important}
+ .production-gemini #productionGeminiApp .composer{padding:7px 10px max(7px,env(safe-area-inset-bottom))!important}
+ .production-gemini #catalogBackdrop .catalog-purchase-row .catalog-label{font-size:13.5px}
+}
+@media(prefers-reduced-motion:no-preference){.production-gemini #productionGeminiApp button{transition:background-color .15s ease,transform .14s ease}}
+
 </style>
 </head>
 <body>
