@@ -21,15 +21,16 @@
   let savedRecord=null;
   try{savedRecord=JSON.parse(readSession(submittedStorageKey)||'null')}catch{}
   let submitted=savedRecord?.orderId===clientOrderId&&Number.isSafeInteger(savedRecord.invoiceNo);
-  let confirming=false,submissionUncertain=false;
+  let confirming=false,submissionUncertain=false,persistedInvoiceCount=null;
   const sessionInvoices=new Set(Array.isArray(savedRecord?.invoiceNos)?savedRecord.invoiceNos.filter(Number.isSafeInteger):[]);
   if(Number.isSafeInteger(savedRecord?.invoiceNo))sessionInvoices.add(savedRecord.invoiceNo);
   $('historyButton').textContent='🧾 Hóa đơn ';
   const badge=document.createElement('span');badge.id='submittedInvoiceBadge';badge.className='real-submitted-badge';
   $('historyButton').append(badge);
   function updateInvoiceBadge(){
-   badge.textContent=String(sessionInvoices.size);badge.hidden=sessionInvoices.size===0;
-   $('historyButton').setAttribute('aria-label','Hóa đơn • '+sessionInvoices.size+' đơn đã gửi');
+   const count=Math.max(sessionInvoices.size,persistedInvoiceCount||0);
+   badge.textContent=String(count);badge.hidden=count===0;
+   $('historyButton').setAttribute('aria-label','Hóa đơn • '+count+' hóa đơn đã mua trong tài khoản');
   }
   updateInvoiceBadge();
   function markSubmitted(invoiceNo){
@@ -187,7 +188,7 @@
    (!search||(p.name+' '+p.code).toLocaleLowerCase('vi').includes(search)));
   setText('catalogDescription',currentProducts().length+' sản phẩm từ hệ thống thật • giá sau CK');
   for(const p of arr){
-   const button=document.createElement('button');button.type='button';button.className='catalog-item';
+   const button=document.createElement('div');button.className='catalog-item';button.role='group';button.tabIndex=0;
    const logo=document.createElement('span');logo.className='catalog-icon';logo.textContent=category(p)==='JUICE'?'🍹':'💧';
    const label=document.createElement('span');label.className='catalog-label';label.textContent=p.name;
    const secondary=document.createElement('small');secondary.textContent=cash(p.unitPrice)+' / '+p.unit;label.append(secondary);
@@ -202,8 +203,9 @@
    qty.onchange=()=>apply(Number(qty.value));
    controls.append(down,qty,up);button.append(logo,label,controls);
    button.classList.add('catalog-purchase-row');
-   if(cart.has(p.code)){button.classList.add('in-cart');button.setAttribute('aria-pressed','true')}
+   if(cart.has(p.code)){button.classList.add('in-cart');button.dataset.selected='true'}
    button.onclick=e=>{if(e.target.closest('.real-catalog-stepper'))return;apply((cart.get(p.code)?.qty||0)+1)};
+   button.onkeydown=e=>{if(e.target===button&&(e.key==='Enter'||e.key===' ')){e.preventDefault();apply((cart.get(p.code)?.qty||0)+1)}};
    root.append(button);
   }
   if(!arr.length){const p=document.createElement('p');p.className='catalog-empty';p.textContent='Không tìm thấy sản phẩm phù hợp.';root.append(p)}
@@ -334,6 +336,8 @@
   // This is the actual original Gemini UI, not a second re-implemented
   // CSS/HTML shell. Only the backend adapter differs.
   $('quickCart').hidden=true;
+  // Restore Drive account history immediately after PIN authentication.
+  void loadInvoiceHistory(false);
  }
  $('realOpen').onclick=async()=>{
   if(requestsBusy)return;disabledBusy(true);
@@ -402,7 +406,7 @@
   const delivery=document.createElement('p');delivery.className='mini';
   delivery.textContent='📍 '+q.customer.name+' • '+q.customer.location;box.append(delivery);
   const confirm=document.createElement('button');confirm.type='button';confirm.className='btn primary live-real-confirm';
-  confirm.textContent='✅ Xác nhận tạo MỘT hóa đơn thật';
+  confirm.textContent='📤 GỬI ĐƠN HÀNG THẬT • CHƯA GỬI';
   confirm.onclick=async()=>{
    if(requestsBusy||confirming||submitted||submissionUncertain||!quoteToken)return;
    if(!window.confirm('Gửi MỘT hóa đơn thật? Nút xác nhận sẽ khóa để chống gửi trùng.'))return;
@@ -478,14 +482,15 @@
    card.append(title,status,receiver,items,open);root.append(card);
   }
  }
- async function loadInvoiceHistory(){
-  $('historyBackdrop').classList.add('open');
+ async function loadInvoiceHistory(openPanel=true){
+  if(openPanel)$('historyBackdrop').classList.add('open');
   setText('historyCount','Đang đọc hóa đơn thật từ Google Drive…');
   try{
    const d=await call('/api/real/history');
    if(!Array.isArray(d.orders)||!Number.isSafeInteger(d.revision))
     throw Error('Nguồn lịch sử không hợp lệ.');
    historyOrders=d.orders;historyIncomplete=!d.complete;
+   persistedInvoiceCount=d.orders.length;updateInvoiceBadge();
    const months=[...new Set(historyOrders.map(o=>{
     const m=String(o.date||'').match(/(?:\d{1,2}\/)?(\d{1,2})\/(\d{4})$/);
     return m?m[2]+'-'+m[1].padStart(2,'0'):'';
