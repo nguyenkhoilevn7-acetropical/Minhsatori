@@ -210,7 +210,7 @@
   // Read operations must not disable the entire app forever after a stalled connection.
   // /confirm can have side effects: timeout is UNCERTAIN, never automatically retry.
   const ms=endpoint==='/api/real/confirm'?60000:
-   endpoint==='/api/real/history'?45000:22000;
+   endpoint==='/api/real/history'||endpoint==='/api/real/receipt-status'?45000:22000;
   const ctrl=typeof AbortController==='function'?new AbortController():null;
   const timer=ctrl&&typeof setTimeout==='function'?
    setTimeout(()=>ctrl.abort(),ms):null;
@@ -800,10 +800,14 @@
   }
   forgetVerifiedMissing(missing);
  }
+ let receiptStatusCursor=0;
  async function checkIndividualInvoiceStatuses(){
-  const invoiceNos=[...new Set([...sessionInvoices,
-   ...cachedHistory.map(o=>o.invoiceNo)])].filter(validNo).slice(-12);
-  if(!invoiceNos.length)return false;
+  const all=[...new Set([...sessionInvoices,
+   ...cachedHistory.map(o=>o.invoiceNo)])].filter(validNo);
+  if(!all.length)return false;
+  if(receiptStatusCursor>=all.length)receiptStatusCursor=0;
+  const invoiceNos=all.slice(receiptStatusCursor,receiptStatusCursor+6);
+  receiptStatusCursor=(receiptStatusCursor+6)%all.length;
   const result=await call('/api/real/receipt-status',{invoiceNos});
   if(result?.complete!==true||!Number.isSafeInteger(result.revision)||
      !Array.isArray(result.checks)||result.checks.length!==invoiceNos.length||
