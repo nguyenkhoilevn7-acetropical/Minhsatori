@@ -399,7 +399,10 @@ test('PDF same as website and real owner-only order notification; no 0đ summary
  assert.match(code,/await readMinhSatori\('orders\.list'/);
  assert.match(code,/const official=await renderOriginalWebsitePdf\(canonical\)/,
   'no new PDF template, use exact website renderer');
- assert.match(frontend,/await showReceipt\(\)/,'show PDF immediately after real write');
+ assert.match(frontend,/showOrderOverview\(saved\.invoiceNo\)/,
+  'show confirmed order overview immediately after real Drive write');
+ assert.doesNotMatch(frontend,/await showReceipt\(\)/,
+  'a slow canonical PDF must never delay the immediate customer success screen');
  assert.match(frontend,/fetch\('\/api\/real\/pdf'/);
  assert.match(frontend,/frame\.src=pdfObjectUrl/);
  assert.match(frontend,/blob\.type!=='application\/pdf'/);
@@ -572,4 +575,22 @@ test('production account UI auto-loads Drive history on PIN login, not localStor
  assert.match(client,/real-catalog-stepper/);
  assert.match(client,/clientOrderId/);
  new vm.Script(client,{filename:'production-verified-customer-account.js'});
+});
+
+test('iPhone-like checkout regression: one cart button with quantity badge, red X and tap-chat close',()=>{
+ const client=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
+ const shell=readFileSync(new URL('../production-gemini-shell.mjs',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ assert.match(client,/\$\('quickCartNew'\)\.hidden=true/,'remove duplicate bottom new-cart');
+ assert.match(client,/real-cart-count/,'show quantity count in right-side icon');
+ assert.match(client,/cartClose\.onclick=\(\)=>\{cartCollapsed=true;updateCart\(\)\}/);
+ assert.match(client,/\$\('messages'\)\.addEventListener\('click'/);
+ assert.match(client,/real-keyboard-open/,'resize when Samsung keyboard appears');
+ assert.match(css,/\.production-gemini #productionGeminiApp \.quick-cart #realCartClose/);
+ assert.match(css,/background:#076dd8!important;color:#fff!important/,'stepper must have visible blue backgrounds and white glyphs');
+ assert.match(client,/void loadInvoiceHistory\(false\)/,'loading official history must not block checkout');
+ assert.match(client,/function showOrderOverview\(/,'instant receipt without PDF');
+ assert.match(client,/historyPromise/,'deduplicate slow account history fetch');
+ assert.match(shell,/production-gemini/);
+ new vm.Script(client,{filename:'mobile-real-checkout.js'});
 });
