@@ -169,9 +169,11 @@ class NativeMainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED) return
+        if (!getPreferences(MODE_PRIVATE).getBoolean("satori_live_notifications", false)) return
+        @Suppress("DEPRECATION")
         val notification = if (Build.VERSION.SDK_INT >= 26)
             Notification.Builder(this, newOrderChannelId)
-        else @Suppress("DEPRECATION") Notification.Builder(this)
+        else Notification.Builder(this)
         notification.setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("Minh Satori • " + added.size + " hóa đơn mới")
             .setContentText("Hóa đơn #" + added.first().number + " • " +
@@ -614,7 +616,34 @@ class NativeMainActivity : AppCompatActivity() {
             isFocusable = true
             setOnClickListener { refreshNow() }
         }
-        brand.addView(refreshButton, LinearLayout.LayoutParams(dp(88), dp(46)))
+        brand.addView(refreshButton, LinearLayout.LayoutParams(dp(77), dp(46)))
+        val bellButton = TextView(this).apply {
+            text = if (getPreferences(MODE_PRIVATE).getBoolean(
+                    "satori_live_notifications", false)) "🔔" else "🔕"
+            textSize = 20f
+            gravity = Gravity.CENTER
+            setTextColor(white)
+            contentDescription = "Bật hoặc tắt thông báo hóa đơn thật mới"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                val existing = getPreferences(MODE_PRIVATE).getBoolean(
+                    "satori_live_notifications", false)
+                val enabled = !existing
+                getPreferences(MODE_PRIVATE).edit().putBoolean(
+                    "satori_live_notifications", enabled).apply()
+                if (enabled && Build.VERSION.SDK_INT >= 33 &&
+                    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                        PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5201)
+                }
+                Toast.makeText(this@NativeMainActivity, if (enabled)
+                    "Đã bật thông báo đơn thật khi dữ liệu đồng bộ được." else
+                    "Đã tắt thông báo đơn mới.", Toast.LENGTH_SHORT).show()
+                render()
+            }
+        }
+        brand.addView(bellButton, LinearLayout.LayoutParams(dp(34), dp(46)))
         val options = TextView(this).apply {
             text = "⚙"
             textSize = 23f
