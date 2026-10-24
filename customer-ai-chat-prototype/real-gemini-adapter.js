@@ -268,7 +268,7 @@
   $('quickCartEdit').replaceChildren();
   const cartIcon=document.createElement('span');cartIcon.className='real-cart-icon';cartIcon.textContent='🛒';
   const cartBadge=document.createElement('strong');cartBadge.className='real-cart-count';cartBadge.textContent=String(count);
-  $('quickCartEdit').append(cartIcon,cartBadge);
+  $('quickCartEdit').append(cartBadge,cartIcon);
   $('quickCartEdit').title='🛒 '+count+' sản phẩm trong giỏ';
   $('quickCartEdit').disabled=!entries.length;
   $('quickCartEdit').setAttribute('aria-label','Giỏ hàng, '+count+' sản phẩm. '+(cartCollapsed?'Mở':'Đang mở'));
