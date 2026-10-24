@@ -178,6 +178,10 @@ export function createProductionPrivateLinks({
   const token=seal(invite,'customer-invite');
   return {ok:true,production:true,oneLocationPerLink:!multi,agencyLink:multi,
    deliveryLocations:approved.length,
+   issuedAt:new Date(invite.issuedAt).toISOString(),
+   recipients:approved.map(x=>({customerRef:x.customerRef,name:x.name,
+    phone:x.phone,location:x.location,discountPercent:x.discountPercent})),
+   shippingPercent:invite.shippingPercent,vatPercent:invite.vatPercent,
    link:origin.replace(/\/$/,'')+'/real/#'+token,
    accessCode,expiresAt:new Date(invite.expiresAt).toISOString(),
    ...(multi?{agentName:input.agentName}:{customer:{name:approved[0].name,location:approved[0].location,sourceInvoiceNo:input.customerRef.invoiceNo}}),
