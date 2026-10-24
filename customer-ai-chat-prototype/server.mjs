@@ -32,6 +32,7 @@ import {createProductionPrivateLinks} from './production-private-links.mjs';
 import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence,directorySourceQuery} from './owner-customer-directory.mjs';
+import {renderOriginalGeminiProduction} from './production-gemini-shell.mjs';
 import {ownerSelectedLocations,selectedLocationEvidence} from './owner-approved-location-refs.mjs';
 import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
@@ -317,7 +318,12 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&(p==='/real'||p==='/real/')){
   if(!realPrivateLinks.readiness().configured)
    return fail(res,503,'REAL_LINKS_NOT_ENABLED','Chưa bật link khách thật.');
-  const html=fs.readFileSync(path.join(HERE,'real-checkout.html'),'utf8');
+  // The original index.html owns ALL mobile Gemini UI markup and CSS.
+  // Replace only its sandbox controller with a sealed-link Production adapter;
+  // never maintain a second checkout layout or reuse demo API endpoints.
+  const html=renderOriginalGeminiProduction(
+   fs.readFileSync(path.join(HERE,'index.html'),'utf8'),
+   fs.readFileSync(path.join(HERE,'real-gemini-adapter.js'),'utf8'));
   res.writeHead(200,{'content-type':'text/html; charset=utf-8',
    'cache-control':'no-store','referrer-policy':'no-referrer',
    'x-content-type-options':'nosniff','x-frame-options':'DENY',
