@@ -81,6 +81,23 @@ assert.equal(forbidden.ready,false);
 assert.equal(forbidden.reason,'FORBIDDEN');
 assert.equal(JSON.stringify(forbidden).includes('upstream'),false);
 assert.equal((await probeOwnerPairRead({...opts,env:{}})).reason,'CTV_PAIR_NOT_CONFIGURED');
+// Upstream HTTP denials must be actionable and must never disclose response
+// bodies or credentials; no Bot API writes occur in these offline probes.
+for(const [status,code] of [
+ [403,'CTV_PAIR_UPSTREAM_AUTH_DENIED'],
+ [404,'CTV_PAIR_UPSTREAM_DEPLOYMENT_INVALID'],
+ [429,'CTV_PAIR_UPSTREAM_THROTTLED'],
+ [503,'CTV_PAIR_UPSTREAM_SERVER_ERROR']
+]){
+ await assert.rejects(
+  ()=>ownerPairAction('collaborators.pair.configure',config,{
+   ...opts,env:{...env,SATORI_CTV_PAIR_CONFIG_ENABLED:'1'},
+   fetcher:async()=>({ok:false,status,
+    text:async()=>secret+' SHOULD NEVER BE READ'})
+  }),
+  e=>e?.code===code&&!String(e).includes(secret)
+ );
+}
 const server=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
 assert.ok(server.includes("p==='/api/admin/collaborator-pairs/readiness'"));
 assert.ok(server.includes("SATORI_CTV_CONFIGURATION_READINESS"),'startup must report credential readiness without secrets');
