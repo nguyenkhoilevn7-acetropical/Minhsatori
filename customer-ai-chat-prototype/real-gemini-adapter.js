@@ -106,15 +106,17 @@
   const badge=document.createElement('span');badge.id='submittedInvoiceBadge';badge.className='real-submitted-badge';
   $('historyButton').append(badge);
   function updateInvoiceBadge(){
-   const known=new Set(historyOrders.map(o=>o.invoiceNo));
-   for(const invoiceNo of sessionInvoices)known.add(invoiceNo);
-   if(persistedInvoiceCount===null||historyError||historyIncomplete)
-    for(const item of cachedHistory)known.add(item.invoiceNo);
-   const total=known.size;
-   historyLabel.textContent='🧾 Hóa đơn'+(persistedInvoiceCount!==null?' ('+total+')':'');
-   badge.textContent=String(unreadInvoices.size);badge.hidden=unreadInvoices.size===0;
-   $('historyButton').setAttribute('aria-label','Hóa đơn • '+total+' hóa đơn đã mua, '+unreadInvoices.size+' đơn mới chưa xem');
-  }
+  // Never include stale locally remembered invoices in an active Drive count.
+  const verified=!historyError&&persistedInvoiceCount!==null;
+  const known=new Set(verified?historyOrders.map(o=>o.invoiceNo):[]);
+  const unread=[...unreadInvoices].filter(no=>known.has(no)||
+   (!historyError&&Date.now()-(recentReceipts.get(no)?.confirmedAt||0)<45000));
+  historyLabel.textContent='🧾 Hóa đơn'+(verified?' ('+known.size+')':'');
+  badge.textContent=String(unread.length);badge.hidden=unread.length===0;
+  $('historyButton').setAttribute('aria-label',verified?
+   'Hóa đơn • '+known.size+' hóa đơn đã xác minh':
+   'Hóa đơn • đang chờ xác minh từ Google Drive');
+ }
   updateInvoiceBadge();
   function markSubmitted(invoiceNo,quote,saved){
    submitted=true;submissionUncertain=false;sessionInvoices.add(invoiceNo);unreadInvoices.add(invoiceNo);
@@ -827,16 +829,22 @@
   const root=$('historyItems');root.replaceChildren();
   const month=$('historyMonth').value,term=($('historySearch').value||'').trim().toLocaleLowerCase('vi'),
    state=$('historyStatus')?.value||'';
-  const rows=historyOrders.filter(o=>
+  const verified=!historyError&&persistedInvoiceCount!==null;
+  const rows=(verified?historyOrders:[]).filter(o=>
    (!month||((()=>{const v=String(o.date||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return v?v[3]+'-'+v[2].padStart(2,'0'):String(o.date).slice(0,7)})())===month)&&
    (!state||(state==='paid'&&o.paid)||(state==='unpaid'&&!o.paid))&&
    (!term||String(o.invoiceNo).includes(term)||[o.name,o.location,o.phone,...o.items.map(i=>i.product)]
      .join(' ').toLocaleLowerCase('vi').includes(term)));
-  setText('historyCount',rows.length+' hóa đơn phù hợp'+
-   (historyIncomplete?' • dữ liệu chưa đầy đủ':'')+' • Google Drive');
-  if(!rows.length&&sessionInvoices.size===0&&(!cachedHistory.length||!historyError&&!historyIncomplete&&persistedInvoiceCount!==null)){const p=document.createElement('p');p.className='mini';
-   p.textContent=historyOrders.length?'Không có hóa đơn phù hợp bộ lọc.':'Chưa có hóa đơn nào được xác minh trong phạm vi link.';
-   root.append(p);}
+  setText('historyCount',verified?
+   rows.length+' hóa đơn phù hợp'+(historyIncomplete?' • dữ liệu chưa đầy đủ':'')+' • Google Drive':
+   'Chưa xác minh được hóa đơn hiện hành trên Google Drive');
+  if(!rows.length){
+   const p=document.createElement('p');p.className='mini';
+   p.textContent=!verified?
+    'Lịch sử hiện hành chưa tải được. Đơn lưu tạm đang được ẩn để tránh nhầm với hóa đơn đã xóa.':
+    historyOrders.length?'Không có hóa đơn phù hợp bộ lọc.':'Không có hóa đơn đang hoạt động trong phạm vi link.';
+   root.append(p);
+  }
   for(const o of rows){
    const card=document.createElement('article');card.className='real-history-order';
    const title=document.createElement('strong');title.textContent='🧾 #'+o.invoiceNo+' • '+placedLabel(o);
@@ -862,48 +870,11 @@
    const actions=document.createElement('div');actions.className='real-history-actions';
    actions.append(open,download);card.append(title,status,receiver,items,actions);root.append(card);
   }
-  // Immediate acknowledgement is based only on verified /api/real/confirm.
-  // Show it while the official Drive history and PDF are still loading.
-  const fromDrive=new Set(historyOrders.map(o=>Number(o.invoiceNo)));
-  const showUnverified=!!historyError||historyIncomplete||persistedInvoiceCount===null;
-  // Only metadata from a previous full Drive snapshot; no stale PDF actions.
-  if(showUnverified){
-   for(const old of cachedHistory){
-    if(fromDrive.has(old.invoiceNo)||sessionInvoices.has(old.invoiceNo)||
-       (term&&!String(old.invoiceNo).includes(term))||
-       (month&&!String(old.date).includes(month.slice(0,4)))||state)continue;
-    const card=document.createElement('article');card.className='real-history-order pending';
-    const title=document.createElement('strong');
-    title.textContent='🧾 #'+old.invoiceNo+' • '+cash(old.total)+' • Chờ đối chiếu';
-    const note=document.createElement('small');note.className='real-history-status';
-    note.textContent='Đã từng đọc từ Google Drive. Chưa xác minh thay đổi mới; hóa đơn có thể đã sửa hoặc xóa trên website.';
-    card.append(title,note);root.append(card);
-   }
-  }
-  for(const invoiceNo of [...sessionInvoices].filter(n=>!fromDrive.has(n)).reverse()){
-   const latest=recentReceipts.get(invoiceNo);
-   const justSaved=latest&&Date.now()-latest.confirmedAt<45000&&!historyError;
-   const overview=savedRecord?.overview?.invoiceNo===invoiceNo?savedRecord.overview:null;
-   const card=document.createElement('article');card.className='real-history-order pending';
-   const head=document.createElement('strong');
-   head.textContent=justSaved?
-    '✓ Vừa ghi nhận đơn #'+invoiceNo+(overview?' • '+cash(overview.total):''):
-    '🧾 #'+invoiceNo+' • Chưa xác minh trạng thái';
-   const hint=document.createElement('small');hint.className='real-history-status';
-   hint.textContent=justSaved?
-    'Đã xác nhận nhận đơn. Đang kiểm tra sổ Google Drive.':
-    'Đang đối chiếu với sổ Google Drive; đơn có thể đã được xóa trên website.';
-   card.append(head,hint);
-   if(justSaved){
-    const view=document.createElement('button');view.type='button';view.textContent='Xem phiếu xác nhận';
-    view.onclick=()=>{$('historyBackdrop').classList.remove('open');showOrderOverview(invoiceNo)};
-    card.append(view);
-   }
-   root.prepend(card);
-  }
+  // No local/session receipt cards here: authoritative ledger only.
+  // Keep idempotency metadata separately for safe retries.
   if(historyError){
    const msg=document.createElement('p');msg.className='real-history-loading';
-   msg.textContent='⚠ Chưa tải được lịch sử mới từ Drive: '+historyError+'. Các đơn đã xác nhận vẫn được giữ. Bấm Làm mới để thử lại.';
+   msg.textContent='⚠ Chưa đọc được lịch sử hiện hành từ Drive: '+historyError+'. Các hóa đơn lưu trên thiết bị tạm ẩn khỏi danh sách.';
    root.prepend(msg);
   }
  }
@@ -913,8 +884,12 @@
    $('historyBackdrop').classList.add('open');
    unreadInvoices.clear();writeSession(unreadKey,'[]');updateInvoiceBadge();
   }
-  // Show previously confirmed invoices without waiting for Drive, even on failure.
-  renderInvoiceHistory();
+  // Await the canonical source, rather than flashing stale local receipts.
+  if(!historyPromise){
+   historyError='Đang xác minh dữ liệu';
+   persistedInvoiceCount=null;
+   renderInvoiceHistory();
+  }
   if(historyPromise){await historyPromise;return}
   if(!force&&historyLastLoaded&&Date.now()-historyLastLoaded<45000)return;
   setText('historyCount','Đang đồng bộ lịch sử từ Google Drive…');
@@ -946,6 +921,8 @@
    historyError=e.message||'Không kết nối được Google Drive';
    // Full history errors do not prove deletion. Verify exact invoice IDs.
    try{await checkIndividualInvoiceStatuses()}catch{}
+   historyOrders=[];persistedInvoiceCount=null;historyIncomplete=true;
+   updateInvoiceBadge();
    rootHistoryError(historyError);
   }
   })();
@@ -954,7 +931,7 @@
  function rootHistoryError(message){
   historyError=message;
   renderInvoiceHistory();
-  setText('historyCount','Chưa xác minh lịch sử Drive • đơn lưu tạm không phải hóa đơn đang hoạt động');
+  setText('historyCount','Chưa xác minh lịch sử Drive • đang ẩn hóa đơn lưu tạm');
  }
  function invoiceLine(label,value,css=''){
   const row=document.createElement('div');row.className='real-invoice-line '+css;
