@@ -109,6 +109,7 @@ button:disabled{opacity:.55}
  <button type="button" class="admin-tab active" data-admin-tab="orders" aria-pressed="true">🔔 Đơn hàng</button>
  <button type="button" class="admin-tab" data-admin-tab="live" aria-pressed="false">📚 Dữ liệu thật</button>
  <button type="button" class="admin-tab" data-admin-tab="customers" aria-pressed="false">👥 Khách hàng</button>
+ <button type="button" class="admin-tab" data-admin-tab="ctv-ledger" aria-pressed="false">📊 Bảng CTV</button>
  <button type="button" class="admin-tab" data-admin-tab="changes" aria-pressed="false">📬 Yêu cầu</button>
  <button type="button" class="admin-tab" data-admin-tab="settings" aria-pressed="false">⚙️ Cài đặt</button>
 </nav>
@@ -165,7 +166,17 @@ button:disabled{opacity:.55}
  <p class="hint">Nút đánh dấu chỉ dùng trong phiên đang mở, không lưu phê duyệt vĩnh viễn. Để cấp link thật cần xác minh danh tính, giá và lưu trữ an toàn; không sử dụng form link THỬ để cấp cho khách thật.</p>
 </details>
 </section>
-<section class="card" data-tab-panel="customers" hidden id="collaboratorPairAdmin">
+<section class="card" data-tab-panel="ctv-ledger" hidden id="independentCtvLedger">
+<h2>📊 Người nhận &amp; tính hoa hồng CTV • Google Drive</h2>
+<p class="hint">Bảng tính riêng biệt, không can thiệp vào link đang cấp, giá đặt hàng, giỏ hay hóa đơn. Anh nhập mức CK cho từng khách, và mức CK đối soát CTV riêng tùy ý; <strong>không mặc định 20% hoặc 35%</strong>.</p>
+<p><a class="secondary" href="https://docs.google.com/spreadsheets/d/1gCHmXCSz4yrcIklFP75L9vfyDQFJGN4_ia_ICpYXz1c/edit" target="_blank" rel="noopener noreferrer">↗ Mở bảng tính CTV trên Google Drive</a></p>
+<p><strong>Tab “Người nhận CTV”:</strong> chọn cộng tác viên, thêm tên người nhận mới, điện thoại, địa chỉ giao, CK khách (%) và CK CTV (%). Mỗi dòng là một người nhận; mọi mức phần trăm đều do anh tự điền, không có giá trị mặc định.</p>
+<p><strong>Tab “Bảng tính hoa hồng”:</strong> nhập giá niêm yết, số lượng, CK khách và CK CTV, hệ thống tự tính giá khách, giá đối soát và số tiền chênh lệch theo từng sản phẩm.</p>
+<p class="warning"><strong>Giới hạn hiện tại:</strong> sửa bảng Drive không thay đổi link đã cấp, nhưng cũng <strong>chưa tự bổ sung người nhận vào link cũ</strong>. Link hiện tại chứa danh sách điểm giao cố định. Để thêm địa chỉ trực tiếp qua cùng link cần chuyển sang danh sách điểm giao lưu bền vững ở backend và duyệt quyền tạo người nhận mới; tuyệt đối không lưu tạm trên Render Free rồi báo thành công.</p>
+</section>
+<!-- Kept for backwards-compatible JS initialization, but no longer shown to
+     owner; legacy two-invoice workflow is retired in favor of separate Drive sheet. -->
+<section class="card" data-tab-panel="customers" hidden id="collaboratorPairAdmin" style="display:none!important" aria-hidden="true">
 <h2>👥 Cộng tác viên (CTV) · Quản lý trên sổ thật</h2>
 <p class="hint">Một đơn thật → hóa đơn khách và hóa đơn đối soát CTV liên kết. Anh là người duy nhất quyết định BẬT/TẮT và mức chiết khấu; không chờ bên thứ ba duyệt. BẬT chỉ thành công sau khi máy chủ xác minh dữ liệu trên Google Drive. Chương trình chưa bật sẽ không tạo hóa đơn đôi.</p>
 <p><button type="button" id="pairRefresh" class="secondary">↻ Đọc cấu hình thật</button></p>
@@ -262,7 +273,7 @@ button:disabled{opacity:.55}
 <button type="button" class="secondary" id="agencyRealCopyCode">Sao chép mã truy cập</button>
 </div>
 </section>
-<section class="card" data-tab-panel="customers" hidden id="customerManagement"><details id="regularCustomerPanel"><summary><strong>👤 Hồ sơ khách thường & điểm giao (không phải CTV)</strong></summary><p class="hint">Đây là hồ sơ khách thường. Chuyển khách thành CTV trong bảng Cộng tác viên ở phía trên; không tạo khách mới.</p>
+<section class="card" data-tab-panel="customers" hidden id="customerManagement"><details id="regularCustomerPanel"><summary><strong>👤 Hồ sơ khách thường & điểm giao (không phải CTV)</strong></summary><p class="hint">Hồ sơ khách hàng và các điểm giao nguồn dùng để cấp link thật. Bảng tính hoa hồng CTV được quản lý riêng ở tab “Bảng CTV”; không tác động đến link.</p>
 <form id="create">
 <label for="customerSearch">Tìm khách trong sổ kế toán thật hoặc hồ sơ thử</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
 <p id="customerHelp" class="hint">Chọn hồ sơ từ gợi ý để tự điền thông tin. Danh sách tự lấy tên từ 3 tháng gần nhất trong sổ kế toán thật, hoặc tìm theo tên nếu khách lâu chưa mua. Mọi địa chỉ thật chỉ được xem sau đăng nhập quản trị.</p>
