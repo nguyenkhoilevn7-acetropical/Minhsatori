@@ -32,6 +32,7 @@ import {createOriginalPdfGateway} from './original-pdf-gateway.mjs';
 import {renderOriginalWebsitePdf} from './original-website-pdf.mjs';
 import {createProductionPrivateLinks} from './production-private-links.mjs';
 import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
+import {createIssuedLinksRegistry} from './issued-links-registry.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence,directorySourceQuery} from './owner-customer-directory.mjs';
 import {renderOriginalGeminiProduction} from './production-gemini-shell.mjs';
@@ -51,6 +52,7 @@ const EMERGENCY_PREVIEW=process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1';
 const OWNER_ONLY_PILOT=process.env.GEMINI_OWNER_ONLY_REAL_PILOT==='1';
 const ownerInvoice=createOwnerRealInvoice();
 const ownerPdfGateway=createOriginalPdfGateway();
+const issuedLinks=createIssuedLinksRegistry({bot:(action,payload)=>ownerInvoice.bot(action,payload)});
 const realPrivateLinks=createProductionPrivateLinks({
  source:ownerInvoice.source,bot:ownerInvoice.bot,
  // Both transports are independently HMAC-protected and read only here.
@@ -82,6 +84,16 @@ const ctvSingleLink=createCollaboratorSingleLink({
   return result.data.orders;
  }
 });
+async function issueAndStoreCtvLink(input){
+ const invitation=await ctvSingleLink.issue(input);
+ const snap=await ctvSingleLink.directorySnapshot(invitation.collaboratorId);
+ const saved=await issuedLinks.register({
+  kind:'collaborator',name:snap.name,collaboratorId:snap.collaboratorId,
+  link:invitation.url,recipients:snap.recipients,
+  shippingPercent:snap.shippingPercent,vatPercent:snap.vatPercent
+ });
+ return {...invitation,registrySaved:true,registryId:saved.id};
+}
 const DATA_DIR=path.resolve(process.env.DEMO_DATA_DIR||path.join(os.tmpdir(),'minh-satori-customer-chat-SANDBOX'));
 fs.mkdirSync(DATA_DIR,{recursive:true});
 const DATA_FILE=path.join(DATA_DIR,'orders.json');
@@ -356,7 +368,7 @@ const server=http.createServer(async(req,res)=>{
   if(!rateLimit(req,'owner-ctv-link-issue'))return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
   try{
    const input=await bodyJSON(req,1024);
-   return reply(res,200,{ok:true,...await ctvSingleLink.issue(input)});
+   return reply(res,200,{ok:true,...await issueAndStoreCtvLink(input)});
   }catch(e){return fail(res,409,e?.code||'CTV_LINK_ISSUE_FAILED',
    'CTV chưa được phê duyệt đầy đủ hoặc Bot API chưa có quyền; chưa cấp link.')}
  }
@@ -383,10 +395,27 @@ const server=http.createServer(async(req,res)=>{
     'Yêu cầu bị từ chối: kiểm tra quyền CTV, điểm giao hoặc báo giá.');
   }
  }
+ if(p==='/api/admin/issued-links'&&req.method==='GET'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được xem link đã cấp.');
+  if(!rateLimit(req,'owner-issued-links-read'))
+   return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
+  try{
+   const offset=Number(u.searchParams.get('offset')||0);
+   const limit=Number(u.searchParams.get('limit')||8);
+   const data=await issuedLinks.list({offset,limit});
+   return reply(res,200,{ok:true,source:'drive-ledger:satori_issued_links_v1',...data});
+  }catch(e){
+   return fail(res,503,e?.code||'LINK_REGISTRY_NOT_READY',
+    'Sổ link Drive chưa được triển khai hoặc không đọc được. Không dùng danh sách tạm.');
+  }
+ }
  if(p==='/api/admin/real-links/readiness'&&req.method==='GET'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Yêu cầu đăng nhập chủ tài khoản.');
-  return reply(res,200,{ok:true,...realPrivateLinks.readiness()});
+  let registryReady=false;
+  try{await issuedLinks.list({limit:1});registryReady=true}catch{}
+  return reply(res,200,{ok:true,...realPrivateLinks.readiness(),registryReady});
  }
  if(p==='/api/admin/real-links/issue'&&req.method==='POST'){
   if(!customerLinks.adminAuthorized(req))
@@ -395,8 +424,17 @@ const server=http.createServer(async(req,res)=>{
    return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
   try{
    const input=await bodyJSON(req,12000);
+   await issuedLinks.list({limit:1}); // reject before issuance if Drive registry is unavailable
    const result=await realPrivateLinks.issue(input);
-   return reply(res,200,result);
+   const saved=await issuedLinks.register({
+    kind:result.agencyLink?'agency':'customer',
+    name:result.agentName||result.customer?.name,
+    link:result.link,recipients:result.recipients,
+    issuedAt:result.issuedAt,expiresAt:result.expiresAt,
+    shippingPercent:result.shippingPercent,vatPercent:result.vatPercent
+   });
+   const {recipients,issuedAt,shippingPercent,vatPercent,...response}=result;
+   return reply(res,200,{...response,registrySaved:true,registryId:saved.id});
   }catch(e){
    return fail(res,409,e?.code||'REAL_LINK_ISSUE_FAILED',
     'Không cấp được link: cần đúng hóa đơn gốc, địa chỉ và giá chủ tài khoản duyệt.');
@@ -731,7 +769,7 @@ const server=http.createServer(async(req,res)=>{
     shippingPercent:input.shippingPercent,vatPercent:input.vatPercent
    });
    let invitation=null;
-   try{invitation=await ctvSingleLink.issue({collaboratorId:marked.collaboratorId})}
+   try{invitation=await issueAndStoreCtvLink({collaboratorId:marked.collaboratorId})}
    catch{} // A policy can be approved before link/read/write launch gates are ready.
    return reply(res,200,{ok:true,production:true,collaboratorId:marked.collaboratorId,
     revision:configured.revision,authorizedDestinations:destinations.length,
