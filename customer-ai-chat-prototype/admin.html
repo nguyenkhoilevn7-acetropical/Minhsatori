@@ -228,17 +228,7 @@ button:disabled{opacity:.55}
   <p id="ctvDraftStatus" class="hint" role="status"></p>
   <div id="ctvReceiversLive" class="directory-grid"></div>
  </div>
- <div class="ctv-add-box">
-  <strong>🧮 Tính tiền khách và chênh lệch CTV</strong>
-  <p class="hint">Giá sản phẩm được đọc từ Production; VAT và phí giao không nằm trong khoản chênh lệch.</p>
-  <div class="location-form">
-   <label>Sản phẩm<select id="ctvLiveProduct"><option value="">— Nạp giá thật trước —</option></select></label>
-   <label>Số lượng<input id="ctvLiveQty" type="number" min="1" max="500" step="1" value="1"></label>
-  </div>
-  <button type="button" id="ctvCalculateLive">Tính theo chiết khấu đã nhập</button>
-  <div id="ctvLiveResult" class="ctv-save-status" role="status"></div>
- </div>
- <p class="warning"><strong>Giới hạn ghi dữ liệu:</strong> Bảng này đã đọc giá thật và tính được ngay trong Production, nhưng người nhận nhập ở đây vẫn là <strong>bản nháp trong phiên</strong>, chưa ghi vào Google Drive. Cơ chế cập nhật cùng link cũ vẫn cần API lưu người nhận bền vững có kiểm soát. Không thông báo “đã lưu” khi thực tế chưa lưu.</p>
+ <p class="warning"><strong>Giới hạn ghi dữ liệu:</strong> Thông tin người nhận thêm ở đây vẫn là <strong>bản nháp trong phiên</strong>, chưa ghi vào Google Drive. Cơ chế cập nhật cùng link cũ vẫn cần API lưu người nhận bền vững có kiểm soát. Không thông báo “đã lưu” khi thực tế chưa lưu.</p>
 </section>
 <!-- Kept for backwards-compatible JS initialization, but no longer shown to
      owner; legacy two-invoice workflow is retired in favor of separate Drive sheet. -->
@@ -357,7 +347,7 @@ button:disabled{opacity:.55}
 <button type="button" class="secondary" id="agencyRealCopyCode">Sao chép mã truy cập</button>
 </div>
 </section>
-<section class="card" data-tab-panel="customers" hidden id="customerManagement" aria-hidden="true"><details id="regularCustomerPanel"><summary><strong>👤 Hồ sơ khách thường & điểm giao (không phải CTV)</strong></summary><p class="hint">Hồ sơ khách hàng và các điểm giao nguồn dùng để cấp link thật. Bảng tính hoa hồng CTV được quản lý riêng ở tab “Bảng CTV”; không tác động đến link.</p>
+<section class="card" data-tab-panel="customers" hidden id="customerManagement" aria-hidden="true"><details id="regularCustomerPanel"><summary><strong>👤 Hồ sơ khách thường & điểm giao (không phải CTV)</strong></summary><p class="hint">Hồ sơ khách hàng và các điểm giao nguồn dùng để cấp link thật. Bảng đối soát CTV được quản lý riêng ở tab “Bảng CTV”; không tác động đến link.</p>
 <form id="create">
 <label for="customerSearch">Tìm khách trong sổ kế toán thật hoặc hồ sơ thử</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
 <p id="customerHelp" class="hint">Chọn hồ sơ từ gợi ý để tự điền thông tin. Danh sách tự lấy tên từ 3 tháng gần nhất trong sổ kế toán thật, hoặc tìm theo tên nếu khách lâu chưa mua. Mọi địa chỉ thật chỉ được xem sau đăng nhập quản trị.</p>
@@ -981,16 +971,14 @@ $('pairSave').onclick=async()=>{
  }finally{button.disabled=false}
 };
 
-let ctvCatalogueProducts=new Map(),ctvReceiverDrafts=[];
+let ctvCatalogueLoaded=false,ctvReceiverDrafts=[];
 async function loadCtvLive(){
  $('ctvLiveStatus').textContent='Đang đối chiếu bảng giá thật qua Bot API…';
  const btn=$('ctvReadLive');btn.disabled=true;
  try{
   const d=await request('/api/admin/ctv-live-catalogue');
   if(!d.liveSource||!Number.isSafeInteger(d.revision)||!Array.isArray(d.products))throw Error('Nguồn chưa xác thực.');
-  ctvCatalogueProducts=new Map(d.products.map(p=>[p.code,p]));
-  const sel=$('ctvLiveProduct');sel.replaceChildren(new Option('— Chọn sản phẩm —',''));
-  for(const p of d.products)sel.append(new Option(p.name+' • '+money(p.listPrice)+' đ / '+p.unit,p.code));
+  ctvCatalogueLoaded=true;
   $('ctvLiveProductCount').textContent=String(d.products.length);
   $('ctvLiveRevision').textContent=String(d.revision);
   $('ctvLiveStatus').textContent='✅ Đã đọc '+d.products.length+' sản phẩm từ sổ thật, revision '+d.revision+'.';
@@ -1033,25 +1021,6 @@ $('ctvAddReceiverDraft').onclick=()=>{
   $('ctvDraftStatus').textContent='Đã thêm vào BẢN NHÁP trong phiên; CHƯA ghi Google Drive hoặc link.';
  }catch(e){$('ctvDraftStatus').textContent='⚠ '+e.message}
 };
-$('ctvCalculateLive').onclick=()=>{
- try{
-  if(!ctvCatalogueProducts.size)throw Error('Bấm Nạp bảng giá Production trước.');
-  const p=ctvCatalogueProducts.get($('ctvLiveProduct').value);
-  if(!p)throw Error('Chọn sản phẩm có trên sổ thật.');
-  const qty=Number($('ctvLiveQty').value);
-  if(!Number.isSafeInteger(qty)||qty<1||qty>500)throw Error('Số lượng cần từ 1–500.');
-  const customer=checkedPct($('ctvCustomerPct').value),partner=checkedPct($('ctvPartnerPct').value);
-  const customerUnit=Math.round(p.listPrice*(100-customer)/100);
-  const partnerUnit=Math.round(p.listPrice*(100-partner)/100);
-  const spread=(customerUnit-partnerUnit)*qty;
-  $('ctvLiveResult').textContent='🧾 '+p.name+' × '+qty+' '+p.unit+'\n'+
-   'Giá niêm yết: '+money(p.listPrice)+' đ/đv\n'+
-   'Giá khách sau CK '+customer+'%: '+money(customerUnit*qty)+' đ\n'+
-   'Giá đối soát CTV CK '+partner+'%: '+money(partnerUnit*qty)+' đ\n'+
-   'Chênh lệch tính cho CTV: '+money(spread)+' đ\n'+
-   'Nội bộ • chưa ghi doanh thu, hóa đơn hoặc tiền phải trả.';
- }catch(e){$('ctvLiveResult').textContent='⚠ '+e.message}
-};
 function showAdminTab(name){
  for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
  for(const b of document.querySelectorAll('[data-admin-tab]')){
@@ -1059,7 +1028,7 @@ function showAdminTab(name){
  }
  if(name==='orders')refreshOrderInbox();
  if(name==='settings')refreshVersionStatus();
- if(name==='ctv-ledger'&&secret&&!ctvCatalogueProducts.size)void loadCtvLive();
+ if(name==='ctv-ledger'&&secret&&!ctvCatalogueLoaded)void loadCtvLive();
  if(name==='customers'&&secret&&!realCustomers.length)void loadRealDirectory();
  window.scrollTo({top:0,behavior:'instant'});
 }
