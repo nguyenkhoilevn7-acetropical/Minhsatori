@@ -9,6 +9,51 @@
  let accessCode='',catalogue=null,selectedRef=null,agency=false,requestsBusy=false;
  let quoteToken=null,lastQuote=null,lastReceipt=null,deliveryNote='',pdfObjectUrl=null;
  let destinations=[],lastProduct=null,historyOrders=[],historyIncomplete=false,newCartSequence=1;
+  // Stable idempotency across repeated quotes and page reloads; renewed on NEW CART only.
+  const orderStorageKey='satori-order:'+token.slice(0,32);
+  const submittedStorageKey='satori-submitted:'+token.slice(0,32);
+  const readSession=k=>{try{return sessionStorage.getItem(k)}catch{return null}};
+  const writeSession=(k,v)=>{try{sessionStorage.setItem(k,v)}catch{}};
+  const newOrderId=()=>crypto.randomUUID();
+  let clientOrderId=readSession(orderStorageKey);
+  if(!/^[a-f0-9-]{36}$/i.test(clientOrderId||''))clientOrderId=newOrderId();
+  writeSession(orderStorageKey,clientOrderId);
+  let savedRecord=null;
+  try{savedRecord=JSON.parse(readSession(submittedStorageKey)||'null')}catch{}
+  let submitted=savedRecord?.orderId===clientOrderId&&Number.isSafeInteger(savedRecord.invoiceNo);
+  let confirming=false,submissionUncertain=false;
+  const sessionInvoices=new Set(Array.isArray(savedRecord?.invoiceNos)?savedRecord.invoiceNos.filter(Number.isSafeInteger):[]);
+  if(Number.isSafeInteger(savedRecord?.invoiceNo))sessionInvoices.add(savedRecord.invoiceNo);
+  $('historyButton').textContent='🧾 Hóa đơn ';
+  const badge=document.createElement('span');badge.id='submittedInvoiceBadge';badge.className='real-submitted-badge';
+  $('historyButton').append(badge);
+  function updateInvoiceBadge(){
+   badge.textContent=String(sessionInvoices.size);badge.hidden=sessionInvoices.size===0;
+   $('historyButton').setAttribute('aria-label','Hóa đơn • '+sessionInvoices.size+' đơn đã gửi');
+  }
+  updateInvoiceBadge();
+  function markSubmitted(invoiceNo){
+   submitted=true;submissionUncertain=false;sessionInvoices.add(invoiceNo);
+   writeSession(submittedStorageKey,JSON.stringify({orderId:clientOrderId,invoiceNo,invoiceNos:[...sessionInvoices].slice(-30)}));
+   updateInvoiceBadge();
+  }
+  function lockConfirmButtons(label){
+   for(const b of document.querySelectorAll('.live-real-confirm')){
+    b.disabled=true;b.classList.add('real-order-locked');
+    if(label)b.textContent=label;
+   }
+  }
+  function showSubmittedCard(invoiceNo,total){
+   const card=document.createElement('article');card.className='real-submitted-card';card.setAttribute('role','status');
+   const head=document.createElement('strong');head.textContent='✅ ĐÃ GỬI ĐƠN THÀNH CÔNG';
+   const number=document.createElement('p');number.textContent='HÓA ĐƠN #'+invoiceNo+' • '+cash(total);
+   const note=document.createElement('p');note.textContent='Đã lưu vào Google Drive. Không gửi lại đơn này.';
+   const actions=document.createElement('div');actions.className='real-submitted-actions';
+   const view=document.createElement('button');view.type='button';view.textContent='🧾 Xem hóa đơn #'+invoiceNo;view.onclick=()=>void showReceipt();
+   const history=document.createElement('button');history.type='button';history.textContent='Hóa đơn đã gửi ('+sessionInvoices.size+')';history.onclick=()=>void loadInvoiceHistory();
+   actions.append(view,history);card.append(head,number,note,actions);
+   $('messages').append(card);$('messages').scrollTop=$('messages').scrollHeight;
+  }
  const products=new Map(),cart=new Map();
  // Restore the original Gemini Samsung keyboard/viewport behavior.  The
  // production adapter replaces the sandbox JS, so its resize listeners must
