@@ -162,7 +162,7 @@ test('owner-only production gateway permits authenticated real chat while denyin
  const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
  const guard=server.slice(server.indexOf('// Owner real pilot is a sealed'),server.indexOf('// Private customer invitations can be issued'));
  assert.match(guard,/realPrivateLinks\.readiness\(\)\.configured===true/);
- assert.match(guard,/\(\?:catalogue\|quote\|confirm\|interpret\)/,
+ assert.match(guard,/\(\?:catalogue\|quote\|confirm\|interpret\|pdf\)/,
   'allowlist must contain interpret; previously blocked every live chat request with 403');
  assert.match(server,/if\(p==='\/api\/real\/interpret'\)/);
  assert.match(server,/const context=realPrivateLinks\.chatContext\(input\),profile=context\.customer/,
