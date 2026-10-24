@@ -26,14 +26,20 @@
   let lockNoticeShown=false,uncertainHistoryChecked=false;
   function syncOrderInputState(){
    const locked=submitted||submissionUncertain||confirming;
-   if($('realNewCartButton'))$('realNewCartButton').disabled=requestsBusy||confirming;
+   const busy=requestsBusy||confirming;
+   if($('realNewCartButton'))$('realNewCartButton').disabled=busy;
    const input=$('messageInput'),send=$('sendForm')?.querySelector('button[type=submit]');
    for(const id of ['composeCart','quickCartQuote']){
     const button=$(id);if(button)button.disabled=locked||requestsBusy||cart.size===0;
    }
-   if(input){input.disabled=locked;input.placeholder=locked?
-    'Đơn đã gửi hoặc cần kiểm tra. Chọn Giỏ hàng mới.':'Nhắn: 10 ổi hồng, thêm 5 mãng cầu...'}
-   if(send){send.disabled=locked;send.setAttribute('aria-disabled',String(locked))}
+   // Chat remains tappable when the previous invoice was confirmed or is uncertain.
+   // Actual invoice writes stay guarded by the stable cart/quote/request identity.
+   if(input){input.disabled=busy;input.placeholder=confirming?
+    'Đang xác nhận đơn...':submissionUncertain?
+    'Kiểm tra Hóa đơn trước khi tiếp tục đặt hàng':
+    submitted?'Nhắn đơn mới hoặc bấm Giỏ hàng mới':
+    'Nhắn: 10 ổi hồng, thêm 5 mãng cầu...'}
+   if(send){send.disabled=busy;send.setAttribute('aria-disabled',String(busy))}
    for(const control of document.querySelectorAll('.real-catalog-stepper button,.real-catalog-stepper input,.inline-cart-row button,.inline-cart-row input,.cart-row input,.cart-row button,.delivery-note')){
     control.disabled=locked||requestsBusy;
    }
@@ -42,8 +48,8 @@
   function showLockNoticeOnce(){
    if(lockNoticeShown)return;
    lockNoticeShown=true;
-   bubble(submitted?'✅ Đơn đã được ghi nhận. Xem Hóa đơn hoặc chọn Giỏ hàng mới.':
-    '⚠ Trạng thái đơn trước chưa rõ. Hãy kiểm tra Hóa đơn trước khi tạo Giỏ hàng mới.','note');
+   bubble(submitted?'✅ Đơn đã ghi nhận. Có thể nhắn đơn mới hoặc chọn Giỏ hàng mới.':
+    '⚠ Chưa xác minh đơn trước. Mở Hóa đơn để kiểm tra; không gửi lại đơn cũ.','note');
   }
   let oldPending=null;try{oldPending=JSON.parse(readSession(pendingStorageKey)||'null')}catch{}
   if(!submitted&&oldPending?.orderId===clientOrderId)submissionUncertain=true;
@@ -386,11 +392,11 @@
   }catch(e){setText('cartFeedback','⚠ '+e.message)}
  };
  $('quickCartEdit').onclick=()=>setCartMode(cartCollapsed?'full':'collapsed');
- function startNewCart(){
-  if(requestsBusy||confirming)return;
-  if(submissionUncertain&&!uncertainHistoryChecked){showLockNoticeOnce();void loadInvoiceHistory();return}
-  if(submissionUncertain&&!window.confirm('Đơn trước có thể đã lưu. Đã kiểm tra Hóa đơn và chắc chắn tạo đơn mới?'))return;
-   if(cart.size&&quoteToken&&!window.confirm('Hủy báo giá chưa xác nhận để tạo đơn hàng mới?'))return;
+ function startNewCart(automatic=false){
+  if(requestsBusy||confirming)return false;
+  if(submissionUncertain&&!uncertainHistoryChecked){showLockNoticeOnce();void loadInvoiceHistory();return false}
+  if(submissionUncertain&&!window.confirm('Đơn trước có thể đã lưu. Đã kiểm tra Hóa đơn và chắc chắn tạo đơn mới?'))return false;
+   if(cart.size&&quoteToken&&!window.confirm('Hủy báo giá chưa xác nhận để tạo đơn hàng mới?'))return false;
   for(const b of document.querySelectorAll('.live-real-confirm')){
    b.disabled=true;b.textContent='Báo giá đã kết thúc';
   }
@@ -400,8 +406,11 @@
    syncOrderInputState();
   newCartSequence+=1;setCartMode('collapsed');renderCatalogue();
   $('invoice').style.display='none';
-  bubble('🛒 Giỏ mới #'+newCartSequence+' đã sẵn sàng. Hóa đơn cũ vẫn lưu trong mục Hóa đơn. Anh/chị chọn món hoặc nhắn đơn mới.');
-  $('messageInput').focus();
+  if(automatic!==true){
+   bubble('🛒 Giỏ mới #'+newCartSequence+' đã sẵn sàng. Hóa đơn cũ vẫn lưu trong mục Hóa đơn.');
+   $('messageInput').focus();
+  }
+  return true;
  }
  $('quickCartNew').onclick=startNewCart;
  const createNextButton=document.createElement('button');
@@ -543,9 +552,14 @@
  }
  $('sendForm').onsubmit=async e=>{
   e.preventDefault();
-  if(submitted||submissionUncertain){syncOrderInputState();showLockNoticeOnce();return}
   if(requestsBusy||confirming)return;
   const message=$('messageInput').value.trim();if(!message)return;
+  if(submissionUncertain){
+   syncOrderInputState();showLockNoticeOnce();void loadInvoiceHistory();return;
+  }
+  // A deliberate NEW chat message after confirmed success starts a fresh draft
+  // with a new idempotency key, without replaying/sending the previous invoice.
+  if(submitted&&!startNewCart(true))return;
   // This was the screenshot regression: old code posted the ASSISTANT reply
   // before displaying the user's own message. Old Gemini shows USER first.
   bubble(message,'user');$('messageInput').value='';
@@ -903,7 +917,8 @@
  $('locationsPanel').hidden=true;$('suggestionsInline').hidden=true;
  $('quickCart').hidden=true;updateCart();
  syncOrderInputState();
-  if(submitted||submissionUncertain)showLockNoticeOnce();
+  if(submissionUncertain)showLockNoticeOnce();
+  else if(submitted)bubble('✅ Đơn trước đã lưu. Anh/chị có thể nhắn đơn mới hoặc chọn Giỏ hàng mới.','note');
   if(!/^[A-Za-z0-9_.-]{80,30000}$/.test(token)){
   status('Đường link không hợp lệ hoặc bị thiếu. Liên hệ Minh Satori để xin lại.');
   $('realOpen').disabled=true;
