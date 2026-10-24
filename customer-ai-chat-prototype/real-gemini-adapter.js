@@ -9,6 +9,7 @@
  let accessCode='',catalogue=null,selectedRef=null,agency=false,requestsBusy=false;
  let quoteToken=null,lastQuote=null,lastReceipt=null,deliveryNote='',pdfObjectUrl=null;
  let destinations=[],lastProduct=null,historyOrders=[],historyIncomplete=false,newCartSequence=1;
+ let submittedCart=false,confirmedReceipts=[];
  const products=new Map(),cart=new Map();
  // Restore the original Gemini Samsung keyboard/viewport behavior.  The
  // production adapter replaces the sandbox JS, so its resize listeners must
@@ -51,7 +52,10 @@
  }
  function invalidate(){
   quoteToken=null;lastQuote=null;
-  for(const b of document.querySelectorAll('.live-real-confirm')){b.disabled=true;b.textContent='Báo giá cũ';}
+  for(const b of document.querySelectorAll('.live-real-confirm')){
+   if(b.dataset.submitted==='true')continue;
+   b.disabled=true;b.textContent='⚪ Báo giá đã thay đổi • cần kiểm tra lại';
+  }
  }
  function currentProducts(){
   return [...products.values()];
@@ -61,6 +65,7 @@
   const entries=[...cart.values()],count=entries.reduce((n,x)=>n+x.qty,0);
   setText('quickCartCount','🛒 Giỏ hàng chung • '+entries.length+' loại / '+count+' đơn vị');
   setText('cartCount',entries.length+'/6');
+  setText('composeCart','Soạn tin nhắn đầy đủ ('+entries.length+' món) →');
   setText('cartFeedback',entries.length?'Giỏ chung đã cập nhật. Chưa tạo hóa đơn.':'Giỏ đang trống.');
   $('quickCart').hidden=!entries.length;
   $('composeCart').disabled=!entries.length;
@@ -118,6 +123,7 @@
   }
  }
  function changeQty(code,qty){
+  if(submittedCart)throw Error('Đơn trước đã gửi. Bấm “＋ Giỏ hàng mới” trước khi mua tiếp.');
   if(!Number.isSafeInteger(qty)||qty<0||qty>500)throw Error('Số lượng không hợp lệ.');
   if(!products.has(code))throw Error('Mặt hàng không thuộc bảng giá được duyệt.');
   const next=new Map(cart);if(qty===0)next.delete(code);
@@ -125,6 +131,7 @@
   validCart(next);
   cart.clear();for(const [k,v] of next)cart.set(k,v);
   invalidate();updateCart();
+  if($('catalogBackdrop').classList.contains('open'))renderCatalogue();
  }
  function category(p){
   const name=String(p.name||'').toLowerCase();
@@ -134,23 +141,50 @@
  }
  let catalogFilter='ALL';
  function renderCatalogue(){
-  const root=$('catalogItems');root.replaceChildren();
+  const root=$('catalogItems'),scroll=root.scrollTop;root.replaceChildren();
   const search=($('catalogSearch').value||'').toLocaleLowerCase('vi');
   const arr=currentProducts().filter(p=>
    (catalogFilter==='ALL'||category(p)===catalogFilter)&&
    (!search||(p.name+' '+p.code).toLocaleLowerCase('vi').includes(search)));
-  setText('catalogDescription',currentProducts().length+' sản phẩm từ hệ thống thật • giá sau CK');
+  setText('catalogDescription',currentProducts().length+' sản phẩm từ hệ thống thật • giá theo chiết khấu '+(catalogue?.discountPercent??0)+'%');
   for(const p of arr){
-   const button=document.createElement('button');button.type='button';button.className='catalog-item';
+   const row=document.createElement('div');row.className='catalog-item real-catalog-row';
+   const current=cart.get(p.code)?.qty||0;
+   row.classList.toggle('in-cart',current>0);
+   row.setAttribute('data-sku',p.code);
+   const info=document.createElement('button');info.type='button';info.className='real-product-picker';
    const logo=document.createElement('span');logo.className='catalog-icon';logo.textContent=category(p)==='JUICE'?'🍹':'💧';
    const label=document.createElement('span');label.className='catalog-label';label.textContent=p.name;
-   const secondary=document.createElement('small');secondary.textContent=cash(p.unitPrice)+' / '+p.unit;label.append(secondary);
-   const arrow=document.createElement('span');arrow.className='catalog-arrow';arrow.textContent='＋';
-   button.append(logo,label,arrow);
-   button.onclick=()=>{lastProduct=p;setText('selectedProductName',p.name+' • '+cash(p.unitPrice)+' / '+p.unit);
-    $('selectedQuantity').value='1';$('productSelection').classList.add('active');};
-   root.append(button);
+   const secondary=document.createElement('small');
+   secondary.textContent='Sau CK '+(catalogue?.discountPercent??0)+'%: '+cash(p.unitPrice)+' / '+p.unit+
+    (p.unitPrice<p.listPrice?' • Giá gốc '+cash(p.listPrice):'');
+   label.append(secondary);info.append(logo,label);
+   const steps=document.createElement('div');steps.className='real-catalog-stepper';
+   const minus=document.createElement('button');minus.type='button';minus.className='real-step minus';
+   minus.textContent='−';minus.setAttribute('aria-label','Giảm '+p.name);
+   const value=document.createElement('input');value.type='number';value.min='0';value.max='500';value.step='1';
+   value.inputMode='numeric';value.value=String(current);
+   value.setAttribute('aria-label','Số lượng '+p.name);
+   const plus=document.createElement('button');plus.type='button';plus.className='real-step plus';
+   plus.textContent='＋';plus.setAttribute('aria-label','Thêm một '+p.name);
+   const apply=qty=>{try{changeQty(p.code,qty)}catch(err){
+    value.value=String(cart.get(p.code)?.qty||0);
+    setText('cartFeedback','⚠ '+err.message);
+   }};
+   plus.onclick=()=>apply((cart.get(p.code)?.qty||0)+1);
+   minus.onclick=()=>apply(Math.max(0,(cart.get(p.code)?.qty||0)-1));
+   value.onchange=()=>apply(value.value===''?0:Number(value.value));
+   info.onclick=()=>{
+    lastProduct=p;
+    setText('selectedProductName',p.name+' • giá sau CK '+cash(p.unitPrice)+' / '+p.unit);
+    $('selectedQuantity').value=String(Math.max(1,cart.get(p.code)?.qty||1));
+    $('productSelection').classList.add('active');
+    for(const el of root.querySelectorAll('.real-catalog-row'))el.classList.remove('is-selected');
+    row.classList.add('is-selected');
+   };
+   steps.append(minus,value,plus);row.append(info,steps);root.append(row);
   }
+  root.scrollTop=scroll;
   if(!arr.length){const p=document.createElement('p');p.className='catalog-empty';p.textContent='Không tìm thấy sản phẩm phù hợp.';root.append(p)}
  }
  function openCatalogue(){
@@ -172,8 +206,8 @@
    if(!lastProduct)throw Error('Hãy chọn một sản phẩm.');
    const qty=Number($('selectedQuantity').value);
    if(!Number.isSafeInteger(qty)||qty<1||qty>500)throw Error('Số lượng từ 1 đến 500.');
-   changeQty(lastProduct.code,(cart.get(lastProduct.code)?.qty||0)+qty);
-   bubble('Đã thêm '+qty+' × '+lastProduct.name+' vào cùng một giỏ hàng.');
+   changeQty(lastProduct.code,qty);
+   bubble('Đã cập nhật '+lastProduct.name+' thành '+qty+' '+lastProduct.unit+' trong giỏ hàng.');
    $('productSelection').classList.remove('active');closeCatalogue();
   }catch(e){setText('cartFeedback','⚠ '+e.message)}
  };
@@ -185,7 +219,7 @@
    b.disabled=true;b.textContent='Báo giá đã kết thúc';
   }
   cart.clear();invalidate();deliveryNote='';noteInput.value='';lastProduct=null;
-  newCartSequence+=1;cartCollapsed=true;updateCart();
+  newCartSequence+=1;submittedCart=false;cartCollapsed=true;updateCart();
   bubble('🛒 Giỏ mới #'+newCartSequence+' đã sẵn sàng. Hóa đơn cũ vẫn lưu trong mục Hóa đơn. Anh/chị chọn món hoặc nhắn đơn mới.');
   $('messageInput').focus();
  }
