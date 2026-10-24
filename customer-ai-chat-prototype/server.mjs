@@ -306,7 +306,7 @@ const server=http.createServer(async(req,res)=>{
    p==='/assets/logo-satori.jpg'||p.startsWith('/api/admin/')||
    (realPrivateLinks.readiness().configured===true&&
     (p==='/real'||p==='/real/'||
-     /^\/api\/real\/(?:catalogue|quote|confirm)$/.test(p)))||
+     /^\/api\/real\/(?:catalogue|quote|confirm|interpret)$/.test(p)))||
    (ctvSingleLink.readiness().enabled===true&&
     (p==='/ctv'||p==='/ctv/'||/^\/api\/ctv\/(?:catalogue|quote|confirm|pdf\/(?:customer|collaborator))$/.test(p)))
  ))return fail(res,403,'OWNER_ONLY_NO_CUSTOMER_ACCESS',
@@ -408,8 +408,18 @@ const server=http.createServer(async(req,res)=>{
      return fail(res,400,'REAL_CHAT_NEEDS_CLARIFICATION','Vui lòng chọn địa chỉ trong danh sách và chỉ nhập tên/số lượng sản phẩm.');
     const {orderText,noteText}=splitOrderAndNote(message);
     const productMessage=(orderText||message).trim();
-    let match=parseMultiOrder(productMessage,{}),source='rules';
-    if(match?.needMoreDetails)match=null;
+    let match=parseMultiOrder(productMessage,{}),source=match?.source||'rules';
+    // Never discard an unresolved product and quietly add only one item.
+    if(match?.needMoreDetails)
+     return reply(res,200,{ok:true,needsClarification:true,parserSource:'rules',
+      message:match.message||'Có mặt hàng chưa rõ tên hoặc số lượng. Vui lòng nói rõ từng món; giỏ chưa thay đổi.'});
+    if(!match){
+     match=parseColloquialBasket(productMessage,{});
+     if(match?.needMoreDetails)
+      return reply(res,200,{ok:true,needsClarification:true,parserSource:'rules',
+       message:match.message||'Vui lòng xác nhận số lượng, đơn vị hoặc quy cách. Giỏ chưa thay đổi.'});
+     if(match?.items)source=match.source||'rules';
+    }
     if(!match){
      const ai=await parseComplexOrderWithGemini(productMessage,{});
      if(ai?.items){match=ai;source=ai.source}
@@ -429,7 +439,7 @@ const server=http.createServer(async(req,res)=>{
        lines.reduce((n,x)=>n+x.qty,0)>500)
      return fail(res,400,'REAL_CHAT_PRODUCT_INVALID','Sản phẩm hoặc số lượng không hợp lệ theo danh mục hiện tại.');
     result={production:true,items:lines,deliveryNote:String(noteText||'').slice(0,300),parserSource:source,
-      message:'Đã hiểu yêu cầu. Anh/chị kiểm tra sản phẩm và số lượng trong giỏ, sau đó xem báo giá để xác nhận.'};
+      message:'Đã thêm '+lines.length+' loại sản phẩm vào cùng một giỏ. Kiểm tra số lượng và báo giá trước khi xác nhận.'};
    }
    if(p==='/api/real/quote')result=await realPrivateLinks.quote(input);
    if(p==='/api/real/confirm')result=await realPrivateLinks.confirm(input);
