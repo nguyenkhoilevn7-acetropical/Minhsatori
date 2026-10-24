@@ -17,7 +17,7 @@ class ConnectionModeTests(unittest.TestCase):
         self.assertIn("connectGoogle()", block)
 
     def test_drive_oauth_not_lost_with_saved_sandbox_api(self):
-        block = SOURCE.split("private fun connectGoogle(automatic: Boolean = false)", 1)[1].split("private fun applyAuthorization", 1)[0]
+        block = SOURCE.split("private fun connectGoogle(automatic: Boolean = false", 1)[1].split("private fun applyAuthorization", 1)[0]
         self.assertIn("apiEndpoint == null || preferGoogleDrive()", block)
         self.assertIn("https://www.googleapis.com/auth/drive.readonly", block)
         auth = SOURCE.split("private fun applyAuthorization", 1)[1].split("private fun refreshFromDrive", 1)[0]

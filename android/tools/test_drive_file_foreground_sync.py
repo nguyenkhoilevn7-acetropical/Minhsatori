@@ -25,7 +25,7 @@ class DriveFileForegroundSyncTests(unittest.TestCase):
         self.assertIn('dataSource == "Minh Satori API" && allowedActions.contains(action)',SRC)
         self.assertIn('lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()',SRC)
         self.assertIn('AutoSyncPolicy.FILE -> refreshFromPicker()',SRC)
-        picker=SRC.split('private fun refreshFromPicker()',1)[1].split('private fun connectGoogle(automatic: Boolean = false)',1)[0]
+        picker=SRC.split('private fun refreshFromPicker()',1)[1].split('private fun connectGoogle(automatic: Boolean = false',1)[0]
         self.assertIn('snapshot = null',picker)
         self.assertIn('lastOnlineReadElapsedMs = 0L',picker)
 
