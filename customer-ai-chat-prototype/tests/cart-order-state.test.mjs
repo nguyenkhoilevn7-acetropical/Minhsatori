@@ -119,7 +119,8 @@ test('lost confirm response requires invoice review and an explicit new cart; ne
  const before=f.$('messages').children.length;
  await button.onclick();await f.submit();await f.submit();
  assert.equal(f.$('messages').children.length,before);assert.equal(f.confirmCalls(),1);
- f.$('realNewCartButton').onclick();
+ // Sending chat while uncertain already opened the Hóa đơn review.
+ // A separate new-cart click still requires explicit confirmation.
  assert.equal(f.$('historyBackdrop').classList.contains('open'),true);
  assert.equal(f.storage.get(orderKey),order);assert.equal(f.dialogs.length,0);
  await new Promise(resolve=>setImmediate(resolve));
