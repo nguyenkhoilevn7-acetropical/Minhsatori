@@ -23,6 +23,20 @@
   try{savedRecord=JSON.parse(readSession(submittedStorageKey)||'null')}catch{}
   let submitted=savedRecord?.orderId===clientOrderId&&Number.isSafeInteger(savedRecord.invoiceNo);
   let confirming=false,submissionUncertain=false,persistedInvoiceCount=null;
+  let lockNoticeShown=false;
+  function syncOrderInputState(){
+   const locked=submitted||submissionUncertain||confirming;
+   const input=$('messageInput'),send=$('sendForm')?.querySelector('button[type=submit]');
+   if(input){input.disabled=locked;input.placeholder=locked?
+    'Đơn đã gửi hoặc cần kiểm tra. Chọn Giỏ hàng mới.':'Nhắn: 10 ổi hồng, thêm 5 mãng cầu...'}
+   if(send){send.disabled=locked;send.setAttribute('aria-disabled',String(locked))}
+  }
+  function showLockNoticeOnce(){
+   if(lockNoticeShown)return;
+   lockNoticeShown=true;
+   bubble(submitted?'✅ Đơn đã được ghi nhận. Xem Hóa đơn hoặc chọn Giỏ hàng mới.':
+    '⚠ Trạng thái đơn trước chưa rõ. Hãy kiểm tra Hóa đơn trước khi tạo Giỏ hàng mới.','note');
+  }
   let oldPending=null;try{oldPending=JSON.parse(readSession(pendingStorageKey)||'null')}catch{}
   if(!submitted&&oldPending?.orderId===clientOrderId)submissionUncertain=true;
   const sessionInvoices=new Set(Array.isArray(savedRecord?.invoiceNos)?savedRecord.invoiceNos.filter(Number.isSafeInteger):[]);
@@ -45,6 +59,7 @@
   updateInvoiceBadge();
   function markSubmitted(invoiceNo,quote,saved){
    submitted=true;submissionUncertain=false;sessionInvoices.add(invoiceNo);unreadInvoices.add(invoiceNo);
+   syncOrderInputState();
    writeSession(pendingStorageKey,'');
    writeSession(unreadKey,JSON.stringify([...unreadInvoices].slice(-30)));
    const overview={invoiceNo,total:saved.total,createdAt:saved.createdAt||null,
@@ -170,15 +185,15 @@
   cartCollapsed=cartMode==='collapsed';
   cartRoot.dataset.cartMode=cartMode;
   cartHandle.setAttribute('aria-expanded',String(!cartCollapsed));
-  handleText.textContent=cartMode==='full'?'⌄ Kéo xuống thu gọn':
-   cartMode==='half'?'⌃ Kéo lên mở rộng':'⌃ Kéo lên xem giỏ';
+  handleText.textContent=cartMode==='collapsed'?'⌃':
+   cartMode==='full'?'⌄ Thu gọn':'⌃ Mở rộng';
   cartHandle.setAttribute('aria-label',handleText.textContent);
   cartRoot.style.removeProperty('--real-drag-offset');
   updateCart();
  }
  function slideCart(direction){
-  const modes=['collapsed','half','full'];
-  setCartMode(modes[Math.min(2,Math.max(0,modes.indexOf(cartMode)+(direction>0?1:-1)))]);
+  if(direction<0){setCartMode('collapsed');return}
+  setCartMode(cartMode==='collapsed'?'half':'full');
  }
  cartHandle.onclick=()=>{
   if(cartHandle.dataset.dragged==='1'){delete cartHandle.dataset.dragged;return}
@@ -220,7 +235,7 @@
  });
  function updateCart(){
   const entries=[...cart.values()],count=entries.reduce((n,x)=>n+x.qty,0);
-  setText('quickCartCount',entries.length+' loại sản phẩm trong giỏ');
+  setText('quickCartCount',cartCollapsed?'':entries.length+' loại sản phẩm trong giỏ');
   $('quickCartEdit').replaceChildren();
   const cartIcon=document.createElement('span');cartIcon.className='real-cart-icon';cartIcon.textContent='🛒';
   const cartBadge=document.createElement('strong');cartBadge.className='real-cart-count';cartBadge.textContent=String(count);
@@ -230,6 +245,7 @@
   $('quickCartEdit').setAttribute('aria-label','Giỏ hàng, '+count+' sản phẩm. '+(cartCollapsed?'Mở':'Đang mở'));
   cartClose.hidden=cartCollapsed||!entries.length;
   cartRoot.dataset.cartMode=cartMode;
+  syncOrderInputState();
   setText('cartCount',entries.length+'/6');
   setText('cartFeedback',entries.length?'Giỏ chung đã cập nhật. Chưa tạo hóa đơn.':'Giỏ đang trống.');
   $('quickCart').hidden=!entries.length;
@@ -370,7 +386,8 @@
   }
   cart.clear();invalidate();deliveryNote='';noteInput.value='';lastProduct=null;
    clientOrderId=newOrderId();writeSession(orderStorageKey,clientOrderId);
-   submitted=false;submissionUncertain=false;confirming=false;writeSession(pendingStorageKey,'');
+   submitted=false;submissionUncertain=false;confirming=false;lockNoticeShown=false;writeSession(pendingStorageKey,'');
+   syncOrderInputState();
   newCartSequence+=1;setCartMode('collapsed');
   bubble('🛒 Giỏ mới #'+newCartSequence+' đã sẵn sàng. Hóa đơn cũ vẫn lưu trong mục Hóa đơn. Anh/chị chọn món hoặc nhắn đơn mới.');
   $('messageInput').focus();
@@ -481,7 +498,7 @@
  };
  $('realCode').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('realOpen').click()}};
  async function interpretMessage(message){
-   if(submitted||submissionUncertain)throw Error('Đơn trước đã gửi hoặc chưa rõ trạng thái. Kiểm tra Hóa đơn rồi mở Giỏ hàng mới.');
+   if(submitted||submissionUncertain){showLockNoticeOnce();return}
   if(!catalogue){bubble('Hãy chọn địa chỉ giao trước.','note');return}
   // The server now uses the original sandbox's change semantics and verifies
   // that ALL recognized items fit an atomic basket update before replying.
@@ -511,7 +528,9 @@
   bubble(result.message||'Đã cập nhật giỏ, chưa tạo hóa đơn.');
  }
  $('sendForm').onsubmit=async e=>{
-  e.preventDefault();if(requestsBusy)return;
+  e.preventDefault();
+  if(submitted||submissionUncertain){syncOrderInputState();showLockNoticeOnce();return}
+  if(requestsBusy||confirming)return;
   const message=$('messageInput').value.trim();if(!message)return;
   // This was the screenshot regression: old code posted the ASSISTANT reply
   // before displaying the user's own message. Old Gemini shows USER first.
@@ -564,7 +583,7 @@
     updateSessionReceipt();
    }catch(err){
     if(!submitted){
-     submissionUncertain=true;
+     submissionUncertain=true;syncOrderInputState();
      lockConfirmButtons('⚠ ĐÃ GỬI YÊU CẦU • KIỂM TRA SỔ');
      bubble('⚠ Chưa xác minh được phản hồi hóa đơn: '+err.message+'. KHÔNG xác nhận lại, KHÔNG GỬI LẠI. Mở mục Hóa đơn kiểm tra trước.','note');
     }else bubble('✅ Đơn đã lưu. Xem lại từ mục Hóa đơn nếu PDF chưa mở.','note');
@@ -867,9 +886,8 @@
  $('historyExcel').hidden=true;$('viewInvoice').hidden=true;$('printInvoice').hidden=true;
  $('locationsPanel').hidden=true;$('suggestionsInline').hidden=true;
  $('quickCart').hidden=true;updateCart();
- $('sendForm').querySelector('button[type=submit]').disabled=false;
- if(submitted){bubble('✅ Hóa đơn #'+savedRecord.invoiceNo+' đã gửi. Xem 🧾 Hóa đơn hoặc mở Giỏ hàng mới để đặt tiếp.');}
-  else if(submissionUncertain){bubble('⚠ Lần gửi trước chưa nhận được phản hồi. Em đã khóa gửi lại sau khi tải trang. Vui lòng kiểm tra Hóa đơn trước.','note');}
+ syncOrderInputState();
+  if(submitted||submissionUncertain)showLockNoticeOnce();
   if(!/^[A-Za-z0-9_.-]{80,30000}$/.test(token)){
   status('Đường link không hợp lệ hoặc bị thiếu. Liên hệ Minh Satori để xin lại.');
   $('realOpen').disabled=true;
