@@ -70,11 +70,11 @@ assert.ok(html.includes("catalogItems=data.products;")&&
 assert.ok(html.includes('id="suggestionsToggle"')&&html.includes('id="suggestionsList" class="suggestions-list" hidden')&&
  html.includes('suggestion-compact-chip')&&html.includes("section.hidden=toggle.getAttribute('aria-expanded')!=='true';"),
  'frequent purchases are one collapsed button and a compact chip row only on click');
-assert.ok(html.includes('.server-mode .quick-cart #quickCartCount{grid-column:1/-1;grid-row:1!important')&&
- html.includes('.server-mode .quick-cart #quickCartNew{grid-column:1;grid-row:2!important'),
+assert.ok(html.includes('.server-mode .quick-cart #quickCartCount{grid-column:1/-1;grid-row:1')&&
+ html.includes('.server-mode .quick-cart #quickCartNew{grid-column:1;grid-row:2'),
  'new basket button never overlaps count, including Samsung narrow screens');
 assert.ok(html.includes("$('quickCartQuote').hidden=inlineCartCollapsed;")&&
- html.includes('.server-mode .quick-cart #inlineCartLines[hidden],.server-mode .quick-cart #quickCartQuote[hidden]{display:none!important'),
+ html.includes('.server-mode .quick-cart #inlineCartLines[hidden],.server-mode .quick-cart #quickCartQuote[hidden]{display:none'),
  'collapse genuinely hides rows and quote, and reopen restores them');
 
 assert.ok(html.includes('class="shop-hero"') && html.includes('id="heroShopCta"'),
@@ -276,3 +276,4 @@ console.log('PASS 12/12 first-open WebView, sandbox warning and tappable navigat
 console.log('PASS mobile keyboard-visible chat layout, compact header and opt-in basket');
 console.log('PASS quantity x-prefix and create-cart accessibility labels');
 console.log('PASS '+(adminChecks.length+3)+'/'+(adminChecks.length+3)+' admin search and VAT UI checks');
+

@@ -23,13 +23,21 @@
   try{savedRecord=JSON.parse(readSession(submittedStorageKey)||'null')}catch{}
   let submitted=savedRecord?.orderId===clientOrderId&&Number.isSafeInteger(savedRecord.invoiceNo);
   let confirming=false,submissionUncertain=false,persistedInvoiceCount=null;
-  let lockNoticeShown=false;
+  let lockNoticeShown=false,uncertainHistoryChecked=false;
   function syncOrderInputState(){
    const locked=submitted||submissionUncertain||confirming;
+   if($('realNewCartButton'))$('realNewCartButton').disabled=requestsBusy||confirming;
    const input=$('messageInput'),send=$('sendForm')?.querySelector('button[type=submit]');
+   for(const id of ['composeCart','quickCartQuote']){
+    const button=$(id);if(button)button.disabled=locked||requestsBusy||cart.size===0;
+   }
    if(input){input.disabled=locked;input.placeholder=locked?
     'Đơn đã gửi hoặc cần kiểm tra. Chọn Giỏ hàng mới.':'Nhắn: 10 ổi hồng, thêm 5 mãng cầu...'}
    if(send){send.disabled=locked;send.setAttribute('aria-disabled',String(locked))}
+   for(const control of document.querySelectorAll('.real-catalog-stepper button,.real-catalog-stepper input,.inline-cart-row button,.inline-cart-row input,.cart-row input,.cart-row button,.delivery-note')){
+    control.disabled=locked||requestsBusy;
+   }
+   for(const id of ['clearCart','addProductMessage']){if($(id))$(id).disabled=locked||requestsBusy}
   }
   function showLockNoticeOnce(){
    if(lockNoticeShown)return;
@@ -139,9 +147,7 @@
  }
 
  const setText=(id,text)=>{const node=$(id);if(node)node.textContent=String(text||'')};
- const disabledBusy=value=>{requestsBusy=value;for(const id of ['realOpen','quickCartQuote','composeCart']){
-  if($(id))$(id).disabled=value;
- }};
+ const disabledBusy=value=>{requestsBusy=value;if($('realOpen'))$('realOpen').disabled=value;syncOrderInputState()};
  const status=text=>setText('realGateStatus',text);
  async function call(endpoint,payload={}){
   const r=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},
@@ -177,7 +183,7 @@
  cartHandle.type='button';cartHandle.id='realCartHandle';cartHandle.className='real-cart-handle';
  cartHandle.setAttribute('aria-label','Kéo lên để mở rộng giỏ hàng');
  const handleBar=document.createElement('span');handleBar.className='real-cart-grip';handleBar.setAttribute('aria-hidden','true');
- const handleText=document.createElement('span');handleText.className='real-cart-direction';handleText.textContent='⌃ Kéo lên xem giỏ';
+ const handleText=document.createElement('span');handleText.className='real-cart-direction';handleText.textContent='⌃';
  cartHandle.append(handleBar,handleText);
  cartRoot.prepend(cartHandle);
  function setCartMode(mode){
@@ -185,15 +191,14 @@
   cartCollapsed=cartMode==='collapsed';
   cartRoot.dataset.cartMode=cartMode;
   cartHandle.setAttribute('aria-expanded',String(!cartCollapsed));
-  handleText.textContent=cartMode==='collapsed'?'⌃':
-   cartMode==='full'?'⌄ Thu gọn':'⌃ Mở rộng';
-  cartHandle.setAttribute('aria-label',handleText.textContent);
+  handleText.textContent=cartCollapsed?'⌃':'⌄';
+  cartHandle.setAttribute('aria-label',cartCollapsed?'Mở giỏ hàng':'Thu gọn giỏ hàng');
   cartRoot.style.removeProperty('--real-drag-offset');
   updateCart();
  }
  function slideCart(direction){
   if(direction<0){setCartMode('collapsed');return}
-  setCartMode(cartMode==='collapsed'?'half':'full');
+  setCartMode('full');
  }
  cartHandle.onclick=()=>{
   if(cartHandle.dataset.dragged==='1'){delete cartHandle.dataset.dragged;return}
@@ -202,6 +207,7 @@
  let touchOrigin=null;
  cartHandle.addEventListener('pointerdown',e=>{
   if(e.pointerType==='mouse'&&e.button!==0)return;
+  delete cartHandle.dataset.dragged;
   touchOrigin={id:e.pointerId,y:e.clientY};
   cartHandle.setPointerCapture(e.pointerId);
  });
@@ -218,7 +224,7 @@
   else if(delta>48){slideCart(-1);cartHandle.dataset.dragged='1'}
  }
  cartHandle.addEventListener('pointerup',releaseCartDrag);
- cartHandle.addEventListener('pointercancel',()=>{touchOrigin=null;cartRoot.style.removeProperty('--real-drag-offset')});
+ cartHandle.addEventListener('pointercancel',()=>{touchOrigin=null;delete cartHandle.dataset.dragged;cartRoot.style.removeProperty('--real-drag-offset')});
  // The ONLY "new cart" action remains in the top toolbar. Inline cart is opened
  // by the badge-bearing icon and closed by a dedicated red X.
  $('quickCartNew').hidden=true;
@@ -249,8 +255,8 @@
   setText('cartCount',entries.length+'/6');
   setText('cartFeedback',entries.length?'Giỏ chung đã cập nhật. Chưa tạo hóa đơn.':'Giỏ đang trống.');
   $('quickCart').hidden=!entries.length;
-  $('composeCart').disabled=!entries.length||submitted||submissionUncertain||confirming;
-  $('quickCartQuote').disabled=!entries.length||submitted||submissionUncertain||confirming;
+  $('composeCart').disabled=requestsBusy||!entries.length||submitted||submissionUncertain||confirming;
+  $('quickCartQuote').disabled=requestsBusy||!entries.length||submitted||submissionUncertain||confirming;
   $('quickCartQuote').hidden=!entries.length||cartCollapsed;
   $('quickCartQuote').textContent='Xác Nhận';
   $('quickCartQuote').setAttribute('aria-label','Xác Nhận — xem lại hóa đơn dự kiến trước khi gửi');
@@ -304,16 +310,18 @@
    del.onclick=()=>changeQty(item.code,0);
    itemRow.append(label,edit,del);sheet.append(itemRow);
   }
+  syncOrderInputState();
  }
  function changeQty(code,qty){
-   if(submitted||submissionUncertain||confirming)throw Error('Đơn đã gửi hoặc chưa rõ trạng thái. Xem Hóa đơn và tạo Giỏ hàng mới.');
+   if(submitted||submissionUncertain||confirming){if(!confirming)showLockNoticeOnce();return false}
+  if(requestsBusy)return false;
   if(!Number.isSafeInteger(qty)||qty<0||qty>500)throw Error('Số lượng không hợp lệ.');
   if(!products.has(code))throw Error('Mặt hàng không thuộc bảng giá được duyệt.');
   const next=new Map(cart);if(qty===0)next.delete(code);
   else {const p=products.get(code);next.set(code,{code,qty,name:p.name,unit:p.unit})}
   validCart(next);
   cart.clear();for(const [k,v] of next)cart.set(k,v);
-  invalidate();updateCart();
+  invalidate();updateCart();return true;
  }
  function category(p){
   const name=String(p.name||'').toLowerCase();
@@ -351,6 +359,7 @@
    root.append(button);
   }
   if(!arr.length){const p=document.createElement('p');p.className='catalog-empty';p.textContent='Không tìm thấy sản phẩm phù hợp.';root.append(p)}
+  syncOrderInputState();
  }
  function openCatalogue(){
   if(!catalogue){bubble('Vui lòng chọn địa chỉ giao đã duyệt trước khi xem bảng giá.','note');return}
@@ -371,14 +380,15 @@
    if(!lastProduct)throw Error('Hãy chọn một sản phẩm.');
    const qty=Number($('selectedQuantity').value);
    if(!Number.isSafeInteger(qty)||qty<1||qty>500)throw Error('Số lượng từ 1 đến 500.');
-   changeQty(lastProduct.code,(cart.get(lastProduct.code)?.qty||0)+qty);
+   if(!changeQty(lastProduct.code,(cart.get(lastProduct.code)?.qty||0)+qty))return;
    bubble('Đã thêm '+qty+' × '+lastProduct.name+' vào cùng một giỏ hàng.');
    $('productSelection').classList.remove('active');closeCatalogue();
   }catch(e){setText('cartFeedback','⚠ '+e.message)}
  };
- $('quickCartEdit').onclick=()=>setCartMode(cartCollapsed?'half':'collapsed');
+ $('quickCartEdit').onclick=()=>setCartMode(cartCollapsed?'full':'collapsed');
  function startNewCart(){
-  if(requestsBusy)return;
+  if(requestsBusy||confirming)return;
+  if(submissionUncertain&&!uncertainHistoryChecked){showLockNoticeOnce();void loadInvoiceHistory();return}
   if(submissionUncertain&&!window.confirm('Đơn trước có thể đã lưu. Đã kiểm tra Hóa đơn và chắc chắn tạo đơn mới?'))return;
    if(cart.size&&quoteToken&&!window.confirm('Hủy báo giá chưa xác nhận để tạo đơn hàng mới?'))return;
   for(const b of document.querySelectorAll('.live-real-confirm')){
@@ -386,9 +396,10 @@
   }
   cart.clear();invalidate();deliveryNote='';noteInput.value='';lastProduct=null;
    clientOrderId=newOrderId();writeSession(orderStorageKey,clientOrderId);
-   submitted=false;submissionUncertain=false;confirming=false;lockNoticeShown=false;writeSession(pendingStorageKey,'');
+   submitted=false;submissionUncertain=false;confirming=false;lockNoticeShown=false;uncertainHistoryChecked=false;writeSession(pendingStorageKey,'');
    syncOrderInputState();
-  newCartSequence+=1;setCartMode('collapsed');
+  newCartSequence+=1;setCartMode('collapsed');renderCatalogue();
+  $('invoice').style.display='none';
   bubble('🛒 Giỏ mới #'+newCartSequence+' đã sẵn sàng. Hóa đơn cũ vẫn lưu trong mục Hóa đơn. Anh/chị chọn món hoặc nhắn đơn mới.');
   $('messageInput').focus();
  }
@@ -400,7 +411,10 @@
  createNextButton.onclick=startNewCart;
  $('historyButton').parentElement.append(createNextButton);
   $('quickCartNew').hidden=true;
- $('clearCart').onclick=()=>{cart.clear();invalidate();updateCart()};
+ $('clearCart').onclick=()=>{
+  if(submitted||submissionUncertain||confirming){if(!confirming)showLockNoticeOnce();return}
+  if(requestsBusy)return;cart.clear();invalidate();updateCart();renderCatalogue();
+ };
  $('composeCart').onclick=()=>{quoteNow()};
  $('quickCartQuote').onclick=()=>{setCartMode('collapsed');void quoteNow()};
  function renderSuggestions(){
@@ -560,10 +574,11 @@
   }
   const delivery=document.createElement('p');delivery.className='mini';
   delivery.textContent='📍 '+q.customer.name+' • '+q.customer.location;box.append(delivery);
+  const quoteOrderId=clientOrderId,renderedQuoteToken=quoteToken;
   const confirm=document.createElement('button');confirm.type='button';confirm.className='btn primary live-real-confirm';
   confirm.textContent='Xác Nhận';
   confirm.onclick=async()=>{
-   if(requestsBusy||confirming||submitted||submissionUncertain||!quoteToken)return;
+   if(confirm.disabled||quoteOrderId!==clientOrderId||renderedQuoteToken!==quoteToken||requestsBusy||confirming||submitted||submissionUncertain||!quoteToken)return;
    // The clearly labeled send button is the explicit confirmation.
    // Skip a redundant native browser alert (confusing on Samsung/iPhone).
    const confirmedQuote=quoteToken;quoteToken=null;confirming=true;
@@ -583,7 +598,7 @@
     updateSessionReceipt();
    }catch(err){
     if(!submitted){
-     submissionUncertain=true;syncOrderInputState();
+     submissionUncertain=true;uncertainHistoryChecked=false;lockNoticeShown=true;syncOrderInputState();
      lockConfirmButtons('⚠ ĐÃ GỬI YÊU CẦU • KIỂM TRA SỔ');
      bubble('⚠ Chưa xác minh được phản hồi hóa đơn: '+err.message+'. KHÔNG xác nhận lại, KHÔNG GỬI LẠI. Mở mục Hóa đơn kiểm tra trước.','note');
     }else bubble('✅ Đơn đã lưu. Xem lại từ mục Hóa đơn nếu PDF chưa mở.','note');
@@ -592,7 +607,7 @@
   box.append(confirm);$('messages').append(box);$('messages').scrollTop=$('messages').scrollHeight;
  }
  async function quoteNow(){
-   if(submitted||submissionUncertain){bubble('Đơn trước đã gửi hoặc cần kiểm tra. Xem Hóa đơn rồi mở Giỏ hàng mới.','note');return}
+   if(submitted||submissionUncertain){showLockNoticeOnce();return}
   if(requestsBusy)return;if(!catalogue){bubble('Chọn địa chỉ trước.','note');return}
   if(!cart.size){bubble('Giỏ đang trống; hãy thêm món trước.','note');return}
   disabledBusy(true);
@@ -670,6 +685,7 @@
  }
  async function loadInvoiceHistory(openPanel=true,force=false){
   if(openPanel){
+   if(submissionUncertain)uncertainHistoryChecked=true;
    $('historyBackdrop').classList.add('open');
    unreadInvoices.clear();writeSession(unreadKey,'[]');updateInvoiceBadge();
   }
@@ -893,3 +909,4 @@
   $('realOpen').disabled=true;
  }
 })();
+

@@ -1,0 +1,73 @@
+name: Production Cart Regression (fake APIs only)
+on:
+  push:
+    branches:
+      - prototype/customer-ai-gemini-free-20261020
+    paths:
+      - customer-ai-chat-prototype/index.html
+      - customer-ai-chat-prototype/real-gemini-adapter.js
+      - customer-ai-chat-prototype/production-gemini-shell.mjs
+      - customer-ai-chat-prototype/tests/cart-order-state.test.mjs
+      - customer-ai-chat-prototype/tests/production-cart-browser.py
+      - .github/workflows/production-cart-regression.yml
+  pull_request:
+    paths:
+      - customer-ai-chat-prototype/index.html
+      - customer-ai-chat-prototype/real-gemini-adapter.js
+      - customer-ai-chat-prototype/production-gemini-shell.mjs
+      - customer-ai-chat-prototype/tests/cart-order-state.test.mjs
+      - customer-ai-chat-prototype/tests/production-cart-browser.py
+      - .github/workflows/production-cart-regression.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  production-cart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/minhsatori-native-android-v020
+          path: bot-staging
+          persist-credentials: false
+      - name: Install existing offline suite dependencies
+        run: |
+          npm install --prefix customer-ai-chat-prototype --omit=dev --no-audit --no-fund
+          python -m pip install reportlab qrcode pillow
+          mkdir -p customer-ai-chat-prototype/assets
+          cp logo-satori-3394.jpg customer-ai-chat-prototype/assets/logo-satori.jpg
+          git fetch --depth=1 origin main
+      - name: Run all existing Node test files with fake sources
+        run: |
+          for test_file in customer-ai-chat-prototype/tests/*.mjs tests/*.cjs tests/*.test.js connector/tests/*.mjs; do
+            node "$test_file"
+          done
+          node customer-ai-chat-prototype/tests/original-pdf-parity.cjs
+      - name: Validate production JavaScript and order-state regressions
+        run: |
+          node --check customer-ai-chat-prototype/real-gemini-adapter.js
+          node --check customer-ai-chat-prototype/production-gemini-shell.mjs
+          node --test customer-ai-chat-prototype/tests/cart-order-state.test.mjs
+      - name: Install isolated browser test dependencies
+        run: |
+          python -m pip install playwright==1.58.0
+          python -m playwright install --with-deps chromium webkit
+      - name: Run mobile cart and fake-checkout browser regressions
+        env:
+          CART_SCREENSHOTS: test-results/cart-screenshots
+          CART_WEBKIT: '1'
+        run: python customer-ai-chat-prototype/tests/production-cart-browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-cart-screenshots
+          path: test-results/cart-screenshots
+          if-no-files-found: ignore

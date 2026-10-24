@@ -364,8 +364,9 @@ test('Samsung restored cart and reply sequence never hides a third row or clips 
  assert.match(adapter,/const rows=result\.cart/,'use server-validated atomic cart');
  assert.match(adapter,/bubble\(message,'user'\);\$\('messageInput'\)\.value=''/);
  assert.ok(adapter.indexOf("bubble(message,'user')")<adapter.indexOf("try{await interpretMessage(message)}"));
- assert.match(adapter,/\$\('quickCartEdit'\)\.onclick=\(\)=>setCartMode\(cartCollapsed\?'half':'collapsed'\)/);
- assert.match(shell,/max-height:min\(32dvh,250px\)/,'all rows scroll in original cart');
+ assert.match(adapter,/\$\('quickCartEdit'\)\.onclick=\(\)=>setCartMode\(cartCollapsed\?'full':'collapsed'\)/);
+ const css=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ assert.match(css,/#inlineCartLines\{[^}]*overflow:auto/,'all rows scroll inside cart below fixed actions');
  assert.doesNotMatch(shell,/quick-cart\{display:flex;flex-direction:column\}/,
   'flex override must not displace original grid controls');
 });
@@ -500,7 +501,7 @@ test('new carts preserve history; Samsung PDF preview displays real amounts not 
  assert.match(client,/const samsung=\/SamsungBrowser\/i/);
  assert.match(client,/showVerifiedInvoicePreview\(details.invoice\)/);
  assert.match(shell,/id="historyStatus"/);
- assert.match(shell,/quickCartNew\{display:inline-flex/);
+ assert.doesNotMatch(shell,/#quickCartNew\{display:inline-flex/,'do not override hidden duplicate new-cart control');
  for(const [,js] of client.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
   new vm.Script(js,{filename:'real-chat-and-invoices.js'});
 });
@@ -605,8 +606,8 @@ test('iOS cart: three states, swipe handle, color-separated chat and verified in
  assert.match(client,/pointerdown/);
  assert.match(client,/pointermove/);
  assert.match(client,/pointerup/);
- assert.match(css,/\.quick-cart\[data-cart-mode="half"\]/);
- assert.match(css,/\.quick-cart\[data-cart-mode="full"\]/);
+ assert.match(css,/\.quick-cart\[data-cart-mode="collapsed"\]/);
+ assert.match(client,/setCartMode\('full'\)/,'one upward swipe opens the full cart');
  assert.match(css,/\.messages \.bubble\.assistant\{\s*background:#086bd7!important/);
  assert.match(css,/\.messages \.bubble\.user\{\s*background:#078468!important/);
  assert.match(client,/function invoiceBrand\(\)/);
@@ -630,12 +631,13 @@ test('order-locked chat does not flood repeated error bubbles or resubmit after 
  assert.match(client,/if\(direction<0\)\{setCartMode\('collapsed'\);return\}/,
   'one downward swipe collapses the panel');
 });
-test('iPhone collapsed cart stays a compact dock aligned with Send and expanded buttons have stable order',()=>{
+test('production cart geometry has one authority without competing important overrides',()=>{
  const css=readFileSync(new URL('../index.html',import.meta.url),'utf8');
- assert.match(css,/\.quick-cart\[data-cart-mode="collapsed"\]\{[\s\S]*?right:10px!important/);
- assert.match(css,/width:120px!important;min-width:120px!important;max-width:120px!important/);
- assert.match(css,/\.quick-cart\[data-cart-mode="collapsed"\] #quickCartCount,[\s\S]*?display:none!important/);
- assert.match(css,/\.quick-cart:is\(\[data-cart-mode="half"\],\[data-cart-mode="full"\]\) #quickCartQuote\{[\s\S]*?grid-column:2!important/);
- assert.match(css,/\.quick-cart:is\(\[data-cart-mode="half"\],\[data-cart-mode="full"\]\) #quickCartEdit\{[\s\S]*?grid-column:3!important/);
- assert.match(css,/\.quick-cart:is\(\[data-cart-mode="half"\],\[data-cart-mode="full"\]\) #realCartClose\{[\s\S]*?grid-column:4!important/);
+ const shell=readFileSync(new URL('../production-gemini-shell.mjs',import.meta.url),'utf8');
+ const rules=[...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+  .filter(([,selector])=>selector.includes('.production-gemini')&&selector.includes('.quick-cart'));
+ assert.ok(rules.length>0);
+ for(const [,selector,body] of rules)assert.doesNotMatch(body,/!important/,selector);
+ assert.doesNotMatch(shell,/\.quick-cart\{/,'shell does not inject a second cart layout');
+ // Mobile geometry and action order are verified in production-cart-browser.py.
 });
