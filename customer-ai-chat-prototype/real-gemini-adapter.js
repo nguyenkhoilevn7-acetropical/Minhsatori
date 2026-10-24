@@ -151,6 +151,7 @@
    const row=document.createElement('div');row.className='catalog-item real-catalog-row';
    const current=cart.get(p.code)?.qty||0;
    row.classList.toggle('in-cart',current>0);
+   row.classList.toggle('is-selected',lastProduct?.code===p.code);
    row.setAttribute('data-sku',p.code);
    const info=document.createElement('button');info.type='button';info.className='real-product-picker';
    const logo=document.createElement('span');logo.className='catalog-icon';logo.textContent=category(p)==='JUICE'?'🍹':'💧';
@@ -397,6 +398,7 @@
     });
     confirm.dataset.submitted='true';confirm.classList.remove('is-submitting');
     confirm.classList.add('is-submitted');box.classList.add('quote-submitted');
+    cartCollapsed=true;updateCart();
     heading.textContent='✅ ĐƠN ĐÃ GỬI • HÓA ĐƠN THẬT #'+saved.invoiceNo;
     confirm.textContent='✅ ĐÃ GỬI THÀNH CÔNG • #'+saved.invoiceNo;
     const view=document.createElement('button');view.type='button';
@@ -454,7 +456,8 @@
    const card=document.createElement('article');card.className='real-history-order';
    const title=document.createElement('strong');title.textContent='🧾 #'+o.invoiceNo+' • '+o.date;
    const status=document.createElement('small');
-   status.textContent=(o.paid?'✅ Đã thanh toán':'🟠 Chưa thanh toán')+
+   status.textContent=(o.sessionVerified?'🟦 Đã ghi đơn • Thanh toán chờ đối chiếu':
+     o.paid?'✅ Đã thanh toán':'🟠 Chưa thanh toán')+
     ' • '+cash(o.total)+(o.paidAt?' • Ngày thanh toán: '+o.paidAt.slice(0,10):'');
    const receiver=document.createElement('small');
    receiver.textContent='👤 '+o.name+' • ☎ '+o.phone+' • 📍 '+o.location;
@@ -475,7 +478,11 @@
    const d=await call('/api/real/history');
    if(!Array.isArray(d.orders)||!Number.isSafeInteger(d.revision))
     throw Error('Nguồn lịch sử không hợp lệ.');
-   historyOrders=d.orders;historyIncomplete=!d.complete;
+   // Reconcile authoritative Drive history with genuinely confirmed
+   // same-session writes not yet visible on a lagging read replica.
+   const numbers=new Set(d.orders.map(o=>Number(o.invoiceNo)));
+   historyOrders=[...d.orders,...confirmedReceipts.filter(x=>!numbers.has(Number(x.invoiceNo)))];
+   historyIncomplete=!d.complete||historyOrders.some(o=>o.sessionVerified);
    const months=[...new Set(historyOrders.map(o=>{
     const m=String(o.date||'').match(/(?:\d{1,2}\/)?(\d{1,2})\/(\d{4})$/);
     return m?m[2]+'-'+m[1].padStart(2,'0'):'';
@@ -487,10 +494,15 @@
    const notice=document.querySelector('#historyBackdrop .history-caution');
    if(notice)notice.textContent=d.complete?
     '✅ Hóa đơn thật từ Google Drive • Chỉ tên, điện thoại, địa chỉ đã duyệt. Thanh toán cập nhật theo dữ liệu hiện hành.':
-    '⚠ Kết quả hiện chưa đầy đủ do giới hạn 100 hóa đơn mỗi lần đọc. Không dùng số liệu này để chốt công nợ.';
+    '⚠ Nguồn lịch sử chưa đồng bộ đầy đủ hoặc vượt 100 kết quả. Đơn mới xác nhận trong phiên được hiển thị riêng; không dùng để chốt công nợ.';
    renderInvoiceHistory();
   }catch(e){
-   rootHistoryError(e.message);
+   if(confirmedReceipts.length){
+    historyOrders=[...confirmedReceipts];historyIncomplete=true;
+    const notice=document.querySelector('#historyBackdrop .history-caution');
+    if(notice)notice.textContent='⚠ Google Drive tạm chưa trả lịch sử. Chỉ hiện hóa đơn được máy chủ xác nhận ghi trong phiên này. Thanh toán vẫn chờ đối chiếu.';
+    renderInvoiceHistory();
+   }else rootHistoryError(e.message);
   }
  }
  function rootHistoryError(message){
