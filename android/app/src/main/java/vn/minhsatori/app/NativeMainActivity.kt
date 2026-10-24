@@ -1,6 +1,12 @@
 package vn.minhsatori.app
 
 import android.app.Activity
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.content.Intent
 import android.net.Uri
 import java.io.ByteArrayOutputStream
@@ -35,6 +41,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.ClearTokenRequest
 import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
@@ -93,6 +100,9 @@ class NativeMainActivity : AppCompatActivity() {
     private var authorizationPending = false
     private var authorizationDeclined = false
     private var foreground = false
+    private var lastOAuthRecoveryAt = 0L
+    private val oauthRetryBackoffMs = 300_000L
+    private val newOrderChannelId = "minh_satori_live_orders"
     // Never persist OAuth tokens. Re-authorize silently through Google when
     // resuming; show a consent dialog only when Android actually requires it.
     private val syncTick = object : Runnable {
@@ -117,6 +127,61 @@ class NativeMainActivity : AppCompatActivity() {
             syncHandler.postDelayed(this, syncIntervalMs)
         }
     }
+    /**
+     * Google's AuthorizationClient can return a cached token that the
+     * server-side tokeninfo endpoint has already rejected. Clear ONLY that
+     * access token's cache entry; never revoke the owner's scopes or persist
+     * credentials. Throttle re-authorization to avoid endless OAuth loops.
+     */
+    private fun recoverRejectedOAuthToken(token: String) {
+        if (token.isBlank() || accessToken != token) return
+        val now = SystemClock.elapsedRealtime()
+        if (lastOAuthRecoveryAt > 0L && now - lastOAuthRecoveryAt < oauthRetryBackoffMs) {
+            statusMessage = "⚠ Google tiếp tục từ chối token. " +
+                "Kiểm tra OAuth client ID và chứng chỉ ký APK; chưa bật ghi đơn."
+            return
+        }
+        lastOAuthRecoveryAt = now
+        accessToken = null
+        actorId = ""
+        allowedActions = emptySet()
+        statusMessage = "Đang xin token Google mới; giữ nguyên dữ liệu đã đồng bộ."
+        Identity.getAuthorizationClient(this)
+            .clearToken(ClearTokenRequest.builder().setToken(token).build())
+            .addOnCompleteListener {
+                if (foreground && !authorizationPending) connectGoogle(automatic = true)
+            }
+    }
+
+    private fun notifyVerifiedNewInvoices(prior: SatoriSnapshot?, latest: SatoriSnapshot) {
+        if (prior == null || latest.revision <= prior.revision) return
+        val known = prior.invoices.map { it.number }.toSet()
+        val added = latest.invoices.filter { !it.isTest && it.number !in known }
+        if (added.isEmpty()) return
+        // A revisioned snapshot is authoritative; do not alert on demo orders,
+        // on first app launch, or on a stale/out-of-order response.
+        statusMessage = "🔔 " + added.size + " hóa đơn thật mới đã đồng bộ • revision " +
+            latest.revision
+        val notifications = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= 26)
+            notifications.createNotificationChannel(NotificationChannel(newOrderChannelId,
+                "Đơn hàng thật Minh Satori", NotificationManager.IMPORTANCE_HIGH))
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED) return
+        if (!getPreferences(MODE_PRIVATE).getBoolean("satori_live_notifications", false)) return
+        @Suppress("DEPRECATION")
+        val notification = if (Build.VERSION.SDK_INT >= 26)
+            Notification.Builder(this, newOrderChannelId)
+        else Notification.Builder(this)
+        notification.setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Minh Satori • " + added.size + " hóa đơn mới")
+            .setContentText("Hóa đơn #" + added.first().number + " • " +
+                SatoriData.money(added.first().total))
+            .setAutoCancel(true)
+        notifications.notify(52001, notification.build())
+    }
+
     private fun hasServerAction(action: String): Boolean =
         apiEndpoint != null && accessToken != null &&
             actorId.isNotBlank() && dataSource == "Minh Satori API" && allowedActions.contains(action)
@@ -551,7 +616,34 @@ class NativeMainActivity : AppCompatActivity() {
             isFocusable = true
             setOnClickListener { refreshNow() }
         }
-        brand.addView(refreshButton, LinearLayout.LayoutParams(dp(88), dp(46)))
+        brand.addView(refreshButton, LinearLayout.LayoutParams(dp(77), dp(46)))
+        val bellButton = TextView(this).apply {
+            text = if (getPreferences(MODE_PRIVATE).getBoolean(
+                    "satori_live_notifications", false)) "🔔" else "🔕"
+            textSize = 20f
+            gravity = Gravity.CENTER
+            setTextColor(white)
+            contentDescription = "Bật hoặc tắt thông báo hóa đơn thật mới"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                val existing = getPreferences(MODE_PRIVATE).getBoolean(
+                    "satori_live_notifications", false)
+                val enabled = !existing
+                getPreferences(MODE_PRIVATE).edit().putBoolean(
+                    "satori_live_notifications", enabled).apply()
+                if (enabled && Build.VERSION.SDK_INT >= 33 &&
+                    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                        PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5201)
+                }
+                Toast.makeText(this@NativeMainActivity, if (enabled)
+                    "Đã bật thông báo đơn thật khi dữ liệu đồng bộ được." else
+                    "Đã tắt thông báo đơn mới.", Toast.LENGTH_SHORT).show()
+                render()
+            }
+        }
+        brand.addView(bellButton, LinearLayout.LayoutParams(dp(34), dp(46)))
         val options = TextView(this).apply {
             text = "⚙"
             textSize = 23f
@@ -1837,7 +1929,9 @@ class NativeMainActivity : AppCompatActivity() {
                             (error.message ?: "Lỗi kết nối")
                         if (error is MobileApiError &&
                             error.apiCode in setOf("AUTH_FAILED", "FORBIDDEN")) {
-                            accessToken = null
+                            if (error.apiCode == "AUTH_FAILED")
+                                recoverRejectedOAuthToken(token)
+                            else accessToken = null
                             allowedActions = emptySet()
                             lastSyncAttemptElapsedMs = 0L
                         }
@@ -1893,6 +1987,7 @@ class NativeMainActivity : AppCompatActivity() {
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
                         statusMessage = "Đã kết nối quyền lên đơn."
+                        notifyVerifiedNewInvoices(prior, it.snapshot)
                         if (pending != null && pending.belongsTo(endpoint, it.actorId)) {
                             if (pending.confirmedIn(it.snapshot, trash)) finishPendingWrite(pending)
                             else statusMessage = "Đã đồng bộ; còn thao tác đang chờ cần kiểm tra hoặc gửi lại đúng yêu cầu cũ."
@@ -1910,9 +2005,11 @@ class NativeMainActivity : AppCompatActivity() {
                         statusMessage = "⚠ Không kiểm tra được Mobile API: " +
                             (it.message ?: "không rõ lỗi") +
                             ". Chưa bật chức năng lưu đơn."
-                        if (it is MobileApiError &&
-                            (it.apiCode == "AUTH_FAILED" || it.apiCode == "FORBIDDEN")) {
+                        if (it is MobileApiError && it.apiCode == "AUTH_FAILED") {
+                            recoverRejectedOAuthToken(token)
+                        } else if (it is MobileApiError && it.apiCode == "FORBIDDEN") {
                             accessToken = null
+                            statusMessage += " Cần xác minh tài khoản và OAuth client được cho phép."
                         }
                     }
                 )
@@ -2372,6 +2469,7 @@ class NativeMainActivity : AppCompatActivity() {
                             lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                             lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
                             statusMessage = "Đã đồng bộ • kiểm tra mỗi 20 giây; đối chiếu đầy đủ mỗi 60 giây."
+                            notifyVerifiedNewInvoices(old, current)
                         }
                     },
                     onFailure = { error ->
