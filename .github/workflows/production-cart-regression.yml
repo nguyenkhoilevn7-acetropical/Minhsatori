@@ -45,12 +45,6 @@ jobs:
           mkdir -p customer-ai-chat-prototype/assets
           cp logo-satori-3394.jpg customer-ai-chat-prototype/assets/logo-satori.jpg
           git fetch --depth=1 origin main
-      - name: Run all existing Node test files with fake sources
-        run: |
-          for test_file in customer-ai-chat-prototype/tests/*.mjs tests/*.cjs tests/*.test.js connector/tests/*.mjs; do
-            node "$test_file"
-          done
-          node customer-ai-chat-prototype/tests/original-pdf-parity.cjs
       - name: Validate production JavaScript and order-state regressions
         run: |
           node --check customer-ai-chat-prototype/real-gemini-adapter.js
@@ -65,9 +59,51 @@ jobs:
           CART_SCREENSHOTS: test-results/cart-screenshots
           CART_WEBKIT: '1'
         run: python customer-ai-chat-prototype/tests/production-cart-browser.py
+      - name: Run all existing Node test files with fake sources
+        run: |
+          for test_file in customer-ai-chat-prototype/tests/*.mjs tests/*.cjs tests/*.test.js connector/tests/*.mjs; do
+            node "$test_file"
+          done
+          node customer-ai-chat-prototype/tests/original-pdf-parity.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: production-cart-screenshots
           path: test-results/cart-screenshots
           if-no-files-found: ignore
+  verify-production:
+    needs: production-cart
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for manually deployed, tested production HTML (GET only)
+        run: |
+          node --input-type=module - <<'JS' > /tmp/expected-real.html
+          import fs from 'node:fs';
+          import {renderOriginalGeminiProduction} from './customer-ai-chat-prototype/production-gemini-shell.mjs';
+          process.stdout.write(renderOriginalGeminiProduction(fs.readFileSync('customer-ai-chat-prototype/index.html','utf8'),fs.readFileSync('customer-ai-chat-prototype/real-gemini-adapter.js','utf8')));
+          JS
+          python3 - <<'PY'
+          import hashlib,json,time,urllib.request
+          expected=open('/tmp/expected-real.html','rb').read()
+          root='https://minh-satori-customer-ai-gemini.onrender.com'
+          for attempt in range(80):
+              try:
+                  with urllib.request.urlopen(root+'/real/',timeout=30) as response:
+                      actual=response.read()
+                      assert response.status==200
+                  if actual==expected:
+                      with urllib.request.urlopen(root+'/health',timeout=30) as response:
+                          health=json.load(response)
+                          assert response.status==200 and health.get('ok') and health.get('ready') and not health.get('demoOnly')
+                      print('PASS Production HTTP 200, ready, exact tested HTML+CSS+adapter SHA256 '+hashlib.sha256(actual).hexdigest())
+                      print('PASS GET only; no customer credentials or invoice mutations')
+                      break
+                  print('Waiting for manual Render deploy of tested source',attempt+1,flush=True)
+              except Exception as error:
+                  print('Read-only verification retry:',type(error).__name__,flush=True)
+              time.sleep(10)
+          else:
+              raise SystemExit('FAIL Production did not serve exact tested source within verification window')
+          PY

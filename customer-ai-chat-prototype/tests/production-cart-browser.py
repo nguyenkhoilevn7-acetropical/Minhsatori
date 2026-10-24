@@ -25,7 +25,11 @@ PENDING_KEY = "satori-pending:" + TOKEN[:32]
 CUSTOMER = {"name": "KH KIỂM THỬ", "phone": "0000000000", "location": "Địa chỉ giả lập"}
 PRODUCTS = [
     {"code": "TEST-WATER", "name": "Satori nước tinh khiết chai nhỏ", "unit": "thùng", "unitPrice": 100000},
-    {"code": "TEST-GUAVA", "name": "Juice ổi hồng", "unit": "thùng", "unitPrice": 200000},
+    {"code": "TEST-GUAVA", "name": "Juice ổi hồng chai gia đình", "unit": "thùng", "unitPrice": 200000},
+    {"code": "TEST-APPLE", "name": "Juice táo nguyên chất chai nhỏ", "unit": "thùng", "unitPrice": 200000},
+    {"code": "TEST-MANGO", "name": "Juice mãng cầu chai nước trái cây", "unit": "thùng", "unitPrice": 200000},
+    {"code": "TEST-HIKARI", "name": "Hikari nước điện giải đóng thùng", "unit": "thùng", "unitPrice": 200000},
+    {"code": "TEST-LARGE", "name": "Satori nước tinh khiết bình gia đình lớn", "unit": "bình", "unitPrice": 100000},
 ]
 OLD_INVOICE = {
     "invoiceNo": 7001, "total": 100000, "date": "24/10/2026",
@@ -72,7 +76,8 @@ class FakeAPI:
             response.update(orders=[OLD_INVOICE, *self.saved.values()], revision=1, complete=True)
         elif path == "/api/real/interpret":
             qty = int(re.search(r"\d+", body["message"])[0])
-            response.update(cart=[{"code": PRODUCTS[0]["code"], "qty": qty}], message="Đã cập nhật giỏ giả lập.")
+            rows = [{"code": p["code"], "qty": i + 1} for i, p in enumerate(PRODUCTS)] if body["message"].startswith("6 loại") else [{"code": PRODUCTS[0]["code"], "qty": qty}]
+            response.update(cart=rows, message="Đã cập nhật giỏ giả lập.")
         elif path == "/api/real/quote":
             qt = f"fake-quote-{len(self.quotes) + 1}"
             items = [dict(product=next(p["name"] for p in PRODUCTS if p["code"] == row["code"]),
@@ -336,6 +341,53 @@ def restored_submitted_case(browser, origin, html):
 
 
 
+
+def six_rows_case(browser, origin, html, viewport, ua, label):
+    context = browser.new_context(viewport=viewport, user_agent=ua, is_mobile=True, has_touch=True)
+    api = FakeAPI(html, origin)
+    context.route("**/*", api.route)
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(origin + "/#" + TOKEN)
+    login(page)
+    send(page, "6 loại sản phẩm")
+    expect(page.locator(".real-cart-count")).to_have_text("21")
+    collapsed_geometry(page)
+    swipe(page, "up")
+    settle_cart(page)
+    rows = page.locator("#inlineCartLines .inline-cart-row")
+    expect(rows).to_have_count(6)
+    expect(page.locator("#quickCartQuote")).to_be_in_viewport()
+    expect(page.locator(".delivery-note")).to_be_visible()
+    # Only the product list scrolls. Its last row and delivery note remain reachable
+    # while the header action stays visible on short screens.
+    rows.last.scroll_into_view_if_needed()
+    expect(page.locator("#quickCartQuote")).to_be_in_viewport()
+    expect(page.locator(".delivery-note")).to_be_in_viewport()
+    expect(rows.last).to_be_in_viewport()
+    bounds = page.evaluate("""() => {
+      const row=document.querySelector('#inlineCartLines .inline-cart-row:last-child');
+      const box=e=>{const r=e.getBoundingClientRect();return {x:r.x,right:r.right}};
+      return {row:box(row),parts:[...row.children].map(box),viewport:innerWidth};
+    }""")
+    assert bounds["row"]["right"] <= bounds["viewport"], bounds
+    for part in bounds["parts"]:
+        assert bounds["row"]["x"] <= part["x"] < part["right"] <= bounds["row"]["right"] + 1, bounds
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    if os.environ.get("CART_SCREENSHOTS"):
+        out = Path(os.environ["CART_SCREENSHOTS"])
+        out.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(out / f"{label}-six-rows.png"))
+    swipe(page, "down")
+    collapsed_geometry(page)
+    assert api.count("quote") == api.count("confirm") == 0
+    assert not errors, errors
+    assert not api.unexpected, api.unexpected
+    context.close()
+    print(f"PASS {label}: six long product names, steppers, badge, pinned checkout and note", flush=True)
+
+
 def pending_confirm_case(browser, origin, html):
     context = browser.new_context(viewport={"width": 360, "height": 740})
     api = FakeAPI(html, origin)
@@ -404,6 +456,7 @@ def main():
                     (740, 360, samsung, "samsung-landscape"), (390, 844, iphone, "iphone-390"),
                 ]:
                     guarded_case(success_case, browser, origin, html, {"width": width, "height": height}, ua, label)
+                    guarded_case(six_rows_case, browser, origin, html, {"width": width, "height": height}, ua, label)
                 guarded_case(uncertain_case, browser, origin, html)
                 guarded_case(restored_submitted_case, browser, origin, html)
                 guarded_case(pending_confirm_case, browser, origin, html)
@@ -411,6 +464,7 @@ def main():
                 if os.environ.get("CART_WEBKIT") == "1":
                     webkit = p.webkit.launch(headless=True)
                     guarded_case(success_case, webkit, origin, html, {"width": 390, "height": 844}, iphone, "webkit-iphone-390")
+                    guarded_case(six_rows_case, webkit, origin, html, {"width": 390, "height": 844}, iphone, "webkit-iphone-390")
                     webkit.close()
             server.shutdown()
     print("PASS all production cart browser scenarios; fake API only; zero real invoices", flush=True)
