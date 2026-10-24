@@ -122,6 +122,8 @@ button:disabled{opacity:.55}
 .ctv-live-receiver strong{color:#185c92}
 .ctv-live-receiver p{margin:6px 0;font-size:13px;color:#617487;line-height:1.45}
 #ctvLiveResult{line-height:1.8;white-space:pre-line;margin-top:12px;padding:11px;border-radius:12px;background:#f1f8ff}
+.production-alert-order{padding:10px 12px;border:1px solid #cde2f7;background:white;border-radius:12px;display:flex;gap:8px;align-items:center;justify-content:space-between}
+.production-alert-order strong{color:#115a96}.production-alert-order small{color:#5b7185}
 </style></head><body><main>
 <header class="admin-branded-header"><span class="production-tag">● PRODUCTION</span><span class="admin-brand"><img src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="46" height="46"><strong>MINH SATORI <small id="adminModeTag">• Đang kiểm tra</small></strong></span></header>
 <h1>Quản lý Minh Satori</h1>
@@ -153,6 +155,15 @@ button:disabled{opacity:.55}
 <button id="showMoreOrders" type="button" class="secondary" hidden>Xem thêm đơn</button>
 </section>
 
+<section class="card" id="productionOrderAlerts" style="border:1px solid #b4d9f7;background:#f1f9ff" hidden>
+ <div class="production-heading"><div><h2>🔔 Đơn hàng thật từ Google Drive</h2>
+ <p id="productionOrderStatus" role="status">Đang xác minh nguồn hóa đơn Production…</p></div>
+ <span class="production-tag" id="productionFeedBadge">Chỉ đọc</span></div>
+ <div class="row"><button type="button" class="secondary" id="productionBell">🔕 Bật chuông đơn thật</button>
+ <button type="button" class="secondary" id="productionFeedRefresh">↻ Làm mới đơn thật</button></div>
+ <div id="productionRecentOrders" class="directory-grid"></div>
+ <p class="hint">Tự kiểm tra khi trang quản trị đang mở; chuông phụ thuộc quyền thông báo của trình duyệt. Không thay thế push của Android khi đóng ứng dụng.</p>
+</section>
 <section class="card" data-tab-panel="live" hidden id="ownerRealInvoiceCard">
 <h2>🤖 Gemini → Hóa đơn thật • CHỈ CHỦ TÀI KHOẢN</h2>
 <p class="warning">Khách chưa có quyền sử dụng. Chỉ anh được tạo hóa đơn sau khi đọc lại tên, địa chỉ, sản phẩm và tổng tiền. Nếu chưa đủ quyền HMAC, chức năng tự khóa.</p>
@@ -1658,6 +1669,101 @@ $('enableOrderBell').onclick=async()=>{
 setInterval(()=>{if(secret&&!$('workspace').hidden)refreshOrderInbox()},10000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshOrderInbox()});
 
+// Production source of truth: the original sandbox new-orders endpoint is
+// NOT the real ledger. Poll the signed read-only /api/admin/live-search instead.
+let liveOrderBaseline=null,liveOrderRevision=null,liveOrderPolling=false;
+let liveBellEnabled=false,liveBellAudio=null,liveRecentSnapshot=[];
+const liveDateMonth=()=>{
+ const dt=new Date(),parts=new Intl.DateTimeFormat('en-CA',{
+  timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit'}).formatToParts(dt);
+ const year=parts.find(x=>x.type==='year')?.value;
+ const month=parts.find(x=>x.type==='month')?.value;
+ return year+'-'+month;
+};
+function showLiveOrderRows(orders){
+ const root=$('productionRecentOrders');root.replaceChildren();
+ for(const o of orders.slice(0,6)){
+  const card=document.createElement('article');card.className='production-alert-order';
+  const title=document.createElement('div'),strong=document.createElement('strong');
+  strong.textContent='Hóa đơn #'+o.invoiceNo+' • '+(o.name||'Khách hàng');
+  const details=document.createElement('small');details.textContent=(o.location||'')+
+   ' • '+money(o.total||0)+'đ';
+  title.append(strong,details);
+  const btn=document.createElement('button');btn.type='button';btn.className='secondary';
+  btn.textContent='Xem';btn.onclick=()=>{
+   showAdminTab('live');$('liveQuery').value=String(o.invoiceNo);
+   $('liveFindInvoices').click();
+  };
+  card.append(title,btn);root.append(card);
+ }
+}
+function soundNewRealOrder(){
+ if(!liveBellEnabled)return;
+ try{
+  const Ctx=window.AudioContext||window.webkitAudioContext;
+  if(!Ctx)return;
+  if(!liveBellAudio)liveBellAudio=new Ctx();
+  if(liveBellAudio.state!=='running')return;
+  const tone=liveBellAudio.createOscillator(),gain=liveBellAudio.createGain();
+  tone.frequency.value=880;gain.gain.value=0.08;tone.connect(gain);
+  gain.connect(liveBellAudio.destination);tone.start();
+  tone.stop(liveBellAudio.currentTime+0.25);
+ }catch{}
+}
+async function pollRealOrderFeed(force=false){
+ if(!secret||$('workspace').hidden||liveOrderPolling||document.hidden)return;
+ liveOrderPolling=true;
+ try{
+  const month=liveDateMonth();
+  const data=await request('/api/admin/live-search?kind=invoices&month='+encodeURIComponent(month));
+  if(!Array.isArray(data.invoices)||!Number.isSafeInteger(data.revision)||
+     data.truncated)throw Error('Không xác minh được đầy đủ hóa đơn tháng này; hãy thu hẹp tháng hoặc tìm bằng số hóa đơn.');
+  const entries=data.invoices.filter(o=>Number.isSafeInteger(Number(o.invoiceNo))&&
+   Number(o.invoiceNo)>0&&Number.isSafeInteger(Number(o.total)));
+  const current=new Set(entries.map(o=>String(o.invoiceNo)));
+  const previousRevision=liveOrderRevision;
+  const additions=liveOrderBaseline===null?[]:
+   entries.filter(o=>!liveOrderBaseline.has(String(o.invoiceNo)));
+  liveOrderBaseline=current;liveOrderRevision=data.revision;
+  liveRecentSnapshot=entries.sort((a,b)=>Number(b.invoiceNo)-Number(a.invoiceNo));
+  $('productionOrderAlerts').hidden=false;
+  $('productionFeedBadge').textContent='Revision '+data.revision;
+  $('productionOrderStatus').textContent=additions.length?
+   '🔔 '+additions.length+' HÓA ĐƠN THẬT MỚI • '+entries.length+' hóa đơn tháng '+month:
+   '✓ Đang đồng bộ tự động • '+entries.length+' hóa đơn tháng '+month+' • revision '+data.revision;
+  showLiveOrderRows(liveRecentSnapshot);
+  if(additions.length){
+   soundNewRealOrder();
+   try{
+    if(liveBellEnabled&&typeof Notification!=='undefined'&&Notification.permission==='granted')
+     new Notification('Minh Satori • '+additions.length+' đơn thật mới',{
+      body:'#'+additions[0].invoiceNo+' • '+additions[0].name+' • '+money(additions[0].total)+'đ',
+      tag:'minh-satori-live-'+additions[0].invoiceNo
+     });
+   }catch{}
+  }
+  if((force||previousRevision!==null&&previousRevision!==data.revision)&&
+     document.querySelector('[data-tab-panel="live"]:not([hidden])')){
+   $('liveQuery').value='';$('liveMonth').value=month;
+   $('liveFindInvoices').click();
+  }
+ }catch(err){$('productionOrderStatus').textContent='⚠ Không đồng bộ được đơn thật: '+err.message;
+  $('productionOrderAlerts').hidden=false;
+ }finally{liveOrderPolling=false}
+}
+$('productionFeedRefresh').onclick=()=>pollRealOrderFeed(true);
+$('productionBell').onclick=async()=>{
+ liveBellEnabled=!liveBellEnabled;
+ $('productionBell').textContent=liveBellEnabled?'🔔 Tắt chuông đơn thật':'🔕 Bật chuông đơn thật';
+ if(liveBellEnabled){
+  try{const C=window.AudioContext||window.webkitAudioContext;
+   if(C){if(!liveBellAudio)liveBellAudio=new C();await liveBellAudio.resume()}}catch{}
+  if(typeof Notification!=='undefined'&&Notification.permission==='default')
+   try{await Notification.requestPermission()}catch{}
+ }
+};
+setInterval(()=>{if(secret&&!$('workspace').hidden)void pollRealOrderFeed()},15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)void pollRealOrderFeed(true)});
 async function load(){
  await loadRequests();
  const data=await request('/api/admin/customers');
@@ -1971,7 +2077,7 @@ $('ownerLiveConfirm').onclick=async()=>{
 };
 
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
- secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Nguồn khách thật và bảng giá được tải từ Bot API Production; mỗi hóa đơn thật vẫn yêu cầu xác nhận.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực quản trị';$('access').value='';$('loginCard').hidden=true;showAdminTab('customers')}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
+ secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Nguồn khách thật và bảng giá được tải từ Bot API Production; mỗi hóa đơn thật vẫn yêu cầu xác nhận.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực quản trị';$('access').value='';$('loginCard').hidden=true;showAdminTab('customers');void pollRealOrderFeed(true)}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
  const b=$('createButton');if(b.disabled)return;b.disabled=true;
  if(selectedRealKey){
