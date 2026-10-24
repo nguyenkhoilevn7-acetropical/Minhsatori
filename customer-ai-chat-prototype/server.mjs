@@ -648,7 +648,12 @@ const server=http.createServer(async(req,res)=>{
   }catch(e){
    // Fixed-category server diagnostic only; no personal data, HMAC, or invoice refs.
    const category=String(e?.code||'CTV_PAIR_NOT_READY').replace(/[^A-Z0-9_]/g,'').slice(0,64);
-   console.warn('CTV_OWNER_POLICY_SAVE_FAILED',category||'CTV_PAIR_NOT_READY');
+   // Log only a fixed upstream HTTP category, never status body, URL or credentials.
+   const upstreamClass=['AUTH_DENIED','NOT_FOUND','RATE_LIMITED',
+    'SERVER_ERROR','CLIENT_ERROR','UNKNOWN'].includes(e?.upstreamClass)?
+    e.upstreamClass:'UNCLASSIFIED';
+   console.warn('CTV_OWNER_POLICY_SAVE_FAILED',
+    category||'CTV_PAIR_NOT_READY',upstreamClass);
    return fail(res,503,e?.code||'CTV_PAIR_NOT_READY','Chưa lưu được chính sách thật. Không tự thử lại hoặc báo đã duyệt khi thất bại.');
   }
  }
