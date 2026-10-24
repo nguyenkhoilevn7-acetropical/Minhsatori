@@ -48,7 +48,17 @@ export async function ownerPairAction(action,payload={},{
   const response=await fetcher(url,{method:'POST',redirect:'follow',signal:controller.signal,
    headers:{'content-type':'application/json'},
    body:JSON.stringify({keyId,timestamp,nonce:id,action,payload,signature})});
-  if(!response?.ok)refuse('CTV_PAIR_UPSTREAM_UNAVAILABLE');
+  // GAS can reject approval requests at the HTTP layer before returning Bot API
+  // JSON. Distinguish safe status categories without leaking response bodies,
+  // key identifiers, HMAC material or customer data.
+  if(!response?.ok){
+   const status=Number(response?.status);
+   if(status===401||status===403)refuse('CTV_PAIR_UPSTREAM_AUTH_DENIED');
+   if(status===404||status===410)refuse('CTV_PAIR_UPSTREAM_DEPLOYMENT_INVALID');
+   if(status===429)refuse('CTV_PAIR_UPSTREAM_THROTTLED');
+   if(status>=500&&status<=599)refuse('CTV_PAIR_UPSTREAM_SERVER_ERROR');
+   refuse('CTV_PAIR_UPSTREAM_UNAVAILABLE');
+  }
   const raw=await response.text();
   if(raw.length>30000)refuse('CTV_PAIR_RESPONSE_INVALID');
   let data;
