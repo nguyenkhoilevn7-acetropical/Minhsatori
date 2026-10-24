@@ -1976,7 +1976,6 @@ class NativeMainActivity : AppCompatActivity() {
                             return@runOnUiThread
                         }
                         snapshot = it.snapshot
-                        notifyVerifiedNewInvoices(prior, it.snapshot)
                         lastMobileRevisionProbeElapsedMs = SystemClock.elapsedRealtime()
                         allowedActions =
                             if (getPreferences(MODE_PRIVATE).getBoolean(
@@ -1988,6 +1987,7 @@ class NativeMainActivity : AppCompatActivity() {
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
                         statusMessage = "Đã kết nối quyền lên đơn."
+                        notifyVerifiedNewInvoices(prior, it.snapshot)
                         if (pending != null && pending.belongsTo(endpoint, it.actorId)) {
                             if (pending.confirmedIn(it.snapshot, trash)) finishPendingWrite(pending)
                             else statusMessage = "Đã đồng bộ; còn thao tác đang chờ cần kiểm tra hoặc gửi lại đúng yêu cầu cũ."
@@ -2463,13 +2463,13 @@ class NativeMainActivity : AppCompatActivity() {
                                 ". Không ghi đè hóa đơn."
                         } else {
                             snapshot = current
-                            notifyVerifiedNewInvoices(old, current)
                             lastDriveVersion = version
                             lastVersionProbeElapsedMs = SystemClock.elapsedRealtime()
                             dataSource = "Google Drive API"
                             lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                             lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
                             statusMessage = "Đã đồng bộ • kiểm tra mỗi 20 giây; đối chiếu đầy đủ mỗi 60 giây."
+                            notifyVerifiedNewInvoices(old, current)
                         }
                     },
                     onFailure = { error ->
