@@ -14,7 +14,8 @@ var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
  'payments.markCustomerPaid':'payments:write',
  'collaborators.pair.list':'collaborators:pair:read',
  'collaborators.pair.configure':'collaborators:pair:approve','collaborators.mark':'collaborators:pair:approve',
- 'orders.create.pair':'collaborators:pair:write'};
+ 'orders.create.pair':'collaborators:pair:write',
+ 'links.register':'orders:write','links.list':'orders:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
@@ -704,8 +705,81 @@ function readApprovedAIPricing(s,all,p){
   // This is NOT an authenticated login/OTP proof; caller must verify the person.
   customerLoginVerified:false};
 }
+
+/* Owner-only issued link registry. Stored in Drive state, not ephemeral Render.
+   Both operations require the EXISTING owner orders:write key (never customer read).
+   PINs are deliberately never stored. */
+var LINK_KEY='satori_issued_links_v1';
+function storedLinks(s){
+ var text=s.values[LINK_KEY]||'[]',list;
+ need(typeof text==='string'&&text.length<1800000,'LINK_REGISTRY_INVALID','Dữ liệu link quá lớn');
+ try{list=JSON.parse(text)}catch(e){fail('LINK_REGISTRY_INVALID','Danh sách link bị lỗi')}
+ need(Array.isArray(list)&&list.length<=500,'LINK_REGISTRY_INVALID','Danh sách link vượt giới hạn');
+ return list;
+}
+function linkRegister(s,p){
+ var r=p.record;
+ need(p.confirmed===true&&r&&typeof r==='object'&&
+  /^il_[a-f0-9]{32}$/.test(r.id||'')&&
+  ['agency','customer','collaborator'].includes(r.kind)&&
+  typeof r.name==='string'&&r.name.trim().length>=2&&r.name.length<=150&&
+  typeof r.link==='string'&&r.link.length>=80&&r.link.length<=16000&&
+  /^https:\/\/minh-satori-customer-ai-gemini\.onrender\.com\/(?:real|ctv)\/#[-_A-Za-z0-9.]{50,15000}$/.test(r.link)&&
+  (r.kind==='collaborator')===r.link.includes('/ctv/#')&&
+  typeof r.issuedAt==='string'&&!isNaN(Date.parse(r.issuedAt))&&
+  (r.expiresAt==null||typeof r.expiresAt==='string'&&!isNaN(Date.parse(r.expiresAt)))&&
+  Number.isSafeInteger(r.shippingPercent)&&r.shippingPercent>=0&&r.shippingPercent<=30&&
+  [0,5,8,10].includes(r.vatPercent)&&
+  Array.isArray(r.recipients)&&r.recipients.length>=1&&r.recipients.length<=20,
+  'LINK_REGISTRY_INVALID','Thông tin link chưa hợp lệ');
+ var unique={};
+ var recipients=r.recipients.map(function(x){
+  need(x&&x.customerRef&&x.customerRef.id!=null&&
+   Number.isSafeInteger(x.customerRef.invoiceNo)&&x.customerRef.invoiceNo>0&&
+   typeof x.name==='string'&&x.name.length>=2&&x.name.length<=150&&
+   typeof x.phone==='string'&&x.phone.length>=8&&x.phone.length<=35&&
+   typeof x.location==='string'&&x.location.length>=5&&x.location.length<=500&&
+   Number.isSafeInteger(x.discountPercent)&&x.discountPercent>=0&&x.discountPercent<=70,
+   'LINK_REGISTRY_INVALID','Người nhận chưa được duyệt');
+  var key=String(x.customerRef.id)+'|'+x.customerRef.invoiceNo;
+  need(!unique[key],'LINK_REGISTRY_INVALID','Điểm giao trùng nhau');unique[key]=true;
+  return {customerRef:{id:String(x.customerRef.id),invoiceNo:x.customerRef.invoiceNo},
+   name:x.name,phone:x.phone,location:x.location,discountPercent:x.discountPercent};
+ });
+ need(r.kind!=='collaborator'||/^[A-Za-z0-9_-]{4,100}$/.test(String(r.collaboratorId||'')),
+  'LINK_REGISTRY_INVALID','Mã cộng tác viên không hợp lệ');
+ var record={id:r.id,kind:r.kind,name:r.name.trim(),link:r.link,
+  issuedAt:new Date(r.issuedAt).toISOString(),
+  expiresAt:r.expiresAt?new Date(r.expiresAt).toISOString():null,
+  collaboratorId:r.kind==='collaborator'?String(r.collaboratorId):null,
+  shippingPercent:r.shippingPercent,vatPercent:r.vatPercent,recipients:recipients};
+ var list=storedLinks(s),prior=list.filter(function(x){return x&&x.id===record.id});
+ need(prior.length<=1,'LINK_REGISTRY_INVALID','Trùng mã link');
+ if(prior.length){
+  need(JSON.stringify(prior[0])===JSON.stringify(record),
+   'LINK_REGISTRY_CONFLICT','Mã đã có nội dung khác');
+  return {modified:false,result:{saved:true,duplicate:true,id:record.id}};
+ }
+ version(s,p);
+ need(list.length<500,'LINK_REGISTRY_FULL','Sổ link đã đầy');
+ list.unshift(record);var raw=JSON.stringify(list);
+ need(raw.length<1750000,'LINK_REGISTRY_FULL','Sổ link quá lớn');
+ return {modified:true,extras:{satori_issued_links_v1:raw},
+  result:{saved:true,duplicate:false,id:record.id}};
+}
+function linkList(s,p){
+ var data=storedLinks(s),offset=Number(p.offset||0),limit=Number(p.limit||8);
+ need(Number.isSafeInteger(offset)&&offset>=0&&offset<=500&&
+  Number.isSafeInteger(limit)&&limit>=1&&limit<=12,
+  'LINK_REGISTRY_INVALID','Giới hạn đọc không hợp lệ');
+ if(p.id){need(/^il_[a-f0-9]{32}$/.test(String(p.id)),'LINK_REGISTRY_INVALID','ID không hợp lệ');
+  data=data.filter(function(x){return x&&x.id===p.id});offset=0;}
+ return {total:data.length,offset:offset,hasMore:offset+limit<data.length,
+  items:data.slice(offset,offset+limit)};
+}
 function read(s,action,p){
  var all=rows(s);
+ if(action==='links.list')return linkList(s,p);
  if(action==='collaborators.pair.list'){
   var ctv=JSON.parse(s.values.satori_collaborators_v1||'[]');
   need(Array.isArray(ctv)&&ctv.length<=10000,'INVALID_STATE','Danh sách cộng tác viên bị lỗi');
@@ -766,7 +840,8 @@ function read(s,action,p){
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
 function write(s,action,p){
- var all=rows(s),result=action==='collaborators.mark'?markCollaborator(s,p):
+ var all=rows(s),result=action==='links.register'?linkRegister(s,p):
+  action==='collaborators.mark'?markCollaborator(s,p):
   action==='collaborators.pair.configure'?configurePair(s,p):
   action==='orders.create.pair'?createPair(s,all,p):
   action==='pricing.approve'?approveAIPricing(s,all,p):
@@ -797,7 +872,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='collaborators.mark'||identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='links.register'||identity.action==='collaborators.mark'||identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
