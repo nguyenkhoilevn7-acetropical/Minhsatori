@@ -2245,7 +2245,13 @@ class NativeMainActivity : AppCompatActivity() {
                 result.fold(
                     onSuccess = { remote ->
                         val prior = snapshot
-                        if (prior != null &&
+                        if (remote.snapshot.invoices.isEmpty() ||
+                            remote.snapshot.invoices.all { it.isTest }) {
+                            // A legacy 3-fake-bill Mobile API must not silently
+                            // replace the production ledger after a Drive 403.
+                            statusMessage = "⚠ Mobile API đang trả dữ liệu TEST hoặc trống. " +
+                                "Không được thay thế dữ liệu Minh Satori thật."
+                        } else if (prior != null &&
                             !LiveSyncPolicy.canApplySnapshot(prior.revision, remote.snapshot.revision)) {
                             statusMessage = "⚠ Mobile API trả dữ liệu cũ hơn lần đã xác minh. " +
                                 "Giữ nguyên hóa đơn, không ghi đè."
