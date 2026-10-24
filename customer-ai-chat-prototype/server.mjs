@@ -427,6 +427,18 @@ const server=http.createServer(async(req,res)=>{
     'Chưa xác minh được PDF gốc của hóa đơn này. Vui lòng đối chiếu trong sổ Minh Satori.');
   }
  }
+ if(req.method==='POST'&&p==='/api/real/history'){
+  if(!realPrivateLinks.readiness().configured)
+   return fail(res,503,'REAL_LINKS_NOT_ENABLED','Link đặt hàng chưa được bật.');
+  if(!rateLimit(req,'private-real-history'))return fail(res,429,'RATE_LIMIT','Vui lòng thử lại sau.');
+  try{
+   const input=await bodyJSON(req,12000);
+   return reply(res,200,{ok:true,...await realPrivateLinks.history(input)});
+  }catch(e){
+   return fail(res,409,e?.code||'REAL_HISTORY_UNAVAILABLE',
+    'Chưa thể đọc đầy đủ lịch sử hóa đơn đã duyệt. Không dùng dữ liệu thử.');
+  }
+ }
  if(req.method==='POST'&&/^\/api\/real\/(?:catalogue|quote|confirm|interpret|pdf)$/.test(p)){
   if(!realPrivateLinks.readiness().configured)
    return fail(res,503,'REAL_LINKS_NOT_ENABLED','Hệ thống đặt hàng thật chưa được bật.');
