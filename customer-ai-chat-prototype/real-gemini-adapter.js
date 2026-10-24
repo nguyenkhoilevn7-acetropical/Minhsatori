@@ -426,7 +426,7 @@
     if(!submitted){
      submissionUncertain=true;
      lockConfirmButtons('⚠ ĐÃ GỬI YÊU CẦU • KIỂM TRA SỔ');
-     bubble('⚠ Chưa xác minh được phản hồi hóa đơn: '+err.message+'. KHÔNG GỬI LẠI. Mở mục Hóa đơn kiểm tra trước.','note');
+     bubble('⚠ Chưa xác minh được phản hồi hóa đơn: '+err.message+'. KHÔNG xác nhận lại, KHÔNG GỬI LẠI. Mở mục Hóa đơn kiểm tra trước.','note');
     }else bubble('✅ Đơn đã lưu. Xem lại từ mục Hóa đơn nếu PDF chưa mở.','note');
    }finally{confirming=false;disabledBusy(false);updateCart()}
   };
