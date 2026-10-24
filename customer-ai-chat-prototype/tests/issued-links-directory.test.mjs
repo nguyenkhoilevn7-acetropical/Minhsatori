@@ -66,7 +66,7 @@ test('refuse to call missing registry or create customer invoices',async()=>{
   codes.push(action);throw Object.assign(new Error('NOT_READY'),{code:'OWNER_BOT_UPSTREAM_REJECTED'});
  }});
  await assert.rejects(registry.list(),{code:'OWNER_BOT_UPSTREAM_REJECTED'});
- await assert.rejects(registry.register({kind:'agency',name:'A',link:base+'/real/#'+'a'.repeat(90),
+ await assert.rejects(registry.register({kind:'agency',name:'Đại lý hợp lệ',link:base+'/real/#'+'a'.repeat(90),
    recipients:[r(31)]}),{code:'OWNER_BOT_UPSTREAM_REJECTED'});
  assert.ok(codes.every(x=>['links.list','system.status'].includes(x)));
 });
