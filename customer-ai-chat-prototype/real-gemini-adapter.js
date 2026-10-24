@@ -395,21 +395,27 @@
   const confirm=document.createElement('button');confirm.type='button';confirm.className='btn primary live-real-confirm';
   confirm.textContent='✅ Xác nhận tạo MỘT hóa đơn thật';
   confirm.onclick=async()=>{
-   if(requestsBusy||!quoteToken)return;
-   if(!window.confirm('Xác nhận tạo đúng MỘT hóa đơn thật trên Google Drive?'))return;
-   confirm.disabled=true;disabledBusy(true);
+   if(requestsBusy||confirming||submitted||submissionUncertain||!quoteToken)return;
+   if(!window.confirm('Gửi MỘT hóa đơn thật? Nút xác nhận sẽ khóa để chống gửi trùng.'))return;
+   const confirmedQuote=quoteToken;quoteToken=null;confirming=true;
+   lockConfirmButtons('⏳ ĐANG GỬI • KHÔNG BẤM LẠI');
+   disabledBusy(true);updateCart();
    try{
-    const saved=await call('/api/real/confirm',{quoteToken,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
-    quoteToken=null;lastReceipt={quote:q,result:saved};
-    confirm.textContent='✅ Đã lưu hóa đơn #'+saved.invoiceNo;
-    bubble('✅ Minh Satori đã lưu hóa đơn thật #'+saved.invoiceNo+' • '+cash(saved.total)+'. Bấm ＋ Giỏ hàng mới để đặt đơn tiếp theo; mọi hóa đơn xem trong mục Hóa đơn.');
-    updateSessionReceipt();
-    // After successful ledger write, display the canonical PDF from the
-    // website template in chat, never the manually formatted 0đ summary.
+    const saved=await call('/api/real/confirm',{quoteToken:confirmedQuote,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
+    if(!saved.saved||!Number.isSafeInteger(saved.invoiceNo))throw Error('CHƯA XÁC NHẬN SỐ HÓA ĐƠN');
+    lastReceipt={quote:q,result:saved};markSubmitted(saved.invoiceNo);
+    lockConfirmButtons('✅ ĐÃ GỬI • HÓA ĐƠN #'+saved.invoiceNo);
+    confirm.classList.add('real-order-submitted');
+    showSubmittedCard(saved.invoiceNo,saved.total);updateSessionReceipt();
+    // PDF rendering cannot unlock an already committed invoice.
     await showReceipt();
    }catch(err){
-    bubble('⚠ Trạng thái hóa đơn chưa xác định: '+err.message+' KHÔNG xác nhận lại; liên hệ chủ tài khoản kiểm tra sổ thật.','note');
-   }finally{disabledBusy(false)}
+    if(!submitted){
+     submissionUncertain=true;
+     lockConfirmButtons('⚠ ĐÃ GỬI YÊU CẦU • KIỂM TRA SỔ');
+     bubble('⚠ Chưa xác minh được phản hồi hóa đơn: '+err.message+'. KHÔNG GỬI LẠI. Mở mục Hóa đơn kiểm tra trước.','note');
+    }else bubble('✅ Đơn đã lưu. Xem lại từ mục Hóa đơn nếu PDF chưa mở.','note');
+   }finally{confirming=false;disabledBusy(false);updateCart()}
   };
   box.append(confirm);$('messages').append(box);$('messages').scrollTop=$('messages').scrollHeight;
  }
