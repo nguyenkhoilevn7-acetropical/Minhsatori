@@ -165,7 +165,9 @@ button:disabled{opacity:.55}
  <p class="hint">Nút đánh dấu chỉ dùng trong phiên đang mở, không lưu phê duyệt vĩnh viễn. Để cấp link thật cần xác minh danh tính, giá và lưu trữ an toàn; không sử dụng form link THỬ để cấp cho khách thật.</p>
 </details>
 </section>
-<section class="card" data-tab-panel="customers" hidden id="collaboratorPairAdmin">
+<!-- Legacy two-invoice CTV controls are retired from the owner interface.
+     Keep their DOM temporarily for JS compatibility; no visible duplicate workflow. -->
+<section class="card" data-tab-panel="customers" hidden id="collaboratorPairAdmin" style="display:none!important" aria-hidden="true">
 <h2>👥 Cộng tác viên (CTV) · Quản lý trên sổ thật</h2>
 <p class="hint">Một đơn thật → hóa đơn khách và hóa đơn đối soát CTV liên kết. Anh là người duy nhất quyết định BẬT/TẮT và mức chiết khấu; không chờ bên thứ ba duyệt. BẬT chỉ thành công sau khi máy chủ xác minh dữ liệu trên Google Drive. Chương trình chưa bật sẽ không tạo hóa đơn đôi.</p>
 <p><button type="button" id="pairRefresh" class="secondary">↻ Đọc cấu hình thật</button></p>
@@ -240,19 +242,34 @@ button:disabled{opacity:.55}
 </details>
 </section>
 <section class="card" data-tab-panel="customers" hidden id="agencyRealLinks">
-<h2>🔗 Link đặt hàng đại lý • một link, nhiều điểm giao</h2>
-<p class="hint">Không dùng cộng tác viên và không tạo hóa đơn đôi. Chủ cửa hàng chọn từng địa chỉ lịch sử và chiết khấu riêng. Không ghi hóa đơn khi chỉ cấp link. Link thật chỉ phát hành nếu Backend có quyền ghi hóa đơn được xác minh.</p>
+<h2>🔗 Cấp link khách hàng, đại lý &amp; CTV • Một nơi quản lý</h2>
+<p class="hint">Một link, nhiều địa chỉ đã duyệt, mỗi lần đặt chỉ tạo <strong>MỘT hóa đơn cho khách</strong>. Nếu chọn CTV, hệ thống tính chênh lệch chiết khấu nội bộ, không tạo hóa đơn CTV thứ hai.</p>
 <label>Tên đại lý / người quản lý các điểm giao
 <input id="agencyRealName" placeholder="Nhập tên từ sổ kế toán thật" maxlength="120"></label>
 <button type="button" class="secondary" id="agencyRealFind">↻ Tìm các điểm giao từ hóa đơn</button>
 <p id="agencyRealStatus" class="hint" role="status">Chưa tải địa chỉ.</p>
 <div id="agencyRealPlaces" class="location-manager"></div>
+<div class="ctv-add-box">
+ <label style="display:flex;gap:10px;align-items:flex-start">
+  <input type="checkbox" id="agencyCommissionEnabled" style="width:auto;flex-shrink:0">
+  <span><strong>Đây là cộng tác viên (CTV) — một hóa đơn, tính hoa hồng nội bộ</strong>
+  <small style="display:block;color:#53677e">Chỉ áp dụng cho CTV đang hoạt động trong sổ thật. Không dùng chức năng hai hóa đơn cũ.</small></span>
+ </label>
+ <div id="agencyCommissionFields" hidden>
+  <div class="row">
+   <label>Chiết khấu khách (%)<input id="agencyCtvCustomerPercent" type="number" min="0" max="70" step="1" value="20"></label>
+   <label>Mức chiết khấu đối soát CTV (%)<input id="agencyCtvCollaboratorPercent" type="number" min="0" max="70" step="1" value="35"></label>
+  </div>
+  <p id="agencyCommissionExplanation" class="hint" role="status">CK khách 20%, CK CTV 35% → chênh lệch 15% giá niêm yết. Số tiền thực tế tính theo từng sản phẩm, chưa gồm VAT hoặc phí giao.</p>
+ </div>
+ <p id="agencyCommissionIdentity" class="hint" role="status">Khách/đại lý thường: chỉ áp dụng chiết khấu theo điểm giao.</p>
+</div>
 <div class="row">
 <label>Phí giao (%)<input id="agencyRealShipping" type="number" min="0" max="30" step="1" value="0"></label>
 <label>VAT (%)<select id="agencyRealVat"><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></label>
 <label>Thời hạn (ngày)<input id="agencyRealDays" type="number" min="1" max="30" value="30"></label>
 </div>
-<button type="button" id="agencyRealIssue">🔗 LƯU MỨC GIẢM & CẤP MỘT LINK CHO ĐẠI LÝ</button>
+<button type="button" id="agencyRealIssue">🔗 DUYỆT CHIẾT KHẤU & CẤP MỘT LINK ĐẶT HÀNG</button>
 <p class="hint">Chiết khấu và điểm giao của link là bản đã duyệt tại thời điểm cấp. Muốn sửa tỷ lệ cần cấp link mới, chưa có chức năng lưu chính sách theo tài khoản bền vững.</p>
 <div id="agencyRealIssued" hidden>
 <p class="hint">Chỉ gửi link cho đúng đại lý; gửi mã truy cập qua kênh riêng.</p>
@@ -260,9 +277,18 @@ button:disabled{opacity:.55}
 <button type="button" class="secondary" id="agencyRealCopy">Sao chép link</button>
 <p id="agencyRealCode" class="hint"></p>
 <button type="button" class="secondary" id="agencyRealCopyCode">Sao chép mã truy cập</button>
+<div id="agencyCommissionCalculator" class="ctv-add-box" hidden>
+ <strong>🔒 Tính chênh lệch CTV — chỉ chủ tài khoản xem</strong>
+ <p class="hint">Dùng giá niêm yết trong sổ thật và một địa chỉ đã duyệt để tính. Không tạo thêm hóa đơn.</p>
+ <label>Địa chỉ giao hàng<select id="agencyCommissionDestination"></select></label>
+ <label>Sản phẩm<select id="agencyCommissionProduct"></select></label>
+ <label>Số lượng<input id="agencyCommissionQty" type="number" value="1" min="1" max="500" step="1"></label>
+ <button type="button" class="secondary" id="agencyCommissionCalculate">Tính tiền khách &amp; hoa hồng CTV</button>
+ <p id="agencyCommissionResult" class="ctv-save-status" role="status"></p>
+</div>
 </div>
 </section>
-<section class="card" data-tab-panel="customers" hidden id="customerManagement"><details id="regularCustomerPanel"><summary><strong>👤 Hồ sơ khách thường & điểm giao (không phải CTV)</strong></summary><p class="hint">Đây là hồ sơ khách thường. Chuyển khách thành CTV trong bảng Cộng tác viên ở phía trên; không tạo khách mới.</p>
+<section class="card" data-tab-panel="customers" hidden id="customerManagement"><details id="regularCustomerPanel"><summary><strong>👤 Hồ sơ khách thường & điểm giao (không phải CTV)</strong></summary><p class="hint">Đây là hồ sơ khách thường. Có thể bật chế độ CTV ngay ở mục Cấp link phía trên, không tạo khách mới.</p>
 <form id="create">
 <label for="customerSearch">Tìm khách trong sổ kế toán thật hoặc hồ sơ thử</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
 <p id="customerHelp" class="hint">Chọn hồ sơ từ gợi ý để tự điền thông tin. Danh sách tự lấy tên từ 3 tháng gần nhất trong sổ kế toán thật, hoặc tìm theo tên nếu khách lâu chưa mua. Mọi địa chỉ thật chỉ được xem sau đăng nhập quản trị.</p>
@@ -1512,7 +1538,43 @@ async function load(){
   panel.append(form);section.append(panel);list.append(section);
  }
 }
-let agencyReviewed=[];
+let agencyReviewed=[],agencyPreviewToken='',agencyPreviewCode='';
+function agencyActiveCtv(){
+ return pairCollaborators.find(x=>x.active===true&&
+   normalized(x.name)===normalized($('agencyRealName').value.trim()));
+}
+function syncAgencyCommission(){
+ const enabled=$('agencyCommissionEnabled').checked;
+ $('agencyCommissionFields').hidden=!enabled;
+ const current=Number($('agencyCtvCustomerPercent').value);
+ const internal=Number($('agencyCtvCollaboratorPercent').value);
+ $('agencyCommissionExplanation').textContent=Number.isInteger(current)&&Number.isInteger(internal)?
+   'CK khách '+current+'% / CK CTV '+internal+'% → chênh lệch '+
+   (internal-current)+'% giá niêm yết. Giá thực tính theo từng sản phẩm; không tính VAT và phí giao.':
+   'Nhập chiết khấu hợp lệ.';
+ const c=agencyActiveCtv();
+ $('agencyCommissionIdentity').textContent=!enabled?
+   'Khách/đại lý thường: mỗi địa chỉ có chiết khấu riêng.':
+   c?'✓ CTV đã có trong sổ thật: '+c.name+'. Chỉ tạo một hóa đơn khách.':
+     '⚠ Không tìm thấy CTV đang hoạt động trùng tên này trong sổ thật. Không thể cấp link CTV.';
+ for(const row of agencyReviewed){
+  if(enabled){
+   if(row.rate.dataset.originalRate===undefined)row.rate.dataset.originalRate=row.rate.value;
+   row.rate.value=String(current);row.rate.disabled=true;
+  }else{
+   if(row.rate.dataset.originalRate!==undefined)row.rate.value=row.rate.dataset.originalRate;
+   delete row.rate.dataset.originalRate;row.rate.disabled=false;
+  }
+ }
+}
+$('agencyCommissionEnabled').onchange=syncAgencyCommission;
+$('agencyCtvCustomerPercent').oninput=syncAgencyCommission;
+$('agencyCtvCollaboratorPercent').oninput=syncAgencyCommission;
+$('agencyRealName').oninput=()=>{
+ $('agencyCommissionEnabled').checked=false;
+ $('agencyCommissionFields').hidden=true;
+ $('agencyCommissionIdentity').textContent='Bấm “Tìm các điểm giao” để xác minh tên CTV nếu có.';
+};
 $('agencyRealFind').onclick=async()=>{
  const b=$('agencyRealFind');b.disabled=true;
  $('agencyRealIssued').hidden=true;
@@ -1573,6 +1635,11 @@ $('agencyRealFind').onclick=async()=>{
    }else ready.append(row);
   }
   root.append(ready,review);
+  // The known active collaborator is recognized automatically, but owner may
+  // deselect CTV mode to issue an ordinary agency link.
+  if(!pairLoadSuccessful)await loadPairPolicies(true);
+  $('agencyCommissionEnabled').checked=Boolean(agencyActiveCtv());
+  syncAgencyCommission();
   $('agencyRealStatus').textContent='Lịch sử có '+(d.selected?.sourceProfilesObserved??'?')+
    ' hồ sơ nguồn, đã nhóm thành '+places.length+' điểm giao thực tế. '+needsReview+
    ' điểm cần đối chiếu. Các điểm hợp lệ có thể chọn ngay; khách mua lại không phải lỗi.';
@@ -1589,21 +1656,85 @@ $('agencyRealIssue').onclick=async()=>{
  }
  const shippingPercent=Number($('agencyRealShipping').value),vatPercent=Number($('agencyRealVat').value),
   daysValid=Number($('agencyRealDays').value),agentName=$('agencyRealName').value.trim();
- if(!confirm('Xác nhận cấp MỘT LINK thật cho '+agentName+' với '+selected.length+
-    ' địa chỉ đã kiểm tra và chiết khấu tương ứng? Link này cho phép đặt hóa đơn THẬT sau khi khách xác nhận.'))return;
+ const isCtv=$('agencyCommissionEnabled').checked,ctv=isCtv?agencyActiveCtv():null;
+ const customerDiscount=Number($('agencyCtvCustomerPercent').value),
+  collaboratorDiscount=Number($('agencyCtvCollaboratorPercent').value);
+ if(isCtv&&(!ctv||!Number.isInteger(customerDiscount)||customerDiscount<0||
+   !Number.isInteger(collaboratorDiscount)||collaboratorDiscount>70||
+   collaboratorDiscount<=customerDiscount||
+   destinations.some(d=>d.discountPercent!==customerDiscount))){
+  $('agencyRealStatus').textContent='Không thể cấp CTV: chọn đúng CTV đang hoạt động, CK khách và CK CTV hợp lệ.';return;
+ }
+ if(!confirm('Cấp MỘT LINK thật cho '+agentName+' với '+selected.length+
+    ' địa chỉ? '+(isCtv?'CTV: CK khách '+customerDiscount+'%, đối soát '+collaboratorDiscount+
+    '%, hoa hồng chênh '+(collaboratorDiscount-customerDiscount)+'% giá niêm yết. Chỉ tạo MỘT hóa đơn khách.':
+    'Khách/đại lý thường: mỗi điểm giao có giá riêng, một hóa đơn mỗi đơn.')+
+    '\nChỉ tạo hóa đơn THẬT khi khách xác nhận đặt.'))return;
  const b=$('agencyRealIssue');b.disabled=true;$('agencyRealIssued').hidden=true;
  $('agencyRealStatus').textContent='Đang xác minh từng hóa đơn nguồn và quyền cấp link; chưa tạo hóa đơn.';
  try{
   const d=await request('/api/admin/real-links/issue','POST',{
    confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',agentName,destinations,
-   shippingPercent,vatPercent,daysValid
+   shippingPercent,vatPercent,daysValid,
+   ...(isCtv?{commissionPolicy:{mode:'single-invoice-commission',
+      collaboratorId:ctv.id,collaboratorName:ctv.name,
+      customerDiscountPercent:customerDiscount,collaboratorDiscountPercent:collaboratorDiscount}}:{})
   });
   $('agencyRealUrl').textContent=d.link;
   $('agencyRealCode').textContent='Mã truy cập riêng: '+d.accessCode;
   $('agencyRealIssued').hidden=false;
-  $('agencyRealStatus').textContent='Đã cấp một link với '+d.deliveryLocations+' địa chỉ. Hãy thử xác thực, chọn địa chỉ và xem giá trước.';
+  $('agencyCommissionCalculator').hidden=!isCtv;
+  agencyPreviewToken=isCtv?d.link.split('/real/#')[1]:'';
+  agencyPreviewCode=isCtv?d.accessCode:'';
+  if(isCtv){
+   const choose=$('agencyCommissionDestination');choose.replaceChildren();
+   for(const row of selected){
+    const ref=JSON.parse(row.select.value);
+    choose.append(new Option(row.place.address,JSON.stringify(ref)));
+   }
+   const first=JSON.parse(choose.value);
+   $('agencyCommissionResult').textContent='Đang tải bảng giá thật để tính hoa hồng…';
+   try{
+    const response=await fetch('/api/real/catalogue',{method:'POST',
+     headers:{'content-type':'application/json'},cache:'no-store',
+     body:JSON.stringify({token:agencyPreviewToken,accessCode:agencyPreviewCode,destination:first})});
+    const catalogue=await response.json();
+    if(!response.ok||!catalogue.ok)throw Error(catalogue.message||'Chưa lấy được bảng giá');
+    const products=$('agencyCommissionProduct');products.replaceChildren();
+    for(const product of catalogue.products)
+     products.append(new Option(product.name+' / '+product.unit,product.code));
+    $('agencyCommissionResult').textContent='Đã cấp link CTV: khách CK '+customerDiscount+
+     '%, mức đối soát '+collaboratorDiscount+
+     '%. Chọn sản phẩm/số lượng để xem chênh lệch. Không tạo hóa đơn thứ hai.';
+   }catch(err){$('agencyCommissionResult').textContent='⚠ Không tải được bảng giá tính hoa hồng: '+err.message;}
+  }
+  $('agencyRealStatus').textContent='✅ Đã cấp một link với '+d.deliveryLocations+
+   ' địa chỉ.'+(isCtv?' Đã áp dụng CK khách '+customerDiscount+'% / CTV '+collaboratorDiscount+
+   '%, mỗi đơn chỉ tạo MỘT hóa đơn.':'')+' Hãy mở link và xem giá trước.';
  }catch(e){$('agencyRealStatus').textContent='KHÔNG CẤP ĐƯỢC: '+e.message;}
  finally{b.disabled=false}
+};
+$('agencyCommissionCalculate').onclick=async()=>{
+ const btn=$('agencyCommissionCalculate');btn.disabled=true;
+ $('agencyCommissionResult').textContent='Đang tính bằng giá sổ thật…';
+ try{
+  if(!agencyPreviewToken||!agencyPreviewCode)throw Error('Chưa cấp link CTV.');
+  const qty=Number($('agencyCommissionQty').value),code=$('agencyCommissionProduct').value;
+  if(!Number.isSafeInteger(qty)||qty<1||qty>500||!/^TP-[0-9]{5}$/.test(code))
+   throw Error('Chọn sản phẩm và số lượng hợp lệ.');
+  const d=await request('/api/admin/agency-commission/preview','POST',{
+   token:agencyPreviewToken,accessCode:agencyPreviewCode,
+   destination:JSON.parse($('agencyCommissionDestination').value),
+   items:[{code,qty}]
+  });
+  const fmt=n=>Number(n).toLocaleString('vi-VN')+' đ';
+  $('agencyCommissionResult').textContent='CHỈ NỘI BỘ • 1 hóa đơn khách\n'+
+   'Tiền hàng khách: '+fmt(d.customerSubtotal)+'\nPhí giao: '+fmt(d.shippingAmount)+
+   '\nVAT: '+fmt(d.vatAmount)+'\nKhách thanh toán: '+fmt(d.customerTotal)+
+   '\nChênh lệch CTV ('+d.commissionPercent+'%): '+fmt(d.commissionAmount)+
+   '\nĐây là phép tính tham khảo; chưa tạo hóa đơn hoặc ghi khoản phải trả.';
+ }catch(e){$('agencyCommissionResult').textContent='⚠ '+e.message}
+ finally{btn.disabled=false}
 };
 $('agencyRealCopy').onclick=()=>navigator.clipboard.writeText($('agencyRealUrl').textContent)
  .then(()=>{$('agencyRealStatus').textContent='Đã sao chép link.'})

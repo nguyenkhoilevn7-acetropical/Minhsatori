@@ -384,12 +384,46 @@ const server=http.createServer(async(req,res)=>{
    return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
   try{
    const input=await bodyJSON(req,12000);
+   // Reuse the already functioning single-invoice agency link. A private
+   // commission override is permitted only for an ACTIVE CTV in Drive.
+   // The broken two-invoice policy WRITE endpoint is NOT used.
+   if(input.commissionPolicy!==undefined){
+    const commission=input.commissionPolicy;
+    if(!commission||commission.mode!=='single-invoice-commission'||
+       typeof commission.collaboratorId!=='string'||typeof commission.collaboratorName!=='string'||
+       !Array.isArray(input.destinations)||input.destinations.length<1||
+       !Number.isSafeInteger(commission.customerDiscountPercent)||
+       !Number.isSafeInteger(commission.collaboratorDiscountPercent)||
+       commission.collaboratorDiscountPercent<=commission.customerDiscountPercent||
+       input.destinations.some(d=>d.discountPercent!==commission.customerDiscountPercent)||
+       fold(input.agentName)!==fold(commission.collaboratorName))
+     return fail(res,400,'REAL_COMMISSION_POLICY_INVALID','CTV và mức chiết khấu không khớp.');
+    // No trusted CTV identity is derived from the customer's browser.
+    const directory=await ownerPairAction('collaborators.pair.list',{});
+    const matching=(directory.collaborators||[]).filter(c=>c.active===true&&
+       c.id===commission.collaboratorId&&
+       fold(c.name)===fold(commission.collaboratorName));
+    if(matching.length!==1)
+     return fail(res,409,'REAL_COLLABORATOR_NOT_ACTIVE','CTV chưa được xác minh trên sổ thật.');
+   }
    const result=await realPrivateLinks.issue(input);
    return reply(res,200,result);
   }catch(e){
    return fail(res,409,e?.code||'REAL_LINK_ISSUE_FAILED',
     'Không cấp được link: cần đúng hóa đơn gốc, địa chỉ và giá chủ tài khoản duyệt.');
   }
+ }
+ // This accounting calculation is owner-only. It reads live source prices,
+ // never writes a second invoice and is not accessible through /api/real/*.
+ if(p==='/api/admin/agency-commission/preview'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản xem chênh lệch CTV.');
+  if(!rateLimit(req,'owner-commission-preview'))return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
+  try{
+   const input=await bodyJSON(req,12000);
+   return reply(res,200,{ok:true,...await realPrivateLinks.ownerCommissionPreview(input)});
+  }catch(e){return fail(res,409,e?.code||'REAL_COMMISSION_PREVIEW_FAILED',
+   'Không tính được chênh lệch CTV: kiểm tra link, mã và địa chỉ đã duyệt.');}
  }
  if(req.method==='POST'&&/^\/api\/real\/(?:catalogue|quote|confirm|interpret)$/.test(p)){
   if(!realPrivateLinks.readiness().configured)
