@@ -43,30 +43,65 @@
  function currentProducts(){
   return [...products.values()];
  }
+ let cartCollapsed=true;
  function updateCart(){
   const entries=[...cart.values()],count=entries.reduce((n,x)=>n+x.qty,0);
   setText('quickCartCount','🛒 Giỏ hàng chung • '+entries.length+' loại / '+count+' đơn vị');
   setText('cartCount',entries.length+'/6');
-  setText('cartFeedback',entries.length?'Đã lưu trong giỏ chung; chưa tạo hóa đơn.':'Chọn món để bắt đầu.');
+  setText('cartFeedback',entries.length?'Giỏ chung đã cập nhật. Chưa tạo hóa đơn.':'Giỏ đang trống.');
   $('quickCart').hidden=!entries.length;
   $('composeCart').disabled=!entries.length;
   $('quickCartQuote').disabled=!entries.length;
+  $('quickCartQuote').hidden=!entries.length;
+  $('quickCartEdit').textContent=cartCollapsed?'Mở giỏ':'Thu gọn giỏ';
+  $('quickCartEdit').setAttribute('aria-expanded',String(!cartCollapsed));
   const list=$('inlineCartLines'),sheet=$('cartList');list.replaceChildren();sheet.replaceChildren();
-  if(!entries.length){const empty=document.createElement('span');empty.textContent='Giỏ chưa có món.';sheet.append(empty);}
+  list.hidden=cartCollapsed;
+  if(typeof note!=='undefined')note.hidden=cartCollapsed;
+  if(!entries.length){
+   const empty=document.createElement('span');empty.className='cart-empty';
+   empty.textContent='Giỏ chưa có món.';sheet.append(empty);
+  }
   for(const item of entries){
-   for(const host of [list,sheet]){
-    const row=document.createElement('div');row.className=host===list?'inline-cart-row':'cart-line';
-    const name=document.createElement('span');name.textContent=item.name+' • '+item.unit;
-    const controls=document.createElement('span');controls.style.cssText='display:flex;align-items:center;gap:7px';
-    const minus=document.createElement('button');minus.type='button';minus.textContent='−';minus.className='btn alt';minus.style.padding='6px 10px';
-    minus.onclick=()=>changeQty(item.code,item.qty-1);
-    const qty=document.createElement('input');qty.type='number';qty.min='0';qty.max='500';qty.step='1';qty.value=String(item.qty);
-    qty.setAttribute('aria-label','Số lượng '+item.name);qty.style.cssText='width:65px;min-height:37px;padding:6px;text-align:center';
-    qty.onchange=()=>{try{changeQty(item.code,Number(qty.value))}catch(e){bubble(e.message,'note');updateCart();}};
-    const plus=document.createElement('button');plus.type='button';plus.textContent='＋';plus.className='btn alt';plus.style.padding='6px 10px';
-    plus.onclick=()=>changeQty(item.code,item.qty+1);
-    controls.append(minus,qty,plus);row.append(name,controls);host.append(row);
-   }
+   // Reuse original .inline-cart-row/.suggestion-steps CSS: title, stepper,
+   // remove are THREE grid children. The previous two-child markup left an
+   // empty grid column and pushed the + button off-screen on Samsung.
+   const row=document.createElement('div');row.className='inline-cart-row';
+   const title=document.createElement('span');title.textContent=item.name;
+   title.title=item.name;
+   const amount=document.createElement('strong');amount.className='inline-qty-label';
+   amount.textContent=' ×'+item.qty+' '+item.unit;title.append(amount);
+   const controls=document.createElement('span');controls.className='suggestion-steps';
+   const minus=document.createElement('button');minus.type='button';minus.textContent='−';
+   minus.setAttribute('aria-label','Giảm '+item.name);
+   minus.onclick=()=>changeQty(item.code,item.qty-1);
+   const qty=document.createElement('input');qty.type='number';qty.min='0';qty.max='500';qty.step='1';qty.value=String(item.qty);
+   qty.setAttribute('aria-label','Số lượng '+item.name);
+   qty.onchange=()=>{
+    const next=Number(qty.value);
+    try{changeQty(item.code,next)}catch(e){bubble(e.message,'note');updateCart();}
+   };
+   const plus=document.createElement('button');plus.type='button';plus.textContent='＋';
+   plus.setAttribute('aria-label','Thêm '+item.name);
+   plus.onclick=()=>changeQty(item.code,item.qty+1);
+   controls.append(minus,qty,plus);
+   const remove=document.createElement('button');remove.type='button';
+   remove.className='inline-cart-remove';remove.textContent='×';
+   remove.setAttribute('aria-label','Bỏ '+item.name);
+   remove.onclick=()=>changeQty(item.code,0);
+   row.append(title,controls,remove);list.append(row);
+   // Cart inside the ORIGINAL catalogue sheet, not a second custom grid.
+   const itemRow=document.createElement('div');itemRow.className='cart-row';
+   const label=document.createElement('span');label.className='cart-name';
+   label.textContent=item.name+' • '+item.unit;
+   const edit=document.createElement('input');edit.className='cart-qty';edit.type='number';
+   edit.min='0';edit.max='500';edit.step='1';edit.value=String(item.qty);
+   edit.setAttribute('aria-label','Số lượng '+item.name);
+   edit.onchange=()=>{try{changeQty(item.code,Number(edit.value))}catch(e){bubble(e.message,'note');updateCart();}};
+   const del=document.createElement('button');del.type='button';del.className='cart-remove';
+   del.textContent='×';del.setAttribute('aria-label','Bỏ '+item.name);
+   del.onclick=()=>changeQty(item.code,0);
+   itemRow.append(label,edit,del);sheet.append(itemRow);
   }
  }
  function changeQty(code,qty){
@@ -129,7 +164,7 @@
    $('productSelection').classList.remove('active');closeCatalogue();
   }catch(e){setText('cartFeedback','⚠ '+e.message)}
  };
- $('quickCartEdit').onclick=()=>{$('inlineCartLines').hidden=!$('inlineCartLines').hidden};
+ $('quickCartEdit').onclick=()=>{cartCollapsed=!cartCollapsed;updateCart()};
  $('quickCartNew').onclick=()=>{if(confirm('Xóa các món đang chọn?')){cart.clear();invalidate();updateCart();}};
  $('clearCart').onclick=()=>{cart.clear();invalidate();updateCart()};
  $('composeCart').onclick=()=>{quoteNow()};
@@ -219,32 +254,44 @@
  $('realCode').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('realOpen').click()}};
  async function interpretMessage(message){
   if(!catalogue){bubble('Hãy chọn địa chỉ giao trước.','note');return}
-  const result=await call('/api/real/interpret',{destination:selectedRef,message});
+  // The server now uses the original sandbox's change semantics and verifies
+  // that ALL recognized items fit an atomic basket update before replying.
+  const oldRows=[...cart.values()].map(({code,qty})=>({code,qty}));
+  const result=await call('/api/real/interpret',{destination:selectedRef,message,cart:oldRows});
   if(result.needsClarification){bubble(result.message+' Giỏ hàng chưa thay đổi.');return}
-  const next=new Map(cart);
-  for(const item of result.items||[]){
-   if(!products.has(item.code))throw Error('Mặt hàng không có trong danh mục đã duyệt.');
+  const rows=result.cart;
+  if(!Array.isArray(rows))throw Error('Phản hồi giỏ hàng không hợp lệ.');
+  const next=new Map();
+  for(const item of rows){
+   if(!products.has(item.code)||next.has(item.code)||
+      !Number.isSafeInteger(item.qty)||item.qty<1||item.qty>500)
+    throw Error('Sản phẩm hoặc số lượng không khớp bảng giá.');
    const p=products.get(item.code);
-   next.set(item.code,{code:item.code,qty:(next.get(item.code)?.qty||0)+item.qty,name:p.name,unit:p.unit});
+   next.set(item.code,{code:item.code,qty:item.qty,name:p.name,unit:p.unit});
   }
   validCart(next);
-  cart.clear();for(const [k,v] of next)cart.set(k,v);invalidate();updateCart();
+  cart.clear();for(const [k,v] of next)cart.set(k,v);
+  invalidate();updateCart();
   if(result.deliveryNote){
    const n=String(result.deliveryNote).slice(0,300);
-   if(!deliveryNote.includes(n)){deliveryNote=[deliveryNote,n].filter(Boolean).join('; ').slice(0,300);noteInput.value=deliveryNote;}
+   if(!deliveryNote.includes(n)){
+    deliveryNote=[deliveryNote,n].filter(Boolean).join('; ').slice(0,300);
+    noteInput.value=deliveryNote;
+   }
   }
-  bubble('Đã thêm vào giỏ chung:\n'+(result.items||[]).map(i=>i.qty+' × '+products.get(i.code).name).join('\n')+
-   (result.deliveryNote?'\nGhi chú: '+result.deliveryNote:'')+
-   '\n\nXem giỏ và báo giá trước khi đặt.');
+  bubble(result.message||'Đã cập nhật giỏ, chưa tạo hóa đơn.');
  }
  $('sendForm').onsubmit=async e=>{
   e.preventDefault();if(requestsBusy)return;
   const message=$('messageInput').value.trim();if(!message)return;
+  // This was the screenshot regression: old code posted the ASSISTANT reply
+  // before displaying the user's own message. Old Gemini shows USER first.
+  bubble(message,'user');$('messageInput').value='';
   disabledBusy(true);
-  try{
-   await interpretMessage(message);bubble(message,'user');$('messageInput').value='';
-  }catch(err){bubble('Chưa nhận được yêu cầu: '+err.message,'note')}
-  finally{disabledBusy(false)}
+  const loading=bubble('Đang kiểm tra yêu cầu đặt nước…','note');
+  try{await interpretMessage(message)}
+  catch(err){bubble('Chưa nhận được yêu cầu: '+err.message,'note')}
+  finally{loading.remove();disabledBusy(false)}
  };
  function showQuote(q){
   const box=document.createElement('article');box.className='quote';
