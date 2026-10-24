@@ -8,6 +8,15 @@ import java.net.URL
  * Direct Drive read-only API. All mutations must go through the owner's
  * Apps Script transaction lock; never PATCH this JSON from Android.
  */
+/**
+ * Exact Google Drive HTTP 403 signal. It may mean wrong Google account,
+ * insufficient OAuth scopes, or a Drive API authorization policy;
+ * do not guess which one without Google error details.
+ */
+internal class DriveReadPermissionDenied : IOException(
+    "Google Drive từ chối quyền đọc (HTTP 403). Ứng dụng sẽ thử Mobile API chủ sở hữu đã lưu."
+)
+
 object DriveReadClient {
     const val LIVE_FILE_ID = "14XWSPrxLnKXATwmuHeXGZnCvjDbalghV"
     private const val MAX_BYTES = 12_000_000
@@ -38,7 +47,7 @@ object DriveReadClient {
             when (connection.responseCode) {
                 200 -> Unit
                 401 -> throw IOException("Phiên Google đã hết hạn. Hãy kết nối lại.")
-                403 -> throw IOException("Tài khoản Google không có quyền đọc dữ liệu Minh Satori.")
+                403 -> throw DriveReadPermissionDenied()
                 404 -> throw IOException("Không tìm thấy dữ liệu Minh Satori.")
                 else -> throw IOException("Không đọc được phiên bản Drive (HTTP " +
                     connection.responseCode + ").")
@@ -82,7 +91,7 @@ object DriveReadClient {
             when (connection.responseCode) {
                 200 -> Unit
                 401 -> throw IOException("Phiên Google đã hết hạn. Hãy kết nối lại.")
-                403 -> throw IOException("Tài khoản Google không có quyền đọc dữ liệu Minh Satori.")
+                403 -> throw DriveReadPermissionDenied()
                 404 -> throw IOException("Không tìm thấy file dữ liệu Minh Satori trong tài khoản này.")
                 else -> throw IOException("Không thể đồng bộ Drive (HTTP " +
                     connection.responseCode + ").")
