@@ -231,5 +231,14 @@ export function createCollaboratorSingleLink({
    total:inv.total,shippingAmount:inv.shippingAmount,vatAmount:inv.vatAmount,
    deliveryNote:inv.deliveryNote,status:inv.status};
  }
- return Object.freeze({readiness,issue,authenticate,catalogue,quote,confirm,invoiceForPdf});
+ async function directorySnapshot(collaboratorId){
+  const state=await current(String(collaboratorId||''));
+  return {name:state.person.name,collaboratorId:String(collaboratorId),
+   shippingPercent:state.policy.shippingPercent,vatPercent:state.policy.vatPercent,
+   policyVersion:state.policy.policyVersion,
+   recipients:state.places.map(x=>({customerRef:{id:x.id,invoiceNo:x.invoiceNo},
+    name:x.name,phone:x.phone,location:x.location,
+    discountPercent:state.policy.customerDiscountPercent}))};
+ }
+ return Object.freeze({readiness,issue,directorySnapshot,authenticate,catalogue,quote,confirm,invoiceForPdf});
 }
