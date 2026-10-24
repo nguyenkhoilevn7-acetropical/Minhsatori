@@ -51,7 +51,12 @@ const EMERGENCY_PREVIEW=process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1';
 const OWNER_ONLY_PILOT=process.env.GEMINI_OWNER_ONLY_REAL_PILOT==='1';
 const ownerInvoice=createOwnerRealInvoice();
 const ownerPdfGateway=createOriginalPdfGateway();
-const realPrivateLinks=createProductionPrivateLinks({source:ownerInvoice.source,bot:ownerInvoice.bot});
+const realPrivateLinks=createProductionPrivateLinks({
+ source:ownerInvoice.source,bot:ownerInvoice.bot,
+ // One signed READ client used by the tested Production owner dashboard.
+ // The order-write HMAC identity need not also have orders:read scope.
+ historyReader:payload=>readMinhSatori('orders.list',payload)
+});
 if(realPrivateLinks.readiness().configured){
  // Non-mutating scope probe: orders.create with no requestId always fails
  // validation before Google Drive backup or ledger writes.
