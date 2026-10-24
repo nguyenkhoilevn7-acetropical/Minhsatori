@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {directoryFromInvoices,detailFromEvidence,directoryKey} from '../owner-customer-directory.mjs';
+import {directoryFromInvoices,detailFromEvidence,directoryKey,physicalAddressKey} from '../owner-customer-directory.mjs';
 const rows=[
  {name:'Hà Minh Nguyệt',phone:'0901000001',location:'Q1',invoiceNo:1},
  {name:'Ha Minh Nguyet',phone:'0901000001',location:'Q2',invoiceNo:2},
@@ -126,3 +126,26 @@ assert.match(reviewHtml,/currentRealEvidence/,'price evidence remains visible');
 assert.match(reviewHtml,/Không cấp link thử dưới tên khách thật/,'no misleading test links for production customers');
 assert.doesNotMatch(reviewHtml,/grantDealer|allowCustomerAddLocation|customerMayAddAddress/,'no dealer permissions per owner instruction');
 console.log('PASS owner editable historical delivery addresses and clear real-link gating without production writes');
+
+const normalizedDelivery=detailFromEvidence('Hà Minh Nguyệt',[
+ {name:'Hà Minh Nguyệt',location:'712 đường Vĩnh Khánh, Hồ Chí Minh — Giao sau 14:00',
+  phone:'0768152072',ref:{id:1792803051601,invoiceNo:5936},sourceInvoiceNo:5936},
+ {name:'Hà Minh Nguyệt',location:'712 Đ. Vĩnh Khánh, Khánh Hội, Hồ Chí Minh 72800',
+  phone:'0358707777',ref:{id:81,invoiceNo:81},sourceInvoiceNo:81},
+ {name:'Hà Minh Nguyệt',location:'Yến Hoả Quán - Đ. Vĩnh Khánh/402 HCMC, Quận 4',
+  phone:'0919989887',ref:{id:64,invoiceNo:64},sourceInvoiceNo:64},
+ {name:'Hà Minh Nguyệt',location:'42 Đ. Số 95, Cát Lái, Hồ Chí Minh.',
+  phone:'0392598879',ref:{id:1792226691897,invoiceNo:5921},sourceInvoiceNo:5921},
+ {name:'Hà Minh Nguyệt',location:'42 Đ. Số 95, Cát Lái, Hồ Chí Minh.',
+  phone:'0358707777',ref:{id:1792135730343,invoiceNo:5918},sourceInvoiceNo:5918}
+],[],{sourceTotal:5});
+assert.equal(normalizedDelivery.places.length,3,
+ '712 Vĩnh Khánh is one physical destination despite wording and delivery note');
+const vk=normalizedDelivery.places.find(p=>p.invoiceNos.includes('5936'));
+assert.equal(vk.references.length,2,'retain both historical invoice refs');
+assert.equal(vk.sourceRows.length,2,'keep each original phone with its original invoice reference');
+assert.notEqual(physicalAddressKey('712 Đ. Vĩnh Khánh'),physicalAddressKey('402 Đ. Vĩnh Khánh'),
+ 'never combine different house numbers');
+assert.equal(normalizedDelivery.places.find(p=>p.invoiceNos.includes('5921')).phones.length,2,
+ 'different phone numbers at same delivery point do not create new customers');
+console.log('PASS real-format Vinh Khanh delivery aliases, separate house number, exact contact sources');

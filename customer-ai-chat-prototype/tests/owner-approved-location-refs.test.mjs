@@ -38,3 +38,17 @@ assert.throws(()=>ownerSelectedLocations({destinationInvoiceNos:[68,68]}),
 assert.deepEqual(ownerSelectedLocations({destinationInvoiceNos:[68,69]}).refs,
  [{id:null,invoiceNo:68},{id:null,invoiceNo:69}]);
 console.log('PASS returning buyers grouped, incomplete separate, owner exact refs and old clients');
+
+const sameAddressDifferentPhones=selectedLocationEvidence([{
+ name:'Hà Minh Nguyệt',address:'712 Đ. Vĩnh Khánh',phone:'0358707777',
+ references:[{id:81,invoiceNo:81},{id:5936,invoiceNo:5936}],
+ sourceRows:[{ref:{id:5936,invoiceNo:5936},name:'Hà Minh Nguyệt',
+   address:'712 đường Vĩnh Khánh',phone:'0768152072',date:'24/10/2026'}],
+ invoiceNos:['81','5936'],purchaseCount:2,needsReview:true
+}]);
+assert.equal(sameAddressDifferentPhones.candidate.length,1);
+assert.deepEqual(sameAddressDifferentPhones.candidate[0].ref,{id:5936,invoiceNo:5936});
+assert.equal(sameAddressDifferentPhones.candidate[0].phone,'0768152072',
+ 'phone MUST come from the selected original invoice, not another historic address alias');
+assert.equal(sameAddressDifferentPhones.candidate[0].historicalInvoiceCount,2);
+console.log('PASS CTV exact source reference carries its original name/address/phone');

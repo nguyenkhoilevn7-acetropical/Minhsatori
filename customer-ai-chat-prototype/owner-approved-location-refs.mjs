@@ -37,9 +37,13 @@ export function selectedLocationEvidence(places){
  for(const p of Array.isArray(places)?places:[]){
   if(!p||typeof p!=='object')continue;
   const refs=Array.isArray(p.references)?p.references:[];
-  const preferred=refs.find(r=>r&&validId(r.id)&&invoiceNo(r.invoiceNo));
-  const address=String(p.address||'').trim();
-  const phone=String(p.phone||'').replace(/\D/g,'');
+  const source=(Array.isArray(p.sourceRows)?p.sourceRows:[]).find(x=>
+   x&&x.ref&&validId(x.ref.id)&&invoiceNo(x.ref.invoiceNo)&&
+   String(x.address||'').trim().length>=5&&
+   String(x.phone||'').replace(/\D/g,'').length>=8);
+  const preferred=source?.ref||refs.find(r=>r&&validId(r.id)&&invoiceNo(r.invoiceNo));
+  const address=String(source?.address||p.address||'').trim();
+  const phone=String(source?.phone||p.phone||'').replace(/\D/g,'');
   const key=preferred&&String(preferred.id)+'|'+preferred.invoiceNo;
   if(!preferred||address.length<5||phone.length<8||assigned.has(key)){
    needsReview.push({address,reason:!preferred?'MISSING_HISTORIC_REFERENCE':
@@ -48,7 +52,10 @@ export function selectedLocationEvidence(places){
   }
   assigned.add(key);
   candidate.push({ref:{id:preferred.id,invoiceNo:preferred.invoiceNo},
-   name:String(p.name||''),phone:String(p.phone||''),address,needsReview:!!p.needsReview});
+   name:String(source?.name||p.name||''),phone:String(source?.phone||p.phone||''),address,
+   purchaseCount:Number.isSafeInteger(p.purchaseCount)?p.purchaseCount:0,
+   historicalInvoiceCount:Array.isArray(p.invoiceNos)?p.invoiceNos.length:0,
+   needsReview:!!p.needsReview});
  }
  return {candidate,needsReview};
 }
