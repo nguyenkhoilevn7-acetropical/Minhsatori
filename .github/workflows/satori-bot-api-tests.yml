@@ -19,4 +19,4 @@ jobs:
         with:
           node-version: "22"
       - name: Offline HMAC, money, invoice, backup and delete tests
-        run: node tests/satori-bot-api.test.js
+        run: node tests/satori-bot-api.test.js && node tests/satori-issued-links-registry.test.js
