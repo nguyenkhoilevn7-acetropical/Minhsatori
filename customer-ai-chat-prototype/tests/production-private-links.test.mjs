@@ -546,7 +546,11 @@ test('one PIN-protected customer link reloads ALL 125 historical invoices past D
  };
  const app=createProductionPrivateLinks({env,now:()=>Date.UTC(2026,9,24,0),
   source:async()=>({revision:155,customer:{...customer},products}),
-  bot:async()=>{throw Error('HISTORY_MUST_NOT_WRITE')},historyReader:reader});
+  bot:async(action,payload)=>{
+   if(action==='orders.create'&&!payload.requestId)
+    throw Object.assign(Error('INVALID_REQUEST'),{code:'INVALID_REQUEST'});
+   throw Error('HISTORY_MUST_NOT_WRITE');
+  },historyReader:reader});
  const issued=await app.issue({confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
   customerRef:ref,name:customer.name,phone:customer.phone,location:customer.location,
   discountPercent:20,shippingPercent:0,vatPercent:0,daysValid:7});
