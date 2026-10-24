@@ -604,6 +604,7 @@ $('ctvAdd').onclick=async()=>{
    throw Error('Tên khách nguồn chưa khớp khách được chọn.');
   const places=(d.locationCandidates||[]).map(x=>({
    ref:x.ref,name:x.name||p.name,address:x.address,phone:x.phone,
+   purchaseCount:x.purchaseCount||0,historicalInvoiceCount:x.historicalInvoiceCount||0,
    needsReview:x.needsReview===true
   }));
   const excludedIncomplete=(d.locationIssues||[]).length;
@@ -622,9 +623,13 @@ $('ctvAdd').onclick=async()=>{
    const label=document.createElement('label');label.style.display='flex';label.style.gap='10px';label.style.alignItems='flex-start';
    const box=document.createElement('input');box.type='checkbox';box.style.width='auto';box.value=JSON.stringify(x.ref);
    box.dataset.ctvSourceInvoice='1';
-   box.checked=selectedPreviously.has(String(x.ref.id)+'|'+x.ref.invoiceNo);
-   label.append(box,document.createTextNode('#'+x.ref.invoiceNo+' • '+x.name+' • '+x.address+' • '+x.phone+
-    (x.needsReview?' • ⚠ cần kiểm tra liên hệ':'')));
+   // The owner explicitly associates this customer's historical addresses
+   // with their CTV; show each physical destination once and preselect it.
+   // Existing policies keep the owner's prior selection.
+   box.checked=policy?selectedPreviously.has(String(x.ref.id)+'|'+x.ref.invoiceNo):true;
+   label.append(box,document.createTextNode(x.address+' • '+x.phone+
+    ' • '+x.historicalInvoiceCount+' hóa đơn lịch sử (nguồn #'+x.ref.invoiceNo+')'+
+    (x.needsReview?' • ⚠ kiểm tra số điện thoại trước khi xác nhận':'')));
    $('ctvWizardLocations').append(label);
   }
   $('ctvWizard').hidden=false;
@@ -636,8 +641,8 @@ $('ctvAdd').onclick=async()=>{
   $('ctvWizardConfirm').textContent=ctvExistingTarget?
    '✅ LƯU ĐỊA CHỈ / CHIẾT KHẤU & CẤP LINK':
    '✅ XÁC NHẬN CTV & CẤP 1 LINK THẬT';
-  $('ctvAddGuide').textContent='Đã mở '+places.length+
-   ' điểm giao đủ thông tin. Tích đúng địa chỉ trước khi xác nhận.'+
+  $('ctvAddGuide').textContent='Đã gộp thành '+places.length+
+   ' điểm giao từ hóa đơn cùng khách hàng; mỗi địa chỉ chỉ hiện một lần. Kiểm tra rồi xác nhận.'+
    (excludedIncomplete?' Đã loại '+excludedIncomplete+' hồ sơ thiếu dữ liệu, không chỉnh sửa hóa đơn gốc.':'');
   $('ctvWizard').scrollIntoView({behavior:'smooth',block:'start'});
  }catch(e){$('ctvAddGuide').textContent='⚠ '+e.message+' Không tạo khách mới.'}
