@@ -570,7 +570,7 @@ test('one PIN-protected customer link reloads ALL 125 historical invoices past D
 test('production account UI auto-loads Drive history on PIN login, not localStorage invoice records',()=>{
  const client=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
  assert.match(client,/void loadInvoiceHistory\(false\)/);
- assert.match(client,/persistedInvoiceCount=d\.orders\.length/);
+ assert.match(client,/persistedInvoiceCount=historyOrders\.length/);
  assert.match(client,/submittedInvoiceBadge/);
  assert.match(client,/lockConfirmButtons\('⏳ ĐANG XỬ LÝ/);
  assert.match(client,/real-catalog-stepper/);
