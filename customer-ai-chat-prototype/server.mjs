@@ -462,6 +462,21 @@ const server=http.createServer(async(req,res)=>{
     'Chưa xác minh được PDF gốc của hóa đơn này. Vui lòng đối chiếu trong sổ Minh Satori.');
   }
  }
+ // This probe is read-only and scoped by the same invite + PIN as real history.
+ // It permits resolving recently deleted invoices even if broad history fails.
+ if(req.method==='POST'&&p==='/api/real/receipt-status'){
+  if(!realPrivateLinks.readiness().configured)
+   return fail(res,503,'REAL_LINKS_NOT_ENABLED','Link đặt hàng chưa được bật.');
+  if(!rateLimit(req,'private-real-receipt-status'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng thử lại sau.');
+  try{
+   const input=await bodyJSON(req,12000);
+   return reply(res,200,{ok:true,...await realPrivateLinks.receiptStatuses(input)});
+  }catch(e){
+   return fail(res,409,e?.code||'REAL_RECEIPT_STATUS_UNAVAILABLE',
+    'Chưa xác minh được trạng thái hóa đơn trên Google Drive.');
+  }
+ }
  if(req.method==='POST'&&p==='/api/real/history'){
   if(!realPrivateLinks.readiness().configured)
    return fail(res,503,'REAL_LINKS_NOT_ENABLED','Link đặt hàng chưa được bật.');
