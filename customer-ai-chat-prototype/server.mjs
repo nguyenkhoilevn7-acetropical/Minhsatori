@@ -405,7 +405,8 @@ const server=http.createServer(async(req,res)=>{
   try{
    const offset=Number(url.searchParams.get('offset')||0);
    const limit=Number(url.searchParams.get('limit')||8);
-   const data=await issuedLinks.list({offset,limit});
+   const data=await issuedLinks.list({offset,limit,
+    query:String(url.searchParams.get('query')||''),kind:String(url.searchParams.get('kind')||'')});
    return reply(res,200,{ok:true,source:'drive-ledger:satori_issued_links_v1',...data});
   }catch(e){
    return fail(res,503,e?.code||'LINK_REGISTRY_NOT_READY',
