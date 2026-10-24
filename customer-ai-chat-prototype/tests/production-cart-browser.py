@@ -160,18 +160,23 @@ def collapsed_geometry(page):
       return {cart:box('#quickCart'),send:box('#sendForm button[type=submit]'),input:box('#messageInput'),icon:box('.real-cart-icon'),badge:box('.real-cart-count'),viewport:innerWidth};
     }""")
     c, s, i, b = (bounds[k] for k in ["cart", "send", "icon", "badge"])
-    assert c["width"] <= 80, bounds
+    assert c["width"] <= 86, bounds
     assert c["bottom"] <= s["y"] + 1, bounds
-    assert 0 <= bounds["viewport"] - c["right"] <= 9, bounds
+    assert 8 <= bounds["viewport"] - c["right"] <= 18, bounds
     assert c["bottom"] <= bounds["input"]["y"] + 1, bounds
-    assert b["right"] <= i["x"] + 1, "Quantity must appear BEFORE the basket icon"
     assert i["right"] <= c["right"] + 1, bounds
+    assert b["x"] >= i["x"], "Red quantity bubble must overlap TOP-RIGHT of cart"
+    assert b["y"] < i["y"], "Badge sits above the white basket silhouette"
+    assert b["right"] <= bounds["viewport"], "Badge must not clip against the device edge"
     assert 0 <= c["x"] < c["right"] <= bounds["viewport"], bounds
     arrow = page.locator("#realCartHandle").bounding_box()
     assert arrow and arrow["y"] + arrow["height"] <= i["y"] + 2, "Arrow goes ABOVE the basket"
-    computed_background = page.locator("#quickCartEdit").evaluate("e => getComputedStyle(e).backgroundColor")
-    assert computed_background in ("rgba(0, 0, 0, 0)", "transparent"), (
-        f"Collapsed basket background must be transparent, got {computed_background}")
+    computed = page.locator("#quickCartEdit").evaluate("""e => {
+      const s=getComputedStyle(e);return {bg:s.backgroundImage,radius:s.borderRadius,color:s.color};
+    }""")
+    assert "linear-gradient" in computed["bg"], computed
+    assert computed["color"] in ("rgb(255, 255, 255)", "white"), computed
+    assert float(computed["radius"].split("px")[0]) >= 16, computed
 
 
 def expanded_geometry(page):
