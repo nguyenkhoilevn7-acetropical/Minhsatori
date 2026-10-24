@@ -782,6 +782,31 @@ body.production-gemini{--ios-blue:#0a6ce0;--ios-bg:#f5f6f8;--ios-ink:#172334;--i
 @media(max-height:480px){.production-gemini #productionGeminiApp .quick-cart{max-height:70%}.production-gemini #productionGeminiApp .quick-cart #inlineCartLines{max-height:18vh}.production-gemini #productionGeminiApp .quick-cart .delivery-note{min-height:32px;max-height:40px}}
 @media(prefers-reduced-motion:reduce){.production-gemini #productionGeminiApp .quick-cart{transition:none}}
 
+
+/* Compact success-panel actions — no layout changes outside this receipt card. */
+.production-gemini #productionGeminiApp .real-submitted-card .real-submitted-actions{
+ display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:10px;
+}
+.production-gemini #productionGeminiApp .real-submitted-card .real-submitted-actions button{
+ flex:0 1 auto;min-width:0;min-height:40px;padding:7px 11px;
+ border-radius:10px;font-size:12px;font-weight:750;line-height:1.2;
+ letter-spacing:0;box-shadow:none;max-width:100%;
+}
+.production-gemini #productionGeminiApp .real-checkout-progress{
+ display:block;align-self:flex-start;max-width:100%;margin:9px 0;
+ padding:9px 12px;background:#eef6ff;border:1px solid #bddcfa;
+ border-radius:12px;color:#115c99;font-size:13px;font-weight:650;
+ line-height:1.45;overflow-wrap:anywhere;
+ animation:satori-checkout-wait 1.7s ease-in-out infinite;
+}
+@keyframes satori-checkout-wait{
+ 0%,100%{opacity:1}
+ 50%{opacity:.76}
+}
+@media(prefers-reduced-motion:reduce){
+ .production-gemini #productionGeminiApp .real-checkout-progress{animation:none}
+}
+
 </style>
 </head>
 <body>
