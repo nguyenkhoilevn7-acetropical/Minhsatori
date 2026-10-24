@@ -31,11 +31,13 @@ jobs:
                 payload:{}}),redirect:'follow',signal:controller.signal});
             const payload=(await response.text()).slice(0,1500);
             let code='NOT_JSON';
-            try { const body=JSON.parse(payload);code=String(body?.error?.code||'NO_ERROR_CODE').slice(0,80); }
+            let message='';
+            try { const body=JSON.parse(payload);code=String(body?.error?.code||'NO_ERROR_CODE').slice(0,80);message=String(body?.error?.message||'').slice(0,125); }
             catch(_){}
             console.log('HTTP_STATUS='+response.status);
             console.log('RESULT_TYPE='+String(response.headers.get('content-type')||'unknown').slice(0,80));
             console.log('ENDPOINT_ERROR_CODE='+code);
+            console.log('ENDPOINT_ERROR_MESSAGE='+message);
             console.log('PROBE_OUTCOME='+(
               code==='AUTH_FAILED'?'MOBILE_HANDLER_PRESENT':
               code==='ANDROID_NOT_READY'?'ANDROID_HANDLER_NOT_DEPLOYED':
