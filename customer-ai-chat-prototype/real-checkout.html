@@ -136,6 +136,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
  'use strict';
  const $=id=>document.getElementById(id);
  const token=decodeURIComponent(location.hash.slice(1));let code='',quote=null,loading=false,selectedRef=null,agencyMode=false;
+ let lastQuote=null,lastConfirmed=null;
  const cash=n=>Number(n||0).toLocaleString('vi-VN')+' đ';
  const status=(text,kind)=>{$('status').textContent=text;$('status').className=kind||'muted'};
  const request=async(path,payload)=>{
@@ -156,6 +157,53 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   $('chatMessages').append(item);
   $('chatMessages').scrollTop=$('chatMessages').scrollHeight;
  }
+ function invoiceRow(label,value,extraClass=''){
+  const line=document.createElement('div');line.className='invoice-line '+extraClass;
+  const name=document.createElement('span');name.textContent=label;
+  const price=document.createElement('strong');price.textContent=value;
+  line.append(name,price);return line;
+ }
+ function showInvoiceDetails(q,confirmed){
+  $('summary').replaceChildren();
+  const root=document.createElement('div');root.className='invoice-details';
+  const name=document.createElement('strong');name.textContent=q.customer.name;
+  const location=document.createElement('span');location.className='invoice-caption';location.textContent='📍 '+q.customer.location;
+  root.append(name,location);
+  const note=document.createElement('p');note.className='invoice-caption';
+  note.textContent=confirmed?
+   '✅ Hóa đơn thật #'+confirmed.invoiceNo+' đã lưu • Tổng '+cash(confirmed.total):
+   'DỰ THẢO • CK khách '+q.discountPercent+'% • Chưa ghi hóa đơn';
+  root.append(note);
+  for(const item of q.items||[])
+   root.append(invoiceRow(item.product+' • '+item.qty+' '+item.unit,cash(item.unitPrice*item.qty)));
+  root.append(invoiceRow('Tiền hàng',cash(q.subtotal)),invoiceRow('Phí giao',cash(q.shippingAmount)),
+   invoiceRow('VAT',cash(q.vatAmount)),invoiceRow('TỔNG THANH TOÁN',cash(q.total),'invoice-grand'));
+  $('summary').append(root);
+  $('invoiceHeading').textContent=confirmed?'🧾 Hóa đơn #'+confirmed.invoiceNo:'🧾 Xem trước hóa đơn Minh Satori';
+  $('reviewWarning').textContent=confirmed?
+   'Đã lưu trên hệ thống Minh Satori. Đây là bản tóm tắt màn hình, không phải file PDF chính thức.':
+   'Kiểm tra sản phẩm, địa chỉ và tổng tiền. Chỉ khi nhấn xác nhận mới ghi hóa đơn THẬT.';
+  $('confirm').hidden=Boolean(confirmed);
+  $('edit').textContent=confirmed?'Đóng hóa đơn':'Sửa giỏ hàng';
+  $('reviewPanel').hidden=false;
+  $('reviewPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+ }
+ $('showAllProducts').onclick=()=>{
+  $('manualCatalog').open=true;
+  $('manualCatalog').scrollIntoView({behavior:'smooth',block:'start'});
+ };
+ $('showCart').onclick=()=>{
+  const fields=[...document.querySelectorAll('input[data-sku]')].filter(x=>Number(x.value)>0);
+  if(!fields.length){bubble('assistant','Giỏ hàng đang trống. Anh/chị nhắn món hoặc mở Tất cả sản phẩm.');return}
+  bubble('assistant','🛒 GIỎ HÀNG HIỆN TẠI:\n'+fields.map(x=>
+   x.value+' × '+String(x.getAttribute('aria-label')||'').replace(/^Số lượng /,'')).join('\n')+
+   '\nBấm Xem báo giá thật để kiểm tra thành tiền.');
+ };
+ $('showInvoice').onclick=()=>{
+  if(lastQuote){showInvoiceDetails(lastQuote,null);return}
+  if(lastConfirmed){showInvoiceDetails(lastConfirmed.quote,lastConfirmed.result);return}
+  bubble('assistant','Chưa có hóa đơn trong phiên này. Hãy thêm món và chọn Xem báo giá thật.');
+ };
  function updateCart(){
   const fields=[...document.querySelectorAll('input[data-sku]')];
   const selected=fields.map(el=>Number(el.value||0)).filter(n=>Number.isSafeInteger(n)&&n>0);
@@ -188,7 +236,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
    const label=document.createElement('label');label.textContent='Số lượng';
    const qty=document.createElement('input');qty.type='number';qty.min='0';qty.max='500';qty.step='1';
    qty.value='0';qty.dataset.sku=p.code;qty.setAttribute('aria-label','Số lượng '+p.name);
-   qty.addEventListener('input',()=>{quote=null;$('reviewPanel').hidden=true;updateCart()});
+   qty.addEventListener('input',()=>{quote=null;lastQuote=null;$('reviewPanel').hidden=true;updateCart()});
    label.append(qty);line.append(text,label);root.append(line);
   }
   updateCart();
@@ -219,7 +267,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
  $('destination').onchange=()=>act(async()=>{
   const select=$('destination'),option=select.selectedOptions[0];
   // A destination switch invalidates all old prices, quantities and quotes.
-  selectedRef=null;quote=null;$('products').replaceChildren();updateCart();
+  selectedRef=null;quote=null;lastQuote=null;$('products').replaceChildren();updateCart();
   $('reviewPanel').hidden=true;
   if(!select.value||!option?.dataset.id)return;
   const nextRef={id:option.dataset.id,invoiceNo:Number(select.value)};
@@ -252,7 +300,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
     totals.reduce((a,b)=>a+b,0)>500||totals.filter(q=>q>0).length>6)
    throw Error('Giỏ tối đa 6 loại và tổng 500 đơn vị. Hãy điều chỉnh số lượng.');
   for(const field of fields)field.value=String(counts.get(field.dataset.sku));
-  quote=null;$('reviewPanel').hidden=true;updateCart();
+  quote=null;lastQuote=null;$('reviewPanel').hidden=true;updateCart();
   if(d.deliveryNote){
    const note=$('note'),current=note.value.trim();
    if(!current.includes(d.deliveryNote))note.value=[current,d.deliveryNote].filter(Boolean).join('; ').slice(0,300);
@@ -278,20 +326,21 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
      items.reduce((n,x)=>n+x.qty,0)>500)
    throw Error('Số lượng không hợp lệ, tổng không vượt 500 đơn vị.');
   const d=await request('/api/real/quote',{destination:selectedRef,items,deliveryNote:$('note').value});
-  quote=d.quoteToken;
-  $('summary').textContent=d.customer.name+' — '+d.customer.location+' • CK '+d.discountPercent+'%' +
-   '\nTiền hàng: '+cash(d.subtotal)+'\nPhí giao: '+cash(d.shippingAmount)+
-   '\nVAT: '+cash(d.vatAmount)+'\nTỔNG: '+cash(d.total);
-  $('reviewPanel').hidden=false;$('shop').hidden=true;
+  quote=d.quoteToken;lastQuote=d;
+  showInvoiceDetails(d,null);
+  bubble('assistant','Đây là báo giá thật đã kiểm tra từ bảng giá Minh Satori: '+cash(d.total)+
+   '. Xem hóa đơn bên dưới để xác nhận hoặc sửa giỏ; chưa có hóa đơn nào được tạo.');
   status('Đã tạo báo giá thật từ dữ liệu hiện hành. Chưa ghi hóa đơn.');
  });
- $('edit').onclick=()=>{$('reviewPanel').hidden=true;$('shop').hidden=false;quote=null};
+ $('edit').onclick=()=>{$('reviewPanel').hidden=true;if(quote){quote=null;lastQuote=null}};
  $('confirm').onclick=()=>act(async()=>{
   if(!quote)throw Error('Chưa có báo giá hợp lệ.');
   const d=await request('/api/real/confirm',{quoteToken:quote,
    confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
-  $('reviewPanel').hidden=true;quote=null;
-  bubble('assistant','Hóa đơn #'+d.invoiceNo+' đã được xác nhận và lưu thành công.');
+  lastConfirmed={quote:lastQuote,result:d};quote=null;lastQuote=null;
+  if(lastConfirmed.quote)showInvoiceDetails(lastConfirmed.quote,d);
+  bubble('assistant','✅ Đã lưu thành công hóa đơn thật #'+d.invoiceNo+
+   ' với tổng tiền '+cash(d.total)+'. Bấm Xem hóa đơn để đọc lại chi tiết.');
   status('ĐÃ GHI THÀNH CÔNG hóa đơn thật #'+d.invoiceNo+
    ' • Tổng '+cash(d.total)+'. Mã hóa đơn đã được cấp từ hệ thống Minh Satori.','success');
  });
