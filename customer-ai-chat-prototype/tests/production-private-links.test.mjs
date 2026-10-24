@@ -293,7 +293,7 @@ test('real links render EXACT Gemini original HTML/CSS with a Production adapter
  assert.doesNotMatch(server,/const html=fs\.readFileSync\(path\.join\(HERE,'real-checkout\.html'\)/);
 });
 
-test('standalone CTV finance is an owner-only live read, independent of agency link /real',()=>{
+test('CTV recipient ledger is owner-only read, without redundant spread calculator',()=>{
  const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
  const route=server.slice(server.indexOf("p==='/api/admin/ctv-live-catalogue'"),
   server.indexOf('// Owner-only production READ access.',server.indexOf("p==='/api/admin/ctv-live-catalogue'")));
@@ -303,9 +303,14 @@ test('standalone CTV finance is an owner-only live read, independent of agency l
  assert.doesNotMatch(route,/orders\.create|orders\.create\.pair|ctv\.recipients\.upsert/);
  const html=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
  for(const id of ['ctvReadLive','ctvLedgerName','ctvReceiverName','ctvReceiverPhone',
-  'ctvReceiverAddress','ctvCustomerPct','ctvPartnerPct','ctvLiveProduct',
-  'ctvLiveQty','ctvCalculateLive','ctvAddReceiverDraft'])
+  'ctvReceiverAddress','ctvCustomerPct','ctvPartnerPct','ctvAddReceiverDraft'])
   assert.match(html,new RegExp('id="'+id+'"'));
+ for(const id of ['ctvLiveProduct','ctvLiveQty','ctvLiveResult','ctvCalculateLive'])
+  assert.doesNotMatch(html,new RegExp('id="'+id+'"'),
+   'unnecessary CTV spread calculator must remain removed');
+ assert.doesNotMatch(html,/Tính tiền khách và chênh lệch CTV/);
+ assert.doesNotMatch(html,/\$\('ctvCalculateLive'\)/);
+ assert.match(html,/ctvCatalogueLoaded=true/,'the remaining CTV table must still load');
  assert.match(html,/CHƯA ghi Google Drive/);
  for(const [,js] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
   new vm.Script(js,{filename:'real-owner-ctv.js'});
