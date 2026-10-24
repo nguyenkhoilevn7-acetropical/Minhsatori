@@ -1,4 +1,5 @@
 name: Android Mobile API endpoint negative-auth probe
+# OAuth allowlist JSON corrected by owner, retry invalid-token negative auth probe.
 # Verify Android OAuth allowlist after owner saved the registered signed client ID.
 # One-time rerun after owner-email Script Property was saved; dummy token only.
 on:
