@@ -6,21 +6,27 @@ import vm from 'node:vm';
 const client=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
 
 function reconcileWithMock(orders,revision,complete){
- const start=client.indexOf(' function reconcileHistoryWithDrive(');
+ const start=client.indexOf(' function forgetVerifiedMissing(');
  const end=client.indexOf(' function persistVerifiedHistory(',start);
- assert.ok(start>=0&&end>start,'reconciliation function must exist');
+ assert.ok(start>=0&&end>start,'reconciliation functions must exist');
  const extracted=client.slice(start,end);
  const run=new Function('orders','revision','complete','sessionInvoices',
   'recentReceipts','savedRecord','unreadInvoices','persistRecentReceipts',
   'writeSession','unreadKey','submittedStorageKey','lastReceipt','document',
+  'cachedHistory','historyOrders','readLocal','writeLocal','historyKey',
+  'updateInvoiceBadge','validNo',
   extracted+'\nreturn reconcileHistoryWithDrive(orders,revision,complete);');
  const session=new Set([5950]),recent=new Map([[5950,{revision:115}]]),
   unread=new Set([5950]),writes=[];
  const saved={orderId:'preserve-idempotency',invoiceNo:5950,invoiceNos:[5950],
   revision:115,overview:{invoiceNo:5950}};
+ const cached=[{invoiceNo:5950,total:304128,date:'24/10/2026'}];
+ const previous=JSON.stringify({revision:110,savedAt:Date.now(),orders:cached});
  run(orders,revision,complete,session,recent,saved,unread,
   ()=>writes.push('persist'),()=>writes.push('session'),'unread','submitted',
-  null,{querySelectorAll:()=>[]});
+  null,{querySelectorAll:()=>[]},cached,orders,
+  ()=>previous,()=>writes.push('local'),'history',
+  ()=>{},n=>Number.isSafeInteger(n)&&n>0);
  return {session,recent,unread,saved,writes};
 }
 
