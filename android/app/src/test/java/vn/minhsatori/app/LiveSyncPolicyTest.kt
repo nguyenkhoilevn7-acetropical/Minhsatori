@@ -21,12 +21,28 @@ class LiveSyncPolicyTest {
     }
 
     @Test fun mobileRevisionRefreshesOnlyWhenCanonicalLedgerChanges() {
-        assertEquals(132L, LiveSyncPolicy.mobileRevision(JSONObject("""{"revision":132}""")))
-        assertFalse(LiveSyncPolicy.mobileChanged(132L, 132L))
-        assertTrue(LiveSyncPolicy.mobileChanged(132L, 133L))
-        assertTrue(LiveSyncPolicy.mobileChanged(134L, 132L))
-        for (bad in listOf("{}", """{"revision":-1}""", """{"revision":"?!"}"""))
+        val valid = JSONObject().put("revision", 133)
+            .put("ledgerFileId", DriveReadClient.LIVE_FILE_ID)
+            .put("ledgerKind", LiveSyncPolicy.PRODUCTION_LEDGER_KIND)
+        assertEquals(133L, LiveSyncPolicy.mobileRevision(valid))
+        assertFalse(LiveSyncPolicy.mobileChanged(133L, 133L))
+        assertTrue(LiveSyncPolicy.mobileChanged(133L, 134L))
+        assertTrue(LiveSyncPolicy.mobileChanged(134L, 133L))
+        for (bad in listOf("{}", """{"revision":-1}""", """{"revision":"?!"}""",
+            """{"revision":1}""", """{"revision":132}""",
+            """{"revision":134,"ledgerFileId":"sandbox","ledgerKind":"minh-satori-owner-drive-v15"}""",
+            """{"revision":134,"ledgerFileId":"14XWSPrxLnKXATwmuHeXGZnCvjDbalghV"}""")) {
             assertFails { LiveSyncPolicy.mobileRevision(JSONObject(bad)) }
+        }
+    }
+
+    @Test fun snapshotRejectsWrongEnvelopeRevisionAndFakeLedger() {
+        val data = JSONObject().put("revision", 134)
+            .put("ledgerFileId", DriveReadClient.LIVE_FILE_ID)
+            .put("ledgerKind", LiveSyncPolicy.PRODUCTION_LEDGER_KIND)
+        val empty = SatoriSnapshot(134, "", emptyList())
+        assertFails { LiveSyncPolicy.validateMobileSnapshot(data, 134, empty) }
+        assertFails { LiveSyncPolicy.validateMobileSnapshot(data, 133, empty) }
     }
 
     @Test fun neverReplacesVerifiedLedgerWithOlderRevision() {

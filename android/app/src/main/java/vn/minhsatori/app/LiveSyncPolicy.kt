@@ -15,11 +15,40 @@ internal object LiveSyncPolicy {
         return n
     }
 
+    /** Canonical owner Drive file, already used by authenticated direct Drive reads. */
+    const val PRODUCTION_LEDGER_KIND = "minh-satori-owner-drive-v15"
+
+    /**
+     * Fail closed on historical Android sandbox endpoints that returned a
+     * plausible JSON snapshot with revision 1 and 3 mock invoices. Merely
+     * having an owner actor ID or HTTP 200 does NOT authenticate the ledger.
+     * Revision 133 is the last independently verified production baseline on
+     * 2026-10-24. Valid production ledgers must move forward monotonically.
+     */
+    const val MIN_PRODUCTION_REVISION = 133L
+
     fun mobileRevision(data: JSONObject): Long {
         val revision = data.optString("revision").toLongOrNull()
-        if (revision == null || revision < 1L)
-            throw IOException("Mobile API không trả revision hợp lệ.")
+        val file = data.optString("ledgerFileId")
+        val kind = data.optString("ledgerKind")
+        if (file != DriveReadClient.LIVE_FILE_ID || kind != PRODUCTION_LEDGER_KIND ||
+            revision == null || revision < MIN_PRODUCTION_REVISION)
+            throw MobileApiError("WRONG_LEDGER_SOURCE",
+                "Mobile API đang trỏ tới dữ liệu TEST hoặc chưa được cập nhật " +
+                "để xác minh nguồn Production. Hãy kết nối API của dự án " +
+                "Minh Satori Drive Sync (không phải Sandbox).")
         return revision
+    }
+
+    /** The outer API revision must be identical to the loaded invoice snapshot. */
+    fun validateMobileSnapshot(data: JSONObject, outerRevision: Long,
+                               snapshot: SatoriSnapshot) {
+        val checked = mobileRevision(data)
+        if (outerRevision != checked || snapshot.revision != checked ||
+            snapshot.invoices.isEmpty() || snapshot.invoices.all { it.isTest })
+            throw MobileApiError("WRONG_LEDGER_SOURCE",
+                "Mobile API trả dữ liệu thiếu hoặc không khớp với sổ " +
+                "Minh Satori Production. Không sử dụng dữ liệu TEST.")
     }
 
     /** A lower Drive version may indicate replacement of a shared file. */
