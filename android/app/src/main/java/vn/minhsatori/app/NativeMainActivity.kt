@@ -2139,7 +2139,7 @@ class NativeMainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun connectGoogle(automatic: Boolean = false) {
+    private fun connectGoogle(automatic: Boolean = false, emailOnlyFallback: Boolean = false) {
         if (isLoading || authorizationPending || (automatic && authorizationDeclined)) return
         if (!automatic) authorizationDeclined = false
         authorizationPending = true
@@ -2149,7 +2149,7 @@ class NativeMainActivity : AppCompatActivity() {
         // Direct Drive reads always require drive.readonly, even when a
         // sandbox API endpoint is still stored. API-only mode needs email only.
         val scopes = mutableListOf(Scope("https://www.googleapis.com/auth/userinfo.email"))
-        if (apiEndpoint == null || preferGoogleDrive()) {
+        if (!emailOnlyFallback && (apiEndpoint == null || preferGoogleDrive())) {
             scopes.add(Scope("https://www.googleapis.com/auth/drive.readonly"))
         }
         val request = AuthorizationRequest.builder()
@@ -2164,9 +2164,15 @@ class NativeMainActivity : AppCompatActivity() {
             }
             .addOnFailureListener {
                 authorizationPending = false
-                statusMessage = "Google chưa xác thực được. Ứng dụng sẽ tự thử lại " +
-                    "khi đang mở và mạng hoạt động."
-                render()
+                if (!emailOnlyFallback && apiEndpoint != null) {
+                    // Drive OAuth consent may be restricted; owner Mobile API
+                    // only needs verified email scope and uses server-side Drive.
+                    connectGoogle(automatic = true, emailOnlyFallback = true)
+                } else {
+                    statusMessage = "⚠ Google chưa cấp quyền đăng nhập. " +
+                        "Chưa truy cập được Drive hoặc Mobile API; không xóa dữ liệu cũ."
+                    render()
+                }
             }
     }
 
@@ -2200,7 +2206,10 @@ class NativeMainActivity : AppCompatActivity() {
             dataSource = ""
             if (preferGoogleDrive() || apiEndpoint == null) {
                 if (!result.grantedScopes.contains("https://www.googleapis.com/auth/drive.readonly")) {
-                    statusMessage = "Chưa cấp quyền Google Drive chỉ đọc. Không sử dụng 3 hóa đơn thử làm dữ liệu thật."
+                    accessToken = token
+                    if (recoverDriveAccessUsingOwnerApi(token)) return
+                    statusMessage = "⚠ Google không cấp quyền Drive chỉ đọc " +
+                        "và chưa có Mobile API chủ sở hữu đã lưu. Chưa cập nhật dữ liệu."
                     render()
                     return
                 }
