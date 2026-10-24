@@ -391,6 +391,41 @@ const server=http.createServer(async(req,res)=>{
     'Không cấp được link: cần đúng hóa đơn gốc, địa chỉ và giá chủ tài khoản duyệt.');
   }
  }
+ // Verified invoice metadata for phone browsers whose embedded PDF viewer
+ // is blank. The canonical PDF remains downloadable unchanged. Never query
+ // by arbitrary invoice number: exact saved invoice + sealed receipt proof.
+ if(req.method==='POST'&&p==='/api/real/invoice-details'){
+  if(!realPrivateLinks.readiness().configured)
+   return fail(res,503,'REAL_LINKS_NOT_ENABLED','Link chưa sẵn sàng');
+  if(!rateLimit(req,'private-real-invoice-details'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng thử lại sau');
+  try{
+   const input=await bodyJSON(req,12000);
+   const proof=realPrivateLinks.receiptContext(input);
+   const result=await readMinhSatori('orders.list',{query:String(proof.invoiceNo),limit:100});
+   if(!Number.isSafeInteger(result.revision)||!Array.isArray(result.data?.orders)||
+      result.data.totalMatches>100)throw Error('SOURCE_NOT_VERIFIED');
+   const matching=result.data.orders.filter(o=>Number(o.invoiceNo)===proof.invoiceNo&&
+    o.name===proof.name&&o.phone===proof.phone&&o.location===proof.location&&
+    Number(o.total)===proof.total&&o.pairRole!=='collaborator');
+   if(matching.length!==1)throw Error('INVOICE_NOT_VERIFIED');
+   const o=matching[0];
+   if(!Array.isArray(o.items)||!o.items.length||o.items.some(i=>
+     !Number.isSafeInteger(i.qty)||i.qty<1||!Number.isSafeInteger(i.unitPrice)||i.unitPrice<0))
+    throw Error('INVOICE_ITEM_INVALID');
+   return reply(res,200,{ok:true,invoice:{
+    invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,
+    status:o.status,total:o.total,paid:o.status==='Đã thanh toán'||!!o.customerPaidAt,
+    paidAt:o.customerPaidAt||null,
+    customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,
+    shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,
+    deliveryNote:o.deliveryNote||'',
+    items:o.items.map(i=>({product:i.product,qty:i.qty,unit:i.unit,unitPrice:i.unitPrice,
+       subtotal:i.subtotal??i.qty*i.unitPrice}))
+   }});
+  }catch(e){return fail(res,409,'REAL_INVOICE_NOT_VERIFIED',
+    'Chưa xác minh được chi tiết hóa đơn đã lưu. Không hiển thị dữ liệu ước lượng.')}
+ }
  // Official website PDF: access only through the issued link, separate
  // code, and an invoice-specific proof created AFTER a confirmed real write.
  if(req.method==='POST'&&p==='/api/real/pdf'){
