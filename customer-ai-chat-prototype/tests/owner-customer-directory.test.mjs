@@ -189,3 +189,29 @@ assert.match(productionAdmin,/\$\('agencyRealFind'\)\.click\(\)/);
 assert.match(productionAdmin,/showAdminTab\('customers'\)/,'Production customers are initial admin screen');
 assert.match(productionAdmin,/id="legacyDemoProfiles" aria-hidden="true"/);
 console.log('PASS read-only production customer directory metrics, physical address counts and safe selection');
+
+const {directorySourceQuery}=await import('../owner-customer-directory.mjs');
+assert.equal(directorySourceQuery('Traky (các chi nhánh)'),'Traky',
+ 'do not query an invented label with no matching production invoices');
+assert.equal(directorySourceQuery('Traky Hair'),'Traky',
+ 'branch member resolves to all literal Traky invoices');
+assert.equal(directorySourceQuery('Tracy Hair'),'Tracy Hair',
+ 'distinct Tracy name MUST NOT be silently merged with Traky');
+const branchSamples=[
+ {name:'Traky Sài Gòn',phone:'0901111111',location:'159 Calmette, Q.1',
+  ref:{id:1,invoiceNo:5901},sourceInvoiceNo:5901},
+ {name:'Traky Rạch Giá',phone:'0912222222',location:'150 Nguyễn Trung Trực, Rạch Giá',
+  ref:{id:2,invoiceNo:5902},sourceInvoiceNo:5902},
+ {name:'Traky Hair',phone:'0933333333',location:'75 Quang Trung, Gò Vấp',
+  ref:{id:3,invoiceNo:5903},sourceInvoiceNo:5903},
+ {name:'Tracy Hair',phone:'0944444444',location:'Tracy khác',
+  ref:{id:4,invoiceNo:5904},sourceInvoiceNo:5904}
+];
+const groupedBranches=detailFromEvidence('Traky (các chi nhánh)',branchSamples,[],{sourceTotal:3});
+assert.equal(groupedBranches.count,3,'all three Traky branch locations must appear');
+assert.ok(groupedBranches.places.every(p=>p.sourceRows[0].ref.invoiceNo!==5904));
+const sourceCode=readFileSync(path.join(root,'server.mjs'),'utf8');
+assert.match(sourceCode,/const sourceQuery=directorySourceQuery\(name\)/);
+assert.match(sourceCode,/customers\.search',\{query:sourceQuery,limit:20\}/);
+assert.match(sourceCode,/monthLookup\(m,sourceQuery\)/);
+console.log('PASS Traky group → actual source search prefix; Tracy name isolated');
