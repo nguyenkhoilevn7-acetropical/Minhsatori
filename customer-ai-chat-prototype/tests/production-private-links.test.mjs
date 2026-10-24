@@ -625,7 +625,7 @@ test('order-locked chat does not flood repeated error bubbles or resubmit after 
  assert.match(client,/let lockNoticeShown=false/,'only one lock warning');
  assert.match(client,/if\(lockNoticeShown\)return/,'deduplicate warning');
  assert.match(client,/function syncOrderInputState\(\)/,'lock after confirmed or uncertain write');
- assert.match(client,/input\.disabled=locked/,'customer input disabled');
+ assert.match(client,/input\.disabled=busy/,'chat stays interactive outside a request');
  assert.match(client,/if\(submitted\|\|submissionUncertain\)\{syncOrderInputState\(\);showLockNoticeOnce\(\);return\}/,
   'submit handler must stop before adding a repeated user bubble');
  assert.match(client,/if\(direction<0\)\{setCartMode\('collapsed'\);return\}/,
