@@ -618,3 +618,24 @@ test('iOS cart: three states, swipe handle, color-separated chat and verified in
  assert.match(gateway,/phone:d\.phone/);
  assert.match(gateway,/deliveryNote:safe\(o\.deliveryNote\)/);
 });
+
+test('order-locked chat does not flood repeated error bubbles or resubmit after a previous write',()=>{
+ const client=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
+ assert.match(client,/let lockNoticeShown=false/,'only one lock warning');
+ assert.match(client,/if\(lockNoticeShown\)return/,'deduplicate warning');
+ assert.match(client,/function syncOrderInputState\(\)/,'lock after confirmed or uncertain write');
+ assert.match(client,/message\.disabled=locked/,'customer input disabled');
+ assert.match(client,/if\(submitted\|\|submissionUncertain\)\{syncOrderInputState\(\);showLockNoticeOnce\(\);return\}/,
+  'submit handler must stop before adding a repeated user bubble');
+ assert.match(client,/if\(direction<0\)\{setCartMode\('collapsed'\);return\}/,
+  'one downward swipe collapses the panel');
+});
+test('iPhone collapsed cart stays a compact dock aligned with Send and expanded buttons have stable order',()=>{
+ const css=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ assert.match(css,/\.quick-cart\[data-cart-mode="collapsed"\]\{[\s\S]*?right:10px!important/);
+ assert.match(css,/width:120px!important;min-width:120px!important;max-width:120px!important/);
+ assert.match(css,/\.quick-cart\[data-cart-mode="collapsed"\] #quickCartCount,[\s\S]*?display:none!important/);
+ assert.match(css,/\.quick-cart:is\(\[data-cart-mode="half"\],\[data-cart-mode="full"\]\) #quickCartQuote\{[\s\S]*?grid-column:2!important/);
+ assert.match(css,/\.quick-cart:is\(\[data-cart-mode="half"\],\[data-cart-mode="full"\]\) #quickCartEdit\{[\s\S]*?grid-column:3!important/);
+ assert.match(css,/\.quick-cart:is\(\[data-cart-mode="half"\],\[data-cart-mode="full"\]\) #realCartClose\{[\s\S]*?grid-column:4!important/);
+});
