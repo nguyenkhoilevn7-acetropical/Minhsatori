@@ -13,6 +13,7 @@ import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {parseOrder,parseRules,parseComplexOrderWithGemini,geminiConfigured,identityChange} from './free-parser.mjs';
 import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
+import {chatBasketChanges,applyCartChanges} from './cart-semantics.mjs';
 import {customerSuggestions} from './customer-suggestions.mjs';
 import {businessReply} from './business-reply.mjs';
 import {parseOneClause,parseMultiOrder,looksCompoundOrder,parseWaterClarificationBasket,waterClarificationAnswer,parseColloquialBasket,colloquialQuestion,completeColloquialFollowup} from './multi-order.mjs';
@@ -219,14 +220,6 @@ function currentBasketQuote(token,profile){
  * Only "thêm / bổ sung / cộng thêm" deliberately increments quantities.
  * A single newly named item updates that SKU without deleting other products.
  */
-function chatBasketChanges(message,items){
- const phrase=fold(message);
- const isTopUp=/^(?:(?:cho|lay)\s+(?:(?:em|anh|chi|toi|minh)\s+)?)?(?:them|bo sung|cong them)\b/.test(phrase);
- if(isTopUp)return items.map(x=>({action:'add',code:x.sku,qty:x.qty}));
- if(items.length>1||/\b(?:don moi|dat lai tu dau|lam don moi)\b/.test(phrase))
-  return [{action:'replace',items:items.map(x=>({code:x.sku,qty:x.qty}))}];
- return items.map(x=>({action:'set',code:x.sku,qty:x.qty}));
-}
 function applyChatBasket(res,token,profile,changes,revision,source,delivery){
  let draft;
  try{draft=draftStore.mutate(token,changes,revision,delivery)}catch(e){return draftFailure(res,e)}
