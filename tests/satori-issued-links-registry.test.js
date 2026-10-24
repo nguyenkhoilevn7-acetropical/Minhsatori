@@ -59,3 +59,26 @@ test('fake host, duplicate recipients and unauthorized size are rejected',()=>{
  assert.throws(()=>linkRegister(state,{record,confirmed:false,expectedRevision:10}),
   {code:'LINK_REGISTRY_INVALID'});
 });
+
+test('same CTV URL refreshes its newly approved recipients without changing link identity',()=>{
+ const {linkRegister,linkList}=helpers();
+ const ctv={...record,id:'il_'+'3'.repeat(32),kind:'collaborator',
+  name:'CTV Example',collaboratorId:'ctv_test123',
+  link:'https://minh-satori-customer-ai-gemini.onrender.com/ctv/#'+'c'.repeat(90),
+  expiresAt:null};
+ const initial={revision:17,values:{satori_orders_v15:'[]'}};
+ const first=linkRegister(initial,{record:ctv,confirmed:true,expectedRevision:17});
+ const next={revision:18,values:{...initial.values,...first.extras}};
+ const expanded={...ctv,recipients:[...ctv.recipients,{
+  customerRef:{id:'777',invoiceNo:777},name:'New Approved Receiver',
+  phone:'0900123777',location:'777 Đường Mới TP.HCM',discountPercent:20
+ }]};
+ const refresh=linkRegister(next,{record:expanded,confirmed:true,expectedRevision:18});
+ assert.equal(refresh.modified,true);
+ assert.equal(refresh.result.updated,true);
+ const saved=linkList({revision:19,values:{...next.values,...refresh.extras}},{limit:10});
+ assert.equal(saved.total,1);
+ assert.equal(saved.items[0].recipients.length,2);
+ assert.equal(saved.items[0].issuedAt,ctv.issuedAt);
+ assert.equal(saved.items[0].link,ctv.link);
+});
