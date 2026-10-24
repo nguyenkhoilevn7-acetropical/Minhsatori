@@ -170,7 +170,7 @@ def collapsed_geometry(page):
     arrow = page.locator("#realCartHandle").bounding_box()
     assert arrow and arrow["y"] + arrow["height"] <= i["y"] + 2, "Arrow goes ABOVE the basket"
     no_blue = page.locator("#quickCartEdit").evaluate(
-        "e => getComputedStyle(e).backgroundColor in ['rgba(0, 0, 0, 0)', 'transparent']")
+        "e => ['rgba(0, 0, 0, 0)', 'transparent'].includes(getComputedStyle(e).backgroundColor)")
     assert no_blue, "Collapsed cart must have no blue button background"
 
 
