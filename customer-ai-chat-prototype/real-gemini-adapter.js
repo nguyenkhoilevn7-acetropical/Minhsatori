@@ -73,14 +73,20 @@
  // be reattached here rather than rebuilding the UI.
  function syncVisibleHeight(){
   const vv=window.visualViewport;
+  // The Samsung keyboard must resize checkout even when landscape CSS width exceeds 760px.
   const pixels=Math.max(180,Math.floor(vv?.height>0?
    Math.min(window.innerHeight||vv.height,vv.height):window.innerHeight));
   document.documentElement.style.setProperty('--satori-visible-height',pixels+'px');
+  const focused=document.activeElement;
+  const typing=focused?.id==='messageInput'||focused?.classList?.contains('delivery-note');
+  document.body.classList.toggle('real-keyboard-open',Boolean(typing&&vv&&vv.height<window.innerHeight-100));
  }
  syncVisibleHeight();
  window.visualViewport?.addEventListener('resize',syncVisibleHeight,{passive:true});
  window.visualViewport?.addEventListener('scroll',syncVisibleHeight,{passive:true});
  window.addEventListener('resize',syncVisibleHeight,{passive:true});
+ document.addEventListener('focusin',syncVisibleHeight);
+ document.addEventListener('focusout',()=>{requestAnimationFrame(syncVisibleHeight)});
  const cash=n=>Math.round(Number(n)||0).toLocaleString('vi-VN')+' đ';
  const setText=(id,text)=>{const node=$(id);if(node)node.textContent=String(text||'')};
  const disabledBusy=value=>{requestsBusy=value;for(const id of ['realOpen','quickCartQuote','composeCart']){
@@ -115,16 +121,31 @@
   return [...products.values()];
  }
  let cartCollapsed=true;
+ // The ONLY "new cart" action remains in the top toolbar. Inline cart is opened
+ // by the badge-bearing icon and closed by a dedicated red X.
+ $('quickCartNew').hidden=true;
+ const cartClose=document.createElement('button');cartClose.type='button';
+ cartClose.id='realCartClose';cartClose.textContent='✕';cartClose.title='Đóng giỏ hàng';
+ cartClose.setAttribute('aria-label','Đóng giỏ hàng');
+ cartClose.onclick=()=>{cartCollapsed=true;updateCart()};
+ $('quickCart').insertBefore(cartClose,$('inlineCartLines'));
+ $('quickCartEdit').setAttribute('aria-label','Mở chi tiết giỏ hàng');
  function updateCart(){
   const entries=[...cart.values()],count=entries.reduce((n,x)=>n+x.qty,0);
-  setText('quickCartCount','🛒 Giỏ hàng chung • '+entries.length+' loại / '+count+' đơn vị');
+  setText('quickCartCount',entries.length+' loại sản phẩm trong giỏ');
+  $('quickCartEdit').replaceChildren();
+  const cartIcon=document.createElement('span');cartIcon.className='real-cart-icon';cartIcon.textContent='🛒';
+  const cartBadge=document.createElement('strong');cartBadge.className='real-cart-count';cartBadge.textContent=String(count);
+  $('quickCartEdit').append(cartIcon,cartBadge);
+  $('quickCartEdit').disabled=!entries.length;
+  $('quickCartEdit').setAttribute('aria-label','Giỏ hàng, '+count+' sản phẩm. '+(cartCollapsed?'Mở':'Đang mở'));
+  cartClose.hidden=cartCollapsed||!entries.length;
   setText('cartCount',entries.length+'/6');
   setText('cartFeedback',entries.length?'Giỏ chung đã cập nhật. Chưa tạo hóa đơn.':'Giỏ đang trống.');
   $('quickCart').hidden=!entries.length;
   $('composeCart').disabled=!entries.length||submitted||submissionUncertain||confirming;
   $('quickCartQuote').disabled=!entries.length||submitted||submissionUncertain||confirming;
   $('quickCartQuote').hidden=!entries.length;
-  $('quickCartEdit').textContent=cartCollapsed?'Mở giỏ':'Thu gọn giỏ';
   $('quickCartEdit').setAttribute('aria-expanded',String(!cartCollapsed));
   const list=$('inlineCartLines'),sheet=$('cartList');list.replaceChildren();sheet.replaceChildren();
   list.hidden=cartCollapsed;
@@ -268,6 +289,7 @@
  createNextButton.style.cssText='background:#0c76cc;color:#fff;border:0;border-radius:10px;padding:7px 10px;font-weight:750;min-height:39px';
  createNextButton.onclick=startNewCart;
  $('historyButton').parentElement.append(createNextButton);
+  $('quickCartNew').hidden=true;
  $('clearCart').onclick=()=>{cart.clear();invalidate();updateCart()};
  $('composeCart').onclick=()=>{quoteNow()};
  $('quickCartQuote').onclick=()=>quoteNow();
