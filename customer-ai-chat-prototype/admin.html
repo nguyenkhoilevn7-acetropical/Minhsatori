@@ -992,15 +992,72 @@ function renderCustomerSelect(){
  syncCtvCandidate();
  if([...select.options].some(x=>x.value===old))select.value=old;
 }
+let realDirectorySnapshot=null;
+function renderProductionProfiles(){
+ const root=$('productionProfiles'),query=normalized($('realDirectoryFilter').value);
+ root.replaceChildren();
+ const list=realCustomers.filter(c=>!query||[c.name,...(c.aliases||[])].some(x=>normalized(x).includes(query)));
+ for(const c of list){
+  const card=document.createElement('article');card.className='directory-card';
+  const head=document.createElement('div');head.className='directory-card-head';
+  const avatar=document.createElement('span');avatar.className='directory-avatar';avatar.textContent=String(c.name||'?').trim()[0]?.toUpperCase()||'?';
+  const title=document.createElement('div');title.className='directory-card-title';
+  const name=document.createElement('strong');name.textContent=c.name;
+  const info=document.createElement('small');info.textContent=(c.invoiceCount||0)+' hóa đơn nguồn • '+(c.aliases?.length||1)+' tên/chi nhánh';
+  title.append(name,info);
+  const count=document.createElement('span');count.className='directory-pill';count.textContent=(c.deliveryLocationCount||0)+' điểm giao';
+  head.append(avatar,title,count);card.append(head);
+  const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent='🔗 Duyệt địa chỉ & cấp link';
+  button.onclick=()=>{
+   $('agencyRealName').value=c.name;
+   $('agencyRealLinks').scrollIntoView({behavior:'smooth',block:'start'});
+   $('agencyRealFind').click(); // Owner must still review addresses and explicitly issue a link.
+  };
+  card.append(button);
+  const detail=document.createElement('details');detail.className='directory-places';
+  const summary=document.createElement('summary');summary.textContent='📍 Xem '+(c.deliveryLocationCount||0)+' địa chỉ đã ghi nhận';
+  detail.append(summary);
+  const ul=document.createElement('ul');
+  for(const place of c.deliveryLocations||[]){
+   const li=document.createElement('li');li.textContent=place.address;
+   const desc=document.createElement('small');desc.textContent=place.invoiceCount+' hóa đơn • '+place.contactCount+' số liên hệ';
+   li.append(desc);ul.append(li);
+  }
+  if(!ul.children.length){const li=document.createElement('li');li.textContent='Chưa có địa chỉ hợp lệ trong phạm vi hóa đơn đã tải.';ul.append(li)}
+  detail.append(ul);card.append(detail);root.append(card);
+ }
+ if(!list.length){const empty=document.createElement('p');empty.className='hint';
+  empty.textContent=realDirectorySnapshot?'Không tìm thấy khách phù hợp.':'Chưa tải được hồ sơ khách thật.';root.append(empty)}
+}
+$('realDirectoryFilter').oninput=renderProductionProfiles;
+$('realDirectoryRefresh').onclick=()=>loadRealDirectory();
 async function loadRealDirectory(){
  if(!secret)return;
- $('realCustomerState').textContent='Đang tổng hợp tên khách từ 3 tháng gần nhất…';
+ $('realCustomerState').textContent='Đang đọc khách từ hóa đơn thật…';
+ $('directoryCoverage').textContent='Đang tải dữ liệu từ Google Drive qua Bot API…';
+ $('realDirectoryRefresh').disabled=true;
  try{
   const d=await request('/api/admin/customer-directory?mode=list');
-  realCustomers=d.customers||[];renderCustomerSelect();
-  $('realCustomerState').textContent='Đã lấy '+realCustomers.length+' tên/nhóm khách từ sổ thật • revision '+d.revision+
-   (d.sourceComplete?' • Chọn tên để tải tất cả điểm giao đã tìm được.':' • Một số tháng quá giới hạn; có thể tìm thêm khách theo tên.');
- }catch(e){$('realCustomerState').textContent='Chưa tải được khách thật: '+e.message+' • Vẫn dùng được khách THỬ.';}
+  if(!Array.isArray(d.customers)||!Number.isSafeInteger(d.revision))
+   throw Error('Nguồn Production trả về cấu trúc không hợp lệ.');
+  realDirectorySnapshot=d;realCustomers=d.customers;renderCustomerSelect();
+  const sumDelivery=realCustomers.reduce((n,c)=>n+(c.deliveryLocationCount||0),0);
+  const sumInvoices=realCustomers.reduce((n,c)=>n+(c.invoiceCount||0),0);
+  $('realProfileCount').textContent=String(realCustomers.length);
+  $('realDeliveryCount').textContent=String(sumDelivery);
+  $('realInvoiceCount').textContent=String(sumInvoices);
+  const coverage='📚 '+(d.months||[]).join(' · ')+' • revision '+d.revision;
+  const quality=d.sourceComplete?' • Đủ dữ liệu trong các tháng đã quét.':
+   ' • Có tháng vượt giới hạn đọc; tổng chỉ phản ánh các hóa đơn đã nhận.';
+  $('directoryCoverage').textContent=coverage+quality;
+  $('realCustomerState').textContent='Đã đọc '+realCustomers.length+' khách từ sổ thật • revision '+d.revision+'.';
+  renderProductionProfiles();
+ }catch(e){
+  $('directoryCoverage').textContent='⚠ Chưa đọc được danh sách thật: '+e.message;
+  $('realCustomerState').textContent='⚠ '+e.message;
+  if(!realDirectorySnapshot){$('productionProfiles').replaceChildren();
+   $('realProfileCount').textContent='—';$('realDeliveryCount').textContent='—';$('realInvoiceCount').textContent='—'}
+ }finally{$('realDirectoryRefresh').disabled=false}
 }
 function makeRealField(labelText,value,index,field){
  const label=document.createElement('label');label.textContent=labelText;
@@ -1809,7 +1866,7 @@ $('ownerLiveConfirm').onclick=async()=>{
 };
 
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
- secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực quản trị';$('access').value='';await load();$('loginCard').hidden=true;showAdminTab('customers');await loadRealDirectory()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
+ secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực quản trị';$('access').value='';await load();$('loginCard').hidden=true;showAdminTab('customers')}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
  const b=$('createButton');if(b.disabled)return;b.disabled=true;
  if(selectedRealKey){
