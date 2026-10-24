@@ -327,7 +327,18 @@ button:disabled{opacity:.55}
 <label>Tên khách hàng *<input id="productionCustomerName" required minlength="2" maxlength="150" autocomplete="name" placeholder="Tên khách / tên đại lý"></label>
 <label>Số điện thoại *<input id="productionCustomerPhone" type="tel" required maxlength="30" autocomplete="tel" placeholder="09xxxxxxxx"></label>
 <label>Địa chỉ giao hàng *<textarea id="productionCustomerAddress" required minlength="8" maxlength="500" rows="2" placeholder="Số nhà, đường, phường, tỉnh/thành"></textarea></label>
-</div><div class="row"><button type="submit" id="saveProductionCustomer">💾 Lưu vào Google Drive</button><button type="button" id="cancelProductionCustomer" class="secondary">Đóng</button></div>
+<label>Chiết khấu của khách (%) *<input id="productionCustomerDiscount" type="number" required min="0" max="70" step="1" placeholder="Ví dụ 20; anh tự đặt 0–70%"></label>
+</div><div class="row"><button type="submit" id="saveProductionCustomer">💾 Lưu vào Google Drive</button>
+<button type="button" id="createProductionCustomerLink" class="secondary">🔗 Cấp link đặt hàng</button>
+<button type="button" id="cancelProductionCustomer" class="secondary">Đóng</button></div>
+<p class="hint">Chiết khấu áp dụng khi cấp link, không phải phí giao hàng. Cấp link chỉ thành công nếu đã xác minh người nhận trong sổ Production.</p>
+<div id="productionCustomerLinkResult" hidden>
+ <p class="hint">🔗 Link khách được duyệt. Chỉ gửi cho đúng khách; mã truy cập gửi riêng.</p>
+ <div id="productionCustomerLinkUrl" class="link" style="overflow-wrap:anywhere"></div>
+ <button type="button" id="copyProductionCustomerLink" class="secondary">Sao chép link</button>
+ <p id="productionCustomerLinkCode" class="hint"></p>
+ <button type="button" id="copyProductionCustomerCode" class="secondary">Sao chép mã truy cập</button>
+</div>
 <p id="productionCustomerCreateStatus" role="status" class="hint">Chưa lưu dữ liệu.</p></form>
 <p class="hint" id="customerRegistryStatus" role="status">Đang kiểm tra kết nối hồ sơ khách mới…</p>
 <div class="directory-grid" id="customerRegistryCards"></div>
@@ -1151,14 +1162,63 @@ $('addProductionCustomerToggle').onclick=()=>{
  if(!$('addProductionCustomer').hidden)$('productionCustomerName').focus();
 };
 $('cancelProductionCustomer').onclick=()=>{$('addProductionCustomer').hidden=true};
+function newCustomerIdentity(){
+ const name=$('productionCustomerName').value.trim(),phone=$('productionCustomerPhone').value.trim(),
+  location=$('productionCustomerAddress').value.trim(),discountPercent=Number($('productionCustomerDiscount').value);
+ const digits=phone.replace(/\D/g,'');
+ if(name.length<2||location.length<8||digits.length<9||digits.length>11||
+    $('productionCustomerDiscount').value===''||!Number.isSafeInteger(discountPercent)||
+    discountPercent<0||discountPercent>70)
+  throw Error('Điền đủ tên, điện thoại, địa chỉ và CK khách từ 0 đến 70%.');
+ return {name,phone,location,discountPercent};
+}
+$('createProductionCustomerLink').onclick=async()=>{
+ const btn=$('createProductionCustomerLink');
+ $('productionCustomerLinkResult').hidden=true;
+ let data;
+ try{data=newCustomerIdentity()}
+ catch(err){$('productionCustomerCreateStatus').textContent='⚠ '+err.message;return}
+ btn.disabled=true;
+ $('productionCustomerCreateStatus').textContent='Đang xác minh người nhận với hóa đơn gốc; chưa phát hành link…';
+ try{
+  const detail=await request('/api/admin/customer-directory?mode=detail&name='+encodeURIComponent(data.name));
+  const normalize=x=>normalized(String(x||'')),digits=x=>String(x||'').replace(/\D/g,'');
+  const sourceRows=(detail.selected?.places||[]).flatMap(p=>p.sourceRows||[]);
+  const matched=sourceRows.filter(x=>x.ref?.id!=null&&Number.isSafeInteger(x.ref.invoiceNo)&&
+   normalize(x.name)===normalize(data.name)&&normalize(x.address)===normalize(data.location)&&
+   digits(x.phone)===digits(data.phone));
+  if(!matched.length)throw Error('Khách/địa chỉ chưa có tham chiếu hóa đơn thật để cấp link. '+
+   'Hồ sơ mới phải được Google Drive duyệt trước; không cấp link giả hoặc dùng hóa đơn của người khác.');
+  const selected=matched.sort((a,b)=>b.ref.invoiceNo-a.ref.invoiceNo)[0];
+  if(!confirm('Cấp link ĐẶT HÀNG THẬT cho '+data.name+' • '+data.phone+
+    '\nĐịa chỉ: '+data.location+'\nCK khách: '+data.discountPercent+'%?'))return;
+  const issued=await request('/api/admin/real-links/issue','POST',{
+   confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+   customerRef:selected.ref,name:selected.name,phone:selected.phone,
+   location:selected.address,discountPercent:data.discountPercent,
+   shippingPercent:0,vatPercent:0,daysValid:30
+  });
+  if(!issued.production||!issued.link||!issued.accessCode)
+   throw Error('Chưa xác minh phản hồi cấp link.');
+  $('productionCustomerLinkUrl').textContent=issued.link;
+  $('productionCustomerLinkCode').textContent='Mã truy cập riêng: '+issued.accessCode;
+  $('productionCustomerLinkResult').hidden=false;
+  $('productionCustomerCreateStatus').textContent='✅ Đã cấp link riêng sau kiểm tra địa chỉ và chiết khấu.';
+ }catch(err){
+  $('productionCustomerCreateStatus').textContent='⚠ KHÔNG CẤP LINK: '+err.message;
+ }finally{btn.disabled=false}
+};
+$('copyProductionCustomerLink').onclick=()=>navigator.clipboard.writeText(
+ $('productionCustomerLinkUrl').textContent);
+$('copyProductionCustomerCode').onclick=()=>navigator.clipboard.writeText(
+ $('productionCustomerLinkCode').textContent.replace('Mã truy cập riêng: ',''));
+
 $('addProductionCustomer').onsubmit=async e=>{
  e.preventDefault();
- const name=$('productionCustomerName').value.trim(),phone=$('productionCustomerPhone').value.trim(),
-  location=$('productionCustomerAddress').value.trim(),digitsOnly=phone.replace(/\D/g,'');
- if(name.length<2||location.length<8||digitsOnly.length<9||digitsOnly.length>11){
-  $('productionCustomerCreateStatus').textContent='⚠ Phải đủ tên, số điện thoại 9–11 chữ số và địa chỉ.';
-  return;
- }
+ let data;
+ try{data=newCustomerIdentity()}
+ catch(err){$('productionCustomerCreateStatus').textContent='⚠ '+err.message;return}
+ const {name,phone,location}=data;
  if(!Number.isSafeInteger(customerRegistryRevision)){
   $('productionCustomerCreateStatus').textContent='⚠ Chưa xác minh kết nối Drive, không lưu giả trên Render.';
   return;
