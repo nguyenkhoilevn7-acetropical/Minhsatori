@@ -23,7 +23,7 @@ permissions:
   contents: read
 jobs:
   production-cart:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +73,7 @@ jobs:
           if-no-files-found: ignore
   verify-production:
     needs: production-cart
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 16
     steps:
       - uses: actions/checkout@v4
