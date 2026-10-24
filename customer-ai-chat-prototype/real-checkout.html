@@ -18,6 +18,24 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .row{display:flex;align-items:center;gap:12px;justify-content:space-between;border-bottom:1px solid #31506a;padding:12px 0}
 .row input{max-width:86px}.row div{flex:1}
 summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
+.chat-shell{margin:18px 0;background:#fff;color:#16233a;border-radius:19px;overflow:hidden;border:1px solid #dae4f2;box-shadow:0 8px 25px #0002}
+.chat-top{padding:15px 17px;background:#f5f8fd;border-bottom:1px solid #e0e7f1}
+.chat-top strong{color:#1464bc;font-size:16px}.chat-top small{display:block;color:#67788d;margin-top:3px}
+.chat-messages{height:290px;min-height:210px;overflow-y:auto;display:flex;flex-direction:column;gap:11px;padding:18px 13px;scroll-behavior:smooth}
+.chat-bubble{padding:11px 14px;border-radius:17px;max-width:90%;line-height:1.48;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}
+.chat-bubble.assistant{align-self:flex-start;background:#1675d0;color:#fff;border-bottom-left-radius:5px}
+.chat-bubble.user{align-self:flex-end;background:#088b80;color:#fff;border-bottom-right-radius:5px}
+.chat-composer{display:flex;align-items:end;gap:8px;padding:12px;background:#f8faff;border-top:1px solid #e4ebf3}
+.chat-composer textarea{flex:1;min-height:53px;max-height:120px;resize:vertical;background:#fff;border-color:#ccd9e8}
+.chat-composer button{flex-shrink:0;background:#1477d4;color:#fff}
+.chat-shell .muted{color:#5b718b}.chat-hint{padding:0 14px 13px;margin:0;font-size:13px;line-height:1.4}
+.cart-state{background:#172f49;border:1px solid #34526b;padding:13px;border-radius:12px;margin:13px 0;font-weight:650}
+#manualCatalog{padding:13px;border:1px solid #36516c;border-radius:13px;margin:14px 0}
+#manualCatalog summary{font-weight:700;color:#d8ebff}
+#manualCatalog .row{gap:8px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:540px){main{padding:12px}section{padding:14px}.chat-messages{height:260px}.chat-composer button{padding:12px 13px}.row{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.chat-messages{scroll-behavior:auto}}
 </style></head>
 <body><main>
 <h1>MINH SATORI</h1><p class="muted">Đặt hàng trên sổ kế toán thật • Giá theo chính sách được duyệt riêng</p>
@@ -32,11 +50,20 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
 </label>
 <p class="muted" id="customerLocation"></p>
 <p class="muted" id="pricing"></p>
-<label>Chat đặt nước bằng tiếng Việt (Gemini khi được kết nối)
-<textarea id="message" rows="3" maxlength="500" placeholder="Ví dụ: Cho tôi 2 thùng Satori 500ml và 1 thùng Premium"></textarea></label>
-<button class="secondary" id="interpret" type="button">Thêm đơn bằng chat</button>
-<p id="chatStatus" class="muted" role="status">Chat chỉ thêm sản phẩm vào giỏ; không tự đặt hàng.</p>
-<div id="products"></div>
+<div class="chat-shell" aria-label="Trợ lý đặt nước Minh Satori">
+ <div class="chat-top"><strong>✦ SATORI AI</strong><small>Trợ lý đặt nước tiếng Việt · Gemini khi khả dụng</small></div>
+ <div id="chatMessages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions">
+  <div class="chat-bubble assistant">Xin chào! Anh/chị chọn điểm giao rồi nhắn các sản phẩm và số lượng, ví dụ: "10 suối 500, 2 ổi". Em sẽ thêm tất cả vào cùng một giỏ và cho xem báo giá trước khi đặt.</div>
+ </div>
+ <div class="chat-composer">
+  <label for="message" class="sr-only">Nhắn yêu cầu đặt nước</label>
+  <textarea id="message" rows="2" maxlength="500" placeholder="Nhắn món cần mua, số lượng, ghi chú giao hàng…"></textarea>
+  <button id="interpret" type="button">Gửi</button>
+ </div>
+ <p id="chatStatus" class="muted chat-hint" role="status">Tin nhắn chỉ cập nhật giỏ. Không tạo hóa đơn nếu chưa xác nhận.</p>
+</div>
+<p id="cartState" class="cart-state" role="status">Giỏ hàng: chưa có sản phẩm</p>
+<details id="manualCatalog"><summary>📦 Xem danh mục, giá và chỉnh số lượng</summary><div id="products"></div></details>
 <label>Ghi chú giao hàng<textarea id="note" rows="3" maxlength="300" placeholder="Ví dụ: Giao trước 2 giờ chiều"></textarea></label>
 <button id="review">Xem báo giá thật</button>
 </section>
@@ -53,7 +80,7 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
 (()=>{
  'use strict';
  const $=id=>document.getElementById(id);
- const token=decodeURIComponent(location.hash.slice(1));let code='',quote=null,loading=false,selectedRef=null;
+ const token=decodeURIComponent(location.hash.slice(1));let code='',quote=null,loading=false,selectedRef=null,agencyMode=false;
  const cash=n=>Number(n||0).toLocaleString('vi-VN')+' đ';
  const status=(text,kind)=>{$('status').textContent=text;$('status').className=kind||'muted'};
  const request=async(path,payload)=>{
@@ -63,12 +90,30 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
   if(!res.ok||!data.ok)throw Error(data.message||data.code||'Kết nối thất bại');
   return data;
  };
+ function canShop(){return !agencyMode||selectedRef!==null}
+ function setButtons(){
+  for(const id of ['open','confirm','edit'])$(id).disabled=loading;
+  for(const id of ['review','interpret'])$(id).disabled=loading||!canShop();
+ }
+ function bubble(role,text){
+  const item=document.createElement('div');item.className='chat-bubble '+role;
+  item.textContent=String(text).slice(0,1200);
+  $('chatMessages').append(item);
+  $('chatMessages').scrollTop=$('chatMessages').scrollHeight;
+ }
+ function updateCart(){
+  const fields=[...document.querySelectorAll('input[data-sku]')];
+  const selected=fields.map(el=>Number(el.value||0)).filter(n=>Number.isSafeInteger(n)&&n>0);
+  $('cartState').textContent=selected.length?
+   '🛒 Giỏ hàng: '+selected.length+' loại • '+selected.reduce((a,b)=>a+b,0)+' đơn vị. Nhấn Xem báo giá thật trước khi đặt.':
+   '🛒 Giỏ hàng: chưa có sản phẩm';
+ }
  async function act(fn){
-  if(loading)return;loading=true;
-  ['open','review','confirm','edit','interpret'].forEach(id=>$(id).disabled=true);
+  if(loading)return;loading=true;setButtons();
   try{await fn()}catch(e){status('Không thể hoàn tất: '+e.message+
-   '. Nếu đã nhấn xác nhận và không rõ kết quả, KHÔNG gửi lại; hãy liên hệ chủ tài khoản.','warning')}
-  finally{loading=false;['open','review','confirm','edit','interpret'].forEach(id=>$(id).disabled=false)}
+   '. Nếu đã nhấn xác nhận và không rõ kết quả, KHÔNG gửi lại; hãy liên hệ chủ tài khoản.','warning');
+   $('chatStatus').textContent='⚠ '+e.message;}
+  finally{loading=false;setButtons()}
  }
  if(!/^[A-Za-z0-9_.-]{80,30000}$/.test(token)){
   status('Link chưa hợp lệ hoặc thiếu mã mời. Vui lòng yêu cầu cấp lại.','warning');
@@ -88,13 +133,16 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
    const label=document.createElement('label');label.textContent='Số lượng';
    const qty=document.createElement('input');qty.type='number';qty.min='0';qty.max='500';qty.step='1';
    qty.value='0';qty.dataset.sku=p.code;qty.setAttribute('aria-label','Số lượng '+p.name);
+   qty.addEventListener('input',()=>{quote=null;$('reviewPanel').hidden=true;updateCart()});
    label.append(qty);line.append(text,label);root.append(line);
   }
+  updateCart();
  }
  $('open').onclick=()=>act(async()=>{
   code=$('code').value.trim();
   if(!code)throw Error('Vui lòng nhập mã riêng.');
   const d=await request('/api/real/catalogue',{});
+  agencyMode=Boolean(d.agency);
   if(d.agency){
    const list=d.destinations||[];
    if(!list.length)throw Error('Đại lý chưa có điểm giao được duyệt.');
@@ -105,7 +153,8 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
     option.dataset.id=String(dest.customerRef.id);select.append(option);
    }
    $('customerName').textContent=d.agentName||'Đại lý';
-   $('products').replaceChildren();$('review').disabled=true;
+   $('products').replaceChildren();selectedRef=null;updateCart();
+   $('chatStatus').textContent='Chọn điểm giao đã được duyệt để bắt đầu chat.';
    status('Đã xác minh link. Chọn địa chỉ trước khi xem giá và đặt hàng.','success');
   }else{
    renderCatalogue(d);$('destinationPanel').hidden=true;
@@ -114,36 +163,65 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
  });
  $('destination').onchange=()=>act(async()=>{
   const select=$('destination'),option=select.selectedOptions[0];
-  if(!select.value||!option?.dataset.id){selectedRef=null;return}
-  selectedRef={id:option.dataset.id,invoiceNo:Number(select.value)};
-  const d=await request('/api/real/catalogue',{destination:selectedRef});
-  renderCatalogue(d);quote=null;$('reviewPanel').hidden=true;
+  // A destination switch invalidates all old prices, quantities and quotes.
+  selectedRef=null;quote=null;$('products').replaceChildren();updateCart();
+  $('reviewPanel').hidden=true;
+  if(!select.value||!option?.dataset.id)return;
+  const nextRef={id:option.dataset.id,invoiceNo:Number(select.value)};
+  const d=await request('/api/real/catalogue',{destination:nextRef});
+  selectedRef=nextRef;renderCatalogue(d);
+  bubble('assistant','Đã chọn điểm giao: '+d.customer.location+'. Em đã cập nhật giá riêng. Anh/chị có thể nhắn đơn mới.');
+  $('chatStatus').textContent='Đã chọn địa chỉ. Có thể đặt hàng qua chat hoặc chỉnh trực tiếp giỏ.';
   status('Đã áp dụng đúng giá của địa chỉ được chọn. Chưa tạo hóa đơn.','success');
  });
  $('interpret').onclick=()=>act(async()=>{
   const message=$('message').value.trim();
   if(!message)throw Error('Vui lòng nhập yêu cầu đặt sản phẩm.');
+  if(!canShop())throw Error('Chọn địa chỉ giao trước khi trò chuyện.');
   const d=await request('/api/real/interpret',{destination:selectedRef,message});
-  if(d.needsClarification){$('chatStatus').textContent=d.message;return}
-  for(const item of d.items){
-   const field=[...document.querySelectorAll('input[data-sku]')].find(x=>x.dataset.sku===item.code);
-   if(!field)throw Error('Mặt hàng không có trong danh mục đã duyệt.');
-   field.value=String(Math.min(500,Number(field.value||0)+item.qty));
+  bubble('user',message);$('message').value='';
+  if(d.needsClarification){
+   $('chatStatus').textContent=d.message;
+   bubble('assistant',d.message+' Vui lòng gửi lại yêu cầu đầy đủ; giỏ chưa thay đổi.');
+   return;
   }
+  // Atomic client preflight: reject overflow without adding only part of a message.
+  const fields=[...document.querySelectorAll('input[data-sku]')];
+  const counts=new Map(fields.map(x=>[x.dataset.sku,Number(x.value||0)]));
+  for(const item of d.items){
+   if(!counts.has(item.code))throw Error('Mặt hàng không có trong danh mục đã duyệt.');
+   counts.set(item.code,counts.get(item.code)+item.qty);
+  }
+  const totals=[...counts.values()];
+  if(totals.some(q=>!Number.isSafeInteger(q)||q<0||q>500)||
+    totals.reduce((a,b)=>a+b,0)>500||totals.filter(q=>q>0).length>6)
+   throw Error('Giỏ tối đa 6 loại và tổng 500 đơn vị. Hãy điều chỉnh số lượng.');
+  for(const field of fields)field.value=String(counts.get(field.dataset.sku));
+  quote=null;$('reviewPanel').hidden=true;updateCart();
   if(d.deliveryNote){
    const note=$('note'),current=note.value.trim();
    if(!current.includes(d.deliveryNote))note.value=[current,d.deliveryNote].filter(Boolean).join('; ').slice(0,300);
   }
-  $('chatStatus').textContent=(String(d.parserSource).startsWith('gemini')?'Gemini':'Bộ phân tích')+
-   ': '+d.message;
-  $('message').value='';
+  const summary=d.items.map(item=>{
+   const field=fields.find(x=>x.dataset.sku===item.code);
+   return item.qty+' × '+String(field?.getAttribute('aria-label')||'').replace(/^Số lượng /,'');
+  }).join('\n');
+  const engine=String(d.parserSource||'').startsWith('gemini')?'Gemini':'Bộ phân tích đơn hàng';
+  bubble('assistant','Đã thêm vào giỏ chung:\n'+summary+
+   (d.deliveryNote?'\nGhi chú: '+d.deliveryNote:'')+
+   '\n\nCó thể nhắn thêm món hoặc bấm “Xem báo giá thật”.');
+  $('chatStatus').textContent=engine+' đã nhận đủ các món; chưa tạo hóa đơn.';
+ });
+ $('message').addEventListener('keydown',event=>{
+  if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();$('interpret').click()}
  });
  $('review').onclick=()=>act(async()=>{
   const items=[...document.querySelectorAll('input[data-sku]')]
    .map(e=>({code:e.dataset.sku,qty:Number(e.value)})).filter(x=>x.qty>0);
   if(!items.length||items.length>6)throw Error('Chọn 1 đến 6 sản phẩm.');
-  if(items.some(x=>!Number.isSafeInteger(x.qty)||x.qty>500))
-   throw Error('Số lượng không hợp lệ.');
+  if(items.some(x=>!Number.isSafeInteger(x.qty)||x.qty>500)||
+     items.reduce((n,x)=>n+x.qty,0)>500)
+   throw Error('Số lượng không hợp lệ, tổng không vượt 500 đơn vị.');
   const d=await request('/api/real/quote',{destination:selectedRef,items,deliveryNote:$('note').value});
   quote=d.quoteToken;
   $('summary').textContent=d.customer.name+' — '+d.customer.location+' • CK '+d.discountPercent+'%' +
@@ -157,7 +235,8 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
   if(!quote)throw Error('Chưa có báo giá hợp lệ.');
   const d=await request('/api/real/confirm',{quoteToken:quote,
    confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
-  $('reviewPanel').hidden=true;
+  $('reviewPanel').hidden=true;quote=null;
+  bubble('assistant','Hóa đơn #'+d.invoiceNo+' đã được xác nhận và lưu thành công.');
   status('ĐÃ GHI THÀNH CÔNG hóa đơn thật #'+d.invoiceNo+
    ' • Tổng '+cash(d.total)+'. Mã hóa đơn đã được cấp từ hệ thống Minh Satori.','success');
  });
