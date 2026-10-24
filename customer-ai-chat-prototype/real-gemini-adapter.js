@@ -739,8 +739,40 @@
   if($('historyBackdrop').classList.contains('open'))void loadInvoiceHistory();
  }
  let historyPromise=null,historyLastLoaded=0;
+
+ function forgetVerifiedMissing(invoiceNos){
+  const gone=new Set(invoiceNos.filter(validNo));
+  if(!gone.size)return;
+  for(const no of gone){
+   sessionInvoices.delete(no);recentReceipts.delete(no);unreadInvoices.delete(no);
+  }
+  cachedHistory=cachedHistory.filter(o=>!gone.has(o.invoiceNo));
+  historyOrders=historyOrders.filter(o=>!gone.has(o.invoiceNo));
+  persistRecentReceipts();
+  const raw=readLocal(historyKey);
+  if(raw){
+   try{
+    const previous=JSON.parse(raw);
+    if(Array.isArray(previous.orders))
+     writeLocal(historyKey,JSON.stringify({...previous,orders:cachedHistory}));
+   }catch{}
+  }
+  writeSession(unreadKey,JSON.stringify([...unreadInvoices].slice(-30)));
+  if(savedRecord){
+   savedRecord.invoiceNos=[...sessionInvoices].slice(-120);
+   if(gone.has(savedRecord.invoiceNo)){
+    // Keep the original idempotency key: never create a duplicate checkout.
+    savedRecord.deleted=true;savedRecord.overview=null;
+   }
+   writeSession(submittedStorageKey,JSON.stringify(savedRecord));
+  }
+  if(lastReceipt&&gone.has(lastReceipt.result?.invoiceNo))lastReceipt=null;
+  document.querySelectorAll('.real-submitted-card[data-invoice-no]').forEach(card=>{
+   if(gone.has(Number(card.dataset.invoiceNo)))card.remove();
+  });
+  updateInvoiceBadge();
+ }
  function reconcileHistoryWithDrive(orders,revision,complete){
-  // Only a complete and revision-verified source proves an invoice is absent.
   if(complete!==true)return;
   const active=new Set(orders.map(o=>o.invoiceNo));
   const missing=[];
@@ -749,27 +781,29 @@
    const confirmedRevision=recentReceipts.get(invoiceNo)?.revision ??
     (savedRecord?.invoiceNo===invoiceNo?savedRecord.revision:null);
    if(Number.isSafeInteger(confirmedRevision)&&revision<confirmedRevision)continue;
-   sessionInvoices.delete(invoiceNo);recentReceipts.delete(invoiceNo);
-   unreadInvoices.delete(invoiceNo);missing.push(invoiceNo);
+   missing.push(invoiceNo);
   }
-  if(!missing.length)return;
-  persistRecentReceipts();
-  writeSession(unreadKey,JSON.stringify([...unreadInvoices].slice(-30)));
-  if(savedRecord){
-   savedRecord.invoiceNos=[...sessionInvoices].slice(-120);
-   if(missing.includes(savedRecord.invoiceNo)){
-    // Preserve idempotency markers, but never display a stale receipt overview.
-    savedRecord.deleted=true;savedRecord.overview=null;
-   }
-   writeSession(submittedStorageKey,JSON.stringify(savedRecord));
+  forgetVerifiedMissing(missing);
+ }
+ async function checkIndividualInvoiceStatuses(){
+  const invoiceNos=[...new Set([...sessionInvoices,
+   ...cachedHistory.map(o=>o.invoiceNo)])].filter(validNo).slice(-12);
+  if(!invoiceNos.length)return false;
+  const result=await call('/api/real/receipt-status',{invoiceNos});
+  if(result?.complete!==true||!Number.isSafeInteger(result.revision)||
+     !Array.isArray(result.checks)||result.checks.length!==invoiceNos.length||
+     result.checks.some(x=>!invoiceNos.includes(x.invoiceNo)||
+      !['active','absent','unverified'].includes(x.status)))return false;
+  const gone=[];
+  for(const item of result.checks){
+   if(item.status!=='absent')continue;
+   const confirmedRevision=recentReceipts.get(item.invoiceNo)?.revision ??
+    (savedRecord?.invoiceNo===item.invoiceNo?savedRecord.revision:null);
+   if(Number.isSafeInteger(confirmedRevision)&&result.revision<confirmedRevision)continue;
+   gone.push(item.invoiceNo);
   }
-  if(lastReceipt&&missing.includes(lastReceipt.result?.invoiceNo))lastReceipt=null;
-  document.querySelectorAll('.real-submitted-card[data-invoice-no]').forEach(card=>{
-   if(!missing.includes(Number(card.dataset.invoiceNo)))return;
-   const note=card.querySelector('.real-submitted-note');
-   if(note)note.textContent='Hóa đơn này không còn trong sổ hiện hành. Đã đồng bộ với website.';
-   card.querySelectorAll('button').forEach(button=>button.disabled=true);
-  });
+  forgetVerifiedMissing(gone);
+  return true;
  }
  function persistVerifiedHistory(orders,revision){
   cachedHistory=orders.slice(0,1500).map(o=>({
@@ -834,14 +868,25 @@
    }
   }
   for(const invoiceNo of [...sessionInvoices].filter(n=>!fromDrive.has(n)).reverse()){
+   const latest=recentReceipts.get(invoiceNo);
+   const justSaved=latest&&Date.now()-latest.confirmedAt<45000&&!historyError;
    const overview=savedRecord?.overview?.invoiceNo===invoiceNo?savedRecord.overview:null;
    const card=document.createElement('article');card.className='real-history-order pending';
-   const head=document.createElement('strong');head.textContent='✓ Đã ghi nhận đơn #'+invoiceNo+(overview?' • '+cash(overview.total):'');
-   const text=document.createElement('small');text.className='real-history-status';
-   text.textContent='Đã được hệ thống xác nhận. Hóa đơn chính thức đang đồng bộ từ Google Drive.';
-   const view=document.createElement('button');view.type='button';view.textContent='Xem phiếu xác nhận';
-   view.onclick=()=>{$('historyBackdrop').classList.remove('open');showOrderOverview(invoiceNo)};
-   card.append(head,text,view);root.prepend(card);
+   const head=document.createElement('strong');
+   head.textContent=justSaved?
+    '✓ Vừa ghi nhận đơn #'+invoiceNo+(overview?' • '+cash(overview.total):''):
+    '🧾 #'+invoiceNo+' • Chưa xác minh trạng thái';
+   const hint=document.createElement('small');hint.className='real-history-status';
+   hint.textContent=justSaved?
+    'Đã xác nhận nhận đơn. Đang kiểm tra sổ Google Drive.':
+    'Đang đối chiếu với sổ Google Drive; đơn có thể đã được xóa trên website.';
+   card.append(head,hint);
+   if(justSaved){
+    const view=document.createElement('button');view.type='button';view.textContent='Xem phiếu xác nhận';
+    view.onclick=()=>{$('historyBackdrop').classList.remove('open');showOrderOverview(invoiceNo)};
+    card.append(view);
+   }
+   root.prepend(card);
   }
   if(historyError){
    const msg=document.createElement('p');msg.className='real-history-loading';
@@ -885,7 +930,8 @@
    renderInvoiceHistory();
   }catch(e){
    historyError=e.message||'Không kết nối được Google Drive';
-   // Preserve confirmed order receipts and the last valid Drive snapshot.
+   // Full history errors do not prove deletion. Verify exact invoice IDs.
+   try{await checkIndividualInvoiceStatuses()}catch{}
    rootHistoryError(historyError);
   }
   })();
@@ -894,7 +940,7 @@
  function rootHistoryError(message){
   historyError=message;
   renderInvoiceHistory();
-  setText('historyCount','Đơn đã ghi nhận được giữ lại • lịch sử Drive tạm thời chưa tải xong');
+  setText('historyCount','Chưa xác minh lịch sử Drive • đơn lưu tạm không phải hóa đơn đang hoạt động');
  }
  function invoiceLine(label,value,css=''){
   const row=document.createElement('div');row.className='real-invoice-line '+css;
