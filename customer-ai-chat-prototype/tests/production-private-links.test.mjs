@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProductionPrivateLinks} from '../production-private-links.mjs';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import {parseMultiOrder} from '../multi-order.mjs';
 
 const ref={id:62000,invoiceNo:62};
 const customer={id:62000,name:'Hà Minh Nguyệt',phone:'0919989887',
@@ -153,4 +156,36 @@ test('agency: duplicate references and missing writer rights must never issue a 
  await assert.rejects(()=>f.app.issue({confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
   agentName:'Đại lý A',destinations:[{customerRef:ref,discountPercent:20}],
   shippingPercent:0,vatPercent:0,daysValid:7}),{code:'REAL_LINKS_NOT_ENABLED'});
+});
+
+test('owner-only production gateway permits authenticated real chat while denying untrusted edits',()=>{
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ const guard=server.slice(server.indexOf('// Owner real pilot is a sealed'),server.indexOf('// Private customer invitations can be issued'));
+ assert.match(guard,/realPrivateLinks\.readiness\(\)\.configured===true/);
+ assert.match(guard,/\(\?:catalogue\|quote\|confirm\|interpret\)/,
+  'allowlist must contain interpret; previously blocked every live chat request with 403');
+ assert.match(server,/if\(p==='\/api\/real\/interpret'\)/);
+ assert.match(server,/const profile=await realPrivateLinks\.catalogue\(input\)/,
+  'chat must verify sealed token, access code and destination BEFORE parsing');
+ assert.match(server,/identityChange\(message,profile\.customer\)/,
+  'chat cannot silently modify address or phone');
+ assert.match(server,/match=parseColloquialBasket\(productMessage,\{\}\)/,
+  'fallback supports Vietnamese shorthand as in demo');
+ const html=readFileSync(new URL('../real-checkout.html',import.meta.url),'utf8');
+ assert.match(html,/id="chatMessages"/);
+ assert.match(html,/id="cartState"/);
+ assert.match(html,/id="manualCatalog"/);
+ assert.match(html,/id="message"/);
+ assert.match(html,/function bubble\(role,text\)/);
+ assert.match(html,/const counts=new Map\(fields\.map/,
+  'full parsed request is added atomically, not partially');
+ for(const [,source] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(source,{filename:'real-checkout.html.js'});
+});
+
+test('Vietnamese two-product shorthand is one locally validated real cart request',()=>{
+ const match=parseMultiOrder('10 suối 500, 2 ổi');
+ assert.ok(match?.items?.length===2,'must understand shorthand without network AI');
+ assert.deepEqual(match.items.map(x=>x.qty),[10,2]);
+ assert.equal(new Set(match.items.map(x=>x.sku)).size,2);
 });
