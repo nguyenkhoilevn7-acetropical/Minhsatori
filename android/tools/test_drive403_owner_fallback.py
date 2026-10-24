@@ -64,6 +64,11 @@ class Drive403OwnerFallbackContract(unittest.TestCase):
         )[0]
         self.assertNotIn("askAccount = true", tick)
 
+    def test_sandbox_ledger_is_not_accepted_as_live(self):
+        self.assertIn("remote.snapshot.invoices.isEmpty()", MAIN)
+        self.assertIn("remote.snapshot.invoices.all { it.isTest }", MAIN)
+        self.assertIn("Không được thay thế dữ liệu Minh Satori thật.", MAIN)
+
     def test_no_duplicate_stale_banner(self):
         self.assertIn("if (stale && connected) label(info, statusMessage", MAIN)
 
