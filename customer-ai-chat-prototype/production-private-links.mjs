@@ -197,11 +197,11 @@ export function createProductionPrivateLinks({
   // No disclosure until both independent credentials are verified.
   // When an agent has not selected an address, return no priced catalogue.
   if(!d)return {production:true,agency:true,agentName:invite.agentName,
-    destinations:destinations(invite).map(x=>({customerRef:x.customerRef,name:x.name,location:x.location,discountPercent:x.discountPercent})),
+    destinations:destinations(invite).map(x=>({customerRef:x.customerRef,name:x.name,phone:x.phone,location:x.location,discountPercent:x.discountPercent})),
     products:[],requiresDestination:true};
   const live=await checked(invite,d);
   return {production:true,agency,agentName:invite.agentName||null,
-   ...(agency?{destinations:destinations(invite).map(x=>({customerRef:x.customerRef,name:x.name,location:x.location,discountPercent:x.discountPercent}))}:{}),
+   ...(agency?{destinations:destinations(invite).map(x=>({customerRef:x.customerRef,name:x.name,phone:x.phone,location:x.location,discountPercent:x.discountPercent}))}:{}),
    customer:{name:d.name,phone:d.phone,location:d.location},
    expiresAt:new Date(invite.expiresAt).toISOString(),revision:live.revision,
    discountPercent:d.discountPercent,shippingPercent:d.shippingPercent,
