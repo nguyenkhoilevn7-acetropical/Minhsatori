@@ -156,12 +156,29 @@
  const disabledBusy=value=>{requestsBusy=value;if($('realOpen'))$('realOpen').disabled=value;syncOrderInputState()};
  const status=text=>setText('realGateStatus',text);
  async function call(endpoint,payload={}){
-  const r=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},
-   credentials:'omit',cache:'no-store',
-   body:JSON.stringify({token,accessCode,...payload})});
-  let data;try{data=await r.json()}catch{throw Error('Phản hồi máy chủ không hợp lệ.')}
-  if(!r.ok||!data.ok)throw Error(data.message||data.code||'Không kết nối được Production.');
-  return data;
+  // Read operations must not disable the entire app forever after a stalled connection.
+  // /confirm can have side effects: timeout is UNCERTAIN, never automatically retry.
+  const ms=endpoint==='/api/real/confirm'?60000:
+   endpoint==='/api/real/history'?45000:22000;
+  const ctrl=typeof AbortController==='function'?new AbortController():null;
+  const timer=ctrl&&typeof setTimeout==='function'?
+   setTimeout(()=>ctrl.abort(),ms):null;
+  try{
+   const r=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},
+    credentials:'omit',cache:'no-store',
+    ...(ctrl?{signal:ctrl.signal}:{}),
+    body:JSON.stringify({token,accessCode,...payload})});
+   let data;try{data=await r.json()}catch{throw Error('Phản hồi máy chủ không hợp lệ.')}
+   if(!r.ok||!data.ok)throw Error(data.message||data.code||'Không kết nối được Production.');
+   return data;
+  }catch(err){
+   if(err?.name==='AbortError')throw Error(endpoint==='/api/real/confirm'?
+    'Phản hồi xác nhận quá lâu. Kiểm tra Hóa đơn, không gửi lại đơn cũ.':
+    'Kết nối quá lâu. Anh/chị có thể thử lại mà không mất đơn đã lưu.');
+   throw err;
+  }finally{
+   if(timer!==null&&typeof clearTimeout==='function')clearTimeout(timer);
+  }
  }
  const bubble=(message,role='assistant')=>{
   const div=document.createElement('div');div.className='bubble '+role;
