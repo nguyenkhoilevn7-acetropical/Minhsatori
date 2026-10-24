@@ -15,7 +15,10 @@ button.secondary{background:#365871;color:white}button:disabled{opacity:.45}p{li
 <button id="unlock">Mở tài khoản CTV</button></section>
 <section id="shop" hidden><h2 id="who"></h2>
 <p class="muted" id="rates"></p>
-<label>Chọn điểm giao<select id="delivery"></select></label>
+<label for="deliverySearch">Tìm điểm giao trong danh sách đã duyệt
+<input id="deliverySearch" type="search" autocomplete="off" placeholder="Nhập tên, số điện thoại hoặc địa chỉ"></label>
+<label>Chọn điểm giao<select id="delivery" required></select></label>
+<p id="deliveryCount" class="muted" role="status" aria-live="polite"></p>
 <p class="muted">Tên người nhận, số điện thoại và địa chỉ đã được chủ tài khoản xác minh. Không thể tự thay đổi tại đây.</p>
 <div id="products"></div>
 <label>Lưu ý giao hàng<textarea rows="3" maxlength="300" id="note" placeholder="Ví dụ: Giao trước 2 giờ chiều"></textarea></label>
@@ -37,7 +40,22 @@ button.secondary{background:#365871;color:white}button:disabled{opacity:.45}p{li
  'use strict';
  const $=id=>document.getElementById(id);
  const token=decodeURIComponent(location.hash.slice(1)),money=v=>Number(v||0).toLocaleString('vi-VN')+'đ';
- let accessCode='',quote=null,receipt=null,disabled=false;
+ let accessCode='',quote=null,receipt=null,disabled=false,destinations=[];
+ const fold=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
+ function renderDestinations(){
+  const picker=$('delivery'),previous=picker.value,needle=fold($('deliverySearch').value.trim());
+  const matches=destinations.filter(d=>fold([d.name,d.location,d.phone].join(' ')).includes(needle));
+  picker.replaceChildren(new Option('— Chọn điểm giao trước khi đặt —',''));
+  for(const d of matches){
+   const option=new Option(d.name+' • '+d.location+' • '+d.phone,
+    JSON.stringify({id:d.id,invoiceNo:d.invoiceNo}));
+   picker.append(option);
+  }
+  picker.value=[...picker.options].some(x=>previous&&x.value===previous)?previous:'';
+  $('deliveryCount').textContent='Đang hiển thị '+matches.length+'/'+destinations.length+
+   ' điểm giao đã duyệt. Phải chọn đúng người nhận trước khi tạo báo giá.';
+ }
+ $('deliverySearch').oninput=renderDestinations;
  const status=(message,css='muted')=>{$('status').textContent=message;$('status').className=css};
  const request=async(path,payload={})=>{
   const response=await fetch(path,{method:'POST',cache:'no-store',credentials:'omit',
@@ -60,12 +78,9 @@ button.secondary{background:#365871;color:white}button:disabled{opacity:.45}p{li
   const result=await request('/api/ctv/catalogue');
   $('who').textContent='CTV: '+result.collaborator.name;
   $('rates').textContent='Giá gửi khách giảm '+result.customerDiscountPercent+'% • Giá đối soát CTV giảm '+result.collaboratorDiscountPercent+'%';
-  const picker=$('delivery');picker.replaceChildren();
-  for(const d of result.destinations){
-   const opt=document.createElement('option');
-   opt.value=JSON.stringify({id:d.id,invoiceNo:d.invoiceNo});
-   opt.textContent=d.name+' • '+d.location+' • '+d.phone;picker.append(opt);
-  }
+  destinations=result.destinations;
+  $('deliverySearch').value='';
+  renderDestinations();
   const root=$('products');root.replaceChildren();
   for(const p of result.products){
    const row=document.createElement('div');row.className='row';
@@ -81,6 +96,7 @@ button.secondary{background:#365871;color:white}button:disabled{opacity:.45}p{li
   status('Đã xác thực. Chọn điểm giao và sản phẩm; chưa có hóa đơn được tạo.','ok');
  });
  $('review').onclick=()=>run(async()=>{
+  if(!$('delivery').value)throw Error('Vui lòng chọn đúng điểm giao trước khi xem báo giá.');
   const items=[...document.querySelectorAll('[data-sku]')].map(e=>({code:e.dataset.sku,qty:Number(e.value)})).filter(x=>x.qty>0);
   if(items.length<1||items.length>6||items.some(i=>!Number.isSafeInteger(i.qty)||i.qty>500))
    throw Error('Chọn 1–6 sản phẩm và số lượng hợp lệ.');

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {createCollaboratorSingleLink,customerInvoiceForShare} from '../collaborator-single-link.mjs';
 
 const env={GEMINI_COLLABORATOR_SINGLE_LINKS_ENABLED:'1',
@@ -131,4 +132,14 @@ test('disabled writer configuration prevents all CTV invites',()=>{
   policyList:async()=>({revision:1,collaborators:[],policies:[]}),
   invoiceSource:async()=>({}),createPair:async()=>({}),invoiceLookup:async()=>[]});
  assert.equal(p.readiness().enabled,false);
+});
+
+test('CTV link requires explicit destination selection and allows searching all approved places',()=>{
+ const html=readFileSync(new URL('../ctv-order.html',import.meta.url),'utf8');
+ assert.match(html,/id="deliverySearch" type="search"/);
+ assert.match(html,/destinations=result\.destinations/);
+ assert.match(html,/picker\.replaceChildren\(new Option\('— Chọn điểm giao trước khi đặt —',''\)\)/);
+ assert.match(html,/picker\.value=\[\.\.\.picker\.options\]/);
+ assert.match(html,/if\(!\$\('delivery'\)\.value\)throw Error\('Vui lòng chọn đúng điểm giao/);
+ assert.match(html,/fold\(\[d\.name,d\.location,d\.phone\]\.join\(' '\)\)/);
 });
