@@ -376,14 +376,72 @@
   finally{disabledBusy(false)}
  }
  function updateSessionReceipt(){
+  // Rendered from authoritative Drive ledger whenever the invoice tab opens;
+  // do not pretend the last in-memory order is full account history.
+  if($('historyBackdrop').classList.contains('open'))void loadInvoiceHistory();
+ }
+ function renderInvoiceHistory(){
   const root=$('historyItems');root.replaceChildren();
-  if(!lastReceipt)return;
-  const item=document.createElement('article');item.className='history-item';
-  const title=document.createElement('h3');title.textContent='Hóa đơn thật #'+lastReceipt.result.invoiceNo;
-  const info=document.createElement('p');info.textContent='Tổng thanh toán: '+cash(lastReceipt.result.total);
-  const button=document.createElement('button');button.className='btn';button.textContent='🧾 Xem hóa đơn';
-  button.onclick=()=>{void showReceipt();$('historyBackdrop').classList.remove('open')};
-  item.append(title,info,button);root.append(item);
+  const month=$('historyMonth').value,term=($('historySearch').value||'').trim().toLocaleLowerCase('vi'),
+   state=$('historyStatus')?.value||'';
+  const rows=historyOrders.filter(o=>
+   (!month||String(o.date).includes(month))&&
+   (!state||(state==='paid'&&o.paid)||(state==='unpaid'&&!o.paid))&&
+   (!term||String(o.invoiceNo).includes(term)||[o.name,o.location,o.phone,...o.items.map(i=>i.product)]
+     .join(' ').toLocaleLowerCase('vi').includes(term)));
+  setText('historyCount',rows.length+' hóa đơn phù hợp'+
+   (historyIncomplete?' • dữ liệu chưa đầy đủ':'')+' • Google Drive');
+  if(!rows.length){const p=document.createElement('p');p.className='mini';
+   p.textContent=historyOrders.length?'Không có hóa đơn phù hợp bộ lọc.':'Không có hóa đơn trong phạm vi link đã duyệt.';
+   root.append(p);}
+  for(const o of rows){
+   const card=document.createElement('article');card.className='real-history-order';
+   const title=document.createElement('strong');title.textContent='🧾 #'+o.invoiceNo+' • '+o.date;
+   const status=document.createElement('small');
+   status.textContent=(o.paid?'✅ Đã thanh toán':'🟠 Chưa thanh toán')+
+    ' • '+cash(o.total)+(o.paidAt?' • Ngày thanh toán: '+o.paidAt.slice(0,10):'');
+   const receiver=document.createElement('small');
+   receiver.textContent='👤 '+o.name+' • ☎ '+o.phone+' • 📍 '+o.location;
+   const items=document.createElement('small');
+   items.textContent=(o.items||[]).map(i=>i.product+' ×'+i.qty).join('; ');
+   const open=document.createElement('button');open.type='button';open.textContent='👁 Xem PDF hóa đơn';
+   open.onclick=()=>{
+    lastReceipt={result:{invoiceNo:o.invoiceNo,total:o.total,receiptToken:o.receiptToken}};
+    $('historyBackdrop').classList.remove('open');void showReceipt();
+   };
+   card.append(title,status,receiver,items,open);root.append(card);
+  }
+ }
+ async function loadInvoiceHistory(){
+  $('historyBackdrop').classList.add('open');
+  setText('historyCount','Đang đọc hóa đơn thật từ Google Drive…');
+  try{
+   const d=await call('/api/real/history');
+   if(!Array.isArray(d.orders)||!Number.isSafeInteger(d.revision))
+    throw Error('Nguồn lịch sử không hợp lệ.');
+   historyOrders=d.orders;historyIncomplete=!d.complete;
+   const months=[...new Set(historyOrders.map(o=>{
+    const m=String(o.date||'').match(/(?:\d{1,2}\/)?(\d{1,2})\/(\d{4})$/);
+    return m?m[2]+'-'+m[1].padStart(2,'0'):'';
+   }).filter(Boolean))].sort().reverse();
+   const select=$('historyMonth'),previous=select.value;
+   select.replaceChildren(new Option('Tất cả thời gian',''));
+   for(const m of months)select.append(new Option(m.split('-').reverse().join('/'),m));
+   select.value=months.includes(previous)?previous:'';
+   const notice=document.querySelector('#historyBackdrop .history-caution');
+   if(notice)notice.textContent=d.complete?
+    '✅ Hóa đơn thật từ Google Drive • Chỉ tên, điện thoại, địa chỉ đã duyệt. Thanh toán cập nhật theo dữ liệu hiện hành.':
+    '⚠ Kết quả hiện chưa đầy đủ do giới hạn 100 hóa đơn mỗi lần đọc. Không dùng số liệu này để chốt công nợ.';
+   renderInvoiceHistory();
+  }catch(e){
+   rootHistoryError(e.message);
+  }
+ }
+ function rootHistoryError(message){
+  setText('historyCount','Chưa thể đọc đầy đủ lịch sử hóa đơn');
+  const root=$('historyItems');root.replaceChildren();
+  const warning=document.createElement('p');warning.className='warn';
+  warning.textContent='⚠ '+message+' • Không thay bằng dữ liệu thử.';root.append(warning);
  }
  async function showReceipt(){
   if(!lastReceipt?.result?.receiptToken){
@@ -438,12 +496,13 @@
    $('viewInvoice').hidden=true;$('printInvoice').hidden=true;
   }
  }
- $('historyButton').onclick=()=>{$('historyBackdrop').classList.add('open');updateSessionReceipt()};
+ $('historyButton').onclick=()=>void loadInvoiceHistory();
+ $('historyMonth').onchange=renderInvoiceHistory;
+ $('historySearch').oninput=renderInvoiceHistory;
+ $('historyStatus').onchange=renderInvoiceHistory;
  $('historyClose').onclick=()=>{$('historyBackdrop').classList.remove('open')};
  $('closeInvoice').onclick=()=>{$('invoice').style.display='none'};
  $('historyExcel').hidden=true;$('viewInvoice').hidden=true;$('printInvoice').hidden=true;
- $('historyMonth')?.closest('label')?.setAttribute('hidden','');
- $('historySearch')?.closest('label')?.setAttribute('hidden','');
  $('locationsPanel').hidden=true;$('suggestionsInline').hidden=true;
  $('quickCart').hidden=true;updateCart();
  $('sendForm').querySelector('button[type=submit]').disabled=false;
