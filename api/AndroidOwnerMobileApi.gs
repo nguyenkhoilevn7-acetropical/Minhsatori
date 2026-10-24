@@ -27,7 +27,7 @@ var WRITE_ACTIONS=['orders.delete','orders.restore'];
 var ALLOWED=READ_ACTIONS.concat(WRITE_ACTIONS);
 var CANONICAL_FILE='14XWSPrxLnKXATwmuHeXGZnCvjDbalghV';
 function ledgerProof(s){
- var file=typeof STATE_FILE_ID==='undefined'?'':String(STATE_FILE_ID||'');
+ var file=String(PropertiesService.getScriptProperties().getProperty('STATE_FILE_ID')||'').trim();
  need(file===CANONICAL_FILE&&s.revision>=133,'WRONG_LEDGER_SOURCE','Incorrect ledger');
  return {ledgerFileId:file,ledgerKind:'minh-satori-owner-drive-v15'};
 }
