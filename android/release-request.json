@@ -1,19 +1,20 @@
 {
-  "purpose": "android-0.4.5-owner-drive403-live-sync",
+  "purpose": "android-0.4.6-canonical-production-ledger-verification",
   "package": "vn.minhsatori.app",
-  "version": "0.4.5",
-  "versionCode": 22,
-  "branch": "release/android-v0.4.5-drive403-owner-recovery-20261024",
-  "scope": "Read-only owner API recovery when Drive returns HTTP 403. Explicit account reselect, email-only owner OAuth fallback, signed APK validation. No automatic invoice write privileges.",
+  "version": "0.4.6",
+  "versionCode": 23,
+  "branch": "release/android-v0.4.6-production-source-check-20261024",
+  "scope": "Do not accept unmarked Android sandbox or wrong Drive-source Mobile API snapshots. Verify canonical production Drive file ID, provenance marker, revision >= 133, and consistent snapshot revision before displaying live synced status. Preserve 20-second poll and manual Refresh.",
   "requestedOn": "2026-10-24",
   "sourcePRs": [
     121,
-    124
+    124,
+    127
   ],
   "notes": [
-    "Built as a signed Release with existing pinned certificate in GitHub Actions run 40046020687.",
-    "Validated v0.4.5 versionCode 22 and original release signing identity.",
-    "Google Drive artifact uploaded and verified separately.",
-    "No production invoices were written during build; Android user acceptance still pending."
+    "GitHub Actions signed Release with pinned certificate for in-place upgrade from 0.4.5.",
+    "No Production invoice changes, no new permissions, no Android secrets.",
+    "Production Apps Script Mobile API source attestation must also be deployed before verified Mobile API sync succeeds.",
+    "If old Mobile API is sandbox, show explicit WRONG_LEDGER_SOURCE rather than green 3-demo-invoice success."
   ]
 }
