@@ -165,12 +165,12 @@ test('owner-only production gateway permits authenticated real chat while denyin
  assert.match(guard,/\(\?:catalogue\|quote\|confirm\|interpret\)/,
   'allowlist must contain interpret; previously blocked every live chat request with 403');
  assert.match(server,/if\(p==='\/api\/real\/interpret'\)/);
- assert.match(server,/const profile=await realPrivateLinks\.catalogue\(input\)/,
-  'chat must verify sealed token, access code and destination BEFORE parsing');
- assert.match(server,/identityChange\(message,profile\.customer\)/,
+ assert.match(server,/const context=realPrivateLinks\.chatContext\(input\),profile=context\.customer/,
+  'chat must verify sealed token, access code and approved destination BEFORE parsing');
+ assert.match(server,/identityChange\(message,profile\)/,
   'chat cannot silently modify address or phone');
- assert.match(server,/match=parseColloquialBasket\(productMessage,\{\}\)/,
-  'fallback supports Vietnamese shorthand as in demo');
+ assert.match(server,/match=parseColloquialBasket\(productMessage,profile\)/,
+  'fallback must use original profile-aware Vietnamese shorthand parsing');
  const html=readFileSync(new URL('../real-checkout.html',import.meta.url),'utf8');
  assert.match(html,/id="chatMessages"/);
  assert.match(html,/id="cartState"/);
