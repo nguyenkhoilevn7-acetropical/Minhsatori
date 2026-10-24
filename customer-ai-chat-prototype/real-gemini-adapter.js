@@ -8,7 +8,7 @@
  const token=decodeURIComponent(location.hash.slice(1));
  let accessCode='',catalogue=null,selectedRef=null,agency=false,requestsBusy=false;
  let quoteToken=null,lastQuote=null,lastReceipt=null,deliveryNote='',pdfObjectUrl=null;
- let destinations=[],lastProduct=null,historyOrders=[],historyIncomplete=false,newCartSequence=1;
+ let destinations=[],lastProduct=null,historyOrders=[],historyIncomplete=false,newCartSequence=1,historyError='';
   // Stable idempotency across repeated quotes and page reloads; renewed on NEW CART only.
   const orderStorageKey='satori-order:'+token.slice(0,32);
   const submittedStorageKey='satori-submitted:'+token.slice(0,32);
@@ -738,7 +738,7 @@
   // do not pretend the last in-memory order is full account history.
   if($('historyBackdrop').classList.contains('open'))void loadInvoiceHistory();
  }
- let historyPromise=null,historyLastLoaded=0,historyError='';
+ let historyPromise=null,historyLastLoaded=0;
  function reconcileHistoryWithDrive(orders,revision,complete){
   // Only a complete and revision-verified source proves an invoice is absent.
   if(complete!==true)return;
@@ -787,7 +787,7 @@
      .join(' ').toLocaleLowerCase('vi').includes(term)));
   setText('historyCount',rows.length+' hóa đơn phù hợp'+
    (historyIncomplete?' • dữ liệu chưa đầy đủ':'')+' • Google Drive');
-  if(!rows.length&&sessionInvoices.size===0){const p=document.createElement('p');p.className='mini';
+  if(!rows.length&&sessionInvoices.size===0&&(!cachedHistory.length||!historyError&&!historyIncomplete&&persistedInvoiceCount!==null)){const p=document.createElement('p');p.className='mini';
    p.textContent=historyOrders.length?'Không có hóa đơn phù hợp bộ lọc.':'Chưa có hóa đơn nào được xác minh trong phạm vi link.';
    root.append(p);}
   for(const o of rows){
@@ -818,6 +818,21 @@
   // Immediate acknowledgement is based only on verified /api/real/confirm.
   // Show it while the official Drive history and PDF are still loading.
   const fromDrive=new Set(historyOrders.map(o=>Number(o.invoiceNo)));
+  const showUnverified=!!historyError||historyIncomplete||persistedInvoiceCount===null;
+  // Only metadata from a previous full Drive snapshot; no stale PDF actions.
+  if(showUnverified){
+   for(const old of cachedHistory){
+    if(fromDrive.has(old.invoiceNo)||sessionInvoices.has(old.invoiceNo)||
+       (term&&!String(old.invoiceNo).includes(term))||
+       (month&&!String(old.date).includes(month.slice(0,4)))||state)continue;
+    const card=document.createElement('article');card.className='real-history-order pending';
+    const title=document.createElement('strong');
+    title.textContent='🧾 #'+old.invoiceNo+' • '+cash(old.total)+' • Chờ đối chiếu';
+    const note=document.createElement('small');note.className='real-history-status';
+    note.textContent='Đã từng đọc từ Google Drive. Chưa xác minh thay đổi mới; hóa đơn có thể đã sửa hoặc xóa trên website.';
+    card.append(title,note);root.append(card);
+   }
+  }
   for(const invoiceNo of [...sessionInvoices].filter(n=>!fromDrive.has(n)).reverse()){
    const overview=savedRecord?.overview?.invoiceNo===invoiceNo?savedRecord.overview:null;
    const card=document.createElement('article');card.className='real-history-order pending';
@@ -848,10 +863,13 @@
   historyPromise=(async()=>{
   try{
    const d=await call('/api/real/history');
-   if(!Array.isArray(d.orders)||!Number.isSafeInteger(d.revision))
+   if(!Array.isArray(d.orders)||!Number.isSafeInteger(d.revision)||typeof d.complete!=='boolean')
     throw Error('Nguồn lịch sử không hợp lệ.');
-   historyOrders=d.orders;historyIncomplete=!d.complete;historyError='';historyLastLoaded=Date.now();
-   persistedInvoiceCount=d.orders.length;updateInvoiceBadge();
+   historyOrders=d.orders.filter(o=>validNo(o?.invoiceNo));
+   historyIncomplete=!d.complete;historyError='';historyLastLoaded=Date.now();
+   reconcileHistoryWithDrive(historyOrders,d.revision,d.complete);
+   if(d.complete)persistVerifiedHistory(historyOrders,d.revision);
+   persistedInvoiceCount=historyOrders.length;updateInvoiceBadge();
    const months=[...new Set(historyOrders.map(o=>{
     const m=String(o.date||'').match(/(?:\d{1,2}\/)?(\d{1,2})\/(\d{4})$/);
     return m?m[2]+'-'+m[1].padStart(2,'0'):'';
@@ -938,6 +956,10 @@
   article.append(note,official);paper.append(article);
  }
  function showOrderOverview(invoiceNo=lastReceipt?.result?.invoiceNo){
+  if(savedRecord?.deleted===true&&savedRecord.invoiceNo===invoiceNo){
+   bubble('Hóa đơn #'+invoiceNo+' không còn trong sổ hiện hành. Mở Hóa đơn và bấm Làm mới để đối chiếu.','note');
+   return;
+  }
   const overview=lastReceipt?.result?.invoiceNo===invoiceNo&&lastReceipt?.quote?
    {...lastReceipt.quote,invoiceNo,total:lastReceipt.result.total,
     createdAt:lastReceipt.result.createdAt||savedRecord?.overview?.createdAt||null,
@@ -1044,7 +1066,21 @@
  refreshHistory.id='realHistoryRefresh';refreshHistory.textContent='↻ Làm mới';
  refreshHistory.onclick=()=>void loadInvoiceHistory(true,true);
  $('historyClose').parentElement.insertBefore(refreshHistory,$('historyClose'));
- $('historyButton').onclick=()=>void loadInvoiceHistory();
+ // Opening the panel always fetches current Drive data instead of cached 45s view.
+ $('historyButton').onclick=()=>void loadInvoiceHistory(true,true);
+ // Sync deletes/restores while viewing; never write to Google Drive.
+ const refreshOpenHistory=()=>{
+  if(!accessCode||!$('historyBackdrop').classList.contains('open')||
+     document.visibilityState==='hidden'||historyPromise)return;
+  if(Date.now()-historyLastLoaded<10000)return;
+  void loadInvoiceHistory(false,true);
+ };
+ setInterval(()=>{
+  if(accessCode&&$('historyBackdrop').classList.contains('open')&&
+     document.visibilityState!=='hidden')void loadInvoiceHistory(false,true);
+ },30000);
+ document.addEventListener('visibilitychange',refreshOpenHistory);
+ window.addEventListener('focus',refreshOpenHistory);
  $('historyMonth').onchange=renderInvoiceHistory;
  $('historySearch').oninput=renderInvoiceHistory;
  $('historyStatus').onchange=renderInvoiceHistory;
