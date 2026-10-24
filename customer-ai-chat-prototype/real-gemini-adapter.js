@@ -12,6 +12,7 @@
   // Stable idempotency across repeated quotes and page reloads; renewed on NEW CART only.
   const orderStorageKey='satori-order:'+token.slice(0,32);
   const submittedStorageKey='satori-submitted:'+token.slice(0,32);
+  const pendingStorageKey='satori-pending:'+token.slice(0,32);
   const readSession=k=>{try{return sessionStorage.getItem(k)}catch{return null}};
   const writeSession=(k,v)=>{try{sessionStorage.setItem(k,v)}catch{}};
   const newOrderId=()=>crypto.randomUUID();
@@ -22,6 +23,8 @@
   try{savedRecord=JSON.parse(readSession(submittedStorageKey)||'null')}catch{}
   let submitted=savedRecord?.orderId===clientOrderId&&Number.isSafeInteger(savedRecord.invoiceNo);
   let confirming=false,submissionUncertain=false,persistedInvoiceCount=null;
+  let oldPending=null;try{oldPending=JSON.parse(readSession(pendingStorageKey)||'null')}catch{}
+  if(!submitted&&oldPending?.orderId===clientOrderId)submissionUncertain=true;
   const sessionInvoices=new Set(Array.isArray(savedRecord?.invoiceNos)?savedRecord.invoiceNos.filter(Number.isSafeInteger):[]);
   if(Number.isSafeInteger(savedRecord?.invoiceNo))sessionInvoices.add(savedRecord.invoiceNo);
   $('historyButton').textContent='🧾 Hóa đơn ';
@@ -35,6 +38,7 @@
   updateInvoiceBadge();
   function markSubmitted(invoiceNo){
    submitted=true;submissionUncertain=false;sessionInvoices.add(invoiceNo);
+   writeSession(pendingStorageKey,'');
    writeSession(submittedStorageKey,JSON.stringify({orderId:clientOrderId,invoiceNo,invoiceNos:[...sessionInvoices].slice(-30)}));
    updateInvoiceBadge();
   }
@@ -244,7 +248,7 @@
   }
   cart.clear();invalidate();deliveryNote='';noteInput.value='';lastProduct=null;
    clientOrderId=newOrderId();writeSession(orderStorageKey,clientOrderId);
-   submitted=false;submissionUncertain=false;confirming=false;
+   submitted=false;submissionUncertain=false;confirming=false;writeSession(pendingStorageKey,'');
   newCartSequence+=1;cartCollapsed=true;updateCart();
   bubble('🛒 Giỏ mới #'+newCartSequence+' đã sẵn sàng. Hóa đơn cũ vẫn lưu trong mục Hóa đơn. Anh/chị chọn món hoặc nhắn đơn mới.');
   $('messageInput').focus();
@@ -411,6 +415,7 @@
    if(requestsBusy||confirming||submitted||submissionUncertain||!quoteToken)return;
    if(!window.confirm('Gửi MỘT hóa đơn thật? Nút xác nhận sẽ khóa để chống gửi trùng.'))return;
    const confirmedQuote=quoteToken;quoteToken=null;confirming=true;
+   writeSession(pendingStorageKey,JSON.stringify({orderId:clientOrderId,startedAt:Date.now()}));
    lockConfirmButtons('⏳ ĐANG GỬI • KHÔNG BẤM LẠI');
    disabledBusy(true);updateCart();
    try{
@@ -612,6 +617,7 @@
  $('quickCart').hidden=true;updateCart();
  $('sendForm').querySelector('button[type=submit]').disabled=false;
  if(submitted){bubble('✅ Hóa đơn #'+savedRecord.invoiceNo+' đã gửi. Xem 🧾 Hóa đơn hoặc mở Giỏ hàng mới để đặt tiếp.');}
+  else if(submissionUncertain){bubble('⚠ Lần gửi trước chưa nhận được phản hồi. Em đã khóa gửi lại sau khi tải trang. Vui lòng kiểm tra Hóa đơn trước.','note');}
   if(!/^[A-Za-z0-9_.-]{80,30000}$/.test(token)){
   status('Đường link không hợp lệ hoặc bị thiếu. Liên hệ Minh Satori để xin lại.');
   $('realOpen').disabled=true;
