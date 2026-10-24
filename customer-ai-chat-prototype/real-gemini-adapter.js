@@ -100,8 +100,8 @@
    const number=document.createElement('p');number.textContent='HÓA ĐƠN #'+invoiceNo+' • '+cash(total);
    const note=document.createElement('p');note.textContent='Đã lưu vào Google Drive. Không gửi lại đơn này.';
    const actions=document.createElement('div');actions.className='real-submitted-actions';
-   const view=document.createElement('button');view.type='button';view.textContent='🧾 Xem hóa đơn #'+invoiceNo;view.onclick=()=>showOrderOverview(invoiceNo);
-   const history=document.createElement('button');history.type='button';history.textContent='Hóa đơn đã gửi ('+sessionInvoices.size+')';history.onclick=()=>void loadInvoiceHistory();
+   const view=document.createElement('button');view.type='button';view.textContent='🧾 Xem hóa đơn';view.onclick=()=>showOrderOverview(invoiceNo);
+   const history=document.createElement('button');history.type='button';history.textContent='Đã gửi ('+sessionInvoices.size+')';history.onclick=()=>void loadInvoiceHistory();
    actions.append(view,history);card.append(head,number,note,actions);
    $('messages').append(card);$('messages').scrollTop=$('messages').scrollHeight;
   }
@@ -614,7 +614,24 @@
    // Skip a redundant native browser alert (confusing on Samsung/iPhone).
    const confirmedQuote=quoteToken;quoteToken=null;confirming=true;
    writeSession(pendingStorageKey,JSON.stringify({orderId:clientOrderId,startedAt:Date.now()}));
-   lockConfirmButtons('⏳ ĐANG GỬI • KHÔNG BẤM LẠI');
+   lockConfirmButtons('⏳ ĐANG XỬ LÝ');
+   // Render a genuine pending state immediately; never imply an invoice was
+   // committed before the Bot API returns verified success.
+   const progress=document.createElement('p');
+   progress.className='real-checkout-progress';
+   progress.setAttribute('role','status');
+   progress.setAttribute('aria-live','polite');
+   const start=Date.now();
+   const updateProgress=()=>{
+    const seconds=Math.floor((Date.now()-start)/1000);
+    progress.textContent='⏳ Đang xử lý đơn hàng…'+
+     (seconds>0?' Đã chờ '+seconds+' giây.':'')+
+     ' Không bấm xác nhận lại.';
+   };
+   updateProgress();
+   box.append(progress);
+   $('messages').scrollTop=$('messages').scrollHeight;
+   const progressTimer=setInterval(updateProgress,1000);
    disabledBusy(true);updateCart();
    try{
     const saved=await call('/api/real/confirm',{quoteToken:confirmedQuote,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
@@ -633,7 +650,11 @@
      lockConfirmButtons('⚠ ĐÃ GỬI YÊU CẦU • KIỂM TRA SỔ');
      bubble('⚠ Chưa xác minh được phản hồi hóa đơn: '+err.message+'. KHÔNG xác nhận lại, KHÔNG GỬI LẠI. Mở mục Hóa đơn kiểm tra trước.','note');
     }else bubble('✅ Đơn đã lưu. Xem lại từ mục Hóa đơn nếu PDF chưa mở.','note');
-   }finally{confirming=false;disabledBusy(false);updateCart()}
+   }finally{
+    clearInterval(progressTimer);
+    progress.remove();
+    confirming=false;disabledBusy(false);updateCart();
+   }
   };
   box.append(confirm);$('messages').append(box);$('messages').scrollTop=$('messages').scrollHeight;
  }
@@ -642,13 +663,16 @@
   if(requestsBusy)return;if(!catalogue){bubble('Chọn địa chỉ trước.','note');return}
   if(!cart.size){bubble('Giỏ đang trống; hãy thêm món trước.','note');return}
   disabledBusy(true);
+  const loading=bubble('⏳ Đang kiểm tra giỏ và tính tiền…','note');
+  loading.classList.add('real-checkout-progress');
+  loading.setAttribute('role','status');
   try{
    const items=[...cart.values()].map(x=>({code:x.code,qty:x.qty}));
    const q=await call('/api/real/quote',{destination:selectedRef,items,deliveryNote,clientOrderId});
    invalidate();quoteToken=q.quoteToken;lastQuote=q;
    showQuote(q);bubble('Anh/chị kiểm tra báo giá và bấm xác nhận trực tiếp trên hóa đơn trong chat.');
   }catch(err){bubble('Không lập được báo giá: '+err.message,'note')}
-  finally{disabledBusy(false)}
+  finally{loading.remove();disabledBusy(false)}
  }
  function updateSessionReceipt(){
   // Rendered from authoritative Drive ledger whenever the invoice tab opens;
