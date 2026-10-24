@@ -137,6 +137,11 @@
  cartClose.onclick=()=>{cartCollapsed=true;updateCart()};
  $('quickCart').insertBefore(cartClose,$('inlineCartLines'));
  $('quickCartEdit').setAttribute('aria-label','Mở chi tiết giỏ hàng');
+ // Touching chat background closes expanded basket without clearing its items.
+ $('messages').addEventListener('click',event=>{
+  if(cartCollapsed||event.target.closest('button,input,textarea,select,a'))return;
+  cartCollapsed=true;updateCart();
+ });
  function updateCart(){
   const entries=[...cart.values()],count=entries.reduce((n,x)=>n+x.qty,0);
   setText('quickCartCount',entries.length+' loại sản phẩm trong giỏ');
@@ -144,6 +149,7 @@
   const cartIcon=document.createElement('span');cartIcon.className='real-cart-icon';cartIcon.textContent='🛒';
   const cartBadge=document.createElement('strong');cartBadge.className='real-cart-count';cartBadge.textContent=String(count);
   $('quickCartEdit').append(cartIcon,cartBadge);
+  $('quickCartEdit').title='🛒 '+count+' sản phẩm trong giỏ';
   $('quickCartEdit').disabled=!entries.length;
   $('quickCartEdit').setAttribute('aria-label','Giỏ hàng, '+count+' sản phẩm. '+(cartCollapsed?'Mở':'Đang mở'));
   cartClose.hidden=cartCollapsed||!entries.length;
