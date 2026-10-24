@@ -236,8 +236,8 @@
   $('composeCart').disabled=!entries.length||submitted||submissionUncertain||confirming;
   $('quickCartQuote').disabled=!entries.length||submitted||submissionUncertain||confirming;
   $('quickCartQuote').hidden=!entries.length||cartCollapsed;
-  $('quickCartQuote').textContent='Thanh toán';
-  $('quickCartQuote').setAttribute('aria-label','Thanh toán — kiểm tra tổng tiền và xác nhận đơn');
+  $('quickCartQuote').textContent='Xác Nhận';
+  $('quickCartQuote').setAttribute('aria-label','Xác Nhận — xem lại hóa đơn dự kiến trước khi gửi');
   $('quickCartEdit').setAttribute('aria-expanded',String(!cartCollapsed));
   const list=$('inlineCartLines'),sheet=$('cartList');list.replaceChildren();sheet.replaceChildren();
   list.hidden=cartCollapsed;
@@ -542,7 +542,7 @@
   const delivery=document.createElement('p');delivery.className='mini';
   delivery.textContent='📍 '+q.customer.name+' • '+q.customer.location;box.append(delivery);
   const confirm=document.createElement('button');confirm.type='button';confirm.className='btn primary live-real-confirm';
-  confirm.textContent='✓ Xác nhận đặt hàng';
+  confirm.textContent='Xác Nhận';
   confirm.onclick=async()=>{
    if(requestsBusy||confirming||submitted||submissionUncertain||!quoteToken)return;
    // The clearly labeled send button is the explicit confirmation.
