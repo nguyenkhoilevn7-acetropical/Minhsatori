@@ -47,8 +47,10 @@
    submitted=true;submissionUncertain=false;sessionInvoices.add(invoiceNo);unreadInvoices.add(invoiceNo);
    writeSession(pendingStorageKey,'');
    writeSession(unreadKey,JSON.stringify([...unreadInvoices].slice(-30)));
-   const overview={invoiceNo,total:saved.total,createdAt:new Date().toISOString(),
-    name:String(quote.customer?.name||'').slice(0,150),location:String(quote.customer?.location||'').slice(0,500),
+   const overview={invoiceNo,total:saved.total,createdAt:saved.createdAt||null,
+    name:String(quote.customer?.name||'').slice(0,150),
+    phone:String(quote.customer?.phone||'').slice(0,35),
+    location:String(quote.customer?.location||'').slice(0,500),
     items:(quote.items||[]).slice(0,6).map(i=>({product:String(i.product||'').slice(0,150),
      qty:Number(i.qty),unit:String(i.unit||''),unitPrice:Number(i.unitPrice)||0})),
     subtotal:Number(quote.subtotal)||0,shippingAmount:Number(quote.shippingAmount)||0,
@@ -97,6 +99,27 @@
  document.addEventListener('focusin',syncVisibleHeight);
  document.addEventListener('focusout',()=>{requestAnimationFrame(syncVisibleHeight)});
  const cash=n=>Math.round(Number(n)||0).toLocaleString('vi-VN')+' đ';
+ const vnTimestamp=iso=>{
+  if(!iso||Number.isNaN(Date.parse(iso)))return null;
+  return new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',
+   day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(iso));
+ };
+ const placedLabel=(o)=>{
+  const time=vnTimestamp(o?.createdAt);
+  return time?time:(String(o?.date||'').trim()||'Ngày chưa xác minh')+' • Chưa có giờ đặt chính xác';
+ };
+ function invoiceBrand(){
+  const row=document.createElement('div');row.className='real-invoice-logo-line';
+  const img=document.createElement('img');img.src='/assets/logo-satori.jpg';img.alt='Logo Minh Satori';img.width=48;img.height=48;
+  const txt=document.createElement('div');const name=document.createElement('strong');name.textContent='MINH SATORI';
+  const sub=document.createElement('small');sub.textContent='Xác nhận đơn đặt hàng';txt.append(name,sub);
+  row.append(img,txt);return row;
+ }
+ function deliveryNoteLine(note){
+  const el=document.createElement('p');el.className='real-delivery-note';
+  el.textContent='LƯU Ý GIAO HÀNG: '+String(note).slice(0,300);return el;
+ }
+
  const setText=(id,text)=>{const node=$(id);if(node)node.textContent=String(text||'')};
  const disabledBusy=value=>{requestsBusy=value;for(const id of ['realOpen','quickCartQuote','composeCart']){
   if($(id))$(id).disabled=value;
@@ -154,7 +177,10 @@
   const modes=['collapsed','half','full'];
   setCartMode(modes[Math.min(2,Math.max(0,modes.indexOf(cartMode)+(direction>0?1:-1)))]);
  }
- cartHandle.onclick=()=>slideCart(cartMode==='full'?-1:1);
+ cartHandle.onclick=()=>{
+  if(cartHandle.dataset.dragged==='1'){delete cartHandle.dataset.dragged;return}
+  slideCart(cartMode==='full'?-1:1)
+ };
  let touchOrigin=null;
  cartHandle.addEventListener('pointerdown',e=>{
   if(e.pointerType==='mouse'&&e.button!==0)return;
@@ -571,7 +597,7 @@
    root.append(p);}
   for(const o of rows){
    const card=document.createElement('article');card.className='real-history-order';
-   const title=document.createElement('strong');title.textContent='🧾 #'+o.invoiceNo+' • '+o.date;
+   const title=document.createElement('strong');title.textContent='🧾 #'+o.invoiceNo+' • '+placedLabel(o);
    const status=document.createElement('small');
    status.textContent=(o.paid?'✅ Đã thanh toán':'🟠 Chưa thanh toán')+
     ' • '+cash(o.total)+(o.paidAt?' • Ngày thanh toán: '+o.paidAt.slice(0,10):'');
@@ -579,13 +605,20 @@
    receiver.textContent='👤 '+o.name+' • ☎ '+o.phone+' • 📍 '+o.location;
    const items=document.createElement('small');
    items.textContent=(o.items||[]).map(i=>i.product+' ×'+i.qty).join('; ');
-   const open=document.createElement('button');open.type='button';open.textContent='Xem hóa đơn';
+   const open=document.createElement('button');open.type='button';open.textContent='Xem chi tiết';
    open.onclick=()=>{
     lastReceipt={result:{invoiceNo:o.invoiceNo,total:o.total,receiptToken:o.receiptToken}};
     $('historyBackdrop').classList.remove('open');
     showHistoryOverview(o);
    };
-   card.append(title,status,receiver,items,open);root.append(card);
+   const download=document.createElement('button');download.type='button';
+   download.textContent='⬇ Tải PDF chính thức';download.setAttribute('aria-label','Tải PDF hóa đơn #'+o.invoiceNo);
+   download.onclick=()=>{
+    lastReceipt={result:{invoiceNo:o.invoiceNo,total:o.total,receiptToken:o.receiptToken}};
+    $('historyBackdrop').classList.remove('open');void showReceipt({download:true});
+   };
+   const actions=document.createElement('div');actions.className='real-history-actions';
+   actions.append(open,download);card.append(title,status,receiver,items,actions);root.append(card);
   }
   // Immediate acknowledgement is based only on verified /api/real/confirm.
   // Show it while the official Drive history and PDF are still loading.
@@ -657,12 +690,13 @@
  }
  function showVerifiedInvoicePreview(o){
   const preview=document.createElement('article');preview.className='real-invoice-preview';
-  const header=document.createElement('h3');header.textContent='MINH SATORI • HÓA ĐƠN #'+o.invoiceNo;
+  const header=document.createElement('h3');header.textContent='HÓA ĐƠN #'+o.invoiceNo;
   const person=document.createElement('p');person.textContent='Khách: '+o.name+' • '+o.phone;
   const address=document.createElement('p');address.textContent='Giao: '+o.location;
-  const date=document.createElement('p');date.textContent='Ngày: '+o.date+
+  const date=document.createElement('p');date.textContent='Ngày đặt: '+placedLabel(o)+
    ' • '+(o.paid?'Đã thanh toán':'Chưa thanh toán');
-  preview.append(header,person,address,date);
+  preview.append(invoiceBrand(),header,person,address,date);
+  if(o.deliveryNote)preview.append(deliveryNoteLine(o.deliveryNote));
   let goods=0;
   for(const item of o.items){
    const amount=Number(item.subtotal??item.qty*item.unitPrice);
@@ -692,8 +726,9 @@
   const title=document.createElement('h3');title.textContent='HÓA ĐƠN #'+o.invoiceNo;
   const buyer=document.createElement('p');buyer.textContent='Khách hàng: '+o.name+' • '+o.phone;
   const addr=document.createElement('p');addr.textContent='Địa chỉ: '+o.location;
-  const date=document.createElement('p');date.textContent='Ngày đặt: '+o.date;
-  article.append(badge,title,buyer,addr,date);
+  const date=document.createElement('p');date.textContent='Ngày đặt: '+placedLabel(o);
+  article.append(invoiceBrand(),badge,title,buyer,addr,date);
+  if(o.deliveryNote)article.append(deliveryNoteLine(o.deliveryNote));
   for(const item of o.items||[]){
    const amount=Number(item.unitPrice||0)*Number(item.qty||0);
    article.append(invoiceLine(String(item.product)+' ×'+item.qty+' '+String(item.unit||''),cash(amount)));
@@ -719,8 +754,10 @@
   state.textContent='✓ ĐƠN HÀNG ĐÃ GỬI THÀNH CÔNG';
   const heading=document.createElement('h3');heading.textContent='PHIẾU XÁC NHẬN ĐẶT HÀNG #'+invoiceNo;
   const person=document.createElement('p');person.textContent='Người nhận: '+String(overview?.name||'Thông tin đã được xác minh');
+  const phone=document.createElement('p');phone.textContent='Điện thoại: '+String(overview?.phone||overview?.customer?.phone||'Chưa có dữ liệu');
   const address=document.createElement('p');address.textContent='Giao hàng: '+String(overview?.location||'Theo địa chỉ đã chọn');
-  article.append(state,heading,person,address);
+  const date=document.createElement('p');date.textContent='Thời gian đặt: '+placedLabel(overview);
+  article.append(invoiceBrand(),state,heading,person,phone,address,date);
   for(const item of overview?.items||[]){
    const product=String(item.product||item.name||'Sản phẩm');
    const amount=Number(item.unitPrice||0)*Number(item.qty||0);
@@ -732,9 +769,7 @@
    article.append(invoiceLine('VAT',cash(overview.vatAmount)));
   }
   article.append(invoiceLine('TỔNG ĐÃ GHI NHẬN',cash(overview?.total??lastReceipt?.result?.total),'real-invoice-total'));
-  if(overview?.deliveryNote){
-   const note=document.createElement('p');note.textContent='Lưu ý: '+overview.deliveryNote;article.append(note);
-  }
+  if(overview?.deliveryNote)article.append(deliveryNoteLine(overview.deliveryNote));
   const tip=document.createElement('p');tip.className='real-overview-tip';
   tip.textContent='Đây là phiếu xác nhận ngay sau khi Google Drive đã ghi đơn, không phải hóa đơn PDF riêng. Hóa đơn chính thức sẽ đọc trong mục 🧾 Hóa đơn khi tải xong. Tuyệt đối không xác nhận lại.';
   article.append(tip);paper.append(article);
