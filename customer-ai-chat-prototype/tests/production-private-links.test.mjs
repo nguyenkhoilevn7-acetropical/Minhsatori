@@ -205,3 +205,24 @@ test('rollback: working agency links are isolated from the new CTV Drive table',
  for(const [,source] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
   new vm.Script(source,{filename:'restored-owner-admin.html.js'});
 });
+
+test('production checkout matches chat-first demo: inline invoice, cart and actions; original write policy remains',()=>{
+ const html=readFileSync(new URL('../real-checkout.html',import.meta.url),'utf8');
+ assert.match(html,/id="showAllProducts"/);
+ assert.match(html,/id="showCart"/);
+ assert.match(html,/id="showInvoice"/);
+ assert.match(html,/id="review"/);
+ assert.match(html,/id="reviewPanel"/);
+ assert.match(html,/function showInvoiceDetails\(q,confirmed\)/);
+ assert.match(html,/function invoiceRow\(label,value,extraClass/);
+ assert.match(html,/lastConfirmed=\{quote:lastQuote,result:d\}/);
+ assert.doesNotMatch(html,/\$\('shop'\)\.hidden=true/,'quoting must not hide the chat');
+ assert.match(html,/request\('\/api\/real\/confirm'/,'still requires explicitly confirmed real checkout');
+ assert.match(html,/confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'/);
+ assert.match(html,/Không phải file PDF chính thức/,'customer receipt never falsely claims official PDF');
+ const i=html.indexOf('id="chat-shell"'),summary=html.indexOf('id="reviewPanel"');
+ assert.ok(summary>0 && summary<html.indexOf('class="chat-composer"'),
+  'invoice actions are inline ABOVE the composer, not on a separate screen');
+ for(const [,src] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(src,{filename:'live-ai-checkout.js'});
+});
