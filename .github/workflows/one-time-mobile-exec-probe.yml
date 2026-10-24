@@ -39,10 +39,11 @@ jobs:
             console.log('ENDPOINT_ERROR_CODE='+code);
             console.log('ENDPOINT_ERROR_MESSAGE='+message);
             console.log('PROBE_OUTCOME='+(
-              code==='AUTH_FAILED'?'MOBILE_HANDLER_PRESENT':
-              code==='ANDROID_NOT_READY'?'ANDROID_HANDLER_NOT_DEPLOYED':
-              code==='INVALID_REQUEST'?'MOBILE_HANDLER_REQUEST_SCHEMA_CHECK':
-              'MOBILE_HANDLER_NOT_CONFIRMED'));
+              code==='AUTH_FAILED' && /Không thể xác thực/.test(message)?'OLD_HMAC_ROUTER_STILL_ACTIVE':
+              code==='AUTH_FAILED' && /owner OAuth|Google rejected|OAuth token|owner verification/i.test(message)?'ANDROID_ROUTER_ACTIVE':
+              code==='OWNER_NOT_CONFIGURED' || code==='OAUTH_NOT_CONFIGURED'?'ANDROID_ROUTER_ACTIVE_CONFIG_REQUIRED':
+              code==='ANDROID_NOT_READY'?'ANDROID_MODULE_MISSING':
+              'ANDROID_ROUTER_NOT_CONFIRMED'));
           }catch(e){console.log('PROBE_OUTCOME=NETWORK_FAILURE '+(e?.name||'Error'));}
           finally{clearTimeout(watchdog)}
           NODE
