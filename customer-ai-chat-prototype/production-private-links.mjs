@@ -390,6 +390,36 @@ export function createProductionPrivateLinks({
   return {production:true,revision,complete,orders:all,
    warning:complete?'': 'Một số giao dịch nguồn không có ngày hợp lệ hoặc vượt giới hạn đọc; cần quản trị đối chiếu trước khi khẳng định đủ lịch sử.'};
  }
+ /**
+  * Authenticated, bounded invoice-status probe during a full-history outage.
+  * Returns no personal details; a deletion requires complete exact lookup.
+  */
+ async function receiptStatuses({token,accessCode,invoiceNos}={}){
+  const invite=access(token,accessCode),allowed=destinations(invite);
+  if(!Array.isArray(invoiceNos)||invoiceNos.length<1||invoiceNos.length>12||
+     invoiceNos.some(n=>!Number.isSafeInteger(n)||n<1)||
+     new Set(invoiceNos).size!==invoiceNos.length)throw error('REAL_RECEIPT_STATUS_INVALID');
+  const reader=historyReader||(payload=>bot('orders.list',payload));
+  let revision=null;
+  const checks=[];
+  for(const invoiceNo of invoiceNos){
+   const source=await reader({query:String(invoiceNo),limit:100});
+   if(!Number.isSafeInteger(source?.revision)||!Array.isArray(source.data?.orders)||
+      !Number.isSafeInteger(source.data?.totalMatches)||source.data.totalMatches<0||
+      source.data.totalMatches>source.data.orders.length)
+    throw error('REAL_RECEIPT_STATUS_INCOMPLETE');
+   if(revision!==null&&revision!==source.revision)
+    throw error('REAL_HISTORY_REVISION_CHANGED');
+   revision=source.revision;
+   const matched=source.data.orders.filter(o=>Number(o.invoiceNo)===invoiceNo);
+   const ours=matched.some(o=>o.pairRole!=='collaborator'&&
+    allowed.some(d=>normalized(d.name)===normalized(o.name)&&
+     normalized(d.location)===normalized(o.location)&&digits(d.phone)===digits(o.phone)));
+   // A matching number owned by somebody else is never disclosed as deleted.
+   checks.push({invoiceNo,status:ours?'active':matched.length?'unverified':'absent'});
+  }
+  return {production:true,complete:true,revision,checks};
+ }
  function receiptContext({token,accessCode,receiptToken}={}){
   const invite=access(token,accessCode);
   const proof=unseal(receiptToken,'customer-receipt');
@@ -405,5 +435,5 @@ export function createProductionPrivateLinks({
   return {invoiceNo:proof.invoiceNo,total:proof.total,
    name:dest.name,phone:dest.phone,location:dest.location};
  }
- return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm,chatContext,receiptContext,history});
+ return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm,chatContext,receiptContext,history,receiptStatuses});
 }
