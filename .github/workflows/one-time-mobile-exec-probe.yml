@@ -1,0 +1,46 @@
+name: Android Mobile API endpoint negative-auth probe
+on:
+  push:
+    branches:
+      - probe/mobile-api-exec-negative-auth-20261024
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Probe legacy deployment without real Google credentials
+        env:
+          SCRIPT_URL: https://script.google.com/macros/s/AKfycbxGbnHeItkdfkMPnAWBaIAvZq4-mTRtWKDp4DUVMRfK5fob20UOnPuTLVZCz7h6kSE/exec
+        run: |
+          node --input-type=module <<'NODE'
+          const url = process.env.SCRIPT_URL + '?route=android';
+          const controller = new AbortController();
+          const watchdog = setTimeout(()=>controller.abort(),15000);
+          try {
+            // Invalid token, no mutations: server must reject before reading a ledger.
+            const response=await fetch(url,{method:'POST',
+              headers:{'content-type':'application/json'},
+              body:JSON.stringify({kind:'satori-android-v1',action:'mobile.snapshot',
+                accessToken:'NOT_A_VALID_GOOGLE_OAUTH_TOKEN',nonce:'test_only_invalid_credential_1234567890',
+                payload:{}}),redirect:'follow',signal:controller.signal});
+            const payload=(await response.text()).slice(0,1500);
+            let code='NOT_JSON';
+            try { const body=JSON.parse(payload);code=String(body?.error?.code||'NO_ERROR_CODE').slice(0,80); }
+            catch(_){}
+            console.log('HTTP_STATUS='+response.status);
+            console.log('RESULT_TYPE='+String(response.headers.get('content-type')||'unknown').slice(0,80));
+            console.log('ENDPOINT_ERROR_CODE='+code);
+            console.log('PROBE_OUTCOME='+(
+              code==='AUTH_FAILED'?'MOBILE_HANDLER_PRESENT':
+              code==='ANDROID_NOT_READY'?'ANDROID_HANDLER_NOT_DEPLOYED':
+              code==='INVALID_REQUEST'?'MOBILE_HANDLER_REQUEST_SCHEMA_CHECK':
+              'MOBILE_HANDLER_NOT_CONFIRMED'));
+          }catch(e){console.log('PROBE_OUTCOME=NETWORK_FAILURE '+(e?.name||'Error'));}
+          finally{clearTimeout(watchdog)}
+          NODE
