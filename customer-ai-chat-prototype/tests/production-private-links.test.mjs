@@ -613,7 +613,7 @@ test('iOS cart: three states, swipe handle, color-separated chat and verified in
  assert.match(client,/function deliveryNoteLine\(note\)/);
  assert.match(client,/Thời gian đặt/);
  assert.match(client,/Tải PDF chính thức/);
- assert.match(client,/function vnTimestamp\(iso\)/);
+ assert.match(client,/const vnTimestamp=iso=>/);
  assert.match(gateway,/verifiedCreatedAt\(order\)/);
  assert.match(gateway,/phone:d\.phone/);
  assert.match(gateway,/deliveryNote:safe\(o\.deliveryNote\)/);
