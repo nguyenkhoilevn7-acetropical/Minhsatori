@@ -51,7 +51,18 @@ const EMERGENCY_PREVIEW=process.env.GEMINI_SANDBOX_EMERGENCY_DEMO_ONLY==='1';
 const OWNER_ONLY_PILOT=process.env.GEMINI_OWNER_ONLY_REAL_PILOT==='1';
 const ownerInvoice=createOwnerRealInvoice();
 const ownerPdfGateway=createOriginalPdfGateway();
-const realPrivateLinks=createProductionPrivateLinks({source:ownerInvoice.source,bot:ownerInvoice.bot});
+const realPrivateLinks=createProductionPrivateLinks({
+ source:ownerInvoice.source,bot:ownerInvoice.bot,
+ // Both transports are independently HMAC-protected and read only here.
+ // If the owner Bot's orders:read scope fails, use the separate read-only client.
+ historyReader:async payload=>{
+  try{return await ownerInvoice.bot('orders.list',payload)}
+  catch(err){
+   if(!readOnlyReady())throw err;
+   return readMinhSatori('orders.list',payload);
+  }
+ }
+});
 if(realPrivateLinks.readiness().configured){
  // Non-mutating scope probe: orders.create with no requestId always fails
  // validation before Google Drive backup or ledger writes.
