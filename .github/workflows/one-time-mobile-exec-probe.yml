@@ -1,4 +1,5 @@
 name: Android Mobile API endpoint negative-auth probe
+# One-time rerun after owner-email Script Property was saved; dummy token only.
 on:
   push:
     branches:
