@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'customer-ai-chat-prototype/owner-collaborator-pairs.mjs'
+      - 'customer-ai-chat-prototype/owner-approved-location-refs.mjs'
+      - 'customer-ai-chat-prototype/tests/owner-approved-location-refs.test.mjs'
       - 'customer-ai-chat-prototype/server.mjs'
       - 'customer-ai-chat-prototype/admin.html'
       - 'customer-ai-chat-prototype/tests/owner-collaborator-pairs.test.mjs'
@@ -19,3 +21,4 @@ jobs:
           node-version: '22'
       - run: node --check customer-ai-chat-prototype/server.mjs
       - run: node customer-ai-chat-prototype/tests/owner-collaborator-pairs.test.mjs
+      - run: node customer-ai-chat-prototype/tests/owner-approved-location-refs.test.mjs

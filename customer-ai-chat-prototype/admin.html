@@ -602,19 +602,13 @@ $('ctvAdd').onclick=async()=>{
   if(!p||!Array.isArray(p.places)||!p.places.length)throw Error('Không tìm thấy điểm giao trong hóa đơn thật.');
   if(![p.name,...(p.aliases||[])].some(v=>normalized(v)===normalized(name)))
    throw Error('Tên khách nguồn chưa khớp khách được chọn.');
-  const used=new Set(),places=[];let excludedIncomplete=0;
-  for(const x of p.places){
-   const invoiceNo=Number(x.invoiceNos?.[0]);
-   const phone=String(x.phone||'').replace(/\D/g,'');
-   const address=String(x.address||'').trim();
-   // Bot API requires an existing verified source with a full destination.
-   // An old duplicate invoice with no phone must not displace its valid twin.
-   if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1||phone.length<8||address.length<5){
-    excludedIncomplete++;continue;
-   }
-   if(used.has(invoiceNo))continue;
-   used.add(invoiceNo);places.push({invoiceNo,name:x.name||p.name,address:x.address||'',phone:x.phone||''});
-  }
+  const places=(d.locationCandidates||[]).map(x=>({
+   ref:x.ref,name:x.name||p.name,address:x.address,phone:x.phone,
+   needsReview:x.needsReview===true
+  }));
+  const excludedIncomplete=(d.locationIssues||[]).length;
+  // Historical invoices remain separate; only verified physical destinations
+  // are shown once, each with an exact source record ID and invoice number.
   if(!places.length||places.length>20)throw Error('Cần 1–20 địa chỉ giao hợp lệ từ sổ thật.');
   const policy=ctvExistingTarget?pairPolicies.find(v=>v.collaboratorId===ctvExistingTarget):null;
   ctvDraft={name:p.name,places,collaboratorId:ctvExistingTarget};
@@ -623,11 +617,14 @@ $('ctvAdd').onclick=async()=>{
   $('ctvWizardCollaboratorDiscount').value=String(policy?.collaboratorDiscountPercent??35);
   $('ctvWizardShipping').value=String(policy?.shippingPercent??8);
   $('ctvWizardVat').value=String(policy?.vatPercent??0);
-  const selectedPreviously=new Set((policy?.authorizedDestinations||[]).map(z=>z.invoiceNo));
+  const selectedPreviously=new Set((policy?.authorizedDestinations||[]).map(z=>String(z.id)+'|'+z.invoiceNo));
   for(const x of places){
    const label=document.createElement('label');label.style.display='flex';label.style.gap='10px';label.style.alignItems='flex-start';
-   const box=document.createElement('input');box.type='checkbox';box.style.width='auto';box.value=String(x.invoiceNo);
-   box.dataset.ctvSourceInvoice='1';box.checked=selectedPreviously.has(x.invoiceNo);label.append(box,document.createTextNode('#'+x.invoiceNo+' • '+x.name+' • '+x.address+' • '+x.phone));
+   const box=document.createElement('input');box.type='checkbox';box.style.width='auto';box.value=JSON.stringify(x.ref);
+   box.dataset.ctvSourceInvoice='1';
+   box.checked=selectedPreviously.has(String(x.ref.id)+'|'+x.ref.invoiceNo);
+   label.append(box,document.createTextNode('#'+x.ref.invoiceNo+' • '+x.name+' • '+x.address+' • '+x.phone+
+    (x.needsReview?' • ⚠ cần kiểm tra liên hệ':'')));
    $('ctvWizardLocations').append(label);
   }
   $('ctvWizard').hidden=false;
@@ -648,10 +645,12 @@ $('ctvAdd').onclick=async()=>{
 };
 $('ctvWizardConfirm').onclick=async()=>{
  if(!ctvDraft)return;
- const nums=[...$('ctvWizardLocations').querySelectorAll('input[data-ctv-source-invoice]:checked')].map(v=>Number(v.value));
+ const refs=[...$('ctvWizardLocations').querySelectorAll('input[data-ctv-source-invoice]:checked')].map(v=>JSON.parse(v.value));
+ const nums=refs.map(ref=>ref.invoiceNo);
+ const exactIds=refs.map(ref=>String(ref.id)+'|'+ref.invoiceNo);
  const [customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent]=
  ['ctvWizardCustomerDiscount','ctvWizardCollaboratorDiscount','ctvWizardShipping','ctvWizardVat'].map(k=>Number($(k).value));
- if(!nums.length||nums.length>20||new Set(nums).size!==nums.length||
+ if(!refs.length||refs.length>20||new Set(exactIds).size!==refs.length||
     ![customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent].every(Number.isSafeInteger)||
     customerDiscountPercent<0||customerDiscountPercent>70||
     collaboratorDiscountPercent<=customerDiscountPercent||collaboratorDiscountPercent>70||
@@ -676,19 +675,19 @@ $('ctvWizardConfirm').onclick=async()=>{
    await request('/api/admin/collaborator-pairs/configure','POST',{
     collaboratorId,enabled:true,customerDiscountPercent,collaboratorDiscountPercent,
     shippingPercent,vatPercent,expectedRevision:pairCurrentRevision,
-    destinationInvoiceNos:nums,requestId:'ctv_'+crypto.randomUUID().replace(/-/g,''),confirmed:true
+    destinationRefs:refs,requestId:'ctv_'+crypto.randomUUID().replace(/-/g,''),confirmed:true
    });
   }else{
    const d=await request('/api/admin/ctv-activate','POST',{
-    confirmation:'OWNER_ACTIVATES_COLLABORATOR',sourceInvoiceNo:nums[0],destinationInvoiceNos:nums,
+    confirmation:'OWNER_ACTIVATES_COLLABORATOR',sourceRef:refs[0],destinationRefs:refs,
     customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent
    });
    collaboratorId=d.collaboratorId;invitation=d.invitation||null;
   }
   await loadPairPolicies(true);
   const saved=pairPolicies.find(p=>p.collaboratorId===collaboratorId&&p.enabled===true);
-  const actual=(saved?.authorizedDestinations||[]).map(v=>v.invoiceNo).sort((m,n)=>m-n);
-  const expected=[...nums].sort((m,n)=>m-n);
+  const actual=(saved?.authorizedDestinations||[]).map(v=>String(v.id)+'|'+v.invoiceNo).sort();
+  const expected=refs.map(v=>String(v.id)+'|'+v.invoiceNo).sort();
   if(!saved||saved.reviewedByOwner!==true||
      saved.customerDiscountPercent!==customerDiscountPercent||
      saved.collaboratorDiscountPercent!==collaboratorDiscountPercent||

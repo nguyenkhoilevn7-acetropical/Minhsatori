@@ -94,7 +94,10 @@ assert.match(reviewHtml,/if\(selectedRealKey\)\{[\s\S]{0,200}cấp link khách T
 assert.doesNotMatch(reviewHtml,/localStorage\.setItem|sessionStorage\.setItem/,'no PII stored by browser');
 const pricingServer=readFileSync(path.join(root,'server.mjs'),'utf8');
 assert.match(pricingServer,/observedRealCustomerDiscounts\(invoiceRows,name\)/);
-assert.match(pricingServer,/pricingEvidence,realCustomerLinkIssuanceEnabled:false/);
+assert.match(pricingServer,/pricingEvidence,locationCandidates,locationIssues,/);
+assert.match(pricingServer,/realCustomerLinkIssuanceEnabled:false/);
+assert.match(pricingServer,/selectedLocationEvidence\(selected.places\)/,
+ 'real customer directory must return valid locations separately from review issues');
 const details=pricingServer.slice(start,end);
 assert.doesNotMatch(details,/orders\.create|payments\.markCustomerPaid|writeState/);
 console.log('PASS real customer form: editable VAT/ship/discount, add-address, session-only drafts, no real checkout');

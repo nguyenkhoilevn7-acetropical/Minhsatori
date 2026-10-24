@@ -32,6 +32,7 @@ import {createProductionPrivateLinks} from './production-private-links.mjs';
 import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
+import {ownerSelectedLocations,selectedLocationEvidence} from './owner-approved-location-refs.mjs';
 import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
 import {auditDriveCatalogue} from './catalogue-drive-audit.mjs';
@@ -525,11 +526,9 @@ const server=http.createServer(async(req,res)=>{
   let input;
   try{input=await bodyJSON(req,6000)}catch{return fail(res,400,'INVALID_REQUEST','Thông tin duyệt CTV sai.')}
   if(!input||input.confirmation!=='OWNER_ACTIVATES_COLLABORATOR'||
-     !Number.isSafeInteger(input.sourceInvoiceNo)||input.sourceInvoiceNo<1||
-     !Array.isArray(input.destinationInvoiceNos)||
-     input.destinationInvoiceNos.length<1||input.destinationInvoiceNos.length>20||
-     input.destinationInvoiceNos.some(n=>!Number.isSafeInteger(n)||n<1)||
-     new Set(input.destinationInvoiceNos).size!==input.destinationInvoiceNos.length||
+     !(input.sourceRef&&input.sourceRef.id!=null&&Number.isSafeInteger(input.sourceRef.invoiceNo)&&input.sourceRef.invoiceNo>0||
+       Number.isSafeInteger(input.sourceInvoiceNo)&&input.sourceInvoiceNo>0)||
+     !(Array.isArray(input.destinationRefs)||Array.isArray(input.destinationInvoiceNos))||
      ![input.customerDiscountPercent,input.collaboratorDiscountPercent,input.shippingPercent].every(Number.isSafeInteger)||
      input.customerDiscountPercent<0||input.customerDiscountPercent>70||
      input.collaboratorDiscountPercent<=input.customerDiscountPercent||input.collaboratorDiscountPercent>70||
@@ -544,31 +543,34 @@ const server=http.createServer(async(req,res)=>{
   try{
    // Read scope must work before making any write. This is not a TEST invoice.
    await ownerPairAction('collaborators.pair.list',{});
-   const numbers=[...new Set([input.sourceInvoiceNo,...input.destinationInvoiceNos])];
-   // Apps Script serializes Bot API reads behind a script lock. Avoid
-   // flooding the single deployment with 2*N concurrent requests when a CTV
-   // selects many verified destinations (each source lookup reads a catalogue
-   // and invoice). Read in small batches; no ledger writes occur here.
+   // Owner-selected delivery addresses are full record identities, not
+   // invoice numbers. Allow valid returning buyers and the same historical
+   // invoice number on different records without silently changing recipients.
+   const selection=ownerSelectedLocations(input);
+   const sourceRef=input.sourceRef&&input.sourceRef.id!=null?
+    {id:input.sourceRef.id,invoiceNo:input.sourceRef.invoiceNo}:
+    {id:null,invoiceNo:input.sourceInvoiceNo};
+   if(!Number.isSafeInteger(sourceRef.invoiceNo)||sourceRef.invoiceNo<1)
+    return fail(res,400,'CTV_SETUP_INVALID','Chưa chọn được hóa đơn nguồn CTV.');
+   const all=[sourceRef,...selection.refs];
    const verified=[];
-   for(let i=0;i<numbers.length;i+=2){
-    const batch=await Promise.all(numbers.slice(i,i+2).map(n=>ownerInvoice.source(n)));
+   // Apps Script serializes Bot API reads under a lock; use bounded batches.
+   for(let i=0;i<all.length;i+=2){
+    const batch=await Promise.all(all.slice(i,i+2).map(r=>ownerInvoice.source(r.invoiceNo,r.id)));
     verified.push(...batch);
    }
    const revision=verified[0].revision;
    if(verified.some(x=>x.revision!==revision))
     return fail(res,409,'CTV_SOURCE_CHANGED','Sổ kế toán thay đổi trong lúc kiểm tra.');
    const original=verified[0].customer;
-   // Additional destinations may have different recipient or branch names,
-   // but ONLY references explicitly reviewed by the owner may be used.
-   const destinations=input.destinationInvoiceNos.map(n=>{
-    const src=verified[numbers.indexOf(n)].customer;
-    return {id:src.id,invoiceNo:n};
-   });
+   const destinations=selection.refs.map((r,i)=>({
+    id:verified[i+1].customer.id,invoiceNo:r.invoiceNo
+   }));
    // Fail closed on an attempt to relabel another existing CTV using
    // the same canonical source invoice without owner review.
    const marked=await ownerPairAction('collaborators.mark',{
     requestId:'ctv_mark_'+crypto.randomBytes(16).toString('hex'),
-    expectedRevision:revision,customerRef:{id:original.id,invoiceNo:input.sourceInvoiceNo},
+    expectedRevision:revision,customerRef:{id:original.id,invoiceNo:sourceRef.invoiceNo},
     enabled:true,confirmed:true
    });
    // After mark, use the authoritative revision returned by the committed
@@ -609,7 +611,7 @@ const server=http.createServer(async(req,res)=>{
   const x=await bodyJSON(req);
   const allowed=['collaboratorId','enabled','customerDiscountPercent',
    'collaboratorDiscountPercent','shippingPercent','vatPercent','expectedRevision',
-   'requestId','confirmed','destinationInvoiceNos'];
+   'requestId','confirmed','destinationInvoiceNos','destinationRefs'];
   if(!x||typeof x!=='object'||Array.isArray(x)||Object.keys(x).some(k=>!allowed.includes(k))||
    !/^[A-Za-z0-9_-]{4,100}$/.test(x.collaboratorId||'')||
    !/^[A-Za-z0-9_-]{8,100}$/.test(x.requestId||'')||
@@ -621,30 +623,24 @@ const server=http.createServer(async(req,res)=>{
    !Number.isSafeInteger(x.shippingPercent)||x.shippingPercent<0||x.shippingPercent>30||
    ![0,5,8,10].includes(x.vatPercent))
    return fail(res,400,'CTV_PAIR_POLICY_INVALID','Cần mã CTV, quyền duyệt và các tỷ lệ hợp lệ.');
-  if(x.enabled&&(!Array.isArray(x.destinationInvoiceNos)||
-     x.destinationInvoiceNos.length<1||x.destinationInvoiceNos.length>20||
-     x.destinationInvoiceNos.some(n=>!Number.isSafeInteger(n)||n<1)||
-     new Set(x.destinationInvoiceNos).size!==x.destinationInvoiceNos.length))
-   return fail(res,400,'CTV_DESTINATIONS_REQUIRED','Chọn 1–20 điểm giao thật không trùng trước khi bật.');
+  if(x.enabled&&!Array.isArray(x.destinationRefs)&&!Array.isArray(x.destinationInvoiceNos))
+   return fail(res,400,'CTV_DESTINATIONS_REQUIRED','Chọn 1–20 điểm giao thật trước khi bật.');
   if(x.destinationInvoiceNos!==undefined&&!Array.isArray(x.destinationInvoiceNos))
    return fail(res,400,'CTV_DESTINATIONS_INVALID','Danh sách điểm giao không hợp lệ.');
   try{
-   const {destinationInvoiceNos,...payload}=x;
+   const {destinationInvoiceNos,destinationRefs,...payload}=x;
    if(x.enabled){
-    // Explicit owner-selected invoice evidence, verified via existing HMAC read.
-    // The Bot API revalidates the same references within a revision-locked write.
-    // Apps Script reads share a single ScriptLock. Preserve destination order
-    // and limit concurrency instead of flooding it with 2*N simultaneous Bot calls.
-    const sources=[];
-    for(let i=0;i<destinationInvoiceNos.length;i+=2){
-     const batch=await Promise.all(destinationInvoiceNos.slice(i,i+2)
-      .map(no=>ownerInvoice.source(no)));
+    // Support existing invoice-only clients and new composite references.
+    const selection=ownerSelectedLocations(x),sources=[];
+    for(let i=0;i<selection.refs.length;i+=2){
+     const batch=await Promise.all(selection.refs.slice(i,i+2)
+      .map(ref=>ownerInvoice.source(ref.invoiceNo,ref.id)));
      sources.push(...batch);
     }
     if(sources.some(s=>s.revision!==x.expectedRevision))
      return fail(res,409,'CTV_SOURCE_CHANGED','Sổ thật đã cập nhật: đọc lại CTV rồi xác nhận.');
     payload.authorizedDestinations=sources.map((source,i)=>({
-     id:source.customer.id,invoiceNo:destinationInvoiceNos[i]
+     id:source.customer.id,invoiceNo:selection.refs[i].invoiceNo
     }));
    }
    const out=await ownerPairAction('collaborators.pair.configure',payload);
@@ -814,8 +810,10 @@ const server=http.createServer(async(req,res)=>{
      }
     }
     const pricingEvidence=observedRealCustomerDiscounts(invoiceRows,name);
+    const {candidate:locationCandidates,needsReview:locationIssues}=selectedLocationEvidence(selected.places);
     return reply(res,200,{ok:true,readOnly:true,reviewOnly:true,revision:response.revision,
-     scannedMonths,selected,pricingEvidence,realCustomerLinkIssuanceEnabled:false,
+     scannedMonths,selected,pricingEvidence,locationCandidates,locationIssues,
+     realCustomerLinkIssuanceEnabled:false,
      note:selected.complete?'Đã đối chiếu hồ sơ hiện có theo tên.':'Chưa thu thập đủ điểm giao; cần xác minh, không cấp link.'});
    }
    return fail(res,400,'INVALID_DIRECTORY_MODE','Chọn danh sách hoặc chi tiết.');
