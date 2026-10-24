@@ -457,10 +457,11 @@
   const delivery=document.createElement('p');delivery.className='mini';
   delivery.textContent='📍 '+q.customer.name+' • '+q.customer.location;box.append(delivery);
   const confirm=document.createElement('button');confirm.type='button';confirm.className='btn primary live-real-confirm';
-  confirm.textContent='📤 GỬI ĐƠN HÀNG THẬT • CHƯA GỬI';
+  confirm.textContent='✓ Xác nhận đặt hàng';
   confirm.onclick=async()=>{
    if(requestsBusy||confirming||submitted||submissionUncertain||!quoteToken)return;
-   if(!window.confirm('Gửi MỘT hóa đơn thật? Nút xác nhận sẽ khóa để chống gửi trùng.'))return;
+   // The clearly labeled send button is the explicit confirmation.
+   // Skip a redundant native browser alert (confusing on Samsung/iPhone).
    const confirmedQuote=quoteToken;quoteToken=null;confirming=true;
    writeSession(pendingStorageKey,JSON.stringify({orderId:clientOrderId,startedAt:Date.now()}));
    lockConfirmButtons('⏳ ĐANG GỬI • KHÔNG BẤM LẠI');
@@ -529,10 +530,11 @@
    receiver.textContent='👤 '+o.name+' • ☎ '+o.phone+' • 📍 '+o.location;
    const items=document.createElement('small');
    items.textContent=(o.items||[]).map(i=>i.product+' ×'+i.qty).join('; ');
-   const open=document.createElement('button');open.type='button';open.textContent='👁 Xem PDF hóa đơn';
+   const open=document.createElement('button');open.type='button';open.textContent='Xem hóa đơn';
    open.onclick=()=>{
     lastReceipt={result:{invoiceNo:o.invoiceNo,total:o.total,receiptToken:o.receiptToken}};
-    $('historyBackdrop').classList.remove('open');void showReceipt();
+    $('historyBackdrop').classList.remove('open');
+    showHistoryOverview(o);
    };
    card.append(title,status,receiver,items,open);root.append(card);
   }
@@ -631,6 +633,29 @@
   tip.textContent='Bản xem trước lấy từ cùng hóa đơn đã lưu trên Google Drive. Mở PDF hoặc tải PDF để xem bản website chính thức.';
   preview.append(tip);
   return preview;
+ }
+ function showHistoryOverview(o){
+  const paper=$('printPaper');paper.replaceChildren();
+  $('invoice').style.display='block';$('viewInvoice').hidden=true;$('printInvoice').hidden=true;
+  const article=document.createElement('article');article.className='real-invoice-preview';
+  const badge=document.createElement('div');badge.className='real-overview-status';
+  badge.textContent=o.paid?'✓ ĐÃ THANH TOÁN':'✓ HÓA ĐƠN ĐÃ GHI NHẬN';
+  const title=document.createElement('h3');title.textContent='HÓA ĐƠN #'+o.invoiceNo;
+  const buyer=document.createElement('p');buyer.textContent='Khách hàng: '+o.name+' • '+o.phone;
+  const addr=document.createElement('p');addr.textContent='Địa chỉ: '+o.location;
+  const date=document.createElement('p');date.textContent='Ngày đặt: '+o.date;
+  article.append(badge,title,buyer,addr,date);
+  for(const item of o.items||[]){
+   const amount=Number(item.unitPrice||0)*Number(item.qty||0);
+   article.append(invoiceLine(String(item.product)+' ×'+item.qty+' '+String(item.unit||''),cash(amount)));
+  }
+  article.append(invoiceLine('TỔNG HÓA ĐƠN',cash(o.total),'real-invoice-total'));
+  const note=document.createElement('p');note.className='real-overview-tip';
+  note.textContent='Chi tiết lấy từ lịch sử Google Drive. Chọn PDF chính thức khi cần xem hoặc chia sẻ mẫu hóa đơn gốc.';
+  const official=document.createElement('button');official.type='button';official.className='btn primary';
+  official.textContent='Xem PDF chính thức';official.style.cssText='margin-top:12px;width:100%;min-height:46px';
+  official.onclick=()=>void showReceipt();
+  article.append(note,official);paper.append(article);
  }
  function showOrderOverview(invoiceNo=lastReceipt?.result?.invoiceNo){
   const overview=lastReceipt?.result?.invoiceNo===invoiceNo&&lastReceipt?.quote?
