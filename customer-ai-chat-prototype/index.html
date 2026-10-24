@@ -747,8 +747,8 @@ body.production-gemini{--ios-blue:#0a6ce0;--ios-bg:#f5f6f8;--ios-ink:#172334;--i
 /* Production cart: one layout for compact and expanded states. */
 .production-gemini #productionGeminiApp .quick-cart{
  position:absolute;left:0;right:0;bottom:var(--real-composer-height,73px);z-index:8;
- display:grid;grid-template-columns:minmax(0,1fr) 104px 80px 44px;grid-template-rows:auto auto minmax(0,1fr) auto;
- gap:6px;padding:6px 10px 10px;margin:0;width:auto;min-height:0;max-height: min(72%,680px);
+ display:grid;grid-template-columns:minmax(0,1fr) 94px 54px 36px;grid-template-rows:auto auto minmax(0,1fr) auto;
+ gap:5px;padding:6px 9px 9px;margin:0;width:auto;min-height:0;max-height: min(72%,680px);
  background:rgba(244,250,255,.98);border:1px solid #d8e5f1;border-radius:21px 21px 0 0;
  box-shadow:0 -7px 28px #17375624;overflow:hidden;
  transform:translate3d(0,var(--real-drag-offset,0px),0);transition:transform 180ms ease-out;
@@ -761,18 +761,19 @@ body.production-gemini{--ios-blue:#0a6ce0;--ios-bg:#f5f6f8;--ios-ink:#172334;--i
 .production-gemini #productionGeminiApp .quick-cart .real-cart-grip{display:block;width:38px;height:4px;background:#a6b8c9;border-radius:99px}
 .production-gemini #productionGeminiApp .quick-cart .real-cart-direction{font-size:18px;line-height:1;flex:none}
 .production-gemini #productionGeminiApp .quick-cart #quickCartCount{grid-column:1;grid-row:2;margin:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
-.production-gemini #productionGeminiApp .quick-cart #quickCartQuote{grid-column:2;grid-row:2;min-width:0;min-height:44px;padding:5px 7px;background:#086bd7;color:#fff;border:0;border-radius:12px;font-size:13px;font-weight:800;white-space:nowrap}
-.production-gemini #productionGeminiApp .quick-cart #quickCartEdit{grid-column:3;grid-row:2;display:flex;align-items:center;justify-content:center;gap:4px;min-width:0;width:80px;min-height:44px;padding:4px;background:#0968d1;color:#fff;border:0;border-radius:11px}
-.production-gemini #productionGeminiApp .quick-cart .real-cart-icon{font-size:20px;line-height:1}
-.production-gemini #productionGeminiApp .quick-cart .real-cart-count{position:static;transform:none;flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:21px;height:21px;padding:0 4px;margin:0;box-sizing:border-box;border-radius:99px;background:white;color:#0862c5;font-size:12px;line-height:1}
-.production-gemini #productionGeminiApp .quick-cart #realCartClose{grid-column:4;grid-row:2;min-width:44px;min-height:44px;padding:4px;background:#ffe6e9;color:#bb1928;border:1px solid #f5afb8;border-radius:11px;font-size:20px;font-weight:850}
+.production-gemini #productionGeminiApp .quick-cart #quickCartQuote{grid-column:2;grid-row:2;min-width:0;height:36px;min-height:36px;padding:3px 5px;background:#086bd7;color:#fff;border:0;border-radius:10px;font-size:12px;font-weight:800;white-space:nowrap}
+.production-gemini #productionGeminiApp .quick-cart #quickCartEdit{grid-column:3;grid-row:2;display:flex;align-items:center;justify-content:center;gap:2px;min-width:0;width:54px;height:36px;min-height:36px;padding:2px;background:#0968d1;color:#fff;border:0;border-radius:10px}
+.production-gemini #productionGeminiApp .quick-cart .real-cart-icon{font-size:19px;line-height:1}
+.production-gemini #productionGeminiApp .quick-cart:not([data-cart-mode="collapsed"]) .real-cart-icon svg{width:22px;height:22px}
+.production-gemini #productionGeminiApp .quick-cart .real-cart-count{position:static;transform:none;flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 3px;margin:0;box-sizing:border-box;border-radius:99px;background:white;color:#0862c5;font-size:11px;line-height:1}
+.production-gemini #productionGeminiApp .quick-cart #realCartClose{grid-column:4;grid-row:2;min-width:36px;width:36px;height:36px;min-height:36px;padding:1px;background:#ffe6e9;color:#bb1928;border:1px solid #f5afb8;border-radius:10px;font-size:19px;font-weight:850}
 .production-gemini #productionGeminiApp .quick-cart #inlineCartLines{grid-column:1/-1;grid-row:3;min-height:0;max-height: min(32vh,350px);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .production-gemini #productionGeminiApp .quick-cart .delivery-note-block{grid-column:1/-1;grid-row:4;margin:0}
-.production-gemini #productionGeminiApp .quick-cart .inline-cart-row{display:grid;grid-template-columns:minmax(0,1fr) 116px 32px;gap:4px;align-items:center;min-width:0;padding:6px;background:white;border:1px solid #dfebf5;border-radius:12px}
-.production-gemini #productionGeminiApp .quick-cart .suggestion-steps{display:grid;grid-template-columns:32px minmax(0,1fr) 32px;gap:2px;min-width:0;width:100%}
-.production-gemini #productionGeminiApp .quick-cart .suggestion-steps button{min-width:32px;min-height:40px;padding:0;background:#086bd7;color:white;border:0;border-radius:10px;font-size:18px}
-.production-gemini #productionGeminiApp .quick-cart .suggestion-steps input{width:100%;min-width:0;min-height:40px;font-size:16px;text-align:center;box-sizing:border-box}
-.production-gemini #productionGeminiApp .quick-cart .inline-cart-remove{min-width:30px;min-height:40px;padding:0;background:#fee9ed;color:#bd1831;border:1px solid #f3acb8;border-radius:10px}
+.production-gemini #productionGeminiApp .quick-cart .inline-cart-row{display:grid;grid-template-columns:minmax(0,1fr) 106px 28px;gap:4px;align-items:center;min-width:0;padding:5px;background:white;border:1px solid #dfebf5;border-radius:12px}
+.production-gemini #productionGeminiApp .quick-cart .suggestion-steps{display:grid;grid-template-columns:28px minmax(0,1fr) 28px;gap:2px;min-width:0;width:100%}
+.production-gemini #productionGeminiApp .quick-cart .suggestion-steps button{width:28px;min-width:28px;height:32px;min-height:32px;padding:0;background:#086bd7;color:white;border:0;border-radius:8px;font-size:17px}
+.production-gemini #productionGeminiApp .quick-cart .suggestion-steps input{width:100%;min-width:0;height:32px;min-height:32px;font-size:15px;text-align:center;box-sizing:border-box}
+.production-gemini #productionGeminiApp .quick-cart .inline-cart-remove{width:28px;min-width:28px;height:32px;min-height:32px;padding:0;background:#fee9ed;color:#bd1831;border:1px solid #f3acb8;border-radius:8px;font-size:15px}
 /* Compact floating cart: small blue circle, white icon, red quantity badge. */
 .production-gemini #productionGeminiApp .quick-cart[data-cart-mode="collapsed"]{
  left:auto;right:max(12px,env(safe-area-inset-right,0px));
