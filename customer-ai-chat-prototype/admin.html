@@ -621,8 +621,8 @@ async function issueSavedPairLink(id){
     !policy.authorizedDestinations.length||policy.reviewedByOwner!==true)
   throw Error('Chính sách CTV chưa được bật và xác minh trong sổ thật.');
  const readiness=await request('/api/admin/ctv-links/readiness');
- if(readiness.enabled!==true)
-  throw Error('Máy chủ chưa đủ quyền phát hành link thật: '+(readiness.reason||'CTV_LINKS_NOT_READY'));
+ if(readiness.enabled!==true||readiness.registryReady!==true)
+  throw Error('Cổng CTV hoặc sổ link Google Drive chưa sẵn sàng. Cần cập nhật Apps Script Production.');
  const invitation=await request('/api/admin/ctv-links/issue','POST',{collaboratorId:id});
  if(invitation.production!==true||invitation.oneLink!==true||
     invitation.deliveryLocations!==policy.authorizedDestinations.length||
@@ -778,6 +778,9 @@ $('ctvWizardConfirm').onclick=async()=>{
   if(!readiness.credentials?.configure?.ready||!readiness.credentials?.mark?.ready||
      !readiness.credentials?.orderWrite?.ready||!readiness.linkIssuance?.enabled)
    throw Error('Render chưa đủ HMAC duyệt/ghi và khóa link CTV. CHƯA ghi hoặc tạo hồ sơ mới.');
+  const directory=await request('/api/admin/ctv-links/readiness');
+  if(directory.registryReady!==true)throw Error(
+   'Sổ link chưa có trên Apps Script Production. Không thay đổi chính sách CTV khi chưa lưu được link.');
   if(!confirm('BẬT CTV THẬT cho '+ctvDraft.name+'?\\n'+nums.length+
    ' điểm giao; CK khách '+customerDiscountPercent+'%, CK CTV '+collaboratorDiscountPercent+
    '%.\\nLưu chương trình và cấp MỘT link ngay, không tạo khách mới.'))return;
@@ -1599,7 +1602,8 @@ $('realLinkCheck').onclick=async()=>{
      shippingPercent>30||!['0','5','8','10'].includes($('vatRate').value))
    throw Error('Anh cần duyệt chiết khấu, phí giao và VAT hợp lệ.');
   const readiness=await request('/api/admin/real-links/readiness');
-  if(!readiness.configured)throw Error('Backend thật chưa bật: '+(readiness.reason||'cần xác minh HMAC và cổng ghi đơn.'));
+  if(!readiness.configured||readiness.registryReady!==true)
+   throw Error('Chưa xác minh sổ link Production hoặc HMAC. Không cấp link nếu chưa lưu được Drive.');
   if(!confirm('CẤP LINK ĐẶT HÀNG THẬT cho '+sourceRow.name+' tại '+sourceRow.address+
    '?\nHóa đơn nguồn #'+invoiceNo+'\nChiết khấu '+discount+
    '% • Giao hàng '+shippingPercent+'% • VAT '+vatPercent+
@@ -2023,6 +2027,11 @@ $('agencyRealIssue').onclick=async()=>{
   daysValid=Number($('agencyRealDays').value),agentName=$('agencyRealName').value.trim();
  if(!confirm('Xác nhận cấp MỘT LINK thật cho '+agentName+' với '+selected.length+
     ' địa chỉ đã kiểm tra và chiết khấu tương ứng? Link này cho phép đặt hóa đơn THẬT sau khi khách xác nhận.'))return;
+ const gate=await request('/api/admin/real-links/readiness');
+ if(gate.registryReady!==true){
+  $('agencyRealStatus').textContent='⚠ Sổ link Google Drive chưa được cập nhật. Không cấp link chưa lưu.';
+  return;
+ }
  const b=$('agencyRealIssue');b.disabled=true;$('agencyRealIssued').hidden=true;
  $('agencyRealStatus').textContent='Đang xác minh từng hóa đơn nguồn và quyền cấp link; chưa tạo hóa đơn.';
  try{
