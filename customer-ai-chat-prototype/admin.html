@@ -645,10 +645,12 @@ $('ctvAdd').onclick=async()=>{
 };
 $('ctvWizardConfirm').onclick=async()=>{
  if(!ctvDraft)return;
- const nums=[...$('ctvWizardLocations').querySelectorAll('input[data-ctv-source-invoice]:checked')].map(v=>Number(v.value));
+ const refs=[...$('ctvWizardLocations').querySelectorAll('input[data-ctv-source-invoice]:checked')].map(v=>JSON.parse(v.value));
+ const nums=refs.map(ref=>ref.invoiceNo);
+ const exactIds=refs.map(ref=>String(ref.id)+'|'+ref.invoiceNo);
  const [customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent]=
  ['ctvWizardCustomerDiscount','ctvWizardCollaboratorDiscount','ctvWizardShipping','ctvWizardVat'].map(k=>Number($(k).value));
- if(!nums.length||nums.length>20||new Set(nums).size!==nums.length||
+ if(!refs.length||refs.length>20||new Set(exactIds).size!==refs.length||
     ![customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent].every(Number.isSafeInteger)||
     customerDiscountPercent<0||customerDiscountPercent>70||
     collaboratorDiscountPercent<=customerDiscountPercent||collaboratorDiscountPercent>70||
@@ -673,19 +675,19 @@ $('ctvWizardConfirm').onclick=async()=>{
    await request('/api/admin/collaborator-pairs/configure','POST',{
     collaboratorId,enabled:true,customerDiscountPercent,collaboratorDiscountPercent,
     shippingPercent,vatPercent,expectedRevision:pairCurrentRevision,
-    destinationInvoiceNos:nums,requestId:'ctv_'+crypto.randomUUID().replace(/-/g,''),confirmed:true
+    destinationRefs:refs,requestId:'ctv_'+crypto.randomUUID().replace(/-/g,''),confirmed:true
    });
   }else{
    const d=await request('/api/admin/ctv-activate','POST',{
-    confirmation:'OWNER_ACTIVATES_COLLABORATOR',sourceInvoiceNo:nums[0],destinationInvoiceNos:nums,
+    confirmation:'OWNER_ACTIVATES_COLLABORATOR',sourceRef:refs[0],destinationRefs:refs,
     customerDiscountPercent,collaboratorDiscountPercent,shippingPercent,vatPercent
    });
    collaboratorId=d.collaboratorId;invitation=d.invitation||null;
   }
   await loadPairPolicies(true);
   const saved=pairPolicies.find(p=>p.collaboratorId===collaboratorId&&p.enabled===true);
-  const actual=(saved?.authorizedDestinations||[]).map(v=>v.invoiceNo).sort((m,n)=>m-n);
-  const expected=[...nums].sort((m,n)=>m-n);
+  const actual=(saved?.authorizedDestinations||[]).map(v=>String(v.id)+'|'+v.invoiceNo).sort();
+  const expected=refs.map(v=>String(v.id)+'|'+v.invoiceNo).sort();
   if(!saved||saved.reviewedByOwner!==true||
      saved.customerDiscountPercent!==customerDiscountPercent||
      saved.collaboratorDiscountPercent!==collaboratorDiscountPercent||
