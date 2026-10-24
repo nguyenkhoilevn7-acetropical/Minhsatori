@@ -1,6 +1,6 @@
 /* Authenticated production adapter for the ORIGINAL Gemini UI.
  * Keeps index.html's exact DOM, catalogue sheet, chat, cart and invoice panels.
- * Only source/API access differs. Never call /api/draft or demo endpoints.
+ * Only source/API access differs. Uses strictly private authenticated real endpoints.
  */
 (function(){
  'use strict';
