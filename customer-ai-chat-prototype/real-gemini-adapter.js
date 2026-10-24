@@ -8,7 +8,7 @@
  const token=decodeURIComponent(location.hash.slice(1));
  let accessCode='',catalogue=null,selectedRef=null,agency=false,requestsBusy=false;
  let quoteToken=null,lastQuote=null,lastReceipt=null,deliveryNote='',pdfObjectUrl=null;
- let destinations=[],lastProduct=null;
+ let destinations=[],lastProduct=null,historyOrders=[],historyIncomplete=false,newCartSequence=1;
  const products=new Map(),cart=new Map();
  // Restore the original Gemini Samsung keyboard/viewport behavior.  The
  // production adapter replaces the sandbox JS, so its resize listeners must
@@ -178,7 +178,24 @@
   }catch(e){setText('cartFeedback','⚠ '+e.message)}
  };
  $('quickCartEdit').onclick=()=>{cartCollapsed=!cartCollapsed;updateCart()};
- $('quickCartNew').onclick=()=>{if(confirm('Xóa các món đang chọn?')){cart.clear();invalidate();updateCart();}};
+ function startNewCart(){
+  if(requestsBusy)return;
+  if(cart.size&&quoteToken&&!window.confirm('Hủy báo giá chưa xác nhận để tạo đơn hàng mới?'))return;
+  for(const b of document.querySelectorAll('.live-real-confirm')){
+   b.disabled=true;b.textContent='Báo giá đã kết thúc';
+  }
+  cart.clear();invalidate();deliveryNote='';noteInput.value='';lastProduct=null;
+  newCartSequence+=1;cartCollapsed=true;updateCart();
+  bubble('🛒 Giỏ mới #'+newCartSequence+' đã sẵn sàng. Hóa đơn cũ vẫn lưu trong mục Hóa đơn. Anh/chị chọn món hoặc nhắn đơn mới.');
+  $('messageInput').focus();
+ }
+ $('quickCartNew').onclick=startNewCart;
+ const createNextButton=document.createElement('button');
+ createNextButton.type='button';createNextButton.id='realNewCartButton';
+ createNextButton.textContent='＋ Giỏ hàng mới';
+ createNextButton.style.cssText='background:#0c76cc;color:#fff;border:0;border-radius:10px;padding:7px 10px;font-weight:750;min-height:39px';
+ createNextButton.onclick=startNewCart;
+ $('historyButton').parentElement.append(createNextButton);
  $('clearCart').onclick=()=>{cart.clear();invalidate();updateCart()};
  $('composeCart').onclick=()=>{quoteNow()};
  $('quickCartQuote').onclick=()=>quoteNow();
@@ -208,7 +225,7 @@
   catalogue=d;products.clear();for(const p of d.products||[])products.set(p.code,p);
   if(!products.size)throw Error('Bảng giá Production không có sản phẩm.');
   cart.clear();invalidate();updateCart();renderSuggestions();renderCatalogue();
-  setText('chatSubtitle',d.customer.name+' • '+d.customer.location+' • CK '+d.discountPercent+'%');
+  setText('chatSubtitle',d.customer.name+' • 📞 '+d.customer.phone+' • 📍 '+d.customer.location+' • CK '+d.discountPercent+'%');
   bubble('Đã chọn nơi giao '+d.customer.location+'. Giá đã đồng bộ theo chính sách riêng. Anh/chị nhắn món hoặc chọn Tất cả sản phẩm.');
  }
  function renderDestinations(){
@@ -219,7 +236,7 @@
   for(const d of destinations){
    const button=document.createElement('button');button.type='button';
    button.setAttribute('aria-pressed',String(selectedRef?.id===d.customerRef.id&&selectedRef?.invoiceNo===d.customerRef.invoiceNo));
-   button.textContent=d.name+' • '+d.location+' • CK '+d.discountPercent+'%';
+   button.textContent='📍 '+d.name+' • ☎ '+(d.phone||'Chưa có số')+' • '+d.location+' • CK '+d.discountPercent+'%';
    button.onclick=async()=>{
     if(requestsBusy)return;disabledBusy(true);button.disabled=true;
     try{
@@ -335,7 +352,7 @@
     const saved=await call('/api/real/confirm',{quoteToken,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
     quoteToken=null;lastReceipt={quote:q,result:saved};
     confirm.textContent='✅ Đã lưu hóa đơn #'+saved.invoiceNo;
-    bubble('✅ Minh Satori đã lưu hóa đơn thật #'+saved.invoiceNo+' • '+cash(saved.total)+'. Có thể xem lại hóa đơn trong phiên này.');
+    bubble('✅ Minh Satori đã lưu hóa đơn thật #'+saved.invoiceNo+' • '+cash(saved.total)+'. Bấm ＋ Giỏ hàng mới để đặt đơn tiếp theo; mọi hóa đơn xem trong mục Hóa đơn.');
     updateSessionReceipt();
     // After successful ledger write, display the canonical PDF from the
     // website template in chat, never the manually formatted 0đ summary.
