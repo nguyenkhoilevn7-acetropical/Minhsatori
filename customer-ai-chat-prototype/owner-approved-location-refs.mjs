@@ -39,7 +39,7 @@ export function selectedLocationEvidence(places){
   const refs=Array.isArray(p.references)?p.references:[];
   const preferred=refs.find(r=>r&&validId(r.id)&&invoiceNo(r.invoiceNo));
   const address=String(p.address||'').trim();
-  const phone=String(p.phone||'').replace(/\\D/g,'');
+  const phone=String(p.phone||'').replace(/\D/g,'');
   const key=preferred&&String(preferred.id)+'|'+preferred.invoiceNo;
   if(!preferred||address.length<5||phone.length<8||assigned.has(key)){
    needsReview.push({address,reason:!preferred?'MISSING_HISTORIC_REFERENCE':
