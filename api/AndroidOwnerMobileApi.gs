@@ -25,6 +25,12 @@ function json(o){return ContentService.createTextOutput(JSON.stringify(o))
 var READ_ACTIONS=['mobile.snapshot','mobile.revision','mobile.trash'];
 var WRITE_ACTIONS=['orders.delete','orders.restore'];
 var ALLOWED=READ_ACTIONS.concat(WRITE_ACTIONS);
+var CANONICAL_FILE='14XWSPrxLnKXATwmuHeXGZnCvjDbalghV';
+function ledgerProof(s){
+ var file=typeof STATE_FILE_ID==='undefined'?'':String(STATE_FILE_ID||'');
+ need(file===CANONICAL_FILE&&s.revision>=133,'WRONG_LEDGER_SOURCE','Incorrect ledger');
+ return {ledgerFileId:file,ledgerKind:'minh-satori-owner-drive-v15'};
+}
 function verify(token){
  need(typeof token==='string'&&token.length>=20&&token.length<=3500&&
    /^[A-Za-z0-9._~-]+$/.test(token),'AUTH_FAILED','Invalid owner OAuth token');
@@ -110,8 +116,11 @@ function handle(e){
   need(s&&Number.isSafeInteger(s.revision)&&s.values&&
     typeof s.values.satori_orders_v15==='string',
     'INVALID_STATE','Invalid owner Drive ledger');
+  var attestation=ledgerProof(s);
   if(action==='mobile.revision')return json({ok:true,action:action,
-    data:{revision:s.revision,updatedAt:s.updatedAt},revision:s.revision});
+    data:{revision:s.revision,updatedAt:s.updatedAt,
+      ledgerFileId:attestation.ledgerFileId,ledgerKind:attestation.ledgerKind},
+    revision:s.revision});
   if(action==='mobile.trash')return json({ok:true,action:action,
     data:trash(s),revision:s.revision});
   // No privileged owner secrets, state-file IDs, payment keys, PDF bytes or
@@ -122,6 +131,7 @@ function handle(e){
     values[k]=s.values[k]});
   return json({ok:true,action:action,revision:s.revision,
     data:{revision:s.revision,updatedAt:s.updatedAt,values:values,
+      ledgerFileId:attestation.ledgerFileId,ledgerKind:attestation.ledgerKind,
       allowedActions:READ_ACTIONS.concat(WRITE_ACTIONS),
       actorId:actor.actorId}});
  }catch(ex){
