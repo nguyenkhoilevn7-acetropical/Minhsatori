@@ -31,7 +31,7 @@ import {createOriginalPdfGateway} from './original-pdf-gateway.mjs';
 import {createProductionPrivateLinks} from './production-private-links.mjs';
 import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
-import {directoryFromInvoices,detailFromEvidence} from './owner-customer-directory.mjs';
+import {directoryFromInvoices,detailFromEvidence,directorySourceQuery} from './owner-customer-directory.mjs';
 import {ownerSelectedLocations,selectedLocationEvidence} from './owner-approved-location-refs.mjs';
 import {observedRealCustomerDiscounts} from './owner-review-pricing.mjs';
 import {checkCatalogueParity} from './catalogue-parity.mjs';
@@ -794,7 +794,8 @@ const server=http.createServer(async(req,res)=>{
     const name=String(url.searchParams.get('name')||'').trim();
     if(name.length<2||name.length>120||/[\u0000-\u001f]/.test(name))
      return fail(res,400,'INVALID_CUSTOMER_QUERY','Tên khách cần từ 2 đến 120 ký tự.');
-    const response=await readMinhSatori('customers.search',{query:name,limit:20});
+    const sourceQuery=directorySourceQuery(name);
+    const response=await readMinhSatori('customers.search',{query:sourceQuery,limit:20});
     if(!Number.isSafeInteger(response.revision)||!Array.isArray(response.data?.profiles?.profiles))
      throw Error('INVALID_SCHEMA');
     const raw=response.data.profiles,found=raw.profiles;
@@ -806,7 +807,7 @@ const server=http.createServer(async(req,res)=>{
      // Even when customers.search is complete, check the last three months
      // of invoices to surface *evidence* for owner-reviewed discounts.
      for(let at=0;at<months.length&&(at===0||!selected.complete);at+=3){
-      const lookups=months.slice(at,at+3).map(m=>monthLookup(m,name));
+      const lookups=months.slice(at,at+3).map(m=>monthLookup(m,sourceQuery));
       const results=await Promise.all(lookups.map(l=>readMinhSatori(l.action,l.payload)));
       if(results.some(r=>r.revision!==response.revision||!Array.isArray(r.data?.orders)))
        return fail(res,409,'SOURCE_REVISION_CHANGED','Sổ kế toán vừa thay đổi. Hãy tải lại.');
