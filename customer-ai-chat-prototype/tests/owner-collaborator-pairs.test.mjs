@@ -81,6 +81,20 @@ assert.equal(forbidden.ready,false);
 assert.equal(forbidden.reason,'FORBIDDEN');
 assert.equal(JSON.stringify(forbidden).includes('upstream'),false);
 assert.equal((await probeOwnerPairRead({...opts,env:{}})).reason,'CTV_PAIR_NOT_CONFIGURED');
+// HTTP failure diagnostics must be fixed-category and never reveal upstream
+// HTML/error bodies, signed payloads, URLs or credentials (FAKE fetch only).
+for(const [status,expected] of [[403,'AUTH_DENIED'],[404,'NOT_FOUND'],
+ [429,'RATE_LIMITED'],[500,'SERVER_ERROR'],[418,'CLIENT_ERROR'],
+ [undefined,'UNKNOWN']]){
+ let calls=0;
+ await assert.rejects(()=>ownerPairAction('collaborators.pair.configure',config,{
+  ...opts,env:{...env,SATORI_CTV_PAIR_CONFIG_ENABLED:'1'},
+  fetcher:async()=>{calls++;return {ok:false,status,
+   text:async()=>{throw Error('must not read upstream error body')}}}
+ }),e=>e?.code==='CTV_PAIR_UPSTREAM_UNAVAILABLE'&&
+  e?.upstreamClass===expected&&!JSON.stringify(e).includes(secret));
+ assert.equal(calls,1,'never automatically retry ambiguous upstream failures');
+}
 const server=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
 assert.ok(server.includes("p==='/api/admin/collaborator-pairs/readiness'"));
 assert.ok(server.includes("SATORI_CTV_CONFIGURATION_READINESS"),'startup must report credential readiness without secrets');
@@ -88,6 +102,7 @@ assert.ok(server.includes('selection.refs.slice(i,i+2)'),
  'existing CTV policy must verify 17 destinations in bounded groups');
 assert.ok(!server.includes('Promise.all(destinationInvoiceNos.map('),
  'existing CTV path must never flood the Apps Script lock');
+assert.ok(server.includes('upstreamClass'),'policy diagnostics must classify failures safely');
 assert.ok(server.includes('CTV_OWNER_POLICY_SAVE_FAILED'),
  'policy save errors must have privacy-safe server diagnostics');
 const transport=fs.readFileSync(new URL('../owner-collaborator-pairs.mjs',import.meta.url),'utf8');
