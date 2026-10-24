@@ -860,6 +860,44 @@ const server=http.createServer(async(req,res)=>{
   }catch{return fail(res,503,'LIVE_SCREEN_UNAVAILABLE','Chưa thể sàng lọc tháng này; không áp dụng dữ liệu mẫu.')}
  }
 
+ // New customer records live in the same authenticated Google Drive ledger as
+ // existing invoices, NOT in ephemeral Render localStorage or demo profiles.
+ // These APIs fail closed until Apps Script Production and scopes are deployed.
+ if((req.method==='GET'&&p==='/api/admin/customer-profiles')||
+    (req.method==='POST'&&p==='/api/admin/customer-profiles')){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được quản lý hồ sơ khách');
+  if(!rateLimit(req,'admin-customer-profile'+req.method))
+   return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
+  try{
+   if(req.method==='GET'){
+    const d=await readMinhSatori('customers.list',{});
+    if(!Number.isSafeInteger(d.revision)||!Array.isArray(d.data?.profiles))
+     throw Error('CUSTOMER_PROFILES_SOURCE_INVALID');
+    return reply(res,200,{ok:true,source:'drive-production',revision:d.revision,profiles:d.data.profiles});
+   }
+   const payload=await bodyJSON(req,2000);
+   const customer=payload.customer||{},name=String(customer.name||'').trim(),
+    location=String(customer.location||'').trim(),phone=String(customer.phone||'').trim();
+   if(name.length<2||name.length>150||location.length<8||location.length>500||
+      !/^[+0-9\s-]{9,30}$/.test(phone)||phone.replace(/\D/g,'').length<9||
+      phone.replace(/\D/g,'').length>11||payload.confirmed!==true||
+      !Number.isSafeInteger(payload.expectedRevision))
+    return fail(res,400,'CUSTOMER_REQUIRED_FIELDS','Nhập đủ tên, số điện thoại, địa chỉ và xác nhận');
+   const d=await ownerInvoice.bot('customers.upsert',{
+    confirmed:true,expectedRevision:payload.expectedRevision,
+    customer:{name,phone,location}});
+   if(!Number.isSafeInteger(d.revision)||d.data?.created!==true||
+      d.data?.profile?.name!==name||d.data?.profile?.location!==location||
+      d.data?.profile?.phone!==phone)
+    throw Error('CUSTOMER_SAVE_UNVERIFIED');
+   return reply(res,200,{ok:true,saved:true,source:'drive-production',revision:d.revision,
+    profile:d.data.profile});
+  }catch(e){
+   return fail(res,503,'CUSTOMER_PROFILE_API_NOT_READY',
+    'Không thể xác minh lưu hồ sơ lên Google Drive. Cần Bot API Production có quyền customers:write; không lưu tạm trên Render.');
+  }
+ }
  // Signed-in owner only: ephemeral, read-only directory. No sandbox persistence.
  if(req.method==='GET'&&p==='/api/admin/customer-directory'){
   if(!customerLinks.adminAuthorized(req))
