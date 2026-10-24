@@ -18,7 +18,7 @@ const addressOf=v=>compact(v,300);
 export function physicalAddressKey(value){
  const raw=addressOf(value).split(/\s+[—–]\s+/)[0].trim();
  const segments=raw.split(',').map(x=>x.trim()).filter(Boolean);
- const numbered=segments.find(x=>/^(?:\d+[A-Za-z]?|[A-Za-z]\d+[A-Za-z0-9-]*)(?:\s|[.-]|$)/.test(x))||
+ const numbered=segments.find(x=>/^(?:\d+[A-Za-z]?|[A-Za-z]\d+-\d+|[Ss][oố]\s+\d+)(?:\s|[.-]|$)/.test(x))||
   segments.map(x=>x.split(/\s+-\s+(?=\d)/).pop()).find(x=>/^(?:\d+[A-Za-z]?)(?:\s|[.-]|$)/.test(x));
  if(numbered){
   const street=foldCustomerName(numbered)
