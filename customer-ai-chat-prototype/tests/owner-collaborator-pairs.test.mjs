@@ -128,11 +128,10 @@ assert.ok(admin.includes("JSON.stringify(savedRefs)===JSON.stringify(expectedRef
  'readback must match exact selected delivery source IDs');
 assert.ok(admin.includes("confirmedPolicy.reviewedByOwner===true"),
  'readback must require owner-approved policy');
-const server=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
-const start=server.indexOf('async function issueAndStoreCtvLink(input){');
-const end=server.indexOf('const DATA_DIR=',start);
-assert.ok(start>=0&&end>start,'CTV issuance helper must exist');
-const issue=server.slice(start,end);
+const ctvRegistryStart=server.indexOf('async function issueAndStoreCtvLink(input){');
+const ctvRegistryEnd=server.indexOf('const DATA_DIR=',ctvRegistryStart);
+assert.ok(ctvRegistryStart>=0&&ctvRegistryEnd>ctvRegistryStart,'CTV issuance helper must exist');
+const issue=server.slice(ctvRegistryStart,ctvRegistryEnd);
 assert.ok(issue.includes('await issuedLinks.list({limit:1})')&&
  issue.indexOf('await issuedLinks.list({limit:1})')<issue.indexOf('await ctvSingleLink.issue(input)')&&
  issue.includes('await issuedLinks.register(')&&issue.includes('registrySaved:true'),
