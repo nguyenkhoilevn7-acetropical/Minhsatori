@@ -15,6 +15,41 @@
   const pendingStorageKey='satori-pending:'+token.slice(0,32);
   const readSession=k=>{try{return sessionStorage.getItem(k)}catch{return null}};
   const writeSession=(k,v)=>{try{sessionStorage.setItem(k,v)}catch{}};
+  // Store only receipt numbers, totals and dates (never recipient personal data).
+  const readLocal=k=>{try{return localStorage.getItem(k)}catch{return null}};
+  const writeLocal=(k,v)=>{try{localStorage.setItem(k,v)}catch{}};
+  const historyKey='satori-real-history-summary:'+token.slice(0,32);
+  const receiptKey='satori-real-receipts:'+token.slice(0,32);
+  const validNo=n=>Number.isSafeInteger(n)&&n>0;
+  const retentionMs=30*86400000;
+  function readRecentReceipts(){
+   let value;try{value=JSON.parse(readLocal(receiptKey)||'[]')}catch{return new Map()}
+   if(!Array.isArray(value))return new Map();
+   return new Map(value.filter(x=>x&&validNo(x.invoiceNo)&&
+    Number.isFinite(x.confirmedAt)&&x.confirmedAt<=Date.now()&&
+    Date.now()-x.confirmedAt<retentionMs).slice(-120).map(x=>[x.invoiceNo,{
+     revision:Number.isSafeInteger(x.revision)?x.revision:null,confirmedAt:x.confirmedAt}]));
+  }
+  function readCachedHistory(){
+   let value;try{value=JSON.parse(readLocal(historyKey)||'null')}catch{return []}
+   if(!value||!Number.isSafeInteger(value.revision)||
+      !Number.isFinite(value.savedAt)||value.savedAt>Date.now()||
+      Date.now()-value.savedAt>retentionMs||!Array.isArray(value.orders))return [];
+   return value.orders.filter(x=>x&&validNo(x.invoiceNo)&&
+    Number.isSafeInteger(x.total)&&x.total>=0&&
+    typeof x.date==='string'&&x.date.length<=20).slice(0,1500);
+  }
+  const recentReceipts=readRecentReceipts();
+  let cachedHistory=readCachedHistory();
+  function persistRecentReceipts(){
+   writeLocal(receiptKey,JSON.stringify([...recentReceipts].slice(-120)
+    .map(([invoiceNo,data])=>({invoiceNo,...data}))));
+  }
+  function rememberConfirmedInvoice(invoiceNo,revision){
+   recentReceipts.set(invoiceNo,{revision:Number.isSafeInteger(revision)?revision:null,
+    confirmedAt:Date.now()});
+   persistRecentReceipts();
+  }
   const newOrderId=()=>crypto.randomUUID();
   let clientOrderId=readSession(orderStorageKey);
   if(!/^[a-f0-9-]{36}$/i.test(clientOrderId||''))clientOrderId=newOrderId();
@@ -54,7 +89,8 @@
   let oldPending=null;try{oldPending=JSON.parse(readSession(pendingStorageKey)||'null')}catch{}
   if(!submitted&&oldPending?.orderId===clientOrderId)submissionUncertain=true;
   const sessionInvoices=new Set(Array.isArray(savedRecord?.invoiceNos)?savedRecord.invoiceNos.filter(Number.isSafeInteger):[]);
-  if(Number.isSafeInteger(savedRecord?.invoiceNo))sessionInvoices.add(savedRecord.invoiceNo);
+  if(validNo(savedRecord?.invoiceNo)&&savedRecord?.deleted!==true)sessionInvoices.add(savedRecord.invoiceNo);
+  for(const invoiceNo of recentReceipts.keys())sessionInvoices.add(invoiceNo);
   const unreadKey='satori-unread-invoices:'+token.slice(0,32);
   let savedUnread=[];try{savedUnread=JSON.parse(readSession(unreadKey)||'[]')}catch{}
   const unreadInvoices=new Set(Array.isArray(savedUnread)?savedUnread.filter(Number.isSafeInteger):[]);
@@ -64,8 +100,10 @@
   $('historyButton').append(badge);
   function updateInvoiceBadge(){
    const known=new Set(historyOrders.map(o=>o.invoiceNo));
-   const missing=[...sessionInvoices].filter(no=>!known.has(no)).length;
-   const total=persistedInvoiceCount===null?sessionInvoices.size:persistedInvoiceCount+missing;
+   for(const invoiceNo of sessionInvoices)known.add(invoiceNo);
+   if(persistedInvoiceCount===null||historyError||historyIncomplete)
+    for(const item of cachedHistory)known.add(item.invoiceNo);
+   const total=known.size;
    historyLabel.textContent='🧾 Hóa đơn'+(persistedInvoiceCount!==null?' ('+total+')':'');
    badge.textContent=String(unreadInvoices.size);badge.hidden=unreadInvoices.size===0;
    $('historyButton').setAttribute('aria-label','Hóa đơn • '+total+' hóa đơn đã mua, '+unreadInvoices.size+' đơn mới chưa xem');
@@ -73,6 +111,7 @@
   updateInvoiceBadge();
   function markSubmitted(invoiceNo,quote,saved){
    submitted=true;submissionUncertain=false;sessionInvoices.add(invoiceNo);unreadInvoices.add(invoiceNo);
+   rememberConfirmedInvoice(invoiceNo,saved.revision);
    syncOrderInputState();
    writeSession(pendingStorageKey,'');
    writeSession(unreadKey,JSON.stringify([...unreadInvoices].slice(-30)));
@@ -84,7 +123,8 @@
      qty:Number(i.qty),unit:String(i.unit||''),unitPrice:Number(i.unitPrice)||0})),
     subtotal:Number(quote.subtotal)||0,shippingAmount:Number(quote.shippingAmount)||0,
     vatAmount:Number(quote.vatAmount)||0,deliveryNote:String(quote.deliveryNote||'').slice(0,300)};
-   savedRecord={orderId:clientOrderId,invoiceNo,invoiceNos:[...sessionInvoices].slice(-30),overview};
+   savedRecord={orderId:clientOrderId,invoiceNo,invoiceNos:[...sessionInvoices].slice(-120),
+    revision:Number.isSafeInteger(saved.revision)?saved.revision:null,overview};
    writeSession(submittedStorageKey,JSON.stringify(savedRecord));
    updateInvoiceBadge();
   }
@@ -96,9 +136,11 @@
   }
   function showSubmittedCard(invoiceNo,total){
    const card=document.createElement('article');card.className='real-submitted-card';card.setAttribute('role','status');
+   card.dataset.invoiceNo=String(invoiceNo);
    const head=document.createElement('strong');head.textContent='✅ ĐÃ GỬI ĐƠN THÀNH CÔNG';
    const number=document.createElement('p');number.textContent='HÓA ĐƠN #'+invoiceNo+' • '+cash(total);
-   const note=document.createElement('p');note.textContent='Đã lưu vào Google Drive. Không gửi lại đơn này.';
+   const note=document.createElement('p');note.className='real-submitted-note';
+   note.textContent='Đã lưu vào Google Drive. Không gửi lại đơn này.';
    const actions=document.createElement('div');actions.className='real-submitted-actions';
    const view=document.createElement('button');view.type='button';view.textContent='🧾 Xem hóa đơn';view.onclick=()=>showOrderOverview(invoiceNo);
    const history=document.createElement('button');history.type='button';history.textContent='Đã gửi ('+sessionInvoices.size+')';history.onclick=()=>void loadInvoiceHistory();
@@ -697,6 +739,43 @@
   if($('historyBackdrop').classList.contains('open'))void loadInvoiceHistory();
  }
  let historyPromise=null,historyLastLoaded=0,historyError='';
+ function reconcileHistoryWithDrive(orders,revision,complete){
+  // Only a complete and revision-verified source proves an invoice is absent.
+  if(complete!==true)return;
+  const active=new Set(orders.map(o=>o.invoiceNo));
+  const missing=[];
+  for(const invoiceNo of sessionInvoices){
+   if(active.has(invoiceNo))continue;
+   const confirmedRevision=recentReceipts.get(invoiceNo)?.revision ??
+    (savedRecord?.invoiceNo===invoiceNo?savedRecord.revision:null);
+   if(Number.isSafeInteger(confirmedRevision)&&revision<confirmedRevision)continue;
+   sessionInvoices.delete(invoiceNo);recentReceipts.delete(invoiceNo);
+   unreadInvoices.delete(invoiceNo);missing.push(invoiceNo);
+  }
+  if(!missing.length)return;
+  persistRecentReceipts();
+  writeSession(unreadKey,JSON.stringify([...unreadInvoices].slice(-30)));
+  if(savedRecord){
+   savedRecord.invoiceNos=[...sessionInvoices].slice(-120);
+   if(missing.includes(savedRecord.invoiceNo)){
+    // Preserve idempotency markers, but never display a stale receipt overview.
+    savedRecord.deleted=true;savedRecord.overview=null;
+   }
+   writeSession(submittedStorageKey,JSON.stringify(savedRecord));
+  }
+  if(lastReceipt&&missing.includes(lastReceipt.result?.invoiceNo))lastReceipt=null;
+  document.querySelectorAll('.real-submitted-card[data-invoice-no]').forEach(card=>{
+   if(!missing.includes(Number(card.dataset.invoiceNo)))return;
+   const note=card.querySelector('.real-submitted-note');
+   if(note)note.textContent='Hóa đơn này không còn trong sổ hiện hành. Đã đồng bộ với website.';
+   card.querySelectorAll('button').forEach(button=>button.disabled=true);
+  });
+ }
+ function persistVerifiedHistory(orders,revision){
+  cachedHistory=orders.slice(0,1500).map(o=>({
+   invoiceNo:o.invoiceNo,total:o.total,date:String(o.date||'').slice(0,20)}));
+  writeLocal(historyKey,JSON.stringify({revision,savedAt:Date.now(),orders:cachedHistory}));
+ }
  function renderInvoiceHistory(){
   const root=$('historyItems');root.replaceChildren();
   const month=$('historyMonth').value,term=($('historySearch').value||'').trim().toLocaleLowerCase('vi'),
