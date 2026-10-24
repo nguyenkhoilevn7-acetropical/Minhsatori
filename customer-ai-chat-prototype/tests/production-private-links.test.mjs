@@ -219,7 +219,7 @@ test('production checkout matches chat-first demo: inline invoice, cart and acti
  assert.doesNotMatch(html,/\$\('shop'\)\.hidden=true/,'quoting must not hide the chat');
  assert.match(html,/request\('\/api\/real\/confirm'/,'still requires explicitly confirmed real checkout');
  assert.match(html,/confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'/);
- assert.match(html,/Không phải file PDF chính thức/,'customer receipt never falsely claims official PDF');
+ assert.match(html,/không phải file PDF chính thức/i,'customer receipt never falsely claims official PDF');
  const i=html.indexOf('id="chat-shell"'),summary=html.indexOf('id="reviewPanel"');
  assert.ok(summary>0 && summary<html.indexOf('class="chat-composer"'),
   'invoice actions are inline ABOVE the composer, not on a separate screen');
