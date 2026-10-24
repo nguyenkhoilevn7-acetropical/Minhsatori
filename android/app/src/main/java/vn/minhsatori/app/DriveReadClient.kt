@@ -112,7 +112,11 @@ object DriveReadClient {
                 }
                 output.toByteArray()
             }
-            return SatoriData.fromDriveState(String(bytes, Charsets.UTF_8))
+            val parsed = SatoriData.fromDriveState(String(bytes, Charsets.UTF_8))
+            ProductionLedgerPolicy.rejection(parsed)?.let {
+                throw IOException("File Drive chưa xác minh là sổ Production: " + it)
+            }
+            return parsed
         } finally {
             connection.disconnect()
         }
