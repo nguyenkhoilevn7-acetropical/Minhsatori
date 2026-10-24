@@ -1899,8 +1899,12 @@ class NativeMainActivity : AppCompatActivity() {
                         }
                     },
                     onFailure = {
-                        // Retain the last verified view, but revoke write
-                        // capabilities until a fresh owner snapshot succeeds.
+                        // A previous 3-bill sample must not remain on-screen as
+                        // Production merely because a new API validation failed.
+                        if (snapshot?.let { old ->
+                                ProductionLedgerPolicy.rejection(old) != null } == true) {
+                            snapshot = null
+                        }
                         allowedActions = emptySet()
                         dataSource = ""
                         statusMessage = "⚠ Không kiểm tra được Mobile API: " +
@@ -2110,9 +2114,10 @@ class NativeMainActivity : AppCompatActivity() {
                     target.toByteArray()
                 } ?: throw IllegalArgumentException("Không mở được file đã chọn.")
                 val parsed = SatoriData.fromDriveState(String(bytes, Charsets.UTF_8))
-                require(parsed.revision >= 1 && parsed.updatedAt.isNotBlank()) {
-                    "File thiếu revision hoặc ngày cập nhật."
+                require(parsed.updatedAt.isNotBlank()) {
+                    "File thiếu ngày cập nhật."
                 }
+                ProductionLedgerPolicy.rejection(parsed)?.let { throw IllegalArgumentException(it) }
                 Result.success(parsed)
             } catch (e: Exception) {
                 Result.failure<SatoriSnapshot>(e)
