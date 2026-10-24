@@ -401,8 +401,8 @@ const server=http.createServer(async(req,res)=>{
   if(!rateLimit(req,'owner-issued-links-read'))
    return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
   try{
-   const offset=Number(u.searchParams.get('offset')||0);
-   const limit=Number(u.searchParams.get('limit')||8);
+   const offset=Number(url.searchParams.get('offset')||0);
+   const limit=Number(url.searchParams.get('limit')||8);
    const data=await issuedLinks.list({offset,limit});
    return reply(res,200,{ok:true,source:'drive-ledger:satori_issued_links_v1',...data});
   }catch(e){
