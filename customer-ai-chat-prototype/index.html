@@ -592,6 +592,57 @@ button:disabled,.btn:disabled{background:#dbe2eb!important;color:#64758a!importa
  .server-mode .chat-head>.catalog-launch-bar #suggestionsToggle,
  .server-mode .chat-head>.catalog-launch-bar #historyButton{font-size:9px;padding:3px 2px}
 }
+
+/* PRODUCTION-only unified controls: applies to Samsung in landscape/desktop mode too. */
+body.production-gemini.real-session-open{margin:0;overflow:hidden}
+.production-gemini.real-session-open #productionGeminiApp{height:var(--satori-visible-height,100dvh)!important;min-height:0!important;max-height:var(--satori-visible-height,100dvh);padding:0!important;overflow:hidden}
+.production-gemini.real-session-open #productionGeminiApp .layout{height:100%;min-height:0;max-height:100%;display:flex;flex-direction:column;overflow:hidden;margin:0 auto;width:100%;max-width:1200px}
+.production-gemini.real-session-open #productionGeminiApp .card.chat{flex:1 1 auto;height:100%!important;max-height:100%!important;min-height:0!important;display:flex;flex-direction:column;overflow:hidden;border-radius:0}
+.production-gemini.real-session-open #productionGeminiApp .messages{flex:1 1 0%;min-height:0!important;max-height:none!important;overflow-y:auto;overscroll-behavior:contain;scroll-padding-bottom:16px}
+.production-gemini.real-session-open #productionGeminiApp .composer{flex:0 0 auto;min-height:52px;position:relative;z-index:4;box-sizing:border-box}
+.production-gemini.real-keyboard-open .shop-hero{display:none!important}
+.production-gemini.real-keyboard-open #productionGeminiApp .composer{padding:6px 10px!important}
+.production-gemini.real-keyboard-open #productionGeminiApp .messages{scroll-behavior:auto}
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar{width:100%;flex:1 1 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;align-items:stretch}
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar button{min-height:43px;max-height:none;border-radius:11px;line-height:1.2;font-size:12px;font-weight:750;white-space:normal;text-align:center;overflow-wrap:normal}
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #realNewCartButton{position:static!important;width:100%;max-width:none;box-shadow:0 2px 8px #0867d52d}
+.production-gemini .quick-cart #quickCartNew{display:none!important}
+.production-gemini #productionGeminiApp .quick-cart{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px 8px;padding:7px 12px;align-items:center;max-height:min(39vh,290px);overflow-y:auto;scrollbar-width:thin}
+.production-gemini #productionGeminiApp .quick-cart[hidden]{display:none!important}
+.production-gemini #productionGeminiApp .quick-cart #quickCartCount{grid-column:1;grid-row:1!important;margin:0!important;min-width:0;font-size:13px;font-weight:750;white-space:normal;color:#204d68}
+.production-gemini #productionGeminiApp .quick-cart #quickCartEdit{grid-column:2;grid-row:1!important;display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#0968d1;color:white;border:1px solid #095ebb;border-radius:11px;min-width:63px;min-height:42px;padding:5px 10px;font-weight:800}
+.production-gemini #productionGeminiApp .quick-cart .real-cart-icon{font-size:20px;line-height:1}
+.production-gemini #productionGeminiApp .quick-cart .real-cart-count{border-radius:99px;background:#fff;color:#0754ad;padding:1px 5px;min-width:19px;font-size:12px;text-align:center}
+.production-gemini #productionGeminiApp .quick-cart #realCartClose{grid-column:3;grid-row:1!important;min-height:42px;min-width:43px;background:#ffe6e9!important;color:#bb1928!important;border:1px solid #f5afb8!important;border-radius:11px;font-weight:850;font-size:20px;padding:4px!important}
+.production-gemini #productionGeminiApp .quick-cart #realCartClose[hidden]{display:none!important}
+.production-gemini #productionGeminiApp .quick-cart #inlineCartLines{grid-column:1/-1;grid-row:2!important;max-height:130px;overflow:auto}
+.production-gemini #productionGeminiApp .quick-cart #inlineCartLines[hidden]{display:none!important}
+.production-gemini #productionGeminiApp .quick-cart .delivery-note-block{grid-column:1/-1;grid-row:3}
+.production-gemini #productionGeminiApp .quick-cart #quickCartQuote{grid-column:1/-1;grid-row:4!important;min-height:44px;background:#0968d1;color:#fff;border:0;border-radius:11px;font-size:13px;font-weight:800}
+.production-gemini #productionGeminiApp .quick-cart #quickCartQuote[hidden]{display:none!important}
+.production-gemini #catalogBackdrop .catalog-purchase-row:not(.in-cart){background:#fff!important;border-left:4px solid transparent}
+.production-gemini #catalogBackdrop .catalog-purchase-row.in-cart{background:#e2f6f1!important;border-left:4px solid #078666!important;box-shadow:inset 0 0 0 1px #74c8b0}
+.production-gemini #catalogBackdrop .catalog-purchase-row .real-catalog-stepper{display:grid;gap:4px;align-items:center}
+.production-gemini #catalogBackdrop .catalog-purchase-row .real-catalog-stepper button{background:#076dd8!important;color:#fff!important;border:1px solid #075dbe!important;border-radius:9px;font-size:22px;line-height:1;opacity:1;box-shadow:0 2px 6px #0352a526}
+.production-gemini #catalogBackdrop .catalog-purchase-row .real-catalog-stepper button:disabled{background:#6b9cd4!important;opacity:.75}
+.production-gemini #catalogBackdrop .catalog-purchase-row .real-catalog-stepper input{font-weight:800;color:#173e65;background:#fff;border:1px solid #b9cfe0;border-radius:9px;text-align:center}
+.production-gemini .real-invoice-loading{padding:12px;border:1px dashed #b5cbdc;background:#f5faff;color:#416783;border-radius:12px;margin-top:12px}
+.production-gemini .real-overview-status{display:inline-flex;align-items:center;background:#ddf8ed;color:#05714f;border:1px solid #80d5b5;border-radius:99px;padding:6px 10px;font-size:13px;font-weight:850;margin-bottom:10px}
+.production-gemini .real-overview-tip{font-size:12px;line-height:1.5;color:#62798d}
+.production-gemini .real-history-loading{padding:14px;background:#f0f7ff;color:#174a7a;border:1px solid #d5e6f7;border-radius:12px;margin:10px 0}
+.production-gemini .real-history-order.pending{border-color:#b6e2ce;background:#f0fdf6}
+.production-gemini .real-history-order .real-history-status{color:#006d53;font-weight:700}
+.production-gemini .history-head #realHistoryRefresh{border-radius:10px;background:#edf6ff;color:#075cad;border:1px solid #b9d7f3;padding:9px 12px;min-height:41px;font-weight:750}
+@media(max-width:760px){
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar.has-five-actions{grid-template-columns:repeat(6,minmax(0,1fr))}
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar.has-five-actions>button:nth-child(-n+3){grid-column:span 2}
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar.has-five-actions>button:nth-child(n+4){grid-column:span 3}
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar button{font-size:11px;min-height:37px}
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar #realNewCartButton{font-size:11px}
+ .production-gemini #productionGeminiApp .quick-cart{max-height:36vh}
+}
+
 </style>
 </head>
 <body>
