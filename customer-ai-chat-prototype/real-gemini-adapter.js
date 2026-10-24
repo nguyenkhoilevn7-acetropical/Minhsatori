@@ -87,7 +87,10 @@
    Math.min(window.innerHeight||vv.height,vv.height):window.innerHeight));
   document.documentElement.style.setProperty('--satori-visible-height',pixels+'px');
   const composer=$('sendForm');
-  if(composer)document.documentElement.style.setProperty('--real-composer-height',composer.getBoundingClientRect().height+'px');
+  if(composer){
+   const height=composer.getBoundingClientRect().height;
+   if(height>30)document.documentElement.style.setProperty('--real-composer-height',height+'px');
+  }
   const focused=document.activeElement;
   const typing=focused?.id==='messageInput'||focused?.classList?.contains('delivery-note');
   document.body.classList.toggle('real-keyboard-open',Boolean(typing&&vv&&vv.height<window.innerHeight-100));
@@ -447,6 +450,11 @@
   const locationButton=$('locationsToggle');locationButton.hidden=false;
   $('productionGeminiApp').hidden=false;
   document.body.classList.add('real-session-open');
+  requestAnimationFrame(syncVisibleHeight);
+  if(window.ResizeObserver){
+   const composerObserver=new ResizeObserver(syncVisibleHeight);
+   composerObserver.observe($('sendForm'));
+  }
   if(d.agency){
    agency=true;destinations=d.destinations||[];
    $('historyButton').parentElement.classList.add('has-five-actions');
