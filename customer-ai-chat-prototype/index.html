@@ -850,6 +850,47 @@ body.production-gemini{--ios-blue:#0a6ce0;--ios-bg:#f5f6f8;--ios-ink:#172334;--i
  .production-gemini #productionGeminiApp .quick-cart{transition:none!important}
 }
 
+
+/* Expanded shopping sheet: always-visible short checkout action beside cart icon. */
+.production-gemini #productionGeminiApp .quick-cart:is([data-cart-mode="half"],[data-cart-mode="full"]){
+ grid-template-columns:minmax(0,1fr) 54px minmax(100px,120px) 46px!important;
+ column-gap:6px!important;align-content:start!important;
+}
+.production-gemini #productionGeminiApp .quick-cart:is([data-cart-mode="half"],[data-cart-mode="full"]) #quickCartCount{
+ grid-column:1!important;grid-row:2!important;min-width:0!important;font-size:12px!important;
+}
+.production-gemini #productionGeminiApp .quick-cart:is([data-cart-mode="half"],[data-cart-mode="full"]) #quickCartEdit{
+ grid-column:2!important;grid-row:2!important;min-width:52px!important;width:52px!important;
+}
+.production-gemini #productionGeminiApp .quick-cart:is([data-cart-mode="half"],[data-cart-mode="full"]) #quickCartQuote{
+ grid-column:3!important;grid-row:2!important;min-width:0!important;width:100%!important;
+ margin:0!important;padding:7px 8px!important;min-height:44px!important;
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ border-radius:12px!important;background:#086bd7!important;color:#fff!important;
+ font-size:13px!important;font-weight:800!important;white-space:nowrap!important;
+ box-shadow:0 2px 7px #0a61cb26!important;
+}
+.production-gemini #productionGeminiApp .quick-cart:is([data-cart-mode="half"],[data-cart-mode="full"]) #quickCartQuote:disabled{
+ opacity:.55!important;
+}
+.production-gemini #productionGeminiApp .quick-cart:is([data-cart-mode="half"],[data-cart-mode="full"]) #realCartClose{
+ grid-column:4!important;grid-row:2!important;min-width:44px!important;width:44px!important;
+}
+.production-gemini #productionGeminiApp .quick-cart:is([data-cart-mode="half"],[data-cart-mode="full"]) #inlineCartLines{
+ grid-column:1/-1!important;grid-row:3!important;
+}
+.production-gemini #productionGeminiApp .quick-cart:is([data-cart-mode="half"],[data-cart-mode="full"]) .delivery-note-block{
+ grid-column:1/-1!important;grid-row:4!important;
+}
+@media(max-width:385px){
+ .production-gemini #productionGeminiApp .quick-cart:is([data-cart-mode="half"],[data-cart-mode="full"]){
+  grid-template-columns:minmax(0,1fr) 48px 98px 44px!important;column-gap:4px!important;
+ }
+ .production-gemini #productionGeminiApp .quick-cart:is([data-cart-mode="half"],[data-cart-mode="full"]) #quickCartEdit{
+  min-width:48px!important;width:48px!important;
+ }
+}
+
 </style>
 </head>
 <body>
