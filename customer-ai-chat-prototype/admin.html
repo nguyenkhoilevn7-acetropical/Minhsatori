@@ -319,7 +319,18 @@ button:disabled{opacity:.55}
 <section class="card" data-tab-panel="customers" hidden id="productionCustomerDirectory">
 <div class="production-heading"><div><h2>👥 Danh sách khách hàng thật</h2><p>Nhóm theo tên trên hóa đơn và địa chỉ giao thực tế</p></div><span class="production-tag">✓ Đọc từ Drive</span></div>
 <div class="directory-stats"><div class="directory-stat"><strong id="realProfileCount">—</strong><span>Khách/đại lý</span></div><div class="directory-stat"><strong id="realDeliveryCount">—</strong><span>Điểm giao</span></div><div class="directory-stat"><strong id="realInvoiceCount">—</strong><span>Hóa đơn nguồn</span></div></div>
-<div class="directory-toolbar"><input id="realDirectoryFilter" aria-label="Tìm khách thật" placeholder="🔎 Tìm tên khách hàng…" maxlength="120" autocomplete="off"><button type="button" class="secondary" id="realDirectoryRefresh">↻ Làm mới</button></div>
+<div class="directory-toolbar"><button type="button" id="addProductionCustomerToggle">＋ Thêm khách hàng mới</button><input id="realDirectoryFilter" aria-label="Tìm khách thật" placeholder="🔎 Tìm tên khách hàng…" maxlength="120" autocomplete="off"><button type="button" class="secondary" id="realDirectoryRefresh">↻ Làm mới</button></div>
+<form id="addProductionCustomer" hidden style="background:#f4f9ff;border:1px solid #b9d5ef;border-radius:14px;padding:16px;margin:12px 0">
+<strong>👤 Khách hàng mới • Google Drive Production</strong>
+<p class="hint">Lưu hồ sơ độc lập, không cần tạo hóa đơn. Điền đầy đủ ba trường bắt buộc.</p>
+<div class="location-form">
+<label>Tên khách hàng *<input id="productionCustomerName" required minlength="2" maxlength="150" autocomplete="name" placeholder="Tên khách / tên đại lý"></label>
+<label>Số điện thoại *<input id="productionCustomerPhone" type="tel" required maxlength="30" autocomplete="tel" placeholder="09xxxxxxxx"></label>
+<label>Địa chỉ giao hàng *<textarea id="productionCustomerAddress" required minlength="8" maxlength="500" rows="2" placeholder="Số nhà, đường, phường, tỉnh/thành"></textarea></label>
+</div><div class="row"><button type="submit" id="saveProductionCustomer">💾 Lưu vào Google Drive</button><button type="button" id="cancelProductionCustomer" class="secondary">Đóng</button></div>
+<p id="productionCustomerCreateStatus" role="status" class="hint">Chưa lưu dữ liệu.</p></form>
+<p class="hint" id="customerRegistryStatus" role="status">Đang kiểm tra kết nối hồ sơ khách mới…</p>
+<div class="directory-grid" id="customerRegistryCards"></div>
 <p class="hint" id="directoryCoverage" role="status">Đang tải hồ sơ khách thật…</p>
 <div class="directory-grid" id="productionProfiles" aria-live="polite"></div>
 <p class="hint">Đây là hồ sơ tổng hợp từ hóa đơn, không phải lịch sử các link đã phát hành. Chọn Cấp link để duyệt địa chỉ trên sổ gốc.</p></section>
@@ -1136,7 +1147,7 @@ function renderProductionProfiles(){
   const ul=document.createElement('ul');
   for(const place of c.deliveryLocations||[]){
    const li=document.createElement('li');li.textContent=place.address;
-   const desc=document.createElement('small');desc.textContent=place.invoiceCount+' hóa đơn • '+place.contactCount+' số liên hệ';
+   const desc=document.createElement('small');desc.textContent=place.invoiceCount+' hóa đơn • Số điện thoại: '+((place.phones||[]).join(', ')||'Chưa có');
    li.append(desc);ul.append(li);
   }
   if(!ul.children.length){const li=document.createElement('li');li.textContent='Chưa có địa chỉ hợp lệ trong phạm vi hóa đơn đã tải.';ul.append(li)}
