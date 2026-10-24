@@ -914,6 +914,7 @@
    historyIncomplete=!d.complete;historyError='';historyLastLoaded=Date.now();
    reconcileHistoryWithDrive(historyOrders,d.revision,d.complete);
    if(d.complete)persistVerifiedHistory(historyOrders,d.revision);
+   else try{await checkIndividualInvoiceStatuses()}catch{}
    persistedInvoiceCount=historyOrders.length;updateInvoiceBadge();
    const months=[...new Set(historyOrders.map(o=>{
     const m=String(o.date||'').match(/(?:\d{1,2}\/)?(\d{1,2})\/(\d{4})$/);
