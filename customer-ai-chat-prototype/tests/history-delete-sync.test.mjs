@@ -54,3 +54,34 @@ test('history refreshes on open and automatically while visible',()=>{
  assert.match(client,/historyError/);
  new vm.Script(client,{filename:'real-gemini-adapter.js'});
 });
+
+test('PIN-scoped exact lookup hides deleted 5949 and 5950 without an invoice write',async()=>{
+ const module=readFileSync(new URL('../production-private-links.mjs',import.meta.url),'utf8');
+ const a=module.indexOf(' async function receiptStatuses(');
+ const b=module.indexOf(' function receiptContext(',a);
+ assert.ok(a>=0&&b>a);
+ const create=new Function('access','destinations','historyReader','bot',
+  'normalized','digits','error',module.slice(a,b)+'\nreturn receiptStatuses;');
+ let writes=0;
+ const lookup=async ({query,limit})=>{
+  assert.equal(limit,100);
+  assert.ok(['5949','5950','5951'].includes(query));
+  const data=query==='5951'?
+   [{invoiceNo:5951,name:'Traky Sai Gon',phone:'0900000000',location:'75 Quang Trung'}]:[];
+  return {revision:161,data:{totalMatches:data.length,orders:data}};
+ };
+ const reader=create(()=>({}),()=>[{
+   name:'Traky Sai Gon',phone:'0900000000',location:'75 Quang Trung'
+  }],lookup,()=>{writes++;throw Error('NO_WRITES')},
+  text=>String(text).toLowerCase(),text=>String(text).replace(/\D/g,''),
+  code=>Object.assign(new Error(code),{code}));
+ const result=await reader({token:'fixture',accessCode:'fixture',invoiceNos:[5949,5950,5951]});
+ assert.deepEqual(result.checks,[
+  {invoiceNo:5949,status:'absent'},
+  {invoiceNo:5950,status:'absent'},
+  {invoiceNo:5951,status:'active'}
+ ]);
+ assert.equal(result.revision,161);
+ assert.equal(writes,0);
+ await assert.rejects(reader({invoiceNos:[5950,5950]}),{code:'REAL_RECEIPT_STATUS_INVALID'});
+});
