@@ -54,6 +54,16 @@ class Drive403OwnerFallbackContract(unittest.TestCase):
         self.assertIn("snapshot = remote.snapshot", MAIN)
         self.assertIn("LiveSyncPolicy.canApplySnapshot(prior.revision, remote.snapshot.revision)", MAIN)
 
+    def test_explicit_reconnect_can_select_the_correct_google_account(self):
+        self.assertIn("connectGoogle(askAccount = true)", MAIN)
+        self.assertIn("AuthorizationRequest.Prompt.SELECT_ACCOUNT", MAIN)
+        self.assertIn("if (askAccount) builder.setPrompt(", MAIN)
+        # Timed background refresh must not repeatedly present sign-in dialogs.
+        tick = MAIN.split("private val syncTick = object : Runnable", 1)[1].split(
+            "private fun hasServerAction", 1
+        )[0]
+        self.assertNotIn("askAccount = true", tick)
+
     def test_no_duplicate_stale_banner(self):
         self.assertIn("if (stale && connected) label(info, statusMessage", MAIN)
 
