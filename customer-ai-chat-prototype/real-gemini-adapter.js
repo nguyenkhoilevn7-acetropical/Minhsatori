@@ -10,6 +10,19 @@
  let quoteToken=null,lastQuote=null,lastReceipt=null,deliveryNote='';
  let destinations=[],lastProduct=null;
  const products=new Map(),cart=new Map();
+ // Restore the original Gemini Samsung keyboard/viewport behavior.  The
+ // production adapter replaces the sandbox JS, so its resize listeners must
+ // be reattached here rather than rebuilding the UI.
+ function syncVisibleHeight(){
+  const vv=window.visualViewport;
+  const pixels=Math.max(180,Math.floor(vv?.height>0?
+   Math.min(window.innerHeight||vv.height,vv.height):window.innerHeight));
+  document.documentElement.style.setProperty('--satori-visible-height',pixels+'px');
+ }
+ syncVisibleHeight();
+ window.visualViewport?.addEventListener('resize',syncVisibleHeight,{passive:true});
+ window.visualViewport?.addEventListener('scroll',syncVisibleHeight,{passive:true});
+ window.addEventListener('resize',syncVisibleHeight,{passive:true});
  const cash=n=>Math.round(Number(n)||0).toLocaleString('vi-VN')+' đ';
  const setText=(id,text)=>{const node=$(id);if(node)node.textContent=String(text||'')};
  const disabledBusy=value=>{requestsBusy=value;for(const id of ['realOpen','quickCartQuote','composeCart']){
