@@ -361,7 +361,9 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method==='GET'&&p==='/api/admin/ctv-links/readiness'){
   if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Cần xác thực quản trị.');
-  return reply(res,200,{ok:true,...ctvSingleLink.readiness()});
+  let registryReady=false;
+  try{await issuedLinks.list({limit:1});registryReady=true}catch{}
+  return reply(res,200,{ok:true,...ctvSingleLink.readiness(),registryReady});
  }
  if(req.method==='POST'&&p==='/api/admin/ctv-links/issue'){
   if(!customerLinks.adminAuthorized(req))return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được cấp link CTV.');
@@ -370,7 +372,7 @@ const server=http.createServer(async(req,res)=>{
    const input=await bodyJSON(req,1024);
    return reply(res,200,{ok:true,...await issueAndStoreCtvLink(input)});
   }catch(e){return fail(res,409,e?.code||'CTV_LINK_ISSUE_FAILED',
-   'CTV chưa được phê duyệt đầy đủ hoặc Bot API chưa có quyền; chưa cấp link.')}
+   'Chưa cấp link hoặc chưa xác minh lưu trên Google Drive. Kiểm tra quyền CTV và phiên bản Bot API.')}
  }
  if(req.method==='POST'&&/^\/api\/ctv\/(?:catalogue|quote|confirm|pdf\/(?:customer|collaborator))$/.test(p)){
   if(!ctvSingleLink.readiness().enabled)
@@ -437,7 +439,7 @@ const server=http.createServer(async(req,res)=>{
    return reply(res,200,{...response,registrySaved:true,registryId:saved.id});
   }catch(e){
    return fail(res,409,e?.code||'REAL_LINK_ISSUE_FAILED',
-    'Không cấp được link: cần đúng hóa đơn gốc, địa chỉ và giá chủ tài khoản duyệt.');
+    'Chưa xác minh lưu link trên Google Drive. Kiểm tra Bot API Production và thông tin điểm giao.');
   }
  }
  // Verified invoice metadata for phone browsers whose embedded PDF viewer
@@ -725,6 +727,8 @@ const server=http.createServer(async(req,res)=>{
    return fail(res,503,'CTV_ACTIVATION_NOT_READY',
     'Thiếu cấu hình HMAC quyền duyệt/ghi hoặc khóa link CTV. Chưa ghi CTV và không tạo khách mới.');
   try{
+   // Never write a new CTV policy if the corresponding link cannot be stored.
+   await issuedLinks.list({limit:1});
    // Read scope must work before making any write. This is not a TEST invoice.
    await ownerPairAction('collaborators.pair.list',{});
    // Owner-selected delivery addresses are full record identities, not
