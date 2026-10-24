@@ -36,9 +36,57 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:540px){main{padding:12px}section{padding:14px}.chat-messages{height:260px}.chat-composer button{padding:12px 13px}.row{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.chat-messages{scroll-behavior:auto}}
+/* Same light iMessage-style design language as Gemini test chat. */
+:root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+body{background:#eef2f6;color:#17283f}main{max-width:810px;padding:12px 14px 35px}
+h1{font-size:20px;color:#153c60;letter-spacing:-.4px}
+h2{color:#183959}
+section{background:#fff;color:#1e2e43;border:1px solid #dfe7f0;box-shadow:0 6px 23px #203b5310;border-radius:19px}
+.muted{color:#64758a}.warning{color:#915c19}.success{color:#18764c}
+button{background:#087aff;color:white;border-radius:14px;min-height:45px}
+button.secondary{background:#edf5ff;color:#1663aa;border:1px solid #d2e1f4}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #277fe0}
+.chat-shell{margin:15px 0 0;border:1px solid #dce4ef;box-shadow:0 4px 24px #123e6310;border-radius:21px;background:white}
+.chat-top{display:flex;gap:11px;align-items:center;background:#f7f9fc;padding:13px 15px}
+.chat-bot{width:41px;height:41px;display:grid;place-items:center;flex:0 0 41px;background:#087aff;color:white;border-radius:50%;font-size:20px;font-weight:800}
+.chat-top strong{color:#132d48}.chat-top small{color:#708198}
+.chat-messages{background:#fff;height:clamp(280px,45dvh,495px);padding:18px 15px;gap:12px}
+.chat-bubble{max-width:85%;border-radius:18px;padding:11px 14px;line-height:1.5}
+.chat-bubble.assistant{background:#e9ebee;color:#18273b;border-bottom-left-radius:5px}
+.chat-bubble.user{background:#087aff;color:#fff;border-bottom-right-radius:5px}
+.chat-actions{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:10px 13px;border-top:1px solid #eef2f6;white-space:nowrap}
+.chat-actions::-webkit-scrollbar{display:none}
+.chat-actions button{border:1px solid #d0e3fb;background:#f0f6ff;color:#1160ad;min-height:37px;border-radius:99px;padding:7px 11px;font-weight:680;font-size:13px}
+.chat-actions #review{background:#087aff;color:white;border-color:#087aff}
+.chat-composer{border-top:1px solid #edf0f4;align-items:center;background:#f7f9fc;padding:11px 12px;gap:9px}
+.chat-composer textarea{background:white;color:#1a293c;border:1px solid #cfdae6;border-radius:23px;min-height:47px;max-height:110px;resize:vertical;font-size:16px;padding:10px 15px}
+.chat-composer button{height:46px;border-radius:23px;min-width:60px;background:#087aff}
+.chat-hint{padding:0 14px 10px;color:#718295!important;font-size:11px}
+.cart-state{margin:14px 0;border:1px solid #d7e5f7;background:#f3f8ff;border-radius:12px;color:#205688;font-size:13px}
+#manualCatalog{border:1px solid #dbe5f0;background:#fff}
+#manualCatalog summary{color:#135995}
+#manualCatalog .row{border-color:#edf0f5}
+#reviewPanel{margin:0 12px 12px;border:1px solid #bcd9fc;border-radius:15px;box-shadow:none;padding:15px;background:#f5faff}
+#reviewPanel h2{font-size:15px;margin-top:0}
+#summary{white-space:normal}
+.invoice-details{display:grid;gap:8px;font-size:13px;color:#26384b;line-height:1.45}
+.invoice-line,.invoice-meta{display:flex;justify-content:space-between;align-items:flex-start;gap:13px;padding:7px 0;border-bottom:1px solid #dfe9f5}
+.invoice-line strong,.invoice-meta strong{text-align:right;white-space:nowrap}
+.invoice-grand{font-size:18px;color:#075fb8;font-weight:850}
+.invoice-caption{font-size:12px;color:#667c91}
+.invoice-actions{display:flex;gap:8px;flex-wrap:wrap}
+.invoice-actions button{font-size:13px;min-height:43px}
+#status{font-size:12px}
+#shop>p.muted{font-size:13px;margin:7px 0}
+#destination{width:100%;background:#f8fbff;border:1px solid #cbd9eb;border-radius:12px;padding:12px;font:inherit;color:#1b2f47}
+@media(max-width:560px){main{padding:10px 8px 23px}main>h1,main>.muted{margin-left:8px}
+ section{padding:14px;margin:11px 0}.chat-shell{margin:12px -3px 0;border-radius:18px}.chat-messages{height:clamp(250px,43dvh,445px)}.chat-bubble{max-width:90%}
+ .chat-actions{gap:6px}.chat-actions button{font-size:12px;padding:7px 9px}
+ .invoice-actions button{flex:1;white-space:normal}.chat-composer button{padding:10px 12px}}
+@media(prefers-reduced-motion:reduce){.chat-messages{scroll-behavior:auto}}
 </style></head>
 <body><main>
-<h1>MINH SATORI</h1><p class="muted">Đặt hàng trên sổ kế toán thật • Giá theo chính sách được duyệt riêng</p>
+<h1>MINH SATORI <small style="font-size:11px;color:#0a8a70">● ĐẶT HÀNG THẬT</small></h1><p class="muted">Trợ lý đặt nước • Giá và hóa đơn lấy trực tiếp từ hệ thống Minh Satori</p>
 <section id="login"><h2>Nhập mã truy cập riêng</h2>
 <p class="muted">Mã do Minh Satori cung cấp riêng, không nằm trong đường link. Nếu không có mã, liên hệ trực tiếp người quản lý.</p>
 <label>Mã truy cập<input id="code" type="password" autocomplete="off" inputmode="text" maxlength="100"></label>
@@ -51,10 +99,25 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
 <p class="muted" id="customerLocation"></p>
 <p class="muted" id="pricing"></p>
 <div class="chat-shell" aria-label="Trợ lý đặt nước Minh Satori">
- <div class="chat-top"><strong>✦ SATORI AI</strong><small>Trợ lý đặt nước tiếng Việt · Gemini khi khả dụng</small></div>
+ <div class="chat-top"><span class="chat-bot">✦</span><div><strong>Minh Satori AI</strong><small>Đặt nước bằng chat · Một giỏ hàng · Một hóa đơn</small></div></div>
  <div id="chatMessages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions">
   <div class="chat-bubble assistant">Xin chào! Anh/chị chọn điểm giao rồi nhắn các sản phẩm và số lượng, ví dụ: "10 suối 500, 2 ổi". Em sẽ thêm tất cả vào cùng một giỏ và cho xem báo giá trước khi đặt.</div>
  </div>
+ <div class="chat-actions" aria-label="Thao tác đặt hàng">
+  <button type="button" id="showAllProducts">📦 Tất cả sản phẩm</button>
+  <button type="button" id="showCart">🛒 Giỏ hàng</button>
+  <button type="button" id="showInvoice">🧾 Xem hóa đơn</button>
+  <button type="button" id="review">Xem báo giá thật</button>
+ </div>
+ <section id="reviewPanel" hidden>
+  <h2 id="invoiceHeading">🧾 Xem trước hóa đơn Minh Satori</h2>
+  <div id="summary"></div>
+  <p class="warning" id="reviewWarning">Chỉ khi nhấn xác nhận mới tạo một hóa đơn THẬT trên Google Drive.</p>
+  <div class="invoice-actions">
+   <button id="confirm">XÁC NHẬN ĐẶT HÀNG THẬT</button>
+   <button class="secondary" id="edit">Sửa giỏ hàng</button>
+  </div>
+ </section>
  <div class="chat-composer">
   <label for="message" class="sr-only">Nhắn yêu cầu đặt nước</label>
   <textarea id="message" rows="2" maxlength="500" placeholder="Nhắn món cần mua, số lượng, ghi chú giao hàng…"></textarea>
@@ -65,14 +128,6 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
 <p id="cartState" class="cart-state" role="status">Giỏ hàng: chưa có sản phẩm</p>
 <details id="manualCatalog"><summary>📦 Xem danh mục, giá và chỉnh số lượng</summary><div id="products"></div></details>
 <label>Ghi chú giao hàng<textarea id="note" rows="3" maxlength="300" placeholder="Ví dụ: Giao trước 2 giờ chiều"></textarea></label>
-<button id="review">Xem báo giá thật</button>
-</section>
-<section id="reviewPanel" hidden>
-<h2>Kiểm tra đơn trước khi ghi vào sổ</h2>
-<div id="summary"></div>
-<p class="warning">Nhấn xác nhận sẽ tạo đúng một hóa đơn THẬT trên Google Drive. Không phải đơn thử.</p>
-<button id="confirm">XÁC NHẬN ĐẶT HÀNG THẬT</button>
-<button class="secondary" id="edit">Sửa giỏ hàng</button>
 </section>
 <section><p id="status" role="status" aria-live="polite" class="muted">Chưa truy cập bảng giá.</p></section>
 </main>
@@ -81,6 +136,7 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
  'use strict';
  const $=id=>document.getElementById(id);
  const token=decodeURIComponent(location.hash.slice(1));let code='',quote=null,loading=false,selectedRef=null,agencyMode=false;
+ let lastQuote=null,lastConfirmed=null;
  const cash=n=>Number(n||0).toLocaleString('vi-VN')+' đ';
  const status=(text,kind)=>{$('status').textContent=text;$('status').className=kind||'muted'};
  const request=async(path,payload)=>{
@@ -101,6 +157,53 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
   $('chatMessages').append(item);
   $('chatMessages').scrollTop=$('chatMessages').scrollHeight;
  }
+ function invoiceRow(label,value,extraClass=''){
+  const line=document.createElement('div');line.className='invoice-line '+extraClass;
+  const name=document.createElement('span');name.textContent=label;
+  const price=document.createElement('strong');price.textContent=value;
+  line.append(name,price);return line;
+ }
+ function showInvoiceDetails(q,confirmed){
+  $('summary').replaceChildren();
+  const root=document.createElement('div');root.className='invoice-details';
+  const name=document.createElement('strong');name.textContent=q.customer.name;
+  const location=document.createElement('span');location.className='invoice-caption';location.textContent='📍 '+q.customer.location;
+  root.append(name,location);
+  const note=document.createElement('p');note.className='invoice-caption';
+  note.textContent=confirmed?
+   '✅ Hóa đơn thật #'+confirmed.invoiceNo+' đã lưu • Tổng '+cash(confirmed.total):
+   'DỰ THẢO • CK khách '+q.discountPercent+'% • Chưa ghi hóa đơn';
+  root.append(note);
+  for(const item of q.items||[])
+   root.append(invoiceRow(item.product+' • '+item.qty+' '+item.unit,cash(item.unitPrice*item.qty)));
+  root.append(invoiceRow('Tiền hàng',cash(q.subtotal)),invoiceRow('Phí giao',cash(q.shippingAmount)),
+   invoiceRow('VAT',cash(q.vatAmount)),invoiceRow('TỔNG THANH TOÁN',cash(q.total),'invoice-grand'));
+  $('summary').append(root);
+  $('invoiceHeading').textContent=confirmed?'🧾 Hóa đơn #'+confirmed.invoiceNo:'🧾 Xem trước hóa đơn Minh Satori';
+  $('reviewWarning').textContent=confirmed?
+   'Đã lưu trên hệ thống Minh Satori. Đây là bản tóm tắt màn hình, không phải file PDF chính thức.':
+   'Kiểm tra sản phẩm, địa chỉ và tổng tiền. Chỉ khi nhấn xác nhận mới ghi hóa đơn THẬT.';
+  $('confirm').hidden=Boolean(confirmed);
+  $('edit').textContent=confirmed?'Đóng hóa đơn':'Sửa giỏ hàng';
+  $('reviewPanel').hidden=false;
+  $('reviewPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+ }
+ $('showAllProducts').onclick=()=>{
+  $('manualCatalog').open=true;
+  $('manualCatalog').scrollIntoView({behavior:'smooth',block:'start'});
+ };
+ $('showCart').onclick=()=>{
+  const fields=[...document.querySelectorAll('input[data-sku]')].filter(x=>Number(x.value)>0);
+  if(!fields.length){bubble('assistant','Giỏ hàng đang trống. Anh/chị nhắn món hoặc mở Tất cả sản phẩm.');return}
+  bubble('assistant','🛒 GIỎ HÀNG HIỆN TẠI:\n'+fields.map(x=>
+   x.value+' × '+String(x.getAttribute('aria-label')||'').replace(/^Số lượng /,'')).join('\n')+
+   '\nBấm Xem báo giá thật để kiểm tra thành tiền.');
+ };
+ $('showInvoice').onclick=()=>{
+  if(lastQuote){showInvoiceDetails(lastQuote,null);return}
+  if(lastConfirmed){showInvoiceDetails(lastConfirmed.quote,lastConfirmed.result);return}
+  bubble('assistant','Chưa có hóa đơn trong phiên này. Hãy thêm món và chọn Xem báo giá thật.');
+ };
  function updateCart(){
   const fields=[...document.querySelectorAll('input[data-sku]')];
   const selected=fields.map(el=>Number(el.value||0)).filter(n=>Number.isSafeInteger(n)&&n>0);
@@ -133,7 +236,7 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
    const label=document.createElement('label');label.textContent='Số lượng';
    const qty=document.createElement('input');qty.type='number';qty.min='0';qty.max='500';qty.step='1';
    qty.value='0';qty.dataset.sku=p.code;qty.setAttribute('aria-label','Số lượng '+p.name);
-   qty.addEventListener('input',()=>{quote=null;$('reviewPanel').hidden=true;updateCart()});
+   qty.addEventListener('input',()=>{quote=null;lastQuote=null;$('reviewPanel').hidden=true;updateCart()});
    label.append(qty);line.append(text,label);root.append(line);
   }
   updateCart();
@@ -164,7 +267,7 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
  $('destination').onchange=()=>act(async()=>{
   const select=$('destination'),option=select.selectedOptions[0];
   // A destination switch invalidates all old prices, quantities and quotes.
-  selectedRef=null;quote=null;$('products').replaceChildren();updateCart();
+  selectedRef=null;quote=null;lastQuote=null;$('products').replaceChildren();updateCart();
   $('reviewPanel').hidden=true;
   if(!select.value||!option?.dataset.id)return;
   const nextRef={id:option.dataset.id,invoiceNo:Number(select.value)};
@@ -197,7 +300,7 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
     totals.reduce((a,b)=>a+b,0)>500||totals.filter(q=>q>0).length>6)
    throw Error('Giỏ tối đa 6 loại và tổng 500 đơn vị. Hãy điều chỉnh số lượng.');
   for(const field of fields)field.value=String(counts.get(field.dataset.sku));
-  quote=null;$('reviewPanel').hidden=true;updateCart();
+  quote=null;lastQuote=null;$('reviewPanel').hidden=true;updateCart();
   if(d.deliveryNote){
    const note=$('note'),current=note.value.trim();
    if(!current.includes(d.deliveryNote))note.value=[current,d.deliveryNote].filter(Boolean).join('; ').slice(0,300);
@@ -223,20 +326,21 @@ summary{cursor:pointer}#status{white-space:pre-wrap;line-height:1.65}
      items.reduce((n,x)=>n+x.qty,0)>500)
    throw Error('Số lượng không hợp lệ, tổng không vượt 500 đơn vị.');
   const d=await request('/api/real/quote',{destination:selectedRef,items,deliveryNote:$('note').value});
-  quote=d.quoteToken;
-  $('summary').textContent=d.customer.name+' — '+d.customer.location+' • CK '+d.discountPercent+'%' +
-   '\nTiền hàng: '+cash(d.subtotal)+'\nPhí giao: '+cash(d.shippingAmount)+
-   '\nVAT: '+cash(d.vatAmount)+'\nTỔNG: '+cash(d.total);
-  $('reviewPanel').hidden=false;$('shop').hidden=true;
+  quote=d.quoteToken;lastQuote=d;
+  showInvoiceDetails(d,null);
+  bubble('assistant','Đây là báo giá thật đã kiểm tra từ bảng giá Minh Satori: '+cash(d.total)+
+   '. Xem hóa đơn bên dưới để xác nhận hoặc sửa giỏ; chưa có hóa đơn nào được tạo.');
   status('Đã tạo báo giá thật từ dữ liệu hiện hành. Chưa ghi hóa đơn.');
  });
- $('edit').onclick=()=>{$('reviewPanel').hidden=true;$('shop').hidden=false;quote=null};
+ $('edit').onclick=()=>{$('reviewPanel').hidden=true;if(quote){quote=null;lastQuote=null}};
  $('confirm').onclick=()=>act(async()=>{
   if(!quote)throw Error('Chưa có báo giá hợp lệ.');
   const d=await request('/api/real/confirm',{quoteToken:quote,
    confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
-  $('reviewPanel').hidden=true;quote=null;
-  bubble('assistant','Hóa đơn #'+d.invoiceNo+' đã được xác nhận và lưu thành công.');
+  lastConfirmed={quote:lastQuote,result:d};quote=null;lastQuote=null;
+  if(lastConfirmed.quote)showInvoiceDetails(lastConfirmed.quote,d);
+  bubble('assistant','✅ Đã lưu thành công hóa đơn thật #'+d.invoiceNo+
+   ' với tổng tiền '+cash(d.total)+'. Bấm Xem hóa đơn để đọc lại chi tiết.');
   status('ĐÃ GHI THÀNH CÔNG hóa đơn thật #'+d.invoiceNo+
    ' • Tổng '+cash(d.total)+'. Mã hóa đơn đã được cấp từ hệ thống Minh Satori.','success');
  });

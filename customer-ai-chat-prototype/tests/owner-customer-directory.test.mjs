@@ -159,3 +159,33 @@ assert.notEqual(physicalAddressKey('712 Đ. Vĩnh Khánh'),physicalAddressKey('4
 assert.equal(normalizedDelivery.places.find(p=>p.invoiceNos.includes('5921')).phones.length,2,
  'different phone numbers at same delivery point do not create new customers');
 console.log('PASS real-format Vinh Khanh delivery aliases, separate house number, exact contact sources');
+
+const liveDirectoryRows=[
+ {name:'Hà Minh Nguyệt',phone:'0901111111',location:'Block B, Chung cư Kingdom',
+  invoiceNo:5911,date:'01/10/2026'},
+ {name:'Ha Minh Nguyet',phone:'0912222222',location:'Block B, Chung cư Kingdom',
+  invoiceNo:5912,date:'02/10/2026'},
+ {name:'Hà Minh Nguyệt',phone:'0901111111',location:'40 Võ Văn Tần, TP.HCM',
+  invoiceNo:5913,date:'03/10/2026'},
+ {name:'Khách Khác',phone:'0987777777',location:'123 Trần Hưng Đạo',
+  invoiceNo:5914,date:'04/10/2026'}
+];
+const liveDir=directoryFromInvoices(liveDirectoryRows);
+const matching=liveDir.find(x=>x.key===directoryKey('Hà Minh Nguyệt'));
+assert.equal(liveDir.length,2,'same name with/without Vietnamese diacritics is one customer group');
+assert.equal(matching.invoiceCount,3,'three real invoices remain three orders');
+assert.equal(matching.deliveryLocationCount,2,'repeat order and different phone at same address count once');
+assert.equal(matching.deliveryLocations.find(x=>x.address.includes('Kingdom')).contactCount,2,
+ 'different numbers must not become new addresses');
+assert.equal(liveDir.reduce((n,x)=>n+x.deliveryLocationCount,0),3,
+ 'dashboard counts actual physical destinations, not profile rows');
+const productionAdmin=readFileSync(path.join(root,'admin.html'),'utf8');
+assert.match(productionAdmin,/id="productionCustomerDirectory"/);
+assert.match(productionAdmin,/id="realProfileCount"/);
+assert.match(productionAdmin,/id="realDeliveryCount"/);
+assert.match(productionAdmin,/id="productionProfiles"/);
+assert.match(productionAdmin,/function renderProductionProfiles\(\)/);
+assert.match(productionAdmin,/\$\('agencyRealFind'\)\.click\(\)/);
+assert.match(productionAdmin,/showAdminTab\('customers'\)/,'Production customers are initial admin screen');
+assert.match(productionAdmin,/id="legacyDemoProfiles" aria-hidden="true"/);
+console.log('PASS read-only production customer directory metrics, physical address counts and safe selection');

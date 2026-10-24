@@ -40,14 +40,31 @@ export function directoryFromInvoices(orders,sourceComplete=true){
   if(!o||typeof o!=='object')continue;
   const name=compact(o.name||o.customerName,120),key=directoryKey(name);
   if(!key)continue;
-  if(!groups.has(key))groups.set(key,{key,name:baseName(key)||name,aliases:new Set(),invoices:new Set(),lastDate:''});
+  if(!groups.has(key))groups.set(key,{key,name:baseName(key)||name,aliases:new Set(),
+   invoices:new Set(),destinations:new Map(),lastDate:''});
   const g=groups.get(key);g.aliases.add(name);
   const no=receiptOf(o.invoiceNo);if(no)g.invoices.add(no);
+  const address=addressOf(o.location||o.address);
+  if(address){
+   const addressKey=physicalAddressKey(address);
+   if(!g.destinations.has(addressKey))
+    g.destinations.set(addressKey,{address,phones:new Set(),invoiceNos:new Set()});
+   const place=g.destinations.get(addressKey),phone=phoneOf(o.phone||o.customerPhone);
+   if(phone)place.phones.add(phone);
+   if(no)place.invoiceNos.add(no);
+  }
   const date=dateOf(o.date||o.createdAt);if(date>g.lastDate)g.lastDate=date;
  }
  return [...groups.values()].map(g=>({
    key:g.key,name:g.name,aliases:[...g.aliases].sort((a,b)=>a.localeCompare(b,'vi')),
-   invoiceCount:g.invoices.size,lastDate:g.lastDate,sourceComplete:!!sourceComplete
+   invoiceCount:g.invoices.size,lastDate:g.lastDate,sourceComplete:!!sourceComplete,
+   // Summary from the SAME invoice scope as the list. One physical address
+   // counts once even across repeat orders and multiple contact numbers.
+   deliveryLocationCount:g.destinations.size,
+   deliveryLocations:[...g.destinations.values()].map(p=>({
+    address:p.address,invoiceCount:p.invoiceNos.size,
+    contactCount:p.phones.size
+   })).sort((a,b)=>a.address.localeCompare(b.address,'vi'))
  })).sort((a,b)=>b.invoiceCount-a.invoiceCount||a.name.localeCompare(b.name,'vi'));
 }
 export function detailFromEvidence(requestedName,profiles,invoices,{sourceTotal=null,invoicesIncomplete=false}={}){
