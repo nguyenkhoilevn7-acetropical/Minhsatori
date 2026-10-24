@@ -572,7 +572,7 @@ test('production account UI auto-loads Drive history on PIN login, not localStor
  assert.match(client,/void loadInvoiceHistory\(false\)/);
  assert.match(client,/persistedInvoiceCount=d\.orders\.length/);
  assert.match(client,/submittedInvoiceBadge/);
- assert.match(client,/lockConfirmButtons\('⏳ ĐANG GỬI/);
+ assert.match(client,/lockConfirmButtons\('⏳ ĐANG XỬ LÝ/);
  assert.match(client,/real-catalog-stepper/);
  assert.match(client,/clientOrderId/);
  new vm.Script(client,{filename:'production-verified-customer-account.js'});
