@@ -34,7 +34,7 @@
    }
    // Chat remains tappable when the previous invoice was confirmed or is uncertain.
    // Actual invoice writes stay guarded by the stable cart/quote/request identity.
-   if(input){input.disabled=busy;input.placeholder=confirming?
+   if(input){input.disabled=confirming;input.placeholder=confirming?
     'Đang xác nhận đơn...':submissionUncertain?
     'Kiểm tra Hóa đơn trước khi tiếp tục đặt hàng':
     submitted?'Nhắn đơn mới hoặc bấm Giỏ hàng mới':
