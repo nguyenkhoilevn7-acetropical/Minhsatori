@@ -460,7 +460,9 @@ class NativeMainActivity : AppCompatActivity() {
                         allowedActions = emptySet()
                         snapshot = null
                         dataSource = ""
-                        connectGoogle()
+                        // Owner manually selected Drive: offer account chooser
+                        // instead of silently reusing an unrelated Google account.
+                        connectGoogle(askAccount = true)
                     }
                     1 -> {
                         getPreferences(MODE_PRIVATE).edit()
@@ -2139,7 +2141,8 @@ class NativeMainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun connectGoogle(automatic: Boolean = false, emailOnlyFallback: Boolean = false) {
+    private fun connectGoogle(automatic: Boolean = false, emailOnlyFallback: Boolean = false,
+                              askAccount: Boolean = false) {
         if (isLoading || authorizationPending || (automatic && authorizationDeclined)) return
         if (!automatic) authorizationDeclined = false
         authorizationPending = true
@@ -2152,9 +2155,9 @@ class NativeMainActivity : AppCompatActivity() {
         if (!emailOnlyFallback && (apiEndpoint == null || preferGoogleDrive())) {
             scopes.add(Scope("https://www.googleapis.com/auth/drive.readonly"))
         }
-        val request = AuthorizationRequest.builder()
-            .setRequestedScopes(scopes)
-            .build()
+        val builder = AuthorizationRequest.builder().setRequestedScopes(scopes)
+        if (askAccount) builder.setPrompt(AuthorizationRequest.Prompt.SELECT_ACCOUNT)
+        val request = builder.build()
         statusMessage = "Đang xác thực tài khoản Google được cấp quyền Minh Satori."
         render()
         Identity.getAuthorizationClient(this).authorize(request)
