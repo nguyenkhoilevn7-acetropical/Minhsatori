@@ -19,10 +19,12 @@ export function renderOriginalGeminiProduction(originalHtml,adapterJs){
  html=html.replace('Khách thử • mô phỏng luồng ChatGPT','Đặt hàng thật • Bảng giá được duyệt riêng');
  html=html.replace('id="historyButton">🧾 Lịch sử &amp; Excel','id="historyButton">🧾 Hóa đơn');
  html=html.replace(/<p class="history-caution">[\s\S]*?<\/p>/,
-  '<p class="history-caution">Chỉ hiển thị hóa đơn đã xác nhận trong phiên này. Không giả lập lịch sử Google Drive.</p>');
+  '<p class="history-caution">Hóa đơn đọc trực tiếp từ Google Drive, chỉ của người nhận và địa chỉ trong link được duyệt. Nếu quá 100 kết quả, hệ thống cảnh báo lịch sử chưa đầy đủ.</p>');
  html=html.replace('Phiếu xác nhận đơn thử','Hóa đơn Minh Satori');
  html=html.replace('<a id="historyExcel"','<a id="historyExcel" hidden');
- html=html.replace(/<div class="history-tools">[\s\S]*?<\/div>/,'');
+ // Keep the ORIGINAL Gemini month and search filters; add status filter within them.
+ html=html.replace('<div class="history-tools">',
+  '<div class="history-tools"><label>Thanh toán<select id="historyStatus"><option value="">Tất cả</option><option value="paid">Đã thanh toán</option><option value="unpaid">Chưa thanh toán</option></select></label>');
  // These controls are source-compatible but controlled by real authenticated
  // /api/real/{catalogue,interpret,quote,confirm}; no fake /api/draft writes.
  const gate='<section class="production-gemini-gate" id="realGate" role="form" aria-label="Mở link đặt nước">'+
@@ -63,7 +65,17 @@ export function renderOriginalGeminiProduction(originalHtml,adapterJs){
   '.production-gemini .delivery-note-label{font-size:12px;font-weight:700;color:#1f5779}\n'+
   '.production-gemini .delivery-note{display:block;min-height:43px;max-height:76px;width:100%;font-size:14px;border:1px solid #c9ddeb;border-radius:11px;padding:8px;background:white;color:#183047}\n'+
   '.production-gemini .catalog-launch-bar{display:grid}\n'+
-  '.production-gemini #quickCartNew{display:none}\n'+
+  '.production-gemini #quickCartNew{display:inline-flex!important;align-items:center;justify-content:center;background:#1078d6;color:#fff;border-radius:10px;min-height:37px;padding:7px 11px;font-weight:750}\n'+
+  '.production-gemini #locationsPanel button{display:block;width:100%;margin:8px 0;padding:14px 16px;border:1px solid #bdd9f0;border-radius:14px;background:linear-gradient(120deg,#f4fbff,#e3f4fe);color:#164469;box-shadow:0 3px 9px #1d6fb116;text-align:left;font-weight:650;font-size:14px;line-height:1.5}\n'+
+  '.production-gemini #locationsPanel button[aria-pressed=true]{background:linear-gradient(120deg,#d5edff,#c2e8ff);border:2px solid #1686cb;box-shadow:0 3px 12px #1783ca26}\n'+
+  '.production-gemini .real-history-order{padding:13px;border:1px solid #d1e4f6;background:#fff;border-radius:14px;margin:9px 0}\n'+
+  '.production-gemini .real-history-order strong{color:#164d7a}.production-gemini .real-history-order small{display:block;color:#66788c;line-height:1.6}\n'+
+  '.production-gemini .real-history-order button{margin-top:9px;background:#0c76ca;color:#fff;border:0;border-radius:9px;padding:8px 12px}\n'+
+  '.production-gemini .real-invoice-preview{font-family:Arial,sans-serif;background:white;border:1px solid #d5e1ec;border-radius:13px;padding:13px;color:#1f2e42}\n'+
+  '.production-gemini .real-invoice-preview h3{font-size:17px;color:#0d6385;margin:4px 0 12px}\n'+
+  '.production-gemini .real-invoice-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #edf1f4}\n'+
+  '.production-gemini .real-invoice-line strong{white-space:nowrap;text-align:right}\n'+
+  '.production-gemini .real-invoice-total{font-size:17px;font-weight:800;color:#006f8f}\n'+
   '@media(max-width:760px){.production-gemini-gate{margin:12vh 12px}.production-gemini .chat{height:var(--satori-visible-height,100dvh);min-height:0}.production-gemini #inlineCartLines{max-height:30dvh}.production-gemini .quick-cart{max-height:45dvh}}\n'+
   '</style>');
  // Client script controlled in this app, while original demo remains unchanged.
