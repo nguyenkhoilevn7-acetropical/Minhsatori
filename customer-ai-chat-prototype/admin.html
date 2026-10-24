@@ -96,19 +96,41 @@ button:disabled{opacity:.55}
 .ctv-save-status{font-weight:650;color:#20527b;font-size:13px;min-height:20px;white-space:pre-wrap}
 #pairConfigFields{margin-top:13px;border:1px solid #dce5ef;border-radius:13px;padding:14px;min-width:0}
 #pairConfigFields legend{font-weight:750}
+/* Production owner UI: live, organized and readable on Samsung */
+.production-tag{display:inline-flex;background:#e6f7ed;color:#176747;border:1px solid #b6e2c8;border-radius:99px;padding:7px 11px;font-size:12px;font-weight:750;align-items:center}
+.production-heading{display:flex;justify-content:space-between;gap:10px;align-items:start;flex-wrap:wrap}
+.production-heading p{color:#68798e;font-size:13px;margin:4px 0 12px}
+.directory-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:16px 0}
+.directory-stat{border:1px solid #dce9f7;border-radius:13px;background:#f5f9ff;padding:13px 10px;min-width:0}
+.directory-stat strong{display:block;font-size:25px;color:#135fa8;font-variant-numeric:tabular-nums}
+.directory-stat span{display:block;font-size:11px;color:#6b7a8b;line-height:1.4}
+.directory-toolbar{display:flex;gap:8px;margin:10px 0;align-items:center}
+.directory-toolbar input{flex:1;min-width:0}
+.directory-grid{display:grid;gap:11px}
+.directory-card{background:white;border:1px solid #dfe8f2;border-radius:15px;padding:13px}
+.directory-card-head{display:flex;gap:11px;align-items:center}
+.directory-avatar{height:38px;width:38px;flex:0 0 38px;display:grid;place-items:center;color:#145d9e;background:#e5f1ff;border-radius:12px;font-weight:800}
+.directory-card-title{flex:1;min-width:0}.directory-card-title strong{display:block;font-size:15px;color:#173852}.directory-card-title small{font-size:12px;color:#6c7d8e}
+.directory-pill{border-radius:99px;padding:6px 9px;background:#ecf4fe;color:#165c99;font-size:12px;white-space:nowrap}
+.directory-card .secondary{min-height:37px;padding:7px 12px;font-size:12px;margin-top:10px}
+.directory-places{border-top:1px solid #e9eff6;margin-top:10px;padding-top:8px}
+.directory-places summary{font-size:13px;font-weight:700;color:#1e6da9}
+.directory-places ul{padding:0;list-style:none;margin:7px 0 0}.directory-places li{padding:9px 0;border-bottom:1px solid #eef3f7;font-size:13px;line-height:1.4}.directory-places li small{color:#6e7d90;display:block}
+#legacyDemoProfiles,#customerManagement{display:none!important}
+@media(max-width:560px){.directory-stat strong{font-size:21px}.directory-stat{padding:10px 7px}.directory-stat span{font-size:10px}.directory-toolbar{flex-wrap:wrap}.directory-toolbar button{width:100%}}
 </style></head><body><main>
-<header class="admin-branded-header"><a href="/c/demo-a">← Chat thử</a><span class="admin-brand"><img src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="46" height="46"><strong>MINH SATORI <small id="adminModeTag">• Đang kiểm tra</small></strong></span></header>
-<h1>Quản lý khách hàng & cộng tác viên</h1>
-<p class="warning" id="adminModeNote">Đang xác minh chế độ chạy. Dữ liệu demo luôn tách khỏi sổ thật; thao tác CTV thật chỉ có hiệu lực khi đã xác thực quản trị và đủ quyền HMAC.</p>
+<header class="admin-branded-header"><span class="production-tag">● PRODUCTION</span><span class="admin-brand"><img src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="46" height="46"><strong>MINH SATORI <small id="adminModeTag">• Đang kiểm tra</small></strong></span></header>
+<h1>Quản lý Minh Satori</h1>
+<p class="hint" id="adminModeNote">Đang kết nối Google Drive Production…</p>
 <section class="card" id="loginCard"><h2>Đăng nhập quản trị</h2>
 <label for="access">Mã quản trị trên Render (không nằm trong đường link)</label><input id="access" type="password" autocomplete="off" placeholder="Nhập mã quản trị">
 <p class="hint">Mã chỉ giữ trong bộ nhớ trình duyệt khi trang đang mở, không lưu vào máy. Không gửi mã cho khách.</p>
 <button id="login">Mở quản lý</button> <span id="authState" class="hint"></span><p id="error" role="alert"></p></section>
 <div id="workspace" hidden>
 <nav class="admin-tabs" aria-label="Chức năng quản trị">
- <button type="button" class="admin-tab active" data-admin-tab="orders" aria-pressed="true">🔔 Đơn hàng</button>
- <button type="button" class="admin-tab" data-admin-tab="live" aria-pressed="false">📚 Dữ liệu thật</button>
- <button type="button" class="admin-tab" data-admin-tab="customers" aria-pressed="false">👥 Khách hàng</button>
+ <button type="button" class="admin-tab" data-admin-tab="orders" aria-pressed="false" style="display:none">🧪 Đơn thử</button>
+ <button type="button" class="admin-tab" data-admin-tab="live" aria-pressed="false">🧾 Hóa đơn thật</button>
+ <button type="button" class="admin-tab active" data-admin-tab="customers" aria-pressed="true">👥 Khách hàng</button>
  <button type="button" class="admin-tab" data-admin-tab="ctv-ledger" aria-pressed="false">📊 Bảng CTV</button>
  <button type="button" class="admin-tab" data-admin-tab="changes" aria-pressed="false">📬 Yêu cầu</button>
  <button type="button" class="admin-tab" data-admin-tab="settings" aria-pressed="false">⚙️ Cài đặt</button>
@@ -250,8 +272,15 @@ button:disabled{opacity:.55}
 </div>
 </details>
 </section>
+<section class="card" data-tab-panel="customers" hidden id="productionCustomerDirectory">
+<div class="production-heading"><div><h2>👥 Danh sách khách hàng thật</h2><p>Nhóm theo tên trên hóa đơn và địa chỉ giao thực tế</p></div><span class="production-tag">✓ Đọc từ Drive</span></div>
+<div class="directory-stats"><div class="directory-stat"><strong id="realProfileCount">—</strong><span>Khách/đại lý</span></div><div class="directory-stat"><strong id="realDeliveryCount">—</strong><span>Điểm giao</span></div><div class="directory-stat"><strong id="realInvoiceCount">—</strong><span>Hóa đơn nguồn</span></div></div>
+<div class="directory-toolbar"><input id="realDirectoryFilter" aria-label="Tìm khách thật" placeholder="🔎 Tìm tên khách hàng…" maxlength="120" autocomplete="off"><button type="button" class="secondary" id="realDirectoryRefresh">↻ Làm mới</button></div>
+<p class="hint" id="directoryCoverage" role="status">Đang tải hồ sơ khách thật…</p>
+<div class="directory-grid" id="productionProfiles" aria-live="polite"></div>
+<p class="hint">Đây là hồ sơ tổng hợp từ hóa đơn, không phải lịch sử các link đã phát hành. Chọn Cấp link để duyệt địa chỉ trên sổ gốc.</p></section>
 <section class="card" data-tab-panel="customers" hidden id="agencyRealLinks">
-<h2>🔗 Link đặt hàng đại lý • một link, nhiều điểm giao</h2>
+<h2>🔗 Cấp link đặt hàng thật</h2>
 <p class="hint">Không dùng cộng tác viên và không tạo hóa đơn đôi. Chủ cửa hàng chọn từng địa chỉ lịch sử và chiết khấu riêng. Không ghi hóa đơn khi chỉ cấp link. Link thật chỉ phát hành nếu Backend có quyền ghi hóa đơn được xác minh.</p>
 <label>Tên đại lý / người quản lý các điểm giao
 <input id="agencyRealName" placeholder="Nhập tên từ sổ kế toán thật" maxlength="120"></label>
@@ -273,7 +302,7 @@ button:disabled{opacity:.55}
 <button type="button" class="secondary" id="agencyRealCopyCode">Sao chép mã truy cập</button>
 </div>
 </section>
-<section class="card" data-tab-panel="customers" hidden id="customerManagement"><details id="regularCustomerPanel"><summary><strong>👤 Hồ sơ khách thường & điểm giao (không phải CTV)</strong></summary><p class="hint">Hồ sơ khách hàng và các điểm giao nguồn dùng để cấp link thật. Bảng tính hoa hồng CTV được quản lý riêng ở tab “Bảng CTV”; không tác động đến link.</p>
+<section class="card" data-tab-panel="customers" hidden id="customerManagement" aria-hidden="true"><details id="regularCustomerPanel"><summary><strong>👤 Hồ sơ khách thường & điểm giao (không phải CTV)</strong></summary><p class="hint">Hồ sơ khách hàng và các điểm giao nguồn dùng để cấp link thật. Bảng tính hoa hồng CTV được quản lý riêng ở tab “Bảng CTV”; không tác động đến link.</p>
 <form id="create">
 <label for="customerSearch">Tìm khách trong sổ kế toán thật hoặc hồ sơ thử</label><input id="customerSearch" autocomplete="off" placeholder="Tìm theo tên hoặc số điện thoại" aria-describedby="customerHelp">
 <p id="customerHelp" class="hint">Chọn hồ sơ từ gợi ý để tự điền thông tin. Danh sách tự lấy tên từ 3 tháng gần nhất trong sổ kế toán thật, hoặc tìm theo tên nếu khách lâu chưa mua. Mọi địa chỉ thật chỉ được xem sau đăng nhập quản trị.</p>
@@ -314,7 +343,7 @@ button:disabled{opacity:.55}
 </section>
 <section class="card" data-tab-panel="settings" hidden><h2>Trạng thái kết nối website thật</h2><p class="hint">Đây là bảng kiểm tra điều kiện triển khai chính thức, không phải dữ liệu sản xuất. Không nhập mã API hoặc thông tin bí mật vào phần này.</p><div id="integrationStatus" role="status">Đăng nhập để kiểm tra trạng thái.</div><p><button type="button" class="secondary" id="checkSourceReadonly">Kiểm tra API nguồn • CHỈ ĐỌC</button></p><p id="sourceReadResult" class="hint" role="status">Không sao chép khách hàng hoặc hóa đơn thật vào sandbox.</p><div id="sourcePriceDifferences" class="hint" role="region" aria-label="Các sản phẩm lệch bảng giá Drive" hidden></div></section>
 <section class="card" data-tab-panel="changes" hidden><h2>🔔 Yêu cầu đổi thông tin khách <span id="changeCount">0</span></h2><p class="hint">Chỉ ghi nhận yêu cầu đổi số điện thoại, địa chỉ hoặc người nhận. Không tự áp dụng thay đổi vào link. Danh sách tự tải lại khi anh đang mở trang quản trị.</p><p><button id="refreshChanges" class="secondary" type="button">Kiểm tra yêu cầu</button></p><div id="changeList" role="status"></div></section>
-<section class="card" data-tab-panel="customers" hidden><h2>Danh sách hồ sơ đã tạo</h2><p class="hint">Thu hồi link sẽ ngăn truy cập mới nhưng giữ lịch sử đơn thử. Đổi link sẽ vô hiệu hóa link cũ.</p><div id="list"></div></section>
+<section class="card" data-tab-panel="customers" hidden id="legacyDemoProfiles" aria-hidden="true"><h2>Hồ sơ thử nghiệm cũ</h2><p class="hint">Thu hồi link sẽ ngăn truy cập mới nhưng giữ lịch sử đơn thử. Đổi link sẽ vô hiệu hóa link cũ.</p><div id="list"></div></section>
 <section class="card" data-tab-panel="settings" hidden><h2>💾 Sao lưu & khôi phục sandbox</h2>
 <p class="hint">Render Free không lưu dữ liệu lâu dài. Anh hãy tải bản sao lưu sau khi thêm khách hoặc tạo đơn thử. Tệp có thông tin khách và đơn THỬ, không có mã bí mật hay link khách dạng rõ. Chỉ giữ ở nơi an toàn, không gửi lên chat hoặc GitHub.</p>
 <button type="button" id="downloadSandboxBackup" class="secondary">⬇ Tải bản sao lưu JSON</button>
@@ -348,8 +377,8 @@ async function updateAdminMode(){
   const ownerLive=h?.ownerPilotMode===true&&h?.ownerPilotReady===true&&h?.demoOnly!==true;
   $('adminModeTag').textContent=ownerLive?'• VẬN HÀNH NỘI BỘ · DỮ LIỆU THẬT':'• THỬ NGHIỆM / GIỚI HẠN';
   $('adminModeNote').textContent=ownerLive?
-   'Chủ tài khoản đang vận hành với dữ liệu thật qua API có kiểm soát. Chat demo và bản sao lưu sandbox vẫn là THỬ NGHIỆM. CTV/link và hóa đơn đôi chỉ hoạt động khi quyền duyệt, quyền ghi và điểm giao đều được xác nhận.':
-   'Trang đang ở chế độ thử nghiệm/giới hạn. Không tạo hóa đơn thật khi chưa xác minh quyền HMAC và chính sách.';
+   '✓ Đã kết nối Production. Hồ sơ, địa chỉ và giá đọc từ sổ thật; cấp link/ghi đơn yêu cầu quyền hợp lệ.':
+   '⚠ Chưa xác minh được kết nối dữ liệu thật. Không thay bằng hồ sơ thử nghiệm.';
  }catch{
   $('adminModeTag').textContent='• CHƯA XÁC MINH';
   $('adminModeNote').textContent='Chưa kiểm tra được chế độ máy chủ; chưa thực hiện ghi hóa đơn thật.';
@@ -904,7 +933,7 @@ function showAdminTab(name){
  }
  if(name==='orders')refreshOrderInbox();
  if(name==='settings')refreshVersionStatus();
- if(name==='customers'){void loadPairPolicies(true);if(secret&&!realCustomers.length)void loadRealDirectory();}
+ if(name==='customers'&&secret&&!realCustomers.length)void loadRealDirectory();
  window.scrollTo({top:0,behavior:'instant'});
 }
 for(const b of document.querySelectorAll('[data-admin-tab]'))b.onclick=()=>showAdminTab(b.dataset.adminTab);
@@ -1780,7 +1809,7 @@ $('ownerLiveConfirm').onclick=async()=>{
 };
 
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
- secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực quản trị';$('access').value='';await load();$('loginCard').hidden=true;showAdminTab('orders');void loadRealDirectory();await refreshOrderInbox()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
+ secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực quản trị';$('access').value='';await load();$('loginCard').hidden=true;showAdminTab('customers');await loadRealDirectory()}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
  const b=$('createButton');if(b.disabled)return;b.disabled=true;
  if(selectedRealKey){
