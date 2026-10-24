@@ -183,6 +183,14 @@ export function createProductionPrivateLinks({
    ...(multi?{agentName:input.agentName}:{customer:{name:approved[0].name,location:approved[0].location,sourceInvoiceNo:input.customerRef.invoiceNo}}),
    note:'Chia sẻ link và mã truy cập qua hai kênh riêng. Mã chỉ hiển thị một lần.'};
  }
+ // For conversational parsing ONLY: verify sealed invitation, independent PIN and
+ // owner-approved destination without querying Drive for each keystroke/message.
+ // All prices and invoice writes still revalidate CURRENT Drive data at quote/confirm.
+ function chatContext({token,accessCode,destination:ref}={}){
+  const invite=access(token,accessCode),d=chosen(invite,ref);
+  return {production:true,customer:{name:d.name,phone:d.phone,location:d.location},
+   destination:d.customerRef};
+ }
  async function catalogue({token,accessCode,destination:ref}={}){
   const invite=access(token,accessCode),agency=invite.type==='agency-invite';
   const d=agency?(ref?chosen(invite,ref):null):chosen(invite);
@@ -254,5 +262,5 @@ export function createProductionPrivateLinks({
    revision:receipt.revision,total:order.total,duplicate:receipt.data?.duplicate===true,
    message:'Đã ghi hóa đơn thật vào sổ kế toán Minh Satori.'};
  }
- return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm});
+ return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm,chatContext});
 }
