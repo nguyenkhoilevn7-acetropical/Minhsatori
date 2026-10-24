@@ -1,20 +1,19 @@
 {
-  "purpose": "android-0.4.2-owner-live-foreground-sync-restore-samsung",
+  "purpose": "android-0.4.4-website-invoice-auto-refresh-samsung",
   "package": "vn.minhsatori.app",
-  "version": "0.4.2",
-  "versionCode": 19,
-  "branch": "release/android-v0.4.2-live-sync-trash-20261023",
-  "scope": "Foreground Drive version or owner Mobile API canonical ledger polling roughly every 20 seconds; changed-only refresh without restarting; encrypted request-id deletion and 30-day restore UI only after private owner Apps Script API authorization.",
-  "requestedOn": "2026-10-23",
+  "version": "0.4.4",
+  "versionCode": 21,
+  "branch": "release/android-v0.4.4-web-live-refresh-20261024",
+  "scope": "Read-only website-to-Android live invoice sync: Drive and owner Mobile API foreground revision probes every 20 seconds, full ledger reconciliation every 60 seconds even when version changes are missed, immediate resume refresh, no-cache Drive reads and an always-visible manual Refresh. No production invoice mutations.",
+  "requestedOn": "2026-10-24",
   "sourcePRs": [
-    115
+    118,
+    121
   ],
   "notes": [
-    "Use SAME pinned release signing identity and cert for in-place Android update over 0.4.0/0.4.1.",
-    "Google Drive read-only live sync works independently of new owner Mobile API activation.",
-    "Soft delete/restore are deliberately unavailable until owner OAuth Apps Script production endpoint is deployed and configured.",
-    "No production invoice is created, deleted or restored during this build.",
-    "No local HMAC secrets or hard-coded owner credentials are allowed.",
-    "Release artifact is an owner field-test; Apps Script production delete/restore remain gated until private owner API activation and readback."
+    "Use the existing pinned release signing certificate for in-place upgrades without uninstalling.",
+    "Preserve old verified snapshot when remote is unreachable; show stale warning.",
+    "No production invoices created, edited or deleted in the build or CI.",
+    "Do not distribute debug-signed APK as a production upgrade."
   ]
 }
