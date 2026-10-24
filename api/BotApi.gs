@@ -8,6 +8,7 @@ var SatoriBotApi=(function(){
 'use strict';
 var ORDER_KEY='satori_orders_v15';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
+ 'customers.list':'customers:read','customers.upsert':'customers:write',
  'debt.summary':'debt:read','customers.search':'customers:read','orders.create':'orders:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
  'payments.markCustomerPaid':'payments:write'};
@@ -198,6 +199,31 @@ function markPaid(s,all,p){
  if(updated.status!=='Đã TT Satori')updated.status='Đã thanh toán';
  all[all.indexOf(old)]=updated;return {modified:true,result:{order:visible(updated),alreadyPaid:false}};
 }
+var CUSTOMER_PROFILES_KEY='satori_customer_profiles_v1';
+function storedProfiles(s){
+ var raw=JSON.parse(s.values[CUSTOMER_PROFILES_KEY]||'[]');
+ need(Array.isArray(raw)&&raw.length<=2000,'CUSTOMER_DATA_INVALID','Hồ sơ khách hàng không hợp lệ');
+ return raw;
+}
+function saveCustomer(s,p){
+ version(s,p);
+ need(p&&p.confirmed===true,'CONFIRMATION_REQUIRED','Cần quản trị xác nhận tạo khách');
+ var x=p.customer||{},name=String(x.name||'').trim(),phone=String(x.phone||'').replace(/[^0-9+\-\s]/g,'').trim();
+ var location=String(x.location||'').trim(),digits=phone.replace(/\D/g,'');
+ need(name.length>=2&&name.length<=150&&location.length>=8&&location.length<=500&&
+  digits.length>=9&&digits.length<=11&&phone.length<=30&&
+  !/[\u0000-\u001f]/.test(name+location),'INVALID_CUSTOMER',
+  'Phải nhập tên, điện thoại và địa chỉ hợp lệ');
+ var existing=storedProfiles(s),identity=[norm(name),digits,norm(location)].join('|');
+ need(!existing.some(function(o){return [norm(o.name),String(o.phone||'').replace(/\D/g,''),norm(o.location)].join('|')===identity}),
+  'CUSTOMER_ALREADY_EXISTS','Người nhận này đã có trong danh bạ');
+ var id='crm:'+Utilities.getUuid();
+ var profile={id:id,name:name,phone:phone,location:location,createdAt:new Date().toISOString(),
+  updatedAt:new Date().toISOString(),source:'minh-satori-drive-customer-profiles'};
+ existing.push(profile);
+ return {modified:true,extras:(function(){var x={};x[CUSTOMER_PROFILES_KEY]=JSON.stringify(existing);return x})(),
+  result:{profile:profile,created:true}};
+}
 function read(s,action,p){
  var all=rows(s);
  if(action==='trash.list'){
@@ -210,6 +236,7 @@ function read(s,action,p){
  }
  if(action==='system.status')return {revision:s.revision,updatedAt:s.updatedAt,orders:all.length};
  if(action==='customers.search')return {revision:s.revision,profiles:searchProfiles(all,p)};
+ if(action==='customers.list')return {revision:s.revision,profiles:storedProfiles(s)};
  var found=select(all,p);
  if(action==='orders.list')return {revision:s.revision,totalMatches:found.length,orders:found.slice(0,Math.min(100,Math.max(1,Number(p.limit)||30))).map(visible)};
  if(action==='debt.summary'){
@@ -226,7 +253,9 @@ function read(s,action,p){
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
 function write(s,action,p){
- var all=rows(s),result=action==='orders.create'?create(s,all,p):action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):markPaid(s,all,p);
+ var all=rows(s),result=action==='customers.upsert'?saveCustomer(s,p):
+  action==='orders.create'?create(s,all,p):action==='orders.delete'?removeOrder(s,all,p):
+  action==='orders.restore'?recoverOrder(s,all,p):markPaid(s,all,p);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
  need(!!fileId,'CONFIG_MISSING','Thiếu STATE_FILE_ID');
@@ -252,7 +281,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='orders.create'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='customers.upsert'||identity.action==='orders.create'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
