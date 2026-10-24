@@ -579,6 +579,8 @@
    const details=await call('/api/real/invoice-details',req);
    if(!details.invoice||Number(details.invoice.invoiceNo)!==Number(invoiceNo))
     throw Error('Chi tiết hóa đơn không khớp sổ gốc.');
+   // Show verified invoice immediately, even if browser cannot download its PDF.
+   paper.replaceChildren(showVerifiedInvoicePreview(details.invoice));
    const response=await fetch('/api/real/pdf',{method:'POST',cache:'no-store',
     headers:{'content-type':'application/json'},credentials:'omit',
     body:JSON.stringify({token,accessCode,...req})});
@@ -591,9 +593,7 @@
     throw Error('Dữ liệu PDF không hợp lệ.');
    if(pdfObjectUrl)URL.revokeObjectURL(pdfObjectUrl);
    pdfObjectUrl=URL.createObjectURL(blob);
-   paper.replaceChildren();
-   const preview=showVerifiedInvoicePreview(details.invoice);
-   paper.append(preview);
+   // Keep the authoritative HTML preview visible; PDF is an optional attachment.
    // Samsung Internet often renders POST-fetched blob PDF in an iframe as a
    // blank grey panel. Show verified full invoice HTML immediately instead;
    // on supported browsers offer a secondary inline embedded PDF.
@@ -611,7 +611,12 @@
    $('printInvoice').download='MinhSatori-'+invoiceNo+'.pdf';
    $('printInvoice').textContent='⬇ Tải PDF';
   }catch(err){
-   paper.replaceChildren();
+   if(!paper.querySelector('.real-invoice-preview')){
+    paper.replaceChildren();
+    const accepted=document.createElement('p');accepted.className='real-invoice-saved-alert';
+    accepted.textContent='✅ Hóa đơn #'+invoiceNo+' đã ghi nhận • '+cash(lastReceipt.result.total)+'. Không gửi lại đơn.';
+    paper.append(accepted);
+   }
    const warning=document.createElement('p');warning.className='warn';
    warning.textContent='⚠ '+err.message+' • Không gửi lại đơn hàng đã tạo.';
    paper.append(warning);
