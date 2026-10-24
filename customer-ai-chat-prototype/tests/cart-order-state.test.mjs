@@ -139,8 +139,14 @@ test('pending order survives reload and cannot silently start another cart',asyn
 test('new cart is blocked while confirmation is in flight, then becomes usable after success',async()=>{
  const f=fixture({deferConfirm:true});await f.login();await f.submit();const order=f.storage.get(orderKey);
  const button=await f.quote();const confirming=button.onclick();
+ assert.equal(button.textContent,'⏳ ĐANG XỬ LÝ');
+ const progress=f.all('.real-checkout-progress');
+ assert.equal(progress.length,1,'a single visible hourglass must appear immediately');
+ assert.match(progress[0].textContent,/⏳ Đang xử lý đơn hàng/);
  assert.equal(f.$('realNewCartButton').disabled,true);f.$('realNewCartButton').onclick();assert.equal(f.storage.get(orderKey),order);
- f.release();await confirming;assert.equal(f.$('realNewCartButton').disabled,false);
+ f.release();await confirming;
+ assert.equal(f.all('.real-checkout-progress').length,0,'pending status must disappear after the server responds');
+ assert.equal(f.$('realNewCartButton').disabled,false);
  f.$('realNewCartButton').onclick();assert.equal(f.send.disabled,false);assert.notEqual(f.storage.get(orderKey),order);
 });
 
@@ -181,4 +187,15 @@ test('uncertain invoice permits typing but cannot interpret or create orders bef
  assert.equal(f.storage.get(orderKey),id);
  assert.equal(f.calls.filter(x=>x.endpoint==='/api/real/interpret').length,0);
  assert.equal(f.$('historyBackdrop').classList.contains('open'),true);
+});
+
+test('success card uses two concise actions and quote stage announces processing',async()=>{
+ const f=fixture();await f.login();await f.submit();
+ const quoteButton=await f.quote();await quoteButton.onclick();
+ const buttons=f.all('.real-submitted-actions button');
+ assert.equal(buttons.length,2);
+ assert.equal(buttons[0].textContent,'🧾 Xem hóa đơn');
+ assert.match(buttons[1].textContent,/^Đã gửi \(\d+\)$/);
+ assert.equal(f.all('.real-checkout-progress').length,0);
+ assert.equal(f.confirmCalls(),1,'real confirm remains exactly once');
 });
