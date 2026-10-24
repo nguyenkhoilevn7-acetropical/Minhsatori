@@ -1,19 +1,19 @@
 {
-  "purpose": "android-0.4.5-owner-drive403-live-sync",
+  "purpose": "android-0.4.6-never-show-three-sandbox-invoices",
   "package": "vn.minhsatori.app",
-  "version": "0.4.5",
-  "versionCode": 22,
-  "branch": "release/android-v0.4.5-drive403-owner-recovery-20261024",
-  "scope": "Read-only owner API recovery when Drive returns HTTP 403. Explicit account reselect, email-only owner OAuth fallback, signed APK validation. No automatic invoice write privileges.",
+  "version": "0.4.6",
+  "versionCode": 23,
+  "branch": "release/android-v0.4.6-canonical-live-ledger-20261024",
+  "scope": "Fail-closed production invoice source validation on Mobile API, direct Drive and manual file readers. Prevent three-invoice Sandbox snapshots from masquerading as 117-invoice canonical ledger. No invoice mutations; retain owner OAuth and live revision auto-refresh.",
   "requestedOn": "2026-10-24",
   "sourcePRs": [
-    121,
-    124
+    124,
+    126
   ],
   "notes": [
-    "Built as a signed Release with existing pinned certificate in GitHub Actions run 40046020687.",
-    "Validated v0.4.5 versionCode 22 and original release signing identity.",
-    "Google Drive artifact uploaded and verified separately.",
-    "No production invoices were written during build; Android user acceptance still pending."
+    "Production read-only system.status checked 117 invoices and revision 133 on 2026-10-24.",
+    "Use same pinned signing certificate to upgrade without uninstall.",
+    "If both Drive and Mobile API are unauthorized, display a clear error rather than three demo invoices.",
+    "Device acceptance still required to prove all 117 invoices actually loaded."
   ]
 }
