@@ -70,7 +70,7 @@ export function directoryFromInvoices(orders,sourceComplete=true){
    deliveryLocationCount:g.destinations.size,
    deliveryLocations:[...g.destinations.values()].map(p=>({
     address:p.address,invoiceCount:p.invoiceNos.size,
-    contactCount:p.phones.size
+    contactCount:p.phones.size,phones:[...p.phones]
    })).sort((a,b)=>a.address.localeCompare(b.address,'vi'))
  })).sort((a,b)=>b.invoiceCount-a.invoiceCount||a.name.localeCompare(b.name,'vi'));
 }
