@@ -266,7 +266,24 @@
   const entries=[...cart.values()],count=entries.reduce((n,x)=>n+x.qty,0);
   setText('quickCartCount',cartCollapsed?'':entries.length+' loại sản phẩm trong giỏ');
   $('quickCartEdit').replaceChildren();
-  const cartIcon=document.createElement('span');cartIcon.className='real-cart-icon';cartIcon.textContent='🛒';
+  const cartIcon=document.createElement('span');cartIcon.className='real-cart-icon';
+  // Fixed white cart silhouette matches the mobile reference on Samsung and iPhone.
+  const cartSvg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  cartSvg.setAttribute('viewBox','0 0 24 24');
+  cartSvg.setAttribute('width','29');cartSvg.setAttribute('height','29');
+  cartSvg.setAttribute('fill','none');cartSvg.setAttribute('stroke','currentColor');
+  cartSvg.setAttribute('stroke-width','2.1');cartSvg.setAttribute('stroke-linecap','round');
+  cartSvg.setAttribute('stroke-linejoin','round');cartSvg.setAttribute('aria-hidden','true');
+  for(const d of ['m2 3 2.3 1.4L6.7 16h12l2.2-9.2H5.2']){
+   const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+   path.setAttribute('d',d);cartSvg.append(path);
+  }
+  for(const cx of ['8','18']){
+   const wheel=document.createElementNS('http://www.w3.org/2000/svg','circle');
+   wheel.setAttribute('cx',cx);wheel.setAttribute('cy','20');wheel.setAttribute('r','1');
+   wheel.setAttribute('fill','currentColor');cartSvg.append(wheel);
+  }
+  cartIcon.append(cartSvg);
   const cartBadge=document.createElement('strong');cartBadge.className='real-cart-count';cartBadge.textContent=String(count);
   $('quickCartEdit').append(cartBadge,cartIcon);
   $('quickCartEdit').title='🛒 '+count+' sản phẩm trong giỏ';
