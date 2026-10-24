@@ -501,3 +501,71 @@ test('new carts preserve history; Samsung PDF preview displays real amounts not 
  for(const [,js] of client.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
   new vm.Script(js,{filename:'real-chat-and-invoices.js'});
 });
+
+test('two separately confirmed quotes for the SAME cart send one stable Drive requestId',async()=>{
+ const f=fixture(),issued=await f.issue(),token=issued.link.split('/real/#')[1];
+ const clientOrderId='8c87ee22-579b-4271-a791-4302ae84b7f7';
+ const data={token,accessCode:issued.accessCode,items:[{code:'TP-00001',qty:2}],clientOrderId};
+ const quoteOne=await f.app.quote(data),quoteTwo=await f.app.quote(data);
+ await f.app.confirm({token,accessCode:issued.accessCode,
+  quoteToken:quoteOne.quoteToken,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
+ const firstId=f.request.requestId;
+ await f.app.confirm({token,accessCode:issued.accessCode,
+  quoteToken:quoteTwo.quoteToken,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
+ assert.equal(f.request.requestId,firstId,'Google Drive must dedupe the second confirmation');
+ const different=await f.app.quote({...data,clientOrderId:'8c87ee22-579b-4271-a791-4302ae84b7f8'});
+ await f.app.confirm({token,accessCode:issued.accessCode,
+  quoteToken:different.quoteToken,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
+ assert.notEqual(f.request.requestId,firstId,'deliberate NEW CART permits a new invoice');
+});
+
+test('one PIN-protected customer link reloads ALL 125 historical invoices past Drive 100-row cap',async()=>{
+ const env={GEMINI_PRODUCTION_LINKS_ENABLED:'1',GEMINI_OWNER_ONLY_REAL_PILOT:'1',
+  SATORI_BOT_SECRET:'test-key-only-at-least-32-characters-and-private'};
+ const products=new Map([['TP-00001',{code:'TP-00001',name:'Nước Satori 500ml',
+  unit:'Thùng',listPrice:100000}]]);
+ const rows=Array.from({length:125},(_,i)=>({
+  id:5000+i,invoiceNo:5700+i,date:`${String(1+i%28).padStart(2,'0')}/${String(1+Math.floor(i/28)%12).padStart(2,'0')}/2026`,
+  name:customer.name,phone:customer.phone,location:customer.location,
+  total:80000,status:i%2?'Đã thanh toán':'Chưa thanh toán',
+  items:[{product:'Nước Satori 500ml',qty:1,unit:'Thùng',unitPrice:80000}]
+ }));
+ // Simulate a different customer who happens to share a name.
+ rows.push({...rows[0],id:99119,invoiceNo:9999,phone:'0999999999'});
+ let reads=0;
+ const reader=async ({query,from,to,limit})=>{
+  reads++;
+  let found=rows.filter(x=>x.name.toLowerCase()===customer.name.toLowerCase());
+  if(from)found=found.filter(x=>{
+   const [d,m,y]=x.date.split('/');return [y,m,d].join('-')>=from;
+  });
+  if(to)found=found.filter(x=>{
+   const [d,m,y]=x.date.split('/');return [y,m,d].join('-')<=to;
+  });
+  return {revision:155,data:{orders:found.slice(0,limit),totalMatches:found.length}};
+ };
+ const app=createProductionPrivateLinks({env,now:()=>Date.UTC(2026,9,24,0),
+  source:async()=>({revision:155,customer:{...customer},products}),
+  bot:async()=>{throw Error('HISTORY_MUST_NOT_WRITE')},historyReader:reader});
+ const issued=await app.issue({confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+  customerRef:ref,name:customer.name,phone:customer.phone,location:customer.location,
+  discountPercent:20,shippingPercent:0,vatPercent:0,daysValid:7});
+ const token=issued.link.split('/real/#')[1];
+ const prior=await app.history({token,accessCode:issued.accessCode});
+ const revisited=await app.history({token,accessCode:issued.accessCode});
+ assert.equal(prior.complete,true);
+ assert.equal(prior.orders.length,125,'older 101st invoice is retained, not truncated');
+ assert.equal(revisited.orders.length,125,'login again must reload Drive history');
+ assert.ok(!prior.orders.some(x=>x.invoiceNo===9999),'no other customer information');
+ assert.ok(reads>2,'100-row cap must page through real Drive source');
+});
+test('production account UI auto-loads Drive history on PIN login, not localStorage invoice records',()=>{
+ const client=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
+ assert.match(client,/void loadInvoiceHistory\(false\)/);
+ assert.match(client,/persistedInvoiceCount=d\.orders\.length/);
+ assert.match(client,/submittedInvoiceBadge/);
+ assert.match(client,/lockConfirmButtons\('⏳ ĐANG GỬI/);
+ assert.match(client,/real-catalog-stepper/);
+ assert.match(client,/clientOrderId/);
+ new vm.Script(client,{filename:'production-verified-customer-account.js'});
+});
