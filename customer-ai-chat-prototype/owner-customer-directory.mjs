@@ -12,6 +12,21 @@ export function directoryKey(name){
 const baseName=key=>key==='brand:traky'?'Traky (các chi nhánh)':'';
 const phoneOf=v=>compact(v,40).replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0');
 const addressOf=v=>compact(v,300);
+// Group by the physical delivery point, never by phone number or invoice number.
+// A street-number + street-name is stronger than optional wards, postcodes,
+// or delivery-time instructions; keep building/block identity for nonstreet sites.
+export function physicalAddressKey(value){
+ const raw=addressOf(value).split(/\s+[—–]\s+/)[0].trim();
+ const segments=raw.split(',').map(x=>x.trim()).filter(Boolean);
+ const numbered=segments.find(x=>/^(?:\d+[A-Za-z]?|[A-Za-z]\d+[A-Za-z0-9-]*)(?:\s|[.-]|$)/.test(x))||
+  segments.map(x=>x.split(/\s+-\s+(?=\d)/).pop()).find(x=>/^(?:\d+[A-Za-z]?)(?:\s|[.-]|$)/.test(x));
+ if(numbered){
+  const street=foldCustomerName(numbered)
+   .replace(/\b(?:duong|d)\b/g,' ').replace(/\s+/g,' ').trim();
+  return 'street:'+street;
+ }
+ return 'site:'+foldCustomerName(raw);
+}
 const dateOf=v=>compact(v,32);
 const receiptOf=v=>compact(v,32);
 const verifiedRef=row=>{
@@ -51,19 +66,23 @@ export function detailFromEvidence(requestedName,profiles,invoices,{sourceTotal=
   aliases.add(name);if(phone)allPhones.add(phone);
   // Identity is a PHYSICAL DELIVERY POINT within an owner-reviewed agency.
   // Phone can change; repeat orders never create a new destination.
-  const identity=key+'|'+foldCustomerName(address);
+  const identity=key+'|'+physicalAddressKey(address);
   const no=receiptOf(row.sourceInvoiceNo??row.invoiceNo);
   const ref=verifiedRef(row),date=dateOf(row.lastDate||row.date||row.createdAt);
   let place=found.get(identity);
   if(!place){
    place={id:identity,name,phone:phone||'',address,label:name,
-    invoiceNos:[],references:[],phones:[],ordersObserved:0,lastDate:date,sourceKinds:[],
+    invoiceNos:[],references:[],sourceRows:[],phones:[],ordersObserved:0,lastDate:date,sourceKinds:[],
     missingContact:false};
    found.set(identity,place);
   }
   if(no&&!place.invoiceNos.includes(no))place.invoiceNos.push(no);
-  if(ref&&!place.references.some(x=>x.id===ref.id&&x.invoiceNo===ref.invoiceNo))
+  if(ref&&!place.references.some(x=>String(x.id)===String(ref.id)&&x.invoiceNo===ref.invoiceNo)){
    place.references.push(ref);
+   // Keep each source's OWN contact information with its exact record ref.
+   // A later phone from another invoice must not be paired with this ref.
+   place.sourceRows.push({ref,name,phone,address,date,kind});
+  }
   if(phone&&!place.phones.includes(phone))place.phones.push(phone);
   if(!phone)place.missingContact=true;
   if(!place.phone&&phone)place.phone=phone;
