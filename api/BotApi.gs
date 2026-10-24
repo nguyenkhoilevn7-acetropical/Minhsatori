@@ -774,6 +774,19 @@ function linkList(s,p){
   'LINK_REGISTRY_INVALID','Giới hạn đọc không hợp lệ');
  if(p.id){need(/^il_[a-f0-9]{32}$/.test(String(p.id)),'LINK_REGISTRY_INVALID','ID không hợp lệ');
   data=data.filter(function(x){return x&&x.id===p.id});offset=0;}
+ var kind=String(p.kind||''),query=String(p.query||'').trim();
+ need(!kind||['agency','collaborator','customer'].includes(kind),'LINK_REGISTRY_INVALID','Bộ lọc không hợp lệ');
+ need(query.length<=120,'LINK_REGISTRY_INVALID','Tìm kiếm quá dài');
+ if(kind)data=data.filter(function(x){return x&&x.kind===kind});
+ if(query){
+  var folded=norm(query);
+  data=data.filter(function(x){
+   var fields=[x.name].concat((x.recipients||[]).map(function(r){
+    return [r.name,r.phone,r.location].join(' ');
+   }));
+   return norm(fields.join(' ')).includes(folded);
+  });
+ }
  return {total:data.length,offset:offset,hasMore:offset+limit<data.length,
   items:data.slice(offset,offset+limit)};
 }
