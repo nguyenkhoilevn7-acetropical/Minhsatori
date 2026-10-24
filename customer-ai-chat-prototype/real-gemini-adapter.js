@@ -43,11 +43,18 @@
    $('historyButton').setAttribute('aria-label','Hóa đơn • '+total+' hóa đơn đã mua, '+unreadInvoices.size+' đơn mới chưa xem');
   }
   updateInvoiceBadge();
-  function markSubmitted(invoiceNo){
+  function markSubmitted(invoiceNo,quote,saved){
    submitted=true;submissionUncertain=false;sessionInvoices.add(invoiceNo);unreadInvoices.add(invoiceNo);
    writeSession(pendingStorageKey,'');
    writeSession(unreadKey,JSON.stringify([...unreadInvoices].slice(-30)));
-   writeSession(submittedStorageKey,JSON.stringify({orderId:clientOrderId,invoiceNo,invoiceNos:[...sessionInvoices].slice(-30)}));
+   const overview={invoiceNo,total:saved.total,createdAt:new Date().toISOString(),
+    name:String(quote.customer?.name||'').slice(0,150),location:String(quote.customer?.location||'').slice(0,500),
+    items:(quote.items||[]).slice(0,6).map(i=>({product:String(i.product||'').slice(0,150),
+     qty:Number(i.qty),unit:String(i.unit||''),unitPrice:Number(i.unitPrice)||0})),
+    subtotal:Number(quote.subtotal)||0,shippingAmount:Number(quote.shippingAmount)||0,
+    vatAmount:Number(quote.vatAmount)||0,deliveryNote:String(quote.deliveryNote||'').slice(0,300)};
+   savedRecord={orderId:clientOrderId,invoiceNo,invoiceNos:[...sessionInvoices].slice(-30),overview};
+   writeSession(submittedStorageKey,JSON.stringify(savedRecord));
    updateInvoiceBadge();
   }
   function lockConfirmButtons(label){
@@ -62,7 +69,7 @@
    const number=document.createElement('p');number.textContent='HÓA ĐƠN #'+invoiceNo+' • '+cash(total);
    const note=document.createElement('p');note.textContent='Đã lưu vào Google Drive. Không gửi lại đơn này.';
    const actions=document.createElement('div');actions.className='real-submitted-actions';
-   const view=document.createElement('button');view.type='button';view.textContent='🧾 Xem hóa đơn #'+invoiceNo;view.onclick=()=>void showReceipt();
+   const view=document.createElement('button');view.type='button';view.textContent='🧾 Xem hóa đơn #'+invoiceNo;view.onclick=()=>showOrderOverview(invoiceNo);
    const history=document.createElement('button');history.type='button';history.textContent='Hóa đơn đã gửi ('+sessionInvoices.size+')';history.onclick=()=>void loadInvoiceHistory();
    actions.append(view,history);card.append(head,number,note,actions);
    $('messages').append(card);$('messages').scrollTop=$('messages').scrollHeight;
@@ -357,14 +364,18 @@
   const d=await call('/api/real/catalogue',{});
   $('realGate').hidden=true;$('productionGeminiApp').hidden=false;
   const locationButton=$('locationsToggle');locationButton.hidden=false;
+  $('productionGeminiApp').hidden=false;
+  document.body.classList.add('real-session-open');
   if(d.agency){
    agency=true;destinations=d.destinations||[];
+   $('historyButton').parentElement.classList.add('has-five-actions');
    if(!destinations.length)throw Error('Link chưa có địa chỉ được duyệt.');
    renderDestinations();$('locationsPanel').hidden=false;locationButton.setAttribute('aria-expanded','true');
    setText('chatSubtitle',(d.agentName||'Đại lý')+' • chọn địa chỉ để bắt đầu');
    bubble('Xin chào! Chọn một địa chỉ giao đã duyệt ở phía trên. Sau đó anh/chị có thể đặt hàng bằng chính khung Gemini này.');
   }else{
    agency=false;destinations=[];
+   $('historyButton').parentElement.classList.remove('has-five-actions');
    locationButton.hidden=true;applyCatalogue(d);
   }
   // This is the actual original Gemini UI, not a second re-implemented
@@ -451,12 +462,14 @@
    try{
     const saved=await call('/api/real/confirm',{quoteToken:confirmedQuote,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
     if(!saved.saved||!Number.isSafeInteger(saved.invoiceNo))throw Error('CHƯA XÁC NHẬN SỐ HÓA ĐƠN');
-    lastReceipt={quote:q,result:saved};markSubmitted(saved.invoiceNo);
+    lastReceipt={quote:q,result:saved};markSubmitted(saved.invoiceNo,q,saved);
     lockConfirmButtons('✅ ĐÃ GỬI • HÓA ĐƠN #'+saved.invoiceNo);
     confirm.classList.add('real-order-submitted');
-    showSubmittedCard(saved.invoiceNo,saved.total);updateSessionReceipt();
-    // PDF rendering cannot unlock an already committed invoice.
-    await showReceipt();
+    showSubmittedCard(saved.invoiceNo,saved.total);
+    // Confirmed Google Drive write is the commitment. Show a local overview
+    // immediately; slow canonical PDF/history is fetched only on explicit demand.
+    showOrderOverview(saved.invoiceNo);
+    updateSessionReceipt();
    }catch(err){
     if(!submitted){
      submissionUncertain=true;
@@ -585,6 +598,39 @@
   tip.textContent='Bản xem trước lấy từ cùng hóa đơn đã lưu trên Google Drive. Mở PDF hoặc tải PDF để xem bản website chính thức.';
   preview.append(tip);
   return preview;
+ }
+ function showOrderOverview(invoiceNo=lastReceipt?.result?.invoiceNo){
+  const overview=lastReceipt?.result?.invoiceNo===invoiceNo&&lastReceipt?.quote?
+   {invoiceNo,total:lastReceipt.result.total,...lastReceipt.quote,
+    name:lastReceipt.quote.customer?.name,location:lastReceipt.quote.customer?.location}:
+   savedRecord?.overview?.invoiceNo===invoiceNo?savedRecord.overview:null;
+  if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1)return;
+  const paper=$('printPaper');paper.replaceChildren();$('invoice').style.display='block';
+  $('viewInvoice').hidden=true;$('printInvoice').hidden=true;
+  const article=document.createElement('article');article.className='real-invoice-preview real-order-overview';
+  const state=document.createElement('span');state.className='real-overview-status';
+  state.textContent='✓ ĐƠN HÀNG ĐÃ GỬI THÀNH CÔNG';
+  const heading=document.createElement('h3');heading.textContent='PHIẾU XÁC NHẬN ĐẶT HÀNG #'+invoiceNo;
+  const person=document.createElement('p');person.textContent='Người nhận: '+String(overview?.name||'Thông tin đã được xác minh');
+  const address=document.createElement('p');address.textContent='Giao hàng: '+String(overview?.location||'Theo địa chỉ đã chọn');
+  article.append(state,heading,person,address);
+  for(const item of overview?.items||[]){
+   const product=String(item.product||item.name||'Sản phẩm');
+   const amount=Number(item.unitPrice||0)*Number(item.qty||0);
+   article.append(invoiceLine(product+' ×'+item.qty+' '+String(item.unit||''),cash(amount)));
+  }
+  if(overview){
+   article.append(invoiceLine('Tiền hàng',cash(overview.subtotal)));
+   article.append(invoiceLine('Phí giao',cash(overview.shippingAmount)));
+   article.append(invoiceLine('VAT',cash(overview.vatAmount)));
+  }
+  article.append(invoiceLine('TỔNG ĐÃ GHI NHẬN',cash(overview?.total??lastReceipt?.result?.total),'real-invoice-total'));
+  if(overview?.deliveryNote){
+   const note=document.createElement('p');note.textContent='Lưu ý: '+overview.deliveryNote;article.append(note);
+  }
+  const tip=document.createElement('p');tip.className='real-overview-tip';
+  tip.textContent='Đây là phiếu xác nhận ngay sau khi Google Drive đã ghi đơn, không phải hóa đơn PDF riêng. Hóa đơn chính thức sẽ đọc trong mục 🧾 Hóa đơn khi tải xong. Tuyệt đối không xác nhận lại.';
+  article.append(tip);paper.append(article);
  }
  async function showReceipt(){
   if(!lastReceipt?.result?.receiptToken){
