@@ -25,6 +25,18 @@ function json(o){return ContentService.createTextOutput(JSON.stringify(o))
 var READ_ACTIONS=['mobile.snapshot','mobile.revision','mobile.trash'];
 var WRITE_ACTIONS=['orders.delete','orders.restore'];
 var ALLOWED=READ_ACTIONS.concat(WRITE_ACTIONS);
+// Owner ledger identity must be backed by the server-side STATE_FILE_ID property.
+// The Android app checks these fields before showing Production as synced.
+var PRODUCTION_FILE_ID='14XWSPrxLnKXATwmuHeXGZnCvjDbalghV';
+var LEDGER_KIND='minh-satori-owner-drive-v15';
+function productionLedgerProof(state){
+ var actual=String(PropertiesService.getScriptProperties().getProperty('STATE_FILE_ID')||'').trim();
+ need(actual===PRODUCTION_FILE_ID,'WRONG_LEDGER_SOURCE',
+   'This Apps Script deployment is not connected to Minh Satori Production');
+ need(state&&Number.isSafeInteger(state.revision)&&state.revision>=133,
+   'WRONG_LEDGER_SOURCE','This Mobile API is reading an outdated or test ledger');
+ return {ledgerFileId:actual,ledgerKind:LEDGER_KIND};
+}
 function verify(token){
  need(typeof token==='string'&&token.length>=20&&token.length<=3500&&
    /^[A-Za-z0-9._~-]+$/.test(token),'AUTH_FAILED','Invalid owner OAuth token');
@@ -110,8 +122,11 @@ function handle(e){
   need(s&&Number.isSafeInteger(s.revision)&&s.values&&
     typeof s.values.satori_orders_v15==='string',
     'INVALID_STATE','Invalid owner Drive ledger');
+  var proof=productionLedgerProof(s);
   if(action==='mobile.revision')return json({ok:true,action:action,
-    data:{revision:s.revision,updatedAt:s.updatedAt},revision:s.revision});
+    data:{revision:s.revision,updatedAt:s.updatedAt,
+      ledgerFileId:proof.ledgerFileId,ledgerKind:proof.ledgerKind},
+    revision:s.revision});
   if(action==='mobile.trash')return json({ok:true,action:action,
     data:trash(s),revision:s.revision});
   // No privileged owner secrets, state-file IDs, payment keys, PDF bytes or
@@ -122,6 +137,7 @@ function handle(e){
     values[k]=s.values[k]});
   return json({ok:true,action:action,revision:s.revision,
     data:{revision:s.revision,updatedAt:s.updatedAt,values:values,
+      ledgerFileId:proof.ledgerFileId,ledgerKind:proof.ledgerKind,
       allowedActions:READ_ACTIONS.concat(WRITE_ACTIONS),
       actorId:actor.actorId}});
  }catch(ex){
