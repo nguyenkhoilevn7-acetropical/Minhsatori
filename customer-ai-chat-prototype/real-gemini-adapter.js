@@ -253,7 +253,7 @@
   for(const item of q.items||[]){
    const row=document.createElement('div');row.className='line';
    const name=document.createElement('span');name.textContent=item.product+' ×'+item.qty+' '+item.unit;
-   const amount=document.createElement('strong');amount.textContent=cash(item.subtotal);
+   const amount=document.createElement('strong');amount.textContent=cash(item.unitPrice*item.qty);
    row.append(name,amount);box.append(row);
   }
   for(const [label,value] of [['Tiền hàng',q.subtotal],['Phí giao',q.shippingAmount],['VAT',q.vatAmount],['TỔNG',q.total]]){
