@@ -309,3 +309,62 @@ test('standalone CTV finance is an owner-only live read, independent of agency l
  for(const [,js] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
   new vm.Script(js,{filename:'real-owner-ctv.js'});
 });
+
+test('restored OLD Gemini cart intent: full order, top-up, set, subtraction and atomic rollback',async()=>{
+ const {chatBasketChanges,applyCartChanges}=await import('../cart-semantics.mjs');
+ const known=new Set(['TP-00001','TP-00002','TP-00003']);
+ const first=[{sku:'TP-00001',qty:10},{sku:'TP-00002',qty:2}];
+ const init=chatBasketChanges('10 suối 500, 2 ổi',first);
+ assert.equal(init[0].action,'replace','two-product full order must replace, not increment');
+ let cart=applyCartChanges([],init,known);
+ assert.deepEqual(cart,[{code:'TP-00001',qty:10},{code:'TP-00002',qty:2}]);
+ const added=chatBasketChanges('Thêm 3 mãng cầu',[{sku:'TP-00003',qty:3}]);
+ assert.equal(added[0].action,'add','top-up must not reset earlier items');
+ cart=applyCartChanges(cart,added,known);
+ assert.deepEqual(cart,[{code:'TP-00001',qty:10},{code:'TP-00002',qty:2},
+  {code:'TP-00003',qty:3}],'screenshot case: 3 types / 15 total units');
+ assert.equal(cart.reduce((n,x)=>n+x.qty,0),15);
+ cart=applyCartChanges(cart,[{action:'set',code:'TP-00002',qty:4}],known);
+ assert.equal(cart.find(x=>x.code==='TP-00002').qty,4);
+ cart=applyCartChanges(cart,[{action:'subtract',code:'TP-00003',qty:2}],known);
+ assert.equal(cart.find(x=>x.code==='TP-00003').qty,1);
+ cart=applyCartChanges(cart,[{action:'remove',code:'TP-00003'}],known);
+ assert.ok(!cart.some(x=>x.code==='TP-00003'));
+ assert.throws(()=>applyCartChanges(cart,[{action:'add',code:'TP-00001',qty:500}],known),/CART_LIMIT/);
+ assert.deepEqual(cart,[{code:'TP-00001',qty:10},{code:'TP-00002',qty:4}],
+  'failed updates must not mutate a previously verified cart');
+ assert.throws(()=>applyCartChanges(cart,[{action:'replace',
+  items:[{code:'TP-00001',qty:5},{code:'TP-00001',qty:6}]}],known),/CART_REPLACE_INVALID/);
+ assert.throws(()=>applyCartChanges(cart,[{action:'add',code:'NOT_A_PRODUCT',qty:1}],known),/CART_ITEM_INVALID/);
+});
+test('production chat uses old conversation parser and rejects partial compound orders',()=>{
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ const route=server.slice(server.indexOf("if(p==='/api/real/interpret'){"),
+  server.indexOf("if(p==='/api/real/quote')result=",server.indexOf("if(p==='/api/real/interpret'){")));
+ assert.match(route,/realPrivateLinks\.chatContext\(input\)/,'PIN and approved destination rechecked');
+ assert.match(route,/contextualDraftEdit\(productMessage,profile,\{items:current\}\)/);
+ assert.match(route,/parseMultiOrder\(productMessage,profile\)/);
+ assert.match(route,/parseColloquialBasket\(productMessage,profile\)/);
+ assert.match(route,/looksCompoundOrder\(productMessage\)/);
+ assert.match(route,/applyCartChanges\(current,changes\|\|\[\],authorizedSkus\)/);
+ assert.match(route,/parserSource:source,changes:changes\|\|\[\],cart:updated/);
+ assert.doesNotMatch(route,/realPrivateLinks\.catalogue\(input\)/,'chat should not read Drive each message');
+ const links=readFileSync(new URL('../production-private-links.mjs',import.meta.url),'utf8');
+ assert.match(links,/function chatContext\(\{token,accessCode,destination:ref\}/);
+ assert.match(links,/const invite=access\(token,accessCode\),d=chosen\(invite,ref\)/);
+ assert.match(links,/const live=await checked\(invite,d\)/,
+  'quote and catalogue must STILL check current Drive');
+});
+test('Samsung restored cart and reply sequence never hides a third row or clips plus button',()=>{
+ const adapter=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
+ const shell=readFileSync(new URL('../production-gemini-shell.mjs',import.meta.url),'utf8');
+ assert.match(adapter,/row\.append\(title,controls,remove\);list\.append\(row\)/);
+ assert.match(adapter,/controls\.className='suggestion-steps'/);
+ assert.match(adapter,/const rows=result\.cart/,'use server-validated atomic cart');
+ assert.match(adapter,/bubble\(message,'user'\);\$\('messageInput'\)\.value=''/);
+ assert.ok(adapter.indexOf("bubble(message,'user')")<adapter.indexOf("try{await interpretMessage(message)}"));
+ assert.match(adapter,/cartCollapsed=!cartCollapsed;updateCart\(\)/);
+ assert.match(shell,/max-height:min\(32dvh,250px\)/,'all rows scroll in original cart');
+ assert.doesNotMatch(shell,/quick-cart\{display:flex;flex-direction:column\}/,
+  'flex override must not displace original grid controls');
+});
