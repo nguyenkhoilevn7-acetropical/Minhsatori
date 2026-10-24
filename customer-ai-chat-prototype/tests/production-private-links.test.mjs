@@ -414,3 +414,86 @@ test('PDF same as website and real owner-only order notification; no 0đ summary
  for(const [,source] of frontend.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
   new vm.Script(source,{filename:'real-pdf.js'});
 });
+
+test('private historical invoices limited to owner-approved exact name phone and address',async()=>{
+ const env={GEMINI_PRODUCTION_LINKS_ENABLED:'1',GEMINI_OWNER_ONLY_REAL_PILOT:'1',
+  SATORI_BOT_SECRET:'test-key-only-at-least-32-characters-and-private'};
+ const rows=[
+  {id:1,invoiceNo:9001,date:'24/10/2026',name:'Traky Sài Gòn',phone:'0901234567',
+   location:'75 Quang Trung, Gò Vấp',total:200000,status:'Chưa thanh toán',
+   items:[{product:'Satori 500ml',qty:2,unit:'Thùng',unitPrice:100000}]},
+  {id:2,invoiceNo:9002,date:'23/10/2026',name:'Traky Sài Gòn',phone:'0901234567',
+   location:'75 Quang Trung, Gò Vấp',total:300000,status:'Đã thanh toán',
+   customerPaidAt:'2026-10-24T06:00:00.000Z',
+   items:[{product:'Satori 500ml',qty:3,unit:'Thùng',unitPrice:100000}]},
+  {id:3,invoiceNo:9003,date:'23/10/2026',name:'Traky Sài Gòn',phone:'0999999999',
+   location:'75 Quang Trung, Gò Vấp',total:400000,status:'Chưa thanh toán'},
+  {id:4,invoiceNo:9004,date:'23/10/2026',name:'Traky Sài Gòn',phone:'0901234567',
+   location:'999 Other Street',total:400000,status:'Chưa thanh toán'},
+  {id:5,invoiceNo:9005,date:'23/10/2026',name:'Traky Sài Gòn',phone:'0901234567',
+   location:'75 Quang Trung, Gò Vấp',total:400000,status:'Chưa thanh toán',pairRole:'collaborator'},
+  {id:6,invoiceNo:9006,date:'23/10/2026',name:'Other Customer',phone:'0901234567',
+   location:'75 Quang Trung, Gò Vấp',total:400000,status:'Chưa thanh toán'}
+ ];
+ let reads=0;
+ const app=createProductionPrivateLinks({env,now:()=>Date.UTC(2026,9,24,7),
+  source:async(invoiceNo,id)=>({
+   revision:140,customer:{id,name:'Traky Sài Gòn',phone:'0901234567',location:'75 Quang Trung, Gò Vấp'},
+   products:new Map([['TP-00001',{name:'Satori 500ml',code:'TP-00001',listPrice:100000,unit:'Thùng'}]])
+  }),
+  bot:async()=>{throw Error('DO NOT WRITE')},
+  historyReader:async({query,limit})=>{
+   assert.equal(query,'Traky Sài Gòn');assert.equal(limit,100);reads++;
+   return {revision:140,data:{orders:rows,totalMatches:rows.length}};
+  }
+ });
+ const issued=await app.issue({confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+  customerRef:{id:1,invoiceNo:9001},name:'Traky Sài Gòn',phone:'0901234567',
+  location:'75 Quang Trung, Gò Vấp',discountPercent:0,shippingPercent:0,vatPercent:0,daysValid:7});
+ const token=issued.link.split('/real/#')[1];
+ const h=await app.history({token,accessCode:issued.accessCode});
+ assert.equal(reads,1);
+ assert.deepEqual(h.orders.map(o=>o.invoiceNo),[9002,9001]);
+ assert.equal(h.orders[0].paid,true);
+ assert.equal(h.orders[1].paid,false);
+ assert.equal(h.complete,true);
+ assert.equal(app.receiptContext({token,accessCode:issued.accessCode,
+  receiptToken:h.orders[0].receiptToken}).invoiceNo,9002);
+ await assert.rejects(()=>app.history({token,accessCode:'bad'}),{code:'ACCESS_CODE_REQUIRED'});
+});
+test('new customer requires verified Drive write: full name phone address, revision and protected owner session',()=>{
+ const bot=readFileSync(new URL('../../api/BotApi.gs',import.meta.url),'utf8');
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ const admin=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ assert.match(bot,/customers.upsert':'customers:write/);
+ assert.match(bot,/customers.list':'customers:read/);
+ assert.match(bot,/CUSTOMER_PROFILES_KEY='satori_customer_profiles_v1'/);
+ assert.match(bot,/var backup=file.makeCopy\('MinhSatori_API_PreWrite_/);
+ assert.match(bot,/saveCustomer\(s,p\)/);
+ assert.match(server,/p==='\/api\/admin\/customer-profiles'/);
+ assert.match(server,/customerLinks.adminAuthorized\(req\)/);
+ assert.match(server,/ownerInvoice.bot\('customers.upsert'/);
+ assert.match(admin,/id="addProductionCustomerToggle"/);
+ for(const id of ['productionCustomerName','productionCustomerPhone','productionCustomerAddress',
+  'saveProductionCustomer','customerRegistryCards'])
+  assert.match(admin,new RegExp('id="'+id+'"'));
+ assert.match(admin,/CHƯA|không lưu giả|KHÔNG ghi hóa đơn/);
+ new vm.Script(bot,{filename:'BotApi.gs'});
+ for(const [,js] of admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(js,{filename:'production-admin.js'});
+});
+test('new carts preserve history; Samsung PDF preview displays real amounts not gray iframe',()=>{
+ const client=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
+ const shell=readFileSync(new URL('../production-gemini-shell.mjs',import.meta.url),'utf8');
+ assert.match(client,/function startNewCart\(/);
+ assert.match(client,/newCartSequence\+=1/);
+ assert.match(client,/function renderInvoiceHistory\(/);
+ assert.match(client,/\/api\/real\/history/);
+ assert.match(client,/\/api\/real\/invoice-details/);
+ assert.match(client,/const samsung=\/SamsungBrowser\/i/);
+ assert.match(client,/showVerifiedInvoicePreview\(details.invoice\)/);
+ assert.match(shell,/id="historyStatus"/);
+ assert.match(shell,/quickCartNew\{display:inline-flex/);
+ for(const [,js] of client.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(js,{filename:'real-chat-and-invoices.js'});
+});
