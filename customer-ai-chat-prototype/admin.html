@@ -124,6 +124,17 @@ button:disabled{opacity:.55}
 #ctvLiveResult{line-height:1.8;white-space:pre-line;margin-top:12px;padding:11px;border-radius:12px;background:#f1f8ff}
 .production-alert-order{padding:10px 12px;border:1px solid #cde2f7;background:white;border-radius:12px;display:flex;gap:8px;align-items:center;justify-content:space-between}
 .production-alert-order strong{color:#115a96}.production-alert-order small{color:#5b7185}
+
+.issued-link-card{padding:14px;border:1px solid #dae4f1;background:#fff;border-radius:14px;margin:10px 0;overflow-wrap:anywhere}
+.issued-link-card strong{color:#183a5b;font-size:16px}
+.issued-link-card p,.issued-link-card small{color:#536c84;line-height:1.55}
+.issued-link-url{background:#eef7ff;border:1px solid #cce3fa;border-radius:10px;padding:10px;margin:10px 0;font-size:12px;user-select:text;overflow-wrap:anywhere}
+.issued-link-card details{background:#f8fbff;border:1px solid #e0e9f3;border-radius:10px;padding:10px;margin:8px 0}
+.issued-link-card details summary{font-weight:700;cursor:pointer}
+.issued-destination{padding:8px 0;border-bottom:1px solid #e1e9f1}
+.issued-toolbar{display:grid;grid-template-columns:minmax(0,1fr) 145px auto;gap:8px;align-items:end}
+.issued-toolbar input,.issued-toolbar select{width:100%;min-width:0;min-height:44px}
+@media(max-width:620px){.issued-toolbar{grid-template-columns:1fr 1fr}.issued-toolbar label:first-child{grid-column:1/-1}.issued-toolbar>button{grid-column:1/-1}}
 </style></head><body><main>
 <header class="admin-branded-header"><span class="production-tag">● PRODUCTION</span><span class="admin-brand"><img src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="46" height="46"><strong>MINH SATORI <small id="adminModeTag">• Đang kiểm tra</small></strong></span></header>
 <h1>Quản lý Minh Satori</h1>
@@ -138,6 +149,7 @@ button:disabled{opacity:.55}
  <button type="button" class="admin-tab" data-admin-tab="live" aria-pressed="false">🧾 Hóa đơn thật</button>
  <button type="button" class="admin-tab active" data-admin-tab="customers" aria-pressed="true">👥 Khách hàng</button>
  <button type="button" class="admin-tab" data-admin-tab="ctv-ledger" aria-pressed="false">📊 Bảng CTV</button>
+  <button type="button" class="admin-tab" data-admin-tab="issued-links" aria-pressed="false">🔗 Link đã cấp</button>
  <button type="button" class="admin-tab" data-admin-tab="changes" aria-pressed="false" style="display:none">🧪 Yêu cầu thử</button>
  <button type="button" class="admin-tab" data-admin-tab="settings" aria-pressed="false">⚙️ Cài đặt</button>
 </nav>
@@ -202,6 +214,18 @@ button:disabled{opacity:.55}
  <div id="screenRows" aria-label="Khách chờ đối chiếu"></div>
  <p class="hint">Nút đánh dấu chỉ dùng trong phiên đang mở, không lưu phê duyệt vĩnh viễn. Để cấp link thật cần xác minh danh tính, giá và lưu trữ an toàn; không sử dụng form link THỬ để cấp cho khách thật.</p>
 </details>
+</section>
+<section class="card" data-tab-panel="issued-links" hidden id="issuedLinksPanel">
+<h2>🔗 Đại lý &amp; CTV đã cấp link</h2>
+<p class="hint">Danh sách lưu ở Google Drive Production và đồng bộ trên các máy. Chỉ chủ tài khoản được xem. Mã truy cập riêng không lưu trong lịch sử.</p>
+<div class="issued-toolbar">
+ <label>Tìm tên / SĐT / địa chỉ<input type="search" id="issuedLinkSearch" maxlength="120" placeholder="Tìm đại lý, CTV hoặc khách"></label>
+ <label>Loại<select id="issuedLinkType"><option value="">Tất cả</option><option value="agency">Đại lý</option><option value="collaborator">CTV</option><option value="customer">Khách hàng</option></select></label>
+ <button type="button" id="issuedLinkRefresh" class="secondary">↻ Đồng bộ Drive</button>
+</div>
+<p id="issuedLinkStatus" class="hint" role="status" aria-live="polite">Chưa đọc sổ link.</p>
+<div id="issuedLinkList" aria-label="Link đã cấp, người nhận và địa chỉ"></div>
+<button id="issuedLinkMore" type="button" class="secondary" hidden>Xem thêm</button>
 </section>
 <section class="card" data-tab-panel="ctv-ledger" hidden id="independentCtvLedger">
  <div class="production-heading"><div><h2>📊 Bảng CTV • Trực tiếp trong Minh Satori</h2>
@@ -1021,6 +1045,66 @@ $('ctvAddReceiverDraft').onclick=()=>{
   $('ctvDraftStatus').textContent='Đã thêm vào BẢN NHÁP trong phiên; CHƯA ghi Google Drive hoặc link.';
  }catch(e){$('ctvDraftStatus').textContent='⚠ '+e.message}
 };
+
+/* Owner-only Drive directory. Never persist link URLs or access codes in browser storage. */
+let issuedRecords=[],issuedHasMore=false,issuedLoading=false;
+const issueDate=x=>{const d=new Date(x||'');return Number.isFinite(d.getTime())?
+ d.toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}):'—'};
+function renderIssuedRecords(){
+ const root=$('issuedLinkList');root.replaceChildren();
+ const q=normalized($('issuedLinkSearch').value),kind=$('issuedLinkType').value;
+ const rows=issuedRecords.filter(x=>(!kind||kind===x.kind)&&
+  (!q||normalized([x.name,...x.recipients.flatMap(r=>[r.name,r.phone,r.location])].join(' ')).includes(q)));
+ if(!rows.length){const p=document.createElement('p');p.className='hint';
+  p.textContent='Không có link nào phù hợp hoặc chưa lưu trên Drive.';root.append(p)}
+ for(const r of rows){
+  const card=document.createElement('article');card.className='issued-link-card';
+  const name=document.createElement('strong');name.textContent=
+   (r.kind==='collaborator'?'🤝 CTV':r.kind==='agency'?'🏪 Đại lý':'👤 Khách')+' • '+r.name;
+  const meta=document.createElement('p');meta.textContent='Cấp: '+issueDate(r.issuedAt)+
+   ' • '+(r.expiresAt?'Hạn: '+issueDate(r.expiresAt)+(r.expired?' (Hết hạn)':''):
+     'Hiệu lực theo chính sách CTV');
+  const url=document.createElement('div');url.className='issued-link-url';url.textContent=r.link;
+  const details=document.createElement('details'),summary=document.createElement('summary');
+  summary.textContent='Xem '+r.recipients.length+' địa chỉ giao';details.append(summary);
+  for(const d of r.recipients){
+   const row=document.createElement('p');row.className='issued-destination';
+   row.textContent='👤 '+d.name+' • ☎ '+d.phone+' • 📍 '+d.location+
+    ' • CK '+d.discountPercent+'% • Bill nguồn #'+d.customerRef.invoiceNo;
+   details.append(row);
+  }
+  const copy=document.createElement('button');copy.type='button';copy.className='secondary';
+  copy.textContent='Sao chép link';
+  copy.onclick=async()=>{try{await navigator.clipboard.writeText(r.link);copy.textContent='✓ Đã sao chép'}
+   catch{$('issuedLinkStatus').textContent='Nhấn giữ đường link để sao chép.'}};
+  card.append(name,meta,url,details,copy);root.append(card);
+ }
+ $('issuedLinkMore').hidden=!issuedHasMore;
+}
+async function loadIssuedRecords(reset=true){
+ if(!secret||issuedLoading)return;
+ issuedLoading=true;$('issuedLinkRefresh').disabled=true;$('issuedLinkMore').disabled=true;
+ if(reset){issuedRecords=[];issuedHasMore=false;renderIssuedRecords()}
+ $('issuedLinkStatus').textContent='Đang đồng bộ sổ link Google Drive…';
+ try{
+  const d=await request('/api/admin/issued-links?offset='+issuedRecords.length+'&limit=8');
+  if(d.source!=='drive-ledger:satori_issued_links_v1'||!Array.isArray(d.items)||
+     !Number.isSafeInteger(d.total)||typeof d.hasMore!=='boolean')
+   throw Error('Phản hồi chưa được xác minh.');
+  issuedRecords.push(...d.items);issuedHasMore=d.hasMore;
+  $('issuedLinkStatus').textContent='✓ Đã lưu trên Google Drive • '+
+   issuedRecords.length+'/'+d.total+' link • Revision '+d.revision;
+  renderIssuedRecords();
+ }catch(e){
+  $('issuedLinkStatus').textContent='⚠ Chưa đọc được sổ link trên Drive: '+e.message+
+   '. Không hiển thị dữ liệu lưu tạm.';
+  if(reset){issuedRecords=[];issuedHasMore=false;renderIssuedRecords()}
+ }finally{issuedLoading=false;$('issuedLinkRefresh').disabled=false;$('issuedLinkMore').disabled=false}
+}
+$('issuedLinkRefresh').onclick=()=>void loadIssuedRecords(true);
+$('issuedLinkMore').onclick=()=>void loadIssuedRecords(false);
+$('issuedLinkSearch').oninput=renderIssuedRecords;
+$('issuedLinkType').onchange=renderIssuedRecords;
 function showAdminTab(name){
  for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
  for(const b of document.querySelectorAll('[data-admin-tab]')){
@@ -1029,6 +1113,7 @@ function showAdminTab(name){
  if(name==='orders')refreshOrderInbox();
  if(name==='settings')refreshVersionStatus();
  if(name==='ctv-ledger'&&secret&&!ctvCatalogueLoaded)void loadCtvLive();
+ if(name==='issued-links'&&secret)void loadIssuedRecords(true);
  if(name==='customers'&&secret&&!realCustomers.length)void loadRealDirectory();
  window.scrollTo({top:0,behavior:'instant'});
 }
@@ -1948,7 +2033,8 @@ $('agencyRealIssue').onclick=async()=>{
   $('agencyRealUrl').textContent=d.link;
   $('agencyRealCode').textContent='Mã truy cập riêng: '+d.accessCode;
   $('agencyRealIssued').hidden=false;
-  $('agencyRealStatus').textContent='Đã cấp một link với '+d.deliveryLocations+' địa chỉ. Hãy thử xác thực, chọn địa chỉ và xem giá trước.';
+  $('agencyRealStatus').textContent=(d.registrySaved?'✓ Đã lưu Drive • ':'⚠ Chưa xác minh lưu • ')+
+   'Đã cấp một link với '+d.deliveryLocations+' địa chỉ. Xem tab Link đã cấp.';
  }catch(e){$('agencyRealStatus').textContent='KHÔNG CẤP ĐƯỢC: '+e.message;}
  finally{b.disabled=false}
 };
