@@ -132,7 +132,7 @@ button:disabled{opacity:.55}
  <button type="button" class="admin-tab" data-admin-tab="live" aria-pressed="false">🧾 Hóa đơn thật</button>
  <button type="button" class="admin-tab active" data-admin-tab="customers" aria-pressed="true">👥 Khách hàng</button>
  <button type="button" class="admin-tab" data-admin-tab="ctv-ledger" aria-pressed="false">📊 Bảng CTV</button>
- <button type="button" class="admin-tab" data-admin-tab="changes" aria-pressed="false">📬 Yêu cầu</button>
+ <button type="button" class="admin-tab" data-admin-tab="changes" aria-pressed="false" style="display:none">🧪 Yêu cầu thử</button>
  <button type="button" class="admin-tab" data-admin-tab="settings" aria-pressed="false">⚙️ Cài đặt</button>
 </nav>
 <section class="card" id="orderPanel" data-tab-panel="orders" aria-labelledby="ordersHeading">
@@ -1866,7 +1866,7 @@ $('ownerLiveConfirm').onclick=async()=>{
 };
 
 $('login').onclick=async()=>{const code=$('access').value.trim();clearError();if(code.length<32){$('error').textContent='Chưa có mã quản trị hợp lệ (tối thiểu 32 ký tự).';return}
- secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Danh mục sản phẩm, khách thật và chiết khấu chưa đồng bộ. Lưu trữ bền vững, xác minh OTP, VAT chính thức và QR thanh toán thật chưa được nghiệm thu.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực quản trị';$('access').value='';await load();$('loginCard').hidden=true;showAdminTab('customers')}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
+ secret=code;$('login').disabled=true;try{const status=await request('/api/admin/status');const cfg=status.integration||{};$('integrationStatus').textContent=(cfg.readOnlyTransportConfigured?'Cầu đọc HMAC đã có cấu hình; chưa xác minh dữ liệu.':'Cầu đọc HMAC trên Render chưa được cấu hình.')+' Nguồn khách thật và bảng giá được tải từ Bot API Production; mỗi hóa đơn thật vẫn yêu cầu xác nhận.';$('workspace').hidden=false;$('authState').textContent='Đã xác thực quản trị';$('access').value='';$('loginCard').hidden=true;showAdminTab('customers')}catch(e){secret='';$('workspace').hidden=true;$('error').textContent=e.message}finally{$('login').disabled=false}};
 $('create').onsubmit=async e=>{e.preventDefault();clearError();
  const b=$('createButton');if(b.disabled)return;b.disabled=true;
  if(selectedRealKey){
