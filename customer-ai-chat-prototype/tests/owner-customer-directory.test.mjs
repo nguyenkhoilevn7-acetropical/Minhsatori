@@ -114,6 +114,16 @@ assert.doesNotMatch(reviewHtml,/realCustomerPermission|canAddAddress|mayAddLocat
 console.log('PASS owner link: independent buttons, guarded TEST reissue and no customer-grant feature');
 
 assert.match(reviewHtml,/id="realLinkCheck" hidden/,'separate actionable real link preflight');
+assert.match(reviewHtml,/customerRef:\{id:sourceRow\.ref\.id,invoiceNo\}/,
+ 'single-location real links require exact record ID and invoice number');
+assert.match(reviewHtml,/sourceRow\.phone,location:sourceRow\.address/,
+ 'real customer identity must come from the SAME source invoice row');
+assert.match(reviewHtml,/realOriginalLocations\.length>1/,
+ 'multiple existing locations must go to owner-reviewed agency workflow');
+assert.match(reviewHtml,/agencyRealFind'\)\.click\(\)/,
+ 'historical delivery locations can be loaded without recreating a customer');
+assert.doesNotMatch(reviewHtml,/customerRef:\{invoiceNo\},name:/,
+ 'never issue a returning-customer link using invoice number alone');
 assert.match(reviewHtml,/\$\('realLinkCheck'\)\.hidden=!enabled/);
 assert.match(reviewHtml,/\$\('createButton'\)\.hidden=enabled/,'avoid invisible disabled real link button');
 assert.match(reviewHtml,/function makeRealField\(labelText,value,index,field\)/);

@@ -1232,10 +1232,29 @@ $('realLinkCheck').onclick=async()=>{
  if(!selectedRealKey)return;
  const b=$('realLinkCheck');b.disabled=true;
  try{
+  if(realOriginalLocations.length>1){
+   $('agencyRealName').value=$('customerSearch').value.trim()||$('name').value.trim();
+   $('realDraftStatus').textContent='Hồ sơ có '+realOriginalLocations.length+
+    ' điểm giao: chuyển sang bảng một link đại lý để duyệt từng địa chỉ và tỷ lệ riêng. '+
+    'Nếu khách là CTV, hãy dùng bảng Cộng tác viên để áp dụng đúng chính sách CTV.';
+   $('agencyRealLinks').scrollIntoView({behavior:'smooth',block:'start'});
+   $('agencyRealFind').click(); // Read-only: no link or invoice issued automatically.
+   return;
+  }
   const src=realOriginalLocations[realPrimaryLocationIndex];
-  const invoiceNo=Number(src?.invoiceNos?.[0]);
-  if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1)
-   throw Error('Chưa tìm được số hóa đơn gốc của đúng điểm giao.');
+  // Match ALL fields to ONE historical row; grouped address/phone summaries may
+  // combine values from separate invoices, which cannot prove one identity.
+  const sourceRow=(Array.isArray(src?.sourceRows)?src.sourceRows:[]).find(row=>
+   row?.ref?.id!=null&&Number.isSafeInteger(row.ref.invoiceNo)&&row.ref.invoiceNo>0&&
+   String(row.name||'').trim()&&digits(row.phone).length>=8&&
+   String(row.address||'').trim().length>=5);
+  if(!sourceRow)
+   throw Error('Điểm giao chưa có đủ ID, hóa đơn, số điện thoại và địa chỉ cùng một bản ghi gốc.');
+  const invoiceNo=sourceRow.ref.invoiceNo;
+  const edited=realEditingLocations[realPrimaryLocationIndex];
+  if(['name','phone','address'].some(field=>
+    String(edited?.[field]||'').trim()!==String(src?.[field]||'').trim()))
+   throw Error('Địa chỉ hoặc liên hệ đã chỉnh chỉ là bản nháp. Chưa thể cấp link từ dữ liệu chưa duyệt; cần xác minh/lưu hồ sơ trước.');
   const discount=Number($('discount').value),shippingPercent=Number($('ship').value),
    vatPercent=Number($('vatRate').value);
   if(!$('discount').value||!Number.isSafeInteger(discount)||discount<0||discount>70||
@@ -1244,14 +1263,14 @@ $('realLinkCheck').onclick=async()=>{
    throw Error('Anh cần duyệt chiết khấu, phí giao và VAT hợp lệ.');
   const readiness=await request('/api/admin/real-links/readiness');
   if(!readiness.configured)throw Error('Backend thật chưa bật: '+(readiness.reason||'cần xác minh HMAC và cổng ghi đơn.'));
-  if(!confirm('CẤP LINK ĐẶT HÀNG THẬT cho '+$('name').value+' tại '+$('address').value+
+  if(!confirm('CẤP LINK ĐẶT HÀNG THẬT cho '+sourceRow.name+' tại '+sourceRow.address+
    '?\nHóa đơn nguồn #'+invoiceNo+'\nChiết khấu '+discount+
    '% • Giao hàng '+shippingPercent+'% • VAT '+vatPercent+
    '%\nLink chỉ có hiệu lực 30 ngày, có mã truy cập riêng. Tiếp tục?'))return;
   const d=await request('/api/admin/real-links/issue','POST',{
    confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
-   customerRef:{invoiceNo},name:$('name').value.trim(),
-   phone:$('phone').value.trim(),location:$('address').value.trim(),
+   customerRef:{id:sourceRow.ref.id,invoiceNo},name:sourceRow.name,
+   phone:sourceRow.phone,location:sourceRow.address,
    discountPercent:discount,shippingPercent,vatPercent,daysValid:30
   });
   lastLink=d.link;$('newLink').hidden=false;$('linkText').textContent=d.link;
