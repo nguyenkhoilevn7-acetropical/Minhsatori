@@ -27,18 +27,26 @@
   if(!submitted&&oldPending?.orderId===clientOrderId)submissionUncertain=true;
   const sessionInvoices=new Set(Array.isArray(savedRecord?.invoiceNos)?savedRecord.invoiceNos.filter(Number.isSafeInteger):[]);
   if(Number.isSafeInteger(savedRecord?.invoiceNo))sessionInvoices.add(savedRecord.invoiceNo);
-  $('historyButton').textContent='🧾 Hóa đơn ';
+  const unreadKey='satori-unread-invoices:'+token.slice(0,32);
+  let savedUnread=[];try{savedUnread=JSON.parse(readSession(unreadKey)||'[]')}catch{}
+  const unreadInvoices=new Set(Array.isArray(savedUnread)?savedUnread.filter(Number.isSafeInteger):[]);
+  $('historyButton').textContent='';
+  const historyLabel=document.createElement('span');$('historyButton').append(historyLabel);
   const badge=document.createElement('span');badge.id='submittedInvoiceBadge';badge.className='real-submitted-badge';
   $('historyButton').append(badge);
   function updateInvoiceBadge(){
-   const count=Math.max(sessionInvoices.size,persistedInvoiceCount||0);
-   badge.textContent=String(count);badge.hidden=count===0;
-   $('historyButton').setAttribute('aria-label','Hóa đơn • '+count+' hóa đơn đã mua trong tài khoản');
+   const known=new Set(historyOrders.map(o=>o.invoiceNo));
+   const missing=[...sessionInvoices].filter(no=>!known.has(no)).length;
+   const total=persistedInvoiceCount===null?sessionInvoices.size:persistedInvoiceCount+missing;
+   historyLabel.textContent='🧾 Hóa đơn'+(persistedInvoiceCount!==null?' ('+total+')':'');
+   badge.textContent=String(unreadInvoices.size);badge.hidden=unreadInvoices.size===0;
+   $('historyButton').setAttribute('aria-label','Hóa đơn • '+total+' hóa đơn đã mua, '+unreadInvoices.size+' đơn mới chưa xem');
   }
   updateInvoiceBadge();
   function markSubmitted(invoiceNo){
-   submitted=true;submissionUncertain=false;sessionInvoices.add(invoiceNo);
+   submitted=true;submissionUncertain=false;sessionInvoices.add(invoiceNo);unreadInvoices.add(invoiceNo);
    writeSession(pendingStorageKey,'');
+   writeSession(unreadKey,JSON.stringify([...unreadInvoices].slice(-30)));
    writeSession(submittedStorageKey,JSON.stringify({orderId:clientOrderId,invoiceNo,invoiceNos:[...sessionInvoices].slice(-30)}));
    updateInvoiceBadge();
   }
@@ -488,7 +496,10 @@
   }
  }
  async function loadInvoiceHistory(openPanel=true){
-  if(openPanel)$('historyBackdrop').classList.add('open');
+  if(openPanel){
+   $('historyBackdrop').classList.add('open');
+   unreadInvoices.clear();writeSession(unreadKey,'[]');updateInvoiceBadge();
+  }
   setText('historyCount','Đang đọc hóa đơn thật từ Google Drive…');
   try{
    const d=await call('/api/real/history');
