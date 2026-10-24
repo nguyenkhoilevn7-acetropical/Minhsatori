@@ -121,7 +121,7 @@ assert.match(reviewHtml,/sourceRow\.phone,location:sourceRow\.address/,
 assert.match(reviewHtml,/realOriginalLocations\.length>1/,
  'multiple existing locations must go to owner-reviewed agency workflow');
 assert.match(reviewHtml,/agencyRealFind'\)\.click\(\)/,
- 'existing customer's delivery locations can be loaded without recreating the customer');
+ 'historical delivery locations can be loaded without recreating a customer');
 assert.doesNotMatch(reviewHtml,/customerRef:\{invoiceNo\},name:/,
  'never issue a returning-customer link using invoice number alone');
 assert.match(reviewHtml,/\$\('realLinkCheck'\)\.hidden=!enabled/);
