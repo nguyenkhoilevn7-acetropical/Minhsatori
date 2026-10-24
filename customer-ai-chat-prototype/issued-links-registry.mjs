@@ -26,11 +26,13 @@ const recipient=d=>{
 
 export function createIssuedLinksRegistry({bot,now=Date.now}={}){
  if(typeof bot!=='function')fail('LINK_REGISTRY_DEPENDENCY_MISSING');
- async function list({id,offset=0,limit=8}={}){
+ async function list({id,offset=0,limit=8,query='',kind=''}={}){
   if(!Number.isSafeInteger(offset)||offset<0||offset>500||
      !Number.isSafeInteger(limit)||limit<1||limit>12||
-     (id!==undefined&&!/^il_[a-f0-9]{32}$/.test(id)))fail('LINK_RECORD_INVALID');
-  const reply=await bot('links.list',{...(id?{id}:{}),offset,limit});
+     (id!==undefined&&!/^il_[a-f0-9]{32}$/.test(id))||
+     typeof query!=='string'||query.length>120||typeof kind!=='string'||
+     (kind&&!['agency','customer','collaborator'].includes(kind)))fail('LINK_RECORD_INVALID');
+  const reply=await bot('links.list',{...(id?{id}:{}),offset,limit,query,kind});
   if(!Number.isSafeInteger(reply.revision)||!Array.isArray(reply.data?.items)||
      !Number.isSafeInteger(reply.data.total)||typeof reply.data.hasMore!=='boolean')
    fail('LINK_REGISTRY_READ_UNVERIFIED');
