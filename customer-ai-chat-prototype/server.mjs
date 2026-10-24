@@ -85,6 +85,8 @@ const ctvSingleLink=createCollaboratorSingleLink({
  }
 });
 async function issueAndStoreCtvLink(input){
+ // Fail closed before constructing an invitation when Drive registry is unavailable.
+ await issuedLinks.list({limit:1});
  const invitation=await ctvSingleLink.issue(input);
  const snap=await ctvSingleLink.directorySnapshot(invitation.collaboratorId);
  const saved=await issuedLinks.register({

@@ -128,7 +128,13 @@ assert.ok(admin.includes("JSON.stringify(savedRefs)===JSON.stringify(expectedRef
  'readback must match exact selected delivery source IDs');
 assert.ok(admin.includes("confirmedPolicy.reviewedByOwner===true"),
  'readback must require owner-approved policy');
-assert.ok(admin.includes("CTV_LINKS_NOT_READY"),
- 'link credentials and production write readiness must remain guarded');
+const ctvRegistryStart=server.indexOf('async function issueAndStoreCtvLink(input){');
+const ctvRegistryEnd=server.indexOf('const DATA_DIR=',ctvRegistryStart);
+assert.ok(ctvRegistryStart>=0&&ctvRegistryEnd>ctvRegistryStart,'CTV issuance helper must exist');
+const issue=server.slice(ctvRegistryStart,ctvRegistryEnd);
+assert.ok(issue.includes('await issuedLinks.list({limit:1})')&&
+ issue.indexOf('await issuedLinks.list({limit:1})')<issue.indexOf('await ctvSingleLink.issue(input)')&&
+ issue.includes('await issuedLinks.register(')&&issue.includes('registrySaved:true'),
+ 'CTV issuance must preflight Drive registry and confirm persistent readback before success');
 assert.ok(admin.includes("disabled"),'owner UI disabled until backend is verified');
 console.log('PASS scoped owner-only CTV policy admin HMAC, default-off writes, 20/35 flexible GUI syntax (FAKE only)');
