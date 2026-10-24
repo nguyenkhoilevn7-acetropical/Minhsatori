@@ -617,11 +617,14 @@ $('ctvAdd').onclick=async()=>{
   $('ctvWizardCollaboratorDiscount').value=String(policy?.collaboratorDiscountPercent??35);
   $('ctvWizardShipping').value=String(policy?.shippingPercent??8);
   $('ctvWizardVat').value=String(policy?.vatPercent??0);
-  const selectedPreviously=new Set((policy?.authorizedDestinations||[]).map(z=>z.invoiceNo));
+  const selectedPreviously=new Set((policy?.authorizedDestinations||[]).map(z=>String(z.id)+'|'+z.invoiceNo));
   for(const x of places){
    const label=document.createElement('label');label.style.display='flex';label.style.gap='10px';label.style.alignItems='flex-start';
-   const box=document.createElement('input');box.type='checkbox';box.style.width='auto';box.value=String(x.invoiceNo);
-   box.dataset.ctvSourceInvoice='1';box.checked=selectedPreviously.has(x.invoiceNo);label.append(box,document.createTextNode('#'+x.invoiceNo+' • '+x.name+' • '+x.address+' • '+x.phone));
+   const box=document.createElement('input');box.type='checkbox';box.style.width='auto';box.value=JSON.stringify(x.ref);
+   box.dataset.ctvSourceInvoice='1';
+   box.checked=selectedPreviously.has(String(x.ref.id)+'|'+x.ref.invoiceNo);
+   label.append(box,document.createTextNode('#'+x.ref.invoiceNo+' • '+x.name+' • '+x.address+' • '+x.phone+
+    (x.needsReview?' • ⚠ cần kiểm tra liên hệ':'')));
    $('ctvWizardLocations').append(label);
   }
   $('ctvWizard').hidden=false;
