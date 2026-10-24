@@ -48,7 +48,19 @@ export async function ownerPairAction(action,payload={},{
   const response=await fetcher(url,{method:'POST',redirect:'follow',signal:controller.signal,
    headers:{'content-type':'application/json'},
    body:JSON.stringify({keyId,timestamp,nonce:id,action,payload,signature})});
-  if(!response?.ok)refuse('CTV_PAIR_UPSTREAM_UNAVAILABLE');
+  if(!response?.ok){
+   // Safe fixed-category diagnostics only. Never log upstream response body,
+   // signed payload, URL, key ID or secret. Non-2xx is NOT proof of no commit.
+   const status=Number(response?.status);
+   const upstreamClass=status===401||status===403?'AUTH_DENIED':
+    status===404?'NOT_FOUND':status===429?'RATE_LIMITED':
+    status>=500&&status<=599?'SERVER_ERROR':
+    status>=400&&status<=499?'CLIENT_ERROR':'UNKNOWN';
+   const error=new Error('CTV_PAIR_UPSTREAM_UNAVAILABLE');
+   error.code='CTV_PAIR_UPSTREAM_UNAVAILABLE';
+   error.upstreamClass=upstreamClass;
+   throw error;
+  }
   const raw=await response.text();
   if(raw.length>30000)refuse('CTV_PAIR_RESPONSE_INVALID');
   let data;
