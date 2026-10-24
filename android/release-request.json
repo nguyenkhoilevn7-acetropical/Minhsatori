@@ -1,20 +1,19 @@
 {
-  "purpose": "android-0.4.2-owner-live-foreground-sync-restore-samsung",
+  "purpose": "android-0.4.5-drive-403-owner-api-recovery",
   "package": "vn.minhsatori.app",
-  "version": "0.4.2",
-  "versionCode": 19,
-  "branch": "release/android-v0.4.2-live-sync-trash-20261023",
-  "scope": "Foreground Drive version or owner Mobile API canonical ledger polling roughly every 20 seconds; changed-only refresh without restarting; encrypted request-id deletion and 30-day restore UI only after private owner Apps Script API authorization.",
-  "requestedOn": "2026-10-23",
+  "version": "0.4.5",
+  "versionCode": 22,
+  "branch": "release/android-v0.4.5-drive403-owner-recovery-20261024",
+  "scope": "Recover Drive HTTP 403 with previously trusted owner Mobile API and Google email-only auth. Offer explicit account selection, keep automatic fallback read-only, reject sandbox/test-only state, retain revision polling and manual refresh. No invoice writes.",
+  "requestedOn": "2026-10-24",
   "sourcePRs": [
-    115
+    121,
+    124
   ],
   "notes": [
-    "Use SAME pinned release signing identity and cert for in-place Android update over 0.4.0/0.4.1.",
-    "Google Drive read-only live sync works independently of new owner Mobile API activation.",
-    "Soft delete/restore are deliberately unavailable until owner OAuth Apps Script production endpoint is deployed and configured.",
-    "No production invoice is created, deleted or restored during this build.",
-    "No local HMAC secrets or hard-coded owner credentials are allowed.",
-    "Release artifact is an owner field-test; Apps Script production delete/restore remain gated until private owner API activation and readback."
+    "Install over v0.4.4 using existing pinned release certificate; no uninstall.",
+    "Requires Google owner account or deployed owner Android Mobile API; fail closed and show actionable errors.",
+    "Do not auto-enable create/update/delete or payment privileges.",
+    "No production invoices generated, edited, or deleted during CI."
   ]
 }
