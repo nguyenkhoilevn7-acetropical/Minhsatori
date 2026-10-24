@@ -142,7 +142,9 @@ object MobileApiClient {
         val actions = (0 until allowed.length()).map { allowed.getString(it) }.toSet()
         val actor = data.optString("actorId")
         if (actor.isBlank()) throw IOException("Server chưa hỗ trợ định danh khôi phục thao tác. Cần cập nhật Mobile API.")
-        return MobileSnapshot(SatoriData.fromDriveState(data.toString()), actions, actor)
+        val snapshot = SatoriData.fromDriveState(data.toString())
+        LiveSyncPolicy.validateMobileSnapshot(data, response.optLong("revision", -1L), snapshot)
+        return MobileSnapshot(snapshot, actions, actor)
     }
 
     /**
