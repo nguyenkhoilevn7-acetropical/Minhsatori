@@ -743,8 +743,10 @@
  }
  function showOrderOverview(invoiceNo=lastReceipt?.result?.invoiceNo){
   const overview=lastReceipt?.result?.invoiceNo===invoiceNo&&lastReceipt?.quote?
-   {invoiceNo,total:lastReceipt.result.total,...lastReceipt.quote,
-    name:lastReceipt.quote.customer?.name,location:lastReceipt.quote.customer?.location}:
+   {...lastReceipt.quote,invoiceNo,total:lastReceipt.result.total,
+    createdAt:lastReceipt.result.createdAt||savedRecord?.overview?.createdAt||null,
+    name:lastReceipt.quote.customer?.name,phone:lastReceipt.quote.customer?.phone,
+    location:lastReceipt.quote.customer?.location}:
    savedRecord?.overview?.invoiceNo===invoiceNo?savedRecord.overview:null;
   if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1)return;
   const paper=$('printPaper');paper.replaceChildren();$('invoice').style.display='block';
@@ -774,15 +776,19 @@
   tip.textContent='Đây là phiếu xác nhận ngay sau khi Google Drive đã ghi đơn, không phải hóa đơn PDF riêng. Hóa đơn chính thức sẽ đọc trong mục 🧾 Hóa đơn khi tải xong. Tuyệt đối không xác nhận lại.';
   article.append(tip);paper.append(article);
  }
- async function showReceipt(){
+ async function showReceipt({download=false}={}){
   if(!lastReceipt?.result?.receiptToken){
    bubble('Không có hóa đơn thật được xác minh trong phiên này.','note');return;
   }
   const paper=$('printPaper'),invoiceNo=lastReceipt.result.invoiceNo;
   $('invoice').style.display='block';paper.replaceChildren();
-  const loading=document.createElement('p');
-  loading.textContent='Đang tải hóa đơn thật #'+invoiceNo+' từ Google Drive…';
-  paper.append(loading);
+  const loading=document.createElement('p');loading.className='real-pdf-status';loading.setAttribute('role','status');
+  paper.append(invoiceBrand(),loading);
+  const startedAt=Date.now();
+  const showLoading=()=>{const secs=Math.floor((Date.now()-startedAt)/1000);
+   loading.textContent='⏳ Đang lấy PDF chính thức #'+invoiceNo+' • đã đợi '+secs+' giây. Thời gian có thể thay đổi theo Google Drive; không cần gửi lại đơn.'};
+  showLoading();
+  const progressTimer=setInterval(showLoading,1000);
   $('viewInvoice').hidden=true;$('printInvoice').hidden=true;
   try{
    const req={receiptToken:lastReceipt.result.receiptToken};
@@ -790,7 +796,7 @@
    if(!details.invoice||Number(details.invoice.invoiceNo)!==Number(invoiceNo))
     throw Error('Chi tiết hóa đơn không khớp sổ gốc.');
    // Show verified invoice immediately, even if browser cannot download its PDF.
-   paper.replaceChildren(showVerifiedInvoicePreview(details.invoice));
+   paper.replaceChildren(showVerifiedInvoicePreview(details.invoice),loading);
    const response=await fetch('/api/real/pdf',{method:'POST',cache:'no-store',
     headers:{'content-type':'application/json'},credentials:'omit',
     body:JSON.stringify({token,accessCode,...req})});
@@ -819,7 +825,13 @@
    $('viewInvoice').textContent='👁 Mở PDF chính thức';
    $('printInvoice').href=pdfObjectUrl;$('printInvoice').hidden=false;
    $('printInvoice').download='MinhSatori-'+invoiceNo+'.pdf';
-   $('printInvoice').textContent='⬇ Tải PDF';
+   $('printInvoice').textContent='⬇ Tải PDF chính thức';
+   loading.textContent='✅ File PDF chính thức đã sẵn sàng. Có thể mở hoặc tải ngay.';
+   if(download){
+    const save=document.createElement('a');save.href=pdfObjectUrl;
+    save.download='MinhSatori-'+invoiceNo+'.pdf';save.style.display='none';
+    document.body.append(save);save.click();save.remove();
+   }
   }catch(err){
    if(!paper.querySelector('.real-invoice-preview')){
     paper.replaceChildren();
@@ -830,7 +842,7 @@
    const warning=document.createElement('p');warning.className='warn';
    warning.textContent='⚠ '+err.message+' • Không gửi lại đơn hàng đã tạo.';
    paper.append(warning);
-  }
+  }finally{clearInterval(progressTimer)}
  }
  const refreshHistory=document.createElement('button');refreshHistory.type='button';
  refreshHistory.id='realHistoryRefresh';refreshHistory.textContent='↻ Làm mới';
