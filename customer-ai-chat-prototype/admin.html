@@ -602,19 +602,13 @@ $('ctvAdd').onclick=async()=>{
   if(!p||!Array.isArray(p.places)||!p.places.length)throw Error('Không tìm thấy điểm giao trong hóa đơn thật.');
   if(![p.name,...(p.aliases||[])].some(v=>normalized(v)===normalized(name)))
    throw Error('Tên khách nguồn chưa khớp khách được chọn.');
-  const used=new Set(),places=[];let excludedIncomplete=0;
-  for(const x of p.places){
-   const invoiceNo=Number(x.invoiceNos?.[0]);
-   const phone=String(x.phone||'').replace(/\D/g,'');
-   const address=String(x.address||'').trim();
-   // Bot API requires an existing verified source with a full destination.
-   // An old duplicate invoice with no phone must not displace its valid twin.
-   if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1||phone.length<8||address.length<5){
-    excludedIncomplete++;continue;
-   }
-   if(used.has(invoiceNo))continue;
-   used.add(invoiceNo);places.push({invoiceNo,name:x.name||p.name,address:x.address||'',phone:x.phone||''});
-  }
+  const places=(d.locationCandidates||[]).map(x=>({
+   ref:x.ref,name:x.name||p.name,address:x.address,phone:x.phone,
+   needsReview:x.needsReview===true
+  }));
+  const excludedIncomplete=(d.locationIssues||[]).length;
+  // Historical invoices remain separate; only verified physical destinations
+  // are shown once, each with an exact source record ID and invoice number.
   if(!places.length||places.length>20)throw Error('Cần 1–20 địa chỉ giao hợp lệ từ sổ thật.');
   const policy=ctvExistingTarget?pairPolicies.find(v=>v.collaboratorId===ctvExistingTarget):null;
   ctvDraft={name:p.name,places,collaboratorId:ctvExistingTarget};
