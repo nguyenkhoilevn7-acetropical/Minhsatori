@@ -189,3 +189,97 @@ test('Vietnamese two-product shorthand is one locally validated real cart reques
  assert.deepEqual(match.items.map(x=>x.qty),[10,2]);
  assert.equal(new Set(match.items.map(x=>x.sku)).size,2);
 });
+
+test('CTV reuses agency one-link engine: one customer invoice, private 20/35 commission and owner-only preview',async()=>{
+ const env={GEMINI_PRODUCTION_LINKS_ENABLED:'1',GEMINI_OWNER_ONLY_REAL_PILOT:'1',
+  SATORI_BOT_SECRET:'test-private-commission-key-12345678901234567890'};
+ const destinations=[
+  {id:7401,invoiceNo:741,name:'Khách giao A',phone:'0912233445',location:'Tòa nhà A, Q.1'},
+  {id:7402,invoiceNo:742,name:'Khách giao B',phone:'0912233446',location:'Tòa nhà B, Q.3'}
+ ];
+ let writes=0,lastPayload,revision=135;
+ const products=new Map([
+  ['TP-00001',{code:'TP-00001',name:'Satori 500ml',unit:'Thùng',listPrice:100000}],
+  ['TP-00002',{code:'TP-00002',name:'Satori 350ml',unit:'Thùng',listPrice:78400}]
+ ]);
+ const source=async(invoiceNo)=>{
+  const d=destinations.find(x=>x.invoiceNo===invoiceNo);
+  assert.ok(d,'source reference must be real and exact');
+  return {revision,customer:{...d},products};
+ };
+ const bot=async(action,payload)=>{
+  assert.equal(action,'orders.create','CTV path must NEVER invoke orders.create.pair');
+  if(!payload.requestId)throw Object.assign(Error('INVALID_REQUEST'),{code:'INVALID_REQUEST'});
+  writes++;lastPayload=payload;
+  return {revision:revision+1,data:{order:{invoiceNo:9002,name:payload.order.name,
+   location:payload.order.location,total:payload.order.total},duplicate:false}};
+ };
+ const app=createProductionPrivateLinks({env,source,bot,now:()=>Date.UTC(2026,9,24,4),origin:'https://example.test'});
+ const base={confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+  agentName:'Hà Minh Nguyệt',
+  destinations:destinations.map(d=>({customerRef:{id:d.id,invoiceNo:d.invoiceNo},discountPercent:20})),
+  shippingPercent:8,vatPercent:8,daysValid:7};
+ const commissionPolicy={mode:'single-invoice-commission',collaboratorId:'ctv-nguyet-01',
+  collaboratorName:'Hà Minh Nguyệt',customerDiscountPercent:20,collaboratorDiscountPercent:35};
+ await assert.rejects(()=>app.issue({...base,commissionPolicy,
+  destinations:[{customerRef:{id:7401,invoiceNo:741},discountPercent:25}]}),
+ {code:'REAL_LINK_APPROVAL_REQUIRED'});
+ const issued=await app.issue({...base,commissionPolicy});
+ assert.equal(issued.agencyLink,true);
+ assert.equal(issued.commissionSummary.oneCustomerInvoice,true);
+ assert.equal(issued.commissionSummary.differencePercent,15);
+ const token=issued.link.split('/real/#')[1],accessCode=issued.accessCode;
+ const destination={id:7401,invoiceNo:741};
+ const catalogue=await app.catalogue({token,accessCode,destination});
+ assert.equal(catalogue.discountPercent,20);
+ assert.equal(catalogue.products.find(p=>p.code==='TP-00001').unitPrice,80000);
+ assert.ok(!JSON.stringify(catalogue).includes('commission'),
+  'buyer catalogue must not disclose CTV settlement');
+ const items=[{code:'TP-00001',qty:2},{code:'TP-00002',qty:3}];
+ const quote=await app.quote({token,accessCode,destination,items});
+ assert.equal(quote.subtotal,348160);
+ assert.equal(quote.total,403866);
+ assert.ok(!JSON.stringify(quote).includes('commission'),
+  'buyer quote must not disclose internal financial data');
+ const owner=await app.ownerCommissionPreview({token,accessCode,destination,items});
+ assert.equal(owner.invoiceCount,1);
+ assert.equal(owner.commissionPercent,15);
+ assert.equal(owner.commissionAmount,65280,'price-by-line: 2×15000 + 3×11760');
+ assert.equal(owner.customerSubtotal,quote.subtotal);
+ assert.equal(owner.customerTotal,quote.total);
+ assert.equal(writes,0,'quote and owner finance preview cannot write any invoice');
+ const result=await app.confirm({token,accessCode,quoteToken:quote.quoteToken,
+  confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
+ assert.equal(result.saved,true);
+ assert.equal(writes,1,'EXACTLY ONE invoice must be created');
+ assert.equal(lastPayload.order.total,quote.total);
+ assert.ok(!lastPayload.order.pairRole&&!lastPayload.order.pairCommissionAmount,
+  'do not add legacy two-invoice bookkeeping');
+ assert.ok(!JSON.stringify(lastPayload.order).includes('collaborator'),
+  'no confidential commission in customer-facing invoice payload');
+ assert.ok(!JSON.stringify(result).includes('commission'),'public receipt hides internal settlement');
+ await assert.rejects(()=>app.ownerCommissionPreview({token,accessCode:'wrong',destination,items}),
+ {code:'ACCESS_CODE_REQUIRED'});
+ const regular=await app.issue(base);
+ assert.equal(regular.commissionSummary,undefined,'ordinary agencies unchanged');
+ const plainToken=regular.link.split('/real/#')[1];
+ await assert.rejects(()=>app.ownerCommissionPreview({token:plainToken,
+  accessCode:regular.accessCode,destination,items}),{code:'REAL_NOT_A_COLLABORATOR_LINK'});
+});
+
+test('one-area admin UI keeps CTV legacy controls invisible and offers one-invoice commission',()=>{
+ const admin=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ assert.match(admin,/id="collaboratorPairAdmin" style="display:none!important"/);
+ assert.match(admin,/id="agencyCommissionEnabled"/);
+ assert.match(admin,/id="agencyCtvCustomerPercent"/);
+ assert.match(admin,/id="agencyCtvCollaboratorPercent"/);
+ assert.match(admin,/id="agencyCommissionCalculator"/);
+ assert.match(admin,/agency-commission\/preview/);
+ assert.match(admin,/commissionPolicy:\{mode:'single-invoice-commission'/);
+ for(const [,source] of admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(source,{filename:'owner-admin.js'});
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ assert.match(server,/ownerPairAction\('collaborators\.pair\.list',\{\}\)/);
+ assert.match(server,/p==='\/api\/admin\/agency-commission\/preview'/);
+ assert.match(server,/customerLinks\.adminAuthorized\(req\)/);
+});
