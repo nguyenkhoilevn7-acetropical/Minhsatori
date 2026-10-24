@@ -108,8 +108,8 @@
   setText('cartCount',entries.length+'/6');
   setText('cartFeedback',entries.length?'Giỏ chung đã cập nhật. Chưa tạo hóa đơn.':'Giỏ đang trống.');
   $('quickCart').hidden=!entries.length;
-  $('composeCart').disabled=!entries.length;
-  $('quickCartQuote').disabled=!entries.length;
+  $('composeCart').disabled=!entries.length||submitted||submissionUncertain||confirming;
+  $('quickCartQuote').disabled=!entries.length||submitted||submissionUncertain||confirming;
   $('quickCartQuote').hidden=!entries.length;
   $('quickCartEdit').textContent=cartCollapsed?'Mở giỏ':'Thu gọn giỏ';
   $('quickCartEdit').setAttribute('aria-expanded',String(!cartCollapsed));
@@ -163,6 +163,7 @@
   }
  }
  function changeQty(code,qty){
+   if(submitted||submissionUncertain||confirming)throw Error('Đơn đã gửi hoặc chưa rõ trạng thái. Xem Hóa đơn và tạo Giỏ hàng mới.');
   if(!Number.isSafeInteger(qty)||qty<0||qty>500)throw Error('Số lượng không hợp lệ.');
   if(!products.has(code))throw Error('Mặt hàng không thuộc bảng giá được duyệt.');
   const next=new Map(cart);if(qty===0)next.delete(code);
@@ -225,11 +226,14 @@
  $('quickCartEdit').onclick=()=>{cartCollapsed=!cartCollapsed;updateCart()};
  function startNewCart(){
   if(requestsBusy)return;
-  if(cart.size&&quoteToken&&!window.confirm('Hủy báo giá chưa xác nhận để tạo đơn hàng mới?'))return;
+  if(submissionUncertain&&!window.confirm('Đơn trước có thể đã lưu. Đã kiểm tra Hóa đơn và chắc chắn tạo đơn mới?'))return;
+   if(cart.size&&quoteToken&&!window.confirm('Hủy báo giá chưa xác nhận để tạo đơn hàng mới?'))return;
   for(const b of document.querySelectorAll('.live-real-confirm')){
    b.disabled=true;b.textContent='Báo giá đã kết thúc';
   }
   cart.clear();invalidate();deliveryNote='';noteInput.value='';lastProduct=null;
+   clientOrderId=newOrderId();writeSession(orderStorageKey,clientOrderId);
+   submitted=false;submissionUncertain=false;confirming=false;
   newCartSequence+=1;cartCollapsed=true;updateCart();
   bubble('🛒 Giỏ mới #'+newCartSequence+' đã sẵn sàng. Hóa đơn cũ vẫn lưu trong mục Hóa đơn. Anh/chị chọn món hoặc nhắn đơn mới.');
   $('messageInput').focus();
@@ -328,6 +332,7 @@
  };
  $('realCode').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('realOpen').click()}};
  async function interpretMessage(message){
+   if(submitted||submissionUncertain)throw Error('Đơn trước đã gửi hoặc chưa rõ trạng thái. Kiểm tra Hóa đơn rồi mở Giỏ hàng mới.');
   if(!catalogue){bubble('Hãy chọn địa chỉ giao trước.','note');return}
   // The server now uses the original sandbox's change semantics and verifies
   // that ALL recognized items fit an atomic basket update before replying.
@@ -409,12 +414,13 @@
   box.append(confirm);$('messages').append(box);$('messages').scrollTop=$('messages').scrollHeight;
  }
  async function quoteNow(){
+   if(submitted||submissionUncertain){bubble('Đơn trước đã gửi hoặc cần kiểm tra. Xem Hóa đơn rồi mở Giỏ hàng mới.','note');return}
   if(requestsBusy)return;if(!catalogue){bubble('Chọn địa chỉ trước.','note');return}
   if(!cart.size){bubble('Giỏ đang trống; hãy thêm món trước.','note');return}
   disabledBusy(true);
   try{
    const items=[...cart.values()].map(x=>({code:x.code,qty:x.qty}));
-   const q=await call('/api/real/quote',{destination:selectedRef,items,deliveryNote});
+   const q=await call('/api/real/quote',{destination:selectedRef,items,deliveryNote,clientOrderId});
    invalidate();quoteToken=q.quoteToken;lastQuote=q;
    showQuote(q);bubble('Anh/chị kiểm tra báo giá và bấm xác nhận trực tiếp trên hóa đơn trong chat.');
   }catch(err){bubble('Không lập được báo giá: '+err.message,'note')}
@@ -585,7 +591,8 @@
  $('locationsPanel').hidden=true;$('suggestionsInline').hidden=true;
  $('quickCart').hidden=true;updateCart();
  $('sendForm').querySelector('button[type=submit]').disabled=false;
- if(!/^[A-Za-z0-9_.-]{80,30000}$/.test(token)){
+ if(submitted){bubble('✅ Hóa đơn #'+savedRecord.invoiceNo+' đã gửi. Xem 🧾 Hóa đơn hoặc mở Giỏ hàng mới để đặt tiếp.');}
+  if(!/^[A-Za-z0-9_.-]{80,30000}$/.test(token)){
   status('Đường link không hợp lệ hoặc bị thiếu. Liên hệ Minh Satori để xin lại.');
   $('realOpen').disabled=true;
  }
