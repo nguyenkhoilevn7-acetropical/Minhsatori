@@ -465,6 +465,7 @@ class NativeMainActivity : AppCompatActivity() {
                     1 -> {
                         getPreferences(MODE_PRIVATE).edit()
                             .putBoolean("google_drive_auto_read", false)
+                            .putBoolean("mobile_owner_readonly_fallback", false)
                             .putString("satori_source_mode", "api").apply()
                         if (apiEndpoint == null) configureMobileApi()
                         else if (accessToken == null) connectGoogle()
@@ -473,6 +474,7 @@ class NativeMainActivity : AppCompatActivity() {
                     2 -> {
                         getPreferences(MODE_PRIVATE).edit()
                             .putBoolean("google_drive_auto_read", false)
+                            .putBoolean("mobile_owner_readonly_fallback", false)
                             .putString("satori_source_mode", "api").apply()
                         configureMobileApi()
                     }
@@ -589,7 +591,7 @@ class NativeMainActivity : AppCompatActivity() {
             else statusMessage,
             12f, false, if (connected) Color.rgb(153, 246, 228)
                 else Color.rgb(254, 215, 170), 5)
-        if (stale) label(info, statusMessage, 11.5f, true,
+        if (stale && connected) label(info, statusMessage, 11.5f, true,
             Color.rgb(253, 186, 116), 6)
         if (preferredSource() == AutoSyncPolicy.FILE) {
             label(info, "⚠ File được chọn có thể là bản tĩnh. Bấm ↻ Refresh để chuyển sang đồng bộ Drive live.",
@@ -1879,7 +1881,11 @@ class NativeMainActivity : AppCompatActivity() {
                         }
                         snapshot = it.snapshot
                         lastMobileRevisionProbeElapsedMs = SystemClock.elapsedRealtime()
-                        allowedActions = it.allowedActions
+                        allowedActions =
+                            if (getPreferences(MODE_PRIVATE).getBoolean(
+                                    "mobile_owner_readonly_fallback", false))
+                                it.allowedActions.filter { a -> a.startsWith("mobile.") }.toSet()
+                            else it.allowedActions
                         actorId = it.actorId
                         dataSource = "Minh Satori API"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
@@ -2206,6 +2212,67 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     /**
+     * A Drive 403 can mean wrong account, insufficient OAuth scope, or policy.
+     * Instead of retrying it forever, use the previously configured owner
+     * Apps Script Mobile API, authenticated with the user's Google token.
+     *
+     * Automatic fallback is read-only; no invoice write/delete capabilities
+     * become available merely because a read provider changed.
+     */
+    private fun recoverDriveAccessUsingOwnerApi(token: String): Boolean {
+        val endpoint = apiEndpoint ?: return false
+        if (isLoading || authorizationPending || authorizationDeclined) return false
+        isLoading = true
+        statusMessage = "Drive từ chối quyền đọc. Đang thử Mobile API chủ sở hữu đã lưu…"
+        render()
+        Thread {
+            val result = runCatching { MobileApiClient.snapshot(endpoint, token) }
+            runOnUiThread {
+                isLoading = false
+                if (accessToken != token || apiEndpoint != endpoint) return@runOnUiThread
+                result.fold(
+                    onSuccess = { remote ->
+                        val prior = snapshot
+                        if (prior != null &&
+                            !LiveSyncPolicy.canApplySnapshot(prior.revision, remote.snapshot.revision)) {
+                            statusMessage = "⚠ Mobile API trả dữ liệu cũ hơn lần đã xác minh. " +
+                                "Giữ nguyên hóa đơn, không ghi đè."
+                        } else {
+                            getPreferences(MODE_PRIVATE).edit()
+                                .putString("satori_source_mode", AutoSyncPolicy.MOBILE_API)
+                                .putBoolean("google_drive_auto_read", false)
+                                .putBoolean("mobile_owner_readonly_fallback", true)
+                                .apply()
+                            snapshot = remote.snapshot
+                            allowedActions = remote.allowedActions.filter {
+                                it.startsWith("mobile.")
+                            }.toSet()
+                            actorId = remote.actorId
+                            dataSource = "Minh Satori API"
+                            lastDriveVersion = null
+                            lastMobileRevisionProbeElapsedMs = SystemClock.elapsedRealtime()
+                            lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
+                            lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
+                            statusMessage = "Đã chuyển sang Mobile API chủ sở hữu • " +
+                                "tự đồng bộ mỗi 20 giây; chỉ xem hóa đơn."
+                        }
+                    },
+                    onFailure = { error ->
+                        val reason = if (error is MobileApiError)
+                            error.apiCode + ": " + error.message
+                        else error.message ?: "Không có phản hồi từ Mobile API"
+                        statusMessage = "⚠ Google Drive từ chối quyền (HTTP 403); " +
+                            "Mobile API chủ sở hữu cũng chưa kết nối được: " + reason +
+                            ". Chưa cập nhật dữ liệu; không xóa hóa đơn cũ."
+                    }
+                )
+                render()
+            }
+        }.start()
+        return true
+    }
+
+    /**
      * Lightweight foreground probe. Only reload a full Drive ledger if its
      * Google file.version changed from the last verified snapshot. No UI
      * reconstruction when no invoice changed.
@@ -2232,14 +2299,19 @@ class NativeMainActivity : AppCompatActivity() {
                         }
                     },
                     onFailure = { error ->
-                        statusMessage = "⚠ Chưa kiểm tra được đơn mới: " +
-                            (error.message ?: "Lỗi mạng") +
-                            ". Dữ liệu hiển thị là lần đồng bộ trước."
-                        if (error.message?.contains("hết hạn") == true) {
-                            accessToken = null
-                            lastSyncAttemptElapsedMs = 0L
+                        if (error is DriveReadPermissionDenied &&
+                            recoverDriveAccessUsingOwnerApi(token)) {
+                            // Fallback will render the verified owner snapshot.
+                        } else {
+                            statusMessage = "⚠ Chưa kiểm tra được đơn mới: " +
+                                (error.message ?: "Lỗi mạng") +
+                                ". Dữ liệu hiển thị là lần đồng bộ trước."
+                            if (error.message?.contains("hết hạn") == true) {
+                                accessToken = null
+                                lastSyncAttemptElapsedMs = 0L
+                            }
+                            render()
                         }
-                        render()
                     }
                 )
             }
@@ -2279,13 +2351,16 @@ class NativeMainActivity : AppCompatActivity() {
                             statusMessage = "Đã đồng bộ • kiểm tra mỗi 20 giây; đối chiếu đầy đủ mỗi 60 giây."
                         }
                     },
-                    onFailure = {
-                        // Do not discard verified invoice rows after a temporary
-                        // outage; flag possible staleness visibly instead.
-                        statusMessage = "⚠ Chưa đồng bộ được đơn mới: " +
-                            (it.message ?: "Lỗi mạng") +
-                            ". Dữ liệu đang hiển thị có thể đã cũ."
-                        if (statusMessage.contains("hết hạn")) accessToken = null
+                    onFailure = { error ->
+                        if (error is DriveReadPermissionDenied &&
+                            recoverDriveAccessUsingOwnerApi(token)) {
+                            // Fallback in flight, keep previous verified rows.
+                        } else {
+                            statusMessage = "⚠ Chưa đồng bộ được đơn mới: " +
+                                (error.message ?: "Lỗi mạng") +
+                                ". Dữ liệu đang hiển thị có thể đã cũ."
+                            if (statusMessage.contains("hết hạn")) accessToken = null
+                        }
                     }
                 )
                 render()
