@@ -209,6 +209,23 @@ export function createProductionPrivateLinks({
    products:[...live.products.values()].map(p=>({code:p.code,name:p.name,unit:p.unit,
     listPrice:p.listPrice,unitPrice:Math.round(p.listPrice*(100-d.discountPercent)/100)}))};
  }
+ // Bot orders normally have a millisecond timestamp as their immutable ID.
+ // Accept it as an order time only when it agrees with the recorded Vietnamese date.
+ function verifiedCreatedAt(order){
+  if(!order)return null;
+  const millis=Number(order.id);
+  if(!Number.isSafeInteger(millis)||millis<946684800000||millis>4102444800000)return null;
+  const date=new Date(millis);
+  const recorded=String(order.date||'').trim();
+  const recordedDay=recorded.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(!recordedDay)return null;
+  const format=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Ho_Chi_Minh',
+   year:'numeric',month:'2-digit',day:'2-digit'});
+  const parts=Object.fromEntries(format.formatToParts(date).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+  const source=[String(recordedDay[1]).padStart(2,'0'),String(recordedDay[2]).padStart(2,'0'),recordedDay[3]].join('/');
+  const derived=[parts.day,parts.month,parts.year].join('/');
+  return source===derived?date.toISOString():null;
+ }
  async function quote({token,accessCode,destination:ref,items,deliveryNote='',clientOrderId=null}={}){
   const invite=access(token,accessCode),d=chosen(invite,ref);
   if(!cleanText(deliveryNote,300))throw error('INVALID_DELIVERY_NOTE');
@@ -226,7 +243,7 @@ export function createProductionPrivateLinks({
    vatAmount:amount.vatAmount,total:amount.total,discountPercent:d.discountPercent};
   return {production:true,confirmationRequired:true,quoteToken:seal(q,'customer-quote'),
    expiresAt:new Date(q.expiresAt).toISOString(),sourceRevision:live.revision,
-   ...amount,discountPercent:d.discountPercent,customer:{name:d.name,location:d.location}};
+   ...amount,discountPercent:d.discountPercent,customer:{name:d.name,phone:d.phone,location:d.location},deliveryNote};
  }
  async function confirm({token,accessCode,quoteToken,confirmation}={}){
   const invite=access(token,accessCode);
@@ -273,7 +290,7 @@ export function createProductionPrivateLinks({
    expiresAt:Math.min(invite.expiresAt,now()+7*86400000)},'customer-receipt');
   return {production:true,saved:true,invoiceNo:order.invoiceNo,
    revision:receipt.revision,total:order.total,duplicate:receipt.data?.duplicate===true,
-   receiptToken,message:'Đã ghi hóa đơn thật vào sổ kế toán Minh Satori.'};
+   createdAt:verifiedCreatedAt(order),receiptToken,message:'Đã ghi hóa đơn thật vào sổ kế toán Minh Satori.'};
  }
  // Verify the immutable invite, separate code AND proof returned by
  // confirmed real order creation. Never grant PDF access by invoiceNo alone.
@@ -355,6 +372,7 @@ export function createProductionPrivateLinks({
     signatures.add(id);
     all.push({
      invoiceNo:Number(o.invoiceNo),date:safe(o.date).slice(0,20),
+     createdAt:verifiedCreatedAt(o),deliveryNote:safe(o.deliveryNote).slice(0,300),
      name:d.name,phone:d.phone,location:d.location,invoiceId:String(o.id),
      total:Number(o.total),status:safe(o.status).slice(0,60),
      paid:o.status==='Đã thanh toán'||!!o.customerPaidAt,
