@@ -4,7 +4,8 @@ const code=fs.readFileSync(__dirname+'/../api/AndroidOwnerMobileApi.gs','utf8');
 new vm.Script(code,{filename:'AndroidOwnerMobileApi.gs'});
 const clientId='1234567890-ownerandroid.apps.googleusercontent.com',owner='owner@example.test';
 const config={'SATORI_ANDROID_OWNER_EMAIL':owner,
- 'SATORI_ANDROID_ALLOWED_CLIENT_IDS_JSON':JSON.stringify([clientId])};
+ 'SATORI_ANDROID_ALLOWED_CLIENT_IDS_JSON':JSON.stringify([clientId]),
+ 'STATE_FILE_ID':'14XWSPrxLnKXATwmuHeXGZnCvjDbalghV'};
 const ledger={revision:133,updatedAt:'2026-10-23T22:40:00+07:00',
  values:{satori_orders_v15:JSON.stringify([{id:11,invoiceNo:8001,name:'FAKE A'}]),
  satori_catalogue_v15:'[]',satori_ai_customer_memory:'[]',
@@ -57,10 +58,10 @@ assert.equal(rev.data.revision,133);assert.ok(!('values' in rev.data));
 assert.equal(snap.data.ledgerFileId,'14XWSPrxLnKXATwmuHeXGZnCvjDbalghV');
 assert.equal(snap.data.ledgerKind,'minh-satori-owner-drive-v15');
 assert.equal(rev.data.ledgerFileId,snap.data.ledgerFileId);
-ctx.STATE_FILE_ID='sandbox-file';
+config.STATE_FILE_ID='sandbox-file';
 assert.equal(request('mobile.snapshot').error.code,'WRONG_LEDGER_SOURCE');
 assert.equal(request('mobile.revision').error.code,'WRONG_LEDGER_SOURCE');
-ctx.STATE_FILE_ID='14XWSPrxLnKXATwmuHeXGZnCvjDbalghV';
+config.STATE_FILE_ID='14XWSPrxLnKXATwmuHeXGZnCvjDbalghV';
 ledger.revision=1;
 assert.equal(request('mobile.snapshot').error.code,'WRONG_LEDGER_SOURCE');
 ledger.revision=133;
