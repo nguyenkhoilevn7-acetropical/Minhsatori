@@ -319,7 +319,18 @@ button:disabled{opacity:.55}
 <section class="card" data-tab-panel="customers" hidden id="productionCustomerDirectory">
 <div class="production-heading"><div><h2>👥 Danh sách khách hàng thật</h2><p>Nhóm theo tên trên hóa đơn và địa chỉ giao thực tế</p></div><span class="production-tag">✓ Đọc từ Drive</span></div>
 <div class="directory-stats"><div class="directory-stat"><strong id="realProfileCount">—</strong><span>Khách/đại lý</span></div><div class="directory-stat"><strong id="realDeliveryCount">—</strong><span>Điểm giao</span></div><div class="directory-stat"><strong id="realInvoiceCount">—</strong><span>Hóa đơn nguồn</span></div></div>
-<div class="directory-toolbar"><input id="realDirectoryFilter" aria-label="Tìm khách thật" placeholder="🔎 Tìm tên khách hàng…" maxlength="120" autocomplete="off"><button type="button" class="secondary" id="realDirectoryRefresh">↻ Làm mới</button></div>
+<div class="directory-toolbar"><button type="button" id="addProductionCustomerToggle">＋ Thêm khách hàng mới</button><input id="realDirectoryFilter" aria-label="Tìm khách thật" placeholder="🔎 Tìm tên khách hàng…" maxlength="120" autocomplete="off"><button type="button" class="secondary" id="realDirectoryRefresh">↻ Làm mới</button></div>
+<form id="addProductionCustomer" hidden style="background:#f4f9ff;border:1px solid #b9d5ef;border-radius:14px;padding:16px;margin:12px 0">
+<strong>👤 Khách hàng mới • Google Drive Production</strong>
+<p class="hint">Lưu hồ sơ độc lập, không cần tạo hóa đơn. Điền đầy đủ ba trường bắt buộc.</p>
+<div class="location-form">
+<label>Tên khách hàng *<input id="productionCustomerName" required minlength="2" maxlength="150" autocomplete="name" placeholder="Tên khách / tên đại lý"></label>
+<label>Số điện thoại *<input id="productionCustomerPhone" type="tel" required maxlength="30" autocomplete="tel" placeholder="09xxxxxxxx"></label>
+<label>Địa chỉ giao hàng *<textarea id="productionCustomerAddress" required minlength="8" maxlength="500" rows="2" placeholder="Số nhà, đường, phường, tỉnh/thành"></textarea></label>
+</div><div class="row"><button type="submit" id="saveProductionCustomer">💾 Lưu vào Google Drive</button><button type="button" id="cancelProductionCustomer" class="secondary">Đóng</button></div>
+<p id="productionCustomerCreateStatus" role="status" class="hint">Chưa lưu dữ liệu.</p></form>
+<p class="hint" id="customerRegistryStatus" role="status">Đang kiểm tra kết nối hồ sơ khách mới…</p>
+<div class="directory-grid" id="customerRegistryCards"></div>
 <p class="hint" id="directoryCoverage" role="status">Đang tải hồ sơ khách thật…</p>
 <div class="directory-grid" id="productionProfiles" aria-live="polite"></div>
 <p class="hint">Đây là hồ sơ tổng hợp từ hóa đơn, không phải lịch sử các link đã phát hành. Chọn Cấp link để duyệt địa chỉ trên sổ gốc.</p></section>
@@ -1108,6 +1119,64 @@ function renderCustomerSelect(){
  syncCtvCandidate();
  if([...select.options].some(x=>x.value===old))select.value=old;
 }
+let customerRegistry=[],customerRegistryRevision=null;
+function renderNewCustomerCards(){
+ const root=$('customerRegistryCards');root.replaceChildren();
+ const query=normalized($('realDirectoryFilter').value||'');
+ for(const c of customerRegistry.filter(x=>!query||
+   normalized(x.name+' '+x.phone+' '+x.location).includes(query))){
+  const card=document.createElement('article');card.className='directory-card';
+  const title=document.createElement('strong');title.textContent='👤 '+c.name;
+  const phone=document.createElement('p');phone.textContent='📞 '+c.phone;
+  const address=document.createElement('p');address.textContent='📍 '+c.location;
+  const meta=document.createElement('small');meta.textContent='Đã lưu trong Drive • Chưa có hóa đơn';
+  card.append(title,phone,address,meta);root.append(card);
+ }
+}
+async function loadNewCustomerRegistry(){
+ try{
+  const d=await request('/api/admin/customer-profiles');
+  if(d.source!=='drive-production'||!Number.isSafeInteger(d.revision)||!Array.isArray(d.profiles))
+   throw Error('Chưa xác minh được nguồn dữ liệu');
+  customerRegistryRevision=d.revision;customerRegistry=d.profiles;
+  $('customerRegistryStatus').textContent='✅ '+d.profiles.length+' hồ sơ khách mới trên Drive • revision '+d.revision;
+ }catch(e){
+  customerRegistryRevision=null;customerRegistry=[];
+  $('customerRegistryStatus').textContent='⚠ Chức năng lưu hồ sơ mới chưa sẵn sàng: '+e.message;
+ }
+ renderNewCustomerCards();
+}
+$('addProductionCustomerToggle').onclick=()=>{
+ $('addProductionCustomer').hidden=!$('addProductionCustomer').hidden;
+ if(!$('addProductionCustomer').hidden)$('productionCustomerName').focus();
+};
+$('cancelProductionCustomer').onclick=()=>{$('addProductionCustomer').hidden=true};
+$('addProductionCustomer').onsubmit=async e=>{
+ e.preventDefault();
+ const name=$('productionCustomerName').value.trim(),phone=$('productionCustomerPhone').value.trim(),
+  location=$('productionCustomerAddress').value.trim(),digitsOnly=phone.replace(/\D/g,'');
+ if(name.length<2||location.length<8||digitsOnly.length<9||digitsOnly.length>11){
+  $('productionCustomerCreateStatus').textContent='⚠ Phải đủ tên, số điện thoại 9–11 chữ số và địa chỉ.';
+  return;
+ }
+ if(!Number.isSafeInteger(customerRegistryRevision)){
+  $('productionCustomerCreateStatus').textContent='⚠ Chưa xác minh kết nối Drive, không lưu giả trên Render.';
+  return;
+ }
+ const button=$('saveProductionCustomer');button.disabled=true;
+ $('productionCustomerCreateStatus').textContent='Đang ghi và xác minh hồ sơ trong Google Drive…';
+ try{
+  const d=await request('/api/admin/customer-profiles','POST',{
+   confirmed:true,expectedRevision:customerRegistryRevision,customer:{name,phone,location}});
+  if(!d.saved||d.source!=='drive-production'||!d.profile?.id)
+   throw Error('Chưa nhận được xác minh lưu dữ liệu');
+  $('productionCustomerCreateStatus').textContent='✅ Đã lưu hồ sơ lên Google Drive, mã '+d.profile.id;
+  $('addProductionCustomer').reset();
+  await loadNewCustomerRegistry();
+ }catch(err){
+  $('productionCustomerCreateStatus').textContent='⚠ '+err.message+' • KHÔNG ghi hóa đơn hoặc hồ sơ tạm.';
+ }finally{button.disabled=false}
+};
 let realDirectorySnapshot=null;
 function renderProductionProfiles(){
  const root=$('productionProfiles'),query=normalized($('realDirectoryFilter').value);
@@ -1136,7 +1205,7 @@ function renderProductionProfiles(){
   const ul=document.createElement('ul');
   for(const place of c.deliveryLocations||[]){
    const li=document.createElement('li');li.textContent=place.address;
-   const desc=document.createElement('small');desc.textContent=place.invoiceCount+' hóa đơn • '+place.contactCount+' số liên hệ';
+   const desc=document.createElement('small');desc.textContent=place.invoiceCount+' hóa đơn • Số điện thoại: '+((place.phones||[]).join(', ')||'Chưa có');
    li.append(desc);ul.append(li);
   }
   if(!ul.children.length){const li=document.createElement('li');li.textContent='Chưa có địa chỉ hợp lệ trong phạm vi hóa đơn đã tải.';ul.append(li)}
@@ -1145,7 +1214,7 @@ function renderProductionProfiles(){
  if(!list.length){const empty=document.createElement('p');empty.className='hint';
   empty.textContent=realDirectorySnapshot?'Không tìm thấy khách phù hợp.':'Chưa tải được hồ sơ khách thật.';root.append(empty)}
 }
-$('realDirectoryFilter').oninput=renderProductionProfiles;
+$('realDirectoryFilter').oninput=()=>{renderProductionProfiles();renderNewCustomerCards()};
 $('realDirectoryRefresh').onclick=()=>loadRealDirectory();
 async function loadRealDirectory(){
  if(!secret)return;
@@ -1168,6 +1237,7 @@ async function loadRealDirectory(){
   $('directoryCoverage').textContent=coverage+quality;
   $('realCustomerState').textContent='Đã đọc '+realCustomers.length+' khách từ sổ thật • revision '+d.revision+'.';
   renderProductionProfiles();
+  await loadNewCustomerRegistry();
  }catch(e){
   $('directoryCoverage').textContent='⚠ Chưa đọc được danh sách thật: '+e.message;
   $('realCustomerState').textContent='⚠ '+e.message;

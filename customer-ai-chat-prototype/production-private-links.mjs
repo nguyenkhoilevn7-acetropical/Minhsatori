@@ -24,7 +24,7 @@ const sameRef=(a,b)=>a&&b&&String(a.id)===String(b.id)&&a.invoiceNo===b.invoiceN
 const validDestination=d=>validRef(d?.customerRef)&&cleanText(d.name,150)&&cleanText(d.location,500)&&digits(d.phone).length>=8&&pct(d.discountPercent);
 
 export function createProductionPrivateLinks({
- env=process.env, now=Date.now, rand=crypto.randomBytes, source, bot,
+ env=process.env, now=Date.now, rand=crypto.randomBytes, source, bot,historyReader=null,
  origin='https://minh-satori-customer-ai-gemini.onrender.com'
 }={}){
  if(typeof source!=='function'||typeof bot!=='function')throw Error('SERVER_BINDINGS_REQUIRED');
@@ -197,11 +197,11 @@ export function createProductionPrivateLinks({
   // No disclosure until both independent credentials are verified.
   // When an agent has not selected an address, return no priced catalogue.
   if(!d)return {production:true,agency:true,agentName:invite.agentName,
-    destinations:destinations(invite).map(x=>({customerRef:x.customerRef,name:x.name,location:x.location,discountPercent:x.discountPercent})),
+    destinations:destinations(invite).map(x=>({customerRef:x.customerRef,name:x.name,phone:x.phone,location:x.location,discountPercent:x.discountPercent})),
     products:[],requiresDestination:true};
   const live=await checked(invite,d);
   return {production:true,agency,agentName:invite.agentName||null,
-   ...(agency?{destinations:destinations(invite).map(x=>({customerRef:x.customerRef,name:x.name,location:x.location,discountPercent:x.discountPercent}))}:{}),
+   ...(agency?{destinations:destinations(invite).map(x=>({customerRef:x.customerRef,name:x.name,phone:x.phone,location:x.location,discountPercent:x.discountPercent}))}:{}),
    customer:{name:d.name,phone:d.phone,location:d.location},
    expiresAt:new Date(invite.expiresAt).toISOString(),revision:live.revision,
    discountPercent:d.discountPercent,shippingPercent:d.shippingPercent,
@@ -271,6 +271,68 @@ export function createProductionPrivateLinks({
  }
  // Verify the immutable invite, separate code AND proof returned by
  // confirmed real order creation. Never grant PDF access by invoiceNo alone.
+
+ const normalized=v=>safe(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/đ/g,'d').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+ function receiptProof(invite,d,order){
+  return seal({type:'customer-real-receipt',inviteId:invite.id,
+   invoiceNo:Number(order.invoiceNo),total:Number(order.total),
+   customerRef:d.customerRef,name:d.name,phone:d.phone,location:d.location,
+   expiresAt:Math.min(invite.expiresAt,now()+7*86400000)},'customer-receipt');
+ }
+ /**
+  * Owner-approved recipient history, scoped by exact name + phone + physical
+  * delivery address. Query is server-controlled; never accept arbitrary
+  * customer-search text from public caller. No CTV secondary bills returned.
+  * Do NOT equate Satori supplier payment with customer-paid status.
+  */
+ async function history({token,accessCode}={}){
+  const invite=access(token,accessCode);
+  const allow=destinations(invite);
+  const names=[...new Set(allow.map(d=>normalized(d.name)))];
+  if(names.length>20)throw error('REAL_HISTORY_TOO_MANY_DESTINATIONS');
+  const reader=historyReader|| (payload=>bot('orders.list',payload));
+  const all=[],signatures=new Set();let complete=true,revision=null;
+  for(const name of names){
+   // Search by owner-approved name ONLY. Do not forward user search or PIN.
+   const source=await reader({query:name,limit:100});
+   const rows=source.data?.orders,rev=source.revision;
+   if(!Number.isSafeInteger(rev)||!Array.isArray(rows)||
+      !Number.isSafeInteger(source.data?.totalMatches))
+    throw error('REAL_HISTORY_SOURCE_INVALID');
+   if(revision!==null&&revision!==rev)throw error('REAL_HISTORY_REVISION_CHANGED');
+   revision=rev;
+   if(source.data.totalMatches>rows.length)complete=false;
+   for(const o of rows){
+    if(!Number.isSafeInteger(Number(o.invoiceNo))||Number(o.invoiceNo)<1||
+       !Number.isSafeInteger(Number(o.total))||Number(o.total)<0||
+       o.pairRole==='collaborator')continue;
+    const d=allow.find(x=>normalized(x.name)===normalized(o.name)&&
+     normalized(x.location)===normalized(o.location)&&
+     digits(x.phone)===digits(o.phone));
+    if(!d)continue;
+    const id=String(o.id)+'|'+o.invoiceNo+'|'+o.location;
+    if(signatures.has(id))continue;
+    signatures.add(id);
+    all.push({
+     invoiceNo:Number(o.invoiceNo),date:safe(o.date).slice(0,20),
+     name:d.name,phone:d.phone,location:d.location,invoiceId:String(o.id),
+     total:Number(o.total),status:safe(o.status).slice(0,60),
+     paid:o.status==='Đã thanh toán'||!!o.customerPaidAt,
+     paidAt:o.customerPaidAt||null,paymentReceiptAt:o.customerPaymentReceiptAt||null,
+     paymentNote:safe(o.customerPaymentNote).slice(0,300),
+     items:Array.isArray(o.items)?o.items.slice(0,40).map(i=>({
+      product:safe(i.product).slice(0,160),qty:Number(i.qty),unit:safe(i.unit).slice(0,40),
+      unitPrice:Number(i.unitPrice)
+     })):[],
+     receiptToken:receiptProof(invite,d,o)
+    });
+   }
+  }
+  all.sort((a,b)=>b.invoiceNo-a.invoiceNo);
+  return {production:true,revision,complete,orders:all,
+   warning:complete?'': 'Lịch sử có thể chưa đầy đủ vì nguồn trả tối đa 100 đơn mỗi lần tra.'};
+ }
  function receiptContext({token,accessCode,receiptToken}={}){
   const invite=access(token,accessCode);
   const proof=unseal(receiptToken,'customer-receipt');
@@ -286,5 +348,5 @@ export function createProductionPrivateLinks({
   return {invoiceNo:proof.invoiceNo,total:proof.total,
    name:dest.name,phone:dest.phone,location:dest.location};
  }
- return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm,chatContext,receiptContext});
+ return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm,chatContext,receiptContext,history});
 }

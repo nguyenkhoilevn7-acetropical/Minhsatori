@@ -391,6 +391,41 @@ const server=http.createServer(async(req,res)=>{
     'Không cấp được link: cần đúng hóa đơn gốc, địa chỉ và giá chủ tài khoản duyệt.');
   }
  }
+ // Verified invoice metadata for phone browsers whose embedded PDF viewer
+ // is blank. The canonical PDF remains downloadable unchanged. Never query
+ // by arbitrary invoice number: exact saved invoice + sealed receipt proof.
+ if(req.method==='POST'&&p==='/api/real/invoice-details'){
+  if(!realPrivateLinks.readiness().configured)
+   return fail(res,503,'REAL_LINKS_NOT_ENABLED','Link chưa sẵn sàng');
+  if(!rateLimit(req,'private-real-invoice-details'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng thử lại sau');
+  try{
+   const input=await bodyJSON(req,12000);
+   const proof=realPrivateLinks.receiptContext(input);
+   const result=await readMinhSatori('orders.list',{query:String(proof.invoiceNo),limit:100});
+   if(!Number.isSafeInteger(result.revision)||!Array.isArray(result.data?.orders)||
+      result.data.totalMatches>100)throw Error('SOURCE_NOT_VERIFIED');
+   const matching=result.data.orders.filter(o=>Number(o.invoiceNo)===proof.invoiceNo&&
+    o.name===proof.name&&o.phone===proof.phone&&o.location===proof.location&&
+    Number(o.total)===proof.total&&o.pairRole!=='collaborator');
+   if(matching.length!==1)throw Error('INVOICE_NOT_VERIFIED');
+   const o=matching[0];
+   if(!Array.isArray(o.items)||!o.items.length||o.items.some(i=>
+     !Number.isSafeInteger(i.qty)||i.qty<1||!Number.isSafeInteger(i.unitPrice)||i.unitPrice<0))
+    throw Error('INVOICE_ITEM_INVALID');
+   return reply(res,200,{ok:true,invoice:{
+    invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,
+    status:o.status,total:o.total,paid:o.status==='Đã thanh toán'||!!o.customerPaidAt,
+    paidAt:o.customerPaidAt||null,
+    customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,
+    shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,
+    deliveryNote:o.deliveryNote||'',
+    items:o.items.map(i=>({product:i.product,qty:i.qty,unit:i.unit,unitPrice:i.unitPrice,
+       subtotal:i.subtotal??i.qty*i.unitPrice}))
+   }});
+  }catch(e){return fail(res,409,'REAL_INVOICE_NOT_VERIFIED',
+    'Chưa xác minh được chi tiết hóa đơn đã lưu. Không hiển thị dữ liệu ước lượng.')}
+ }
  // Official website PDF: access only through the issued link, separate
  // code, and an invoice-specific proof created AFTER a confirmed real write.
  if(req.method==='POST'&&p==='/api/real/pdf'){
@@ -425,6 +460,18 @@ const server=http.createServer(async(req,res)=>{
   }catch(e){
    return fail(res,409,'REAL_PDF_UNAVAILABLE',
     'Chưa xác minh được PDF gốc của hóa đơn này. Vui lòng đối chiếu trong sổ Minh Satori.');
+  }
+ }
+ if(req.method==='POST'&&p==='/api/real/history'){
+  if(!realPrivateLinks.readiness().configured)
+   return fail(res,503,'REAL_LINKS_NOT_ENABLED','Link đặt hàng chưa được bật.');
+  if(!rateLimit(req,'private-real-history'))return fail(res,429,'RATE_LIMIT','Vui lòng thử lại sau.');
+  try{
+   const input=await bodyJSON(req,12000);
+   return reply(res,200,{ok:true,...await realPrivateLinks.history(input)});
+  }catch(e){
+   return fail(res,409,e?.code||'REAL_HISTORY_UNAVAILABLE',
+    'Chưa thể đọc đầy đủ lịch sử hóa đơn đã duyệt. Không dùng dữ liệu thử.');
   }
  }
  if(req.method==='POST'&&/^\/api\/real\/(?:catalogue|quote|confirm|interpret|pdf)$/.test(p)){
@@ -848,6 +895,44 @@ const server=http.createServer(async(req,res)=>{
   }catch{return fail(res,503,'LIVE_SCREEN_UNAVAILABLE','Chưa thể sàng lọc tháng này; không áp dụng dữ liệu mẫu.')}
  }
 
+ // New customer records live in the same authenticated Google Drive ledger as
+ // existing invoices, NOT in ephemeral Render localStorage or demo profiles.
+ // These APIs fail closed until Apps Script Production and scopes are deployed.
+ if((req.method==='GET'&&p==='/api/admin/customer-profiles')||
+    (req.method==='POST'&&p==='/api/admin/customer-profiles')){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được quản lý hồ sơ khách');
+  if(!rateLimit(req,'admin-customer-profile'+req.method))
+   return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
+  try{
+   if(req.method==='GET'){
+    const d=await readMinhSatori('customers.list',{});
+    if(!Number.isSafeInteger(d.revision)||!Array.isArray(d.data?.profiles))
+     throw Error('CUSTOMER_PROFILES_SOURCE_INVALID');
+    return reply(res,200,{ok:true,source:'drive-production',revision:d.revision,profiles:d.data.profiles});
+   }
+   const payload=await bodyJSON(req,2000);
+   const customer=payload.customer||{},name=String(customer.name||'').trim(),
+    location=String(customer.location||'').trim(),phone=String(customer.phone||'').trim();
+   if(name.length<2||name.length>150||location.length<8||location.length>500||
+      !/^[+0-9\s-]{9,30}$/.test(phone)||phone.replace(/\D/g,'').length<9||
+      phone.replace(/\D/g,'').length>11||payload.confirmed!==true||
+      !Number.isSafeInteger(payload.expectedRevision))
+    return fail(res,400,'CUSTOMER_REQUIRED_FIELDS','Nhập đủ tên, số điện thoại, địa chỉ và xác nhận');
+   const d=await ownerInvoice.bot('customers.upsert',{
+    confirmed:true,expectedRevision:payload.expectedRevision,
+    customer:{name,phone,location}});
+   if(!Number.isSafeInteger(d.revision)||d.data?.created!==true||
+      d.data?.profile?.name!==name||d.data?.profile?.location!==location||
+      d.data?.profile?.phone!==phone)
+    throw Error('CUSTOMER_SAVE_UNVERIFIED');
+   return reply(res,200,{ok:true,saved:true,source:'drive-production',revision:d.revision,
+    profile:d.data.profile});
+  }catch(e){
+   return fail(res,503,'CUSTOMER_PROFILE_API_NOT_READY',
+    'Không thể xác minh lưu hồ sơ lên Google Drive. Cần Bot API Production có quyền customers:write; không lưu tạm trên Render.');
+  }
+ }
  // Signed-in owner only: ephemeral, read-only directory. No sandbox persistence.
  if(req.method==='GET'&&p==='/api/admin/customer-directory'){
   if(!customerLinks.adminAuthorized(req))
