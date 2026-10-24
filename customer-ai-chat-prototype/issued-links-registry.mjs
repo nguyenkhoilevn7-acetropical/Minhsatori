@@ -10,7 +10,7 @@ const fail=(code)=>{throw Object.assign(new Error(code),{code})};
 const idForLink=link=>'il_'+crypto.createHash('sha256').update(link,'utf8').digest('hex').slice(0,32);
 const validLink=link=>typeof link==='string'&&link.length>=80&&link.length<=16000&&
  /^https:\/\/minh-satori-customer-ai-gemini\.onrender\.com\/(?:real|ctv)\/#[-_A-Za-z0-9.]{50,15000}$/.test(link);
-const asText=(value,max)=>typeof value==='string'&&value.trim()&&value.length<=max?value.trim():fail('LINK_RECORD_INVALID');
+const asText=(value,max,min=1)=>typeof value==='string'&&value.trim().length>=min&&value.length<=max?value.trim():fail('LINK_RECORD_INVALID');
 const integer=(v,max)=>Number.isSafeInteger(v)&&v>=0&&v<=max;
 const ref=source=>{
  if(!source||source.id==null||!Number.isSafeInteger(source.invoiceNo)||source.invoiceNo<1)
@@ -19,8 +19,8 @@ const ref=source=>{
 };
 const recipient=d=>{
  if(!d||!integer(d.discountPercent,70))fail('LINK_RECORD_INVALID');
- return {customerRef:ref(d.customerRef),name:asText(d.name,150),
-  phone:asText(d.phone,35),location:asText(d.location,500),
+ return {customerRef:ref(d.customerRef),name:asText(d.name,150,2),
+  phone:asText(d.phone,35,8),location:asText(d.location,500,5),
   discountPercent:d.discountPercent};
 };
 
@@ -55,7 +55,7 @@ export function createIssuedLinksRegistry({bot,now=Date.now}={}){
      ![0,5,8,10].includes(vatPercent)||
      (kind==='collaborator')!==link.includes('/ctv/#'))
    fail('LINK_RECORD_INVALID');
-  const record={id:idForLink(link),kind,name:asText(name,150),link,
+  const record={id:idForLink(link),kind,name:asText(name,150,2),link,
    issuedAt:new Date(issuedAt).toISOString(),expiresAt:expiresAt?new Date(expiresAt).toISOString():null,
    collaboratorId:kind==='collaborator'?asText(collaboratorId,100):null,
    shippingPercent,vatPercent,recipients:recipients.map(recipient)};
@@ -71,7 +71,8 @@ export function createIssuedLinksRegistry({bot,now=Date.now}={}){
     const confirmed=await list({id:record.id,limit:1});
     const match=confirmed.items[0];
     if(confirmed.total!==1||!match||match.link!==record.link||
-       match.name!==record.name||match.kind!==record.kind)
+       match.name!==record.name||match.kind!==record.kind||
+       JSON.stringify(match.recipients)!==JSON.stringify(record.recipients))
      fail('LINK_REGISTRY_READBACK_MISMATCH');
     return {id:record.id,saved:true,duplicate:saved.data.duplicate===true,
      revision:confirmed.revision};
