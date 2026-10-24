@@ -22,29 +22,6 @@ const keyFromSecret=v=>crypto.createHash('sha256').update('MINH-SATORI-REAL-LINK
 const maxAge=30*24*3600*1000;
 const sameRef=(a,b)=>a&&b&&String(a.id)===String(b.id)&&a.invoiceNo===b.invoiceNo;
 const validDestination=d=>validRef(d?.customerRef)&&cleanText(d.name,150)&&cleanText(d.location,500)&&digits(d.phone).length>=8&&pct(d.discountPercent);
-// Private CTV settlement is a FINANCIAL CALCULATION, never a second invoice.
-// This sealed policy is owner-approved and must not appear in customer APIs.
-const validCommissionPolicy=p=>p&&p.mode==='single-invoice-commission'&&
- typeof p.collaboratorId==='string'&&/^[A-Za-z0-9_-]{4,100}$/.test(p.collaboratorId)&&
- typeof p.collaboratorName==='string'&&p.collaboratorName.trim().length>=2&&
- p.collaboratorName.length<=150&&pct(p.customerDiscountPercent)&&
- pct(p.collaboratorDiscountPercent)&&p.collaboratorDiscountPercent>p.customerDiscountPercent;
-function settlement(commissionPolicy,items){
- if(!commissionPolicy)return null;
- if(!validCommissionPolicy(commissionPolicy))throw error('REAL_COMMISSION_POLICY_INVALID');
- const rows=items.map(i=>{
-  const ctvUnitPrice=Math.round(i.listPrice*(100-commissionPolicy.collaboratorDiscountPercent)/100);
-  const difference=(i.unitPrice-ctvUnitPrice)*i.qty;
-  if(!money(ctvUnitPrice)||!money(difference))throw error('REAL_COMMISSION_AMOUNT_INVALID');
-  return {code:i.code,qty:i.qty,listPrice:i.listPrice,customerUnitPrice:i.unitPrice,ctvUnitPrice,commissionAmount:difference};
- });
- const amount=rows.reduce((n,i)=>n+i.commissionAmount,0);
- if(!money(amount))throw error('REAL_COMMISSION_AMOUNT_INVALID');
- return {commissionAmount:amount,customerDiscountPercent:commissionPolicy.customerDiscountPercent,
-  collaboratorDiscountPercent:commissionPolicy.collaboratorDiscountPercent,commissionPercent:
-   commissionPolicy.collaboratorDiscountPercent-commissionPolicy.customerDiscountPercent,
-  rows};
-}
 
 export function createProductionPrivateLinks({
  env=process.env, now=Date.now, rand=crypto.randomBytes, source, bot,
@@ -97,10 +74,6 @@ export function createProductionPrivateLinks({
      !pct(invite.shippingPercent,30)||![0,5,8,10].includes(invite.vatPercent)||
      !Array.isArray(destinations)||destinations.length<1||destinations.length>20||
      !destinations.every(validDestination)||
-     (invite.commissionPolicy!==undefined&&
-       (!agency||!validCommissionPolicy(invite.commissionPolicy)||
-        safe(invite.agentName)!==safe(invite.commissionPolicy.collaboratorName)||
-        destinations.some(d=>d.discountPercent!==invite.commissionPolicy.customerDiscountPercent)))||
      (agency&&(!cleanText(invite.agentName,150)||
        new Set(destinations.map(d=>String(d.customerRef.id)+'|'+d.customerRef.invoiceNo)).size!==destinations.length))||
      !/^[a-f0-9]{64}$/.test(invite.codeDigest||''))
@@ -175,11 +148,7 @@ export function createProductionPrivateLinks({
      (multi?(!cleanText(input.agentName,150)||input.destinations.length<1||
        input.destinations.length>20||input.destinations.some(x=>!Number.isSafeInteger(x?.customerRef?.invoiceNo)||x.customerRef.invoiceNo<1||!pct(x.discountPercent))||
        new Set(input.destinations.map(x=>String(x.customerRef.id)+'|'+x.customerRef.invoiceNo)).size!==input.destinations.length):
-      (!validRef(input.customerRef)||!pct(input.discountPercent)))||
-     (input.commissionPolicy!==undefined&&
-       (!multi||!validCommissionPolicy(input.commissionPolicy)||
-        safe(input.agentName)!==safe(input.commissionPolicy.collaboratorName)||
-        input.destinations.some(d=>d.discountPercent!==input.commissionPolicy.customerDiscountPercent))))
+      (!validRef(input.customerRef)||!pct(input.discountPercent))))
     throw error('REAL_LINK_APPROVAL_REQUIRED');
   await probeWriteScope();
   // The exact historical recipient and location must be verified from Drive;
@@ -203,26 +172,12 @@ export function createProductionPrivateLinks({
   const id=rand(16).toString('hex'),accessCode=rand(20).toString('base64url');
   const invite={type:multi?'agency-invite':'customer-invite',id,issuedAt:now(),
    expiresAt:now()+input.daysValid*86400000,
-   ...(multi?{agentName:input.agentName,destinations:approved,
-     ...(input.commissionPolicy?{commissionPolicy:{
-       mode:'single-invoice-commission',
-       collaboratorId:input.commissionPolicy.collaboratorId,
-       collaboratorName:input.commissionPolicy.collaboratorName,
-       customerDiscountPercent:input.commissionPolicy.customerDiscountPercent,
-       collaboratorDiscountPercent:input.commissionPolicy.collaboratorDiscountPercent
-     }}:{})}:approved[0]),
+   ...(multi?{agentName:input.agentName,destinations:approved}:approved[0]),
    shippingPercent:input.shippingPercent,vatPercent:input.vatPercent,
    codeDigest:sha(id+'\0'+accessCode)};
   const token=seal(invite,'customer-invite');
   return {ok:true,production:true,oneLocationPerLink:!multi,agencyLink:multi,
    deliveryLocations:approved.length,
-   ...(input.commissionPolicy?{commissionSummary:{
-     collaboratorName:input.commissionPolicy.collaboratorName,
-     customerDiscountPercent:input.commissionPolicy.customerDiscountPercent,
-     collaboratorDiscountPercent:input.commissionPolicy.collaboratorDiscountPercent,
-     differencePercent:input.commissionPolicy.collaboratorDiscountPercent-input.commissionPolicy.customerDiscountPercent,
-     oneCustomerInvoice:true,internalOnly:true
-   }}:{}),
    link:origin.replace(/\/$/,'')+'/real/#'+token,
    accessCode,expiresAt:new Date(invite.expiresAt).toISOString(),
    ...(multi?{agentName:input.agentName}:{customer:{name:approved[0].name,location:approved[0].location,sourceInvoiceNo:input.customerRef.invoiceNo}}),
@@ -250,15 +205,11 @@ export function createProductionPrivateLinks({
   const invite=access(token,accessCode),d=chosen(invite,ref);
   if(!cleanText(deliveryNote,300))throw error('INVALID_DELIVERY_NOTE');
   const live=await checked(invite,d),amount=priced(d,live,items);
-  // Calculate settlement using source catalogue unit prices; shipping and VAT
-  // never enter commission. Customer receives only their own 20% pricing.
-  const commission=settlement(invite.commissionPolicy,amount.items);
   const q={type:'customer-real-quote',inviteId:invite.id,
    sourceRevision:live.revision,requestId:'rl_'+rand(18).toString('hex'),
    customerRef:d.customerRef,issuedAt:now(),expiresAt:now()+600000,
    items:amount.items,deliveryNote,shippingAmount:amount.shippingAmount,
-   vatAmount:amount.vatAmount,total:amount.total,discountPercent:d.discountPercent,
-   ...(commission?{internalCommissionAmount:commission.commissionAmount}:{})};
+   vatAmount:amount.vatAmount,total:amount.total,discountPercent:d.discountPercent};
   return {production:true,confirmationRequired:true,quoteToken:seal(q,'customer-quote'),
    expiresAt:new Date(q.expiresAt).toISOString(),sourceRevision:live.revision,
    ...amount,discountPercent:d.discountPercent,customer:{name:d.name,location:d.location}};
@@ -280,9 +231,6 @@ export function createProductionPrivateLinks({
   const live=await checked(invite,destination);
   if(live.revision!==q.sourceRevision)throw error('REAL_QUOTE_STALE');
   const price=priced(destination,live,q.items.map(x=>({code:x.code,qty:x.qty})));
-  const commission=settlement(invite.commissionPolicy,price.items);
-  if((commission?commission.commissionAmount:null)!==(q.internalCommissionAmount??null))
-   throw error('REAL_QUOTE_STALE');
   if(JSON.stringify(price.items)!==JSON.stringify(q.items)||
      price.shippingAmount!==q.shippingAmount||
      price.vatAmount!==q.vatAmount||price.total!==q.total||
@@ -306,19 +254,5 @@ export function createProductionPrivateLinks({
    revision:receipt.revision,total:order.total,duplicate:receipt.data?.duplicate===true,
    message:'Đã ghi hóa đơn thật vào sổ kế toán Minh Satori.'};
  }
- // Authenticated ADMIN route only. The public quotation deliberately omits
- // collaborator settlement, which must never leak into a buyer invoice/PDF.
- async function ownerCommissionPreview({token,accessCode,destination:ref,items}={}){
-  const invite=access(token,accessCode);
-  if(!invite.commissionPolicy)throw error('REAL_NOT_A_COLLABORATOR_LINK');
-  const d=chosen(invite,ref),live=await checked(invite,d);
-  const amount=priced(d,live,items);
-  return {production:true,internalOnly:true,invoiceCount:1,
-   collaboratorName:invite.commissionPolicy.collaboratorName,
-   customerName:d.name,customerLocation:d.location,
-   customerSubtotal:amount.subtotal,shippingAmount:amount.shippingAmount,
-   vatAmount:amount.vatAmount,customerTotal:amount.total,
-   ...settlement(invite.commissionPolicy,amount.items)};
- }
- return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm,ownerCommissionPreview});
+ return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm});
 }
