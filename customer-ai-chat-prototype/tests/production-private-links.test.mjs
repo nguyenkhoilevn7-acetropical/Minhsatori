@@ -84,7 +84,8 @@ test('stale Drive revision prevents a real invoice write',async()=>{
 });
 test('tampered link is rejected and writes require explicit customer confirmation',async()=>{
  const f=fixture(),p=await f.issue(),token=p.link.split('/real/#')[1];
- const fake=token.slice(0,-2)+'XX';
+ const bits=token.split('.');bits[2]=(bits[2][0]==='A'?'B':'A')+bits[2].slice(1);
+ const fake=bits.join('.');
  await assert.rejects(()=>f.app.catalogue({token:fake,accessCode:p.accessCode}),
  {code:'INVALID_REAL_LINK'});
  const q=await f.app.quote({token,accessCode:p.accessCode,items:[{code:'TP-00001',qty:1}]});
