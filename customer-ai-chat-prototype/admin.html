@@ -624,9 +624,9 @@ $('ctvAdd').onclick=async()=>{
    const box=document.createElement('input');box.type='checkbox';box.style.width='auto';box.value=JSON.stringify(x.ref);
    box.dataset.ctvSourceInvoice='1';
    // The owner explicitly associates this customer's historical addresses
-   // with their CTV; show each physical destination once and preselect it.
-   // Existing policies keep the owner's prior selection.
-   box.checked=policy?selectedPreviously.has(String(x.ref.id)+'|'+x.ref.invoiceNo):true;
+   // with their CTV; require explicit approval for every new destination.
+   // Existing policies retain only destinations the owner previously selected.
+   box.checked=policy?selectedPreviously.has(String(x.ref.id)+'|'+x.ref.invoiceNo):false;
    label.append(box,document.createTextNode(x.address+' • '+x.phone+
     ' • '+x.historicalInvoiceCount+' hóa đơn lịch sử (nguồn #'+x.ref.invoiceNo+')'+
     (x.needsReview?' • ⚠ kiểm tra số điện thoại trước khi xác nhận':'')));
