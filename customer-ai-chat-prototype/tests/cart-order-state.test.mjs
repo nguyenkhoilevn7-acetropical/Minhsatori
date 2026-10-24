@@ -83,11 +83,12 @@ function fixture({storage=new Map(),failConfirm=false,deferConfirm=false}={}){
 test('successful order locks its cart; explicit new cart reopens chat without login, retains invoices and cannot replay old quote',async()=>{
  const f=fixture();await f.login();await f.submit();
  const order1=f.storage.get(orderKey);const button=await f.quote();await button.onclick();
- assert.equal(f.confirmCalls(),1);assert.equal(f.send.disabled,true);assert.equal(f.$('messageInput').disabled,true);
+ assert.equal(f.confirmCalls(),1);assert.equal(f.send.disabled,false);assert.equal(f.$('messageInput').disabled,false);
  assert.equal(f.$('composeCart').disabled,true);
  const saved=f.storage.get(submittedKey);assert.equal(JSON.parse(saved).invoiceNo,101);
- // Repeated clicks and synthetic submit never replay confirmation.
+ // Repeated old confirmation cannot replay its invoice. A new chat starts only a new draft.
  await button.onclick();await f.submit();await f.submit();assert.equal(f.confirmCalls(),1);
+ assert.notEqual(f.storage.get(orderKey),order1);
  f.$('realNewCartButton').onclick();
  assert.notEqual(f.storage.get(orderKey),order1);assert.equal(f.send.disabled,false);assert.equal(f.$('messageInput').disabled,false);
  assert.equal(f.storage.get(submittedKey),saved);assert.equal(f.storage.get(pendingKey),'');
@@ -114,7 +115,7 @@ test('locked catalogue mutations produce one notice, keep cart and old invoice; 
 test('lost confirm response requires invoice review and an explicit new cart; never resubmits',async()=>{
  const f=fixture({failConfirm:true});await f.login();await f.submit();const order=f.storage.get(orderKey);
  const button=await f.quote();await button.onclick();
- assert.equal(f.send.disabled,true);assert.equal(f.confirmCalls(),1);assert.ok(f.storage.get(pendingKey));
+ assert.equal(f.send.disabled,false);assert.equal(f.confirmCalls(),1);assert.ok(f.storage.get(pendingKey));
  const before=f.$('messages').children.length;
  await button.onclick();await f.submit();await f.submit();
  assert.equal(f.$('messages').children.length,before);assert.equal(f.confirmCalls(),1);
@@ -129,7 +130,7 @@ test('lost confirm response requires invoice review and an explicit new cart; ne
 
 test('pending order survives reload and cannot silently start another cart',async()=>{
  const id=randomUUID();const storage=new Map([[orderKey,id],[pendingKey,JSON.stringify({orderId:id,startedAt:1})]]);
- const f=fixture({storage});await f.login();assert.equal(f.send.disabled,true);
+ const f=fixture({storage});await f.login();assert.equal(f.send.disabled,false);
  f.$('realNewCartButton').onclick();assert.equal(f.storage.get(orderKey),id);assert.equal(f.$('historyBackdrop').classList.contains('open'),true);
  assert.equal(f.confirmCalls(),0);
 });
@@ -155,4 +156,28 @@ test('one swipe opens or closes the cart; absent synthetic click does not swallo
  f.$('quickCartEdit').onclick();assert.equal(f.$('quickCart').dataset.cartMode,'full');
  f.$('realCartClose').onclick();assert.equal(f.$('quickCart').dataset.cartMode,'collapsed');
  assert.equal(f.all('.real-cart-direction')[0].textContent,'⌃');
+});
+
+test('restored successful invoice keeps chat tappable and the next explicit chat makes a fresh draft only',async()=>{
+ const original=randomUUID(),storage=new Map([[orderKey,original],[submittedKey,
+  JSON.stringify({orderId:original,invoiceNo:101,invoiceNos:[101]})]]);
+ const f=fixture({storage});await f.login();
+ assert.equal(f.$('messageInput').disabled,false);
+ assert.equal(f.send.disabled,false);
+ assert.equal(f.storage.get(orderKey),original);
+ await f.submit();
+ assert.notEqual(f.storage.get(orderKey),original);
+ assert.equal(f.confirmCalls(),0);
+ assert.equal(f.calls.filter(x=>x.endpoint==='/api/real/interpret').length,1);
+ assert.equal(JSON.parse(f.storage.get(submittedKey)).invoiceNo,101);
+});
+test('uncertain invoice permits typing but cannot interpret or create orders before invoice review',async()=>{
+ const id=randomUUID(),storage=new Map([[orderKey,id],[pendingKey,
+  JSON.stringify({orderId:id,startedAt:1})]]);
+ const f=fixture({storage});await f.login();
+ assert.equal(f.$('messageInput').disabled,false);
+ await f.submit();
+ assert.equal(f.storage.get(orderKey),id);
+ assert.equal(f.calls.filter(x=>x.endpoint==='/api/real/interpret').length,0);
+ assert.equal(f.$('historyBackdrop').classList.contains('open'),true);
 });
