@@ -299,16 +299,49 @@ export function createProductionPrivateLinks({
   if(names.length>20)throw error('REAL_HISTORY_TOO_MANY_DESTINATIONS');
   const reader=historyReader|| (payload=>bot('orders.list',payload));
   const all=[],signatures=new Set();let complete=true,revision=null;
-  for(const name of names){
-   // Search by owner-approved name ONLY. Do not forward user search or PIN.
-   const source=await reader({query:name,limit:100});
-   const rows=source.data?.orders,rev=source.revision;
-   if(!Number.isSafeInteger(rev)||!Array.isArray(rows)||
+  // The production ledger caps orders.list at 100 entries. For large accounts
+  // enumerate disjoint date windows, never silently drop the 101st or older orders.
+  let readCount=0;
+  async function verifiedRead(payload){
+   if(++readCount>96)throw error('REAL_HISTORY_QUERY_LIMIT');
+   const source=await reader(payload);
+   if(!Number.isSafeInteger(source?.revision)||!Array.isArray(source.data?.orders)||
       !Number.isSafeInteger(source.data?.totalMatches))
     throw error('REAL_HISTORY_SOURCE_INVALID');
-   if(revision!==null&&revision!==rev)throw error('REAL_HISTORY_REVISION_CHANGED');
-   revision=rev;
-   if(source.data.totalMatches>rows.length)complete=false;
+   if(revision!==null&&revision!==source.revision)throw error('REAL_HISTORY_REVISION_CHANGED');
+   revision=source.revision;
+   return source;
+  }
+  const dayMs=86400000;
+  const dayISO=n=>new Date(n).toISOString().slice(0,10);
+  async function completeNameHistory(name){
+   const initial=await verifiedRead({query:name,limit:100});
+   if(initial.data.totalMatches<=initial.data.orders.length)
+    return {rows:initial.data.orders,complete:true};
+   const from='1970-01-01',to='2100-12-31';
+   async function range(start,end,depth=0){
+    const found=await verifiedRead({query:name,from:start,to:end,limit:100});
+    if(found.data.totalMatches<=found.data.orders.length)
+     return {rows:found.data.orders,count:found.data.totalMatches,complete:true};
+    const a=Date.parse(start+'T00:00:00Z'),z=Date.parse(end+'T00:00:00Z');
+    if(depth>=18||z<=a)return {rows:found.data.orders,count:found.data.totalMatches,complete:false};
+    const mid=a+Math.floor((z-a)/dayMs/2)*dayMs;
+    const [left,right]=await Promise.all([
+     range(start,dayISO(mid),depth+1),
+     range(dayISO(mid+dayMs),end,depth+1)
+    ]);
+    return {rows:[...left.rows,...right.rows],count:left.count+right.count,
+     complete:left.complete&&right.complete};
+   }
+   const paged=await range(from,to);
+   return {rows:paged.rows,complete:paged.complete&&paged.count===initial.data.totalMatches};
+  }
+  for(const name of names){
+   // All history stays in Drive. Search is derived only from owner-approved
+   // destinations, not arbitrary public input or browser localStorage.
+   const found=await completeNameHistory(name);
+   const rows=found.rows;
+   if(!found.complete)complete=false;
    for(const o of rows){
     if(!Number.isSafeInteger(Number(o.invoiceNo))||Number(o.invoiceNo)<1||
        !Number.isSafeInteger(Number(o.total))||Number(o.total)<0||
@@ -337,7 +370,7 @@ export function createProductionPrivateLinks({
   }
   all.sort((a,b)=>b.invoiceNo-a.invoiceNo);
   return {production:true,revision,complete,orders:all,
-   warning:complete?'': 'Lịch sử có thể chưa đầy đủ vì nguồn trả tối đa 100 đơn mỗi lần tra.'};
+   warning:complete?'': 'Một số giao dịch nguồn không có ngày hợp lệ hoặc vượt giới hạn đọc; cần quản trị đối chiếu trước khi khẳng định đủ lịch sử.'};
  }
  function receiptContext({token,accessCode,receiptToken}={}){
   const invite=access(token,accessCode);
