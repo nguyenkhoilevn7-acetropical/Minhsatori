@@ -197,7 +197,7 @@ test('rollback: working agency links are isolated from the new CTV Drive table',
  assert.match(html,/id="agencyRealIssue"/);
  assert.match(html,/data-admin-tab="ctv-ledger"/);
  assert.match(html,/id="independentCtvLedger"/);
- assert.match(html,/1gCHmXCSz4yrcIklFP75L9vfyDQFJGN4_ia_ICpYXz1c/);
+ assert.match(html,/id="ctvReadLive"/,'owner CTV tab must work without opening a blocked external Sheet');
  assert.match(html,/id="collaboratorPairAdmin" style="display:none!important"/);
  assert.doesNotMatch(code,/commissionPolicy|ownerCommissionPreview/);
  assert.doesNotMatch(html,/id="agencyCommissionEnabled"|agency-commission\/preview/);
