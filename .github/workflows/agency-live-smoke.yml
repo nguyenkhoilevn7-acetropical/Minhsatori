@@ -29,8 +29,9 @@ jobs:
           PY
           code=$(curl -sSL --retry 3 --retry-all-errors --retry-delay 5 --max-time 30 -o /tmp/real.html -w '%{http_code}' "$root/real")
           test "$code" = 200
-          grep -q 'id="destination"' /tmp/real.html
-          grep -q 'id="interpret"' /tmp/real.html
+          grep -q 'id="realCode"' /tmp/real.html
+          grep -q 'id="catalogItems"' /tmp/real.html
+          grep -q 'id="historyButton"' /tmp/real.html
           echo "PASS private link checkout route, agency destination and chat UI"
           code=$(curl -sSL --retry 3 --retry-all-errors --retry-delay 5 --max-time 30 -o /tmp/admin.html -w '%{http_code}' "$root/admin")
           test "$code" = 200
