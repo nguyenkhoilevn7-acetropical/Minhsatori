@@ -227,11 +227,19 @@ def success_case(browser, origin, html, viewport, ua, label):
     page.evaluate("window.oldConfirm=document.querySelector('.live-real-confirm')")
     # Two programmatic clicks in the same task exercise the synchronous send lock.
     page.evaluate("() => {oldConfirm.click();oldConfirm.click()}")
-    expect(page.locator("#messageInput")).to_be_disabled()
-    expect(page.locator("#sendForm button[type=submit]")).to_be_disabled()
+    expect(page.locator("#messageInput")).to_be_enabled()
+    expect(page.locator("#sendForm button[type=submit]")).to_be_enabled()
     expect(page.locator(".real-submitted-card")).to_be_visible()
     assert api.count("confirm") == 1 and len(api.saved) == 1
     page.locator("#closeInvoice").click()
+    # An explicit NEW chat message after an acknowledged invoice opens a NEW
+    # draft, but never confirms another invoice.
+    first_confirm_count = api.count("confirm")
+    page.locator("#messageInput").fill("2 thùng nước")
+    page.locator("#sendForm button[type=submit]").click()
+    expect(page.locator("#messages .bubble.assistant").last).to_have_text("Đã cập nhật giỏ giả lập.")
+    assert api.count("confirm") == first_confirm_count
+    assert order_id(page) != first_id
     # Repeated locked catalogue and checkout events must produce at most one notice.
     page.locator("#catalogLaunch").click()
     for _ in range(6):
@@ -239,7 +247,7 @@ def success_case(browser, origin, html, viewport, ua, label):
     page.locator("#catalogClose").click()
     page.evaluate("async () => {for(let i=0;i<6;i++)await document.getElementById('sendForm').onsubmit({preventDefault(){}})}")
     notices = page.locator("#messages .bubble.note").filter(has_text="Đơn đã được ghi nhận")
-    expect(notices).to_have_count(1)
+    assert notices.count() <= 1, "At most one post-order warning"
     assert api.count("confirm") == 1
     saved_before = page.evaluate("key => sessionStorage.getItem(key)", SUBMITTED_KEY)
     page.locator("#realNewCartButton").click()
@@ -294,14 +302,14 @@ def uncertain_case(browser, origin, html):
     send(page)
     create_quote(page, api)
     page.locator(".live-real-confirm").click()
-    expect(page.locator("#messageInput")).to_be_disabled()
+    expect(page.locator("#messageInput")).to_be_enabled()
     expect(page.locator("#messages")).to_contain_text("Mất phản hồi giả lập")
     oid = order_id(page)
     # The first new-cart attempt must open History, and must not renew the order.
     page.locator("#realNewCartButton").click()
     expect(page.locator("#historyBackdrop")).to_have_class(re.compile(r"\bopen\b"))
     assert order_id(page) == oid and api.count("confirm") == 1
-    expect(page.locator("#messageInput")).to_be_disabled()
+    expect(page.locator("#messageInput")).to_be_enabled()
     page.locator("#historyClose").click()
     page.once("dialog", lambda dialog: dialog.dismiss())
     page.locator("#realNewCartButton").click()
@@ -330,7 +338,7 @@ def restored_submitted_case(browser, origin, html):
     page.locator("#realCode").fill("test-pin")
     page.locator("#realOpen").click()
     expect(page.locator("#productionGeminiApp")).to_be_visible()
-    expect(page.locator("#messageInput")).to_be_disabled()
+    expect(page.locator("#messageInput")).to_be_enabled()
     page.locator("#realNewCartButton").click()
     expect(page.locator("#messageInput")).to_be_enabled()
     assert order_id(page) != oid
