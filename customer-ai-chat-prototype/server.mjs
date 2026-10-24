@@ -29,6 +29,7 @@ import {ownerLiveLookup} from './owner-live-lookup.mjs';
 import {ownerPairAction,probeOwnerPairRead,ownerPairConfigReadiness} from './owner-collaborator-pairs.mjs';
 import {createOwnerRealInvoice} from './owner-live-invoice.mjs';
 import {createOriginalPdfGateway} from './original-pdf-gateway.mjs';
+import {renderOriginalWebsitePdf} from './original-website-pdf.mjs';
 import {createProductionPrivateLinks} from './production-private-links.mjs';
 import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
@@ -300,7 +301,7 @@ const server=http.createServer(async(req,res)=>{
    p==='/assets/logo-satori.jpg'||p.startsWith('/api/admin/')||
    (realPrivateLinks.readiness().configured===true&&
     (p==='/real'||p==='/real/'||
-     /^\/api\/real\/(?:catalogue|quote|confirm|interpret)$/.test(p)))||
+     /^\/api\/real\/(?:catalogue|quote|confirm|interpret|pdf)$/.test(p)))||
    (ctvSingleLink.readiness().enabled===true&&
     (p==='/ctv'||p==='/ctv/'||/^\/api\/ctv\/(?:catalogue|quote|confirm|pdf\/(?:customer|collaborator))$/.test(p)))
  ))return fail(res,403,'OWNER_ONLY_NO_CUSTOMER_ACCESS',
@@ -320,7 +321,7 @@ const server=http.createServer(async(req,res)=>{
   res.writeHead(200,{'content-type':'text/html; charset=utf-8',
    'cache-control':'no-store','referrer-policy':'no-referrer',
    'x-content-type-options':'nosniff','x-frame-options':'DENY',
-   'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"});
+   'content-security-policy':"default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; frame-src blob:; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"});
   return res.end(html);
  }
  // The public CTV portal is one link per marked account, never per location.
@@ -390,7 +391,43 @@ const server=http.createServer(async(req,res)=>{
     'Không cấp được link: cần đúng hóa đơn gốc, địa chỉ và giá chủ tài khoản duyệt.');
   }
  }
- if(req.method==='POST'&&/^\/api\/real\/(?:catalogue|quote|confirm|interpret)$/.test(p)){
+ // Official website PDF: access only through the issued link, separate
+ // code, and an invoice-specific proof created AFTER a confirmed real write.
+ if(req.method==='POST'&&p==='/api/real/pdf'){
+  if(!realPrivateLinks.readiness().configured)
+   return fail(res,503,'REAL_LINKS_NOT_ENABLED','Link đặt hàng chưa sẵn sàng.');
+  if(!rateLimit(req,'private-real-pdf'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng mở hóa đơn chậm lại.');
+  try{
+   const request=await bodyJSON(req,12000);
+   const proof=realPrivateLinks.receiptContext(request);
+   const data=await readMinhSatori('orders.list',{query:String(proof.invoiceNo),limit:100});
+   if(!Number.isSafeInteger(data.revision)||!Array.isArray(data.data?.orders)||
+      data.data.totalMatches>100)throw Error('PDF_SOURCE_UNAVAILABLE');
+   const matches=data.data.orders.filter(o=>Number(o.invoiceNo)===proof.invoiceNo&&
+      o.name===proof.name&&o.phone===proof.phone&&o.location===proof.location&&
+      Number(o.total)===proof.total&&o.pairRole!=='collaborator');
+   if(matches.length!==1)throw Error('PDF_INVOICE_NOT_VERIFIED');
+   const invoice=matches[0];
+   if(!Array.isArray(invoice.items)||!invoice.items.length||
+      invoice.items.some(item=>!Number.isSafeInteger(item.qty)||
+       !Number.isSafeInteger(item.unitPrice)||item.qty<1||item.unitPrice<0))
+     throw Error('PDF_PRODUCT_LINES_INVALID');
+   const canonical={...invoice,invoiceNo:proof.invoiceNo,total:proof.total,
+     shippingAmount:Number(invoice.shippingAmount||0),
+     vatAmount:Number(invoice.vatAmount||0)};
+   const official=await renderOriginalWebsitePdf(canonical);
+   res.writeHead(200,{'content-type':'application/pdf','content-length':official.bytes.length,
+    'cache-control':'private, no-store','x-content-type-options':'nosniff',
+    'content-disposition':'inline; filename="MinhSatori-'+proof.invoiceNo+'.pdf"',
+    'x-frame-options':'SAMEORIGIN','referrer-policy':'no-referrer'});
+   return res.end(official.bytes);
+  }catch(e){
+   return fail(res,409,'REAL_PDF_UNAVAILABLE',
+    'Chưa xác minh được PDF gốc của hóa đơn này. Vui lòng đối chiếu trong sổ Minh Satori.');
+  }
+ }
+ if(req.method==='POST'&&/^\/api\/real\/(?:catalogue|quote|confirm|interpret|pdf)$/.test(p)){
   if(!realPrivateLinks.readiness().configured)
    return fail(res,503,'REAL_LINKS_NOT_ENABLED','Hệ thống đặt hàng thật chưa được bật.');
   if(!rateLimit(req,'private-real-checkout:'+p))

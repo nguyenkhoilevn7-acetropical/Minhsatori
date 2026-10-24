@@ -162,7 +162,7 @@ test('owner-only production gateway permits authenticated real chat while denyin
  const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
  const guard=server.slice(server.indexOf('// Owner real pilot is a sealed'),server.indexOf('// Private customer invitations can be issued'));
  assert.match(guard,/realPrivateLinks\.readiness\(\)\.configured===true/);
- assert.match(guard,/\(\?:catalogue\|quote\|confirm\|interpret\)/,
+ assert.match(guard,/\(\?:catalogue\|quote\|confirm\|interpret\|pdf\)/,
   'allowlist must contain interpret; previously blocked every live chat request with 403');
  assert.match(server,/if\(p==='\/api\/real\/interpret'\)/);
  assert.match(server,/const context=realPrivateLinks\.chatContext\(input\),profile=context\.customer/,
@@ -367,4 +367,50 @@ test('Samsung restored cart and reply sequence never hides a third row or clips 
  assert.match(shell,/max-height:min\(32dvh,250px\)/,'all rows scroll in original cart');
  assert.doesNotMatch(shell,/quick-cart\{display:flex;flex-direction:column\}/,
   'flex override must not displace original grid controls');
+});
+
+test('real confirmed invoice returns private receipt proof, not an open invoice number',async()=>{
+ const f=fixture(),issued=await f.issue(),token=issued.link.split('/real/#')[1];
+ const q=await f.app.quote({token,accessCode:issued.accessCode,items:[{code:'TP-00001',qty:2}]});
+ const saved=await f.app.confirm({token,accessCode:issued.accessCode,quoteToken:q.quoteToken,
+  confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
+ assert.equal(f.writes,1,'PDF preview must not create any more invoice writes');
+ assert.match(saved.receiptToken,/^[A-Za-z0-9_.-]+$/);
+ const access=f.app.receiptContext({token,accessCode:issued.accessCode,receiptToken:saved.receiptToken});
+ assert.equal(access.invoiceNo,saved.invoiceNo);
+ assert.equal(access.total,saved.total);
+ assert.equal(access.name,customer.name);
+ assert.equal(access.location,customer.location);
+ await assert.rejects(async()=>f.app.receiptContext({token,accessCode:'wrong',receiptToken:saved.receiptToken}),
+  {code:'ACCESS_CODE_REQUIRED'});
+ assert.throws(()=>f.app.receiptContext({token,accessCode:issued.accessCode,
+  receiptToken:token}),{code:'INVALID_REAL_LINK'},
+  'a general invitation is NOT a PDF proof');
+ assert.equal(f.writes,1);
+});
+test('PDF same as website and real owner-only order notification; no 0đ summary',()=>{
+ const code=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ const frontend=readFileSync(new URL('../real-gemini-adapter.js',import.meta.url),'utf8');
+ const admin=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ assert.match(code,/img-src 'self' data:/,'customer logo CSP must permit same-origin images');
+ assert.match(code,/p==='\/api\/real\/pdf'/);
+ assert.match(code,/realPrivateLinks\.receiptContext\(request\)/);
+ assert.match(code,/await readMinhSatori\('orders\.list'/);
+ assert.match(code,/const official=await renderOriginalWebsitePdf\(canonical\)/,
+  'no new PDF template, use exact website renderer');
+ assert.match(frontend,/await showReceipt\(\)/,'show PDF immediately after real write');
+ assert.match(frontend,/fetch\('\/api\/real\/pdf'/);
+ assert.match(frontend,/frame\.src=pdfObjectUrl/);
+ assert.match(frontend,/pdf\.type!=='application\/pdf'/);
+ assert.doesNotMatch(frontend,/row\.subtotal/,'original incorrect zero-price summary removed');
+ assert.match(admin,/function pollRealOrderFeed\(force=false\)/);
+ assert.match(admin,/\/api\/admin\/live-search\?kind=invoices&month=/);
+ assert.match(admin,/const additions=liveOrderBaseline===null\?\[\]:/,
+  'first owner read establishes baseline with no false ringing');
+ assert.match(admin,/if\(additions\.length\)/);
+ assert.doesNotMatch(admin.slice(admin.indexOf('async function pollRealOrderFeed'),admin.indexOf("$('productionFeedRefresh')")),/\/api\/admin\/new-orders/);
+ for(const [,source] of admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(source,{filename:'owner-live-orders.js'});
+ for(const [,source] of frontend.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+  new vm.Script(source,{filename:'real-pdf.js'});
 });
