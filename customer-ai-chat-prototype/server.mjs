@@ -320,7 +320,7 @@ const server=http.createServer(async(req,res)=>{
   res.writeHead(200,{'content-type':'text/html; charset=utf-8',
    'cache-control':'no-store','referrer-policy':'no-referrer',
    'x-content-type-options':'nosniff','x-frame-options':'DENY',
-   'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"});
+   'content-security-policy':"default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; frame-src blob:; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"});
   return res.end(html);
  }
  // The public CTV portal is one link per marked account, never per location.
