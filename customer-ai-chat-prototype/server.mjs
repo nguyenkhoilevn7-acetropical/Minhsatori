@@ -702,6 +702,31 @@ const server=http.createServer(async(req,res)=>{
    gates,blockers,
    message:'Hệ thống này chỉ dùng thử. Không được bật tạo đơn thật trước khi hoàn tất các cổng kiểm chứng.'});
  }
+ // In-app CTV financial calculator uses live Product catalogue. This is an
+ // owner-only read route: no private Google Sheet OAuth, no demo data, no
+ // unaudited server-side recipient writes or two-invoice configuration.
+ if(req.method==='GET'&&p==='/api/admin/ctv-live-catalogue'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ quản trị được tính hoa hồng CTV.');
+  if(!rateLimit(req,'admin-production-read'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng tải chậm lại.');
+  if(!readOnlyReady())return fail(res,503,'READ_ONLY_NOT_CONFIGURED','Sổ thật chưa kết nối.');
+  try{
+   const productSource=await readMinhSatori('catalogue.list');
+   if(!Number.isSafeInteger(productSource.revision)||
+      !Array.isArray(productSource.data?.products)||
+      productSource.data.source!=='drive-ledger:satori_catalogue_v15')
+    throw Error('CATALOGUE_SOURCE_INVALID');
+   const products=productSource.data.products.map(p=>({
+     code:p.code,name:p.name,unit:p.unit,listPrice:p.listPrice
+   })).filter(p=>/^TP-[0-9]{5}$/.test(p.code)&&typeof p.name==='string'&&
+     typeof p.unit==='string'&&Number.isSafeInteger(p.listPrice)&&p.listPrice>0);
+   if(products.length!==productSource.data.products.length)throw Error('CATALOGUE_ROW_INVALID');
+   return reply(res,200,{ok:true,readOnly:true,liveSource:true,revision:productSource.revision,
+    products,receiverWritesEnabled:false,commissionIsInternalOnly:true});
+  }catch(e){return fail(res,503,'CTV_CATALOGUE_NOT_VERIFIED',
+    'Không đọc được giá niêm yết thật; chưa thể tính hoa hồng CTV.');}
+ }
  // Owner-only production READ access. Read it directly from the authoritative
  // Bot API on each request; never copy PII to the ephemeral sandbox disk.
  // This is separate from the public Gemini chat and cannot create/change bills.
