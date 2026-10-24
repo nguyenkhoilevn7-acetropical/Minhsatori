@@ -84,7 +84,7 @@ assert.equal((await probeOwnerPairRead({...opts,env:{}})).reason,'CTV_PAIR_NOT_C
 const server=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
 assert.ok(server.includes("p==='/api/admin/collaborator-pairs/readiness'"));
 assert.ok(server.includes("SATORI_CTV_CONFIGURATION_READINESS"),'startup must report credential readiness without secrets');
-assert.ok(server.includes('destinationInvoiceNos.slice(i,i+2)'),
+assert.ok(server.includes('selection.refs.slice(i,i+2)'),
  'existing CTV policy must verify 17 destinations in bounded groups');
 assert.ok(!server.includes('Promise.all(destinationInvoiceNos.map('),
  'existing CTV path must never flood the Apps Script lock');
@@ -103,8 +103,10 @@ for(const id of ['pairPartner','pairEnabled','pairCustomerDiscount','pairCollabo
 assert.ok(admin.includes("pairLoadSuccessful=false"));
 assert.ok(admin.includes('id="pairLinkPanel"'),'CTV must show verified single link in customers');
 assert.ok(admin.includes("issueSavedPairLink(id)"),'post-save verified policy should issue link');
-assert.ok(admin.includes("phone.length<8||address.length<5"),
- 'CTV owner wizard must exclude incomplete legacy destination sources');
+assert.ok(admin.includes('d.locationCandidates||[]'),
+ 'CTV owner wizard must show verified unique delivery points, not per-invoice rows');
+assert.ok(admin.includes('destinationRefs:refs'),
+ 'CTV wizard must use exact source IDs when saving a policy');
 assert.ok(admin.includes("JSON.stringify(savedRefs)===JSON.stringify(expectedRefs)"),
  'readback must match exact selected delivery source IDs');
 assert.ok(admin.includes("confirmedPolicy.reviewedByOwner===true"),
