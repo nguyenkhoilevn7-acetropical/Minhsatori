@@ -1678,6 +1678,27 @@ class NativeMainActivity : AppCompatActivity() {
         updateList()
     }
 
+    private fun customerQuickCard(parent: LinearLayout, customer: SatoriInvoice,
+                                  count: Int, onClick: () -> Unit) {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(12), dp(13), dp(12))
+            background = panelBackground(Color.rgb(15, 27, 48), 16)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Xem khách " + customer.customer + ", " + count + " hóa đơn"
+            setOnClickListener { onClick() }
+        }
+        label(card, "👤 " + customer.customer, 14f, true, white)
+        infoStrip(card, "☎  " + customer.phone.ifBlank { "Chưa có SĐT" },
+            Color.rgb(110, 231, 183))
+        infoStrip(card, "📍  " + customer.address.ifBlank { "Chưa có địa chỉ" },
+            Color.rgb(191, 219, 254))
+        label(card, count.toString() + " hóa đơn  •  Chạm để xem chi tiết",
+            11f, true, cyan, 8)
+        parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(9) })
+    }
+
     private fun renderCustomers(parent: LinearLayout, data: SatoriSnapshot) {
         label(parent, "Khách trùng tên nhưng khác địa chỉ hoặc điện thoại được tách riêng.",
             12f, false, muted, 12)
@@ -1690,9 +1711,7 @@ class NativeMainActivity : AppCompatActivity() {
             13f, true, teal, 8)
         groups.forEach { group ->
             val representative = group.first()
-            section(parent, representative.customer,
-                representative.phone + " · " + representative.address +
-                    " · " + group.size + " hóa đơn") {
+            customerQuickCard(parent, representative, group.size) {
                 AlertDialog.Builder(this)
                     .setTitle(representative.customer)
                     .setMessage(representative.phone + "\n" + representative.address +
