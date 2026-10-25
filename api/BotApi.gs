@@ -408,8 +408,8 @@ function configurePair(s,p){
  var authorizedDestinations=p.authorizedDestinations===undefined?
   (Array.isArray(policy&&policy.authorizedDestinations)?policy.authorizedDestinations:[]):
   validatedCtvDestinations(s,p.authorizedDestinations);
- if(p.enabled===true&&p.authorizedDestinations!==undefined)
-  need(authorizedDestinations.length>0,'CTV_DESTINATIONS_REQUIRED','Phải duyệt điểm giao');
+ if(p.enabled===true)
+  need(authorizedDestinations.length>0,'CTV_DESTINATIONS_REQUIRED','Phải duyệt ít nhất một điểm giao trước khi bật chính sách');
  if(policy&&policy.configRequestId===requestId){
   need(fields.every(function(k){return policy[k]===p[k]})&&
    policy.linkEpoch===linkEpoch&&
@@ -482,11 +482,11 @@ function createPair(s,all,p){
  validPairPolicy(policy);
  need(p.expectedPolicyVersion===policy.policyVersion,
   'PAIR_POLICY_CHANGED','Chính sách giảm giá vừa đổi, cần xác nhận lại');
- if(Array.isArray(policy.authorizedDestinations)&&policy.authorizedDestinations.length>0){
-  need(p.customerRef&&policy.authorizedDestinations.some(function(d){
-   return String(d.id)===String(p.customerRef.id)&&d.invoiceNo===p.customerRef.invoiceNo;
-  }),'CTV_DESTINATION_NOT_APPROVED','Địa chỉ chưa được chủ duyệt');
- }
+ need(Array.isArray(policy.authorizedDestinations)&&policy.authorizedDestinations.length>0,
+  'CTV_DESTINATIONS_REQUIRED','Chính sách CTV chưa có điểm giao được duyệt');
+ need(p.customerRef&&policy.authorizedDestinations.some(function(d){
+  return String(d.id)===String(p.customerRef.id)&&d.invoiceNo===p.customerRef.invoiceNo;
+ }),'CTV_DESTINATION_NOT_APPROVED','Địa chỉ chưa được chủ duyệt');
  checkProfile(all,p.order,p);
  var catalogue=JSON.parse(s.values.satori_catalogue_v15||'[]');
  need(Array.isArray(catalogue)&&catalogue.length>0&&catalogue.length<=200,
