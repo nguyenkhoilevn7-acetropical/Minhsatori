@@ -199,7 +199,8 @@ async function adminPolicy(pool,actor,input){
 async function quote(pool,actor,input){
  const profile=await profileFor(pool,actor,input.profileId);
  error(isUuid(input.addressId),'ADDRESS_REQUIRED');
- const addressRow=await pool.query('SELECT id,profile_id AS "profileId",active FROM satori_v2_addresses '+
+ const addressRow=await pool.query('SELECT id,profile_id AS "profileId",active,label,recipient_name AS "recipientName", '+
+  'recipient_phone AS "recipientPhone",address FROM satori_v2_addresses '+
   'WHERE id=$1 AND profile_id=$2',[input.addressId,profile.id]);
  error(addressRow.rows.length===1,'ADDRESS_FORBIDDEN',403);
  const cartRow=await pool.query('SELECT lines,revision FROM satori_v2_carts WHERE account_id=$1 AND profile_id=$2',
