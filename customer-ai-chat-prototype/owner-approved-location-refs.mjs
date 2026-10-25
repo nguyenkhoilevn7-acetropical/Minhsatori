@@ -6,6 +6,7 @@
  * continues to submit invoice numbers. A source lookup and GAS validation must
  * still confirm the record and complete contact before owner approval.
  */
+import {contactPhone} from './contact-phone.mjs';
 const fail=code=>{throw Object.assign(new Error(code),{code})};
 const invoiceNo=n=>Number.isSafeInteger(n)&&n>0;
 const validId=v=>(typeof v==='string'&&v.length>0&&v.length<=100)||
@@ -40,12 +41,12 @@ export function selectedLocationEvidence(places){
   const source=(Array.isArray(p.sourceRows)?p.sourceRows:[]).find(x=>
    x&&x.ref&&validId(x.ref.id)&&invoiceNo(x.ref.invoiceNo)&&
    String(x.address||'').trim().length>=5&&
-   String(x.phone||'').replace(/\D/g,'').length>=8);
+   !!contactPhone(x.phone));
   const preferred=source?.ref||refs.find(r=>r&&validId(r.id)&&invoiceNo(r.invoiceNo));
   const address=String(source?.address||p.address||'').trim();
-  const phone=String(source?.phone||p.phone||'').replace(/\D/g,'');
+  const phone=contactPhone(source?.phone||p.phone);
   const key=preferred&&String(preferred.id)+'|'+preferred.invoiceNo;
-  if(!preferred||address.length<5||phone.length<8||assigned.has(key)){
+  if(!preferred||address.length<5||phone.length<9||assigned.has(key)){
    needsReview.push({address,reason:!preferred?'MISSING_HISTORIC_REFERENCE':
     phone.length<8?'MISSING_PHONE':address.length<5?'MISSING_ADDRESS':'AMBIGUOUS_REFERENCE'});
    continue;
