@@ -669,7 +669,8 @@ class NativeMainActivity : AppCompatActivity() {
             setOnClickListener { showConnectionSettings() }
         }
         brand.addView(options, LinearLayout.LayoutParams(dp(42), dp(46)))
-        content.addView(brand, LinearLayout.LayoutParams(-1, -2))
+        // Keep the hamburger and primary controls visible while long ledgers scroll.
+        shell.addView(brand, 0, LinearLayout.LayoutParams(-1, -2))
 
         val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn")
         label(content, pages[activeTab], 22f, true, ink, 12)
