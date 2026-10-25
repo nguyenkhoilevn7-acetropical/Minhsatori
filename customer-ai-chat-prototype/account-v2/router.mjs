@@ -154,6 +154,7 @@ async function login(req,res,pool){
 function owner(actor){error(actor.google_sub===config().ownerGoogleSub,'ADMIN_REQUIRED',403)}
 async function adminPolicy(pool,actor,input){
  owner(actor);
+ error(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
  error(isUuid(input.profileId),'PROFILE_REQUIRED');
  error(input.addressId==null||isUuid(input.addressId),'ADDRESS_INVALID');
  error(input.productCode==null||isSku(input.productCode),'SKU_INVALID');
@@ -173,8 +174,14 @@ async function adminPolicy(pool,actor,input){
     [input.addressId,input.profileId]);
    error(addr.rows.length===1,'ADDRESS_FORBIDDEN',403);
   }
+  // Replacing a policy closes prior approved revisions for the EXACT scope.
+  // Historical quotes still store immutable price/policy snapshots.
   const version=await client.query('SELECT COALESCE(MAX(version),0)+1 AS version FROM satori_v2_policies '+
    'WHERE profile_id=$1 AND address_id IS NOT DISTINCT FROM $2 AND product_code IS NOT DISTINCT FROM $3',
+   [input.profileId,input.addressId||null,input.productCode||null]);
+  await client.query('UPDATE satori_v2_policies SET enabled=false,revision=revision+1 '+
+   'WHERE profile_id=$1 AND address_id IS NOT DISTINCT FROM $2 '+
+   'AND product_code IS NOT DISTINCT FROM $3 AND enabled=true',
    [input.profileId,input.addressId||null,input.productCode||null]);
   const policy=await client.query('INSERT INTO satori_v2_policies '+
    '(profile_id,address_id,product_code,discount_bps,collaborator_bps,invoice_mode,version,approved_by) '+
@@ -394,6 +401,37 @@ export async function handleAccountV2(req,res,pathname){
    const r=await adminPolicy(pool,actor,await json(req));
    send(res,201,{ok:true,policy:r});return true;
   }
+  if(pathname==='/api/v2/admin/policies'&&req.method==='PATCH'){
+   owner(actor);const input=await json(req);
+   error(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
+   error(isUuid(input.policyId)&&isUuid(input.profileId),'POLICY_ID_REQUIRED');
+   error(input.enabled===false,'ONLY_POLICY_DEACTIVATION_SUPPORTED');
+   error(Number.isSafeInteger(input.expectedRevision)&&input.expectedRevision>=1,
+    'POLICY_REVISION_REQUIRED');
+   const client=await pool.connect();
+   try{
+    await client.query('BEGIN');
+    const changed=await client.query(
+     'UPDATE satori_v2_policies SET enabled=false,revision=revision+1 '+
+     'WHERE id=$1 AND profile_id=$2 AND revision=$3 AND enabled=true '+
+     'RETURNING id,revision,enabled',
+     [input.policyId,input.profileId,input.expectedRevision]);
+    if(changed.rows.length!==1){
+     const found=await client.query('SELECT id,revision,enabled FROM satori_v2_policies '+
+      'WHERE id=$1 AND profile_id=$2',[input.policyId,input.profileId]);
+     error(found.rows.length===1,'POLICY_NOT_FOUND',404);
+     throw new ApiError('POLICY_REVISION_CONFLICT',409);
+    }
+    await client.query(
+     'INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
+     'VALUES($1,$2,$3,$4,$5)',
+     [actor.id,'owner','POLICY_DISABLED',input.policyId,JSON.stringify({
+      profileId:input.profileId,revision:changed.rows[0].revision})]);
+    await client.query('COMMIT');
+    send(res,200,{ok:true,policy:changed.rows[0]});return true;
+   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
+   finally{client.release()}
+  }
   if(pathname==='/api/v2/admin/catalogue/refresh'&&req.method==='POST'){
    owner(actor);
    const input=await json(req);
@@ -488,7 +526,7 @@ export async function handleAccountV2(req,res,pathname){
    error(isUuid(profileId),'PROFILE_INVALID');
    const list=await pool.query('SELECT id,address_id AS "addressId",product_code AS "productCode", '+
     'discount_bps AS "discountBps",collaborator_bps AS "collaboratorBps",'+
-    'invoice_mode AS "invoiceMode",version,enabled FROM satori_v2_policies '+
+    'invoice_mode AS "invoiceMode",version,enabled,revision FROM satori_v2_policies '+
     'WHERE profile_id=$1 ORDER BY version DESC,created_at DESC LIMIT 100',[profileId]);
    send(res,200,{ok:true,policies:list.rows});return true;
   }
