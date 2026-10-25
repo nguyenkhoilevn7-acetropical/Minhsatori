@@ -1172,12 +1172,60 @@ $('manualRefresh').onclick=refreshData;
 
  $('agentAddressManage').onclick=()=>{closeDeliveryDialog();view('addresses')};
 
+// All V2 clients reconcile catalogue, authorized profiles, addresses and cart
+// while visible. Never write data or discard unsaved form fields.
+let v2SyncInFlight=false;
 setInterval(async()=>{
- if(!me||savingCart||busy||document.visibilityState!=='visible')return;
+ if(!me||savingCart||busy||v2SyncInFlight||document.visibilityState!=='visible')return;
+ v2SyncInFlight=true;
+ const profileId=$('profile').value;
  try{
-  const r=await call('/api/v2/cart?profileId='+encodeURIComponent($('profile').value),undefined,'GET');
-  if(r.revision>cartRev){cart=r.lines;cartRev=r.revision;renderBadge();renderCart();toast('Giỏ hàng đã đồng bộ')}
- }catch{}
+  const [remoteMe,remoteCatalogue,r]=await Promise.all([
+   call('/api/v2/me',undefined,'GET'),
+   call('/api/v2/catalogue',undefined,'GET'),
+   call('/api/v2/cart?profileId='+encodeURIComponent(profileId),undefined,'GET')
+  ]);
+  if($('profile').value!==profileId)return;
+  const oldAccount=me.account.accessStatus;
+  const profilesChanged=JSON.stringify(me.profiles)!==JSON.stringify(remoteMe.profiles);
+  const addressesChanged=JSON.stringify(me.addresses)!==JSON.stringify(remoteMe.addresses);
+  me=remoteMe;
+  if(profilesChanged){
+   const selected=profileId;
+   $('profile').replaceChildren();$('quickAgentProfile').replaceChildren();
+   for(const p of me.profiles){
+    const tag=p.type==='agency'?'Đại lý':p.type==='collaborator'?'CTV':'Khách lẻ';
+    const o=node('option',p.name+' · '+tag);o.value=p.id;$('profile').append(o);
+    const q=node('option',tag+' · '+p.name);q.value=p.id;$('quickAgentProfile').append(q);
+   }
+   if(me.profiles.some(p=>p.id===selected)){
+    $('profile').value=selected;$('quickAgentProfile').value=selected;
+   }else{
+    deliverySelectionProfileId=null;cart=[];cartRev=0;resetTestQuote();
+    renderBadge();updateDeliveryGate();closeDeliveryDialog();view('account');
+    toast('Quyền hồ sơ đã thay đổi. Vui lòng kiểm tra lại.');
+    return;
+   }
+  }
+  if(addressesChanged||profilesChanged){
+   resetTestQuote();renderAddresses();
+   if(!selectedDeliveryAddress()&&!(me.account.isAdmin&&new URLSearchParams(location.search).get('view')==='account'))
+    openDeliveryDialog();
+  }
+  if(oldAccount!==me.account.accessStatus&&!me.account.isAdmin&&me.account.accessStatus!=='ACTIVE'){
+   deliverySelectionProfileId=null;resetTestQuote();updateDeliveryGate();
+   closeDeliveryDialog();view('account');return;
+  }
+  if(JSON.stringify(products)!==JSON.stringify(remoteCatalogue.items)){
+   products=remoteCatalogue.items;resetTestQuote();renderProducts();renderCart();
+  }
+  if(r.revision>cartRev){
+   cart=r.lines;cartRev=r.revision;resetTestQuote();
+   renderBadge();renderCart();toast('Giỏ hàng đã đồng bộ');
+  }
+ }catch{
+  // A transient poll failure must not delete a known-good cart or invoice view.
+ }finally{v2SyncInFlight=false}
 },10000);
 let ownerAccounts=[],ownerProfiles=[],ownerAddresses=[],ownerPolicies=[];
 function editAddressSelection(){
