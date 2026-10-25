@@ -1924,13 +1924,20 @@ $('agencyRealFind').onclick=async()=>{
   review.append(reviewHeading);ready.append(readyHeading);
   let needsReview=0;
   for(const p of places){
-   const refs=Array.isArray(p.references)?p.references.filter(r=>r.id!=null&&Number.isSafeInteger(r.invoiceNo)&&r.invoiceNo>0):[];
+   // Only an individual ledger/profile row with its OWN valid telephone
+   // can authorize a real link. Never pair a group's newer phone with
+   // the ID of a historical invoice which had no phone.
+   const sources=(Array.isArray(p.sourceRows)?p.sourceRows:[]).filter(x=>
+    x?.ref?.id!=null&&Number.isSafeInteger(x.ref.invoiceNo)&&x.ref.invoiceNo>0&&
+    /^\\d{9,11}$/.test(String(x.phone||''))&&
+    String(x.name||'').trim().length>=2&&String(x.address||'').trim().length>=5);
+   const refs=sources.map(x=>x.ref);
    const row=document.createElement('div');row.className='customer';
    row.style.display='grid';row.style.gridTemplateColumns='minmax(0,1fr) minmax(85px,110px)';
    row.style.gap='8px';
    const check=document.createElement('label');check.style.display='flex';check.style.alignItems='flex-start';
    const tick=document.createElement('input');tick.type='checkbox';tick.style.width='auto';tick.style.marginRight='8px';
-   tick.disabled=!refs.length||!p.phone;
+   tick.disabled=!refs.length;
    const title=document.createElement('span');
    const bought=Array.isArray(p.invoiceNos)?p.invoiceNos.length:0;
    title.textContent=p.address+' • '+bought+' số hóa đơn lịch sử'+
@@ -1943,27 +1950,35 @@ $('agencyRealFind').onclick=async()=>{
    if(refs.length){
     const selLabel=document.createElement('label');selLabel.textContent='Hóa đơn tham chiếu (chọn một giao dịch đúng địa chỉ)';
     const select=document.createElement('select');
-    for(const ref of refs){
-     const option=new Option('HĐ #'+ref.invoiceNo+' • ID '+String(ref.id).slice(-7),
-      JSON.stringify({id:ref.id,invoiceNo:ref.invoiceNo}));
+    for(const source of sources){
+     const ref=source.ref;
+     const option=new Option('HĐ #'+ref.invoiceNo+' • '+source.phone+
+      ' • '+source.name,JSON.stringify({id:ref.id,invoiceNo:ref.invoiceNo}));
      select.append(option);
     }
     selLabel.append(select);selLabel.style.gridColumn='1 / -1';row.append(selLabel);
     agencyReviewed.push({select,checkbox:tick,rate,place:p});
    }else{
     const note=document.createElement('p');note.className='hint';
-    note.textContent='Chưa có bản ghi nguồn đủ tin cậy. Chưa đưa vào link.';
+    note.textContent='Chưa có hóa đơn gốc nào tại địa chỉ này chứa số điện thoại hợp lệ. '+ 
+     'Vui lòng bổ sung/xác minh số điện thoại trong hồ sơ nguồn Google Drive rồi tìm lại; '+
+     'không lấy số từ khách hoặc hóa đơn địa chỉ khác.';
     note.style.gridColumn='1 / -1';row.append(note);
    }
    if(p.needsReview){
     const reason=document.createElement('p');reason.className='hint';reason.style.gridColumn='1 / -1';
-    reason.textContent='⚠ Cần đối chiếu: '+(p.reviewReasons||[]).map(x=>({
-     MISSING_PHONE:'thiếu số điện thoại',HISTORIC_PHONE_MISSING:'có giao dịch cũ thiếu liên hệ',
-     MULTIPLE_CONTACTS_REVIEW:'nhiều số liên hệ tại cùng địa chỉ',
-     MISSING_HISTORIC_REFERENCE:'thiếu tham chiếu hóa đơn'}[x]||x)).join(', ')+
-     '. Các điểm khác vẫn được cấp link bình thường.';
-    row.append(reason);review.append(row);needsReview++;
-   }else ready.append(row);
+    const notes=(p.reviewReasons||[]).map(x=>({
+     MISSING_PHONE:'chưa có số điện thoại',
+     HISTORIC_PHONE_MISSING:'một số hóa đơn cũ chưa có số điện thoại',
+     MULTIPLE_CONTACTS_REVIEW:'có nhiều số điện thoại từng dùng tại địa chỉ này',
+     MISSING_HISTORIC_REFERENCE:'thiếu tham chiếu hóa đơn'}[x]||x);
+    reason.textContent=(refs.length?'ℹ Có thể cấp link từ hóa đơn đủ liên hệ. ':
+     '⚠ Chưa thể cấp link ở địa chỉ này. ')+notes.join('; ')+'.';
+    row.append(reason);
+   }
+   if(refs.length)ready.append(row);
+   else{review.append(row);needsReview++}
+
   }
   root.append(ready,review);
   $('agencyRealStatus').textContent='Lịch sử có '+(d.selected?.sourceProfilesObserved??'?')+
