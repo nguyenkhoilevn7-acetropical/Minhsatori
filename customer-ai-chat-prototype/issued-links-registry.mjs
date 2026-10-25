@@ -83,5 +83,47 @@ export function createIssuedLinksRegistry({bot,now=Date.now}={}){
   }
   fail('LINK_REGISTRY_REVISION_CONFLICT');
  }
- return Object.freeze({register,list,idForLink});
+ async function update({id,name,recipients}={}){
+  if(typeof id!=='string'||!/^il_[a-f0-9]{32}$/.test(id)||!Array.isArray(recipients)||
+     recipients.length<1||recipients.length>20)fail('LINK_UPDATE_INVALID');
+  // The owner can change identity/contact labels only. The link ID, signed URL,
+  // source ledger reference and agreed discounts remain immutable.
+  const prepared=recipients.map(recipient);
+  for(let attempt=0;attempt<2;attempt++){
+   const original=await list({id,limit:1});
+   if(original.total!==1||original.items.length!==1)
+    fail('LINK_UPDATE_NOT_FOUND');
+   const old=original.items[0];
+   if(!['agency','customer'].includes(old.kind))fail('LINK_UPDATE_CTV_POLICY_REQUIRED');
+   if(old.recipients.length!==prepared.length||
+      prepared.some((d,i)=>{
+       const same=old.recipients.find(x=>
+        String(x.customerRef.id)===String(d.customerRef.id)&&
+        x.customerRef.invoiceNo===d.customerRef.invoiceNo);
+       return !same||same.discountPercent!==d.discountPercent;
+      }))fail('LINK_UPDATE_PRICE_PROTECTED');
+   const ownerName=asText(name??old.name,150,2);
+   let written;
+   try{
+    written=await bot('links.update',{id,name:ownerName,recipients:prepared,
+     expectedRevision:original.revision,confirmed:true});
+   }catch(e){
+    if(e?.code==='REVISION_CONFLICT'&&attempt===0)continue;
+    throw e;
+   }
+   if(written?.data?.id!==id||written.data.updated!==true||
+      written.backupCreated!==true)fail('LINK_UPDATE_WRITE_UNVERIFIED');
+   const confirmed=await list({id,limit:1});
+   const matching=confirmed.items[0];
+   if(confirmed.total!==1||!matching||matching.id!==id||
+      matching.link!==old.link||matching.name!==ownerName||
+      JSON.stringify(matching.recipients)!==JSON.stringify(prepared)||
+      matching.editCount!==written.data.editCount)
+    fail('LINK_UPDATE_READBACK_MISMATCH');
+   return {saved:true,id,revision:confirmed.revision,updatedAt:matching.updatedAt,
+    editCount:matching.editCount};
+  }
+  fail('LINK_UPDATE_REVISION_CONFLICT');
+ }
+ return Object.freeze({register,list,update,idForLink});
 }
