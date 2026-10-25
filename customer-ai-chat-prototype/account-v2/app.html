@@ -72,6 +72,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <button id="cartBadge" class="round" aria-label="Mở giỏ hàng">🛒<b id="cartCount">0</b></button>
 </header>
 <main>
+<div id="previewBanner" class="hidden" role="status" style="background:#fff1d9;color:#7a4a0a;border-bottom:1px solid #f1d5a9;padding:9px 14px;text-align:center;font-size:12px;font-weight:700">BẢN XEM THỬ GIAO DIỆN · DỮ LIỆU GIẢ · KHÔNG KẾT NỐI GEMINI · KHÔNG TẠO HÓA ĐƠN</div>
 <section id="gate"><div style="font-size:40px">💧</div><h1>Đặt nước dễ dàng</h1>
 <p>Đăng nhập Google để quản lý nhiều địa chỉ và đặt hàng bằng chat. Không cần link riêng.</p>
 <div id="signIn"></div><p id="loginStatus" class="notice">Đang kiểm tra điều kiện chạy thử...</p>
@@ -161,10 +162,147 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 const views=['chat','catalogue','cart','addresses','orders','account'];
+const PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
 const money=n=>new Intl.NumberFormat('vi-VN').format(n||0)+'đ';
+
+/* In-memory UI demonstration. Never fetches/saves user data, never signs any
+ * invoice, never impersonates real Google login or Gemini functionality. */
+const demoAccountId='a0000000-1111-4111-8111-000000000001';
+const demoCustomerId='a0000000-1111-4111-8111-000000000002';
+const demoCtvId='a0000000-1111-4111-8111-000000000003';
+const demoAddrId='a0000000-1111-4111-8111-000000000004';
+const demoState={
+ account:{id:demoAccountId,name:'Quản trị viên (MẪU)',email:'preview@example.invalid',isAdmin:true},
+ profiles:[
+  {id:demoCustomerId,accountId:demoAccountId,type:'retail',name:'Khách hàng mẫu',phone:'0900000000',revision:1},
+  {id:demoCtvId,accountId:demoAccountId,type:'collaborator',name:'Cộng tác viên mẫu',phone:'0900000000',revision:1}
+ ],
+ addresses:[{id:demoAddrId,profileId:demoCustomerId,label:'Điểm giao thử',recipientName:'Người nhận mẫu',
+ recipientPhone:'0900000000',address:'Số 1, đường Minh Họa, TP.HCM',active:true,revision:1}],
+ products:[
+  {code:'TP-00001',name:'Sản phẩm 350ml (MẪU)',unit:'thùng',listPrice:100000,revision:1},
+  {code:'TP-00003',name:'Sản phẩm 500ml (MẪU)',unit:'thùng',listPrice:120000,revision:1},
+  {code:'TP-00136',name:'Sản phẩm 5 lít (MẪU)',unit:'can',listPrice:60000,revision:1}
+ ],
+ carts:new Map(),policies:[],next:10
+};
+const demoUuid=()=>{
+ const next=String(demoState.next++).padStart(12,'0');
+ return 'a0000000-1111-4111-8111-'+next;
+};
+function demoCall(path,data={},method='POST'){
+ const p=path.split('?')[0],query=new URLSearchParams((path.split('?')[1]||''));
+ const profileId=data?.profileId||query.get('profileId')||demoCustomerId;
+ const read=()=>({ok:true,account:{...demoState.account},
+  profiles:demoState.profiles.map(x=>({...x})),addresses:demoState.addresses.map(x=>({...x}))});
+ if(p==='/api/v2/me'&&method==='GET')return read();
+ if(p==='/api/v2/catalogue'&&method==='GET')
+  return {ok:true,items:demoState.products.map(x=>({...x})),catalogueReady:true};
+ if(p==='/api/v2/cart'){
+  const current=demoState.carts.get(profileId)||{lines:[],revision:0};
+  if(method==='GET')return {ok:true,lines:current.lines.map(x=>({...x})),revision:current.revision};
+  if(method==='PUT'){
+   if(data.expectedRevision!==current.revision)throw Error('CART_REVISION_CONFLICT');
+   const next=new Map();
+   for(const x of data.lines||[]){
+    if(!demoState.products.some(p=>p.code===x.code)||!Number.isSafeInteger(x.qty)||x.qty<1||x.qty>500)
+     throw Error('Mặt hàng hoặc số lượng mẫu không hợp lệ');
+    next.set(x.code,(next.get(x.code)||0)+x.qty);
+   }
+   const lines=[...next].map(([code,qty])=>({code,qty}));
+   if(lines.reduce((n,x)=>n+x.qty,0)>500)throw Error('Tối đa 500 sản phẩm');
+   demoState.carts.set(profileId,{lines,revision:current.revision+1});
+   return {ok:true,lines,revision:current.revision+1};
+  }
+ }
+ if(p==='/api/v2/interpret'&&method==='POST'){
+  const text=String(data.message||'');
+  const sample=demoState.products.find(p=>
+   text.toLowerCase().includes(p.code.toLowerCase())||
+   (p.code==='TP-00001'&&/350\s*ml/i.test(text))||
+   (p.code==='TP-00003'&&/500\s*ml/i.test(text))||
+   (p.code==='TP-00136'&&/(?:5\s*lít|5\s*l\b)/i.test(text)));
+  if(!sample)return {ok:true,needsClarification:true,
+   message:'Xem thử giao diện: nhắn “2 thùng 500ml” hoặc “3 thùng 350ml”. Đây chỉ là bộ nhận dạng mẫu, không phải Gemini.'};
+  const match=text.match(/\b([1-9]\d{0,2})\s*(?:thùng|chai|can|bình)?\b/);
+  const qty=match?Number(match[1]):1;
+  return {ok:true,suggestedItems:[{code:sample.code,qty}],source:'offline-interface-demo',
+   message:'Đã nhận sản phẩm mẫu. Vui lòng bấm để thêm vào giỏ chung.'};
+ }
+ if(p==='/api/v2/quote'&&method==='POST'){
+  const lines=demoState.carts.get(profileId)?.lines||[];
+  if(!lines.length)throw Error('Giỏ hàng mẫu trống');
+  const address=demoState.addresses.find(x=>x.id===data.addressId&&x.profileId===profileId&&x.active);
+  if(!address)throw Error('Địa chỉ mẫu không hợp lệ');
+  const chosen=demoState.policies.filter(x=>x.profileId===profileId&&
+   (!x.addressId||x.addressId===address.id));
+  const policy=chosen.at(-1);
+  const discount=(policy?.discountBps||0)/10000;
+  const totalVnd=lines.reduce((sum,x)=>sum+
+   Math.round(demoState.products.find(p=>p.code===x.code).listPrice*(1-discount))*x.qty,0);
+  return {ok:true,totalVnd,items:lines,invoiceMode:policy?.invoiceMode||'single',
+   note:'SỐ TIỀN MẪU; không phải giá bán chính thức hay hóa đơn thật'};
+ }
+ if(p==='/api/v2/addresses'){
+  if(method==='POST'){
+   const a={...data,id:demoUuid(),revision:1,active:true};
+   demoState.addresses.push(a);return {ok:true,id:a.id};
+  }
+  if(method==='PATCH'){
+   const found=demoState.addresses.find(x=>x.id===data.addressId&&x.profileId===data.profileId);
+   if(!found)throw Error('ADDRESS_FORBIDDEN');
+   if(found.revision!==data.expectedRevision)throw Error('ADDRESS_REVISION_CONFLICT');
+   for(const key of ['label','recipientName','recipientPhone','address','active'])found[key]=data[key];
+   found.revision++;return {ok:true,address:{...found}};
+  }
+ }
+ if(p==='/api/v2/admin/accounts'&&method==='GET')
+  return {ok:true,accounts:[demoState.account]};
+ if(p==='/api/v2/admin/profiles'){
+  if(method==='GET')return {ok:true,profiles:demoState.profiles.map(x=>({...x}))};
+  if(method==='POST'){
+   const next={id:demoUuid(),accountId:data.accountId,type:data.type,
+    name:data.name,phone:data.phone||'',revision:1};
+   demoState.profiles.push(next);return {ok:true,profileId:next.id};
+  }
+  if(method==='PATCH'){
+   const item=demoState.profiles.find(x=>x.id===data.profileId);
+   if(!item)throw Error('PROFILE_NOT_FOUND');
+   if(item.revision!==data.expectedRevision)throw Error('PROFILE_REVISION_CONFLICT');
+   item.name=data.name;item.phone=data.phone;item.revision++;
+   return {ok:true,profile:{...item}};
+  }
+ }
+ if(p==='/api/v2/admin/addresses'){
+  if(method==='GET')
+   return {ok:true,addresses:demoState.addresses.filter(x=>x.profileId===profileId).map(x=>({...x}))};
+  if(method==='POST'){
+   const a={...data,id:demoUuid(),revision:1,active:true};
+   demoState.addresses.push(a);return {ok:true,id:a.id};
+  }
+  if(method==='PATCH'){
+   const item=demoState.addresses.find(x=>x.id===data.addressId&&x.profileId===data.profileId);
+   if(!item)throw Error('ADDRESS_FORBIDDEN');
+   if(item.revision!==data.expectedRevision)throw Error('ADDRESS_REVISION_CONFLICT');
+   for(const k of ['label','recipientName','recipientPhone','address','active'])item[k]=data[k];
+   item.revision++;return {ok:true,address:{...item}};
+  }
+ }
+ if(p==='/api/v2/admin/policies'){
+  if(method==='GET')return {ok:true,policies:demoState.policies.filter(x=>x.profileId===profileId)};
+  if(method==='POST'){
+   const item={...data,id:demoUuid(),version:demoState.policies.length+1,enabled:true};
+   demoState.policies.push(item);return {ok:true,policy:item};
+  }
+ }
+ if(p==='/api/v2/admin/catalogue/refresh')throw Error('Chỉ xem giao diện: không kết nối danh mục thật');
+ if(p==='/api/v2/logout')return {ok:true};
+ throw Error('Chức năng này chưa có trong chế độ xem thử');
+}
 const cookie=name=>document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1)||'';
 async function call(path,data,method='POST'){
+ if(PREVIEW)return demoCall(path,data,method);
  const headers={'content-type':'application/json'};
  if(method!=='GET')headers['x-satori-csrf']=cookie('satori_v2_csrf');
  const response=await fetch(path,{method,credentials:'same-origin',cache:'no-store',headers,
@@ -504,6 +642,12 @@ $('logout').onclick=async()=>{
 };
 async function boot(){
  try{
+  if(PREVIEW){
+   $('previewBanner').classList.remove('hidden');
+   await refresh();
+   bubble('Đây là bản xem thử giao diện với dữ liệu giả. Không có Google đăng nhập, Gemini, thanh toán hoặc hóa đơn thật.');
+   return;
+  }
   const status=await call('/api/v2/status',undefined,'GET');
   pilot=!!status.enabled;
   if(!pilot){$('loginStatus').textContent='Pilot tài khoản chưa được cấu hình trên server. Hóa đơn và link hiện tại không đổi.';return}
