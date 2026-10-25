@@ -94,7 +94,7 @@ export function createProductionPrivateLinks({
   if(typeof directoryLookup!=='function')return signed;
   const saved=await directoryLookup({token});
   if(saved==null)return signed; // Legacy links issued before Drive directory.
-  const url=origin.replace(/\\/$/,'')+'/real/#'+token;
+  const url=origin.replace(/\/$/,'')+'/real/#'+token;
   const agency=signed.type==='agency-invite';
   if(saved.link!==url||saved.kind!==(agency?'agency':'customer')||
      !Array.isArray(saved.recipients))throw error('REAL_LINK_DIRECTORY_CONFLICT');
@@ -106,7 +106,7 @@ export function createProductionPrivateLinks({
    if(matches.length!==1||sourceRecipient.discountPercent!==matches[0].discountPercent)
     throw error('REAL_LINK_DIRECTORY_CONFLICT');
    const r=matches[0];
-   if(!cleanText(r.name,150)||!/^\\d{9,11}$/.test(r.phone||'')||
+   if(!cleanText(r.name,150)||!/^\d{9,11}$/.test(r.phone||'')||
       !cleanText(r.location,500))throw error('REAL_LINK_DIRECTORY_CONFLICT');
    const changed=r.name!==sourceRecipient.name||
     r.phone!==sourceRecipient.phone||r.location!==sourceRecipient.location;
