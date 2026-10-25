@@ -86,3 +86,20 @@ test('admin uses owner-only Drive registry; no browser persistence',()=>{
  const script=html.slice(html.indexOf('<script>')+8,html.lastIndexOf('</script>'));
  new vm.Script(script);
 });
+
+test('admin link history searches by name before showing private links',()=>{
+ const html=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ const region=html.slice(html.indexOf('/* Owner-only Drive link history.'),html.indexOf('function showAdminTab(name){'));
+ assert.match(region,/if\(query\.length<2\)/);
+ assert.match(region,/details\.open=true/);
+ assert.match(region,/issuedRequestSerial/);
+ assert.match(region,/serial!==issuedRequestSerial/);
+ assert.match(region,/setTimeout\(\(\)=>void loadIssuedRecords\(true\),400\)/);
+ assert.match(region,/r\.recipients/);
+ assert.doesNotMatch(region,/localStorage|sessionStorage/);
+ // No second browser-side name filter: Bot API folds Treky and Traky equally.
+ assert.doesNotMatch(region,/issuedRecords\.filter\(/);
+ assert.match(html,/invitation\.registrySaved!==true/);
+ assert.match(html,/d\.registrySaved!==true/);
+ assert.match(html,/Chưa xác minh lưu link trên Google Drive/);
+});
