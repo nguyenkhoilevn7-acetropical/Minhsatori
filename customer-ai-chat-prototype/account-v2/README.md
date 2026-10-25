@@ -118,3 +118,13 @@ Important limitations: no live catalogue import adapter; no address edit/delete;
 - `POST /api/v2/admin/catalogue/refresh`: admin-triggered **read-only** HMAC pull from canonical Apps Script catalogue, strict revision validation, atomic isolated PostgreSQL readback; not automatic.
 - V2 cart PUT uses `expectedRevision` compare-and-swap to reject cross-device lost updates. iOS Light UI also provides manual refresh and foreground revision polling.
 - **No production deployment**. Credentials/database provision, exact original Gemini UI parity, signed ledger order creation, Android V2 build, phone login and Samsung acceptance remain incomplete.
+
+## Owner profile and delivery-point corrections (PR #151)
+
+- The iOS Light Admin V2 panel can correct registered customers'/agency/CTV profile name and phone, and update each saved destination's label, receiver, phone, full address and active status.
+- New `PATCH /api/v2/admin/profiles`: `profileId`, `name`, `phone`, `expectedRevision`, `confirmed:true`; owner-only.
+- New `PATCH /api/v2/admin/addresses`: `profileId`, `addressId`, full validated address fields, `active` boolean, `expectedRevision`, `confirmed:true`; owner-only.
+- Compare-and-swap updates return HTTP 409 on stale revisions. The UI fetches fresh data rather than overwriting concurrent changes. Successful edits write a non-PII owner audit record.
+- **No existing issued link, PIN, invoice snapshot or price policy is modified.** Disabling a delivery point blocks new V2 quotes for that address (not retroactive historical edits). Real checkout remains disabled.
+- Fresh pilot DB: use updated `schema.sql`. Previously provisioned **separate pilot DB only**: review `migrations/20261025_owner_edits.sql` before applying; it is not an Apps Script migration.
+- Pilot readiness now requires `SATORI_ACCOUNT_V2_OWNER_SUB === SATORI_ACCOUNT_V2_PILOT_SUB`; a different Google subject disables the pilot instead of allowing that account in.

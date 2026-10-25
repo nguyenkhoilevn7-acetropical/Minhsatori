@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DomainError,normalizeCart,validateAddress,selectPolicy,calculateQuote} from '../domain.mjs';
+import {DomainError,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,selectPolicy,calculateQuote} from '../domain.mjs';
 const accountId='84cc53bc-fdf4-44d0-8466-8ef7c4ae3091';
 const otherAccount='155b330b-6690-4b3f-b389-a5223d9f73cd';
 const profileId='3741eecd-2acd-4a35-8383-510c360b78d9';
@@ -81,4 +81,27 @@ test('mixed pair/single policy never generates one-sided invoice',()=>{
 test('same-priority policy collision fails closed',()=>{
  const policies=[policy(2000),policy(3500,{id:'other'})];
  assert.equal(code(()=>calculateQuote({...base,policies})),'POLICY_AMBIGUOUS');
+});
+
+test('owner address edit requires explicit confirmation and exact version',()=>{
+ const payload={profileId,addressId,expectedRevision:1,confirmed:true,
+  active:false,label:'Chi nhánh 2',recipientName:'Khách',recipientPhone:'0987654321',
+  address:'123 địa chỉ thử nghiệm'};
+ assert.deepEqual(validateAdminAddressEdit(payload),{
+  profileId,addressId,expectedRevision:1,active:false,label:'Chi nhánh 2',
+  recipientName:'Khách',recipientPhone:'0987654321',address:'123 địa chỉ thử nghiệm'});
+ assert.equal(code(()=>validateAdminAddressEdit({...payload,confirmed:false})),'OWNER_CONFIRMATION_REQUIRED');
+ assert.equal(code(()=>validateAdminAddressEdit({...payload,expectedRevision:0})),'ADDRESS_REVISION_REQUIRED');
+ assert.equal(code(()=>validateAdminAddressEdit({...payload,active:'false'})),'ADDRESS_ACTIVE_REQUIRED');
+ assert.equal(code(()=>validateAdminAddressEdit({...payload,addressId:'bad-id'})),'ADDRESS_ID_REQUIRED');
+ assert.equal(code(()=>validateAdminAddressEdit({...payload,recipientPhone:'foo'})),'PHONE_INVALID');
+});
+
+test('owner profile correction is a version-guarded, confirmed metadata edit',()=>{
+ const input={profileId,expectedRevision:3,confirmed:true,name:'  Đại lý Satori  ',phone:'0987 654 321'};
+ assert.deepEqual(validateAdminProfileEdit(input),{profileId,expectedRevision:3,name:'Đại lý Satori',phone:'0987654321'});
+ assert.equal(code(()=>validateAdminProfileEdit({...input,confirmed:false})),'OWNER_CONFIRMATION_REQUIRED');
+ assert.equal(code(()=>validateAdminProfileEdit({...input,expectedRevision:0})),'PROFILE_REVISION_REQUIRED');
+ assert.equal(code(()=>validateAdminProfileEdit({...input,name:'  '})),'NAME_INVALID');
+ assert.equal(code(()=>validateAdminProfileEdit({...input,phone:'not a phone'})),'PHONE_INVALID');
 });

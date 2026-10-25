@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {calculateQuote,normalizeCart,validateAddress,isUuid,isSku,DomainError} from './domain.mjs';
+import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
 import {parseOrder,identityChange} from '../free-parser.mjs';
 import {parseMultiOrder} from '../multi-order.mjs';
 import {parseComplexOrderWithGemini} from '../free-parser.mjs';
@@ -34,7 +34,8 @@ const config=()=>({
 function ready(){
  const cfg=config();
  return !!(cfg.enabled&&cfg.clientId&&cfg.origin.startsWith('https://')&&
-  cfg.databaseUrl&&cfg.ownerGoogleSub&&cfg.pilotSub);
+  cfg.databaseUrl&&cfg.ownerGoogleSub&&cfg.pilotSub&&
+  cfg.ownerGoogleSub===cfg.pilotSub);
 }
 function send(res,code,data,headers={}){
  res.writeHead(code,{'content-type':'application/json; charset=utf-8',
@@ -326,6 +327,32 @@ export async function handleAccountV2(req,res,pathname){
      String(input.phone||'').slice(0,30)]);
    send(res,201,{ok:true,profileId:r.rows[0].id});return true;
   }
+  if(pathname==='/api/v2/admin/profiles'&&req.method==='PATCH'){
+   owner(actor);
+   const input=validateAdminProfileEdit(await json(req));
+   const client=await pool.connect();
+   try{
+    await client.query('BEGIN');
+    const saved=await client.query(
+     'UPDATE satori_v2_profiles SET display_name=$2,phone=$3,revision=revision+1 '+
+     'WHERE id=$1 AND revision=$4 RETURNING id,revision',
+     [input.profileId,input.name,input.phone,input.expectedRevision]);
+    if(saved.rows.length!==1){
+     const exists=await client.query('SELECT id FROM satori_v2_profiles WHERE id=$1',[input.profileId]);
+     error(exists.rows.length===1,'PROFILE_NOT_FOUND',404);
+     throw new ApiError('PROFILE_REVISION_CONFLICT',409);
+    }
+    await client.query(
+     'INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
+     'VALUES($1,$2,$3,$4,$5)',
+     [actor.id,'owner','PROFILE_EDITED',input.profileId,JSON.stringify({
+      previousRevision:input.expectedRevision,newRevision:saved.rows[0].revision
+     })]);
+    await client.query('COMMIT');
+    send(res,200,{ok:true,profile:saved.rows[0]});return true;
+   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
+   finally{client.release()}
+  }
   if(pathname==='/api/v2/admin/policies'&&req.method==='POST'){
    const r=await adminPolicy(pool,actor,await json(req));
    send(res,201,{ok:true,policy:r});return true;
@@ -362,7 +389,7 @@ export async function handleAccountV2(req,res,pathname){
    owner(actor);
    const accountId=new URL(req.url,'http://local').searchParams.get('accountId');
    error(isUuid(accountId),'ACCOUNT_INVALID');
-   const list=await pool.query('SELECT id,type,display_name AS name,phone FROM satori_v2_profiles '+
+   const list=await pool.query('SELECT id,type,display_name AS name,phone,revision FROM satori_v2_profiles '+
     'WHERE account_id=$1 ORDER BY created_at',[accountId]);
    send(res,200,{ok:true,profiles:list.rows});return true;
   }
@@ -371,7 +398,7 @@ export async function handleAccountV2(req,res,pathname){
    const profileId=new URL(req.url,'http://local').searchParams.get('profileId');
    error(isUuid(profileId),'PROFILE_INVALID');
    const list=await pool.query('SELECT id,label,recipient_name AS "recipientName",'+
-    'recipient_phone AS "recipientPhone",address,active FROM satori_v2_addresses '+
+    'recipient_phone AS "recipientPhone",address,active,revision FROM satori_v2_addresses '+
     'WHERE profile_id=$1 ORDER BY created_at',[profileId]);
    send(res,200,{ok:true,addresses:list.rows});return true;
   }
@@ -384,6 +411,39 @@ export async function handleAccountV2(req,res,pathname){
    const saved=await pool.query('INSERT INTO satori_v2_addresses(profile_id,label,recipient_name,recipient_phone,address) '+
     'VALUES($1,$2,$3,$4,$5) RETURNING id',[input.profileId,a.label,a.recipientName,a.recipientPhone,a.address]);
    send(res,201,{ok:true,id:saved.rows[0].id});return true;
+  }
+  if(pathname==='/api/v2/admin/addresses'&&req.method==='PATCH'){
+   owner(actor);
+   const input=validateAdminAddressEdit(await json(req));
+   const client=await pool.connect();
+   try{
+    await client.query('BEGIN');
+    // CAS is scoped to BOTH profile and immutable address ID; no auto-merge.
+    // Deactivation immediately prevents new V2 quotes; prior invoices remain intact.
+    const saved=await client.query(
+     'UPDATE satori_v2_addresses SET label=$3,recipient_name=$4,recipient_phone=$5, '+
+     'address=$6,active=$7,revision=revision+1,updated_at=now() '+
+     'WHERE id=$1 AND profile_id=$2 AND revision=$8 '+
+     'RETURNING id,revision,active',
+     [input.addressId,input.profileId,input.label,input.recipientName,
+      input.recipientPhone,input.address,input.active,input.expectedRevision]);
+    if(saved.rows.length!==1){
+     const existing=await client.query('SELECT id FROM satori_v2_addresses WHERE id=$1 AND profile_id=$2',
+      [input.addressId,input.profileId]);
+     error(existing.rows.length===1,'ADDRESS_NOT_FOUND',404);
+     throw new ApiError('ADDRESS_REVISION_CONFLICT',409);
+    }
+    await client.query(
+     'INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
+     'VALUES($1,$2,$3,$4,$5)',
+     [actor.id,'owner','ADDRESS_EDITED',input.addressId,JSON.stringify({
+      profileId:input.profileId,previousRevision:input.expectedRevision,
+      newRevision:saved.rows[0].revision,active:input.active
+     })]);
+    await client.query('COMMIT');
+    send(res,200,{ok:true,address:saved.rows[0]});return true;
+   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
+   finally{client.release()}
   }
   if(pathname==='/api/v2/admin/policies'&&req.method==='GET'){
    owner(actor);

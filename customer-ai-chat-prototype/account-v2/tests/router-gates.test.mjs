@@ -41,3 +41,32 @@ test('owner pilot page is readable, but does not enable customer checkout',async
  assert.match(res.result.body,/Xác nhận đặt hàng \(chưa mở trong Pilot\)/);
  assert.match(res.result.headers['content-security-policy'],/frame-ancestors 'none'/);
 });
+
+test('misconfigured pilot subject is never treated as owner readiness',async()=>{
+ const keys=['SATORI_ACCOUNT_V2_ENABLED','SATORI_ACCOUNT_V2_GOOGLE_CLIENT_ID',
+  'SATORI_ACCOUNT_V2_ORIGIN','SATORI_ACCOUNT_V2_DATABASE_URL',
+  'SATORI_ACCOUNT_V2_OWNER_SUB','SATORI_ACCOUNT_V2_PILOT_SUB'];
+ const previous=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
+ try{
+  Object.assign(process.env,{
+   SATORI_ACCOUNT_V2_ENABLED:'1',
+   SATORI_ACCOUNT_V2_GOOGLE_CLIENT_ID:'test.apps.googleusercontent.com',
+   SATORI_ACCOUNT_V2_ORIGIN:'https://pilot.invalid',
+   SATORI_ACCOUNT_V2_DATABASE_URL:'postgresql://unused.invalid:5432/test',
+   SATORI_ACCOUNT_V2_OWNER_SUB:'owner-uid',
+   SATORI_ACCOUNT_V2_PILOT_SUB:'different-uid'
+  });
+  const res=fakeRes();
+  await handleAccountV2(getReq('GET','/api/v2/status'),res,'/api/v2/status');
+  assert.equal(JSON.parse(res.result.body).enabled,false);
+  process.env.SATORI_ACCOUNT_V2_PILOT_SUB='owner-uid';
+  const enabled=fakeRes();
+  await handleAccountV2(getReq('GET','/api/v2/status'),enabled,'/api/v2/status');
+  assert.equal(JSON.parse(enabled.result.body).enabled,true);
+ }finally{
+  for(const key of keys){
+   if(previous[key]===undefined)delete process.env[key];
+   else process.env[key]=previous[key];
+  }
+ }
+});
