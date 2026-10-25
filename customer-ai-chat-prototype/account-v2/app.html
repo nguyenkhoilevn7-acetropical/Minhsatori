@@ -100,7 +100,37 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <section id="ordersView" class="view hidden"><div class="panel"><h2>Hóa đơn</h2>
 <p class="notice">Lịch sử hóa đơn thực tế chưa kết nối với tài khoản mới. Không hiển thị dữ liệu mẫu như hóa đơn thật.</p></div></section>
 <section id="accountView" class="view hidden"><div class="panel"><h2>Tài khoản</h2><div id="accountDetails"></div></div>
-<div class="panel"><h2>Chế độ thử an toàn</h2><p class="muted">Dữ liệu tài khoản ở cơ sở dữ liệu riêng. Hệ thống không chỉnh sửa link đại lý và hóa đơn kế toán đang có.</p></div></section>
+<div class="panel"><h2>Chế độ thử an toàn</h2><p class="muted">Dữ liệu tài khoản ở cơ sở dữ liệu riêng. Hệ thống không chỉnh sửa link đại lý và hóa đơn kế toán đang có.</p></div>
+<div id="ownerPanel" hidden>
+<section class="panel"><h2>Quản trị — chỉ chủ tài khoản</h2>
+<p class="muted">Quản lý khách, CTV, đại lý và giá. Mọi thiết lập chỉ ảnh hưởng hệ thống V2.</p>
+<button id="syncCatalogue" class="btn">↻ Đồng bộ sản phẩm từ Satori chính thức</button>
+</section>
+<section class="panel"><h2>Hồ sơ khách hàng</h2>
+<div class="field"><label>Tài khoản Google đã đăng ký</label><select id="adminAccount"></select></div>
+<div class="field"><label>Hồ sơ thuộc tài khoản</label><select id="adminProfile"></select></div>
+<div class="field"><label>Tên hồ sơ mới</label><input id="adminProfileName" placeholder="Tên khách/CTV/đại lý" maxlength="120"></div>
+<div class="field"><label>Loại hồ sơ</label><select id="adminProfileType"><option value="retail">Khách lẻ</option><option value="agency">Đại lý</option><option value="collaborator">Cộng tác viên</option></select></div>
+<button id="createProfile" class="btn primary">+ Thêm hồ sơ</button>
+</section>
+<section class="panel"><h2>Địa chỉ giao hàng của hồ sơ</h2>
+<div id="adminLocations" class="muted"></div>
+<div class="field"><label>Nhãn địa chỉ</label><input id="adminAddressLabel" placeholder="Khách A / Cửa hàng B" maxlength="70"></div>
+<div class="field"><label>Tên người nhận</label><input id="adminRecipient" maxlength="120"></div>
+<div class="field"><label>Số điện thoại</label><input id="adminPhone" inputmode="tel"></div>
+<div class="field"><label>Địa chỉ đầy đủ</label><input id="adminAddressText" maxlength="400"></div>
+<button id="createAdminAddress" class="btn primary">+ Thêm địa chỉ</button>
+</section>
+<section class="panel"><h2>Chính sách giá riêng</h2>
+<div class="field"><label>Áp dụng cho địa chỉ</label><select id="adminPolicyAddress"></select></div>
+<div class="field"><label>Áp dụng cho sản phẩm</label><select id="adminPolicySku"></select></div>
+<div class="field"><label>Chiết khấu khách hàng (%)</label><input id="adminDiscount" type="number" min="0" max="100" step="0.01" value="0"></div>
+<div class="field"><label>Loại hóa đơn</label><select id="adminInvoiceMode"><option value="single">Một hóa đơn</option><option value="pair">Hai hóa đơn CTV (tham chiếu riêng)</option></select></div>
+<div class="field"><label>Chiết khấu CTV (%) — chỉ dùng khi chọn hai hóa đơn</label><input id="adminCtvDiscount" type="number" min="0" max="100" step="0.01" value="35"></div>
+<button id="savePolicy" class="btn primary">Lưu phiên bản chính sách mới</button>
+<div id="adminPolicies" class="muted"></div>
+</section>
+</div></section>
 </main>
 </div><p id="toast" role="status" hidden></p>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -213,6 +243,8 @@ async function refresh(){
  const [mine,catalogue]=await Promise.all([
   call('/api/v2/me',undefined,'GET'),call('/api/v2/catalogue',undefined,'GET')]);
  me=mine;products=catalogue.items;
+ $('ownerPanel').hidden=!me.account.isAdmin;
+ if(me.account.isAdmin)loadOwner().catch(e=>toast(e.message));
  $('gate').classList.add('hidden');$('chatView').classList.remove('hidden');
  $('accountDetails').replaceChildren(node('strong',me.account.name),
   node('p',me.account.email,'muted'));
@@ -272,6 +304,84 @@ setInterval(async()=>{
   if(r.revision>cartRev){cart=r.lines;cartRev=r.revision;renderBadge();renderCart();toast('Giỏ hàng đã đồng bộ')}
  }catch{}
 },10000);
+let ownerAccounts=[],ownerProfiles=[],ownerAddresses=[];
+async function loadAdminProfiles(){
+ const accountId=$('adminAccount').value;
+ if(!accountId)return;
+ const data=await call('/api/v2/admin/profiles?accountId='+encodeURIComponent(accountId),undefined,'GET');
+ ownerProfiles=data.profiles;$('adminProfile').replaceChildren();
+ for(const p of ownerProfiles){const op=node('option',p.name+' · '+p.type);op.value=p.id;$('adminProfile').append(op)}
+ await loadAdminAddresses();
+}
+async function loadAdminAddresses(){
+ const id=$('adminProfile').value;
+ ownerAddresses=[];
+ $('adminLocations').replaceChildren();$('adminPolicyAddress').replaceChildren();
+ const everyone=node('option','Tất cả địa chỉ');everyone.value='';$('adminPolicyAddress').append(everyone);
+ if(!id)return;
+ const data=await call('/api/v2/admin/addresses?profileId='+encodeURIComponent(id),undefined,'GET');
+ ownerAddresses=data.addresses;
+ for(const a of ownerAddresses){
+  $('adminLocations').append(node('p',a.label+' · '+a.recipientName+' · '+a.address,'muted'));
+  const op=node('option',a.label+' · '+a.address);op.value=a.id;$('adminPolicyAddress').append(op);
+ }
+ const policies=await call('/api/v2/admin/policies?profileId='+encodeURIComponent(id),undefined,'GET');
+ $('adminPolicies').replaceChildren(node('p','Đã lưu '+policies.policies.length+' phiên bản chính sách.','muted'));
+}
+async function loadOwner(){
+ const data=await call('/api/v2/admin/accounts',undefined,'GET');
+ ownerAccounts=data.accounts;$('adminAccount').replaceChildren();
+ for(const a of ownerAccounts){const op=node('option',a.name+' · '+a.email);op.value=a.id;$('adminAccount').append(op)}
+ $('adminPolicySku').replaceChildren();
+ const all=node('option','Tất cả sản phẩm');all.value='';$('adminPolicySku').append(all);
+ for(const p of products){const op=node('option',p.name);op.value=p.code;$('adminPolicySku').append(op)}
+ await loadAdminProfiles();
+}
+$('adminAccount').onchange=()=>loadAdminProfiles().catch(e=>toast(e.message));
+$('adminProfile').onchange=()=>loadAdminAddresses().catch(e=>toast(e.message));
+$('syncCatalogue').onclick=async()=>{
+ if(!confirm('Chỉ cập nhật danh mục của hệ thống mới từ nguồn Satori đã xác minh?'))return;
+ try{
+  const result=await call('/api/v2/admin/catalogue/refresh',{confirmed:true});
+  const catalogue=await call('/api/v2/catalogue',undefined,'GET');products=catalogue.items;
+  renderProducts();await loadOwner();toast('Đã đồng bộ '+result.count+' sản phẩm, revision '+result.revision);
+ }catch(e){toast(e.message)}
+};
+$('createProfile').onclick=async()=>{
+ try{
+  const accountId=$('adminAccount').value;
+  const name=$('adminProfileName').value.trim(),type=$('adminProfileType').value;
+  await call('/api/v2/admin/profiles',{accountId,name,type});
+  $('adminProfileName').value='';await loadAdminProfiles();toast('Đã thêm hồ sơ');
+ }catch(e){toast(e.message)}
+};
+$('createAdminAddress').onclick=async()=>{
+ try{
+  await call('/api/v2/admin/addresses',{profileId:$('adminProfile').value,
+   label:$('adminAddressLabel').value,recipientName:$('adminRecipient').value,
+   recipientPhone:$('adminPhone').value,address:$('adminAddressText').value});
+  for(const id of ['adminAddressLabel','adminRecipient','adminPhone','adminAddressText'])$(id).value='';
+  await loadAdminAddresses();toast('Đã thêm địa chỉ');
+ }catch(e){toast(e.message)}
+};
+$('savePolicy').onclick=async()=>{
+ try{
+  const profileId=$('adminProfile').value,invoiceMode=$('adminInvoiceMode').value;
+  const basis=x=>{
+   const v=Number(x);if(!Number.isFinite(v)||v<0||v>100||Math.round(v*100)!==v*100)
+    throw Error('Chiết khấu từ 0 đến 100%, tối đa 2 chữ số thập phân');
+   return Math.round(v*100);
+  };
+  const discountBps=basis($('adminDiscount').value);
+  const collaboratorBps=basis($('adminCtvDiscount').value);
+  const addressId=$('adminPolicyAddress').value||null,productCode=$('adminPolicySku').value||null;
+  if(!confirm('Lưu chính sách V2? Không thay đổi link và hóa đơn cũ.'))return;
+  const payload={profileId,addressId,productCode,discountBps,invoiceMode,
+   ...(invoiceMode==='pair'?{collaboratorBps}:{})};
+  const data=await call('/api/v2/admin/policies',payload);
+  await loadAdminAddresses();toast('Đã lưu chính sách phiên bản '+data.policy.version);
+ }catch(e){toast(e.message)}
+};
 $('logout').onclick=async()=>{
  try{await call('/api/v2/logout',{})}catch{}
  location.reload();
