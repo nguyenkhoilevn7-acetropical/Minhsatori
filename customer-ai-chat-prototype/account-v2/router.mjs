@@ -34,7 +34,8 @@ const config=()=>({
 function ready(){
  const cfg=config();
  return !!(cfg.enabled&&cfg.clientId&&cfg.origin.startsWith('https://')&&
-  cfg.databaseUrl&&cfg.ownerGoogleSub&&cfg.pilotSub);
+  cfg.databaseUrl&&cfg.ownerGoogleSub&&cfg.pilotSub&&
+  cfg.ownerGoogleSub===cfg.pilotSub);
 }
 function send(res,code,data,headers={}){
  res.writeHead(code,{'content-type':'application/json; charset=utf-8',
