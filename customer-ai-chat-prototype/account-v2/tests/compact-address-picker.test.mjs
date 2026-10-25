@@ -18,7 +18,7 @@ test('compact inline address selector uses accessible app-style icons, no redund
  assert.match(html,/\.agent-address-choice\[aria-pressed="true"\]/);
 });
 test('address choices are current profile only, selectable and invalidate old quote',()=>{
- assert.match(script,/me\.addresses\.filter\(x=>x\.profileId===\$\('profile'\)\.value&&x\.active\)/);
+ assert.match(script,/me\?\.addresses\?\.filter\(x=>x\.profileId===\$\('profile'\)\.value&&x\.active\)/);
  assert.match(script,/const choices=\$\('agentAddressChoices'\);choices\.replaceChildren\(\)/);
  assert.match(script,/button\.setAttribute\('aria-pressed',String\(address\.id===\$\('location'\)\.value\)\)/);
  assert.match(script,/\$\('location'\)\.value=address\.id;\s*resetTestQuote\(\);\s*\$\('agentAddressMenu'\)\.open=false/);
