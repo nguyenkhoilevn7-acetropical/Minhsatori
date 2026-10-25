@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {contactPhone} from '../contact-phone.mjs';
 import {directoryFromInvoices,detailFromEvidence,directoryKey,physicalAddressKey} from '../owner-customer-directory.mjs';
 const rows=[
  {name:'Hà Minh Nguyệt',phone:'0901000001',location:'Q1',invoiceNo:1},
@@ -215,3 +216,56 @@ assert.match(sourceCode,/const sourceQuery=directorySourceQuery\(name\)/);
 assert.match(sourceCode,/customers\.search',\{query:sourceQuery,limit:20\}/);
 assert.match(sourceCode,/monthLookup\(m,sourceQuery\)/);
 console.log('PASS Traky group → actual source search prefix; Tracy name isolated');
+
+const contactExamples=[
+ ['Hằng - 0784723916','0784723916'],
+ ['0784723916 (Hằng)','0784723916'],
+ ['0903 507 433 (Cô Hoa)','0903507433'],
+ ['+84 903.507.433 (Hoa)','0903507433'],
+ ['903507433','903507433'],
+ ['(chị Linh) 091-234-5678','0912345678'],
+ ['0912345678 / 0909999999',''],
+ ['Không có số trong hóa đơn',''],
+ ['Mã hóa đơn 5931, khu 2',''],
+ ['01234567890123456789','']
+];
+for(const [input,expected] of contactExamples)
+ assert.equal(contactPhone(input),expected,'Contact extraction: '+input);
+const legacyMixed=detailFromEvidence('Nhà Hàng Thạnh Phú',[
+ {name:'Nhà Hàng Thạnh Phú',phone:'',location:'52 Bình Phú, TP.HCM',
+  ref:{id:8,invoiceNo:8},sourceInvoiceNo:8},
+ {name:'Nhà Hàng Thạnh Phú',phone:'Hằng - 0784723916',location:'52 Bình Phú, TP.HCM',
+  ref:{id:1792745523724,invoiceNo:5931},sourceInvoiceNo:5931}
+],[],{sourceTotal:2});
+assert.equal(legacyMixed.places.length,1);
+assert.equal(legacyMixed.places[0].references.length,2,
+ 'old phone-less invoice is retained as historical evidence');
+assert.equal(legacyMixed.places[0].sourceRows.length,2);
+assert.equal(legacyMixed.places[0].sourceRows[0].phone,'',
+ 'never retrofit the later contact onto an old invoice');
+assert.equal(legacyMixed.places[0].sourceRows[1].phone,'0784723916');
+assert.equal(legacyMixed.places[0].eligibleSourceCount,1,
+ 'valid recipient-annotated phone re-enables this physical destination');
+assert.equal(legacyMixed.places[0].approvedCandidate,true);
+const pwcSource=detailFromEvidence('PWC',[
+ {name:'PWC',phone:'',location:'1137 Huỳnh Tấn Phát, q7',
+  ref:{id:16,invoiceNo:16},sourceInvoiceNo:16}
+],[],{sourceTotal:1});
+assert.equal(pwcSource.places.length,1);
+assert.equal(pwcSource.places[0].approvedCandidate,false,
+ 'real Production invoice #16 has no phone; do not invent a contact');
+assert.equal(pwcSource.places[0].eligibleSourceCount,0);
+const decoratedDirectory=directoryFromInvoices([
+ {name:'Nhà Hàng Thạnh Phú',phone:'Hằng - 0784723916',
+  location:'52 Bình Phú, TP.HCM',invoiceNo:5931}
+]);
+assert.deepEqual(decoratedDirectory[0].deliveryLocations[0].phones,['0784723916']);
+const sourceRefImplementation=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+const sourceSelector=sourceRefImplementation.slice(
+ sourceRefImplementation.indexOf("const sources=(Array.isArray(p.sourceRows)"),
+ sourceRefImplementation.indexOf("$('agencyRealIssue').onclick"));
+assert.match(sourceSelector,/tick\.disabled=!refs\.length/);
+assert.doesNotMatch(sourceSelector,/tick\.disabled=!refs\.length\|\|!p\.phone/);
+assert.match(sourceSelector,/sources\.map\(x=>x\.ref\)/);
+assert.match(sourceSelector,/source\.phone/);
+console.log('PASS annotated contact phones, safe exact invoice ref selection and blank PWC record guards');
