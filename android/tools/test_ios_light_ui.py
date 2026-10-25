@@ -18,8 +18,12 @@ class IOSLightThemeTests(unittest.TestCase):
         cls.gradle = GRADLE.read_text(encoding="utf-8")
 
     def test_release_is_newer_than_existing_owner_app(self):
-        self.assertIn('versionName = "0.4.8"', self.gradle)
-        self.assertIn('versionCode = 25', self.gradle)
+        version_name = re.search(r'versionName = "(\\d+)\\.(\\d+)\\.(\\d+)"', self.gradle)
+        version_code = re.search(r'versionCode = (\\d+)', self.gradle)
+        self.assertIsNotNone(version_name)
+        self.assertIsNotNone(version_code)
+        self.assertGreaterEqual(tuple(int(x) for x in version_name.groups()), (0, 4, 8))
+        self.assertGreaterEqual(int(version_code.group(1)), 25)
         self.assertIn('applicationId = "vn.minhsatori.app"', self.gradle)
 
     def test_ios_light_palette_is_not_dark_legacy(self):
@@ -41,7 +45,9 @@ class IOSLightThemeTests(unittest.TestCase):
         self.assertIn('canAction("orders.delete")', self.source)
         self.assertIn('val destinations = listOf(', self.source)
         self.assertIn('menuButton.setOnClickListener { showDrawer() }', self.source)
-        self.assertIn('dismissDrawer { activeTab = index; render() }', self.source)
+        self.assertIn('dismissDrawer {', self.source)
+        self.assertIn('activeTab = index; render()', self.source)
+        self.assertIn('if (item.second == "Quản trị V2") openV2Admin()', self.source)
         self.assertIn('drawer.animate().translationX(0f).setDuration(260)', self.source)
         self.assertIn('scrim.setOnClickListener { dismissDrawer() }', self.source)
         self.assertNotIn('shell.addView(tabs)', self.source)
