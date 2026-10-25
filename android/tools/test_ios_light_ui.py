@@ -39,7 +39,12 @@ class IOSLightThemeTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIn(text, self.source)
         self.assertIn('canAction("orders.delete")', self.source)
-        self.assertIn('setOnClickListener { activeTab = i; render() }', self.source)
+        self.assertIn('val destinations = listOf(', self.source)
+        self.assertIn('menuButton.setOnClickListener { showDrawer() }', self.source)
+        self.assertIn('dismissDrawer { activeTab = index; render() }', self.source)
+        self.assertIn('drawer.animate().translationX(0f).setDuration(260)', self.source)
+        self.assertIn('scrim.setOnClickListener { dismissDrawer() }', self.source)
+        self.assertNotIn('shell.addView(tabs)', self.source)
 
     def test_no_inline_delete_without_owner_gate(self):
         card = self.source.split("private fun invoiceQuickCard(", 1)[1].split(
