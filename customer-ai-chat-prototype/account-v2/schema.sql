@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS satori_v2_addresses (
  recipient_phone text NOT NULL,
  address text NOT NULL,
  active boolean NOT NULL DEFAULT true,
+ revision integer NOT NULL DEFAULT 1 CHECK (revision >= 1),
  created_at timestamptz NOT NULL DEFAULT now(),
  updated_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE(id,profile_id)
