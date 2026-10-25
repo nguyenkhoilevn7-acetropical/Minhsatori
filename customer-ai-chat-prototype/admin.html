@@ -1971,7 +1971,7 @@ $('agencyRealFind').onclick=async()=>{
      MISSING_PHONE:'chưa có số điện thoại',
      HISTORIC_PHONE_MISSING:'một số hóa đơn cũ chưa có số điện thoại',
      MULTIPLE_CONTACTS_REVIEW:'có nhiều số điện thoại từng dùng tại địa chỉ này',
-     MISSING_HISTORIC_REFERENCE:'thiếu tham chiếu hóa đơn'}[x]||x);
+     MISSING_HISTORIC_REFERENCE:'thiếu tham chiếu hóa đơn'}[x]||x));
     reason.textContent=(refs.length?'ℹ Có thể cấp link từ hóa đơn đủ liên hệ. ':
      '⚠ Chưa thể cấp link ở địa chỉ này. ')+notes.join('; ')+'.';
     row.append(reason);
