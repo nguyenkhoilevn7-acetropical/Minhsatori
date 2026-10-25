@@ -79,7 +79,7 @@ test('admin uses owner-only Drive registry; no browser persistence',()=>{
  assert.match(server,/customerLinks\.adminAuthorized\(req\)/);
  assert.match(server,/issuedLinks\.register\(/);
  assert.match(server,/issuedLinks\.list\(/);
- const a=html.indexOf('/* Owner-only Drive directory.'),b=html.indexOf('function showAdminTab(name){',a);
+ const a=html.indexOf('/* Owner-only Drive link history.'),b=html.indexOf('function showAdminTab(name){',a);
  assert.ok(a>=0&&b>a);
  assert.doesNotMatch(html.slice(a,b),/localStorage|sessionStorage/);
  assert.match(html.slice(a,b),/navigator\.clipboard\.writeText\(r\.link\)/);
