@@ -172,7 +172,7 @@ button:disabled{opacity:.55}
 <p class="hint" id="ownerLiveStatus">Chưa xác minh quyền ghi. Không tạo hóa đơn.</p>
 <div class="row">
  <div><label for="ownerRef">Số hóa đơn cũ của đúng điểm giao</label><input id="ownerRef" type="number" min="1" step="1" placeholder="Ví dụ: 5920"></div>
- <div><label for="ownerDiscount">Chiết khấu khách (%)</label><input id="ownerDiscount" type="number" min="0" max="70" step="1" placeholder="Nhập % đã duyệt"></div>
+ <div><label for="ownerDiscount">Chiết khấu khách (%)</label><input id="ownerDiscount" type="text" inputmode="decimal" placeholder="Nhập % đã duyệt"></div>
  <div><label for="ownerShip">Phí giao (%)</label><input id="ownerShip" type="number" min="0" max="30" step="1" placeholder="Nhập % đã duyệt"></div>
  <div><label for="ownerVat">VAT (%)</label><select id="ownerVat"><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div>
 </div>
@@ -386,7 +386,7 @@ button:disabled{opacity:.55}
 <p><button id="addCustomerLocation" type="button" class="secondary">＋ Thêm địa chỉ giao khác</button>
 <button id="manageSelectedLocations" type="button" class="secondary" hidden>📍 Thêm địa chỉ cho khách đã có</button></p>
 <p class="hint">Một đại lý dùng một link riêng cho tối đa 20 địa chỉ giao, có người nhận và số điện thoại riêng.</p>
-<div class="row"><div><label for="discount">Chiết khấu (%)</label><input id="discount" required type="number" min="0" max="70" step="1" value="20"></div><div><label for="ship">Phí giao hàng (%)</label><input id="ship" required type="number" min="0" max="30" step="1" value="8"></div><div><label for="vatRate">Thuế VAT (%)</label><select id="vatRate"><option value="0">0% — chưa áp dụng</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div></div>
+<div class="row"><div><label for="discount">Chiết khấu (%)</label><input id="discount" required type="text" inputmode="decimal" value="20" placeholder="VD: 16,64"></div><div><label for="ship">Phí giao hàng (%)</label><input id="ship" required type="number" min="0" max="30" step="1" value="8"></div><div><label for="vatRate">Thuế VAT (%)</label><select id="vatRate"><option value="0">0% — chưa áp dụng</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div></div>
 <p class="hint">VAT thử nghiệm tính trên tiền hàng sau chiết khấu, không tính phí giao. Thuế suất thật phải kiểm tra theo từng mặt hàng trước khi sử dụng.</p>
 <p id="realPricingEvidence" class="hint" role="status" hidden></p>
 
@@ -1553,7 +1553,7 @@ function appendNewCustomerLocation(initial={}){
   const label=document.createElement('label');label.textContent=title;
   const input=document.createElement('input');input.required=!real||key==='address';
   input.dataset.locationField=key;input.placeholder=placeholder;input.value=String(initial[key]||'');
-  if(key==='discountPercent'){input.type='number';input.min='0';input.max='70';input.step='1';input.value=String(initial[key]??$('discount').value??'0');}
+  if(key==='discountPercent'){input.type='text';input.inputMode='decimal';input.value=String(initial[key]??$('discount').value??'0');}
   else{input.maxLength=key==='address'?300:key==='label'?80:key==='phone'?30:120;if(key==='phone')input.type='tel';}
   label.append(input);fieldset.append(label);
  }
@@ -1577,8 +1577,8 @@ function saveRealReviewDraft(){
  const percentage=(id,max)=>{
   const raw=$(id).value.trim();
   if(!raw)return '';
-  const n=Number(raw);
-  if(!Number.isFinite(n)||n<0||n>max||!/^\d+(?:\.\d{1,2})?$/.test(raw))
+  const n=Number(raw.replace(',','.'));
+  if(!Number.isFinite(n)||n<0||n>max||!/^\d+(?:[.,]\d+)?$/.test(raw))
    throw Error(id+' phải là tỷ lệ 0–'+max+'%.');
   return String(n);
  };
@@ -1594,7 +1594,7 @@ function saveRealReviewDraft(){
   if(editedLocations.some(p=>!p.name||!p.address||p.name.length>120||p.address.length>300||p.phone.length>30))
    throw Error('Mỗi điểm giao cần có tên và địa chỉ hợp lệ trước khi lưu.');
   const data={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),
-   discount:percentage('discount',70),ship:percentage('ship',30),vatRate:vat,
+   discount:percentage('discount',100),ship:percentage('ship',30),vatRate:vat,
    primaryIndex:Number(picker?.value||0),manualLocations:extras,editedLocations};
   realReviewDrafts.set(selectedRealKey,data);
   const missing=['discount','ship','vatRate'].filter(k=>data[k]==='');
@@ -1646,9 +1646,9 @@ $('realLinkCheck').onclick=async()=>{
   if(['name','phone','address'].some(field=>
     String(edited?.[field]||'').trim()!==String(src?.[field]||'').trim()))
    throw Error('Địa chỉ hoặc liên hệ đã chỉnh chỉ là bản nháp. Chưa thể cấp link từ dữ liệu chưa duyệt; cần xác minh/lưu hồ sơ trước.');
-  const discount=Number($('discount').value),shippingPercent=Number($('ship').value),
+  const discount=parseLinkDiscount($('discount').value),shippingPercent=Number($('ship').value),
    vatPercent=Number($('vatRate').value);
-  if(!$('discount').value||!Number.isSafeInteger(discount)||discount<0||discount>70||
+  if(!$('discount').value||!Number.isFinite(discount)||discount<0||discount>100||
      !$('ship').value||!Number.isSafeInteger(shippingPercent)||shippingPercent<0||
      shippingPercent>30||!['0','5','8','10'].includes($('vatRate').value))
    throw Error('Anh cần duyệt chiết khấu, phí giao và VAT hợp lệ.');
@@ -1874,7 +1874,7 @@ async function load(){
   for(const [key,title,placeholder] of fields){
    const label=document.createElement('label');label.textContent=title;
    const input=document.createElement('input');input.name=key;input.placeholder=placeholder;input.required=true;
-   if(key==='discountPercent'){input.type='number';input.min='0';input.max='70';input.step='1';input.value=String(c.discount);}
+   if(key==='discountPercent'){input.type='text';input.inputMode='decimal';input.value=String(c.discount);}
    else{input.maxLength=key==='address'?300:key==='phone'?30:key==='label'?80:120;if(key==='phone')input.type='tel';}
    label.append(input);form.append(label);
   }
@@ -1904,6 +1904,15 @@ async function load(){
   }
   panel.append(form);section.append(panel);list.append(section);
  }
+}
+// Owner-approved link discounts may contain decimal digits (e.g. 16,64%).
+// Never coerce blank input into 0 or round the percentage. VND prices
+// are rounded only AFTER applying the exact discount.
+function parseLinkDiscount(input){
+ const raw=String(input??'').trim().replace(',','.');
+ if(!/^\\d+(?:\\.\\d+)?$/.test(raw))return NaN;
+ const n=Number(raw);
+ return Number.isFinite(n)&&n>=0&&n<=100?n:NaN;
 }
 let agencyReviewed=[];
 $('agencyRealFind').onclick=async()=>{
@@ -1946,8 +1955,8 @@ $('agencyRealFind').onclick=async()=>{
     (p.phones?.length>1?' • '+p.phones.length+' số liên hệ':'');
    check.append(tick,title);
    const label=document.createElement('label');label.textContent='CK riêng (%)';
-   const rate=document.createElement('input');rate.type='number';rate.min='0';rate.max='70';
-   rate.step='1';rate.placeholder='Nhập %';rate.required=true;rate.value='';
+   const rate=document.createElement('input');rate.type='text';rate.inputMode='decimal';
+   rate.placeholder='VD: 16,64';rate.required=true;rate.value='';
    label.append(rate);row.append(check,label);
    if(choices.length){
     const selLabel=document.createElement('label');
@@ -2036,7 +2045,7 @@ $('agencyRealIssue').onclick=async()=>{
   const manual=!!x.contactInput;
   const verifiedPhone=manual?x.contactInput.value.replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0'):'';
   return {customerRef:JSON.parse(x.select.value),
-   discountPercent:x.rate.value===''?NaN:Number(x.rate.value),
+   discountPercent:parseLinkDiscount(x.rate.value),
    ...(manual?{confirmedPhoneMissing:true,verifiedPhone}:{} )};
  });
  if(destinations.some(d=>d.confirmedPhoneMissing===true&&
@@ -2044,8 +2053,8 @@ $('agencyRealIssue').onclick=async()=>{
      selected.find(x=>JSON.stringify(JSON.parse(x.select.value))===JSON.stringify(d.customerRef))?.ownerChecked?.checked))){
   notify('⚠ Chỉ cấp khi đã nhập đúng và xác nhận số điện thoại cho từng điểm giao thiếu SĐT.');return;
  }
- if(destinations.some(d=>!Number.isSafeInteger(d.discountPercent)||d.discountPercent<0||d.discountPercent>70)){
-  notify('⚠ Chiết khấu cần là số nguyên 0–70%. Mức 16,64% hiện chưa được hỗ trợ; không tự làm tròn vì sẽ sai giá.');
+ if(destinations.some(d=>!Number.isFinite(d.discountPercent)||d.discountPercent<0||d.discountPercent>100)){
+  notify('⚠ Nhập chiết khấu hợp lệ 0–100%, chấp nhận số lẻ như 16,64% hoặc 25,5%.');
   return;
  }
  const shipRaw=$('agencyRealShipping').value.trim();
@@ -2213,7 +2222,7 @@ $('ownerLivePreview').onclick=async()=>{
  const shippingPercent=Number($('ownerShip').value);
  if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1||
   !$('ownerDiscount').value.trim()||!$('ownerShip').value.trim()||
-  !Number.isSafeInteger(discountPercent)||!Number.isSafeInteger(shippingPercent)){
+  !Number.isFinite(discountPercent)||discountPercent<0||discountPercent>100||!Number.isSafeInteger(shippingPercent)){
   $('ownerLiveResult').textContent='Chọn đúng hóa đơn cũ và nhập đủ % chiết khấu, phí giao.';return;
  }
  const b=$('ownerLivePreview');b.disabled=true;
