@@ -300,7 +300,7 @@ export function createProductionPrivateLinks({
  // owner-approved destination without querying Drive for each keystroke/message.
  // All prices and invoice writes still revalidate CURRENT Drive data at quote/confirm.
  function chatContext({token,accessCode,destination:ref}={}){
-  const invite=await currentInvite(access(token,accessCode),token),
+  const invite=access(token,accessCode),
    d=chosen(invite,ref);
   return {production:true,customer:{name:d.name,phone:d.phone,location:d.location},
    destination:d.customerRef};
