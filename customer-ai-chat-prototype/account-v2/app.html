@@ -112,6 +112,10 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <div class="field"><label>Tên hồ sơ mới</label><input id="adminProfileName" placeholder="Tên khách/CTV/đại lý" maxlength="120"></div>
 <div class="field"><label>Loại hồ sơ</label><select id="adminProfileType"><option value="retail">Khách lẻ</option><option value="agency">Đại lý</option><option value="collaborator">Cộng tác viên</option></select></div>
 <button id="createProfile" class="btn primary">+ Thêm hồ sơ</button>
+<div class="field"><label>Tên hồ sơ hiện tại (chỉnh sửa)</label><input id="adminEditProfileName" maxlength="120"></div>
+<div class="field"><label>Số điện thoại hồ sơ (chỉnh sửa)</label><input id="adminEditProfilePhone" inputmode="tel"></div>
+<button id="saveAdminProfile" class="btn">Lưu chỉnh sửa hồ sơ</button>
+<p class="muted">Mã hồ sơ và loại khách không đổi; hóa đơn trước đây không bị sửa.</p>
 </section>
 <section class="panel"><h2>Địa chỉ giao hàng của hồ sơ</h2>
 <div id="adminLocations" class="muted"></div>
@@ -324,12 +328,21 @@ function editAddressSelection(){
  $('adminEditActive').checked=!!a?.active;
 }
 $('adminEditAddress').onchange=editAddressSelection;
+function editProfileSelection(){
+ const p=ownerProfiles.find(x=>x.id===$('adminProfile').value);
+ $('adminEditProfileName').value=p?.name||'';
+ $('adminEditProfilePhone').value=p?.phone||'';
+ $('saveAdminProfile').disabled=!p;
+}
 async function loadAdminProfiles(){
  const accountId=$('adminAccount').value;
  if(!accountId)return;
  const data=await call('/api/v2/admin/profiles?accountId='+encodeURIComponent(accountId),undefined,'GET');
+ const selected=$('adminProfile').value;
  ownerProfiles=data.profiles;$('adminProfile').replaceChildren();
  for(const p of ownerProfiles){const op=node('option',p.name+' · '+p.type);op.value=p.id;$('adminProfile').append(op)}
+ if(ownerProfiles.some(p=>p.id===selected))$('adminProfile').value=selected;
+ editProfileSelection();
  await loadAdminAddresses();
 }
 async function loadAdminAddresses(){
@@ -364,7 +377,7 @@ async function loadOwner(){
  await loadAdminProfiles();
 }
 $('adminAccount').onchange=()=>loadAdminProfiles().catch(e=>toast(e.message));
-$('adminProfile').onchange=()=>loadAdminAddresses().catch(e=>toast(e.message));
+$('adminProfile').onchange=()=>{editProfileSelection();loadAdminAddresses().catch(e=>toast(e.message))};
 $('syncCatalogue').onclick=async()=>{
  if(!confirm('Chỉ cập nhật danh mục của hệ thống mới từ nguồn Satori đã xác minh?'))return;
  try{
@@ -380,6 +393,22 @@ $('createProfile').onclick=async()=>{
   await call('/api/v2/admin/profiles',{accountId,name,type});
   $('adminProfileName').value='';await loadAdminProfiles();toast('Đã thêm hồ sơ');
  }catch(e){toast(e.message)}
+};
+$('saveAdminProfile').onclick=async()=>{
+ try{
+  const p=ownerProfiles.find(x=>x.id===$('adminProfile').value);
+  if(!p)throw Error('Chưa chọn hồ sơ');
+  if(!confirm('Xác nhận chỉnh sửa hồ sơ V2? Hóa đơn và link cũ không đổi.'))return;
+  const response=await call('/api/v2/admin/profiles',{
+   profileId:p.id,expectedRevision:p.revision,confirmed:true,
+   name:$('adminEditProfileName').value,phone:$('adminEditProfilePhone').value
+  },'PATCH');
+  await loadAdminProfiles();
+  toast('Đã cập nhật hồ sơ • phiên bản '+response.profile.revision);
+ }catch(e){
+  if(e.message==='PROFILE_REVISION_CONFLICT')await loadAdminProfiles();
+  toast(e.message==='PROFILE_REVISION_CONFLICT'?'Hồ sơ vừa thay đổi ở thiết bị khác; đã tải bản mới.':e.message);
+ }
 };
 $('createAdminAddress').onclick=async()=>{
  try{
