@@ -187,6 +187,41 @@ export function createProductionPrivateLinks({
    ...(multi?{agentName:input.agentName}:{customer:{name:approved[0].name,location:approved[0].location,sourceInvoiceNo:input.customerRef.invoiceNo}}),
    note:'Chia sẻ link và mã truy cập qua hai kênh riêng. Mã chỉ hiển thị một lần.'};
  }
+ // Owner-only recovery of an ALREADY issued encrypted link. An authenticated
+ // administrator may paste their old URL to store its exact recipients in the
+ // durable Drive directory. Never mint a new invitation or expose its PIN hash.
+ function inspectIssuedForOwner({link}={}){
+  key();
+  const prefix=origin.replace(/\\/$/,'')+'/real/#';
+  if(typeof link!=='string'||link.length>16000||!link.startsWith(prefix))
+   throw error('REAL_LINK_RECOVERY_INVALID');
+  const invite=unseal(link.slice(prefix.length),'customer-invite');
+  const agency=invite?.type==='agency-invite';
+  if(!['agency-invite','customer-invite'].includes(invite?.type)||
+     !Number.isSafeInteger(invite.issuedAt)||
+     !Number.isSafeInteger(invite.expiresAt)||
+     invite.issuedAt>now()+300000||
+     invite.expiresAt<=invite.issuedAt||
+     invite.expiresAt-invite.issuedAt>maxAge||
+     !pct(invite.shippingPercent,30)||
+     ![0,5,8,10].includes(invite.vatPercent)||
+     (agency&&!cleanText(invite.agentName,150)))
+   throw error('REAL_LINK_RECOVERY_INVALID');
+  const dest=agency?invite.destinations:[invite];
+  if(!Array.isArray(dest)||!dest.length||dest.length>20||
+     !dest.every(validDestination)||
+     new Set(dest.map(d=>String(d.customerRef.id)+'|'+d.customerRef.invoiceNo)).size!==dest.length)
+   throw error('REAL_LINK_RECOVERY_INVALID');
+  return {kind:agency?'agency':'customer',
+   name:agency?invite.agentName:dest[0].name,
+   link,recipients:dest.map(d=>({
+    customerRef:{id:String(d.customerRef.id),invoiceNo:d.customerRef.invoiceNo},
+    name:d.name,phone:d.phone,location:d.location,discountPercent:d.discountPercent
+   })),
+   issuedAt:new Date(invite.issuedAt).toISOString(),
+   expiresAt:new Date(invite.expiresAt).toISOString(),
+   shippingPercent:invite.shippingPercent,vatPercent:invite.vatPercent};
+ }
  // For conversational parsing ONLY: verify sealed invitation, independent PIN and
  // owner-approved destination without querying Drive for each keystroke/message.
  // All prices and invoice writes still revalidate CURRENT Drive data at quote/confirm.
@@ -443,5 +478,5 @@ export function createProductionPrivateLinks({
   return {invoiceNo:proof.invoiceNo,total:proof.total,
    name:dest.name,phone:dest.phone,location:dest.location};
  }
- return Object.freeze({readiness,probeWriteScope,issue,catalogue,quote,confirm,chatContext,receiptContext,history,receiptStatuses});
+ return Object.freeze({readiness,probeWriteScope,issue,inspectIssuedForOwner,catalogue,quote,confirm,chatContext,receiptContext,history,receiptStatuses});
 }
