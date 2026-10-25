@@ -62,6 +62,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <button class="nav" data-view="addresses">📍 Địa chỉ giao</button>
 <button class="nav" data-view="orders">🧾 Hóa đơn</button>
 <button class="nav" data-view="account">👤 Tài khoản</button>
+<button id="manualRefresh" class="nav">↻ Làm mới dữ liệu</button>
 <div style="flex:1"></div><button id="logout" class="nav">Đăng xuất</button>
 </aside>
 <div id="app">
@@ -107,7 +108,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 const views=['chat','catalogue','cart','addresses','orders','account'];
-let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false;
+let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
 const money=n=>new Intl.NumberFormat('vi-VN').format(n||0)+'đ';
 const cookie=name=>document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1)||'';
 async function call(path,data,method='POST'){
@@ -150,8 +151,16 @@ function count(){return cart.reduce((n,x)=>n+x.qty,0)}
 function renderBadge(){$('cartCount').textContent=count()}
 async function saveCart(lines){
  if(!me)return;
- const result=await call('/api/v2/cart',{profileId:$('profile').value,lines},'PUT');
- cart=result.lines;cartRev=result.revision;renderBadge();renderProducts();renderCart();
+ if(savingCart)throw Error('Đang cập nhật giỏ hàng');
+ savingCart=true;
+ try{
+  const result=await call('/api/v2/cart',{profileId:$('profile').value,lines,
+   expectedRevision:cartRev},'PUT');
+  cart=result.lines;cartRev=result.revision;renderBadge();renderProducts();renderCart();
+ }catch(e){
+  if(e.message==='CART_REVISION_CONFLICT')await changeProfile();
+  throw e;
+ }finally{savingCart=false}
 }
 function renderProducts(){
  $('products').replaceChildren();
@@ -215,7 +224,7 @@ async function refresh(){
 $('addressForm').onsubmit=async ev=>{
  ev.preventDefault();const form=new FormData(ev.target);
  try{
-  await call('/api/v2/addresses',Object.fromEntries(form.entries()).profileId?{}:{
+  await call('/api/v2/addresses',{
    profileId:$('profile').value,...Object.fromEntries(form.entries())});
   ev.target.reset();me=await call('/api/v2/me',undefined,'GET');renderAddresses();toast('Đã lưu địa chỉ');
  }catch(e){toast(e.message)}
@@ -252,6 +261,17 @@ $('send').onclick=async()=>{
  finally{busy=false;$('send').disabled=false;input.focus()}
 };
 $('message').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('send').click()}};
+$('manualRefresh').onclick=async()=>{
+ try{me=await call('/api/v2/me',undefined,'GET');await changeProfile();toast('Đã làm mới')}catch(e){toast(e.message)}
+ menu(false);
+};
+setInterval(async()=>{
+ if(!me||savingCart||busy||document.visibilityState!=='visible')return;
+ try{
+  const r=await call('/api/v2/cart?profileId='+encodeURIComponent($('profile').value),undefined,'GET');
+  if(r.revision>cartRev){cart=r.lines;cartRev=r.revision;renderBadge();renderCart();toast('Giỏ hàng đã đồng bộ')}
+ }catch{}
+},10000);
 $('logout').onclick=async()=>{
  try{await call('/api/v2/logout',{})}catch{}
  location.reload();
