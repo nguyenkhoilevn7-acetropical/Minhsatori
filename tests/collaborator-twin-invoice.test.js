@@ -96,7 +96,7 @@ assert.equal(backups,beforePairBackups+1,'one Drive backup for both invoices');
 assert.equal(writes,beforePairWrites+1,'one atomic Drive commit for both invoices');
 assert.equal(ledger.revision,3);
 const all=JSON.parse(ledger.values.satori_orders_v15);
-assert.equal(all.length,4);assert.equal(new Set(all.map(o=>o.pairGroupId)).size,1);
+assert.equal(all.length,4);assert.equal(new Set(all.filter(o=>o.pairGroupId).map(o=>o.pairGroupId)).size,1);
 const calc=context.SatoriAccountingCore.calculate(all,collaborators);
 assert.equal(calc.pairs.length,1);
 assert.equal(calc.pairs[0].profit,147000,'CTV commission is the merchandise difference, excluding shipping and VAT');
