@@ -240,6 +240,7 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/status'&&req.method==='GET'){
    send(res,200,{...STATUS,enabled:ready(),pilotOnly:!acceptedSubjects().customerRolloutReady,
     customerRolloutEnabled:ready()&&acceptedSubjects().customerRolloutReady,
+    testOrdersEnabled:ready()&&process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1',
     googleClientId:flag()?config().clientId:null,durableStorageReady:!!config().databaseUrl});
    return true;
   }
