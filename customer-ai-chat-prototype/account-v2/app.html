@@ -258,6 +258,18 @@ const demoState={
   {code:'TP-00003',name:'Sản phẩm 500ml (MẪU)',unit:'thùng',listPrice:120000,revision:1},
   {code:'TP-00136',name:'Sản phẩm 5 lít (MẪU)',unit:'can',listPrice:60000,revision:1}
  ],
+
+ registrations:[
+ {id:'a0000000-1111-4111-8111-000000000070',email:'agency-trial@example.invalid',
+  name:'Đại lý đăng ký thử',fullName:'Đại lý đăng ký thử',phone:'0900000000',
+  address:'Địa chỉ mẫu đại lý mới',companyName:'Cửa hàng Demo',taxCode:'',note:'',
+  requestedType:'agency',accessStatus:'PENDING',revision:1,createdAt:new Date().toISOString()},
+ {id:'a0000000-1111-4111-8111-000000000071',email:'retail-trial@example.invalid',
+  name:'Khách đăng ký thử',fullName:'Khách đăng ký thử',phone:'0900000000',
+  address:'Địa chỉ mẫu khách lẻ',companyName:'',taxCode:'',note:'',
+  requestedType:'retail',accessStatus:'ACTIVE',revision:1,createdAt:new Date().toISOString()}
+ ],
+ leads:[],
  carts:new Map(),quotes:new Map(),orders:[],
  policies:[
   {id:'a0000000-1111-4111-8111-00000000000b',profileId:demoAgencyId,addressId:null,
@@ -299,6 +311,57 @@ function demoCall(path,data={},method='POST'){
  const read=()=>({ok:true,account:{...demoState.account},
   profiles:demoState.profiles.map(x=>({...x})),addresses:demoState.addresses.map(x=>({...x}))});
  if(p==='/api/v2/me'&&method==='GET')return read();
+ if(p==='/api/v2/register'&&method==='GET')
+  return {ok:true,accessStatus:demoState.account.accessStatus||'ACTIVE',registration:null};
+ if(p==='/api/v2/register'&&method==='POST')
+  return {ok:true,accessStatus:'PENDING',revision:1,message:'Đã tiếp nhận hồ sơ mẫu'};
+ if(p==='/api/v2/admin/customers'){
+  if(method==='GET')return {ok:true,
+   registered:demoState.registrations.map(x=>({...x})),
+   leads:demoState.leads.map(x=>({...x}))};
+  if(method==='POST'){
+   if(data.confirmed!==true)throw Error('OWNER_CONFIRMATION_REQUIRED');
+   if(!data.fullName||!data.phone||!data.address)throw Error('CUSTOMER_REQUIRED_FIELD');
+   const lead={id:demoUuid(),fullName:data.fullName,email:data.email||'',
+    phone:data.phone,address:data.address,companyName:data.companyName||'',
+    taxCode:data.taxCode||'',note:data.note||'',requestedType:data.requestedType,
+    discountBps:data.discountBps||0,active:true,revision:1,
+    createdAt:new Date().toISOString(),linkedAccountId:null};
+   demoState.leads.push(lead);return {ok:true,lead:{...lead}};
+  }
+  if(method==='PATCH'){
+   const customer=demoState.registrations.find(x=>x.id===data.accountId);
+   if(!customer||customer.revision!==data.expectedRevision||!data.confirmed)
+    throw Error('CUSTOMER_REVISION_CONFLICT');
+   customer.accessStatus=data.status;customer.revision++;
+   if(data.status==='ACTIVE')customer.discountBps=data.discountBps??0;
+   return {ok:true,customer:{id:customer.id,revision:customer.revision,
+    accessStatus:customer.accessStatus}};
+  }
+ }
+ if(p==='/api/v2/admin/customer-leads'){
+  if(method==='PATCH'){
+   const lead=demoState.leads.find(x=>x.id===data.leadId);
+   if(!lead||lead.revision!==data.expectedRevision||!data.confirmed)
+    throw Error('LEAD_REVISION_CONFLICT');
+   if(data.active===false){lead.active=false}
+   else for(const k of ['fullName','email','phone','address','companyName','taxCode',
+    'note','requestedType','discountBps'])if(data[k]!==undefined)lead[k]=data[k];
+   lead.revision++;return {ok:true,lead:{...lead}};
+  }
+ }
+ if(p==='/api/v2/admin/customer-leads/link'&&method==='POST'){
+  const lead=demoState.leads.find(x=>x.id===data.leadId&&x.active);
+  const account=demoState.registrations.find(x=>x.id===data.accountId);
+  if(!lead||!account||lead.revision!==data.expectedRevision||!data.confirmed)
+   throw Error('CUSTOMER_LINK_INVALID');
+  if(lead.email&&lead.email!==account.email)throw Error('VERIFIED_EMAIL_MISMATCH');
+  if(!lead.email&&(!data.manualIdentityVerified||lead.phone!==account.phone))
+   throw Error('MANUAL_IDENTITY_PROOF_REQUIRED');
+  lead.linkedAccountId=account.id;lead.revision++;
+  return {ok:true,lead:{id:lead.id,revision:lead.revision},linkedAccountId:account.id};
+ }
+
  if(p==='/api/v2/orders'&&method==='GET')
   return {ok:true,orders:demoState.orders.map(o=>({...o,verified:false}))};
  if(p==='/api/v2/catalogue'&&method==='GET')
