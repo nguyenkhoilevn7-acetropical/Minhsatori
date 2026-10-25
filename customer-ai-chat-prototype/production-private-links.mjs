@@ -94,9 +94,16 @@ export function createProductionPrivateLinks({
  }
  async function checked(invite,destination){
   const d=destination||chosen(invite);
-  const live=await source(d.customerRef.invoiceNo,d.customerRef.id);
+  const live=await source(d.customerRef.invoiceNo,d.customerRef.id,null,
+   {allowMissingPhone:d.ownerVerifiedPhone===true});
+  // A manually verified phone is allowed only while the EXACT signed source
+  // invoice still has no contact. If source is subsequently corrected the
+  // owner must reissue the link from its new authoritative contact.
+  const phoneMatches=d.ownerVerifiedPhone===true?
+   digits(live.customer.phone)===''&&/^\\d{9,11}$/.test(d.phone):
+   digits(live.customer.phone)===digits(d.phone);
   if(String(live.customer.id)!==String(d.customerRef.id)||
-     live.customer.name!==d.name||digits(live.customer.phone)!==digits(d.phone)||
+     live.customer.name!==d.name||!phoneMatches||
      live.customer.location!==d.location)throw error('REAL_CUSTOMER_SOURCE_CHANGED');
   return live;
  }
@@ -158,19 +165,32 @@ export function createProductionPrivateLinks({
   // Use one consistent catalogue snapshot and a bounded batch for many destinations.
   // Source validation is still per invoice; no customer identity is inferred.
   const verified=multi&&typeof sourceBatch==='function'?
-   await sourceBatch(refs.map(x=>x.customerRef)):null;
+   await sourceBatch(refs.map(x=>({...x.customerRef,
+    confirmedPhoneMissing:x.confirmedPhoneMissing===true}))):null;
   for(const [index,requested] of refs.entries()){
-   const live=verified?verified[index]:await source(requested.customerRef.invoiceNo,requested.customerRef.id);
+   const ownerVerified=requested.confirmedPhoneMissing===true&&
+     typeof requested.verifiedPhone==='string'&&
+     /^\\d{9,11}$/.test(requested.verifiedPhone);
+   // No owner-verified phone without a concrete verified invoice row.
+   if((requested.confirmedPhoneMissing===true&&!ownerVerified)||
+      (requested.verifiedPhone!==undefined&&!ownerVerified))
+    throw error('OWNER_PHONE_VERIFICATION_REQUIRED');
+   const live=verified?verified[index]:await source(requested.customerRef.invoiceNo,requested.customerRef.id,null,
+    {allowMissingPhone:ownerVerified});
+   if(ownerVerified&&digits(live.customer.phone)!=='')
+    throw error('OWNER_PHONE_VERIFICATION_CONFLICT');
    if(!live?.customer||!Number.isSafeInteger(live.revision)||
       (verified&&live.revision!==verified[0]?.revision)||(requested.customerRef.id!=null&&String(live.customer.id)!==String(requested.customerRef.id))||
       !cleanText(live.customer.name,150)||!cleanText(live.customer.location,500)||
-      digits(live.customer.phone).length<8||
+      (!ownerVerified&&digits(live.customer.phone).length<8)||
       (requested.name!==undefined&&safe(requested.name)!==live.customer.name)||
       (requested.phone!==undefined&&digits(requested.phone)!==digits(live.customer.phone))||
       (requested.location!==undefined&&safe(requested.location)!==live.customer.location))
      throw error('REAL_CUSTOMER_REFERENCE_MISMATCH');
    approved.push({customerRef:{id:live.customer.id,invoiceNo:requested.customerRef.invoiceNo},
-     name:live.customer.name,phone:live.customer.phone,location:live.customer.location,
+     name:live.customer.name,phone:ownerVerified?requested.verifiedPhone:live.customer.phone,
+     location:live.customer.location,
+     ...(ownerVerified?{ownerVerifiedPhone:true}:{}),
      discountPercent:multi?requested.discountPercent:input.discountPercent,
      shippingPercent:input.shippingPercent,vatPercent:input.vatPercent});
   }
@@ -314,8 +334,11 @@ export function createProductionPrivateLinks({
   try{
    receipt=await bot('orders.create',{
     requestId:q.requestId,expectedRevision:q.sourceRevision,
-    customerRef:q.customerRef,
-    confirmedNewCustomer:false,
+    // GAS matches phone on a historical customerRef. A legacy invoice with
+    // blank phone cannot pass that match. Owner-authorised recovery therefore
+    // creates a NEW order using the verified phone, never mutating old invoice.
+    ...(destination.ownerVerifiedPhone?{}:{customerRef:q.customerRef}),
+    confirmedNewCustomer:destination.ownerVerifiedPhone===true,
     order:{name:destination.name,phone:destination.phone,location:destination.location,
      items:q.items,shippingAmount:q.shippingAmount,vatAmount:q.vatAmount,
      total:q.total,deliveryNote:q.deliveryNote}
