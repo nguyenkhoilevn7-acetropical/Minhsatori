@@ -43,3 +43,49 @@ jobs:
         run: |
           node tests/production-launch-guard.test.mjs
           node tests/checkout-preflight.test.mjs
+
+  postgres-integration:
+    name: Synthetic PostgreSQL migration / 100 request races / restore
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: satori_ci
+          POSTGRES_PASSWORD: v2_ci_fake_only_never_prod
+          POSTGRES_DB: satori_v2_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U satori_ci -d satori_v2_ci"
+          --health-interval=5s --health-timeout=5s --health-retries=12
+    defaults:
+      run:
+        working-directory: customer-ai-chat-prototype
+    env:
+      SATORI_V2_CI_DATABASE_URL: postgresql://satori_ci:v2_ci_fake_only_never_prod@127.0.0.1:5432/satori_v2_ci
+      PGPASSWORD: v2_ci_fake_only_never_prod
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: satori_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install sandbox Node and database client
+        run: |
+          npm install --no-audit --no-fund
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+      - name: Real PostgreSQL synthetic schema / 100 simultaneous retry guard
+        run: node account-v2/tests/postgres-integration.mjs
+      - name: Offline logical backup, restore, and readback drill
+        run: |
+          set -euo pipefail
+          pg_dump -Fc --no-owner --no-acl -d satori_v2_ci -f /tmp/satori-v2-ci-only.dump
+          psql -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE satori_v2_restore;'
+          pg_restore --no-owner --no-acl -d satori_v2_restore /tmp/satori-v2-ci-only.dump
+          SATORI_V2_CI_DATABASE_URL=postgresql://satori_ci:v2_ci_fake_only_never_prod@127.0.0.1:5432/satori_v2_restore \
+            node account-v2/tests/restore-readback.mjs
+          rm -f /tmp/satori-v2-ci-only.dump
