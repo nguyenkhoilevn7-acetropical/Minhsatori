@@ -41,14 +41,17 @@ export function createIssuedLinksRegistry({bot,now=Date.now}={}){
       !['agency','customer','collaborator'].includes(x.kind)||
       !validLink(x.link)||!Array.isArray(x.recipients)||x.recipients.length>20)
     fail('LINK_REGISTRY_READ_UNVERIFIED');
-   return {...x,expired:!!x.expiresAt&&Date.parse(x.expiresAt)<=now()};
+   // Omit ciphertext from JSON sent to the owner browser.
+   const {accessCodeVault,...publicRecord}=x;
+   return {...publicRecord,hasSavedAccessCode:!!accessCodeVault,
+    expired:!!x.expiresAt&&Date.parse(x.expiresAt)<=now()};
   });
   return {revision:reply.revision,total:reply.data.total,
    hasMore:reply.data.hasMore,items};
  }
  async function register({kind,name,link,recipients,collaboratorId=null,
    issuedAt=new Date(now()).toISOString(),expiresAt=null,
-   shippingPercent=0,vatPercent=0}={}){
+   shippingPercent=0,vatPercent=0,accessCodeVault=null}={}){
   if(!['agency','customer','collaborator'].includes(kind)||
      !validLink(link)||!Array.isArray(recipients)||recipients.length<1||
      recipients.length>20||!integer(shippingPercent,30)||
@@ -58,7 +61,8 @@ export function createIssuedLinksRegistry({bot,now=Date.now}={}){
   const record={id:idForLink(link),kind,name:asText(name,150,2),link,
    issuedAt:new Date(issuedAt).toISOString(),expiresAt:expiresAt?new Date(expiresAt).toISOString():null,
    collaboratorId:kind==='collaborator'?asText(collaboratorId,100):null,
-   shippingPercent,vatPercent,recipients:recipients.map(recipient)};
+   shippingPercent,vatPercent,recipients:recipients.map(recipient),
+   ...(accessCodeVault?{accessCodeVault}:{})};
   for(let attempt=0;attempt<2;attempt++){
    const current=await bot('system.status',{});
    if(!Number.isSafeInteger(current.revision))fail('LINK_REGISTRY_REVISION_INVALID');
@@ -71,6 +75,7 @@ export function createIssuedLinksRegistry({bot,now=Date.now}={}){
     const confirmed=await list({id:record.id,limit:1});
     const match=confirmed.items[0];
     if(confirmed.total!==1||!match||match.link!==record.link||
+       (accessCodeVault&&match.hasSavedAccessCode!==true)||
        match.name!==record.name||match.kind!==record.kind||
        JSON.stringify(match.recipients)!==JSON.stringify(record.recipients))
      fail('LINK_REGISTRY_READBACK_MISMATCH');
@@ -83,5 +88,80 @@ export function createIssuedLinksRegistry({bot,now=Date.now}={}){
   }
   fail('LINK_REGISTRY_REVISION_CONFLICT');
  }
- return Object.freeze({register,list,idForLink});
+ async function getVault(id){
+  if(!/^il_[a-f0-9]{32}$/.test(String(id||'')))fail('LINK_VAULT_INVALID');
+  const x=await bot('links.list',{id,limit:1});
+  const records=x.data?.items;
+  if(!Number.isSafeInteger(x.revision)||!Array.isArray(records)||
+     records.length!==1||records[0].id!==id)
+   fail('LINK_VAULT_NOT_FOUND');
+  return {revision:x.revision,record:records[0]};
+ }
+ async function setVault(id,accessCodeVault){
+  if(typeof accessCodeVault!=='string'||accessCodeVault.length>350||
+     !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(accessCodeVault))
+   fail('LINK_VAULT_INVALID');
+  for(let attempt=0;attempt<2;attempt++){
+   const before=await getVault(id);
+   try{
+    const saved=await bot('links.secret.set',{
+     id,accessCodeVault,expectedRevision:before.revision,confirmed:true
+    });
+    if(saved.data?.stored!==true||
+       (saved.data.duplicate!==true&&saved.backupCreated!==true))
+     fail('LINK_VAULT_WRITE_UNVERIFIED');
+    const after=await getVault(id);
+    if(after.record.accessCodeVault!==accessCodeVault)
+     fail('LINK_VAULT_READBACK_MISMATCH');
+    return {saved:true,revision:after.revision};
+   }catch(err){
+    if(err?.code==='REVISION_CONFLICT'&&attempt===0)continue;
+    throw err;
+   }
+  }
+  fail('LINK_VAULT_REVISION_CONFLICT');
+ }
+ async function update({id,name,recipients}={}){
+  if(typeof id!=='string'||!/^il_[a-f0-9]{32}$/.test(id)||!Array.isArray(recipients)||
+     recipients.length<1||recipients.length>20)fail('LINK_UPDATE_INVALID');
+  // The owner can change identity/contact labels only. The link ID, signed URL,
+  // source ledger reference and agreed discounts remain immutable.
+  const prepared=recipients.map(recipient);
+  for(let attempt=0;attempt<2;attempt++){
+   const original=await list({id,limit:1});
+   if(original.total!==1||original.items.length!==1)
+    fail('LINK_UPDATE_NOT_FOUND');
+   const old=original.items[0];
+   if(!['agency','customer'].includes(old.kind))fail('LINK_UPDATE_CTV_POLICY_REQUIRED');
+   if(old.recipients.length!==prepared.length||
+      prepared.some((d,i)=>{
+       const same=old.recipients.find(x=>
+        String(x.customerRef.id)===String(d.customerRef.id)&&
+        x.customerRef.invoiceNo===d.customerRef.invoiceNo);
+       return !same||same.discountPercent!==d.discountPercent;
+      }))fail('LINK_UPDATE_PRICE_PROTECTED');
+   const ownerName=asText(name??old.name,150,2);
+   let written;
+   try{
+    written=await bot('links.update',{id,name:ownerName,recipients:prepared,
+     expectedRevision:original.revision,confirmed:true});
+   }catch(e){
+    if(e?.code==='REVISION_CONFLICT'&&attempt===0)continue;
+    throw e;
+   }
+   if(written?.data?.id!==id||written.data.updated!==true||
+      written.backupCreated!==true)fail('LINK_UPDATE_WRITE_UNVERIFIED');
+   const confirmed=await list({id,limit:1});
+   const matching=confirmed.items[0];
+   if(confirmed.total!==1||!matching||matching.id!==id||
+      matching.link!==old.link||matching.name!==ownerName||
+      JSON.stringify(matching.recipients)!==JSON.stringify(prepared)||
+      matching.editCount!==written.data.editCount)
+    fail('LINK_UPDATE_READBACK_MISMATCH');
+   return {saved:true,id,revision:confirmed.revision,updatedAt:matching.updatedAt,
+    editCount:matching.editCount};
+  }
+  fail('LINK_UPDATE_REVISION_CONFLICT');
+ }
+ return Object.freeze({register,list,update,getVault,setVault,idForLink});
 }
