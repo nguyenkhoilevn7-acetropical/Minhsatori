@@ -386,7 +386,7 @@ test('owner secret: AES-GCM PIN is link-bound and never returned by registry lis
  assert.throws(()=>vault.open(base+'/real/#'+'n'.repeat(100),ciphertext),
   {code:'LINK_VAULT_CANNOT_DECRYPT'});
  const parts=ciphertext.split('.');
- parts[2]=parts[2].slice(0,-1)+(parts[2].endsWith('A')?'B':'A');
+ parts[2]=(parts[2][0]==='A'?'B':'A')+parts[2].slice(1);
  assert.throws(()=>vault.open(link,parts.join('.')),
   {code:'LINK_VAULT_CANNOT_DECRYPT'});
  const {bot}=driveFixture(),registry=createIssuedLinksRegistry({bot});
