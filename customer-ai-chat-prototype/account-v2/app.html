@@ -454,6 +454,12 @@ function bubble(text,kind='ai'){
  $('messages').scrollTop=$('messages').scrollHeight;return item;
 }
 function count(){return cart.reduce((n,x)=>n+x.qty,0)}
+function resetTestQuote(){
+ lastQuote=null;lastTestRequestId=null;
+ $('submitTestOrder').disabled=true;
+ $('quoteResult').textContent='';
+ $('testOrderResult').textContent='';
+}
 function renderBadge(){
  const total=count();
  $('cartCount').textContent=total;
@@ -482,7 +488,8 @@ async function saveCart(lines){
  try{
   const result=await call('/api/v2/cart',{profileId:$('profile').value,lines,
    expectedRevision:cartRev},'PUT');
-  cart=result.lines;cartRev=result.revision;renderBadge();renderProducts();renderCart();
+  cart=result.lines;cartRev=result.revision;resetTestQuote();
+  renderBadge();renderProducts();renderCart();
  }catch(e){
   if(e.message==='CART_REVISION_CONFLICT')await changeProfile();
   throw e;
@@ -568,21 +575,35 @@ function renderAddresses(){
  if([...$('userEditAddress').options].some(o=>o.value===editSelected))$('userEditAddress').value=editSelected;
  if(!$('location').options.length){const missing=node('option','Cần thêm địa chỉ');missing.value='';$('location').append(missing)}
  userAddressSelection();
+ const current=me?.profiles?.find(x=>x.id===$('profile').value);
+ const active=me?.addresses?.filter(x=>x.profileId===$('profile').value&&x.active)||[];
+ $('agentAddressHint').textContent=current?
+  (current.type==='agency'?'🏢 Đại lý':current.type==='collaborator'?'🤝 CTV':'👤 Khách lẻ')+
+  ' · '+active.length+' địa chỉ giao có thể chọn':'Chưa có hồ sơ';
 }
+$('location').onchange=resetTestQuote;
 async function changeProfile(){
  try{
+  resetTestQuote();
+  $('quickAgentProfile').value=$('profile').value;
   const r=await call('/api/v2/cart?profileId='+encodeURIComponent($('profile').value),undefined,'GET');
   cart=r.lines;cartRev=r.revision;renderBadge();renderCart();renderAddresses();
  }catch(e){toast(e.message)}
 }
 $('profile').onchange=changeProfile;
+$('quickAgentProfile').onchange=async()=>{
+ if(busy||savingCart){$('quickAgentProfile').value=$('profile').value;toast('Đang xử lý giỏ hàng');return}
+ $('profile').value=$('quickAgentProfile').value;
+ await changeProfile();
+};
 async function loadOrders(){
  const data=await call('/api/v2/orders',undefined,'GET');
  $('orderRows').replaceChildren();
  for(const o of data.orders||[]){
   const row=node('div',undefined,'address-line'),info=node('div');
   const verified=o.verified===true;
-  const status=verified?'Đã đối soát sổ thật':o.state==='REJECTED'?'Bị từ chối':
+  const status=o.testOnly?'🧪 Đơn thử · không có hóa đơn thật':
+   verified?'Đã đối soát sổ thật':o.state==='REJECTED'?'Bị từ chối':
    o.state==='UNCERTAIN'?'Đang kiểm tra giao dịch':'Chưa phát hành hóa đơn';
   const id=verified?'#'+o.invoiceNo:'Yêu cầu '+String(o.requestId).slice(0,8);
   info.append(node('strong',id),node('small',status+' · '+money(Number(o.totalVnd)||0)));
@@ -602,7 +623,15 @@ async function refresh(){
  $('accountDetails').replaceChildren(node('strong',me.account.name),
   node('p',me.account.email,'muted'));
  $('profile').replaceChildren();
- for(const p of me.profiles){const op=node('option',p.name+' · '+p.type);op.value=p.id;$('profile').append(op)}
+ const previous=$('quickAgentProfile').value;
+ $('quickAgentProfile').replaceChildren();
+ for(const p of me.profiles){
+  const label=p.type==='agency'?'Đại lý':p.type==='collaborator'?'CTV':'Khách lẻ';
+  const op=node('option',p.name+' · '+label);op.value=p.id;$('profile').append(op);
+  const quick=node('option',label+' · '+p.name);quick.value=p.id;$('quickAgentProfile').append(quick);
+ }
+ if(me.profiles.some(x=>x.id===previous))$('profile').value=previous;
+ $('quickAgentProfile').value=$('profile').value;
  renderProducts();await changeProfile();view('chat');
  if(!$('messages').children.length)bubble('Xin chào! Anh/chị nhắn sản phẩm và số lượng. Em sẽ giữ mọi mặt hàng trong một giỏ hàng chung.','ai');
 }
@@ -631,14 +660,48 @@ $('addressForm').onsubmit=async ev=>{
  }catch(e){toast(e.message)}
 };
 $('quote').onclick=async()=>{
+ resetTestQuote();
+ $('quote').disabled=true;
  try{
   if(!cart.length)throw Error('Giỏ hàng trống');
   if(!$('location').value)throw Error('Chưa có địa chỉ giao hàng');
   const data=await call('/api/v2/quote',{profileId:$('profile').value,addressId:$('location').value});
-  $('quoteResult').textContent='Tổng dự kiến: '+money(data.totalVnd)+' · '+data.items.length+
-   ' loại · Chế độ '+(data.invoiceMode==='pair'?'CTV: 1 báo giá + chứng từ CTV tham chiếu':'một hóa đơn')+
-   '. Đây là báo giá thử, chưa tạo đơn thật.';
+  lastQuote=data;
+  const parts=[
+   'Điểm giao: '+(data.delivery?.label||$('location').selectedOptions[0]?.textContent||'Chưa rõ'),
+   'Số loại sản phẩm: '+data.items.length,
+   'Tổng khách phải trả: '+money(data.totalVnd),
+   data.invoiceMode==='pair'?'CTV: hai mức chiết khấu, chứng từ tham chiếu chưa được phát hành':
+     'Chính sách: một hóa đơn',
+   'Đây là báo giá thử · chưa phát hành hóa đơn thật.'
+  ];
+  $('quoteResult').replaceChildren();
+  for(const line of parts)$('quoteResult').append(node('p',line));
+  $('submitTestOrder').disabled=!(PREVIEW||realTestEnabled);
+  if(!PREVIEW&&!realTestEnabled)$('testOrderResult').textContent=
+   'Môi trường DB chưa được Admin cho phép ghi đơn thử.';
  }catch(e){toast(e.message)}
+ finally{$('quote').disabled=false}
+};
+$('submitTestOrder').onclick=async()=>{
+ if(!lastQuote||$('submitTestOrder').disabled)return;
+ if(!confirm('Đây là ĐƠN THỬ, không giao hàng và không tạo hóa đơn thật. Xác nhận lưu yêu cầu thử?'))return;
+ if(!lastTestRequestId)lastTestRequestId=crypto.randomUUID();
+ $('submitTestOrder').disabled=true;
+ $('testOrderResult').textContent='Đang kiểm tra và ghi đơn thử...';
+ try{
+  const result=await call('/api/v2/test-orders',{quoteId:lastQuote.quoteId,
+   requestId:lastTestRequestId,confirmedTest:true});
+  $('testOrderResult').textContent='✓ Đã ghi ĐƠN THỬ '+String(result.orderId).slice(0,8)+
+   ' · Không có hóa đơn, không phát sinh thanh toán/giao hàng.';
+  lastQuote=null;
+  await loadOrders();
+  toast('Đã ghi một yêu cầu thử, không phải hóa đơn thật');
+ }catch(e){
+  $('testOrderResult').textContent='Chưa xác nhận lưu đơn thử: '+e.message+
+   '. Có thể bấm lại với cùng mã yêu cầu, không tạo trùng.';
+  $('submitTestOrder').disabled=false;
+ }
 };
 $('send').onclick=async()=>{
  const input=$('message'),message=input.value.trim();
@@ -900,7 +963,7 @@ async function boot(){
    return;
   }
   const status=await call('/api/v2/status',undefined,'GET');
-  pilot=!!status.enabled;
+  pilot=!!status.enabled;realTestEnabled=status.testOrdersEnabled===true;
   if(!pilot){$('loginStatus').textContent='Pilot tài khoản chưa được cấu hình trên server. Hóa đơn và link hiện tại không đổi.';return}
   $('loginStatus').textContent=status.customerRolloutEnabled?
     'Đăng nhập bằng tài khoản Google đã được duyệt để đặt hàng.':
