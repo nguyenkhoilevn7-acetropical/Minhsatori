@@ -42,6 +42,19 @@ try{
   [profile.id,address.id,'TP-00001','pair','ci-owner']);
  assert.equal(policy.discount_bps,2500);
  assert.equal(policy.collaborator_bps,3500);
+ // Same-account customer address edit must succeed only at the expected revision.
+ const changed=await one(
+  'UPDATE satori_v2_addresses AS a SET label=$3,revision=a.revision+1,updated_at=now() '+
+  'FROM satori_v2_profiles AS p WHERE a.id=$1 AND a.profile_id=$2 '+
+  'AND p.id=a.profile_id AND p.account_id=$4 AND a.revision=$5 RETURNING a.revision',
+  [address.id,profile.id,'Edited Fake Destination',account.id,1]);
+ assert.equal(changed.revision,2);
+ const stale=await pool.query(
+  'UPDATE satori_v2_addresses AS a SET label=$3,revision=a.revision+1 '+
+  'FROM satori_v2_profiles AS p WHERE a.id=$1 AND a.profile_id=$2 '+
+  'AND p.id=a.profile_id AND p.account_id=$4 AND a.revision=$5 RETURNING a.id',
+  [address.id,profile.id,'Stale overwrite rejected',account.id,1]);
+ assert.equal(stale.rowCount,0,'stale address edit must not overwrite fresh revision');
  const cart=await one(
   'INSERT INTO satori_v2_carts(account_id,profile_id,lines) VALUES($1,$2,$3) '+
   'RETURNING revision',
@@ -87,6 +100,12 @@ try{
  const stranger=await one(
   'INSERT INTO satori_v2_accounts(google_sub,email,display_name) VALUES($1,$2,$3) RETURNING id',
   ['ci-'+randomUUID(),'not-a-user@example.invalid','Fake Other']);
+ const forbidden=await pool.query(
+  'UPDATE satori_v2_addresses AS a SET label=$3,revision=a.revision+1 '+
+  'FROM satori_v2_profiles AS p WHERE a.id=$1 AND a.profile_id=$2 '+
+  'AND p.id=a.profile_id AND p.account_id=$4 AND a.revision=$5 RETURNING a.id',
+  [address.id,profile.id,'Cross-account overwrite attempt',stranger.id,2]);
+ assert.equal(forbidden.rowCount,0,'customer cannot update another account address');
  const unrelated=await one(
   'INSERT INTO satori_v2_profiles(account_id,type,display_name) VALUES($1,$2,$3) RETURNING id',
   [stranger.id,'retail','Other']);
@@ -94,5 +113,5 @@ try{
   'INSERT INTO satori_v2_quotes(account_id,profile_id,address_id,payload,cart_revision,'+
   "catalogue_revision,expires_at) VALUES($1,$2,$3,'{}',1,1,now()+interval '10 minutes')",
   [stranger.id,unrelated.id,address.id]),{code:'23503'});
- console.log('PASS V2 PostgreSQL schema + migration replay + owner FK + 100 CART CAS + 100 identical checkout requestId; sandbox rows only');
+ console.log('PASS V2 PostgreSQL schema + migration replay + owner FK + 100 CART CAS + own-address CAS + cross-account denial + 100 identical checkout requestId; sandbox rows only');
 }finally{await pool.end()}
