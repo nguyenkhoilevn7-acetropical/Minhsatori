@@ -251,7 +251,7 @@ export async function handleAccountV2(req,res,pathname){
    const html=fs.readFileSync(path.join(HERE,'app.html'),'utf8');
    res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store',
     'x-frame-options':'DENY','referrer-policy':'no-referrer','x-content-type-options':'nosniff',
-    'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' https://accounts.google.com/gsi/client; connect-src 'self'; img-src 'self' data:; frame-src https://accounts.google.com; frame-ancestors 'none'; form-action 'none'; base-uri 'none'"});
+    'content-security-policy':"default-src 'none'; style-src 'unsafe-inline' https://accounts.google.com/gsi/style; script-src 'unsafe-inline' https://accounts.google.com/gsi/client; connect-src 'self' https://accounts.google.com/gsi/; img-src 'self' data:; frame-src https://accounts.google.com/gsi/; frame-ancestors 'none'; form-action 'none'; base-uri 'none'"});
    res.end(html);return true;
   }
   if(pathname==='/api/v2/status'&&req.method==='GET'){
