@@ -1209,7 +1209,7 @@ setInterval(async()=>{
   }
   if(addressesChanged||profilesChanged){
    resetTestQuote();renderAddresses();
-   if(!selectedDeliveryAddress()&&!(me.account.isAdmin&&new URLSearchParams(location.search).get('view')==='account'))
+   if(!selectedDeliveryAddress()&&!$('chatView').classList.contains('hidden'))
     openDeliveryDialog();
   }
   if(oldAccount!==me.account.accessStatus&&!me.account.isAdmin&&me.account.accessStatus!=='ACTIVE'){
