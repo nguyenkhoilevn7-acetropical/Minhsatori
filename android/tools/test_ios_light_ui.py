@@ -18,8 +18,8 @@ class IOSLightThemeTests(unittest.TestCase):
         cls.gradle = GRADLE.read_text(encoding="utf-8")
 
     def test_release_is_newer_than_existing_owner_app(self):
-        version_name = re.search(r'versionName = "(\\d+)\\.(\\d+)\\.(\\d+)"', self.gradle)
-        version_code = re.search(r'versionCode = (\\d+)', self.gradle)
+        version_name = re.search(r'versionName = "(\d+)\.(\d+)\.(\d+)"', self.gradle)
+        version_code = re.search(r'versionCode = (\d+)', self.gradle)
         self.assertIsNotNone(version_name)
         self.assertIsNotNone(version_code)
         self.assertGreaterEqual(tuple(int(x) for x in version_name.groups()), (0, 4, 8))
