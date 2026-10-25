@@ -14,6 +14,7 @@
     "Only release if Gradle unit/build, emulator UI capture, offline store tests and signing verification PASS.",
     "Use existing stable release keystore and verify against pinned GitHub SATORI_ANDROID_SIGNING_CERT_SHA256. Do not produce debug-signed APK for an existing installed production app.",
     "Check package vn.minhsatori.app, versionName 0.4.8, versionCode 25, SHA-256 certificate and APK SHA-256; upload signed ZIP to owner's Google Drive releases folder, verify size/readback.",
-    "No production invoice create/update/delete for acceptance. Keep previous signed APK available to roll back."
+    "No production invoice create/update/delete for acceptance. Keep previous signed APK available to roll back.",
+    "2026-10-25: refresh regression updated for compact icon-only header while retaining refreshNow() owner action and accessibility label; retry signed release CI against latest head."
   ]
 }
