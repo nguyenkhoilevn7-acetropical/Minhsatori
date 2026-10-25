@@ -15,7 +15,7 @@ var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
  'collaborators.pair.list':'collaborators:pair:read',
  'collaborators.pair.configure':'collaborators:pair:approve','collaborators.mark':'collaborators:pair:approve',
  'orders.create.pair':'collaborators:pair:write',
- 'links.register':'orders:write','links.update':'orders:write','links.list':'orders:write'};
+ 'links.register':'orders:write','links.update':'orders:write','links.secret.set':'orders:write','links.list':'orders:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
@@ -730,6 +730,8 @@ function linkRegister(s,p){
   (r.expiresAt==null||typeof r.expiresAt==='string'&&!isNaN(Date.parse(r.expiresAt)))&&
   Number.isSafeInteger(r.shippingPercent)&&r.shippingPercent>=0&&r.shippingPercent<=30&&
   [0,5,8,10].includes(r.vatPercent)&&
+  (r.accessCodeVault===undefined||typeof r.accessCodeVault==='string'&&
+   /^[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{20,30}\.[A-Za-z0-9_-]{16,200}$/.test(r.accessCodeVault))&&
   Array.isArray(r.recipients)&&r.recipients.length>=1&&r.recipients.length<=20,
   'LINK_REGISTRY_INVALID','Thông tin link chưa hợp lệ');
  var unique={};
@@ -752,7 +754,8 @@ function linkRegister(s,p){
   issuedAt:new Date(r.issuedAt).toISOString(),
   expiresAt:r.expiresAt?new Date(r.expiresAt).toISOString():null,
   collaboratorId:r.kind==='collaborator'?String(r.collaboratorId):null,
-  shippingPercent:r.shippingPercent,vatPercent:r.vatPercent,recipients:recipients};
+  shippingPercent:r.shippingPercent,vatPercent:r.vatPercent,recipients:recipients,
+  ...(r.accessCodeVault?{accessCodeVault:r.accessCodeVault}:{})};
  var list=storedLinks(s),prior=list.filter(function(x){return x&&x.id===record.id});
  need(prior.length<=1,'LINK_REGISTRY_INVALID','Trùng mã link');
  if(prior.length){
@@ -763,8 +766,18 @@ function linkRegister(s,p){
   // across owner-approved policy changes: refresh their current delivery list.
   var same=JSON.stringify(before.recipients)===JSON.stringify(record.recipients)&&
    before.shippingPercent===record.shippingPercent&&before.vatPercent===record.vatPercent;
-  if(before.kind!=='collaborator'||same)
+  if(before.kind!=='collaborator'||same){
+   // An old issued record may be safely backfilled with its encrypted PIN.
+   if(record.accessCodeVault&&!before.accessCodeVault){
+    version(s,p);
+    var restored=Object.assign({},before,{accessCodeVault:record.accessCodeVault,
+     secretUpdatedAt:new Date().toISOString()});
+    var refreshed=list.map(function(x){return x.id===before.id?restored:x});
+    return {modified:true,extras:{satori_issued_links_v1:JSON.stringify(refreshed)},
+     result:{saved:true,duplicate:false,id:record.id,pinStored:true}};
+   }
    return {modified:false,result:{saved:true,duplicate:true,id:record.id}};
+  }
   version(s,p);
   record.issuedAt=before.issuedAt;
   record.updatedAt=new Date().toISOString();
@@ -841,6 +854,28 @@ function linkUpdate(s,p){
  need(raw.length<1750000,'LINK_REGISTRY_FULL','Sổ link quá lớn');
  return {modified:true,extras:{satori_issued_links_v1:raw},
   result:{id:before.id,updated:true,editCount:updated.editCount}};
+}
+/**
+ * HMAC-owner-only encrypted access code backfill. The owner web service must
+ * verify a legacy code against the sealed link before calling this method.
+ * The Google ledger never receives a plaintext password.
+ */
+function linkSecretSet(s,p){
+ need(p&&p.confirmed===true&&/^il_[a-f0-9]{32}$/.test(String(p.id||''))&&
+  typeof p.accessCodeVault==='string'&&
+  /^[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{20,30}\.[A-Za-z0-9_-]{16,200}$/.test(p.accessCodeVault),
+  'LINK_VAULT_INVALID','Mã truy cập mã hóa không hợp lệ');
+ var list=storedLinks(s),items=list.filter(function(x){return x&&x.id===p.id});
+ need(items.length===1,'LINK_UPDATE_NOT_FOUND','Không có link trong sổ');
+ if(items[0].accessCodeVault===p.accessCodeVault)
+  return {modified:false,result:{stored:true,id:p.id,duplicate:true}};
+ version(s,p);
+ var next=list.map(function(row){return row.id!==p.id?row:Object.assign({},row,{
+  accessCodeVault:p.accessCodeVault,secretUpdatedAt:new Date().toISOString()
+ })});
+ var raw=JSON.stringify(next);need(raw.length<1750000,'LINK_REGISTRY_FULL','Sổ link đã đầy');
+ return {modified:true,extras:{satori_issued_links_v1:raw},
+  result:{stored:true,id:p.id,duplicate:false}};
 }
 function linkList(s,p){
  var data=storedLinks(s),offset=Number(p.offset||0),limit=Number(p.limit||8);
@@ -930,6 +965,7 @@ function read(s,action,p){
 function write(s,action,p){
  var all=rows(s),result=action==='links.register'?linkRegister(s,p):
   action==='links.update'?linkUpdate(s,p):
+  action==='links.secret.set'?linkSecretSet(s,p):
   action==='collaborators.mark'?markCollaborator(s,p):
   action==='collaborators.pair.configure'?configurePair(s,p):
   action==='orders.create.pair'?createPair(s,all,p):
@@ -961,7 +997,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='links.register'||identity.action==='links.update'||identity.action==='collaborators.mark'||identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='links.register'||identity.action==='links.update'||identity.action==='links.secret.set'||identity.action==='collaborators.mark'||identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
