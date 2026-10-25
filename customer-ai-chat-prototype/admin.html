@@ -1910,7 +1910,7 @@ async function load(){
 // are rounded only AFTER applying the exact discount.
 function parseLinkDiscount(input){
  const raw=String(input??'').trim().replace(',','.');
- if(!/^\\d+(?:\\.\\d+)?$/.test(raw))return NaN;
+ if(!/^\d+(?:\.\d+)?$/.test(raw))return NaN;
  const n=Number(raw);
  return Number.isFinite(n)&&n>=0&&n<=100?n:NaN;
 }
