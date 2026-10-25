@@ -453,7 +453,15 @@ function renderCart(){
    await saveCart([...cart.filter(x=>x.code!==item.code),...(qty?[{code:item.code,qty}]:[])]);
   }catch(e){toast(e.message)}};
   minus.onclick=()=>update(item.qty-1);plus.onclick=()=>update(item.qty+1);
-  input.onchange=()=>update(Number(input.value));
+  input.setAttribute('aria-label','Số lượng '+(p?.name||item.code));
+  input.inputMode='numeric';
+  input.onchange=()=>{
+   const raw=String(input.value).trim();
+   if(!/^(?:0|[1-9]\d{0,2})$/.test(raw)||Number(raw)>500){
+    input.value=item.qty;toast('Hãy nhập số nguyên từ 0 đến 500. Nhập 0 để xóa sản phẩm.');return;
+   }
+   update(Number(raw));
+  };
   num.append(minus,input,plus);row.append(info,num);$('cartLines').append(row);
  }
  if(!cart.length)$('cartLines').append(node('p','Giỏ hàng đang trống.','muted'));
