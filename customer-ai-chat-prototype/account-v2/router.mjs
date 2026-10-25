@@ -11,6 +11,8 @@ import {interpretLegacyOrder} from './legacy-interpret.mjs';
 import {readMinhSatori} from '../satori-readonly.mjs';
 import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
 import {acceptedSubjects} from './identity-rollout.mjs';
+import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
+ adminPatchLead,adminChangeCustomerStatus,adminLinkLead} from './customer-backend.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -23,6 +25,7 @@ class ApiError extends Error{
 }
 const error=(condition,code,status=400)=>{if(!condition)throw new ApiError(code,status)};
 const flag=()=>process.env.SATORI_ACCOUNT_V2_ENABLED==='1';
+const signupOpen=()=>process.env.SATORI_ACCOUNT_V2_SIGNUP_ENABLED==='1';
 const config=()=>({
  enabled:flag(),clientId:process.env.SATORI_ACCOUNT_V2_GOOGLE_CLIENT_ID||'',
  origin:process.env.SATORI_ACCOUNT_V2_ORIGIN||'',
@@ -97,13 +100,15 @@ async function auth(req,pool){
  const raw=cookies(req).satori_v2_session;
  error(typeof raw==='string'&&/^[a-f0-9]{64}$/.test(raw),'LOGIN_REQUIRED',401);
  const r=await pool.query(
-  'SELECT a.id,a.google_sub,a.email,a.display_name,s.csrf_hash FROM satori_v2_sessions s '+
+  'SELECT a.id,a.google_sub,a.email,a.display_name,a.access_status,s.csrf_hash FROM satori_v2_sessions s '+
   'JOIN satori_v2_accounts a ON a.id=s.account_id WHERE s.token_hash=$1 AND s.expires_at>now()',
   [sha(raw)]);
  error(r.rows.length===1,'SESSION_EXPIRED',401);
  const actor=r.rows[0];
- // Pilot is ALWAYS owner only. Never enable customer onboarding during migration.
- error(acceptedSubjects().allows(actor.google_sub),'ACCOUNT_NOT_APPROVED',403);
+ // Signup accepts immutable Google identities only when explicitly enabled.
+ if(!signupOpen())error(acceptedSubjects().allows(actor.google_sub),'ACCOUNT_NOT_APPROVED',403);
+ error(actor.access_status!=='REMOVED'&&actor.access_status!=='SUSPENDED',
+  'ACCOUNT_ACCESS_DISABLED',403);
  if(req.method!=='GET'&&req.method!=='HEAD'){
   enforceOrigin(req);
   const csrf=String(req.headers['x-satori-csrf']||'');
@@ -119,7 +124,8 @@ async function profileFor(pool,actor,profileId){
  error(r.rows.length===1,'PROFILE_FORBIDDEN',403);
  return r.rows[0];
 }
-function publicUser(actor){return {id:actor.id,email:actor.email,name:actor.display_name,isAdmin:actor.google_sub===config().ownerGoogleSub}}
+function publicUser(actor){return {id:actor.id,email:actor.email,name:actor.display_name,
+ accessStatus:actor.access_status,isAdmin:actor.google_sub===config().ownerGoogleSub}}
 async function login(req,res,pool){
  enforceOrigin(req);
  const input=await json(req);
@@ -131,13 +137,17 @@ async function login(req,res,pool){
   payload=ticket.getPayload();
  }catch{throw new ApiError('GOOGLE_TOKEN_INVALID',401)}
  error(payload&&payload.email_verified===true&&typeof payload.sub==='string','GOOGLE_ACCOUNT_UNVERIFIED',401);
- error(acceptedSubjects().allows(payload.sub),'ACCOUNT_NOT_APPROVED',403);
+ error(signupOpen()||acceptedSubjects().allows(payload.sub),'ACCOUNT_NOT_APPROVED',403);
  const conn=await pool.connect();
  try{
   await conn.query('BEGIN');
-  const account=await conn.query('INSERT INTO satori_v2_accounts(google_sub,email,display_name) VALUES($1,$2,$3) '+
-   'ON CONFLICT(google_sub) DO UPDATE SET email=EXCLUDED.email,display_name=EXCLUDED.display_name,updated_at=now() RETURNING id,email,display_name',
-    [payload.sub,payload.email||'',payload.name||'']);
+  const isOwner=payload.sub===config().ownerGoogleSub;
+  const account=await conn.query('INSERT INTO satori_v2_accounts(google_sub,email,display_name,access_status) VALUES($1,$2,$3,$4) '+
+   'ON CONFLICT(google_sub) DO UPDATE SET email=EXCLUDED.email,updated_at=now() '+
+   'RETURNING id,email,display_name,access_status',
+    [payload.sub,payload.email||'',payload.name||'',isOwner?'ACTIVE':'PENDING']);
+  error(isOwner||!['REMOVED','SUSPENDED'].includes(account.rows[0].access_status),
+   'ACCOUNT_ACCESS_DISABLED',403);
   const id=account.rows[0].id;
   const exists=await conn.query('SELECT id FROM satori_v2_profiles WHERE account_id=$1 LIMIT 1',[id]);
   if(!exists.rows.length)await conn.query('INSERT INTO satori_v2_profiles(account_id,type,display_name) VALUES($1,$2,$3)',
@@ -239,7 +249,8 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/status'&&req.method==='GET'){
    send(res,200,{...STATUS,enabled:ready(),pilotOnly:!acceptedSubjects().customerRolloutReady,
-    customerRolloutEnabled:ready()&&acceptedSubjects().customerRolloutReady,
+    customerRolloutEnabled:ready()&&(signupOpen()||acceptedSubjects().customerRolloutReady),
+    signupEnabled:ready()&&signupOpen(),
     testOrdersEnabled:ready()&&process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1',
     googleClientId:flag()?config().clientId:null,durableStorageReady:!!config().databaseUrl});
    return true;
@@ -250,6 +261,35 @@ export async function handleAccountV2(req,res,pathname){
    await login(req,res,pool);return true;
   }
   const actor=await auth(req,pool);
+  const isOwner=actor.google_sub===config().ownerGoogleSub;
+  const isRegistrationRoute=(pathname==='/api/v2/register'&&
+   (req.method==='GET'||req.method==='POST'))||
+   (pathname==='/api/v2/me'&&req.method==='GET')||
+   (pathname==='/api/v2/logout'&&req.method==='POST');
+  // Customers without owner approval can only complete their registration.
+  error(isOwner||actor.access_status==='ACTIVE'||isRegistrationRoute,
+   'CUSTOMER_PENDING_ADMIN_APPROVAL',403);
+  if(pathname==='/api/v2/register'&&req.method==='GET'){
+   send(res,200,await registrationRead(pool,actor));return true;
+  }
+  if(pathname==='/api/v2/register'&&req.method==='POST'){
+   send(res,200,await registrationSave(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/customers'&&req.method==='GET'){
+   owner(actor);send(res,200,await adminCustomerList(pool));return true;
+  }
+  if(pathname==='/api/v2/admin/customers'&&req.method==='POST'){
+   owner(actor);send(res,201,await adminCreateLead(pool,actor.id,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/customers'&&req.method==='PATCH'){
+   owner(actor);send(res,200,await adminChangeCustomerStatus(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/customer-leads'&&req.method==='PATCH'){
+   owner(actor);send(res,200,await adminPatchLead(pool,actor.id,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/customer-leads/link'&&req.method==='POST'){
+   owner(actor);send(res,200,await adminLinkLead(pool,actor,await json(req)));return true;
+  }
   if(pathname==='/api/v2/me'&&req.method==='GET'){
    const profiles=await pool.query('SELECT id,type,display_name AS name,phone FROM satori_v2_profiles WHERE account_id=$1 ORDER BY created_at',
     [actor.id]);
@@ -595,8 +635,8 @@ export async function handleAccountV2(req,res,pathname){
   }
   send(res,404,{ok:false,error:'NOT_FOUND'});return true;
  }catch(e){
-  const known=e instanceof ApiError||e instanceof DomainError;
-  const status=e instanceof ApiError?e.status:e instanceof DomainError?409:503;
+  const known=e instanceof ApiError||e instanceof DomainError||e instanceof CrmError;
+  const status=e instanceof ApiError||e instanceof CrmError?e.status:e instanceof DomainError?409:503;
   send(res,status,{ok:false,error:known?e.code:'ACCOUNT_V2_UNAVAILABLE',
    message:known?e.message:'Hệ thống mới hiện chưa sẵn sàng; dữ liệu cũ không bị ảnh hưởng.'});
   return true;
