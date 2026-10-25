@@ -30,3 +30,16 @@ test('every admin inline script still parses',()=>{
  for(const [i,s] of scripts.entries())
   new vm.Script(s[1],{filename:'admin-inline-'+i+'.js'});
 });
+
+test('real Google Drive orders alert panel is absent from every admin tab',()=>{
+ for(const id of ['productionOrderAlerts','productionFeedBadge','productionFeedRefresh',
+  'productionRecentOrders','productionBell','productionOrderStatus'])
+  assert.doesNotMatch(admin,new RegExp('id="'+id+'"'));
+ assert.doesNotMatch(admin,/Đơn hàng thật từ Google Drive/);
+ assert.doesNotMatch(admin,/pollRealOrderFeed|showLiveOrderRows|soundNewRealOrder/);
+ // The authoritative invoice view and Drive-backed issued-link registry remain.
+ for(const id of ['ownerRealInvoiceCard','liveFindInvoices','issuedLinksPanel',
+  'independentCtvLedger','customerManagement'])
+  assert.match(admin,new RegExp('id="'+id+'"'));
+ assert.match(admin,/api\/admin\/live-search/);
+});
