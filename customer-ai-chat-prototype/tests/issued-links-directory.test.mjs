@@ -231,3 +231,86 @@ test('regression: issue button catches failed Drive readiness and shows validati
  assert.match(server,/LINK_REGISTRY_INVALID/);
  assert.match(server,/registryIssueCode/);
 });
+
+test('owner-verified no-phone PWC: issue, quote and write a NEW order without changing bill #16 (mock)',async()=>{
+ const env={GEMINI_PRODUCTION_LINKS_ENABLED:'1',GEMINI_OWNER_ONLY_REAL_PILOT:'1',
+  SATORI_BOT_SECRET:'this-is-only-a-test-secret-with-at-least-32-chars'};
+ const ref={id:16,invoiceNo:16};
+ const origin={name:'PWC',location:'1137 Huỳnh Tấn Phát, q7'};
+ let historicalPhone='',created=0,sourceReads=0;
+ const source=async(invoiceNo,id,_catalogue,options={})=>{
+  assert.equal(invoiceNo,16);assert.equal(String(id),'16');sourceReads++;
+  if(!historicalPhone&&!options.allowMissingPhone)
+   throw Object.assign(Error('NO_CONTACT'),{code:'OWNER_CUSTOMER_REFERENCE_AMBIGUOUS'});
+  return {revision:162,customer:{id:16,phone:historicalPhone,...origin},
+   products:new Map([['TP-00003',{code:'TP-00003',name:'Nước Satori 500ml',
+    unit:'Thùng',listPrice:98000}]])};
+ };
+ const bot=async(action,payload)=>{
+  assert.equal(action,'orders.create');
+  if(!Object.keys(payload).length)
+   throw Object.assign(Error('INVALID_REQUEST'),{code:'INVALID_REQUEST'});
+  created++;
+  assert.equal(payload.confirmedNewCustomer,true,'original bill #16 is not eligible for phone matching');
+  assert.equal(Object.hasOwn(payload,'customerRef'),false,'do not pretend blank old contact matched new number');
+  assert.equal(payload.expectedRevision,162);
+  assert.equal(payload.order.name,'PWC');
+  assert.equal(payload.order.phone,'0901111111');
+  assert.equal(payload.order.location,origin.location);
+  assert.equal(payload.order.total,78400);
+  return {revision:163,data:{order:{invoiceNo:6040,name:'PWC',
+   location:origin.location,total:78400}}};
+ };
+ const engine=createProductionPrivateLinks({env,source,
+  sourceBatch:async refs=>Promise.all(refs.map(x=>
+    source(x.invoiceNo,x.id,null,{allowMissingPhone:x.confirmedPhoneMissing===true}))),
+  bot,origin:base,now:()=>Date.UTC(2026,9,25)});
+ const input={confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+  agentName:'PWC',destinations:[{customerRef:ref,discountPercent:20,
+   verifiedPhone:'0901111111',confirmedPhoneMissing:true}],
+  shippingPercent:0,vatPercent:0,daysValid:7};
+ const issued=await engine.issue(input);
+ assert.equal(issued.deliveryLocations,1);
+ assert.equal(issued.recipients[0].phone,'0901111111');
+ assert.equal(created,0,'issuing a link MUST NOT create or modify any invoice');
+ const token=issued.link.split('#')[1],destination=ref;
+ const catalogue=await engine.catalogue({token,accessCode:issued.accessCode,destination});
+ assert.equal(catalogue.customer.phone,'0901111111');
+ assert.equal(catalogue.products[0].unitPrice,78400);
+ const quote=await engine.quote({token,accessCode:issued.accessCode,destination,
+  items:[{code:'TP-00003',qty:1}]});
+ assert.equal(created,0);
+ const saved=await engine.confirm({token,accessCode:issued.accessCode,
+  quoteToken:quote.quoteToken,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
+ assert.equal(saved.invoiceNo,6040);
+ assert.equal(created,1);
+ assert.ok(sourceReads>=3);
+ await assert.rejects(()=>engine.issue({...input,destinations:[{
+  customerRef:ref,discountPercent:20,verifiedPhone:'garbage',confirmedPhoneMissing:true
+ }]}),{code:'OWNER_PHONE_VERIFICATION_REQUIRED'});
+ historicalPhone='0912345678';
+ await assert.rejects(()=>engine.issue(input),{code:'OWNER_PHONE_VERIFICATION_CONFLICT'});
+ await assert.rejects(()=>engine.catalogue({token,accessCode:issued.accessCode,destination}),
+  {code:'REAL_CUSTOMER_SOURCE_CHANGED'});
+ assert.equal(created,1,'mismatched source must never write another order');
+});
+test('missing phone form requires owner verification before enabling exact invoice source',()=>{
+ const html=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ const area=html.slice(html.indexOf("let agencyReviewed=[];"),
+  html.indexOf("$('agencyRealIssue').onclick"));
+ const issue=html.slice(html.indexOf("$('agencyRealIssue').onclick"),
+  html.indexOf("$('agencyRealCopy').onclick"));
+ assert.match(area,/manualSources/);
+ assert.match(area,/confirmed/);
+ assert.match(area,/contactInput\.type='tel'/);
+ assert.match(area,/ownerChecked\.checked/);
+ assert.match(area,/tick\.disabled=!valid/);
+ assert.match(issue,/confirmedPhoneMissing:true,verifiedPhone/);
+ assert.match(issue,/manualCount/);
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ assert.match(server,/realPrivateLinks\.issue\(input\)/);
+ const privateCode=readFileSync(new URL('../production-private-links.mjs',import.meta.url),'utf8');
+ assert.match(privateCode,/confirmedNewCustomer:destination\.ownerVerifiedPhone===true/);
+ assert.match(privateCode,/allowMissingPhone:d\.ownerVerifiedPhone===true/);
+ new vm.Script(html.slice(html.indexOf('<script>')+8,html.lastIndexOf('</script>')));
+});
