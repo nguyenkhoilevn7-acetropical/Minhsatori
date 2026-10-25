@@ -56,7 +56,11 @@ export async function adminCustomerList(pool){
    'a.revision,a.created_at AS "createdAt",r.full_name AS "fullName",'+
    'r.phone,r.address,r.company_name AS "companyName",r.tax_code AS "taxCode",'+
    'r.note,r.requested_type AS "requestedType",r.revision AS "registrationRevision",'+
-   'r.submitted_at AS "submittedAt" '+
+   'r.submitted_at AS "submittedAt",'+
+   'COALESCE((SELECT p.discount_bps FROM satori_v2_profiles prof '+
+   'JOIN satori_v2_policies p ON p.profile_id=prof.id '+
+   'WHERE prof.account_id=a.id AND p.enabled=true AND p.address_id IS NULL '+
+   'AND p.product_code IS NULL ORDER BY prof.created_at ASC,p.version DESC LIMIT 1),0) AS "discountBps" '+
    'FROM satori_v2_accounts a LEFT JOIN satori_v2_registrations r ON r.account_id=a.id '+
    'ORDER BY a.created_at DESC LIMIT 250'),
   pool.query('SELECT id,full_name AS "fullName",email,phone,address,'+
@@ -91,6 +95,10 @@ export async function adminPatchLead(pool,ownerId,input){
   const old=await c.query('SELECT id,linked_account_id FROM satori_v2_customer_leads WHERE id=$1 FOR UPDATE',
    [input.leadId]);
   check(old.rows.length===1,'LEAD_NOT_FOUND',404);
+  // A linked lead is only a CRM reference. Change its live pricing via the
+  // verified registered account policy, not by silently editing this lead.
+  check(!old.rows[0].linked_account_id||input.active===false,
+   'LINKED_LEAD_EDIT_REQUIRES_ACCOUNT_POLICY',409);
   // Archiving a linked contact DOES NOT revoke login. Admin must suspend the
   // linked Google account separately if access should also be stopped.
   const r=await c.query(
