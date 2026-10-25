@@ -1,0 +1,42 @@
+name: Account V2 isolated offline tests
+on:
+  push:
+    branches:
+      - feature/account-based-ordering-v2-20261025
+    paths:
+      - 'customer-ai-chat-prototype/account-v2/**'
+      - 'customer-ai-chat-prototype/server.mjs'
+      - 'customer-ai-chat-prototype/package.json'
+      - '.github/workflows/account-v2-offline.yml'
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/account-v2/**'
+      - 'customer-ai-chat-prototype/server.mjs'
+      - 'customer-ai-chat-prototype/package.json'
+      - '.github/workflows/account-v2-offline.yml'
+permissions:
+  contents: read
+jobs:
+  account-domain:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: customer-ai-chat-prototype
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install only runtime dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check syntax
+        run: |
+          node --check server.mjs
+          node --check account-v2/router.mjs
+          node --check account-v2/domain.mjs
+      - name: Pure domain security and pricing tests
+        run: npm run test:account-v2
+      - name: Existing Gemini parser regression tests
+        run: |
+          node tests/production-launch-guard.test.mjs
+          node tests/checkout-preflight.test.mjs
