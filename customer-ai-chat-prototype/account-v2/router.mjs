@@ -12,6 +12,7 @@ import {parseMultiOrder} from '../multi-order.mjs';
 import {parseComplexOrderWithGemini} from '../free-parser.mjs';
 import {readMinhSatori} from '../satori-readonly.mjs';
 import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
+import {acceptedSubjects} from './identity-rollout.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -35,7 +36,7 @@ function ready(){
  const cfg=config();
  return !!(cfg.enabled&&cfg.clientId&&cfg.origin.startsWith('https://')&&
   cfg.databaseUrl&&cfg.ownerGoogleSub&&cfg.pilotSub&&
-  cfg.ownerGoogleSub===cfg.pilotSub);
+  acceptedSubjects().ownerReady);
 }
 function send(res,code,data,headers={}){
  res.writeHead(code,{'content-type':'application/json; charset=utf-8',
@@ -104,7 +105,7 @@ async function auth(req,pool){
  error(r.rows.length===1,'SESSION_EXPIRED',401);
  const actor=r.rows[0];
  // Pilot is ALWAYS owner only. Never enable customer onboarding during migration.
- error(actor.google_sub===config().pilotSub,'PILOT_OWNER_ONLY',403);
+ error(acceptedSubjects().allows(actor.google_sub),'ACCOUNT_NOT_APPROVED',403);
  if(req.method!=='GET'&&req.method!=='HEAD'){
   enforceOrigin(req);
   const csrf=String(req.headers['x-satori-csrf']||'');
@@ -132,7 +133,7 @@ async function login(req,res,pool){
   payload=ticket.getPayload();
  }catch{throw new ApiError('GOOGLE_TOKEN_INVALID',401)}
  error(payload&&payload.email_verified===true&&typeof payload.sub==='string','GOOGLE_ACCOUNT_UNVERIFIED',401);
- error(payload.sub===config().pilotSub,'PILOT_OWNER_ONLY',403);
+ error(acceptedSubjects().allows(payload.sub),'ACCOUNT_NOT_APPROVED',403);
  const conn=await pool.connect();
  try{
   await conn.query('BEGIN');
@@ -246,7 +247,8 @@ export async function handleAccountV2(req,res,pathname){
    res.end(html);return true;
   }
   if(pathname==='/api/v2/status'&&req.method==='GET'){
-   send(res,200,{...STATUS,enabled:ready(),pilotOnly:true,
+   send(res,200,{...STATUS,enabled:ready(),pilotOnly:!acceptedSubjects().customerRolloutReady,
+    customerRolloutEnabled:ready()&&acceptedSubjects().customerRolloutReady,
     googleClientId:flag()?config().clientId:null,durableStorageReady:!!config().databaseUrl});
    return true;
   }
@@ -275,6 +277,41 @@ export async function handleAccountV2(req,res,pathname){
    const r=await pool.query('INSERT INTO satori_v2_addresses(profile_id,label,recipient_name,recipient_phone,address) '+
     'VALUES($1,$2,$3,$4,$5) RETURNING id',[profile.id,a.label,a.recipientName,a.recipientPhone,a.address]);
    send(res,201,{ok:true,id:r.rows[0].id});return true;
+  }
+  if(pathname==='/api/v2/addresses'&&req.method==='PATCH'){
+   // Account-scoped revision CAS: customers can edit only their own addresses.
+   // Address ownership is checked INSIDE the UPDATE. Never trust profileId alone.
+   const input=validateAdminAddressEdit(await json(req));
+   const client=await pool.connect();
+   try{
+    await client.query('BEGIN');
+    const updated=await client.query(
+     'UPDATE satori_v2_addresses AS a SET label=$3,recipient_name=$4, '+
+     'recipient_phone=$5,address=$6,active=$7,revision=a.revision+1,updated_at=now() '+
+     'FROM satori_v2_profiles AS p WHERE a.id=$1 AND a.profile_id=$2 '+
+     'AND p.id=a.profile_id AND p.account_id=$9 AND a.revision=$8 '+
+     'RETURNING a.id,a.revision,a.active',
+     [input.addressId,input.profileId,input.label,input.recipientName,
+      input.recipientPhone,input.address,input.active,input.expectedRevision,actor.id]);
+    if(updated.rows.length!==1){
+     const access=await client.query(
+      'SELECT a.revision FROM satori_v2_addresses a '+
+      'JOIN satori_v2_profiles p ON p.id=a.profile_id '+
+      'WHERE a.id=$1 AND a.profile_id=$2 AND p.account_id=$3',
+      [input.addressId,input.profileId,actor.id]);
+     error(access.rows.length===1,'ADDRESS_FORBIDDEN',403);
+     throw new ApiError('ADDRESS_REVISION_CONFLICT',409);
+    }
+    await client.query(
+     'INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
+     'VALUES($1,$2,$3,$4,$5)',
+     [actor.id,'account','DELIVERY_ADDRESS_EDITED',input.addressId,
+      JSON.stringify({previousRevision:input.expectedRevision,newRevision:updated.rows[0].revision,
+       active:input.active})]);
+    await client.query('COMMIT');
+    send(res,200,{ok:true,address:updated.rows[0]});return true;
+   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
+   finally{client.release()}
   }
   if(pathname==='/api/v2/cart'&&req.method==='GET'){
    const profile=await profileFor(pool,actor,new URL(req.url,'http://local').searchParams.get('profileId'));
