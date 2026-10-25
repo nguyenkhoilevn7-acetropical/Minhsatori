@@ -85,6 +85,13 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
  ensure(isUuid(accountId)&&profile&&isUuid(profile.id)&&isUuid(profile.accountId)&&
   profile.accountId===accountId&&['retail','agency','collaborator'].includes(profile.type),'PROFILE_FORBIDDEN');
  ensure(address&&isUuid(address.id)&&address.profileId===profile.id&&address.active===true,'ADDRESS_FORBIDDEN');
+ // Snapshot the verified contact at quote creation; later edits cannot mutate
+ // what will be signed and recorded as the historical delivery destination.
+ const deliveryInput=validateAddress({
+  label:address.label,recipientName:address.recipientName,
+  recipientPhone:address.recipientPhone,address:address.address
+ });
+ const delivery=Object.freeze({addressId:address.id,...deliveryInput});
  ensure(Number.isSafeInteger(catalogueRevision)&&catalogueRevision>=1,'CATALOGUE_NOT_AUTHORITATIVE');
  ensure(bps(vatBps)&&isMoney(shippingVnd),'CHARGES_INVALID');
  ensure(Array.isArray(catalogue)&&catalogue.length>0,'CATALOGUE_NOT_READY');
@@ -117,7 +124,7 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
  const vatVnd=Math.round(goods*vatBps/10_000),total=goods+shippingVnd+vatVnd;
  ensure(Number.isSafeInteger(total)&&total<=100_000_000_000,'ORDER_TOTAL_TOO_LARGE');
  const summary={currency:'VND',catalogueRevision,policyVersion,addressId:address.id,profileId:profile.id,
-  items:priced,goodsVnd:goods,shippingVnd,vatVnd,totalVnd:total,
+  delivery,items:priced,goodsVnd:goods,shippingVnd,vatVnd,totalVnd:total,
   invoiceMode:pair?'pair':'single'};
  if(pair){
   const internalVatVnd=Math.round(collabGoods*vatBps/10_000);
