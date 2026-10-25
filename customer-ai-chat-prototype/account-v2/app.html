@@ -121,6 +121,19 @@ header .satori-logo{width:31px;height:31px}
 .delivery-dialog .agent-address-heading{font-size:11px;color:#7a8590}
 .delivery-dialog .agent-address-choice .pin svg,.saved-address .address-round-icon svg{width:21px;height:21px}
 .delivery-dialog .agent-address-choice{min-height:52px;border-bottom:1px solid #f2f3f6;border-radius:9px}
+.invoice-masthead{display:flex;align-items:center;gap:9px;min-width:0}
+.invoice-masthead .satori-logo{height:35px;width:35px;border-radius:10px}
+.invoice-masthead h2{margin:0;font-size:16px}
+.invoice-month-tools{display:flex;align-items:center;gap:8px;margin:10px 0}
+.invoice-month-tools input{min-width:0;flex:1;min-height:42px;border:1px solid #dce5ee;border-radius:11px;padding:8px}
+.invoice-month-tools button{flex:none}
+.invoice-section-subtitle{font-size:14px;color:#1c344b;margin:12px 0}
+.invoice-ledger-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #eef1f6}
+.invoice-ledger-row .invoice-name{display:block;font-size:13px;font-weight:700;color:#1f3045}
+.invoice-ledger-row .invoice-detail{display:block;font-size:11px;color:#697581;overflow-wrap:anywhere}
+.invoice-ledger-amount{font-weight:700;font-size:13px;text-align:right;white-space:nowrap}
+.original-invoice-link{display:block;margin:9px 0;font-size:12px;color:#007aff}
+.invoice-divider{border:0;border-top:1px solid #edf1f5;margin:15px 0}
 .composer{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--edge);padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:8px}
 .composer textarea{flex:1;width:100%;min-height:42px;max-height:104px;border:1px solid #dce5ec;border-radius:15px;outline:none;padding:10px 12px;resize:vertical;background:#f6f8fb;color:var(--ink)}
 .composer textarea:focus{border-color:#6abbff}
@@ -214,7 +227,15 @@ header .satori-logo{width:31px;height:31px}
 <div class="field"><label>Địa chỉ đầy đủ</label><input name="address" required maxlength="400"></div>
 <button type="submit" class="btn primary" style="width:100%">Lưu địa chỉ</button>
 </form></section>
-<section id="ordersView" class="view hidden"><div class="panel"><div class="bar"><h2>Lịch sử đơn V2</h2><button id="refreshOrders" class="btn" type="button" aria-label="Tải lại lịch sử đơn">↻</button></div>
+<section id="ordersView" class="view hidden"><div class="panel">
+<div class="bar"><div class="invoice-masthead" id="invoiceMasthead"><h2>Hóa đơn Minh Satori</h2></div><button id="refreshOrders" class="btn" type="button" aria-label="Làm mới danh sách hóa đơn">↻</button></div>
+<section id="ownerOriginalInvoices" hidden><p class="muted">Sổ hóa đơn gốc · Chỉ Admin được xem trực tiếp khi kết nối đọc đã xác minh.</p>
+<div class="invoice-month-tools"><input id="originalInvoiceMonth" type="month" aria-label="Tháng cần xem hóa đơn gốc"><button id="loadOriginalInvoices" class="btn primary" type="button">Xem hóa đơn gốc</button></div>
+<div id="originalInvoiceStatus" class="muted" role="status" aria-live="polite"></div><div id="originalInvoiceRows"></div>
+<p class="muted">PDF chính thức vẫn được xuất từ website Minh Satori, không tạo bản PDF thay thế từ dữ liệu thử.</p>
+<a class="original-invoice-link" href="https://nguyenkhoilevn7-acetropical.github.io/Minhsatori/" rel="noopener noreferrer" target="_blank">Mở website Minh Satori để xem / xuất PDF chính thức</a>
+<hr class="invoice-divider"></section>
+<h3 class="invoice-section-subtitle">Đơn hàng V2</h3>
 <p class="notice">Chỉ hiển thị đơn V2 gắn với tài khoản Google đã xác minh. Hóa đơn cũ chưa được đối chiếu định danh, không tự động gộp. Đơn chưa được sổ Satori xác nhận không hiển thị như đã tạo hóa đơn.</p>
 <div id="orderRows" class="muted"></div></div></section>
 <section id="accountView" class="view hidden"><div class="panel"><h2>Tài khoản</h2><div id="accountDetails"></div></div>
@@ -637,7 +658,10 @@ function view(name){
  for(const btn of document.querySelectorAll('[data-view]'))btn.classList.toggle('active',btn.dataset.view===name);
  menu(false);
  if(name==='cart')renderCart();
- if(name==='orders')loadOrders().catch(e=>toast(e.message));
+ if(name==='orders'){
+  loadOrders().catch(e=>toast(e.message));
+  if(me.account.isAdmin)loadOriginalInvoices().catch(e=>toast(e.message));
+ }
 }
 document.querySelectorAll('[data-view]').forEach(btn=>btn.onclick=()=>view(btn.dataset.view));
 $('cartBadge').onclick=()=>view('cart');
@@ -899,6 +923,46 @@ async function loadOrders(){
   'Chưa có đơn V2 được xác nhận. Hệ thống không tự hiển thị hóa đơn cũ theo số điện thoại.','muted'));
 }
 $('refreshOrders').onclick=()=>loadOrders().catch(e=>toast(e.message));
+const originalInvoiceLogo=document.querySelector('.brand .satori-logo');
+if(originalInvoiceLogo)$('invoiceMasthead').prepend(originalInvoiceLogo.cloneNode(true));
+function currentInvoiceMonth(){
+ const d=new Date();
+ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+$('originalInvoiceMonth').value=currentInvoiceMonth();
+async function loadOriginalInvoices(){
+ if(!me?.account?.isAdmin)return;
+ const status=$('originalInvoiceStatus'),rows=$('originalInvoiceRows');
+ status.textContent='Đang kiểm tra sổ hóa đơn gốc…';
+ $('loadOriginalInvoices').disabled=true;
+ rows.replaceChildren();
+ try{
+  const data=await call('/api/v2/admin/original-invoices?month='+encodeURIComponent(
+   $('originalInvoiceMonth').value),undefined,'GET');
+  if(!data.configured){
+   status.textContent='Chưa cấu hình kết nối đọc hóa đơn gốc. Không hiển thị dữ liệu thử thành hóa đơn thật.';
+   return;
+  }
+  status.textContent='Nguồn: Sổ Minh Satori có chữ ký · Phiên bản '+
+   String(data.revision??'chưa rõ')+' · '+String(data.totalMatches)+' hóa đơn'+
+   (data.truncated?' · Chỉ hiển thị 100 hóa đơn đầu tiên':'');
+  for(const inv of data.orders||[]){
+   const row=node('div',undefined,'invoice-ledger-row');
+   const info=node('div'),amount=node('div',undefined,'invoice-ledger-amount');
+   info.append(node('span','#'+inv.invoiceNo+' · '+inv.customer,'invoice-name'),
+    node('span',inv.date+' · '+inv.status+
+     (inv.pairRole?' · '+inv.pairRole:'')+
+     (inv.location?' · '+inv.location:''),'invoice-detail'));
+   amount.textContent=inv.total===null?'—':money(inv.total);
+   row.append(info,amount);rows.append(row);
+  }
+  if(!(data.orders||[]).length)rows.append(node('p','Không tìm thấy hóa đơn gốc trong tháng này.','muted'));
+ }catch(e){
+  status.textContent='Chưa đọc được hóa đơn gốc. Kiểm tra quyền Admin và kết nối đọc an toàn.';
+ }finally{$('loadOriginalInvoices').disabled=false}
+}
+$('loadOriginalInvoices').onclick=loadOriginalInvoices;
+
 async function refresh(){
  const mine=await call('/api/v2/me',undefined,'GET');
  me=mine;
@@ -925,6 +989,7 @@ async function refresh(){
  const catalogue=await call('/api/v2/catalogue',undefined,'GET');
  products=catalogue.items;
  $('ownerPanel').hidden=!me.account.isAdmin;
+ $('ownerOriginalInvoices').hidden=!me.account.isAdmin;
  if(me.account.isAdmin)loadOwner().catch(e=>toast(e.message));
  $('gate').classList.add('hidden');$('chatView').classList.remove('hidden');
  $('accountDetails').replaceChildren(node('strong',me.account.name),
