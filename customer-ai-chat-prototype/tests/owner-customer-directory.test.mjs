@@ -264,11 +264,11 @@ const sourceRefImplementation=readFileSync(new URL('../admin.html',import.meta.u
 const sourceSelector=sourceRefImplementation.slice(
  sourceRefImplementation.indexOf("const sources=(Array.isArray(p.sourceRows)"),
  sourceRefImplementation.indexOf("$('agencyRealIssue').onclick"));
-assert.match(sourceSelector,/tick\\.disabled=!sources\\.length/);
-assert.match(sourceSelector,/tick\\.disabled=!valid/,'owner-verified missing phone enables checkbox');
+assert.match(sourceSelector,/tick\.disabled=!sources\.length/);
+assert.match(sourceSelector,/tick\.disabled=!valid/,'owner-verified missing phone enables checkbox');
 assert.match(sourceSelector,/manualSources/,'blank historical phone enables review instead of permanent lock');
 assert.doesNotMatch(sourceSelector,/tick\.disabled=!refs\.length\|\|!p\.phone/);
-assert.match(sourceSelector,/const choices=sources\\.length\\?sources:manualSources/);
-assert.match(sourceSelector,/source\\.ref/);
+assert.match(sourceSelector,/const choices=sources\.length\?sources:manualSources/);
+assert.match(sourceSelector,/source\.ref/);
 assert.match(sourceSelector,/source\.phone/);
 console.log('PASS annotated contact phones, safe exact invoice ref selection and blank PWC record guards');
