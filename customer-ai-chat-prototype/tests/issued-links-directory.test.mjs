@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {createIssuedLinksRegistry} from '../issued-links-registry.mjs';
+import {createIssuedLinkVault} from '../issued-link-vault.mjs';
 import {createOwnerRealInvoice} from '../owner-live-invoice.mjs';
 import {createProductionPrivateLinks} from '../production-private-links.mjs';
 
@@ -372,4 +373,32 @@ test('localized decimal discount parser accepts Vietnamese commas and blocks inv
   assert.ok(Number.isNaN(ctxt.parse(input)),'reject invalid '+input);
  assert.match(html,/discountPercent:parseLinkDiscount\(x\.rate\.value\)/);
  assert.match(html,/rate\.inputMode='decimal'/);
+});
+
+
+test('owner secret: AES-GCM PIN is link-bound and never returned by registry list',async()=>{
+ const vault=createIssuedLinkVault({env:{SATORI_OWNER_CHECKOUT_SECRET:
+  'fake-for-only-offline-test-not-the-real-owner-secret-0123456789'}});
+ const link=base+'/real/#'+'m'.repeat(100),code='owner_private_code_0987654321';
+ const ciphertext=vault.seal(link,code);
+ assert.equal(vault.open(link,ciphertext),code);
+ assert.doesNotMatch(ciphertext,/owner_private_code/);
+ assert.throws(()=>vault.open(base+'/real/#'+'n'.repeat(100),ciphertext),
+  {code:'LINK_VAULT_CANNOT_DECRYPT'});
+ const parts=ciphertext.split('.');
+ parts[2]=parts[2].slice(0,-1)+(parts[2].endsWith('A')?'B':'A');
+ assert.throws(()=>vault.open(link,parts.join('.')),
+  {code:'LINK_VAULT_CANNOT_DECRYPT'});
+ const {bot}=driveFixture(),registry=createIssuedLinksRegistry({bot});
+ const saved=await registry.register({kind:'agency',name:'Đại lý B',link,
+  recipients:[r(81)],accessCodeVault:ciphertext});
+ assert.equal(saved.saved,true);
+ const listed=await registry.list({id:registry.idForLink(link),limit:1});
+ assert.equal(listed.items[0].hasSavedAccessCode,true);
+ assert.ok(!('accessCodeVault' in listed.items[0]));
+ assert.doesNotMatch(JSON.stringify(listed),/owner_private_code|accessCodeVault/);
+ const html=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ assert.match(html,/Xem mã truy cập/);
+ assert.match(html,/api\/admin\/issued-links\/access-code/);
+ assert.match(html,/api\/admin\/issued-links\/update/);
 });
