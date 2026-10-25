@@ -51,7 +51,8 @@ export async function adminCustomerList(pool){
   pool.query('SELECT a.id,a.email,a.display_name AS name,a.access_status AS "accessStatus",'+
    'a.revision,a.created_at AS "createdAt",r.full_name AS "fullName",'+
    'r.phone,r.address,r.company_name AS "companyName",r.tax_code AS "taxCode",'+
-   'r.note,r.requested_type AS "requestedType",r.submitted_at AS "submittedAt" '+
+   'r.note,r.requested_type AS "requestedType",r.revision AS "registrationRevision",'+
+   'r.submitted_at AS "submittedAt" '+
    'FROM satori_v2_accounts a LEFT JOIN satori_v2_registrations r ON r.account_id=a.id '+
    'ORDER BY a.created_at DESC LIMIT 250'),
   pool.query('SELECT id,full_name AS "fullName",email,phone,address,'+
@@ -86,7 +87,8 @@ export async function adminPatchLead(pool,ownerId,input){
   const old=await c.query('SELECT id,linked_account_id FROM satori_v2_customer_leads WHERE id=$1 FOR UPDATE',
    [input.leadId]);
   check(old.rows.length===1,'LEAD_NOT_FOUND',404);
-  check(!old.rows[0].linked_account_id||input.active,'LINKED_LEAD_CANNOT_BE_ARCHIVED',409);
+  // Archiving a linked contact DOES NOT revoke login. Admin must suspend the
+  // linked Google account separately if access should also be stopped.
   const r=await c.query(
    'UPDATE satori_v2_customer_leads SET active=$3,'+
    'full_name=COALESCE($4,full_name),email=COALESCE($5,email),phone=COALESCE($6,phone),'+
@@ -114,6 +116,45 @@ async function applyGeneralDiscount(c,profileId,ownerSub,discountBps){
   '(profile_id,address_id,product_code,discount_bps,invoice_mode,version,approved_by) '+
   "VALUES($1,NULL,NULL,$2,'single',$3,$4) RETURNING id,version",
   [profileId,discountBps,versions.rows[0].version,ownerSub]);
+}
+export async function adminEditRegisteredCustomer(pool,owner,input){
+ check(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
+ check(isUuid(input.accountId)&&isRev(input.expectedRevision),'CUSTOMER_EDIT_REVISION_REQUIRED');
+ check(input.accountId!==owner.id,'OWNER_CANNOT_BE_MODIFIED',403);
+ const profile=validateCustomerProfile(input);
+ return tx(pool,async c=>{
+  const account=await c.query('SELECT id,email,access_status FROM satori_v2_accounts '+
+   'WHERE id=$1 FOR UPDATE',[input.accountId]);
+  check(account.rows.length===1,'CUSTOMER_NOT_FOUND',404);
+  check(account.rows[0].access_status!=='REMOVED','CUSTOMER_REMOVED',409);
+  check(!profile.email||profile.email===account.rows[0].email.toLowerCase(),
+   'VERIFIED_EMAIL_IMMUTABLE',403);
+  const existing=await c.query('SELECT requested_type,revision FROM satori_v2_registrations '+
+   'WHERE account_id=$1 FOR UPDATE',[input.accountId]);
+  check(existing.rows.length===1,'CUSTOMER_REGISTRATION_INCOMPLETE',409);
+  check(existing.rows[0].revision===input.expectedRevision,
+   'CUSTOMER_DETAILS_REVISION_CONFLICT',409);
+  // The original approved role remains immutable through the CRM edit form.
+  // Changing agency/CTV privileges requires a separate Admin policy operation.
+  if(account.rows[0].access_status==='ACTIVE')
+   check(profile.requestedType===existing.rows[0].requested_type,'ROLE_CHANGE_REQUIRES_ADMIN_POLICY',409);
+  const updated=await c.query(
+   'UPDATE satori_v2_registrations SET full_name=$2,phone=$3,address=$4,'+
+   'company_name=$5,tax_code=$6,note=$7,requested_type=$8,'+
+   'revision=revision+1,updated_at=now() '+
+   'WHERE account_id=$1 AND revision=$9 RETURNING revision',
+   [input.accountId,profile.fullName,profile.phone,profile.address,
+    profile.companyName,profile.taxCode,profile.note,profile.requestedType,
+    input.expectedRevision]);
+  check(updated.rows.length===1,'CUSTOMER_DETAILS_REVISION_CONFLICT',409);
+  await c.query('UPDATE satori_v2_accounts SET display_name=$2,revision=revision+1,'+
+   'updated_at=now() WHERE id=$1',[input.accountId,profile.fullName]);
+  // Do not rewrite stored shipping addresses or historical quote snapshots.
+  // Existing address edits remain explicit and revision-controlled.
+  await audit(c,owner.id,'CUSTOMER_REGISTRATION_EDITED',input.accountId,
+   {registrationRevision:updated.rows[0].revision});
+  return {ok:true,revision:updated.rows[0].revision};
+ });
 }
 export async function adminChangeCustomerStatus(pool,owner,input){
  check(isUuid(input.accountId),'CUSTOMER_ID_INVALID');
