@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f7fb">
+<title>Minh Satori • Trợ lý đặt hàng</title>
+<style>
+:root{color-scheme:light;--bg:#f5f7fb;--card:#fff;--ink:#142637;--sub:#62758a;--edge:#e1e7ee;--blue:#0879ed;--blueSoft:#e6f3ff;--mint:#e7f7f1;--radius:19px}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:15px/1.48 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+button,input,textarea,select{font:inherit}button{cursor:pointer;touch-action:manipulation}button:disabled{cursor:not-allowed;opacity:.55}
+.hidden,[hidden]{display:none!important}#app{max-width:700px;min-height:100dvh;margin:auto;display:flex;flex-direction:column;background:var(--card);box-shadow:0 0 50px #16304b0a}
+header{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:10px;background:#fffc;backdrop-filter:blur(19px);border-bottom:1px solid var(--edge);padding:9px 13px;padding-top:max(9px,env(safe-area-inset-top))}
+.hamburger{display:grid;place-content:center;gap:4px;border:1px solid var(--edge);background:#f8fafc;width:39px;height:39px;border-radius:12px}
+.hamburger span{width:17px;height:2px;border-radius:5px;background:#243c54;display:block}
+.brand{flex:1;min-width:0}.brand strong{display:block;font-size:17px;letter-spacing:-.3px}.brand small{font-size:11px;color:var(--sub)}
+.round{width:39px;height:39px;border:1px solid var(--edge);border-radius:50%;display:grid;place-items:center;background:var(--blueSoft);color:var(--blue);font-weight:750;position:relative}
+.round b{position:absolute;font-size:10px;top:1px;right:2px;background:var(--blue);color:#fff;padding:1px 4px;border-radius:30px}
+.scrim{position:fixed;inset:0;background:#18314a52;opacity:0;pointer-events:none;transition:opacity .24s;z-index:19}
+.drawer{position:fixed;inset:0 auto 0 0;width:min(82vw,310px);background:#fff;box-shadow:10px 0 30px #0b264029;transform:translateX(-105%);transition:transform .29s cubic-bezier(.2,.7,.2,1);z-index:20;padding:23px 16px;display:flex;flex-direction:column;gap:8px}
+body.menu-open .scrim{opacity:1;pointer-events:auto}body.menu-open .drawer{transform:translateX(0)}
+.drawer h2{font-size:20px;margin:12px 5px 18px}.nav{width:100%;text-align:left;background:#f6f8fb;border:0;border-radius:13px;padding:14px;color:#1f3a55;font-weight:700}
+.nav.active{background:var(--blueSoft);color:var(--blue)}
+main{flex:1;display:flex;flex-direction:column;min-height:0}
+#gate{margin:auto;padding:38px 20px;max-width:410px;text-align:center;width:100%}
+#gate h1{margin:5px 0;font-size:25px}#gate p{color:var(--sub);font-size:13px}#signIn{min-height:40px;display:flex;justify-content:center;margin:26px auto}
+.notice{font-size:12px;color:#8b4c22;background:#fff5e9;border:1px solid #f7dfc0;border-radius:10px;padding:10px 12px}
+.intro{padding:17px 15px 11px;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:12px}
+.ai-avatar{width:43px;height:43px;display:grid;place-items:center;border-radius:16px;color:#fff;background:linear-gradient(145deg,#1b92e7,#16b7b1);font-size:24px}
+.intro h1{font-size:18px;margin:0}.intro p{margin:3px 0 0;color:var(--sub);font-size:11px}
+#messages{height:calc(100dvh - 305px);min-height:250px;overflow:auto;display:flex;flex-direction:column;gap:11px;padding:15px;background:linear-gradient(#f9fbff,#fff)}
+.bubble{max-width:88%;padding:11px 13px;background:#f0f4f8;border:1px solid #e6ebf2;border-radius:15px;white-space:pre-wrap;overflow-wrap:anywhere}
+.bubble.me{align-self:flex-end;background:var(--blueSoft);border-color:#cfe7ff;border-bottom-right-radius:5px}
+.bubble.ai{align-self:flex-start;border-bottom-left-radius:5px}
+.pick{padding:12px 13px;background:var(--mint);border:1px solid #c4e9dc;border-radius:14px}
+.pick button{margin-top:8px;width:100%;border:0;border-radius:12px;padding:10px;background:#0c8279;color:white;font-weight:750}
+.composer{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--edge);padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:8px}
+.composer textarea{flex:1;width:100%;min-height:42px;max-height:104px;border:1px solid #dce5ec;border-radius:15px;outline:none;padding:10px 12px;resize:vertical;background:#f6f8fb;color:var(--ink)}
+.composer textarea:focus{border-color:#6abbff}
+.send{border:0;border-radius:50%;background:var(--blue);color:white;width:42px;height:42px;flex:none;font-size:23px}
+.view{padding:15px;display:grid;gap:13px}
+.panel{background:#fff;border:1px solid var(--edge);border-radius:var(--radius);padding:15px}
+.panel h2{margin:0 0 10px;font-size:17px}.muted{color:var(--sub);font-size:12px}
+.field{display:flex;flex-direction:column;gap:5px;margin:9px 0}.field label{font-size:12px;font-weight:700;color:#435971}
+.field input,.field select{width:100%;border:1px solid #d9e3ec;border-radius:12px;padding:11px;background:#fafdff;color:var(--ink);min-height:43px}
+.btn{border:0;border-radius:12px;padding:11px 14px;background:#e8f1fb;color:#195b93;font-weight:700;min-height:42px}
+.btn.primary{background:var(--blue);color:white}.btn:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #80c5fc}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.product,.cart-line,.address-line{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #eff2f5}
+.product:last-child,.cart-line:last-child,.address-line:last-child{border-bottom:0}
+.product strong,.cart-line strong{font-size:13px}.product small{display:block;color:var(--sub);font-size:11px}
+.num{display:flex;align-items:center;gap:5px}.num button{background:var(--blueSoft);color:var(--blue);border:0;border-radius:10px;width:33px;height:33px;font-weight:800}
+.num input{width:49px;height:33px;text-align:center;border:1px solid var(--edge);border-radius:10px}
+#toast{position:fixed;bottom:83px;left:50%;transform:translateX(-50%);max-width:92vw;padding:12px 15px;background:#1f344c;color:white;border-radius:12px;z-index:30;box-shadow:0 5px 22px #0a2b4b33}
+@media(min-width:700px){#app{border-left:1px solid var(--edge);border-right:1px solid var(--edge)}}
+@media(prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
+</style></head><body>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+<h2>Minh Satori</h2>
+<button class="nav active" data-view="chat">💬 Trợ lý Gemini</button>
+<button class="nav" data-view="catalogue">🧃 Sản phẩm</button>
+<button class="nav" data-view="cart">🛒 Giỏ hàng</button>
+<button class="nav" data-view="addresses">📍 Địa chỉ giao</button>
+<button class="nav" data-view="orders">🧾 Hóa đơn</button>
+<button class="nav" data-view="account">👤 Tài khoản</button>
+<div style="flex:1"></div><button id="logout" class="nav">Đăng xuất</button>
+</aside>
+<div id="app">
+<header>
+<button id="menu" class="hamburger" aria-label="Mở danh mục" aria-expanded="false"><span></span><span></span><span></span></button>
+<div class="brand"><strong>MINH SATORI</strong><small>Trợ lý đặt nước · iOS Light</small></div>
+<button id="cartBadge" class="round" aria-label="Mở giỏ hàng">🛒<b id="cartCount">0</b></button>
+</header>
+<main>
+<section id="gate"><div style="font-size:40px">💧</div><h1>Đặt nước dễ dàng</h1>
+<p>Đăng nhập Google để quản lý nhiều địa chỉ và đặt hàng bằng chat. Không cần link riêng.</p>
+<div id="signIn"></div><p id="loginStatus" class="notice">Đang kiểm tra điều kiện chạy thử...</p>
+</section>
+<section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1">
+<div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý đặt nước</h1><p>Nhắn các sản phẩm và số lượng · Một giỏ hàng chung</p></div></div>
+<div id="messages" role="log" aria-live="polite"></div>
+<div class="composer"><textarea id="message" rows="1" placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" class="send" aria-label="Gửi tin">➤</button></div>
+</section>
+<section id="catalogueView" class="view hidden"><div class="panel"><h2>Danh mục sản phẩm</h2><div id="products"></div></div></section>
+<section id="cartView" class="view hidden"><div class="panel"><div class="bar"><h2>Giỏ hàng</h2><span class="muted" id="cartState"></span></div><div id="cartLines"></div></div>
+<div class="panel"><h2>Giao hàng</h2><div class="field"><label>Người mua / hồ sơ</label><select id="profile"></select></div>
+<div class="field"><label>Địa chỉ giao</label><select id="location"></select></div>
+<button id="quote" class="btn primary" style="width:100%">Kiểm tra báo giá</button>
+<div id="quoteResult" class="muted" style="margin-top:12px"></div>
+<button id="confirm" class="btn" style="width:100%;margin-top:10px" disabled>Xác nhận đặt hàng (chưa mở trong Pilot)</button>
+</div></section>
+<section id="addressesView" class="view hidden"><div class="panel"><h2>Địa chỉ đã lưu</h2><div id="addresses"></div></div>
+<form id="addressForm" class="panel"><h2>Thêm địa chỉ</h2>
+<div class="field"><label>Nhãn</label><input name="label" required maxlength="70" placeholder="Nhà / Công ty"></div>
+<div class="field"><label>Người nhận</label><input name="recipientName" required maxlength="120"></div>
+<div class="field"><label>Số điện thoại</label><input name="recipientPhone" required inputmode="tel"></div>
+<div class="field"><label>Địa chỉ đầy đủ</label><input name="address" required maxlength="400"></div>
+<button type="submit" class="btn primary" style="width:100%">Lưu địa chỉ</button>
+</form></section>
+<section id="ordersView" class="view hidden"><div class="panel"><h2>Hóa đơn</h2>
+<p class="notice">Lịch sử hóa đơn thực tế chưa kết nối với tài khoản mới. Không hiển thị dữ liệu mẫu như hóa đơn thật.</p></div></section>
+<section id="accountView" class="view hidden"><div class="panel"><h2>Tài khoản</h2><div id="accountDetails"></div></div>
+<div class="panel"><h2>Chế độ thử an toàn</h2><p class="muted">Dữ liệu tài khoản ở cơ sở dữ liệu riêng. Hệ thống không chỉnh sửa link đại lý và hóa đơn kế toán đang có.</p></div></section>
+</main>
+</div><p id="toast" role="status" hidden></p>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const views=['chat','catalogue','cart','addresses','orders','account'];
+let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false;
+const money=n=>new Intl.NumberFormat('vi-VN').format(n||0)+'đ';
+const cookie=name=>document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1)||'';
+async function call(path,data,method='POST'){
+ const headers={'content-type':'application/json'};
+ if(method!=='GET')headers['x-satori-csrf']=cookie('satori_v2_csrf');
+ const response=await fetch(path,{method,credentials:'same-origin',cache:'no-store',headers,
+  body:method==='GET'?undefined:JSON.stringify(data||{})});
+ const result=await response.json().catch(()=>({error:'NETWORK_ERROR'}));
+ if(!response.ok)throw Error(result.error||'Lỗi kết nối');
+ return result;
+}
+function toast(message){
+ $('toast').textContent=String(message);$('toast').hidden=false;
+ setTimeout(()=>$('toast').hidden=true,3500);
+}
+function menu(open){
+ document.body.classList.toggle('menu-open',open);$('drawer').setAttribute('aria-hidden',String(!open));
+ $('menu').setAttribute('aria-expanded',String(open));
+}
+$('menu').onclick=()=>menu(!document.body.classList.contains('menu-open'));
+$('scrim').onclick=()=>menu(false);
+function view(name){
+ if(!views.includes(name)||!me)return;
+ for(const n of views){$(n+'View').classList.toggle('hidden',name!==n)}
+ for(const btn of document.querySelectorAll('[data-view]'))btn.classList.toggle('active',btn.dataset.view===name);
+ menu(false);
+ if(name==='cart')renderCart();
+}
+document.querySelectorAll('[data-view]').forEach(btn=>btn.onclick=()=>view(btn.dataset.view));
+$('cartBadge').onclick=()=>view('cart');
+function node(tag,text,cls){
+ const el=document.createElement(tag);if(text!==undefined)el.textContent=String(text);
+ if(cls)el.className=cls;return el;
+}
+function bubble(text,kind='ai'){
+ const item=node('div',text,'bubble '+kind);$('messages').append(item);
+ $('messages').scrollTop=$('messages').scrollHeight;return item;
+}
+function count(){return cart.reduce((n,x)=>n+x.qty,0)}
+function renderBadge(){$('cartCount').textContent=count()}
+async function saveCart(lines){
+ if(!me)return;
+ const result=await call('/api/v2/cart',{profileId:$('profile').value,lines},'PUT');
+ cart=result.lines;cartRev=result.revision;renderBadge();renderProducts();renderCart();
+}
+function renderProducts(){
+ $('products').replaceChildren();
+ for(const p of products){
+  const row=node('div',undefined,'product'),info=node('div');
+  info.append(node('strong',p.name),node('small',p.unit+' • '+money(p.listPrice)));
+  const button=node('button','+ Thêm','btn');
+  button.onclick=async()=>{try{await saveCart([...cart,{code:p.code,qty:1}]);toast('Đã thêm vào giỏ')}catch(e){toast(e.message)}};
+  row.append(info,button);$('products').append(row);
+ }
+ if(!products.length)$('products').append(node('p','Danh mục chính thức chưa được đồng bộ.','notice'));
+}
+function renderCart(){
+ $('cartLines').replaceChildren();
+ $('cartState').textContent=count()+' sản phẩm';
+ for(const item of cart){
+  const p=products.find(p=>p.code===item.code);
+  const row=node('div',undefined,'cart-line'),info=node('div'),num=node('div',undefined,'num');
+  info.append(node('strong',p?.name||item.code),node('small',p?.unit||''));
+  const minus=node('button','−'),input=document.createElement('input'),plus=node('button','+');
+  input.type='number';input.min='0';input.max='500';input.value=item.qty;
+  const update=async qty=>{try{
+   if(!Number.isInteger(qty)||qty<0||qty>500)throw Error('Số lượng không hợp lệ');
+   await saveCart([...cart.filter(x=>x.code!==item.code),...(qty?[{code:item.code,qty}]:[])]);
+  }catch(e){toast(e.message)}};
+  minus.onclick=()=>update(item.qty-1);plus.onclick=()=>update(item.qty+1);
+  input.onchange=()=>update(Number(input.value));
+  num.append(minus,input,plus);row.append(info,num);$('cartLines').append(row);
+ }
+ if(!cart.length)$('cartLines').append(node('p','Giỏ hàng đang trống.','muted'));
+}
+function renderAddresses(){
+ $('addresses').replaceChildren();$('location').replaceChildren();
+ for(const a of me.addresses.filter(x=>x.profileId===$('profile').value&&x.active)){
+  const option=node('option',a.label+' · '+a.address);option.value=a.id;$('location').append(option);
+  const line=node('div',undefined,'address-line');
+  const label=node('div');label.append(node('strong',a.label),node('small',a.recipientName+' · '+a.address));
+  line.append(label);$('addresses').append(line);
+ }
+ if(!$('location').options.length)$('location').append(node('option','Cần thêm địa chỉ'));
+}
+async function changeProfile(){
+ try{
+  const r=await call('/api/v2/cart?profileId='+encodeURIComponent($('profile').value),undefined,'GET');
+  cart=r.lines;cartRev=r.revision;renderBadge();renderCart();renderAddresses();
+ }catch(e){toast(e.message)}
+}
+$('profile').onchange=changeProfile;
+async function refresh(){
+ const [mine,catalogue]=await Promise.all([
+  call('/api/v2/me',undefined,'GET'),call('/api/v2/catalogue',undefined,'GET')]);
+ me=mine;products=catalogue.items;
+ $('gate').classList.add('hidden');$('chatView').classList.remove('hidden');
+ $('accountDetails').replaceChildren(node('strong',me.account.name),
+  node('p',me.account.email,'muted'));
+ $('profile').replaceChildren();
+ for(const p of me.profiles){const op=node('option',p.name+' · '+p.type);op.value=p.id;$('profile').append(op)}
+ renderProducts();await changeProfile();view('chat');
+ if(!$('messages').children.length)bubble('Xin chào! Anh/chị nhắn sản phẩm và số lượng. Em sẽ giữ mọi mặt hàng trong một giỏ hàng chung.','ai');
+}
+$('addressForm').onsubmit=async ev=>{
+ ev.preventDefault();const form=new FormData(ev.target);
+ try{
+  await call('/api/v2/addresses',Object.fromEntries(form.entries()).profileId?{}:{
+   profileId:$('profile').value,...Object.fromEntries(form.entries())});
+  ev.target.reset();me=await call('/api/v2/me',undefined,'GET');renderAddresses();toast('Đã lưu địa chỉ');
+ }catch(e){toast(e.message)}
+};
+$('quote').onclick=async()=>{
+ try{
+  if(!cart.length)throw Error('Giỏ hàng trống');
+  if(!$('location').value)throw Error('Chưa có địa chỉ giao hàng');
+  const data=await call('/api/v2/quote',{profileId:$('profile').value,addressId:$('location').value});
+  $('quoteResult').textContent='Tổng dự kiến: '+money(data.totalVnd)+' · '+data.items.length+
+   ' loại · Chế độ '+(data.invoiceMode==='pair'?'CTV 2 hóa đơn':'1 hóa đơn')+
+   '. Đây là báo giá thử, chưa tạo đơn thật.';
+ }catch(e){toast(e.message)}
+};
+$('send').onclick=async()=>{
+ const input=$('message'),message=input.value.trim();if(!message||busy)return;
+ busy=true;$('send').disabled=true;input.value='';bubble(message,'me');
+ try{
+  const result=await call('/api/v2/interpret',{message});
+  if(!result.suggestedItems){bubble(result.message||'Cần ghi rõ sản phẩm và số lượng.');return}
+  const box=node('div',undefined,'pick');
+  const summary=result.suggestedItems.map(x=>{
+   const p=products.find(y=>y.code===x.code);
+   return x.qty+' × '+(p?.name||x.code)
+  }).join('\n');
+  box.append(node('div',summary));
+  const add=node('button','Thêm tất cả vào cùng giỏ');
+  add.onclick=async()=>{try{
+   await saveCart([...cart,...result.suggestedItems]);
+   box.replaceChildren(node('div','✓ Đã thêm '+result.suggestedItems.length+' loại vào giỏ hàng.'));
+  }catch(e){toast(e.message)}};
+  box.append(add);$('messages').append(box);$('messages').scrollTop=$('messages').scrollHeight;
+ }catch(e){bubble('Chưa xử lý được tin nhắn: '+e.message)}
+ finally{busy=false;$('send').disabled=false;input.focus()}
+};
+$('message').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('send').click()}};
+$('logout').onclick=async()=>{
+ try{await call('/api/v2/logout',{})}catch{}
+ location.reload();
+};
+async function boot(){
+ try{
+  const status=await call('/api/v2/status',undefined,'GET');
+  pilot=!!status.enabled;
+  if(!pilot){$('loginStatus').textContent='Pilot tài khoản chưa được cấu hình trên server. Hóa đơn và link hiện tại không đổi.';return}
+  $('loginStatus').textContent='Pilot chỉ dành cho Admin đã xác minh bằng Google.';
+  const init=()=>{
+   if(!window.google?.accounts?.id){setTimeout(init,200);return}
+   google.accounts.id.initialize({client_id:status.googleClientId,callback:async result=>{
+    try{
+     await call('/api/v2/auth/google',{credential:result.credential});
+     await refresh();
+    }catch(e){$('loginStatus').textContent='Không đăng nhập được: '+e.message}
+   }});
+   google.accounts.id.renderButton($('signIn'),{theme:'outline',size:'large',width:260,shape:'pill'});
+  };
+  init();
+  try{await refresh()}catch{ /* New device: sign in using Google. */ }
+ }catch(e){$('loginStatus').textContent='Không kết nối được server: '+e.message}
+}
+boot();
+})();
+</script></body></html>
