@@ -26,6 +26,7 @@ import android.widget.Button
 import android.widget.ArrayAdapter
 import android.widget.Spinner
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -562,11 +563,13 @@ class NativeMainActivity : AppCompatActivity() {
         val oldScrollY = if (previousRenderedTab == activeTab)
             previousScrollView?.scrollY ?: 0 else 0
         previousRenderedTab = activeTab
+        val root = FrameLayout(this).apply { setBackgroundColor(night) }
         val shell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(night)
         }
-        setContentView(shell)
+        root.addView(shell, FrameLayout.LayoutParams(-1, -1))
+        setContentView(root)
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             overScrollMode = View.OVER_SCROLL_NEVER
@@ -584,12 +587,22 @@ class NativeMainActivity : AppCompatActivity() {
         val brand = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(7), dp(8), dp(7), dp(8))
             background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                 intArrayOf(Color.rgb(255, 255, 255), indigo, Color.rgb(232, 245, 255))).apply {
                 cornerRadius = dp(18).toFloat()
             }
         }
+        val menuButton = TextView(this).apply {
+            text = "☰"
+            textSize = 25f
+            gravity = Gravity.CENTER
+            setTextColor(ink)
+            contentDescription = "Mở menu tác vụ"
+            isClickable = true
+            isFocusable = true
+        }
+        brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(45)))
         val brandLogo = ImageView(this).apply {
             setImageResource(R.drawable.satori_invoice_logo)
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -598,18 +611,18 @@ class NativeMainActivity : AppCompatActivity() {
             clipToOutline = true
             contentDescription = "Logo Minh Satori"
         }
-        brand.addView(brandLogo, LinearLayout.LayoutParams(dp(46), dp(46)))
+        brand.addView(brandLogo, LinearLayout.LayoutParams(dp(38), dp(38)))
         val brandText = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(11), 0, 0, 0)
+            setPadding(dp(7), 0, 0, 0)
         }
-        label(brandText, "MINH SATORI", 19f, true, white)
-        label(brandText, "HÓA ĐƠN  •  SỔ KẾ TOÁN", 10f,
+        label(brandText, "MINH SATORI", 16f, true, ink)
+        label(brandText, "HÓA ĐƠN  •  SỔ KẾ TOÁN", 9f,
             false, Color.rgb(79, 102, 132), 5)
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
         val refreshButton = TextView(this).apply {
-            text = "↻ Refresh"
-            textSize = 11.5f
+            text = "↻"
+            textSize = 24f
             gravity = Gravity.CENTER
             setTextColor(cyan)
             contentDescription = "Refresh trang và đồng bộ hóa đơn ngay từ server"
@@ -617,7 +630,7 @@ class NativeMainActivity : AppCompatActivity() {
             isFocusable = true
             setOnClickListener { refreshNow() }
         }
-        brand.addView(refreshButton, LinearLayout.LayoutParams(dp(77), dp(46)))
+        brand.addView(refreshButton, LinearLayout.LayoutParams(dp(38), dp(46)))
         val bellButton = TextView(this).apply {
             text = if (getPreferences(MODE_PRIVATE).getBoolean(
                     "satori_live_notifications", false)) "🔔" else "🔕"
@@ -824,34 +837,123 @@ class NativeMainActivity : AppCompatActivity() {
             }
         }
 
-        val tabs = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.rgb(255, 255, 255))
-            setPadding(dp(5), dp(8), dp(5), dp(8))
+        // A single hamburger keeps all tasks accessible without five permanent tabs.
+        // Pure native Android animation: no webview, no new dependencies.
+        val scrim = View(this).apply {
+            setBackgroundColor(Color.argb(115, 10, 16, 28))
+            alpha = 0f
+            visibility = View.GONE
+            isClickable = true
+            contentDescription = "Đóng menu tác vụ"
         }
-        listOf("Tổng quan", "Hóa đơn", "Khách", "Công nợ", "Lên đơn").forEachIndexed { i, name ->
-            val chip = TextView(this).apply {
-                text = name
-                textSize = 11f
-                gravity = Gravity.CENTER
-                maxLines = 2
-                setPadding(dp(2), dp(8), dp(2), dp(8))
-                setTextColor(if (activeTab == i) cyan else softInk)
-                setTypeface(typeface, if (activeTab == i) Typeface.BOLD else Typeface.NORMAL)
-                background = if (activeTab == i)
-                    GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                        intArrayOf(Color.rgb(235, 244, 255), Color.rgb(222, 237, 255))).apply {
-                        cornerRadius = dp(12).toFloat()
-                    }
-                    else background(Color.rgb(255, 255, 255), 12)
+        root.addView(scrim, FrameLayout.LayoutParams(-1, -1))
+        val drawerWidth = minOf(resources.displayMetrics.widthPixels - dp(52), dp(300))
+        val drawer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(24), dp(18), dp(20))
+            setBackgroundColor(white)
+            elevation = dp(14).toFloat()
+            visibility = View.GONE
+            translationX = -drawerWidth.toFloat()
+        }
+        root.addView(drawer, FrameLayout.LayoutParams(drawerWidth, -1, Gravity.START))
+        val titleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val drawerHeading = TextView(this).apply {
+            text = "Minh Satori"
+            textSize = 21f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(ink)
+        }
+        titleRow.addView(drawerHeading, LinearLayout.LayoutParams(0, -2, 1f))
+        val closeButton = TextView(this).apply {
+            text = "✕"
+            textSize = 22f
+            gravity = Gravity.CENTER
+            setTextColor(softInk)
+            contentDescription = "Đóng menu"
+            isClickable = true
+            isFocusable = true
+        }
+        titleRow.addView(closeButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+        drawer.addView(titleRow)
+        label(drawer, "TÁC VỤ", 11f, true, softInk, 22)
+        val destinations = listOf(
+            "▦" to "Tổng quan",
+            "▤" to "Hóa đơn",
+            "♙" to "Khách hàng",
+            "◴" to "Công nợ",
+            "＋" to "Lên đơn"
+        )
+        var drawerOpened = false
+        fun dismissDrawer(after: (() -> Unit)? = null) {
+            if (!drawerOpened) {
+                after?.invoke()
+                return
+            }
+            drawerOpened = false
+            drawer.animate().cancel()
+            scrim.animate().cancel()
+            drawer.animate().translationX(-drawerWidth.toFloat()).setDuration(220)
+                .withEndAction {
+                    drawer.visibility = View.GONE
+                    scrim.visibility = View.GONE
+                    after?.invoke()
+                }.start()
+            scrim.animate().alpha(0f).setDuration(200).start()
+        }
+        fun showDrawer() {
+            if (drawerOpened) return
+            drawerOpened = true
+            drawer.animate().cancel()
+            scrim.animate().cancel()
+            scrim.alpha = 0f
+            scrim.visibility = View.VISIBLE
+            drawer.translationX = -drawerWidth.toFloat()
+            drawer.visibility = View.VISIBLE
+            drawer.animate().translationX(0f).setDuration(260).start()
+            scrim.animate().alpha(1f).setDuration(240).start()
+        }
+        destinations.forEachIndexed { index, item ->
+            val destination = TextView(this).apply {
+                text = item.first + "    " + item.second
+                textSize = 16f
+                setTypeface(typeface, if (activeTab == index) Typeface.BOLD else Typeface.NORMAL)
+                setTextColor(if (activeTab == index) cyan else ink)
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(14), 0, dp(12), 0)
+                background = background(if (activeTab == index)
+                    Color.rgb(232, 242, 255) else white, 14)
+                contentDescription = "Mở mục " + item.second
                 isClickable = true
                 isFocusable = true
-                contentDescription = "Mở mục " + name
-                setOnClickListener { activeTab = i; render() }
+                setOnClickListener {
+                    dismissDrawer { activeTab = index; render() }
+                }
             }
-            tabs.addView(chip, LinearLayout.LayoutParams(0, dp(48), 1f))
+            drawer.addView(destination, LinearLayout.LayoutParams(-1, dp(54)).apply {
+                topMargin = dp(5)
+            })
         }
-        shell.addView(tabs)
+        val syncMenu = TextView(this).apply {
+            text = "↻    Đồng bộ dữ liệu"
+            textSize = 15f
+            setTextColor(cyan)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(10), dp(12))
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Đồng bộ dữ liệu ngay"
+            setOnClickListener { dismissDrawer { refreshNow() } }
+        }
+        drawer.addView(syncMenu, LinearLayout.LayoutParams(-1, dp(56)).apply {
+            topMargin = dp(14)
+        })
+        menuButton.setOnClickListener { showDrawer() }
+        closeButton.setOnClickListener { dismissDrawer() }
+        scrim.setOnClickListener { dismissDrawer() }
         dashboardMode = false
     }
 
