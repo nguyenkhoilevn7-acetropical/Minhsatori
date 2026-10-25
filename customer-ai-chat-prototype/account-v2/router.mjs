@@ -11,6 +11,7 @@ import {interpretLegacyOrder} from './legacy-interpret.mjs';
 import {readMinhSatori} from '../satori-readonly.mjs';
 import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
 import {acceptedSubjects} from './identity-rollout.mjs';
+import {assertCurrentQuote} from './quote-freshness.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead} from './customer-backend.mjs';
 
@@ -430,13 +431,40 @@ export async function handleAccountV2(req,res,pathname){
       orderId:prior.rows[0].id,state:prior.rows[0].state});return true;
     }
     error(new Date(q.expires_at).getTime()>Date.now(),'QUOTE_EXPIRED',409);
-    const latest=await client.query('SELECT revision FROM satori_v2_carts '+
+    // Serialize checkout with catalogue refresh, and revalidate all approvals.
+    await client.query('SELECT pg_advisory_xact_lock_shared($1,$2)',[20261025,2]);
+    const checkedProfile=await client.query(
+     'SELECT id,account_id AS "accountId",type FROM satori_v2_profiles '+
+     'WHERE id=$1 AND account_id=$2 FOR SHARE',[q.profile_id,actor.id]);
+    error(checkedProfile.rows.length===1,'QUOTE_PROFILE_STALE',409);
+    const checkedAddress=await client.query(
+     'SELECT id,profile_id AS "profileId",active,label,'+
+     'recipient_name AS "recipientName",recipient_phone AS "recipientPhone",address '+
+     'FROM satori_v2_addresses WHERE id=$1 AND profile_id=$2 FOR SHARE',
+     [q.address_id,q.profile_id]);
+    error(checkedAddress.rows.length===1,'QUOTE_ADDRESS_STALE',409);
+    const latest=await client.query('SELECT lines,revision FROM satori_v2_carts '+
      'WHERE account_id=$1 AND profile_id=$2 FOR UPDATE',[actor.id,q.profile_id]);
     error(latest.rows.length===1&&latest.rows[0].revision===q.cart_revision,
      'QUOTE_CART_STALE',409);
-    const cat=await client.query('SELECT COALESCE(MAX(revision),0) AS revision '+
-     'FROM satori_v2_catalogue WHERE active=true');
-    error(Number(cat.rows[0].revision)===q.catalogue_revision,'QUOTE_CATALOGUE_STALE',409);
+    const cat=await client.query(
+     'SELECT code,name,unit,list_price AS "listPrice",revision,active '+
+     'FROM satori_v2_catalogue WHERE active=true ORDER BY code');
+    error(cat.rows.length>0&&cat.rows.every(p=>p.revision===q.catalogue_revision),
+     'QUOTE_CATALOGUE_STALE',409);
+    const approvedPolicies=await client.query(
+     'SELECT id,profile_id AS "profileId",address_id AS "addressId",'+
+     'product_code AS "productCode",discount_bps AS "discountBps",'+
+     'collaborator_bps AS "collaboratorBps",invoice_mode AS "invoiceMode",'+
+     'enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
+     'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',
+     [q.profile_id]);
+    assertCurrentQuote({
+     snapshot:q.payload,accountId:actor.id,profile:checkedProfile.rows[0],
+     address:checkedAddress.rows[0],cart:latest.rows[0].lines,
+     catalogue:cat.rows.map(p=>({...p,listPrice:Number(p.listPrice)})),
+     policies:approvedPolicies.rows,catalogueRevision:q.catalogue_revision
+    });
     const recorded=await client.query(
      'INSERT INTO satori_v2_order_requests(quote_id,account_id,request_id,state) '+
      "VALUES($1,$2,$3,'PENDING_INTEGRATION') ON CONFLICT DO NOTHING "+
