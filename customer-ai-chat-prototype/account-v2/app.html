@@ -89,7 +89,17 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <div id="quoteResult" class="muted" style="margin-top:12px"></div>
 <button id="confirm" class="btn" style="width:100%;margin-top:10px" disabled>Xác nhận đặt hàng (chưa mở trong Pilot)</button>
 </div></section>
-<section id="addressesView" class="view hidden"><div class="panel"><h2>Địa chỉ đã lưu</h2><div id="addresses"></div></div>
+<section id="addressesView" class="view hidden"><div class="panel"><h2>Địa chỉ đã lưu</h2><div id="addresses"></div>
+<details id="userAddressEditor"><summary style="cursor:pointer;color:var(--blue);font-weight:700;padding:12px 0">✎ Sửa hoặc tạm ngưng địa chỉ đã lưu</summary>
+<div class="field"><label>Chọn điểm giao</label><select id="userEditAddress"></select></div>
+<div class="field"><label>Nhãn địa chỉ</label><input id="userEditLabel" maxlength="70"></div>
+<div class="field"><label>Người nhận</label><input id="userEditRecipient" maxlength="120"></div>
+<div class="field"><label>Số điện thoại</label><input id="userEditPhone" inputmode="tel"></div>
+<div class="field"><label>Địa chỉ đầy đủ</label><input id="userEditText" maxlength="400"></div>
+<label class="muted" style="display:flex;gap:9px;align-items:center;padding:8px 0"><input type="checkbox" id="userEditActive" checked> Địa chỉ đang hoạt động</label>
+<button id="saveUserAddress" class="btn primary" type="button">Lưu thay đổi</button>
+<p class="muted">Chỉ thay đổi điểm giao V2. Hóa đơn đã phát hành không thay đổi.</p>
+</details></div>
 <form id="addressForm" class="panel"><h2>Thêm địa chỉ</h2>
 <div class="field"><label>Nhãn</label><input name="label" required maxlength="70" placeholder="Nhà / Công ty"></div>
 <div class="field"><label>Người nhận</label><input name="recipientName" required maxlength="120"></div>
@@ -235,15 +245,30 @@ function renderCart(){
  }
  if(!cart.length)$('cartLines').append(node('p','Giỏ hàng đang trống.','muted'));
 }
+function userAddressSelection(){
+ const a=me?.addresses?.find(x=>x.id===$('userEditAddress').value&&x.profileId===$('profile').value);
+ $('saveUserAddress').disabled=!a;
+ for(const [id,value] of [['userEditLabel',a?.label||''],['userEditRecipient',a?.recipientName||''],
+ ['userEditPhone',a?.recipientPhone||''],['userEditText',a?.address||'']])$(id).value=value;
+ $('userEditActive').checked=!!a?.active;
+}
+$('userEditAddress').onchange=userAddressSelection;
 function renderAddresses(){
- $('addresses').replaceChildren();$('location').replaceChildren();
- for(const a of me.addresses.filter(x=>x.profileId===$('profile').value&&x.active)){
+ const selected=$('location').value,editSelected=$('userEditAddress').value;
+ $('addresses').replaceChildren();$('location').replaceChildren();$('userEditAddress').replaceChildren();
+ for(const a of me.addresses.filter(x=>x.profileId===$('profile').value)){
+  const edit=node('option',a.label+(a.active?'':' (Tạm ngưng)'));edit.value=a.id;
+  $('userEditAddress').append(edit);
+  if(!a.active)continue;
   const option=node('option',a.label+' · '+a.address);option.value=a.id;$('location').append(option);
   const line=node('div',undefined,'address-line');
   const label=node('div');label.append(node('strong',a.label),node('small',a.recipientName+' · '+a.address));
   line.append(label);$('addresses').append(line);
  }
- if(!$('location').options.length)$('location').append(node('option','Cần thêm địa chỉ'));
+ if([...$('location').options].some(o=>o.value===selected))$('location').value=selected;
+ if([...$('userEditAddress').options].some(o=>o.value===editSelected))$('userEditAddress').value=editSelected;
+ if(!$('location').options.length){const missing=node('option','Cần thêm địa chỉ');missing.value='';$('location').append(missing)}
+ userAddressSelection();
 }
 async function changeProfile(){
  try{
@@ -266,6 +291,22 @@ async function refresh(){
  renderProducts();await changeProfile();view('chat');
  if(!$('messages').children.length)bubble('Xin chào! Anh/chị nhắn sản phẩm và số lượng. Em sẽ giữ mọi mặt hàng trong một giỏ hàng chung.','ai');
 }
+$('saveUserAddress').onclick=async()=>{
+ try{
+  const old=me.addresses.find(a=>a.id===$('userEditAddress').value&&a.profileId===$('profile').value);
+  if(!old)throw Error('Chưa chọn điểm giao');
+  if(!confirm('Xác nhận thay đổi địa chỉ V2? Hóa đơn trước đây vẫn giữ nguyên.'))return;
+  await call('/api/v2/addresses',{profileId:old.profileId,addressId:old.id,
+   expectedRevision:old.revision,confirmed:true,label:$('userEditLabel').value,
+   recipientName:$('userEditRecipient').value,recipientPhone:$('userEditPhone').value,
+   address:$('userEditText').value,active:$('userEditActive').checked},'PATCH');
+  me=await call('/api/v2/me',undefined,'GET');
+  renderAddresses();toast('Đã cập nhật địa chỉ giao hàng');
+ }catch(e){
+  if(e.message==='ADDRESS_REVISION_CONFLICT'){me=await call('/api/v2/me',undefined,'GET');renderAddresses()}
+  toast(e.message==='ADDRESS_REVISION_CONFLICT'?'Dữ liệu vừa thay đổi ở thiết bị khác; đã tải bản mới.':e.message)
+ }
+};
 $('addressForm').onsubmit=async ev=>{
  ev.preventDefault();const form=new FormData(ev.target);
  try{
@@ -280,7 +321,7 @@ $('quote').onclick=async()=>{
   if(!$('location').value)throw Error('Chưa có địa chỉ giao hàng');
   const data=await call('/api/v2/quote',{profileId:$('profile').value,addressId:$('location').value});
   $('quoteResult').textContent='Tổng dự kiến: '+money(data.totalVnd)+' · '+data.items.length+
-   ' loại · Chế độ '+(data.invoiceMode==='pair'?'CTV 2 hóa đơn':'1 hóa đơn')+
+   ' loại · Chế độ '+(data.invoiceMode==='pair'?'CTV: 1 báo giá + chứng từ CTV tham chiếu':'một hóa đơn')+
    '. Đây là báo giá thử, chưa tạo đơn thật.';
  }catch(e){toast(e.message)}
 };
@@ -307,7 +348,9 @@ $('send').onclick=async()=>{
 };
 $('message').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('send').click()}};
 $('manualRefresh').onclick=async()=>{
- try{me=await call('/api/v2/me',undefined,'GET');await changeProfile();toast('Đã làm mới')}catch(e){toast(e.message)}
+ try{const [mine,catalogue]=await Promise.all([call('/api/v2/me',undefined,'GET'),
+   call('/api/v2/catalogue',undefined,'GET')]);me=mine;products=catalogue.items;
+   renderProducts();renderAddresses();await changeProfile();toast('Đã làm mới')}catch(e){toast(e.message)}
  menu(false);
 };
 setInterval(async()=>{
@@ -464,7 +507,9 @@ async function boot(){
   const status=await call('/api/v2/status',undefined,'GET');
   pilot=!!status.enabled;
   if(!pilot){$('loginStatus').textContent='Pilot tài khoản chưa được cấu hình trên server. Hóa đơn và link hiện tại không đổi.';return}
-  $('loginStatus').textContent='Pilot chỉ dành cho Admin đã xác minh bằng Google.';
+  $('loginStatus').textContent=status.customerRolloutEnabled?
+    'Đăng nhập bằng tài khoản Google đã được duyệt để đặt hàng.':
+    'Pilot chỉ dành cho Admin đã xác minh bằng Google.';
   const init=()=>{
    if(!window.google?.accounts?.id){setTimeout(init,200);return}
    google.accounts.id.initialize({client_id:status.googleClientId,callback:async result=>{
