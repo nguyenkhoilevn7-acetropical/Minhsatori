@@ -38,8 +38,11 @@ try{
  if(tables.rows.length)throw Error('NON_V2_TABLES_PRESENT_MIGRATION_DENIED');
  const sql=filename=>fs.readFileSync(path.join(here,filename),'utf8');
  await client.query(sql('schema.sql'));
- await client.query(sql('migrations/20261025_owner_edits.sql'));
- await client.query(sql('migrations/20261025_policy_revision.sql'));
+ // Existing standalone migrations contain their own BEGIN/COMMIT.
+ // Strip ONLY these boundaries so every migration shares the outer transaction.
+ const statements=file=>sql(file).replace(/^\s*(?:BEGIN|COMMIT)\s*;\s*$/gmi,'');
+ await client.query(statements('migrations/20261025_owner_edits.sql'));
+ await client.query(statements('migrations/20261025_policy_revision.sql'));
  const expected=[
   'satori_v2_accounts','satori_v2_sessions','satori_v2_profiles',
   'satori_v2_addresses','satori_v2_policies','satori_v2_catalogue',
