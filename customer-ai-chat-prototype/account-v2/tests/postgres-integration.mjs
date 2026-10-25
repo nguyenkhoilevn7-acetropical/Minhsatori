@@ -68,12 +68,18 @@ try{
  const idempotencyKey=randomUUID();
  const confirmations=await Promise.all(Array.from({length:100},()=>pool.query(
   'INSERT INTO satori_v2_order_requests(quote_id,account_id,request_id,state) '+
-  'VALUES($1,$2,$3,$4) ON CONFLICT(account_id,request_id) DO NOTHING RETURNING id',
+  'VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id',
   [quote.id,account.id,idempotencyKey,'PENDING_INTEGRATION'])));
  assert.equal(confirmations.filter(x=>x.rowCount===1).length,1,'100 retries must result in one request');
  const reqCount=await one('SELECT count(*)::integer AS count FROM satori_v2_order_requests '+
   'WHERE account_id=$1 AND request_id=$2',[account.id,idempotencyKey]);
  assert.equal(reqCount.count,1);
+ const duplicateQuoteDifferentKey=await pool.query(
+  'INSERT INTO satori_v2_order_requests(quote_id,account_id,request_id,state) '+
+  'VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id',
+  [quote.id,account.id,randomUUID(),'PENDING_INTEGRATION']);
+ assert.equal(duplicateQuoteDifferentKey.rowCount,0,
+  'a second requestId cannot produce another order from an already-submitted quote');
  const reqState=await one('SELECT state FROM satori_v2_order_requests WHERE quote_id=$1',[quote.id]);
  assert.equal(reqState.state,'PENDING_INTEGRATION','never claim the invoice is committed');
 
