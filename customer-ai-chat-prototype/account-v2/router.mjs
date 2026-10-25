@@ -7,9 +7,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
-import {parseOrder,identityChange} from '../free-parser.mjs';
-import {parseMultiOrder} from '../multi-order.mjs';
-import {parseComplexOrderWithGemini} from '../free-parser.mjs';
+import {interpretLegacyOrder} from './legacy-interpret.mjs';
 import {readMinhSatori} from '../satori-readonly.mjs';
 import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
 import {acceptedSubjects} from './identity-rollout.mjs';
@@ -223,24 +221,9 @@ async function quote(pool,actor,input){
 }
 async function interpret(input){
  error(typeof input.message==='string'&&input.message.trim().length>=2&&input.message.length<=500,'MESSAGE_INVALID');
- const message=input.message.trim();
- if(identityChange(message))return {needsClarification:true,message:'Vui lòng chọn địa chỉ đã lưu. Đổi người nhận hoặc số điện thoại cần xác minh riêng.'};
- let parsed=parseMultiOrder(message,{});
- if(!parsed)parsed=await parseComplexOrderWithGemini(message,{});
- if(!parsed){
-  const one=await parseOrder(message,{});
-  if(one?.sku&&isSku(one.sku)&&Number.isInteger(one.qty)&&one.qty>0&&!one.needsHuman&&!one.needMoreDetails)
-   parsed={items:[{sku:one.sku,qty:one.qty}],source:one.source};
-  else if(one?.sku&&['S500','S350','S5L'].includes(one.sku)&&Number.isInteger(one.qty)&&one.qty>0&&
-   !one.needsHuman&&!one.needMoreDetails){
-   const aliases={S500:'TP-00003',S350:'TP-00001',S5L:'TP-00136'};
-   parsed={items:[{sku:aliases[one.sku],qty:one.qty}],source:one.source};
-  }else return {needsClarification:true,message:'Anh/chị vui lòng ghi rõ tên, quy cách và số lượng sản phẩm.'};
- }
- if(!Array.isArray(parsed.items)||!parsed.items.length||parsed.needMoreDetails)
-  return {needsClarification:true,message:'Cần xác nhận lại từng mặt hàng trước khi thêm vào giỏ.'};
- const items=normalizeCart(parsed.items.map(x=>({code:x.sku,qty:x.qty})));
- return {suggestedItems:items,source:parsed.source||'validated',message:'Đã hiểu các mặt hàng. Kiểm tra rồi chọn Thêm vào giỏ chung.'};
+ // Original app's parser + clarification protections. Never bypass the
+ // server-verified V2 catalogue, tenant isolation or signed checkout gates.
+ return interpretLegacyOrder(input.message);
 }
 export async function handleAccountV2(req,res,pathname){
  const page=pathname==='/app-v2'||pathname==='/app-v2/';
