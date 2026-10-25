@@ -15,6 +15,7 @@ on:
       - 'release/android-v0.4.4-web-live-refresh-20261024'
       - 'release/android-v0.4.5-drive403-owner-recovery-20261024'
       - 'release/android-v0.4.6-canonical-live-ledger-20261024'
+      - 'release/android-v0.4.8-ios-ui-20261025'
     paths:
       - 'android/release-request.json'
 
@@ -89,7 +90,7 @@ jobs:
       - name: Upload signed APK for Samsung acceptance test
         uses: actions/upload-artifact@v4
         with:
-          name: MinhSatori-Samsung-Native-v0.4.6-CANONICAL-LEDGER-SIGNED-RELEASE
+          name: MinhSatori-Samsung-Native-iOS-Light-SIGNED-RELEASE
           path: |
             android/app/build/outputs/apk/release/app-release.apk
             android/app/build/outputs/apk/release/release-verification.json
