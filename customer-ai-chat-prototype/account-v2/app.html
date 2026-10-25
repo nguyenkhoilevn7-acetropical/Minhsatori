@@ -45,6 +45,24 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .pick-row input{width:70px;min-height:36px;text-align:center;border:1px solid #c7c7cc;border-radius:9px;color:var(--iosIncomingInk);font-weight:700;background:#fff}
 .pick-title{font-weight:750;margin-bottom:6px}.cart-chat-link{margin:0 15px 9px;border:1px solid #cfe7ff;background:#f1f8ff;color:var(--chatBlue);border-radius:10px;padding:8px 10px;text-align:left;font-weight:700;font-size:12px}
 @media(prefers-reduced-motion:reduce){.chat-actions,.bubble{scroll-behavior:auto}}
+.agent-selector{padding:6px 12px;background:#fff;border-bottom:1px solid var(--edge)}
+.agent-compact{display:flex;align-items:center;gap:8px;min-height:44px}
+.agent-avatar{width:34px;height:34px;flex:none;border-radius:50%;display:grid;place-items:center;background:#e8f2ff;color:#007aff;font-size:23px}
+#quickAgentProfile{min-width:0;flex:1;min-height:42px;padding:7px 5px;border:0;background:transparent;color:#1c1c1e;font-size:14px;font-weight:650;text-overflow:ellipsis}
+.agent-address-menu{position:relative;flex:none}
+.agent-address-menu>summary{list-style:none;display:grid;place-items:center;width:40px;height:40px;cursor:pointer;border-radius:50%;background:#f2f2f7;color:#007aff;font-size:27px;line-height:1}
+.agent-address-menu>summary::-webkit-details-marker{display:none}
+.agent-address-menu[open]>summary{background:#e0ecff}
+.agent-address-popover{position:absolute;z-index:15;top:45px;right:0;width:min(304px,calc(100vw - 28px));max-height:48dvh;overflow-y:auto;padding:10px;background:white;border:1px solid #e5e5ea;border-radius:17px;box-shadow:0 10px 28px #1c31462e}
+.agent-address-heading{font-size:12px;font-weight:700;color:#6c7380;margin:3px 7px 8px}
+.agent-address-choice{display:flex;align-items:center;gap:9px;width:100%;min-height:49px;padding:8px;border:0;border-radius:11px;text-align:left;background:#fff;color:#1c1c1e}
+.agent-address-choice[aria-pressed="true"]{background:#e8f2ff}
+.agent-address-choice .pin{font-size:23px;flex:none;color:#007aff}
+.agent-address-choice .address-meta{display:block;flex:1;min-width:0}
+.agent-address-choice .address-title{display:block;font-size:13px;font-weight:700}
+.agent-address-choice .address-subtitle{display:block;font-size:11px;color:#6e7782;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agent-address-manage{width:100%;min-height:38px;border:0;border-radius:10px;background:#f2f2f7;color:#007aff;font-weight:700;margin-top:8px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .composer{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--edge);padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:8px}
 .composer textarea{flex:1;width:100%;min-height:42px;max-height:104px;border:1px solid #dce5ec;border-radius:15px;outline:none;padding:10px 12px;resize:vertical;background:#f6f8fb;color:var(--ink)}
 .composer textarea:focus{border-color:#6abbff}
@@ -92,10 +110,13 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 </section>
 <section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1">
 <div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý đặt hàng</h1><p>Chọn hồ sơ, nhắn số lượng, kiểm tra rồi gửi đơn thử</p></div></div>
-<div class="agent-selector" style="padding:8px 14px;border-bottom:1px solid var(--edge);background:#f5faff">
-<label for="quickAgentProfile" style="display:block;color:#195b93;font-size:12px;font-weight:750">Đặt hàng cho hồ sơ</label>
-<select id="quickAgentProfile" aria-label="Chọn hồ sơ đại lý hoặc CTV" style="width:100%;margin-top:4px;min-height:42px;padding:7px;border:1px solid #c6d9ee;border-radius:11px;background:white;color:#154b85"></select>
-<span id="agentAddressHint" class="muted">Chọn điểm giao trong giỏ hàng</span></div>
+<div class="agent-selector">
+<div class="agent-compact"><span class="agent-avatar" aria-hidden="true">♙</span>
+<select id="quickAgentProfile" aria-label="Chọn khách hàng hoặc đại lý"></select>
+<details id="agentAddressMenu" class="agent-address-menu">
+<summary title="Chọn điểm giao hàng" aria-label="Chọn địa chỉ giao hàng">⌖</summary>
+<div class="agent-address-popover"><div class="agent-address-heading">Địa chỉ giao hàng</div><div id="agentAddressChoices"></div><button id="agentAddressManage" class="agent-address-manage" type="button">Quản lý địa chỉ</button></div>
+</details></div><span id="agentAddressHint" class="sr-only" role="status">Chưa chọn địa chỉ</span></div>
 <details class="chat-actions"><summary>Tiện ích đặt hàng</summary><div class="quick-buttons"><button id="quickProducts" type="button">🧃 Sản phẩm</button><button id="quickCart" type="button">🛒 Giỏ hàng</button><button id="quickAddress" type="button">📍 Địa chỉ giao</button><button id="quickRefresh" type="button">↻ Làm mới</button></div></details>
 <div id="messages" role="log" aria-live="polite"></div>
 <button id="chatCartShortcut" class="cart-chat-link" type="button">🛒 Giỏ hàng đang trống · Xem giỏ</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
@@ -690,8 +711,24 @@ function renderAddresses(){
  const current=me?.profiles?.find(x=>x.id===$('profile').value);
  const active=me?.addresses?.filter(x=>x.profileId===$('profile').value&&x.active)||[];
  $('agentAddressHint').textContent=current?
-  (current.type==='agency'?'🏢 Đại lý':current.type==='collaborator'?'🤝 CTV':'👤 Khách lẻ')+
-  ' · '+active.length+' địa chỉ giao có thể chọn':'Chưa có hồ sơ';
+  (current.type==='agency'?'Đại lý':current.type==='collaborator'?'CTV':'Khách hàng')+
+  ', '+active.length+' địa chỉ giao':'Chưa có hồ sơ';
+ const choices=$('agentAddressChoices');choices.replaceChildren();
+ for(const address of active){
+  const button=node('button',undefined,'agent-address-choice');button.type='button';
+  button.setAttribute('aria-pressed',String(address.id===$('location').value));
+  const pin=node('span','⌖','pin'),meta=node('span',undefined,'address-meta');
+  meta.append(node('span',address.label,'address-title'),node('span',address.address,'address-subtitle'));
+  button.append(pin,meta);
+  button.onclick=()=>{
+   $('location').value=address.id;
+   resetTestQuote();
+   $('agentAddressMenu').open=false;
+   renderAddresses();
+  };
+  choices.append(button);
+ }
+ if(!active.length)choices.append(node('p','Chưa có địa chỉ giao đang hoạt động.','muted'));
 }
 $('location').onchange=resetTestQuote;
 async function changeProfile(){
@@ -919,6 +956,7 @@ $('quickRefresh').onclick=refreshData;
 $('quickProducts').onclick=()=>view('catalogue');
 $('quickCart').onclick=()=>view('cart');
 $('quickAddress').onclick=()=>view('addresses');
+ $('agentAddressManage').onclick=()=>{ $('agentAddressMenu').open=false;view('addresses') };
 $('chatCartShortcut').onclick=()=>view('cart');
 setInterval(async()=>{
  if(!me||savingCart||busy||document.visibilityState!=='visible')return;
