@@ -368,9 +368,10 @@ $('savePolicy').onclick=async()=>{
  try{
   const profileId=$('adminProfile').value,invoiceMode=$('adminInvoiceMode').value;
   const basis=x=>{
-   const v=Number(x);if(!Number.isFinite(v)||v<0||v>100||Math.round(v*100)!==v*100)
+   const value=String(x).trim();
+   if(!/^(?:100(?:\.0{1,2})?|\d{1,2}(?:\.\d{1,2})?)$/.test(value))
     throw Error('Chiết khấu từ 0 đến 100%, tối đa 2 chữ số thập phân');
-   return Math.round(v*100);
+   return Math.round(Number(value)*100);
   };
   const discountBps=basis($('adminDiscount').value);
   const collaboratorBps=basis($('adminCtvDiscount').value);
