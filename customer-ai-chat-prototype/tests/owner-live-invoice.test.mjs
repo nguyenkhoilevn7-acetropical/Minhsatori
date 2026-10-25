@@ -57,6 +57,18 @@ let nextQuoteId=0;
 const engine=createOwnerRealInvoice({env,fetcher,now:()=>1792700000000,
  newId:()=>String(++nextQuoteId).padStart(32,'0')});
 assert.equal(engine.readiness().enabled,true);
+// Read-only: a real legacy contact field may include the recipient's name.
+const oldTelephone=customer.phone;
+customer.phone='Hằng - 0784723916';
+const annotated=await engine.source(5920,customer.id);
+assert.equal(annotated.customer.phone,'0784723916');
+assert.equal(annotated.customer.name,customer.name);
+customer.phone='0903507433 (Cô Hoa)';
+const annotatedSuffix=await engine.source(5920,customer.id);
+assert.equal(annotatedSuffix.customer.phone,'0903507433');
+customer.phone='';
+await assert.rejects(()=>engine.source(5920,customer.id),{code:'OWNER_CUSTOMER_REFERENCE_AMBIGUOUS'});
+customer.phone=oldTelephone;
 const probe=await engine.probeWriter();
 assert.equal(probe.verified,true);
 assert.equal(probe.invoiceCount,115);
