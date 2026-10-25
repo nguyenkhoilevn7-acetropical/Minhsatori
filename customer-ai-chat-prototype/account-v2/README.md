@@ -108,3 +108,13 @@ Important limitations: no live catalogue import adapter; no address edit/delete;
 9. Owner completes final acceptance on Samsung, then an explicitly audited staged production rollout.
 
 **Do not merge or deploy simply because the code is on a GitHub branch.**
+
+
+## Implemented after initial blueprint
+
+- `GET/POST /api/v2/admin/profiles`: admin customer/agency/CTV profiles for registered Google accounts.
+- `GET/POST /api/v2/admin/addresses`: admin-managed multiple delivery destinations per customer profile.
+- `GET/POST /api/v2/admin/policies`: admin-managed address-specific, SKU-specific and default pricing, versioned.
+- `POST /api/v2/admin/catalogue/refresh`: admin-triggered **read-only** HMAC pull from canonical Apps Script catalogue, strict revision validation, atomic isolated PostgreSQL readback; not automatic.
+- V2 cart PUT uses `expectedRevision` compare-and-swap to reject cross-device lost updates. iOS Light UI also provides manual refresh and foreground revision polling.
+- **No production deployment**. Credentials/database provision, exact original Gemini UI parity, signed ledger order creation, Android V2 build, phone login and Samsung acceptance remain incomplete.
