@@ -2,6 +2,7 @@
  * Owner-only, READ-ONLY customer directory. A buyer's invoices are not addresses.
  * Purchase count and invoice number must never determine delivery location identity.
  */
+import {contactPhone} from './contact-phone.mjs';
 const compact=(v,n=160)=>String(v??'').trim().replace(/\s+/g,' ').slice(0,n);
 export const foldCustomerName=v=>compact(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 export function directoryKey(name){
@@ -17,7 +18,7 @@ export function directorySourceQuery(name){
  return directoryKey(name)==='brand:traky'?'Traky':compact(name,120);
 }
 const baseName=key=>key==='brand:traky'?'Traky (các chi nhánh)':'';
-const phoneOf=v=>compact(v,40).replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0');
+const phoneOf=contactPhone;
 const addressOf=v=>compact(v,300);
 // Group by the physical delivery point, never by phone number or invoice number.
 // A street-number + street-name is stronger than optional wards, postcodes,
@@ -101,11 +102,20 @@ export function detailFromEvidence(requestedName,profiles,invoices,{sourceTotal=
    found.set(identity,place);
   }
   if(no&&!place.invoiceNos.includes(no))place.invoiceNos.push(no);
-  if(ref&&!place.references.some(x=>String(x.id)===String(ref.id)&&x.invoiceNo===ref.invoiceNo)){
-   place.references.push(ref);
-   // Keep each source's OWN contact information with its exact record ref.
-   // A later phone from another invoice must not be paired with this ref.
-   place.sourceRows.push({ref,name,phone,address,date,kind});
+  if(ref){
+   const existing=place.sourceRows.find(x=>String(x.ref.id)===String(ref.id)&&
+    x.ref.invoiceNo===ref.invoiceNo);
+   if(!existing){
+    place.references.push(ref);
+    // Do not attach a phone from another bill to this invoice identity.
+    place.sourceRows.push({ref,name,phone,address,date,kind});
+   }else if(!existing.phone&&phone&&
+     foldCustomerName(existing.name)===foldCustomerName(name)&&
+     physicalAddressKey(existing.address)===physicalAddressKey(address)){
+    // A later read of the SAME immutable invoice may have a more complete
+    // contact field than its old profile projection. Never cross invoice IDs.
+    existing.phone=phone;existing.kind=kind;
+   }
   }
   if(phone&&!place.phones.includes(phone))place.phones.push(phone);
   if(!phone)place.missingContact=true;
@@ -123,8 +133,12 @@ export function detailFromEvidence(requestedName,profiles,invoices,{sourceTotal=
   if(p.phones.length>1)reviewReasons.push('MULTIPLE_CONTACTS_REVIEW');
   // Historical source may be malformed or ambiguous; do not discard valid alternatives.
   if(p.missingContact)reviewReasons.push('HISTORIC_PHONE_MISSING');
+  const verifiedSourceRows=p.sourceRows.filter(row=>row.phone&&
+   row.ref?.id!=null&&Number.isSafeInteger(row.ref.invoiceNo)&&
+   row.ref.invoiceNo>0&&row.name.trim().length>=2&&row.address.length>=5);
   return {...p,needsReview:reviewReasons.length>0,reviewReasons,
-   approvedCandidate:p.references.length>0&&!!p.phone,
+   approvedCandidate:verifiedSourceRows.length>0,
+   eligibleSourceCount:verifiedSourceRows.length,
    purchaseCount:p.ordersObserved};
  }).sort((a,b)=>b.lastDate.localeCompare(a.lastDate)||a.address.localeCompare(b.address,'vi'));
  // Compare *source profile rows* to sourceTotal, NOT unique delivery points:
