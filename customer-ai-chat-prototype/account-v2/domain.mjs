@@ -19,6 +19,18 @@ export function validateAddress(input){
  ensure(/^\+?[0-9]{9,15}$/.test(phone),'PHONE_INVALID');
  return {label:input.label.trim(),recipientName:input.recipientName.trim(),recipientPhone:phone,address:input.address.trim()};
 }
+// Changes to an approved delivery point are owner-only and versioned.
+// A previous quote never changes its historical delivery snapshot.
+export function validateAdminAddressEdit(input){
+ ensure(input&&typeof input==='object'&&!Array.isArray(input),'ADDRESS_UPDATE_INVALID');
+ ensure(isUuid(input.profileId)&&isUuid(input.addressId),'ADDRESS_ID_REQUIRED');
+ ensure(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED');
+ ensure(Number.isSafeInteger(input.expectedRevision)&&input.expectedRevision>=1&&
+  input.expectedRevision<2_147_483_647,'ADDRESS_REVISION_REQUIRED');
+ ensure(typeof input.active==='boolean','ADDRESS_ACTIVE_REQUIRED');
+ return {...validateAddress(input),profileId:input.profileId,addressId:input.addressId,
+  active:input.active,expectedRevision:input.expectedRevision};
+}
 export function normalizeCart(input){
  ensure(Array.isArray(input)&&input.length>0&&input.length<=40,'CART_INVALID');
  const map=new Map();
