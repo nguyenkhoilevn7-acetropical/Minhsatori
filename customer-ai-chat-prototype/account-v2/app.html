@@ -97,8 +97,10 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <button id="chatCartShortcut" class="cart-chat-link" type="button">🛒 Giỏ hàng đang trống · Xem giỏ</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
 <div class="composer"><textarea id="message" rows="1" placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" class="send" aria-label="Gửi tin">➤</button></div>
 </section>
-<section id="catalogueView" class="view hidden"><div class="panel"><h2>Danh mục sản phẩm</h2><div id="products"></div></div></section>
-<section id="cartView" class="view hidden"><div class="panel"><div class="bar"><h2>Giỏ hàng</h2><span class="muted" id="cartState"></span></div><div id="cartLines"></div></div>
+<section id="catalogueView" class="view hidden"><div class="panel"><h2>Danh mục sản phẩm</h2>
+<div class="field"><label for="catalogueSearch">Tìm tên hoặc mã sản phẩm</label><input id="catalogueSearch" type="search" maxlength="100" autocomplete="off" placeholder="Ví dụ: 500ml, 350ml, Satori"></div>
+<div id="products"></div></div></section>
+<section id="cartView" class="view hidden"><div class="panel"><div class="bar"><h2>Giỏ hàng</h2><div class="bar"><span class="muted" id="cartState"></span><button id="clearCart" class="btn" type="button" style="padding:8px;font-size:12px" disabled>Xóa giỏ</button></div></div><div id="cartLines"></div></div>
 <div class="panel"><h2>Giao hàng</h2><div class="field"><label>Người mua / hồ sơ</label><select id="profile"></select></div>
 <div class="field"><label>Địa chỉ giao</label><select id="location"></select></div>
 <button id="quote" class="btn primary" style="width:100%">Kiểm tra báo giá</button>
@@ -416,9 +418,17 @@ async function saveCart(lines){
   throw e;
  }finally{savingCart=false}
 }
+function foldProductSearch(text){
+ return String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase().trim();
+}
+$('catalogueSearch').oninput=renderProducts;
 function renderProducts(){
  $('products').replaceChildren();
- for(const p of products){
+ const needle=foldProductSearch($('catalogueSearch').value);
+ const shown=products.filter(p=>!needle||foldProductSearch(
+  [p.code,p.name,p.unit].join(' ')).includes(needle));
+ for(const p of shown){
   const row=node('div',undefined,'product'),info=node('div');
   info.append(node('strong',p.name),node('small',p.unit+' • '+money(p.listPrice)));
   const button=node('button','+ Thêm','btn');
@@ -426,10 +436,12 @@ function renderProducts(){
   row.append(info,button);$('products').append(row);
  }
  if(!products.length)$('products').append(node('p','Danh mục chính thức chưa được đồng bộ.','notice'));
+ else if(!shown.length)$('products').append(node('p','Không tìm thấy sản phẩm phù hợp.','muted'));
 }
 function renderCart(){
  $('cartLines').replaceChildren();
  $('cartState').textContent=count()+' sản phẩm';
+ $('clearCart').disabled=cart.length===0||savingCart;
  for(const item of cart){
   const p=products.find(p=>p.code===item.code);
   const row=node('div',undefined,'cart-line'),info=node('div'),num=node('div',undefined,'num');
@@ -446,6 +458,14 @@ function renderCart(){
  }
  if(!cart.length)$('cartLines').append(node('p','Giỏ hàng đang trống.','muted'));
 }
+$('clearCart').onclick=async()=>{
+ if(!cart.length||savingCart)return;
+ if(!confirm('Xóa tất cả sản phẩm khỏi giỏ V2? Hành động không xóa hóa đơn.'))return;
+ try{
+  await saveCart([]);
+  toast('Đã làm trống giỏ hàng V2');
+ }catch(e){toast(e.message)}
+};
 function userAddressSelection(){
  const a=me?.addresses?.find(x=>x.id===$('userEditAddress').value&&x.profileId===$('profile').value);
  $('saveUserAddress').disabled=!a;
