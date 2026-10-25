@@ -226,7 +226,7 @@ test('regression: issue button catches failed Drive readiness and shows validati
   'all readiness requests must be inside try/catch; old version left one unhandled');
  assert.match(issue,/agencyRealIssueStatus/);
  assert.match(issue,/registryWriteReady/);
- assert.match(issue,/daysValid>30/);
+ assert.match(issue,/daysValid>36500/);
  assert.match(server,/ownerInvoice\.sourceBatch/);
  assert.match(server,/links\.register',\{confirmed:false\}/);
  assert.match(server,/LINK_REGISTRY_INVALID/);
