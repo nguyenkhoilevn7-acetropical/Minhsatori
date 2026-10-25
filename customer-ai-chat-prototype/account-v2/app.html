@@ -115,6 +115,15 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 </section>
 <section class="panel"><h2>Địa chỉ giao hàng của hồ sơ</h2>
 <div id="adminLocations" class="muted"></div>
+<div class="field"><label>Chọn điểm giao cần chỉnh sửa</label><select id="adminEditAddress"></select></div>
+<div class="field"><label>Nhãn địa chỉ (sửa)</label><input id="adminEditLabel" maxlength="70"></div>
+<div class="field"><label>Người nhận (sửa)</label><input id="adminEditRecipient" maxlength="120"></div>
+<div class="field"><label>Số điện thoại (sửa)</label><input id="adminEditPhone" inputmode="tel"></div>
+<div class="field"><label>Địa chỉ chi tiết (sửa)</label><input id="adminEditText" maxlength="400"></div>
+<label class="muted" style="display:flex;gap:9px;align-items:center;padding:8px 0">
+<input type="checkbox" id="adminEditActive" checked> Điểm giao đang hoạt động</label>
+<button id="saveAdminAddress" class="btn" type="button">Lưu chỉnh sửa điểm giao</button>
+<p class="muted">Chỉ ảnh hưởng hồ sơ V2; không sửa hóa đơn cũ hoặc link riêng.</p>
 <div class="field"><label>Nhãn địa chỉ</label><input id="adminAddressLabel" placeholder="Khách A / Cửa hàng B" maxlength="70"></div>
 <div class="field"><label>Tên người nhận</label><input id="adminRecipient" maxlength="120"></div>
 <div class="field"><label>Số điện thoại</label><input id="adminPhone" inputmode="tel"></div>
@@ -305,6 +314,16 @@ setInterval(async()=>{
  }catch{}
 },10000);
 let ownerAccounts=[],ownerProfiles=[],ownerAddresses=[];
+function editAddressSelection(){
+ const a=ownerAddresses.find(x=>x.id===$('adminEditAddress').value);
+ $('saveAdminAddress').disabled=!a;
+ for(const [id,value] of [
+  ['adminEditLabel',a?.label||''],['adminEditRecipient',a?.recipientName||''],
+  ['adminEditPhone',a?.recipientPhone||''],['adminEditText',a?.address||'']
+ ])$(id).value=value;
+ $('adminEditActive').checked=!!a?.active;
+}
+$('adminEditAddress').onchange=editAddressSelection;
 async function loadAdminProfiles(){
  const accountId=$('adminAccount').value;
  if(!accountId)return;
@@ -315,16 +334,23 @@ async function loadAdminProfiles(){
 }
 async function loadAdminAddresses(){
  const id=$('adminProfile').value;
+ const selected=$('adminEditAddress').value;
  ownerAddresses=[];
  $('adminLocations').replaceChildren();$('adminPolicyAddress').replaceChildren();
+ $('adminEditAddress').replaceChildren();
  const everyone=node('option','Tất cả địa chỉ');everyone.value='';$('adminPolicyAddress').append(everyone);
  if(!id)return;
  const data=await call('/api/v2/admin/addresses?profileId='+encodeURIComponent(id),undefined,'GET');
  ownerAddresses=data.addresses;
  for(const a of ownerAddresses){
-  $('adminLocations').append(node('p',a.label+' · '+a.recipientName+' · '+a.address,'muted'));
+  $('adminLocations').append(node('p',
+   (a.active?'✓':'⏸')+' '+a.label+' · '+a.recipientName+' · '+a.address,'muted'));
   const op=node('option',a.label+' · '+a.address);op.value=a.id;$('adminPolicyAddress').append(op);
+  const edit=node('option',a.label+(a.active?'':' (Đã tắt)'));edit.value=a.id;
+  $('adminEditAddress').append(edit);
  }
+ if(ownerAddresses.some(a=>a.id===selected))$('adminEditAddress').value=selected;
+ editAddressSelection();
  const policies=await call('/api/v2/admin/policies?profileId='+encodeURIComponent(id),undefined,'GET');
  $('adminPolicies').replaceChildren(node('p','Đã lưu '+policies.policies.length+' phiên bản chính sách.','muted'));
 }
@@ -363,6 +389,23 @@ $('createAdminAddress').onclick=async()=>{
   for(const id of ['adminAddressLabel','adminRecipient','adminPhone','adminAddressText'])$(id).value='';
   await loadAdminAddresses();toast('Đã thêm địa chỉ');
  }catch(e){toast(e.message)}
+};
+$('saveAdminAddress').onclick=async()=>{
+ try{
+  const old=ownerAddresses.find(a=>a.id===$('adminEditAddress').value);
+  if(!old)throw Error('Hãy chọn điểm giao');
+  if(!confirm('Xác nhận cập nhật điểm giao V2? Hóa đơn cũ và link riêng không đổi.'))return;
+  const result=await call('/api/v2/admin/addresses',{
+   confirmed:true,profileId:$('adminProfile').value,addressId:old.id,
+   expectedRevision:old.revision,label:$('adminEditLabel').value,
+   recipientName:$('adminEditRecipient').value,recipientPhone:$('adminEditPhone').value,
+   address:$('adminEditText').value,active:$('adminEditActive').checked
+  },'PATCH');
+  await loadAdminAddresses();toast('Đã cập nhật điểm giao • phiên bản '+result.address.revision);
+ }catch(e){
+  if(e.message==='ADDRESS_REVISION_CONFLICT')await loadAdminAddresses();
+  toast(e.message==='ADDRESS_REVISION_CONFLICT'?'Dữ liệu đã thay đổi ở thiết bị khác. Đã tải bản mới.':e.message);
+ }
 };
 $('savePolicy').onclick=async()=>{
  try{
