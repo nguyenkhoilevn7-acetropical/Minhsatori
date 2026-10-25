@@ -44,6 +44,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .pick button{margin-top:8px;width:100%;border:0;border-radius:12px;padding:10px;background:var(--iosOutgoing);color:#fff;font-weight:750}
 #message{color:var(--chatBlue);font-weight:560}#message::placeholder{color:#687d90;font-weight:400}
 .chat-status{min-height:20px;padding:1px 15px;color:var(--chatGreen);font-size:12px;font-weight:650}
+.chat-status:empty{display:none}
 .chat-actions{border-bottom:1px solid var(--edge);padding:6px 14px;background:#fafdff;color:var(--sub);font-size:12px}
 .chat-actions summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;min-height:29px;font-weight:650;color:var(--chatBlue)}
 .chat-actions summary::-webkit-details-marker{display:none}.chat-actions summary:after{content:'⌄';font-size:17px}.chat-actions[open] summary:after{content:'⌃'}
@@ -118,7 +119,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <h2>Minh Satori</h2>
 <button class="nav active" data-view="chat">💬 Trợ lý Gemini</button>
 <button class="nav" data-view="catalogue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="3" rx="1"/><path d="M9 5.5v3C7 9.5 6 11 6 13v6.5A2.5 2.5 0 0 0 8.5 22h7a2.5 2.5 0 0 0 2.5-2.5V13c0-2-1-3.5-3-4.5v-3"/><path d="M6 15.5h12"/></svg> Sản phẩm</button>
-<button class="nav" data-view="cart">🛒 Giỏ hàng</button>
+
 <button class="nav" data-view="addresses"><svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg> Địa chỉ giao</button>
 <button class="nav" data-view="orders">🧾 Hóa đơn</button>
 <button class="nav" data-view="account">👤 Tài khoản</button>
