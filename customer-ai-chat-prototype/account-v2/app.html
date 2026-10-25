@@ -82,6 +82,16 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .saved-address[open]>summary:after{content:'⌃'}
 .address-round-icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:#f1f2f6;color:#007aff;font-size:23px;flex:none}
 .address-detail{padding:0 9px 12px 42px;color:#667280;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.brand{display:flex;align-items:center;gap:9px}.brand-copy{min-width:0}
+.satori-logo{display:block;width:36px;height:36px;flex:none}
+.nav svg,.inline-icon{width:18px;height:18px;vertical-align:-4px;flex:none;margin-right:5px}
+.product .product-thumb{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#ebf5ff;color:#007aff;flex:none}
+.product .product-thumb svg{width:23px;height:23px}
+.product-info{min-width:0;flex:1}
+.delivery-prompt{margin:6px 14px 0;padding:9px 12px;border-radius:12px;border:1px solid #d6e7fa;background:#f0f7ff;color:#0b70cc;text-align:center;font-size:12px;font-weight:700}
+.delivery-prompt[hidden]{display:none}
+.composer textarea:disabled{background:#f5f6f8;color:#8e949c;cursor:not-allowed}
+.agent-address-menu.required>summary{background:#e4f0ff;box-shadow:0 0 0 1px #b5d9fa}
 .composer{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--edge);padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:8px}
 .composer textarea{flex:1;width:100%;min-height:42px;max-height:104px;border:1px solid #dce5ec;border-radius:15px;outline:none;padding:10px 12px;resize:vertical;background:#f6f8fb;color:var(--ink)}
 .composer textarea:focus{border-color:#6abbff}
@@ -107,9 +117,9 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <aside class="drawer" id="drawer" aria-hidden="true">
 <h2>Minh Satori</h2>
 <button class="nav active" data-view="chat">💬 Trợ lý Gemini</button>
-<button class="nav" data-view="catalogue">🧃 Sản phẩm</button>
+<button class="nav" data-view="catalogue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="3" rx="1"/><path d="M9 5.5v3C7 9.5 6 11 6 13v6.5A2.5 2.5 0 0 0 8.5 22h7a2.5 2.5 0 0 0 2.5-2.5V13c0-2-1-3.5-3-4.5v-3"/><path d="M6 15.5h12"/></svg> Sản phẩm</button>
 <button class="nav" data-view="cart">🛒 Giỏ hàng</button>
-<button class="nav" data-view="addresses">📍 Địa chỉ giao</button>
+<button class="nav" data-view="addresses"><svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg> Địa chỉ giao</button>
 <button class="nav" data-view="orders">🧾 Hóa đơn</button>
 <button class="nav" data-view="account">👤 Tài khoản</button>
 <button id="manualRefresh" class="nav">↻ Làm mới dữ liệu</button>
@@ -118,7 +128,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <div id="app">
 <header>
 <button id="menu" class="hamburger" aria-label="Mở danh mục" aria-expanded="false"><span></span><span></span><span></span></button>
-<div class="brand"><strong>MINH SATORI</strong><small>Trợ lý đặt nước · iOS Light</small></div>
+<div class="brand"><svg class="satori-logo" viewBox="0 0 48 48" role="img" aria-label="Minh Satori" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="14" fill="#0E83DE"/><path d="M24 7C20 14 13 20 13 28a11 11 0 0 0 22 0c0-8-7-14-11-21Z" fill="#fff"/><path d="M17 29c4-5 10-4 14-1" fill="none" stroke="#0E83DE" stroke-width="2.5" stroke-linecap="round"/></svg><span class="brand-copy"><strong>MINH SATORI</strong><small>Trợ lý đặt hàng</small></span></div>
 <button id="cartBadge" class="round" aria-label="Mở giỏ hàng">🛒<b id="cartCount">0</b></button>
 </header>
 <main>
@@ -128,7 +138,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <div id="signIn"></div><p id="loginStatus" class="notice">Đang kiểm tra điều kiện chạy thử...</p>
 </section>
 <section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1">
-<div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý đặt hàng</h1><p>Chọn hồ sơ, nhắn số lượng, kiểm tra rồi gửi đơn thử</p></div></div>
+<div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý đặt hàng</h1><p>Nhắn sản phẩm và số lượng cho Gemini</p></div></div>
 <div class="agent-selector">
 <div class="agent-compact"><span class="agent-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-1.5a7 7 0 0 1 14 0V21"/></svg></span>
 <select id="quickAgentProfile" aria-label="Chọn khách hàng hoặc đại lý"></select>
@@ -136,9 +146,9 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <summary title="Chọn điểm giao hàng" aria-label="Chọn địa chỉ giao hàng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></summary>
 <div class="agent-address-popover"><div class="agent-address-heading">Địa chỉ giao hàng</div><div id="agentAddressChoices"></div><button id="agentAddressManage" class="agent-address-manage" type="button">Quản lý địa chỉ</button></div>
 </details></div><span id="agentAddressHint" class="sr-only" role="status">Chưa chọn địa chỉ</span></div>
-<details class="chat-actions"><summary>Tiện ích đặt hàng</summary><div class="quick-buttons"><button id="quickProducts" type="button">🧃 Sản phẩm</button><button id="quickCart" type="button">🛒 Giỏ hàng</button><button id="quickAddress" type="button">📍 Địa chỉ giao</button><button id="quickRefresh" type="button">↻ Làm mới</button></div></details>
+
 <div id="messages" role="log" aria-live="polite"></div>
-<button id="chatCartShortcut" class="cart-chat-link" type="button">🛒 Giỏ hàng đang trống · Xem giỏ</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
+<button id="deliveryPrompt" class="delivery-prompt" type="button" hidden>Chọn điểm giao để bắt đầu</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
 <div class="composer"><textarea id="message" rows="1" placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" class="send" aria-label="Gửi tin">➤</button></div>
 </section>
 <section id="catalogueView" class="view hidden"><div class="panel"><h2>Danh mục sản phẩm</h2>
@@ -635,7 +645,6 @@ function resetTestQuote(){
 function renderBadge(){
  const total=count();
  $('cartCount').textContent=total;
- $('chatCartShortcut').textContent=total?'🛒 '+total+' sản phẩm trong giỏ chung · Xem giỏ':'🛒 Giỏ hàng đang trống · Xem giỏ';
 }
 function mergeCartItems(existing,incoming){
  if(!Array.isArray(existing)||!Array.isArray(incoming)||!incoming.length)throw Error('Chưa chọn sản phẩm');
@@ -678,11 +687,13 @@ function renderProducts(){
  const shown=products.filter(p=>!needle||foldProductSearch(
   [p.code,p.name,p.unit].join(' ')).includes(needle));
  for(const p of shown){
-  const row=node('div',undefined,'product'),info=node('div');
+  const row=node('div',undefined,'product'),info=node('div',undefined,'product-info');
+  const thumbnail=node('span',undefined,'product-thumb');
+  thumbnail.innerHTML="<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"2.5\" width=\"6\" height=\"3\" rx=\"1\"/><path d=\"M9 5.5v3C7 9.5 6 11 6 13v6.5A2.5 2.5 0 0 0 8.5 22h7a2.5 2.5 0 0 0 2.5-2.5V13c0-2-1-3.5-3-4.5v-3\"/><path d=\"M6 15.5h12\"/></svg>";
   info.append(node('strong',p.name),node('small',p.unit+' • '+money(p.listPrice)));
   const button=node('button','+ Thêm','btn');
   button.onclick=async()=>{try{await saveCart(mergeCartItems(cart,[{code:p.code,qty:1}]));toast('Đã thêm vào giỏ chung')}catch(e){toast(e.message)}};
-  row.append(info,button);$('products').append(row);
+  row.append(thumbnail,info,button);$('products').append(row);
  }
  if(!products.length)$('products').append(node('p','Danh mục chính thức chưa được đồng bộ.','notice'));
  else if(!shown.length)$('products').append(node('p','Không tìm thấy sản phẩm phù hợp.','muted'));
@@ -993,12 +1004,9 @@ async function refreshData(){
  finally{$('chatStatus').textContent='';menu(false)}
 }
 $('manualRefresh').onclick=refreshData;
-$('quickRefresh').onclick=refreshData;
-$('quickProducts').onclick=()=>view('catalogue');
-$('quickCart').onclick=()=>view('cart');
-$('quickAddress').onclick=()=>view('addresses');
+
  $('agentAddressManage').onclick=()=>{ $('agentAddressMenu').open=false;view('addresses') };
-$('chatCartShortcut').onclick=()=>view('cart');
+
 setInterval(async()=>{
  if(!me||savingCart||busy||document.visibilityState!=='visible')return;
  try{
