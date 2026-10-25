@@ -21,6 +21,17 @@ export function validateAddress(input){
 }
 // Changes to an approved delivery point are owner-only and versioned.
 // A previous quote never changes its historical delivery snapshot.
+export function validateAdminProfileEdit(input){
+ ensure(input&&typeof input==='object'&&!Array.isArray(input),'PROFILE_UPDATE_INVALID');
+ ensure(isUuid(input.profileId),'PROFILE_REQUIRED');
+ ensure(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED');
+ ensure(Number.isSafeInteger(input.expectedRevision)&&input.expectedRevision>=1&&
+  input.expectedRevision<2_147_483_647,'PROFILE_REVISION_REQUIRED');
+ ensure(string(input.name,120),'NAME_INVALID');
+ const phone=String(input.phone||'').replace(/[ ()\-.]/g,'');
+ ensure(!phone||/^\+?[0-9]{9,15}$/.test(phone),'PHONE_INVALID');
+ return {profileId:input.profileId,name:input.name.trim(),phone,expectedRevision:input.expectedRevision};
+}
 export function validateAdminAddressEdit(input){
  ensure(input&&typeof input==='object'&&!Array.isArray(input),'ADDRESS_UPDATE_INVALID');
  ensure(isUuid(input.profileId)&&isUuid(input.addressId),'ADDRESS_ID_REQUIRED');
