@@ -1929,7 +1929,7 @@ $('agencyRealFind').onclick=async()=>{
    // the ID of a historical invoice which had no phone.
    const sources=(Array.isArray(p.sourceRows)?p.sourceRows:[]).filter(x=>
     x?.ref?.id!=null&&Number.isSafeInteger(x.ref.invoiceNo)&&x.ref.invoiceNo>0&&
-    /^\\d{9,11}$/.test(String(x.phone||''))&&
+    /^\d{9,11}$/.test(String(x.phone||''))&&
     String(x.name||'').trim().length>=2&&String(x.address||'').trim().length>=5);
    const refs=sources.map(x=>x.ref);
    const row=document.createElement('div');row.className='customer';
