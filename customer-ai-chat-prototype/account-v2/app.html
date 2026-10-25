@@ -64,6 +64,15 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .agent-address-choice .address-subtitle{display:block;font-size:11px;color:#6e7782;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .agent-address-manage{width:100%;min-height:38px;border:0;border-radius:10px;background:#f2f2f7;color:#007aff;font-weight:700;margin-top:8px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.saved-address{border-bottom:1px solid #f0f0f4}
+.saved-address:last-child{border-bottom:0}
+.saved-address>summary{display:flex;align-items:center;gap:10px;min-height:48px;list-style:none;cursor:pointer;padding:5px 1px}
+.saved-address>summary::-webkit-details-marker{display:none}
+.saved-address>summary strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.saved-address>summary:after{content:'⌄';font-size:18px;color:#8995a4}
+.saved-address[open]>summary:after{content:'⌃'}
+.address-round-icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:#f1f2f6;color:#007aff;font-size:23px;flex:none}
+.address-detail{padding:0 9px 12px 42px;color:#667280;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
 .composer{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--edge);padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:8px}
 .composer textarea{flex:1;width:100%;min-height:42px;max-height:104px;border:1px solid #dce5ec;border-radius:15px;outline:none;padding:10px 12px;resize:vertical;background:#f6f8fb;color:var(--ink)}
 .composer textarea:focus{border-color:#6abbff}
@@ -701,9 +710,11 @@ function renderAddresses(){
   $('userEditAddress').append(edit);
   if(!a.active)continue;
   const option=node('option',a.label+' · '+a.address);option.value=a.id;$('location').append(option);
-  const line=node('div',undefined,'address-line');
-  const label=node('div');label.append(node('strong',a.label),node('small',a.recipientName+' · '+a.address));
-  line.append(label);$('addresses').append(line);
+  const line=node('details',undefined,'saved-address'),heading=node('summary');
+  const pin=node('span','⌖','address-round-icon'),label=node('strong',a.label);
+  heading.append(pin,label);
+  line.append(heading,node('div',a.recipientName+' · '+a.address,'address-detail'));
+  $('addresses').append(line);
  }
  if([...$('location').options].some(o=>o.value===selected))$('location').value=selected;
  if([...$('userEditAddress').options].some(o=>o.value===editSelected))$('userEditAddress').value=editSelected;
