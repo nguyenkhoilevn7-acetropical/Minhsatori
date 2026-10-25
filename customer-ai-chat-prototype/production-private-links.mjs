@@ -24,7 +24,7 @@ const sameRef=(a,b)=>a&&b&&String(a.id)===String(b.id)&&a.invoiceNo===b.invoiceN
 const validDestination=d=>validRef(d?.customerRef)&&cleanText(d.name,150)&&cleanText(d.location,500)&&digits(d.phone).length>=8&&pct(d.discountPercent);
 
 export function createProductionPrivateLinks({
- env=process.env, now=Date.now, rand=crypto.randomBytes, source, bot,historyReader=null,
+ env=process.env, now=Date.now, rand=crypto.randomBytes, source, sourceBatch=null, bot,historyReader=null,
  origin='https://minh-satori-customer-ai-gemini.onrender.com'
 }={}){
  if(typeof source!=='function'||typeof bot!=='function')throw Error('SERVER_BINDINGS_REQUIRED');
@@ -155,9 +155,14 @@ export function createProductionPrivateLinks({
   // clients may only choose an owner-authorized invoice reference and rate.
   const refs=multi?input.destinations:[input];
   const approved=[];
-  for(const requested of refs){
-   const live=await source(requested.customerRef.invoiceNo,requested.customerRef.id);
-   if((requested.customerRef.id!=null&&String(live.customer.id)!==String(requested.customerRef.id))||
+  // Use one consistent catalogue snapshot and a bounded batch for many destinations.
+  // Source validation is still per invoice; no customer identity is inferred.
+  const verified=multi&&typeof sourceBatch==='function'?
+   await sourceBatch(refs.map(x=>x.customerRef)):null;
+  for(const [index,requested] of refs.entries()){
+   const live=verified?verified[index]:await source(requested.customerRef.invoiceNo,requested.customerRef.id);
+   if(!live?.customer||!Number.isSafeInteger(live.revision)||
+      (verified&&live.revision!==verified[0]?.revision)||(requested.customerRef.id!=null&&String(live.customer.id)!==String(requested.customerRef.id))||
       !cleanText(live.customer.name,150)||!cleanText(live.customer.location,500)||
       digits(live.customer.phone).length<8||
       (requested.name!==undefined&&safe(requested.name)!==live.customer.name)||
