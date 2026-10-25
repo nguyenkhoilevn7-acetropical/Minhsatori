@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {createIssuedLinksRegistry} from '../issued-links-registry.mjs';
+import {createProductionPrivateLinks} from '../production-private-links.mjs';
 
 const base='https://minh-satori-customer-ai-gemini.onrender.com';
 const r=(no)=>({customerRef:{id:String(no),invoiceNo:no},
@@ -102,4 +103,60 @@ test('admin link history searches by name before showing private links',()=>{
  assert.match(html,/invitation\.registrySaved!==true/);
  assert.match(html,/d\.registrySaved!==true/);
  assert.match(html,/Chưa xác minh lưu link trên Google Drive/);
+});
+
+test('owner can re-import an authentic previously copied real link without writing invoices',async()=>{
+ const {drive,bot:linkBot}=driveFixture();
+ const env={GEMINI_PRODUCTION_LINKS_ENABLED:'1',GEMINI_OWNER_ONLY_REAL_PILOT:'1',
+  SATORI_BOT_SECRET:'this-is-only-a-test-secret-with-at-least-32-chars'};
+ let invoiceWrites=0;
+ const origin='https://minh-satori-customer-ai-gemini.onrender.com';
+ const app=createProductionPrivateLinks({env,now:()=>Date.UTC(2026,9,25),
+  source:async(invoiceNo,id)=>({customer:{id,name:'ACE Clubhouse',phone:'0900000000',
+   location:invoiceNo+' Đường ACE, Hồ Chí Minh'},products:new Map(),revision:161}),
+  bot:async(action,payload)=>{if(action!=='orders.create'||Object.keys(payload).length)
+   invoiceWrites++;throw Object.assign(Error('INVALID_REQUEST'),{code:'INVALID_REQUEST'});},
+  origin});
+ const issued=await app.issue({confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+  agentName:'Công Ty CP ACE Clubhouse',destinations:[
+   {customerRef:{id:'71',invoiceNo:71},discountPercent:20},
+   {customerRef:{id:'72',invoiceNo:72},discountPercent:35}],
+  shippingPercent:0,vatPercent:8,daysValid:7});
+ assert.equal(invoiceWrites,0);
+ const recovered=app.inspectIssuedForOwner({link:issued.link});
+ assert.equal(recovered.kind,'agency');
+ assert.equal(recovered.name,'Công Ty CP ACE Clubhouse');
+ assert.equal(recovered.recipients.length,2);
+ assert.equal(recovered.link,issued.link);
+ assert.equal('accessCode' in recovered,false);
+ const registry=createIssuedLinksRegistry({bot:linkBot});
+ const saved=await registry.register(recovered);
+ assert.equal(saved.saved,true);
+ assert.equal(drive.writes,1);
+ const afterRefresh=createIssuedLinksRegistry({bot:linkBot});
+ const result=await afterRefresh.list({limit:8,query:'Công Ty CP ACE Clubhouse'});
+ assert.equal(result.items[0].name,'Công Ty CP ACE Clubhouse');
+ assert.equal(result.items[0].recipients.length,2);
+ const repeated=await afterRefresh.register(recovered);
+ assert.equal(repeated.duplicate,true);
+ assert.equal(drive.writes,1);
+ assert.equal(invoiceWrites,0);
+ await assert.rejects(async()=>app.inspectIssuedForOwner({
+  link:issued.link.slice(0,-6)+'zzzzzz'}),/INVALID_REAL_LINK/);
+ await assert.rejects(async()=>app.inspectIssuedForOwner({link:'https://other.example/real/#'+
+  issued.link.split('#')[1]}),/REAL_LINK_RECOVERY_INVALID/);
+});
+
+test('the recovery form is collapsed, owner-only and does not store links in a browser cache',()=>{
+ const html=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ for(const id of ['issuedRestorePanel','issuedRestoreUrl','issuedRestoreButton','issuedRestoreStatus','agencyRealShowSaved'])
+  assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(server,/\/api\/admin\/issued-links\/import/);
+ assert.match(server,/realPrivateLinks\.inspectIssuedForOwner/);
+ assert.match(server,/customerLinks\.adminAuthorized\(req\)/);
+ assert.match(server,/issuedLinks\.register\(record\)/);
+ assert.match(html,/issuedLinkSearch'\)\.value=result\.name/);
+ assert.doesNotMatch(html.slice(html.indexOf("$('issuedRestoreButton').onclick"),html.indexOf("function showAdminTab(name){")),
+  /localStorage|sessionStorage/);
 });
