@@ -46,14 +46,19 @@ function send(res,code,data,headers={}){
   ...headers});
  res.end(JSON.stringify(data));
 }
-async function json(req){
- let raw='',length=0;
+export async function json(req){
+ // Chunk boundaries are arbitrary, including halfway through a Vietnamese UTF-8
+ // code point. Decode ONCE after enforcing a byte limit, never per chunk.
+ const chunks=[];
+ let length=0;
  for await(const chunk of req){
-  length+=chunk.length;
+  const bytes=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);
+  length+=bytes.length;
   if(length>MAX_JSON)throw new ApiError('REQUEST_TOO_LARGE',413);
-  raw+=chunk.toString('utf8');
+  chunks.push(bytes);
  }
  try{
+  const raw=new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks,length));
   const val=JSON.parse(raw);
   error(val&&typeof val==='object'&&!Array.isArray(val),'JSON_OBJECT_REQUIRED');
   return val;
