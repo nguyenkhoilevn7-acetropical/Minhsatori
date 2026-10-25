@@ -53,6 +53,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .agent-address-menu>summary{list-style:none;display:grid;place-items:center;width:40px;height:40px;cursor:pointer;border-radius:50%;background:#f2f2f7;color:#007aff;font-size:27px;line-height:1}
 .agent-address-menu>summary::-webkit-details-marker{display:none}
 .agent-address-menu[open]>summary{background:#e0ecff}
+.agent-avatar svg{width:20px;height:20px}.agent-address-menu>summary svg{width:21px;height:21px}
 .agent-address-popover{position:absolute;z-index:15;top:45px;right:0;width:min(304px,calc(100vw - 28px));max-height:48dvh;overflow-y:auto;padding:10px;background:white;border:1px solid #e5e5ea;border-radius:17px;box-shadow:0 10px 28px #1c31462e}
 .agent-address-heading{font-size:12px;font-weight:700;color:#6c7380;margin:3px 7px 8px}
 .agent-address-choice{display:flex;align-items:center;gap:9px;width:100%;min-height:49px;padding:8px;border:0;border-radius:11px;text-align:left;background:#fff;color:#1c1c1e}
@@ -111,10 +112,10 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1">
 <div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý đặt hàng</h1><p>Chọn hồ sơ, nhắn số lượng, kiểm tra rồi gửi đơn thử</p></div></div>
 <div class="agent-selector">
-<div class="agent-compact"><span class="agent-avatar" aria-hidden="true">♙</span>
+<div class="agent-compact"><span class="agent-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-1.5a7 7 0 0 1 14 0V21"/></svg></span>
 <select id="quickAgentProfile" aria-label="Chọn khách hàng hoặc đại lý"></select>
 <details id="agentAddressMenu" class="agent-address-menu">
-<summary title="Chọn điểm giao hàng" aria-label="Chọn địa chỉ giao hàng">⌖</summary>
+<summary title="Chọn điểm giao hàng" aria-label="Chọn địa chỉ giao hàng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></summary>
 <div class="agent-address-popover"><div class="agent-address-heading">Địa chỉ giao hàng</div><div id="agentAddressChoices"></div><button id="agentAddressManage" class="agent-address-manage" type="button">Quản lý địa chỉ</button></div>
 </details></div><span id="agentAddressHint" class="sr-only" role="status">Chưa chọn địa chỉ</span></div>
 <details class="chat-actions"><summary>Tiện ích đặt hàng</summary><div class="quick-buttons"><button id="quickProducts" type="button">🧃 Sản phẩm</button><button id="quickCart" type="button">🛒 Giỏ hàng</button><button id="quickAddress" type="button">📍 Địa chỉ giao</button><button id="quickRefresh" type="button">↻ Làm mới</button></div></details>
