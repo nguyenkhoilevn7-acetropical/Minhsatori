@@ -248,6 +248,22 @@ export function createProductionPrivateLinks({
  // Owner-only recovery of an ALREADY issued encrypted link. An authenticated
  // administrator may paste their old URL to store its exact recipients in the
  // durable Drive directory. Never mint a new invitation or expose its PIN hash.
+ function verifyIssuedCode({link,accessCode}={}){
+  const prefix=origin.replace(/\/$/,'')+'/real/#';
+  if(typeof link!=='string'||!link.startsWith(prefix)||
+     typeof accessCode!=='string'||accessCode.length<12||accessCode.length>100)
+   throw error('LINK_ACCESS_CODE_INVALID');
+  const invitation=unseal(link.slice(prefix.length),'customer-invite');
+  if(!['agency-invite','customer-invite'].includes(invitation?.type)||
+     typeof invitation.id!=='string'||!/^[a-f0-9]{32}$/.test(invitation.id)||
+     !/^[a-f0-9]{64}$/.test(invitation.codeDigest||''))
+   throw error('LINK_ACCESS_CODE_INVALID');
+  const actual=Buffer.from(sha(invitation.id+'\0'+accessCode),'hex');
+  const expected=Buffer.from(invitation.codeDigest,'hex');
+  if(actual.length!==expected.length||!crypto.timingSafeEqual(actual,expected))
+   throw error('LINK_ACCESS_CODE_INVALID');
+  return true;
+ }
  function inspectIssuedForOwner({link}={}){
   key();
   const prefix=(origin.endsWith('/')?origin.slice(0,-1):origin)+'/real/#';
@@ -544,5 +560,5 @@ export function createProductionPrivateLinks({
   return {invoiceNo:proof.invoiceNo,total:proof.total,
    name:dest.name,phone:dest.phone,location:dest.location};
  }
- return Object.freeze({readiness,probeWriteScope,issue,inspectIssuedForOwner,catalogue,quote,confirm,chatContext,receiptContext,history,receiptStatuses});
+ return Object.freeze({readiness,probeWriteScope,issue,inspectIssuedForOwner,verifyIssuedCode,catalogue,quote,confirm,chatContext,receiptContext,history,receiptStatuses});
 }
