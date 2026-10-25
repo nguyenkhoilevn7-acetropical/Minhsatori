@@ -16,6 +16,7 @@ export function validateCustomerProfile(input,{admin=false}={}){
  if(Object.keys(input).some(k=>/pass(?:word)?|secret|token|otp|pin|credential/i.test(k)))
   fail('CUSTOMER_PASSWORD_NOT_ACCEPTED');
  const fullName=text(input.fullName,120,true);
+ if(fullName.length<2)fail('CUSTOMER_NAME_TOO_SHORT');
  const phone=text(input.phone,24,true).replace(/[ ().-]/g,'');
  if(!/^\+?[0-9]{9,15}$/.test(phone))fail('CUSTOMER_PHONE_INVALID');
  const address=text(input.address,400,true);
