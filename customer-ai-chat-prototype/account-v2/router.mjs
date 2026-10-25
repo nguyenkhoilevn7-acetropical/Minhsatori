@@ -241,6 +241,21 @@ async function quote(pool,actor,input){
  return {quoteId:r.rows[0].id,expiresAt:r.rows[0].expires_at,...priced,
   note:'Báo giá kiểm thử. Chưa tạo hóa đơn thật hoặc ghi công nợ.'};
 }
+/**
+ * Explicit delivery selection is an order-flow prerequisite, not permission
+ * inferred from the first saved address. Scope both profile and address to the
+ * authenticated account; disabled or cross-tenant addresses fail closed.
+ */
+export async function assertSelectedDelivery(pool,actor,input){
+ error(isUuid(input?.profileId)&&isUuid(input?.addressId),'DELIVERY_ADDRESS_REQUIRED',409);
+ const r=await pool.query(
+  'SELECT a.id FROM satori_v2_addresses a '+
+  'JOIN satori_v2_profiles p ON p.id=a.profile_id '+
+  'WHERE a.id=$1 AND a.profile_id=$2 AND p.account_id=$3 AND a.active=true',
+  [input.addressId,input.profileId,actor.id]);
+ error(r.rows.length===1,'DELIVERY_ADDRESS_REQUIRED',409);
+ return true;
+}
 async function interpret(input){
  error(typeof input.message==='string'&&input.message.trim().length>=2&&input.message.length<=500,'MESSAGE_INVALID');
  // Original app's parser + clarification protections. Never bypass the
@@ -380,6 +395,9 @@ export async function handleAccountV2(req,res,pathname){
    error(Number.isSafeInteger(input.expectedRevision)&&input.expectedRevision>=0&&
     input.expectedRevision<=1_000_000_000,'CART_REVISION_REQUIRED',409);
    const lines=input.lines.length?normalizeCart(input.lines):[];
+   // Clearing an existing cart is allowed, but adding/ordering requires a
+   // deliberately selected live delivery point in the same account.
+   if(lines.length)await assertSelectedDelivery(pool,actor,input);
    let r;
    if(input.expectedRevision===0){
     r=await pool.query('INSERT INTO satori_v2_carts(account_id,profile_id,lines) VALUES($1,$2,$3) '+
@@ -414,7 +432,9 @@ export async function handleAccountV2(req,res,pathname){
     catalogueReady:r.rows.length>0});return true;
   }
   if(pathname==='/api/v2/interpret'&&req.method==='POST'){
-   const result=await interpret(await json(req));send(res,200,{ok:true,...result});return true;
+   const input=await json(req);
+   await assertSelectedDelivery(pool,actor,input);
+   const result=await interpret(input);send(res,200,{ok:true,...result});return true;
   }
   if(pathname==='/api/v2/quote'&&req.method==='POST'){
    const result=await quote(pool,actor,await json(req));send(res,200,{ok:true,...result});return true;
