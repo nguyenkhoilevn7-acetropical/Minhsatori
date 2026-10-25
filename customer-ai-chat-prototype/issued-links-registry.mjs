@@ -18,7 +18,7 @@ const ref=source=>{
  return {id:String(source.id),invoiceNo:source.invoiceNo};
 };
 const recipient=d=>{
- if(!d||!integer(d.discountPercent,70))fail('LINK_RECORD_INVALID');
+ if(!d||typeof d.discountPercent!=='number'||!Number.isFinite(d.discountPercent)||d.discountPercent<0||d.discountPercent>100)fail('LINK_RECORD_INVALID');
  return {customerRef:ref(d.customerRef),name:asText(d.name,150,2),
   phone:asText(d.phone,35,8),location:asText(d.location,500,5),
   discountPercent:d.discountPercent};
