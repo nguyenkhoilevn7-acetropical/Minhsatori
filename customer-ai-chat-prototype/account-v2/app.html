@@ -961,9 +961,179 @@ async function loadAdminAddresses(){
   $('adminPolicies').append(row);
  }
 }
+
+function crmPercent(value){
+ const s=String(value??'0').trim();
+ if(!/^(?:100(?:\.0{1,2})?|\d{1,2}(?:\.\d{1,2})?)$/.test(s))
+  throw Error('Chiết khấu phải từ 0–100% (tối đa 2 số thập phân)');
+ return Math.round(Number(s)*100);
+}
+function crmField(label,value){
+ const line=node('p',undefined,'muted');
+ line.append(node('strong',label+': '),document.createTextNode(String(value||'—')));
+ return line;
+}
+function crmReadForm(form){
+ const data=Object.fromEntries(new FormData(form).entries());
+ if(data.discountPercent!==undefined){
+  data.discountBps=crmPercent(data.discountPercent);delete data.discountPercent;
+ }
+ return data;
+}
+async function loadCrm(){
+ const result=await call('/api/v2/admin/customers',undefined,'GET');
+ crmRows={registered:result.registered||[],leads:result.leads||[]};
+ renderCrm();
+}
+function renderCrm(){
+ const term=foldProductSearch($('crmSearch').value);
+ const match=o=>!term||foldProductSearch([o.fullName,o.name,o.email,o.phone,o.address,
+  o.companyName,o.taxCode].join(' ')).includes(term);
+ $('registeredCustomers').replaceChildren();
+ $('leadCustomers').replaceChildren();
+ for(const a of crmRows.registered.filter(match)){
+  const wrap=node('div',undefined,'address-line');
+  wrap.style.display='block';wrap.style.marginBottom='10px';
+  wrap.append(node('strong',(a.fullName||a.name||'Chưa điền hồ sơ')+
+   ' · '+(a.accessStatus==='ACTIVE'?'✓ Đang hoạt động':a.accessStatus==='PENDING'?
+    '◷ Chờ duyệt':a.accessStatus==='SUSPENDED'?'⏸ Đã khóa':'⛔ Đã ngừng sử dụng')));
+  wrap.append(crmField('Email Google đã xác minh',a.email),
+   crmField('Số điện thoại',a.phone),
+   crmField('Địa chỉ',a.address),
+   crmField('Doanh nghiệp',a.companyName),
+   crmField('Mã số thuế',a.taxCode),
+   crmField('Loại khách',a.requestedType),
+   crmField('Ghi chú',a.note));
+  const actions=node('div');actions.style.display='flex';actions.style.gap='7px';
+  actions.style.flexWrap='wrap';actions.style.marginTop='10px';
+  const percent=document.createElement('input');percent.type='number';
+  percent.min='0';percent.max='100';percent.step='.01';percent.value=String((a.discountBps||0)/100);
+  percent.setAttribute('aria-label','Chiết khấu khách '+(a.fullName||a.name));
+  percent.style.width='94px';
+  if(a.accessStatus!=='REMOVED'){
+   actions.append(crmField('Giảm giá %', ''),percent);
+   for(const [status,title] of [['ACTIVE',a.accessStatus==='ACTIVE'?'Lưu chiết khấu':'✓ Duyệt'],
+    ['SUSPENDED','⏸ Khóa'],['REMOVED','Ngừng sử dụng']]){
+    if(status===a.accessStatus&&status!=='ACTIVE')continue;
+    const btn=node('button',title,'btn');btn.type='button';
+    btn.onclick=async()=>{
+     const desc=status==='ACTIVE'?'kích hoạt hoặc cập nhật chiết khấu':
+      status==='REMOVED'?'ngừng sử dụng (không xóa hóa đơn cũ)':'khóa đăng nhập';
+     if(!confirm('Admin xác nhận '+desc+' cho '+(a.fullName||a.email)+'?'))return;
+     try{
+      const payload={accountId:a.id,expectedRevision:a.revision,status,confirmed:true};
+      if(status==='ACTIVE')payload.discountBps=crmPercent(percent.value);
+      await call('/api/v2/admin/customers',payload,'PATCH');
+      await loadCrm();toast('Đã cập nhật tài khoản V2');
+     }catch(e){await loadCrm();toast(e.message)}
+    };
+    actions.append(btn);
+   }
+   wrap.append(actions);
+  }
+  $('registeredCustomers').append(wrap);
+ }
+ if(!$('registeredCustomers').children.length)
+  $('registeredCustomers').append(node('p','Không có hồ sơ đăng ký phù hợp.','muted'));
+ for(const a of crmRows.leads.filter(match)){
+  const wrap=node('div',undefined,'address-line');wrap.style.display='block';wrap.style.marginBottom='10px';
+  wrap.append(node('strong',(a.active?'● ':'○ ')+a.fullName+
+   (a.linkedAccountId?' · Đã liên kết':' · Chưa liên kết')));
+  wrap.append(crmField('Email',a.email),crmField('Điện thoại',a.phone),
+   crmField('Địa chỉ',a.address),crmField('Doanh nghiệp',a.companyName),
+   crmField('MST',a.taxCode),crmField('Loại',a.requestedType),
+   crmField('Chiết khấu dự kiến',(a.discountBps/100)+'%'),crmField('Ghi chú',a.note));
+  if(a.active&&!a.linkedAccountId){
+   const panel=document.createElement('details');const summary=node('summary','Sửa · liên kết · xóa hồ sơ liên hệ');panel.append(summary);
+   const form=document.createElement('form');form.className='crm-form';
+   for(const [label,name,value] of [
+    ['Họ tên','fullName',a.fullName],['Email','email',a.email],
+    ['Điện thoại','phone',a.phone],['Địa chỉ','address',a.address],
+    ['Công ty','companyName',a.companyName],['Mã số thuế','taxCode',a.taxCode],
+    ['Ghi chú','note',a.note]]){
+    const line=node('div',undefined,'field'),title=node('label',label);
+    const input=document.createElement(name==='address'||name==='note'?'textarea':'input');
+    input.name=name;input.value=value||'';
+    if(['fullName','phone','address'].includes(name))input.required=true;
+    line.append(title,input);form.append(line);
+   }
+   const role=document.createElement('select');role.name='requestedType';
+   for(const type of ['retail','agency','collaborator']){
+    const option=node('option',type);option.value=type;role.append(option)
+   }role.value=a.requestedType;
+   form.append(crmField('Loại khách',''),role);
+   const discount=document.createElement('input');discount.type='number';
+   discount.name='discountPercent';discount.min='0';discount.max='100';
+   discount.step='.01';discount.value=String(a.discountBps/100);
+   form.append(crmField('Chiết khấu (%)',''),discount);
+   const save=node('button','Lưu chỉnh sửa','btn primary');save.type='submit';
+   form.append(save);
+   form.onsubmit=async ev=>{
+    ev.preventDefault();
+    if(!confirm('Xác nhận chỉnh sửa hồ sơ khách V2?'))return;
+    try{await call('/api/v2/admin/customer-leads',{
+     ...crmReadForm(form),leadId:a.id,expectedRevision:a.revision,active:true,confirmed:true},'PATCH');
+     await loadCrm();toast('Đã cập nhật khách')
+    }catch(e){toast(e.message)}
+   };
+   panel.append(form);
+   const archive=node('button','Ngừng sử dụng hồ sơ','btn');archive.type='button';
+   archive.onclick=async()=>{
+    if(!confirm('Ngừng sử dụng hồ sơ khách V2 này? Hóa đơn cũ không thay đổi.'))return;
+    try{await call('/api/v2/admin/customer-leads',{leadId:a.id,
+     expectedRevision:a.revision,active:false,confirmed:true},'PATCH');
+     await loadCrm();toast('Đã lưu trạng thái ngừng sử dụng')
+    }catch(e){toast(e.message)}
+   };
+   panel.append(archive);
+   const registered=crmRows.registered.filter(c=>c.email&&a.email?
+    c.email.toLowerCase()===a.email.toLowerCase():c.phone&&c.phone===a.phone);
+   if(registered.length){
+    const select=document.createElement('select');
+    for(const c of registered){const opt=node('option',c.fullName+' · '+c.email);opt.value=c.id;select.append(opt)}
+    panel.append(crmField('Tài khoản cần liên kết',''),select);
+    const link=node('button','Liên kết sau khi xác minh người thật','btn');link.type='button';
+    link.onclick=async()=>{
+     if(!confirm('Đã đối chiếu đây là cùng một người và đồng ý áp dụng chiết khấu dự kiến?'))return;
+     try{await call('/api/v2/admin/customer-leads/link',{
+      leadId:a.id,accountId:select.value,expectedRevision:a.revision,confirmed:true,
+      manualIdentityVerified:!a.email},'POST');
+      await loadCrm();toast('Đã liên kết hồ sơ V2')
+     }catch(e){toast(e.message)}
+    };
+    panel.append(link);
+   }
+   wrap.append(panel);
+  }
+  $('leadCustomers').append(wrap);
+ }
+ if(!$('leadCustomers').children.length)
+  $('leadCustomers').append(node('p','Chưa có hồ sơ khách do Admin tạo.','muted'));
+}
+$('reloadCustomers').onclick=()=>loadCrm().catch(e=>toast(e.message));
+$('crmSearch').oninput=renderCrm;
+$('crmAddCustomer').onsubmit=async ev=>{
+ ev.preventDefault();
+ if(!confirm('Thêm khách vào backend V2 độc lập? Thông tin không tự chuyển sang hệ thống cũ.'))return;
+ try{await call('/api/v2/admin/customers',{
+  ...crmReadForm(ev.target),confirmed:true},'POST');
+  ev.target.reset();await loadCrm();toast('Đã thêm hồ sơ khách hàng V2');
+ }catch(e){toast(e.message)}
+};
+$('customerRegistration').onsubmit=async ev=>{
+ ev.preventDefault();
+ try{
+  const data=crmReadForm(ev.target);
+  const r=await call('/api/v2/register',data,'POST');
+  $('registrationStatus').textContent=r.message||'Đã gửi hồ sơ cho Admin';
+  toast('Đã gửi hồ sơ, đang chờ duyệt')
+ }catch(e){$('registrationStatus').textContent='Không lưu được: '+e.message}
+};
+
 async function loadOwner(){
  const data=await call('/api/v2/admin/accounts',undefined,'GET');
  ownerAccounts=data.accounts;$('adminAccount').replaceChildren();
+ await loadCrm();
  for(const a of ownerAccounts){const op=node('option',a.name+' · '+a.email);op.value=a.id;$('adminAccount').append(op)}
  $('adminPolicySku').replaceChildren();
  const all=node('option','Tất cả sản phẩm');all.value='';$('adminPolicySku').append(all);
