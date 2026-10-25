@@ -566,7 +566,7 @@ const server=http.createServer(async(req,res)=>{
    // phone numbers, or raw ledger values in the error.
    const code=String(e?.code||'REAL_LINK_ISSUE_FAILED');
    const known={
-    REAL_LINK_APPROVAL_REQUIRED:'Mức chiết khấu phải là số nguyên 0–70%, thời hạn 1–30 ngày, và cần đủ thông tin duyệt.',
+    REAL_LINK_APPROVAL_REQUIRED:'Mức chiết khấu phải nằm trong khoảng 0–100%, thời hạn 1–36500 ngày, và cần đủ thông tin duyệt.',
     REAL_CUSTOMER_REFERENCE_MISMATCH:'Hóa đơn nguồn hoặc tên, số điện thoại, địa chỉ chưa khớp. Hãy kiểm tra điểm giao đã chọn.',
     OWNER_CUSTOMER_REFERENCE_AMBIGUOUS:'Hóa đơn nguồn chưa có đủ liên hệ hoặc có nhiều bản ghi trùng. Hãy chọn hóa đơn khác đã xác minh.',
     OWNER_LEDGER_SOURCE_MISMATCH:'Dữ liệu Drive thay đổi trong khi kiểm tra. Vui lòng tải lại điểm giao trước khi cấp.',
