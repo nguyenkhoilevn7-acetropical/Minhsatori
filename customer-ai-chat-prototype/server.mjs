@@ -413,6 +413,26 @@ const server=http.createServer(async(req,res)=>{
     'Sổ link Drive chưa được triển khai hoặc không đọc được. Không dùng danh sách tạm.');
   }
  }
+ // Recovery is owner-only and proves the pasted invitation was encrypted
+ // by this deployment. It imports just link metadata into Drive, never a PIN
+ // and never creates/changes an invoice or collaborator policy.
+ if(p==='/api/admin/issued-links/import'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được khôi phục link.');
+  if(!rateLimit(req,'owner-issued-links-import'))
+   return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
+  try{
+   const input=await bodyJSON(req,18000);
+   const record=realPrivateLinks.inspectIssuedForOwner({link:input?.link});
+   const saved=await issuedLinks.register(record);
+   return reply(res,200,{ok:true,registrySaved:true,duplicate:saved.duplicate,
+    revision:saved.revision,name:record.name,kind:record.kind,
+    deliveryLocations:record.recipients.length,expiresAt:record.expiresAt});
+  }catch(e){
+   return fail(res,409,e?.code||'LINK_RECOVERY_FAILED',
+    'Không xác minh hoặc lưu được link cũ. Link phải do Minh Satori cấp với khóa còn hiệu lực; không tạo thêm hóa đơn.');
+  }
+ }
  if(p==='/api/admin/real-links/readiness'&&req.method==='GET'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Yêu cầu đăng nhập chủ tài khoản.');
