@@ -135,8 +135,43 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <p class="notice">Chỉ hiển thị đơn V2 gắn với tài khoản Google đã xác minh. Hóa đơn cũ chưa được đối chiếu định danh, không tự động gộp. Đơn chưa được sổ Satori xác nhận không hiển thị như đã tạo hóa đơn.</p>
 <div id="orderRows" class="muted"></div></div></section>
 <section id="accountView" class="view hidden"><div class="panel"><h2>Tài khoản</h2><div id="accountDetails"></div></div>
+<section id="registrationBox" class="panel" hidden>
+<h2>Đăng ký tài khoản Minh Satori V2</h2>
+<p class="notice">Thông tin chỉ lưu trong backend mới, chờ Admin duyệt. Đăng nhập bằng Google; hệ thống không hỏi hoặc lưu mật khẩu Google.</p>
+<form id="customerRegistration" class="crm-form">
+<div class="field"><label>Họ và tên *</label><input name="fullName" required minlength="2" maxlength="120"></div>
+<div class="field"><label>Email Google đã xác minh</label><input name="email" type="email" readonly></div>
+<div class="field"><label>Số điện thoại *</label><input name="phone" inputmode="tel" required maxlength="24"></div>
+<div class="field"><label>Địa chỉ giao hàng *</label><textarea name="address" required maxlength="400" rows="2"></textarea></div>
+<div class="field"><label>Đăng ký loại khách</label><select name="requestedType"><option value="retail">Khách lẻ</option><option value="agency">Đại lý</option><option value="collaborator">Cộng tác viên</option></select></div>
+<details><summary>Thông tin doanh nghiệp (tùy chọn)</summary>
+<div class="field"><label>Công ty / cửa hàng</label><input name="companyName" maxlength="160"></div>
+<div class="field"><label>Mã số thuế</label><input name="taxCode" maxlength="35"></div>
+<div class="field"><label>Ghi chú cho Admin</label><textarea name="note" maxlength="350" rows="2"></textarea></div></details>
+<button type="submit" class="btn primary" style="width:100%">Gửi hồ sơ để Admin duyệt</button>
+</form><p id="registrationStatus" class="muted" role="status"></p></section>
 <div class="panel"><h2>Chế độ thử an toàn</h2><p class="muted">Dữ liệu tài khoản ở cơ sở dữ liệu riêng. Hệ thống không chỉnh sửa link đại lý và hóa đơn kế toán đang có.</p></div>
 <div id="ownerPanel" hidden>
+<section class="panel" id="crmOwnerSection"><h2>Khách hàng · Backend V2 độc lập</h2>
+<p class="muted">Thêm khách cũ/mới, duyệt đăng ký, cấp chiết khấu riêng và khóa tài khoản. Mật khẩu không được lưu hoặc hiển thị.</p>
+<button type="button" id="reloadCustomers" class="btn">↻ Danh sách khách hàng</button>
+<div class="field"><label>Tìm trong hồ sơ</label><input id="crmSearch" type="search" maxlength="90" placeholder="Tên, email, điện thoại"></div>
+<h3>Khách đã đăng ký bằng Google</h3><div id="registeredCustomers" class="muted"></div>
+<h3>Khách Admin thêm (chưa liên kết tài khoản)</h3><div id="leadCustomers" class="muted"></div>
+<details id="crmAddDetails"><summary style="color:var(--blue);cursor:pointer;font-weight:750;padding:12px 0">+ Thêm khách mới hoặc khách cũ</summary>
+<form id="crmAddCustomer" class="crm-form">
+<div class="field"><label>Họ và tên *</label><input name="fullName" required minlength="2" maxlength="120"></div>
+<div class="field"><label>Email (nếu có)</label><input name="email" type="email" maxlength="254"></div>
+<div class="field"><label>Số điện thoại *</label><input name="phone" inputmode="tel" required maxlength="24"></div>
+<div class="field"><label>Địa chỉ *</label><textarea name="address" rows="2" maxlength="400" required></textarea></div>
+<div class="field"><label>Vai trò</label><select name="requestedType"><option value="retail">Khách lẻ</option><option value="agency">Đại lý</option><option value="collaborator">CTV</option></select></div>
+<div class="field"><label>Chiết khấu dự kiến (%)</label><input name="discountPercent" type="number" min="0" max="100" step=".01" value="0"></div>
+<details><summary>Thông tin bổ sung</summary>
+<div class="field"><label>Công ty</label><input name="companyName" maxlength="160"></div>
+<div class="field"><label>Mã số thuế</label><input name="taxCode" maxlength="35"></div>
+<div class="field"><label>Ghi chú</label><textarea name="note" rows="2" maxlength="350"></textarea></div></details>
+<button type="submit" class="btn primary" style="width:100%">Lưu khách vào CRM V2</button></form></details>
+<p class="notice">Khách do Admin thêm chỉ là hồ sơ liên hệ. Để họ tự đăng nhập, cần Google đã xác minh và Admin liên kết đúng người. Không tự lấy mật khẩu hay ghép khách theo tên.</p></section>
 <section class="panel"><h2>Quản trị — chỉ chủ tài khoản</h2>
 <p class="muted">Quản lý khách, CTV, đại lý và giá. Mọi thiết lập chỉ ảnh hưởng hệ thống V2.</p>
 <button id="syncCatalogue" class="btn">↻ Đồng bộ sản phẩm từ Satori chính thức</button>
@@ -187,6 +222,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 const $=id=>document.getElementById(id);
 const views=['chat','catalogue','cart','addresses','orders','account'];
 const PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
+let crmRows={registered:[],leads:[]};
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
 let lastQuote=null,lastTestRequestId=null,realTestEnabled=false;
 const money=n=>new Intl.NumberFormat('vi-VN').format(n||0)+'đ';
