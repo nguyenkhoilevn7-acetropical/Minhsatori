@@ -4,7 +4,7 @@
 <meta name="theme-color" content="#f5f7fb">
 <title>Minh Satori • Trợ lý đặt hàng</title>
 <style>
-:root{color-scheme:light;--bg:#f5f7fb;--card:#fff;--ink:#142637;--sub:#62758a;--edge:#e1e7ee;--blue:#0879ed;--blueSoft:#e6f3ff;--mint:#e7f7f1;--radius:19px}
+:root{color-scheme:light;--bg:#f5f7fb;--card:#fff;--ink:#142637;--sub:#62758a;--edge:#e1e7ee;--blue:#0879ed;--blueSoft:#e6f3ff;--mint:#e7f7f1;--chatBlue:#1357b9;--chatGreen:#17633b;--radius:19px}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:15px/1.48 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
 button,input,textarea,select{font:inherit}button{cursor:pointer;touch-action:manipulation}button:disabled{cursor:not-allowed;opacity:.55}
 .hidden,[hidden]{display:none!important}#app{max-width:700px;min-height:100dvh;margin:auto;display:flex;flex-direction:column;background:var(--card);box-shadow:0 0 50px #16304b0a}
@@ -27,11 +27,24 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .ai-avatar{width:43px;height:43px;display:grid;place-items:center;border-radius:16px;color:#fff;background:linear-gradient(145deg,#1b92e7,#16b7b1);font-size:24px}
 .intro h1{font-size:18px;margin:0}.intro p{margin:3px 0 0;color:var(--sub);font-size:11px}
 #messages{height:calc(100dvh - 305px);min-height:250px;overflow:auto;display:flex;flex-direction:column;gap:11px;padding:15px;background:linear-gradient(#f9fbff,#fff)}
-.bubble{max-width:88%;padding:11px 13px;background:#f0f4f8;border:1px solid #e6ebf2;border-radius:15px;white-space:pre-wrap;overflow-wrap:anywhere}
-.bubble.me{align-self:flex-end;background:var(--blueSoft);border-color:#cfe7ff;border-bottom-right-radius:5px}
-.bubble.ai{align-self:flex-start;border-bottom-left-radius:5px}
-.pick{padding:12px 13px;background:var(--mint);border:1px solid #c4e9dc;border-radius:14px}
-.pick button{margin-top:8px;width:100%;border:0;border-radius:12px;padding:10px;background:#0c8279;color:white;font-weight:750}
+.bubble{max-width:90%;padding:12px 14px;background:#eff9f2;color:var(--chatGreen);font-weight:550;border:1px solid #bde6ca;border-radius:17px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.58}
+.bubble.me{align-self:flex-end;color:var(--chatBlue);background:#e9f3ff;border-color:#c4dcfa;border-bottom-right-radius:5px}
+.bubble.ai{align-self:flex-start;color:var(--chatGreen);border-bottom-left-radius:5px}
+.bubble.error{align-self:flex-start;color:#8f351e;background:#fff5ef;border-color:#f1ccb9}
+.pick{align-self:flex-start;max-width:95%;padding:13px 14px;color:var(--chatGreen);background:#eff9f2;border:1px solid #bde6ca;border-radius:14px}
+.pick button{margin-top:8px;width:100%;border:0;border-radius:12px;padding:10px;background:#177b51;color:white;font-weight:750}
+#message{color:var(--chatBlue);font-weight:560}#message::placeholder{color:#687d90;font-weight:400}
+.chat-status{min-height:20px;padding:1px 15px;color:var(--chatGreen);font-size:12px;font-weight:650}
+.chat-actions{border-bottom:1px solid var(--edge);padding:6px 14px;background:#fafdff;color:var(--sub);font-size:12px}
+.chat-actions summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;min-height:29px;font-weight:650;color:var(--chatBlue)}
+.chat-actions summary::-webkit-details-marker{display:none}.chat-actions summary:after{content:'⌄';font-size:17px}.chat-actions[open] summary:after{content:'⌃'}
+.chat-actions .quick-buttons{display:flex;flex-wrap:wrap;gap:7px;padding:9px 0}
+.chat-actions .quick-buttons button{border:1px solid #c7dcea;background:#fff;color:var(--chatBlue);border-radius:11px;padding:9px 11px;font-size:12px;font-weight:700}
+.pick-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #d7eddf}
+.pick-row:last-of-type{border-bottom:0}.pick-row strong{color:var(--chatGreen);font-size:13px;flex:1;min-width:0}
+.pick-row input{width:70px;min-height:36px;text-align:center;border:1px solid #a8d5b9;border-radius:9px;color:var(--chatGreen);font-weight:700;background:#fff}
+.pick-title{font-weight:750;margin-bottom:6px}.cart-chat-link{margin:0 15px 9px;border:1px solid #cfe7ff;background:#f1f8ff;color:var(--chatBlue);border-radius:10px;padding:8px 10px;text-align:left;font-weight:700;font-size:12px}
+@media(prefers-reduced-motion:reduce){.chat-actions,.bubble{scroll-behavior:auto}}
 .composer{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--edge);padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:8px}
 .composer textarea{flex:1;width:100%;min-height:42px;max-height:104px;border:1px solid #dce5ec;border-radius:15px;outline:none;padding:10px 12px;resize:vertical;background:#f6f8fb;color:var(--ink)}
 .composer textarea:focus{border-color:#6abbff}
@@ -79,7 +92,9 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 </section>
 <section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1">
 <div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý đặt nước</h1><p>Nhắn các sản phẩm và số lượng · Một giỏ hàng chung</p></div></div>
+<details class="chat-actions"><summary>Tiện ích đặt hàng</summary><div class="quick-buttons"><button id="quickProducts" type="button">🧃 Sản phẩm</button><button id="quickCart" type="button">🛒 Giỏ hàng</button><button id="quickAddress" type="button">📍 Địa chỉ giao</button><button id="quickRefresh" type="button">↻ Làm mới</button></div></details>
 <div id="messages" role="log" aria-live="polite"></div>
+<button id="chatCartShortcut" class="cart-chat-link" type="button">🛒 Giỏ hàng đang trống · Xem giỏ</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
 <div class="composer"><textarea id="message" rows="1" placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" class="send" aria-label="Gửi tin">➤</button></div>
 </section>
 <section id="catalogueView" class="view hidden"><div class="panel"><h2>Danh mục sản phẩm</h2><div id="products"></div></div></section>
