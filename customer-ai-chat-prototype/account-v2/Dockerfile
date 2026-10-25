@@ -7,4 +7,4 @@ COPY customer-ai-chat-prototype/ ./
 RUN npm run test:account-v2
 ENV NODE_ENV=production PORT=10000
 EXPOSE 10000
-CMD ["node","account-v2/standalone.mjs"]
+CMD ["node","account-v2/boot.mjs"]
