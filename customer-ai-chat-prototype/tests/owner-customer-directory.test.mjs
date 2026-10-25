@@ -262,7 +262,7 @@ const decoratedDirectory=directoryFromInvoices([
 assert.deepEqual(decoratedDirectory[0].deliveryLocations[0].phones,['0784723916']);
 const sourceRefImplementation=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
 const sourceSelector=sourceRefImplementation.slice(
- sourceRefImplementation.indexOf("const sources=(Array.isArray(p.sourceRows)"),
+ sourceRefImplementation.indexOf("const records=(Array.isArray(p.sourceRows)"),
  sourceRefImplementation.indexOf("$('agencyRealIssue').onclick"));
 assert.match(sourceSelector,/tick\.disabled=!sources\.length/);
 assert.match(sourceSelector,/tick\.disabled=!valid/,'owner-verified missing phone enables checkbox');
