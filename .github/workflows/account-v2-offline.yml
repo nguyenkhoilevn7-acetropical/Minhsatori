@@ -75,6 +75,13 @@ jobs:
           node-version: '22'
       - name: Install sandbox Node dependencies
         run: npm install --no-audit --no-fund
+      - name: Dedicated V2 migrator end-to-end, no production data
+        env:
+          SATORI_ACCOUNT_V2_MIGRATION_APPROVED: '1'
+          SATORI_ACCOUNT_V2_DATABASE_URL: postgresql://satori_ci:v2_ci_fake_only_never_prod@127.0.0.1:5432/satori_v2_ci
+        run: |
+          node account-v2/migrate.mjs
+          node account-v2/migrate.mjs
       - name: Real PostgreSQL synthetic schema / 100 simultaneous retry guard
         run: node account-v2/tests/postgres-integration.mjs
       - name: Offline logical backup, restore, and readback drill
