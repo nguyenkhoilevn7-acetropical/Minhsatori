@@ -149,7 +149,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 
 <div id="messages" role="log" aria-live="polite"></div>
 <button id="deliveryPrompt" class="delivery-prompt" type="button" hidden>Chọn điểm giao để bắt đầu</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
-<div class="composer"><textarea id="message" rows="1" placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" class="send" aria-label="Gửi tin">➤</button></div>
+<div class="composer"><textarea id="message" rows="1" disabled placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" class="send" aria-label="Gửi tin" disabled>➤</button></div>
 </section>
 <section id="catalogueView" class="view hidden"><div class="panel"><h2>Danh mục sản phẩm</h2>
 <div class="field"><label for="catalogueSearch">Tìm tên hoặc mã sản phẩm</label><input id="catalogueSearch" type="search" maxlength="100" autocomplete="off" placeholder="Ví dụ: 500ml, 350ml, Satori"></div>
@@ -608,6 +608,7 @@ function view(name){
 }
 document.querySelectorAll('[data-view]').forEach(btn=>btn.onclick=()=>view(btn.dataset.view));
 $('cartBadge').onclick=()=>view('cart');
+$('deliveryPrompt').onclick=()=>{ $('agentAddressMenu').open=true; $('agentAddressMenu').querySelector('summary').focus() };
 function node(tag,text,cls){
  const el=document.createElement(tag);if(text!==undefined)el.textContent=String(text);
  if(cls)el.className=cls;return el;
@@ -693,7 +694,7 @@ function renderProducts(){
   const thumbnail=node('span',undefined,'product-thumb');
   thumbnail.innerHTML="<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"2.5\" width=\"6\" height=\"3\" rx=\"1\"/><path d=\"M9 5.5v3C7 9.5 6 11 6 13v6.5A2.5 2.5 0 0 0 8.5 22h7a2.5 2.5 0 0 0 2.5-2.5V13c0-2-1-3.5-3-4.5v-3\"/><path d=\"M6 15.5h12\"/></svg>";
   info.append(node('strong',p.name),node('small',p.unit+' • '+money(p.listPrice)));
-  const button=node('button','+ Thêm','btn');
+  const button=node('button','+ Thêm','btn');button.disabled=!selectedDeliveryAddress();
   button.onclick=async()=>{try{await saveCart(mergeCartItems(cart,[{code:p.code,qty:1}]));toast('Đã thêm vào giỏ chung')}catch(e){toast(e.message)}};
   row.append(thumbnail,info,button);$('products').append(row);
  }
@@ -753,6 +754,7 @@ function updateDeliveryGate(){
  const ready=!!selectedDeliveryAddress();
  $('send').disabled=!ready||busy;
  $('message').disabled=!ready||busy;
+ for(const add of $('products').querySelectorAll('.product .btn'))add.disabled=!ready;
  $('deliveryPrompt').hidden=ready;
  $('agentAddressMenu').classList.toggle('required',!ready);
  $('quote').disabled=!ready;
@@ -916,7 +918,7 @@ $('quote').onclick=async()=>{
  $('quote').disabled=true;
  try{
   if(!cart.length)throw Error('Giỏ hàng trống');
-  if(!$('location').value)throw Error('Chưa có địa chỉ giao hàng');
+  if(!requireDeliverySelection())throw Error('Vui lòng chọn địa chỉ giao hàng');
   const data=await call('/api/v2/quote',{profileId:$('profile').value,addressId:$('location').value});
   lastQuote=data;
   const parts=[
@@ -929,14 +931,14 @@ $('quote').onclick=async()=>{
   ];
   $('quoteResult').replaceChildren();
   for(const line of parts)$('quoteResult').append(node('p',line));
-  $('submitTestOrder').disabled=!(PREVIEW||realTestEnabled);
+  $('submitTestOrder').disabled=!(PREVIEW||realTestEnabled)||!selectedDeliveryAddress();
   if(!PREVIEW&&!realTestEnabled)$('testOrderResult').textContent=
    'Môi trường DB chưa được Admin cho phép ghi đơn thử.';
  }catch(e){toast(e.message)}
- finally{$('quote').disabled=false}
+ finally{updateDeliveryGate()}
 };
 $('submitTestOrder').onclick=async()=>{
- if(!lastQuote||$('submitTestOrder').disabled)return;
+ if(!lastQuote||$('submitTestOrder').disabled||!requireDeliverySelection())return;
  if(!confirm('Đây là ĐƠN THỬ, không giao hàng và không tạo hóa đơn thật. Xác nhận lưu yêu cầu thử?'))return;
  if(!lastTestRequestId)lastTestRequestId=crypto.randomUUID();
  $('submitTestOrder').disabled=true;
@@ -958,6 +960,7 @@ $('submitTestOrder').onclick=async()=>{
 $('send').onclick=async()=>{
  const input=$('message'),message=input.value.trim();
  if(!message||busy)return;
+ if(!requireDeliverySelection())return;
  if(message.length>500){toast('Tin nhắn tối đa 500 ký tự');return}
  busy=true;$('send').disabled=true;input.disabled=true;
  $('chatStatus').textContent='';
@@ -1009,7 +1012,7 @@ $('send').onclick=async()=>{
   await revealGeminiReply(reply,'Chưa xử lý được. Nội dung đã được giữ lại để gửi lại. '+(PREVIEW?'Kiểm tra sản phẩm mẫu.':'Kiểm tra kết nối và thử lại.'),typingStartedAt);
   reply.classList.add('error');
  }finally{
-  busy=false;$('send').disabled=false;input.disabled=false;
+  busy=false;updateDeliveryGate();
   $('chatStatus').textContent='';$('chatView').setAttribute('aria-busy','false');
   input.focus();
  }
