@@ -213,6 +213,14 @@ button:disabled{opacity:.55}
  <button type="button" id="issuedLinkRefresh" class="secondary">↻ Đồng bộ Drive</button>
 </div>
 <p id="issuedLinkStatus" class="hint" role="status" aria-live="polite">Chưa đọc sổ link.</p>
+<details class="location-manager" id="issuedRestorePanel">
+ <summary>↺ Đã cấp link nhưng không thấy? Khôi phục link cũ</summary>
+ <p class="hint">Dán nguyên đường link Minh Satori anh đã sao chép. Hệ thống xác thực link rồi lưu lại cùng địa chỉ vào Google Drive, không tạo link hay hóa đơn mới. Không yêu cầu mã truy cập của khách.</p>
+ <label for="issuedRestoreUrl">Đường link đã cấp</label>
+ <input id="issuedRestoreUrl" type="url" inputmode="url" spellcheck="false" autocomplete="off" placeholder="https://minh-satori-customer-ai-gemini.onrender.com/real/#…">
+ <p><button type="button" id="issuedRestoreButton" class="secondary">Lưu lại link cũ vào Drive</button></p>
+ <p id="issuedRestoreStatus" class="hint" role="status" aria-live="polite"></p>
+</details>
 <div id="issuedLinkList" aria-label="Link đã cấp, người nhận và địa chỉ"></div>
 <button id="issuedLinkMore" type="button" class="secondary" hidden>Xem thêm</button>
 </section>
@@ -356,6 +364,7 @@ button:disabled{opacity:.55}
 <p class="hint">Chỉ gửi link cho đúng đại lý; gửi mã truy cập qua kênh riêng.</p>
 <div id="agencyRealUrl" class="link" style="overflow-wrap:anywhere"></div>
 <button type="button" class="secondary" id="agencyRealCopy">Sao chép link</button>
+<button type="button" class="secondary" id="agencyRealShowSaved">Xem link đã lưu</button>
 <p id="agencyRealCode" class="hint"></p>
 <button type="button" class="secondary" id="agencyRealCopyCode">Sao chép mã truy cập</button>
 </div>
@@ -1124,6 +1133,31 @@ $('issuedLinkSearch').oninput=()=>{
  issuedSearchTimer=setTimeout(()=>void loadIssuedRecords(true),400);
 };
 $('issuedLinkType').onchange=()=>void loadIssuedRecords(true);
+$('issuedRestoreButton').onclick=async()=>{
+ const b=$('issuedRestoreButton'),url=$('issuedRestoreUrl').value.trim();
+ if(!url.startsWith('https://minh-satori-customer-ai-gemini.onrender.com/real/#')){
+  $('issuedRestoreStatus').textContent='Dán nguyên link đặt hàng thật mà anh đã sao chép trước đó.';return;
+ }
+ b.disabled=true;
+ $('issuedRestoreStatus').textContent='Đang xác minh link và lưu vào Google Drive…';
+ try{
+  const result=await request('/api/admin/issued-links/import','POST',{link:url});
+  if(result.registrySaved!==true)throw Error('Chưa xác nhận được bản ghi trên Drive.');
+  $('issuedRestoreUrl').value='';
+  $('issuedLinkSearch').value=result.name;
+  $('issuedLinkType').value='';
+  $('issuedRestoreStatus').textContent='✓ '+(result.duplicate?'Link này đã lưu từ trước. ':'Đã khôi phục link cũ. ')+
+   result.name+' • '+result.deliveryLocations+' điểm giao. Không tạo hóa đơn mới.';
+  await loadIssuedRecords(true);
+ }catch(e){$('issuedRestoreStatus').textContent='⚠ Không khôi phục được: '+e.message+
+  ' Nếu link được cấp bằng khóa cũ đã thay, cần xác minh lại bằng hệ thống gốc.';}
+ finally{b.disabled=false}
+};
+$('agencyRealShowSaved').onclick=()=>{
+ $('issuedLinkSearch').value=$('agencyRealName').value.trim();
+ $('issuedLinkType').value='';
+ showAdminTab('issued-links');
+};
 function showAdminTab(name){
  for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
  for(const b of document.querySelectorAll('[data-admin-tab]')){
@@ -1965,6 +1999,8 @@ $('agencyRealIssue').onclick=async()=>{
   $('agencyRealUrl').textContent=d.link;
   $('agencyRealCode').textContent='Mã truy cập riêng: '+d.accessCode;
   $('agencyRealIssued').hidden=false;
+  $('issuedLinkSearch').value=agentName;
+  $('issuedLinkType').value='';
   $('agencyRealStatus').textContent=(d.registrySaved?'✓ Đã lưu Drive • ':'⚠ Chưa xác minh lưu • ')+
    'Đã cấp một link với '+d.deliveryLocations+' địa chỉ. Xem tab Link đã cấp.';
  }catch(e){$('agencyRealStatus').textContent='KHÔNG CẤP ĐƯỢC: '+e.message;}
