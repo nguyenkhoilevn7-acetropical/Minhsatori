@@ -192,7 +192,7 @@ export function createProductionPrivateLinks({
  // durable Drive directory. Never mint a new invitation or expose its PIN hash.
  function inspectIssuedForOwner({link}={}){
   key();
-  const prefix=origin.replace(/\\/$/,'')+'/real/#';
+  const prefix=(origin.endsWith('/')?origin.slice(0,-1):origin)+'/real/#';
   if(typeof link!=='string'||link.length>16000||!link.startsWith(prefix))
    throw error('REAL_LINK_RECOVERY_INVALID');
   const invite=unseal(link.slice(prefix.length),'customer-invite');
