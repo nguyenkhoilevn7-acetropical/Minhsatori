@@ -31,6 +31,15 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .bubble.me{align-self:flex-end;color:#fff;background:var(--iosOutgoing);border-bottom-right-radius:5px}
 .bubble.ai{align-self:flex-start;color:var(--iosIncomingInk);background:var(--iosIncoming);border-bottom-left-radius:5px}
 .bubble.error{align-self:flex-start;color:#8f351e;background:#fff5ef;border:1px solid #f1ccb9}
+/* Compact iMessage-style Gemini typing state. */
+.bubble.ai.typing{min-width:63px;min-height:40px;padding:13px 15px;display:flex;align-items:center}
+.typing-dots{display:inline-flex;align-items:center;gap:4px}
+.typing-dots i{display:block;width:7px;height:7px;border-radius:50%;background:#8e8e93;animation:gemini-typing-dot 1.15s ease-in-out infinite}
+.typing-dots i:nth-child(2){animation-delay:.16s}
+.typing-dots i:nth-child(3){animation-delay:.32s}
+@keyframes gemini-typing-dot{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-3px);opacity:1}}
+@media(prefers-reduced-motion:reduce){.typing-dots i{animation:none;opacity:.75}}
+
 .pick{align-self:flex-start;max-width:95%;padding:13px 14px;color:var(--iosIncomingInk);background:var(--iosIncoming);border:0;border-radius:17px}
 .pick button{margin-top:8px;width:100%;border:0;border-radius:12px;padding:10px;background:var(--iosOutgoing);color:#fff;font-weight:750}
 #message{color:var(--chatBlue);font-weight:560}#message::placeholder{color:#687d90;font-weight:400}
@@ -596,6 +605,26 @@ function bubble(text,kind='ai'){
  const item=node('div',text,'bubble '+kind);$('messages').append(item);
  $('messages').scrollTop=$('messages').scrollHeight;return item;
 }
+const GEMINI_TYPING_MIN_MS=1500;
+function geminiTypingBubble(){
+ const reply=bubble(undefined,'ai typing');
+ reply.setAttribute('role','status');
+ reply.setAttribute('aria-label','Gemini đang nhập…');
+ const dots=node('span',undefined,'typing-dots');
+ for(let i=0;i<3;i++)dots.append(node('i'));
+ reply.append(dots);
+ return reply;
+}
+async function revealGeminiReply(reply,text,startedAt){
+ const remaining=Math.max(0,GEMINI_TYPING_MIN_MS-(Date.now()-startedAt));
+ if(remaining)await new Promise(resolve=>setTimeout(resolve,remaining));
+ reply.classList.remove('typing');
+ reply.removeAttribute('role');
+ reply.removeAttribute('aria-label');
+ reply.textContent=String(text);
+ return reply;
+}
+
 function count(){return cart.reduce((n,x)=>n+x.qty,0)}
 function resetTestQuote(){
  lastQuote=null;lastTestRequestId=null;
@@ -890,19 +919,19 @@ $('send').onclick=async()=>{
  if(!message||busy)return;
  if(message.length>500){toast('Tin nhắn tối đa 500 ký tự');return}
  busy=true;$('send').disabled=true;input.disabled=true;
- $('chatStatus').textContent='Đang phân tích yêu cầu...';
+ $('chatStatus').textContent='';
  $('chatView').setAttribute('aria-busy','true');
  bubble(message,'me');
- const reply=bubble('Đang hiểu yêu cầu của anh/chị…','ai');
+ const reply=geminiTypingBubble(),typingStartedAt=Date.now();
  try{
   const result=await call('/api/v2/interpret',{message});
   // Keep input text unchanged until the request succeeds.
   input.value='';
   if(!Array.isArray(result.suggestedItems)||!result.suggestedItems.length){
-   reply.textContent=result.message||'Vui lòng cho biết tên sản phẩm và số lượng.';
+   await revealGeminiReply(reply,result.message||'Vui lòng cho biết tên sản phẩm và số lượng.',typingStartedAt);
    return;
   }
-  reply.textContent=result.message||'Đã nhận sản phẩm, anh/chị xác nhận số lượng trước khi thêm vào giỏ.';
+  await revealGeminiReply(reply,result.message||'Đã nhận sản phẩm, anh/chị xác nhận số lượng trước khi thêm vào giỏ.',typingStartedAt);
   const selection=result.suggestedItems.map(x=>({code:x.code,qty:x.qty}));
   const missing=selection.some(x=>!products.some(p=>p.code===x.code));
   const box=node('div',undefined,'pick');
@@ -936,8 +965,8 @@ $('send').onclick=async()=>{
   };
   box.append(add);$('messages').append(box);$('messages').scrollTop=$('messages').scrollHeight;
  }catch(e){
+  await revealGeminiReply(reply,'Chưa xử lý được. Nội dung đã được giữ lại để gửi lại. '+(PREVIEW?'Kiểm tra sản phẩm mẫu.':'Kiểm tra kết nối và thử lại.'),typingStartedAt);
   reply.classList.add('error');
-  reply.textContent='Chưa xử lý được. Nội dung đã được giữ lại để gửi lại. '+(PREVIEW?'Kiểm tra sản phẩm mẫu.':'Kiểm tra kết nối và thử lại.');
  }finally{
   busy=false;$('send').disabled=false;input.disabled=false;
   $('chatStatus').textContent='';$('chatView').setAttribute('aria-busy','false');
