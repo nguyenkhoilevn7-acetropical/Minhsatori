@@ -416,7 +416,7 @@ async function saveCart(lines){
  }catch(e){
   if(e.message==='CART_REVISION_CONFLICT')await changeProfile();
   throw e;
- }finally{savingCart=false}
+ }finally{savingCart=false;$('clearCart').disabled=cart.length===0}
 }
 function foldProductSearch(text){
  return String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
