@@ -54,7 +54,7 @@ const ownerInvoice=createOwnerRealInvoice();
 const ownerPdfGateway=createOriginalPdfGateway();
 const issuedLinks=createIssuedLinksRegistry({bot:(action,payload)=>ownerInvoice.bot(action,payload)});
 const realPrivateLinks=createProductionPrivateLinks({
- source:ownerInvoice.source,bot:ownerInvoice.bot,
+ source:ownerInvoice.source,sourceBatch:ownerInvoice.sourceBatch,bot:ownerInvoice.bot,
  // Both transports are independently HMAC-protected and read only here.
  // If the owner Bot's orders:read scope fails, use the separate read-only client.
  historyReader:async payload=>{
@@ -436,9 +436,21 @@ const server=http.createServer(async(req,res)=>{
  if(p==='/api/admin/real-links/readiness'&&req.method==='GET'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Yêu cầu đăng nhập chủ tài khoản.');
-  let registryReady=false;
-  try{await issuedLinks.list({limit:1});registryReady=true}catch{}
-  return reply(res,200,{ok:true,...realPrivateLinks.readiness(),registryReady});
+  let registryReady=false,registryWriteReady=false,registryIssueCode='';
+  try{
+   await issuedLinks.list({limit:1});
+   registryReady=true;
+   // Read-only permission probe: BotApi.gs rejects confirmed:false before
+   // revision checks, backups or writes. A valid owner writer must return
+   // LINK_REGISTRY_INVALID rather than FORBIDDEN / INVALID_ACTION.
+   try{await ownerInvoice.bot('links.register',{confirmed:false});registryIssueCode='UNEXPECTED_PROBE_SUCCESS';}
+   catch(err){
+    registryIssueCode=String(err?.code||'REGISTRY_WRITE_NOT_VERIFIED');
+    registryWriteReady=registryIssueCode==='LINK_REGISTRY_INVALID';
+   }
+  }catch(err){registryIssueCode=String(err?.code||'REGISTRY_READ_NOT_VERIFIED')}
+  return reply(res,200,{ok:true,...realPrivateLinks.readiness(),
+   registryReady,registryWriteReady,registryIssueCode});
  }
  if(p==='/api/admin/real-links/issue'&&req.method==='POST'){
   if(!customerLinks.adminAuthorized(req))
@@ -447,7 +459,12 @@ const server=http.createServer(async(req,res)=>{
    return fail(res,429,'RATE_LIMIT','Thao tác quá nhanh.');
   try{
    const input=await bodyJSON(req,12000);
-   await issuedLinks.list({limit:1}); // reject before issuance if Drive registry is unavailable
+   // Fail before sealing a customer link if the owner key cannot access the
+   // Drive registry. Never hand out an invitation which is not persisted.
+   await issuedLinks.list({limit:1});
+   try{await ownerInvoice.bot('links.register',{confirmed:false});
+    throw Object.assign(Error('REGISTRY_PROBE_UNEXPECTED_SUCCESS'),{code:'REGISTRY_PROBE_UNEXPECTED_SUCCESS'});
+   }catch(e){if(e?.code!=='LINK_REGISTRY_INVALID')throw e}
    const result=await realPrivateLinks.issue(input);
    const saved=await issuedLinks.register({
     kind:result.agencyLink?'agency':'customer',
@@ -459,8 +476,22 @@ const server=http.createServer(async(req,res)=>{
    const {recipients,issuedAt,shippingPercent,vatPercent,...response}=result;
    return reply(res,200,{...response,registrySaved:true,registryId:saved.id});
   }catch(e){
-   return fail(res,409,e?.code||'REAL_LINK_ISSUE_FAILED',
-    'Chưa xác minh lưu link trên Google Drive. Kiểm tra Bot API Production và thông tin điểm giao.');
+   // Expose a safe error identifier for owner diagnostics; no secrets, links,
+   // phone numbers, or raw ledger values in the error.
+   const code=String(e?.code||'REAL_LINK_ISSUE_FAILED');
+   const known={
+    REAL_LINK_APPROVAL_REQUIRED:'Mức chiết khấu phải là số nguyên 0–70%, thời hạn 1–30 ngày, và cần đủ thông tin duyệt.',
+    REAL_CUSTOMER_REFERENCE_MISMATCH:'Hóa đơn nguồn hoặc tên, số điện thoại, địa chỉ chưa khớp. Hãy kiểm tra điểm giao đã chọn.',
+    OWNER_CUSTOMER_REFERENCE_AMBIGUOUS:'Hóa đơn nguồn chưa có đủ liên hệ hoặc có nhiều bản ghi trùng. Hãy chọn hóa đơn khác đã xác minh.',
+    OWNER_LEDGER_SOURCE_MISMATCH:'Dữ liệu Drive thay đổi trong khi kiểm tra. Vui lòng tải lại điểm giao trước khi cấp.',
+    FORBIDDEN:'Khóa HMAC hiện tại thiếu quyền ghi sổ link. Kiểm tra quyền orders:write trong Apps Script.',
+    LINK_REGISTRY_INVALID:'API ghi sổ link từ chối dữ liệu. Không cấp link chưa được lưu.',
+    OWNER_BOT_UPSTREAM_REJECTED:'Bot API từ chối thao tác. Cần kiểm tra quyền ghi links.register và phiên bản Apps Script đang chạy.',
+    OWNER_BOT_UNCERTAIN:'Kết nối Bot API gián đoạn; chưa xác minh lưu. Không bấm lại liên tục.',
+    BACKUP_FAILED:'Không xác minh được bản sao lưu Drive trước ghi. Chưa cấp link.',
+    LINK_REGISTRY_READBACK_MISMATCH:'Link đã gửi tới Drive nhưng đọc lại không khớp. Không cấp link trùng trước khi đối chiếu.'
+   };
+   return fail(res,409,code,(known[code]||'Không thể xác minh cấp và lưu link lên Google Drive.')+' ['+code+']');
   }
  }
  // Verified invoice metadata for phone browsers whose embedded PDF viewer
