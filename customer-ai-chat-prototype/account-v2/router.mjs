@@ -12,7 +12,7 @@ import {readMinhSatori} from '../satori-readonly.mjs';
 import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
 import {acceptedSubjects} from './identity-rollout.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
- adminPatchLead,adminChangeCustomerStatus,adminLinkLead} from './customer-backend.mjs';
+ adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead} from './customer-backend.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -283,6 +283,9 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/admin/customers'&&req.method==='PATCH'){
    owner(actor);send(res,200,await adminChangeCustomerStatus(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/customers/details'&&req.method==='PATCH'){
+   owner(actor);send(res,200,await adminEditRegisteredCustomer(pool,actor,await json(req)));return true;
   }
   if(pathname==='/api/v2/admin/customer-leads'&&req.method==='PATCH'){
    owner(actor);send(res,200,await adminPatchLead(pool,actor.id,await json(req)));return true;
