@@ -9,6 +9,10 @@ export class CrmError extends Error{
 const check=(value,code,status=400)=>{if(!value)throw new CrmError(code,status)};
 const isUuid=s=>typeof s==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(s);
 const isRev=v=>Number.isSafeInteger(v)&&v>=1&&v<2147483647;
+const checked=fn=>{
+ try{return fn()}
+ catch(e){if(e instanceof CrmError)throw e;throw new CrmError(e.code||e.message||'CUSTOMER_INPUT_INVALID',400)}
+};
 const audit=(c,accountId,action,id,details={})=>c.query(
  'INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) VALUES($1,$2,$3,$4,$5)',
  [accountId,'owner',action,id,JSON.stringify(details)]);
@@ -20,7 +24,7 @@ async function tx(pool,task){
 }
 export async function registrationSave(pool,actor,input){
  check(actor.access_status==='PENDING','REGISTRATION_ALREADY_REVIEWED',409);
- const data=validateCustomerProfile(input);
+ const data=checked(()=>validateCustomerProfile(input));
  check(!data.email||data.email===actor.email.toLowerCase(),'VERIFIED_EMAIL_MISMATCH',403);
  return tx(pool,async c=>{
   const r=await c.query(
@@ -66,7 +70,7 @@ export async function adminCustomerList(pool){
 }
 export async function adminCreateLead(pool,ownerId,input){
  check(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
- const data=validateCustomerProfile(input,{admin:true});
+ const data=checked(()=>validateCustomerProfile(input,{admin:true}));
  return tx(pool,async c=>{
   const r=await c.query(
    'INSERT INTO satori_v2_customer_leads '+
@@ -82,7 +86,7 @@ export async function adminPatchLead(pool,ownerId,input){
  check(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
  check(isUuid(input.leadId)&&isRev(input.expectedRevision),'LEAD_REVISION_REQUIRED');
  check(typeof input.active==='boolean','LEAD_STATUS_INVALID');
- const data=input.active?validateCustomerProfile(input,{admin:true}):null;
+ const data=input.active?checked(()=>validateCustomerProfile(input,{admin:true})):null;
  return tx(pool,async c=>{
   const old=await c.query('SELECT id,linked_account_id FROM satori_v2_customer_leads WHERE id=$1 FOR UPDATE',
    [input.leadId]);
@@ -121,7 +125,7 @@ export async function adminEditRegisteredCustomer(pool,owner,input){
  check(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
  check(isUuid(input.accountId)&&isRev(input.expectedRevision),'CUSTOMER_EDIT_REVISION_REQUIRED');
  check(input.accountId!==owner.id,'OWNER_CANNOT_BE_MODIFIED',403);
- const profile=validateCustomerProfile(input);
+ const profile=checked(()=>validateCustomerProfile(input));
  return tx(pool,async c=>{
   const account=await c.query('SELECT id,email,access_status FROM satori_v2_accounts '+
    'WHERE id=$1 FOR UPDATE',[input.accountId]);
@@ -158,7 +162,7 @@ export async function adminEditRegisteredCustomer(pool,owner,input){
 }
 export async function adminChangeCustomerStatus(pool,owner,input){
  check(isUuid(input.accountId),'CUSTOMER_ID_INVALID');
- const change=validateCustomerStatus(input);
+ const change=checked(()=>validateCustomerStatus(input));
  check(input.accountId!==owner.id,'OWNER_CANNOT_BE_MODIFIED',403);
  return tx(pool,async c=>{
   const account=await c.query('SELECT id,google_sub,access_status,revision FROM satori_v2_accounts '+
