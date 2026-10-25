@@ -108,8 +108,9 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <div class="field"><label>Địa chỉ đầy đủ</label><input name="address" required maxlength="400"></div>
 <button type="submit" class="btn primary" style="width:100%">Lưu địa chỉ</button>
 </form></section>
-<section id="ordersView" class="view hidden"><div class="panel"><h2>Hóa đơn</h2>
-<p class="notice">Lịch sử hóa đơn thực tế chưa kết nối với tài khoản mới. Không hiển thị dữ liệu mẫu như hóa đơn thật.</p></div></section>
+<section id="ordersView" class="view hidden"><div class="panel"><div class="bar"><h2>Lịch sử đơn V2</h2><button id="refreshOrders" class="btn" type="button" aria-label="Tải lại lịch sử đơn">↻</button></div>
+<p class="notice">Chỉ hiển thị đơn V2 gắn với tài khoản Google đã xác minh. Hóa đơn cũ chưa được đối chiếu định danh, không tự động gộp. Đơn chưa được sổ Satori xác nhận không hiển thị như đã tạo hóa đơn.</p>
+<div id="orderRows" class="muted"></div></div></section>
 <section id="accountView" class="view hidden"><div class="panel"><h2>Tài khoản</h2><div id="accountDetails"></div></div>
 <div class="panel"><h2>Chế độ thử an toàn</h2><p class="muted">Dữ liệu tài khoản ở cơ sở dữ liệu riêng. Hệ thống không chỉnh sửa link đại lý và hóa đơn kế toán đang có.</p></div>
 <div id="ownerPanel" hidden>
@@ -197,6 +198,7 @@ function demoCall(path,data={},method='POST'){
  const read=()=>({ok:true,account:{...demoState.account},
   profiles:demoState.profiles.map(x=>({...x})),addresses:demoState.addresses.map(x=>({...x}))});
  if(p==='/api/v2/me'&&method==='GET')return read();
+ if(p==='/api/v2/orders'&&method==='GET')return {ok:true,orders:[]};
  if(p==='/api/v2/catalogue'&&method==='GET')
   return {ok:true,items:demoState.products.map(x=>({...x})),catalogueReady:true};
  if(p==='/api/v2/cart'){
@@ -336,6 +338,7 @@ function view(name){
  for(const btn of document.querySelectorAll('[data-view]'))btn.classList.toggle('active',btn.dataset.view===name);
  menu(false);
  if(name==='cart')renderCart();
+ if(name==='orders')loadOrders().catch(e=>toast(e.message));
 }
 document.querySelectorAll('[data-view]').forEach(btn=>btn.onclick=()=>view(btn.dataset.view));
 $('cartBadge').onclick=()=>view('cart');
@@ -424,6 +427,22 @@ async function changeProfile(){
  }catch(e){toast(e.message)}
 }
 $('profile').onchange=changeProfile;
+async function loadOrders(){
+ const data=await call('/api/v2/orders',undefined,'GET');
+ $('orderRows').replaceChildren();
+ for(const o of data.orders||[]){
+  const row=node('div',undefined,'address-line'),info=node('div');
+  const verified=o.verified===true;
+  const status=verified?'Đã đối soát sổ thật':o.state==='REJECTED'?'Bị từ chối':
+   o.state==='UNCERTAIN'?'Đang kiểm tra giao dịch':'Chưa phát hành hóa đơn';
+  const id=verified?'#'+o.invoiceNo:'Yêu cầu '+String(o.requestId).slice(0,8);
+  info.append(node('strong',id),node('small',status+' · '+money(Number(o.totalVnd)||0)));
+  row.append(info);$('orderRows').append(row);
+ }
+ if(!(data.orders||[]).length)$('orderRows').append(node('p',
+  'Chưa có đơn V2 được xác nhận. Hệ thống không tự hiển thị hóa đơn cũ theo số điện thoại.','muted'));
+}
+$('refreshOrders').onclick=()=>loadOrders().catch(e=>toast(e.message));
 async function refresh(){
  const [mine,catalogue]=await Promise.all([
   call('/api/v2/me',undefined,'GET'),call('/api/v2/catalogue',undefined,'GET')]);
