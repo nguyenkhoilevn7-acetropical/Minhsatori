@@ -357,7 +357,7 @@ test('production chat uses old conversation parser and rejects partial compound 
  assert.doesNotMatch(route,/realPrivateLinks\.catalogue\(input\)/,'chat should not read Drive each message');
  const links=readFileSync(new URL('../production-private-links.mjs',import.meta.url),'utf8');
  assert.match(links,/function chatContext\(\{token,accessCode,destination:ref\}/);
- assert.match(links,/const invite=access\(token,accessCode\),d=chosen\(invite,ref\)/);
+ assert.match(links,/function chatContext[\s\S]*?const invite=access\(token,accessCode\),\s*d=chosen\(invite,ref\)/);
  assert.match(links,/const live=await checked\(invite,d\)/,
   'quote and catalogue must STILL check current Drive');
 });
