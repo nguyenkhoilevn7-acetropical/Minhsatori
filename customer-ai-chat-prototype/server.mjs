@@ -33,6 +33,7 @@ import {renderOriginalWebsitePdf} from './original-website-pdf.mjs';
 import {createProductionPrivateLinks} from './production-private-links.mjs';
 import {createCollaboratorSingleLink} from './collaborator-single-link.mjs';
 import {createIssuedLinksRegistry} from './issued-links-registry.mjs';
+import {createIssuedLinkVault} from './issued-link-vault.mjs';
 import {screenMonthlyCustomers} from './owner-customer-screening.mjs';
 import {directoryFromInvoices,detailFromEvidence,directorySourceQuery} from './owner-customer-directory.mjs';
 import {renderOriginalGeminiProduction} from './production-gemini-shell.mjs';
@@ -53,6 +54,7 @@ const OWNER_ONLY_PILOT=process.env.GEMINI_OWNER_ONLY_REAL_PILOT==='1';
 const ownerInvoice=createOwnerRealInvoice();
 const ownerPdfGateway=createOriginalPdfGateway();
 const issuedLinks=createIssuedLinksRegistry({bot:(action,payload)=>ownerInvoice.bot(action,payload)});
+const issuedLinkVault=createIssuedLinkVault();
 const realPrivateLinks=createProductionPrivateLinks({
  source:ownerInvoice.source,sourceBatch:ownerInvoice.sourceBatch,bot:ownerInvoice.bot,
  // Registry is stored in the same revisioned Drive ledger. In-flight link
@@ -99,7 +101,8 @@ async function issueAndStoreCtvLink(input){
  const saved=await issuedLinks.register({
   kind:'collaborator',name:snap.name,collaboratorId:snap.collaboratorId,
   link:invitation.url,recipients:snap.recipients,
-  shippingPercent:snap.shippingPercent,vatPercent:snap.vatPercent
+  shippingPercent:snap.shippingPercent,vatPercent:snap.vatPercent,
+  accessCodeVault:issuedLinkVault.seal(invitation.url,invitation.accessCode)
  });
  return {...invitation,registrySaved:true,registryId:saved.id};
 }
@@ -427,6 +430,60 @@ const server=http.createServer(async(req,res)=>{
  // and never creates/changes an invoice or collaborator policy.
  // Owner verified edits of names/contact/location for already-issued
  // signed real links. No invoices are modified, no prices or link keys rotated.
+ // The code is never included in list responses. Only this explicit,
+ // owner-authenticated endpoint decrypts it; never cache or log the result.
+ if(p==='/api/admin/issued-links/access-code'&&req.method==='POST'){
+  res.setHeader('Cache-Control','no-store, private');
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được xem mã.');
+  if(!rateLimit(req,'owner-issued-links-secret-reveal'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng thử lại sau.');
+  try{
+   const input=await bodyJSON(req,2500);
+   const {record}=await issuedLinks.getVault(input?.id);
+   let code;
+   if(record.accessCodeVault){
+    code=issuedLinkVault.open(record.link,record.accessCodeVault);
+   }else if(record.kind==='collaborator'){
+    const active=await ctvSingleLink.issue({collaboratorId:record.collaboratorId});
+    if(active.url!==record.link)throw Error('CTV_LINK_EPOCH_CHANGED');
+    code=active.accessCode;
+   }else throw Error('LEGACY_ACCESS_CODE_NOT_STORED');
+   return reply(res,200,{ok:true,accessCode:code,hasSavedAccessCode:
+    !!record.accessCodeVault,needsOwnerSave:!record.accessCodeVault});
+  }catch(e){
+   const code=String(e?.code||'LINK_VAULT_NOT_AVAILABLE');
+   return fail(res,409,code,'Chưa thể lấy mã từ sổ. Link cũ có thể cần anh nhập lại mã đã cấp để xác minh.');
+  }
+ }
+ // Owner manually backfills previously generated codes. For agency/customer
+ // old links, verify the original encrypted invite's codeDigest FIRST.
+ // No reset of customer link or PIN, no plaintext in Drive or logs.
+ if(p==='/api/admin/issued-links/access-code/save'&&req.method==='POST'){
+  res.setHeader('Cache-Control','no-store, private');
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được lưu mã.');
+  if(!rateLimit(req,'owner-issued-links-secret-save'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng thử lại sau.');
+  try{
+   const input=await bodyJSON(req,3000);
+   const {record}=await issuedLinks.getVault(input?.id);
+   if(typeof input.accessCode!=='string'||input.accessCode.length>100)
+    throw Error('LINK_ACCESS_CODE_INVALID');
+   if(record.kind==='collaborator'){
+    const valid=await ctvSingleLink.issue({collaboratorId:record.collaboratorId});
+    const a=Buffer.from(input.accessCode),b=Buffer.from(valid.accessCode);
+    if(valid.url!==record.link||a.length!==b.length||!crypto.timingSafeEqual(a,b))
+     throw Error('LINK_ACCESS_CODE_INVALID');
+   }else realPrivateLinks.verifyIssuedCode({link:record.link,accessCode:input.accessCode});
+   const encrypted=issuedLinkVault.seal(record.link,input.accessCode);
+   const saved=await issuedLinks.setVault(record.id,encrypted);
+   return reply(res,200,{ok:true,saved:saved.saved,revision:saved.revision});
+  }catch(e){
+   const code=String(e?.code||'LINK_ACCESS_CODE_INVALID');
+   return fail(res,409,code,'Chưa xác minh được mã hoặc chưa ghi an toàn vào Google Drive.');
+  }
+ }
  if(p==='/api/admin/issued-links/update'&&req.method==='POST'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được sửa địa chỉ/link.');
@@ -499,7 +556,8 @@ const server=http.createServer(async(req,res)=>{
     name:result.agentName||result.customer?.name,
     link:result.link,recipients:result.recipients,
     issuedAt:result.issuedAt,expiresAt:result.expiresAt,
-    shippingPercent:result.shippingPercent,vatPercent:result.vatPercent
+    shippingPercent:result.shippingPercent,vatPercent:result.vatPercent,
+    accessCodeVault:issuedLinkVault.seal(result.link,result.accessCode)
    });
    const {recipients,issuedAt,shippingPercent,vatPercent,...response}=result;
    return reply(res,200,{...response,registrySaved:true,registryId:saved.id});
