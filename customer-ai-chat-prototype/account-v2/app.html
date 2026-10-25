@@ -275,6 +275,7 @@ const PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
 let crmRows={registered:[],leads:[]};
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
 let lastQuote=null,lastTestRequestId=null,realTestEnabled=false;
+let deliverySelectionProfileId=null;
 const money=n=>new Intl.NumberFormat('vi-VN').format(n||0)+'đ';
 
 /* In-memory UI demonstration. Never fetches/saves user data, never signs any
@@ -664,10 +665,11 @@ function mergeCartItems(existing,incoming){
 }
 async function saveCart(lines){
  if(!me)throw Error('Chưa đăng nhập vào tài khoản V2');
+ if(lines.length&&!requireDeliverySelection())throw Error('Vui lòng chọn địa chỉ giao hàng');
  if(savingCart)throw Error('Đang cập nhật giỏ hàng');
  savingCart=true;
  try{
-  const result=await call('/api/v2/cart',{profileId:$('profile').value,lines,
+  const result=await call('/api/v2/cart',{profileId:$('profile').value,addressId:selectedDeliveryAddress()?.id||null,lines,
    expectedRevision:cartRev},'PUT');
   cart=result.lines;cartRev=result.revision;resetTestQuote();
   renderBadge();renderProducts();renderCart();
@@ -742,23 +744,47 @@ function userAddressSelection(){
  $('userEditActive').checked=!!a?.active;
 }
 $('userEditAddress').onchange=userAddressSelection;
+function selectedDeliveryAddress(){
+ const profileId=$('profile').value,addressId=$('location').value;
+ if(!me||!profileId||deliverySelectionProfileId!==profileId||!addressId)return null;
+ return me.addresses.find(a=>a.profileId===profileId&&a.id===addressId&&a.active===true)||null;
+}
+function updateDeliveryGate(){
+ const ready=!!selectedDeliveryAddress();
+ $('send').disabled=!ready||busy;
+ $('message').disabled=!ready||busy;
+ $('deliveryPrompt').hidden=ready;
+ $('agentAddressMenu').classList.toggle('required',!ready);
+ $('quote').disabled=!ready;
+ $('submitTestOrder').disabled=!ready||!lastQuote||(!PREVIEW&&!realTestEnabled);
+ return ready;
+}
+function requireDeliverySelection(){
+ if(updateDeliveryGate())return true;
+ $('agentAddressMenu').open=true;
+ toast('Vui lòng chọn địa chỉ giao hàng');
+ return false;
+}
 function renderAddresses(){
- const selected=$('location').value,editSelected=$('userEditAddress').value;
+ const selected=deliverySelectionProfileId===$('profile').value?$('location').value:'',editSelected=$('userEditAddress').value;
  $('addresses').replaceChildren();$('location').replaceChildren();$('userEditAddress').replaceChildren();
+ const initial=node('option','Chọn địa chỉ giao hàng');initial.value='';$('location').append(initial);
  for(const a of me.addresses.filter(x=>x.profileId===$('profile').value)){
   const edit=node('option',a.label+(a.active?'':' (Tạm ngưng)'));edit.value=a.id;
   $('userEditAddress').append(edit);
   if(!a.active)continue;
   const option=node('option',a.label+' · '+a.address);option.value=a.id;$('location').append(option);
   const line=node('details',undefined,'saved-address'),heading=node('summary');
-  const pin=node('span','⌖','address-round-icon'),label=node('strong',a.label);
+  const pin=node('span',undefined,'address-round-icon'),label=node('strong',a.label);
+  pin.append($('agentAddressMenu').querySelector('summary svg').cloneNode(true));
   heading.append(pin,label);
   line.append(heading,node('div',a.recipientName+' · '+a.address,'address-detail'));
   $('addresses').append(line);
  }
- if([...$('location').options].some(o=>o.value===selected))$('location').value=selected;
+ if(selected&&[...$('location').options].some(o=>o.value===selected))$('location').value=selected;
+ else{deliverySelectionProfileId=null;$('location').value='';}
  if([...$('userEditAddress').options].some(o=>o.value===editSelected))$('userEditAddress').value=editSelected;
- if(!$('location').options.length){const missing=node('option','Cần thêm địa chỉ');missing.value='';$('location').append(missing)}
+ if($('location').options.length===1)$('location').options[0].textContent='Cần thêm địa chỉ giao hàng';
  userAddressSelection();
  const current=me?.profiles?.find(x=>x.id===$('profile').value);
  const active=me?.addresses?.filter(x=>x.profileId===$('profile').value&&x.active)||[];
@@ -769,10 +795,12 @@ function renderAddresses(){
  for(const address of active){
   const button=node('button',undefined,'agent-address-choice');button.type='button';
   button.setAttribute('aria-pressed',String(address.id===$('location').value));
-  const pin=node('span','⌖','pin'),meta=node('span',undefined,'address-meta');
+  const pin=node('span',undefined,'pin'),meta=node('span',undefined,'address-meta');
+  pin.append($('agentAddressMenu').querySelector('summary svg').cloneNode(true));
   meta.append(node('span',address.label,'address-title'),node('span',address.address,'address-subtitle'));
   button.append(pin,meta);
   button.onclick=()=>{
+   deliverySelectionProfileId=$('profile').value;
    $('location').value=address.id;
    resetTestQuote();
    $('agentAddressMenu').open=false;
@@ -781,11 +809,13 @@ function renderAddresses(){
   choices.append(button);
  }
  if(!active.length)choices.append(node('p','Chưa có địa chỉ giao đang hoạt động.','muted'));
+ updateDeliveryGate();
 }
-$('location').onchange=resetTestQuote;
+$('location').onchange=()=>{deliverySelectionProfileId=$('location').value?$('profile').value:null;resetTestQuote();renderAddresses()};
 async function changeProfile(){
  try{
-  resetTestQuote();
+  if(deliverySelectionProfileId!==$('profile').value){deliverySelectionProfileId=null;$('location').value=''}
+  resetTestQuote();updateDeliveryGate();
   $('quickAgentProfile').value=$('profile').value;
   const r=await call('/api/v2/cart?profileId='+encodeURIComponent($('profile').value),undefined,'GET');
   cart=r.lines;cartRev=r.revision;renderBadge();renderCart();renderAddresses();
