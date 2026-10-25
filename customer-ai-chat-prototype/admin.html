@@ -185,12 +185,6 @@ button:disabled{opacity:.55}
 <p id="ownerLiveResult" role="status" class="hint">Chưa ghi dữ liệu thật.</p>
 </section>
 <section class="card" data-tab-panel="live" hidden>
-<h2>🔔 Theo dõi hóa đơn thật • CHỈ ĐỌC</h2>
-<p class="hint">Đối chiếu hóa đơn tháng hiện tại từ Google Drive khi đang mở trang quản trị. Lần đọc đầu chỉ thiết lập mốc, không phát báo động giả. Không tự tạo hoặc sửa hóa đơn.</p>
-<p><button id="productionFeedRefresh" type="button" class="secondary">↻ Kiểm tra hóa đơn mới</button></p>
-<p id="productionFeedStatus" class="hint" role="status" aria-live="polite">Chưa thiết lập mốc hóa đơn tháng này.</p>
-</section>
-<section class="card" data-tab-panel="live" hidden>
 <h2>📚 Hóa đơn & khách hàng Minh Satori • CHỈ ĐỌC</h2>
 <p class="hint">Đọc trực tiếp từ sổ kế toán website qua Bot API. Chỉ quản trị viên đăng nhập mới xem được. Không sao chép khách thật vào Gemini Free và không tạo/sửa bill.</p>
 <label for="liveMonth">Tháng hóa đơn</label><input type="month" id="liveMonth" min="2020-01" max="2099-12">
@@ -566,48 +560,6 @@ $('checkSourceReadonly').onclick=async()=>{
   }catch(e){$('liveStatus').textContent='Chưa thể xem dữ liệu thật: '+e.message}
   finally{btn.disabled=false}
  }
- // Owner-only new invoice signal: read authoritative, complete monthly snapshot.
- // No production mutation, localStorage, customer PII in alerts, or false first-run ringing.
- let liveOrderBaseline=null,liveOrderMonth='',liveOrderPolling=false;
- async function pollRealOrderFeed(force=false){
-  const visible=!!secret&&!$('workspace').hidden&&
-    !!document.querySelector('[data-tab-panel="live"]:not([hidden])');
-  if(!visible||liveOrderPolling)return;
-  liveOrderPolling=true;
-  const button=$('productionFeedRefresh');button.disabled=true;
-  const status=$('productionFeedStatus');
-  try{
-   const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',
-    year:'numeric',month:'2-digit'}).formatToParts(new Date());
-   const get=t=>parts.find(p=>p.type===t)?.value||'';
-   const month=get('year')+'-'+get('month');
-   if(!/^\d{4}-\d{2}$/.test(month))throw Error('Tháng dữ liệu không hợp lệ.');
-   if(liveOrderMonth!==month){liveOrderMonth=month;liveOrderBaseline=null;}
-   if(force)status.textContent='Đang đối chiếu hóa đơn thật…';
-   const data=await request('/api/admin/live-search?kind=invoices&month='+encodeURIComponent(month));
-   if(!Number.isSafeInteger(data.revision)||!Array.isArray(data.invoices)||
-       data.truncated===true||!Number.isSafeInteger(data.totalMatches)||
-       data.shown!==data.totalMatches||data.invoices.length!==data.shown)
-    throw Error('Danh sách nguồn bị giới hạn; chưa xác nhận được hóa đơn mới.');
-   const ids=data.invoices.map(o=>Number(o?.invoiceNo))
-     .filter(n=>Number.isSafeInteger(n)&&n>0);
-   if(ids.length!==data.invoices.length||new Set(ids).size!==ids.length)
-    throw Error('Dữ liệu hóa đơn thiếu mã xác thực.');
-   const current=new Set(ids);
-   const firstRead=liveOrderBaseline===null;
-   const additions=liveOrderBaseline===null?[]:ids.filter(id=>!liveOrderBaseline.has(id));
-   liveOrderBaseline=current;
-   if(additions.length){
-    status.textContent='🔔 '+additions.length+' hóa đơn mới trong tháng '+month+
-     ' (chỉ số bill, không tự ghi). Revision '+data.revision+
-     '. Mở danh sách hóa đơn thật để xem chi tiết.';
-   }else status.textContent='✓ Đã đồng bộ '+current.size+' hóa đơn tháng '+month+
-     ' • revision '+data.revision+(firstRead?' • Khởi tạo':'');
-  }catch(e){status.textContent='⚠ Chưa kiểm chứng đủ hóa đơn thật: '+e.message}
-  finally{liveOrderPolling=false;button.disabled=false}
- }
- $('productionFeedRefresh').onclick=()=>void pollRealOrderFeed(true);
- setInterval(()=>{if(secret)void pollRealOrderFeed(false)},60000);
  $('liveFindInvoices').onclick=()=>lookup('invoices');
  $('liveFindCustomers').onclick=()=>lookup('customers');
  const reviewInSession=new Set();
@@ -1304,7 +1256,6 @@ function showAdminTab(name){
   const active=b.dataset.adminTab===name;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
  }
  if(name==='orders')refreshOrderInbox();
- if(name==='live'&&secret)void pollRealOrderFeed();
  if(name==='settings')refreshVersionStatus();
  if(name==='ctv-ledger'&&secret&&!ctvCatalogueLoaded)void loadCtvLive();
  if(name==='issued-links'&&secret)void loadIssuedRecords(true);
