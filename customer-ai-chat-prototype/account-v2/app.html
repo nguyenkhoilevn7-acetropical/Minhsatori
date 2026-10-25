@@ -263,7 +263,8 @@ function demoCall(path,data={},method='POST'){
  const read=()=>({ok:true,account:{...demoState.account},
   profiles:demoState.profiles.map(x=>({...x})),addresses:demoState.addresses.map(x=>({...x}))});
  if(p==='/api/v2/me'&&method==='GET')return read();
- if(p==='/api/v2/orders'&&method==='GET')return {ok:true,orders:[]};
+ if(p==='/api/v2/orders'&&method==='GET')
+  return {ok:true,orders:demoState.orders.map(o=>({...o,verified:false}))};
  if(p==='/api/v2/catalogue'&&method==='GET')
   return {ok:true,items:demoState.products.map(x=>({...x})),catalogueReady:true};
  if(p==='/api/v2/cart'){
@@ -291,18 +292,62 @@ function demoCall(path,data={},method='POST'){
    message:'Đây là kết quả nhận dạng mẫu, hãy kiểm tra số lượng rồi thêm vào giỏ chung.'};
  }
  if(p==='/api/v2/quote'&&method==='POST'){
-  const lines=demoState.carts.get(profileId)?.lines||[];
+  const current=demoState.carts.get(profileId)||{lines:[],revision:0},lines=current.lines;
   if(!lines.length)throw Error('Giỏ hàng mẫu trống');
   const address=demoState.addresses.find(x=>x.id===data.addressId&&x.profileId===profileId&&x.active);
   if(!address)throw Error('Địa chỉ mẫu không hợp lệ');
-  const chosen=demoState.policies.filter(x=>x.profileId===profileId&&
-   (!x.addressId||x.addressId===address.id));
-  const policy=chosen.at(-1);
-  const discount=(policy?.discountBps||0)/10000;
-  const totalVnd=lines.reduce((sum,x)=>sum+
-   Math.round(demoState.products.find(p=>p.code===x.code).listPrice*(1-discount))*x.qty,0);
-  return {ok:true,totalVnd,items:lines,invoiceMode:policy?.invoiceMode||'single',
-   note:'SỐ TIỀN MẪU; không phải giá bán chính thức hay hóa đơn thật'};
+  const profile=demoState.profiles.find(x=>x.id===profileId);
+  if(!profile)throw Error('Không có hồ sơ đại lý');
+  const quoteItems=[];
+  let totalVnd=0,collaboratorTotalVnd=0,invoiceMode='single';
+  for(const line of lines){
+   const product=demoState.products.find(p=>p.code===line.code);
+   if(!product)throw Error('Sản phẩm mẫu không còn trong danh mục');
+   const policy=demoState.policies.filter(x=>x.enabled&&x.profileId===profileId&&
+    (!x.addressId||x.addressId===address.id)&&(!x.productCode||x.productCode===line.code))
+    .sort((a,b)=>Number(!!b.addressId)*2+Number(!!b.productCode)-
+     (Number(!!a.addressId)*2+Number(!!a.productCode))||b.version-a.version)[0];
+   if(policy?.invoiceMode==='pair'&&profile.type!=='collaborator')throw Error('Chính sách CTV không đúng hồ sơ');
+   if(policy?.invoiceMode==='pair')invoiceMode='pair';
+   const discountBps=policy?.discountBps||0;
+   const amount=Math.round(product.listPrice*line.qty*(1-discountBps/10000));
+   const collaboratorAmount=Math.round(product.listPrice*line.qty*
+    (1-(policy?.collaboratorBps??discountBps)/10000));
+   quoteItems.push({...line,name:product.name,listPrice:product.listPrice,discountBps,amount});
+   totalVnd+=amount;collaboratorTotalVnd+=collaboratorAmount;
+  }
+  const quoteId=demoUuid();
+  const result={ok:true,quoteId,totalVnd,items:quoteItems,invoiceMode,
+   internalReference:invoiceMode==='pair'?{totalVnd:collaboratorTotalVnd}:null,
+   delivery:{addressId:address.id,label:address.label,recipientName:address.recipientName,
+    recipientPhone:address.recipientPhone,address:address.address},
+   profileId,addressId:address.id,cartRevision:current.revision,
+   expiresAt:new Date(Date.now()+600000).toISOString(),
+   note:'SỐ TIỀN MẪU · đơn này không tạo hóa đơn thật'};
+  demoState.quotes.set(quoteId,result);
+  return result;
+ }
+ if(p==='/api/v2/test-orders'&&method==='POST'){
+  if(!data.confirmedTest)throw Error('Phải xác nhận đây là đơn thử');
+  const q=demoState.quotes.get(data.quoteId);
+  if(!q)throw Error('Báo giá thử không tồn tại');
+  const previous=demoState.orders.find(x=>x.requestId===data.requestId||x.quoteId===data.quoteId);
+  if(previous){
+   if(previous.quoteId!==data.quoteId||previous.requestId!==data.requestId)
+    throw Error('TEST_ORDER_CONFLICT');
+   return {ok:true,testOnly:true,noInvoice:true,alreadySubmitted:true,
+    orderId:previous.id,state:'PENDING_INTEGRATION'};
+  }
+  if(new Date(q.expiresAt).getTime()<=Date.now())throw Error('QUOTE_EXPIRED');
+  const current=demoState.carts.get(q.profileId);
+  if(!current||current.revision!==q.cartRevision)throw Error('QUOTE_CART_STALE');
+  const item={id:demoUuid(),quoteId:q.quoteId,requestId:data.requestId,
+   profileId:q.profileId,addressId:q.addressId,delivery:q.delivery,
+   totalVnd:q.totalVnd,invoiceMode:q.invoiceMode,orderedAt:new Date().toISOString(),
+   state:'PENDING_INTEGRATION',testOnly:true,verified:false};
+  demoState.orders.unshift(item);
+  return {ok:true,testOnly:true,noInvoice:true,alreadySubmitted:false,
+   orderId:item.id,state:item.state};
  }
  if(p==='/api/v2/addresses'){
   if(method==='POST'){
