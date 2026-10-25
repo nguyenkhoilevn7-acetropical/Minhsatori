@@ -30,5 +30,6 @@ test('Gemini option cards match gray replies, error state remains distinct',()=>
  assert.match(rule('.pick button'),/background:var\(--iosOutgoing\)/);
  assert.match(rule('.bubble.error'),/background:#fff5ef/);
  assert.match(html,/bubble\(message,'me'\)/);
- assert.match(html,/bubble\('Đang hiểu yêu cầu của anh\/chị…','ai'\)/);
+ assert.match(html,/const reply=geminiTypingBubble\(\),typingStartedAt=Date\.now\(\)/);
+ assert.match(html,/\.bubble\.ai\.typing\{/);
 });
