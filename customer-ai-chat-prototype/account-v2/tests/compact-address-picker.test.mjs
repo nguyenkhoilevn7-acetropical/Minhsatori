@@ -24,5 +24,9 @@ test('address choices are current profile only, selectable and invalidate old qu
  assert.match(script,/\$\('location'\)\.value=address\.id;\s*resetTestQuote\(\);\s*\$\('agentAddressMenu'\)\.open=false/);
  assert.match(script,/\$\('agentAddressManage'\)\.onclick=.*view\('addresses'\)/);
  assert.match(script,/\$\('quickAgentProfile'\)\.onchange=async/);
+ assert.match(script,/const line=node\('details',undefined,'saved-address'\)/);
+ assert.match(script,/line.append\(heading,node\('div',a.recipientName\+' · '\+a.address,'address-detail'\)\)/);
+ assert.match(html,/\.saved-address>summary\{/);
+ assert.match(html,/\.address-detail\{/);
  assert.doesNotThrow(()=>new vm.Script(script));
 });
