@@ -37,6 +37,11 @@ try{
  const link=await adminLinkLead(pool,owner,{leadId:lead.lead.id,accountId:customer.id,
   expectedRevision:lead.lead.revision,confirmed:true});
  assert.equal(link.linkedAccountId,customer.id);
+ await assert.rejects(()=>adminPatchLead(pool,owner.id,{
+  ...form,leadId:lead.lead.id,expectedRevision:link.lead.revision,
+  active:true,confirmed:true,discountBps:3500}),
+  /LINKED_LEAD_EDIT_REQUIRES_ACCOUNT_POLICY/,
+  'Linked leads must use the account pricing policy, not hidden lead edits');
  await assert.rejects(()=>adminLinkLead(pool,owner,{leadId:lead.lead.id,
   accountId:customer.id,expectedRevision:lead.lead.revision,confirmed:true}),
   /LEAD_REVISION_CONFLICT|LEAD_ALREADY_LINKED/);
@@ -67,6 +72,8 @@ try{
  assert.equal(readback.fullName,'Fake Agency Updated');
  assert.equal(readback.companyName,form.companyName);
  assert.equal(readback.taxCode,form.taxCode);
+ assert.equal(readback.discountBps,2500,
+  'Admin list must read approved policy rather than reset discount display to zero');
  assert.ok(!('password' in readback));
  assert.ok(!('google_sub' in readback),'Do not return immutable Google subject');
  // CAS prevents stale review and owner lockout.
@@ -87,6 +94,9 @@ try{
  const allPolicies=await one('SELECT count(*)::int AS count FROM satori_v2_policies '+
   'WHERE profile_id=$1 AND enabled=true',[activated.profileId]);
  assert.equal(allPolicies.count,0,'Soft-removed client has no active discounted policy');
+ const afterRemoval=await adminCustomerList(pool);
+ assert.equal(afterRemoval.registered.find(x=>x.id===customer.id)?.discountBps,0,
+  'Removed customer must not display an obsolete approved discount');
  const extra=await adminCreateLead(pool,owner.id,{...form,email:'',confirmed:true,discountBps:4500});
  const archived=await adminPatchLead(pool,owner.id,{
   leadId:extra.lead.id,expectedRevision:extra.lead.revision,active:false,confirmed:true});
