@@ -2218,7 +2218,7 @@ $('ownerLivePreview').onclick=async()=>{
  resetOwnerQuote();
  if(!ownerLiveAvailable)return;
  const invoiceNo=Number($('ownerRef').value);
- const discountPercent=Number($('ownerDiscount').value);
+ const discountPercent=parseLinkDiscount($('ownerDiscount').value);
  const shippingPercent=Number($('ownerShip').value);
  if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1||
   !$('ownerDiscount').value.trim()||!$('ownerShip').value.trim()||
@@ -2290,7 +2290,7 @@ $('create').onsubmit=async e=>{e.preventDefault();clearError();
   return;
  }
  const payload={name:$('name').value.trim(),phone:$('phone').value.trim(),address:$('address').value.trim(),
-  discount:Number($('discount').value),ship:Number($('ship').value),vatRate:Number($('vatRate').value),
+  discount:parseLinkDiscount($('discount').value),ship:Number($('ship').value),vatRate:Number($('vatRate').value),
   locations:[...$('newCustomerLocations').querySelectorAll('fieldset[data-manual-location]')].map(field=>Object.fromEntries(
    [...field.querySelectorAll('[data-location-field]')].map(input=>[input.dataset.locationField,input.value.trim()])))};
  try{
