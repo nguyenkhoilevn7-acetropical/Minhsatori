@@ -342,7 +342,7 @@ export function createProductionPrivateLinks({
   return source===derived?date.toISOString():null;
  }
  async function quote({token,accessCode,destination:ref,items,deliveryNote='',clientOrderId=null}={}){
-  const invite=access(token,accessCode),d=chosen(invite,ref);
+  const invite=await currentInvite(access(token,accessCode),token),d=chosen(invite,ref);
   if(!cleanText(deliveryNote,300))throw error('INVALID_DELIVERY_NOTE');
   const live=await checked(invite,d),amount=priced(d,live,items);
   // Idempotent at the Google Drive ledger, even for multiple quote confirmations of the same cart.
