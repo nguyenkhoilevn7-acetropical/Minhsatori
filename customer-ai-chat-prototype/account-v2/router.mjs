@@ -10,6 +10,8 @@ import {calculateQuote,normalizeCart,validateAddress,isUuid,isSku,DomainError} f
 import {parseOrder,identityChange} from '../free-parser.mjs';
 import {parseMultiOrder} from '../multi-order.mjs';
 import {parseComplexOrderWithGemini} from '../free-parser.mjs';
+import {readMinhSatori} from '../satori-readonly.mjs';
+import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -327,6 +329,34 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/admin/policies'&&req.method==='POST'){
    const r=await adminPolicy(pool,actor,await json(req));
    send(res,201,{ok:true,policy:r});return true;
+  }
+  if(pathname==='/api/v2/admin/catalogue/refresh'&&req.method==='POST'){
+   owner(actor);
+   const input=await json(req);
+   error(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
+   const snapshot=validateCanonicalCatalogue(await readMinhSatori('catalogue.list',{}));
+   const client=await pool.connect();
+   try{
+    await client.query('BEGIN');
+    // Protect against concurrent admin refresh and an older snapshot restoring stale prices.
+    await client.query('SELECT pg_advisory_xact_lock($1,$2)',[20261025,2]);
+    const existing=await client.query('SELECT COALESCE(MAX(revision),0) AS revision FROM satori_v2_catalogue');
+    error(snapshot.revision>=existing.rows[0].revision,'CATALOGUE_REVISION_STALE',409);
+    await client.query('UPDATE satori_v2_catalogue SET active=false,revision=$1 WHERE revision<=$1',[snapshot.revision]);
+    for(const product of snapshot.products){
+     await client.query('INSERT INTO satori_v2_catalogue(code,name,unit,list_price,revision,active) '+
+      'VALUES($1,$2,$3,$4,$5,true) ON CONFLICT(code) DO UPDATE '+
+      'SET name=EXCLUDED.name,unit=EXCLUDED.unit,list_price=EXCLUDED.list_price,'+
+      'revision=EXCLUDED.revision,active=true,updated_at=now()',
+      [product.code,product.name,product.unit,product.listPrice,snapshot.revision]);
+    }
+    const verified=await client.query('SELECT COUNT(*)::int AS count FROM satori_v2_catalogue '+
+     'WHERE active=true AND revision=$1',[snapshot.revision]);
+    error(verified.rows[0].count===snapshot.products.length,'CATALOGUE_READBACK_MISMATCH',503);
+    await client.query('COMMIT');
+    send(res,200,{ok:true,source:'verified-satori-ledger',revision:snapshot.revision,
+     count:snapshot.products.length});return true;
+   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}finally{client.release()}
   }
   if(pathname==='/api/v2/admin/accounts'&&req.method==='GET'){
    owner(actor);
