@@ -45,7 +45,7 @@ test('agency with multiple recipients survives new client and never stores PIN',
  assert.equal(history.items[0].recipients.length,2);
  assert.equal(history.items[0].link,link);
  assert.ok(!JSON.stringify(drive.rows).includes('accessCode'));
- assert.ok(!JSON.stringify(drive.rows).includes('pin'));
+ assert.doesNotMatch(JSON.stringify(drive.rows),/"(?:pin|pinDigest|accessPin|accessCode)"\s*:/i);
  const duplicate=await newDevice.register({kind:'agency',name:'Đại lý A',link,
   recipients:[r(71),r(72)],issuedAt:'2026-10-24T14:00:00.000Z',
   expiresAt:'2026-11-23T14:00:00.000Z',shippingPercent:0,vatPercent:8});
