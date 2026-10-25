@@ -1472,6 +1472,146 @@ class NativeMainActivity : AppCompatActivity() {
             (resources.displayMetrics.heightPixels * .87f).toInt())
     }
 
+    /**
+     * Compact, iOS-inspired cards: separate identity, contact/address and
+     * money so long Vietnamese addresses never compete with the amount.
+     * Actions use the exact same owner-only soft-delete pathway as the detail.
+     */
+    private fun infoStrip(parent: LinearLayout, value: String, tint: Int) {
+        val strip = TextView(this).apply {
+            text = value
+            textSize = 11.5f
+            setTextColor(tint)
+            maxLines = 3
+            setPadding(dp(10), dp(7), dp(10), dp(7))
+            background = panelBackground(Color.rgb(21, 36, 58), 10)
+            includeFontPadding = false
+        }
+        parent.addView(strip, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(6)
+        })
+    }
+
+    private fun compactAction(text: String, color: Int, action: () -> Unit): TextView =
+        TextView(this).apply {
+            this.text = text
+            gravity = Gravity.CENTER
+            textSize = 11.5f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(color)
+            setPadding(dp(13), dp(8), dp(13), dp(8))
+            minHeight = dp(37)
+            background = panelBackground(Color.rgb(20, 35, 57), 11)
+            isClickable = true
+            isFocusable = true
+            contentDescription = text
+            setOnClickListener { action() }
+        }
+
+    private fun invoiceQuickCard(parent: LinearLayout, invoice: SatoriInvoice,
+                                 fromDebt: Boolean = false) {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(12), dp(13), dp(12))
+            background = panelBackground(Color.rgb(15, 27, 48), 16)
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val code = TextView(this).apply {
+            text = "HÓA ĐƠN #" + invoice.number
+            textSize = 13.5f
+            setTextColor(Color.rgb(191, 219, 254))
+            setTypeface(typeface, Typeface.BOLD)
+        }
+        top.addView(code, LinearLayout.LayoutParams(0, -2, 1f))
+        val amount = TextView(this).apply {
+            text = SatoriData.money(invoice.total)
+            textSize = 15f
+            setTextColor(if (fromDebt) Color.rgb(253, 186, 116)
+                else Color.rgb(94, 234, 212))
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.END
+        }
+        top.addView(amount, LinearLayout.LayoutParams(-2, -2))
+        card.addView(top)
+        label(card, "👤 " + invoice.customer, 14f, true, white, 9)
+        infoStrip(card, "☎  " + invoice.phone.ifBlank { "Chưa có số điện thoại" },
+            Color.rgb(110, 231, 183))
+        infoStrip(card, "📍  " + invoice.address.ifBlank { "Chưa có địa chỉ" },
+            Color.rgb(191, 219, 254))
+        label(card, invoice.displayDate + "   •   " + invoice.status,
+            11f, false, if (fromDebt) Color.rgb(253, 186, 116) else softInk, 8)
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            setPadding(0, dp(9), 0, 0)
+        }
+        actions.addView(compactAction("Xem chi tiết", cyan) { openInvoice(invoice) },
+            LinearLayout.LayoutParams(0, dp(38), 1f))
+        if (invoice.canEditOrDelete) {
+            actions.addView(compactAction("🗑 Xóa đơn",
+                if (canAction("orders.delete")) Color.rgb(253, 164, 175)
+                else Color.rgb(148, 163, 184)) {
+                confirmSoftDelete(invoice)
+            }, LinearLayout.LayoutParams(-2, dp(38)).apply { marginStart = dp(8) })
+        }
+        card.addView(actions)
+        parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(9)
+        })
+    }
+
+    /** One guarded soft-delete from the invoice list, debt list and detail. */
+    private fun confirmSoftDelete(invoice: SatoriInvoice, after: (() -> Unit)? = null) {
+        val number = invoice.number.toIntOrNull()?.takeIf { it > 0 }
+        if (!invoice.canEditOrDelete || number == null) {
+            Toast.makeText(this, "Hóa đơn này không đủ điều kiện xóa.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!canAction("orders.delete")) {
+            AlertDialog.Builder(this)
+                .setTitle("Cần quyền xóa của chủ tài khoản")
+                .setMessage("Kết nối Mobile API Production bằng Google của chủ tài khoản " +
+                    "và bật quyền orders.delete. Chế độ xem Drive không được phép xóa.")
+                .setNegativeButton("Đóng", null)
+                .setPositiveButton("Cài đặt kết nối") { _, _ -> showConnectionSettings() }
+                .show()
+            return
+        }
+        val current = snapshot?.invoices?.find { it.id == invoice.id }
+        if (current == null || current.number != invoice.number ||
+            current.customer != invoice.customer || current.total != invoice.total) {
+            Toast.makeText(this, "Dữ liệu hóa đơn đã thay đổi. Làm mới trước khi xóa.",
+                Toast.LENGTH_LONG).show()
+            return
+        }
+        val requestId = UUID.randomUUID().toString().replace("-", "")
+        AlertDialog.Builder(this)
+            .setTitle("Chuyển hóa đơn #" + number + " vào thùng rác?")
+            .setMessage("Khách: " + invoice.customer + "\n" +
+                "Số tiền: " + SatoriData.money(invoice.total) +
+                "\n\nXóa mềm trên Google Drive. Có thể khôi phục trong 30 ngày. " +
+                "Các đơn đã thanh toán và đơn đối soát được bảo vệ.")
+            .setNegativeButton("Hủy", null)
+            .setPositiveButton("XÁC NHẬN XÓA") { _, _ ->
+                // No local deletion and no optimistic count change.
+                val payload = JSONObject()
+                    .put("expectedRevision", snapshot?.revision ?: -1)
+                    .put("requestId", requestId)
+                    .put("id", invoice.id)
+                    .put("invoiceNo", number)
+                    .put("expectedName", invoice.customer)
+                    .put("expectedTotal", invoice.total)
+                    .put("confirmed", true)
+                executeWrite("orders.delete", payload) { success, _ ->
+                    if (success) after?.invoke()
+                }
+            }
+            .show()
+    }
+
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
         button(parent, "▤ SỔ KẾ TOÁN · LỌC TRẠNG THÁI") { showLedger(data) }
         if (canWrite) button(parent, "+ TẠO HÓA ĐƠN", true) { launchEditor() }
@@ -1519,16 +1659,7 @@ class NativeMainActivity : AppCompatActivity() {
                 (if (status != "Tất cả") " • " + status else ""),
                 11.5f, true, cyan, 7)
             matching.take(120).forEach { inv ->
-                section(list, "HÓA ĐƠN #" + inv.number + "   •   " +
-                    SatoriData.money(inv.total),
-                    inv.customer + "  •  " + inv.displayDate + "\n" +
-                    (if (inv.isLinkedPairBill) inv.pairLabel + "\n" else "") +
-                    inv.status + "  •  " + inv.phone + "\n" +
-                    inv.address + "\n" +
-                    inv.lines.joinToString(", ") { it.description + " x" + it.quantity } +
-                    (if (inv.deliveryNote.isNotBlank()) "\nCó ghi chú giao hàng" else "")) {
-                    openInvoice(inv)
-                }
+                invoiceQuickCard(list, inv)
             }
         }
         filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
@@ -1547,6 +1678,27 @@ class NativeMainActivity : AppCompatActivity() {
         updateList()
     }
 
+    private fun customerQuickCard(parent: LinearLayout, customer: SatoriInvoice,
+                                  count: Int, onClick: () -> Unit) {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(12), dp(13), dp(12))
+            background = panelBackground(Color.rgb(15, 27, 48), 16)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Xem khách " + customer.customer + ", " + count + " hóa đơn"
+            setOnClickListener { onClick() }
+        }
+        label(card, "👤 " + customer.customer, 14f, true, white)
+        infoStrip(card, "☎  " + customer.phone.ifBlank { "Chưa có SĐT" },
+            Color.rgb(110, 231, 183))
+        infoStrip(card, "📍  " + customer.address.ifBlank { "Chưa có địa chỉ" },
+            Color.rgb(191, 219, 254))
+        label(card, count.toString() + " hóa đơn  •  Chạm để xem chi tiết",
+            11f, true, cyan, 8)
+        parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(9) })
+    }
+
     private fun renderCustomers(parent: LinearLayout, data: SatoriSnapshot) {
         label(parent, "Khách trùng tên nhưng khác địa chỉ hoặc điện thoại được tách riêng.",
             12f, false, muted, 12)
@@ -1559,9 +1711,7 @@ class NativeMainActivity : AppCompatActivity() {
             13f, true, teal, 8)
         groups.forEach { group ->
             val representative = group.first()
-            section(parent, representative.customer,
-                representative.phone + " · " + representative.address +
-                    " · " + group.size + " hóa đơn") {
+            customerQuickCard(parent, representative, group.size) {
                 AlertDialog.Builder(this)
                     .setTitle(representative.customer)
                     .setMessage(representative.phone + "\n" + representative.address +
@@ -1595,9 +1745,7 @@ class NativeMainActivity : AppCompatActivity() {
         section(parent, "CẦN THU " + data.outstandingCount + " HÓA ĐƠN",
             SatoriData.money(data.outstandingAmount))
         data.invoices.filter { it.isOutstanding }.forEach { inv ->
-            section(parent, "#" + inv.number + " · " + inv.customer,
-                inv.displayDate + " · " + SatoriData.money(inv.total) +
-                    " · " + inv.address) { openInvoice(inv) }
+            invoiceQuickCard(parent, inv, fromDebt = true)
         }
     }
 
@@ -1787,27 +1935,8 @@ class NativeMainActivity : AppCompatActivity() {
                         }
                     }.show()
             }
-            val deleteId = UUID.randomUUID().toString().replace("-", "")
-            if (invoice.canEditOrDelete && canAction("orders.delete")) button(content, "XÓA MỀM VÀO THÙNG RÁC 30 NGÀY") {
-                AlertDialog.Builder(this)
-                    .setTitle("Xóa mềm hóa đơn #" + invoice.number + "?")
-                    .setMessage("Khách: " + invoice.customer + "\n" +
-                        SatoriData.money(invoice.total) +
-                        "\nĐơn chuyển vào thùng rác trong 30 ngày; chưa xóa vĩnh viễn.")
-                    .setNegativeButton("Hủy", null)
-                    .setPositiveButton("XÁC NHẬN XÓA") { _, _ ->
-                        val p = JSONObject()
-                            .put("expectedRevision", snapshot?.revision ?: -1)
-                            .put("requestId", deleteId)
-                            .put("id", invoice.id)
-                            .put("invoiceNo", invoice.number.toInt())
-                            .put("expectedName", invoice.customer)
-                            .put("expectedTotal", invoice.total)
-                            .put("confirmed", true)
-                        executeWrite("orders.delete", p) { success, _ ->
-                            if (success) invoiceDialog?.dismiss()
-                        }
-                    }.show()
+            if (invoice.canEditOrDelete) button(content, "🗑 XÓA ĐƠN • THÙNG RÁC 30 NGÀY") {
+                confirmSoftDelete(invoice) { invoiceDialog?.dismiss() }
             }
         }
         fun confirmInternalShare(action: () -> Unit) {
