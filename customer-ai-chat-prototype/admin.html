@@ -1162,7 +1162,7 @@ function renderIssuedRecords(){
     const name=owner.inp.value.trim();
     const recipients=r.recipients.map((d,i)=>({...d,name:fields[i].n.value.trim(),
       phone:fields[i].p.value.trim(),location:fields[i].a.value.trim()}));
-    if(name.length<2||recipients.some(d=>d.name.length<2||!/^\\d{9,11}$/.test(d.phone)||
+    if(name.length<2||recipients.some(d=>d.name.length<2||!/^\d{9,11}$/.test(d.phone)||
      d.location.length<5)){status.textContent='⚠ Kiểm tra tên, SĐT (9–11 số), địa chỉ.';return}
     if(!confirm('Xác nhận sửa thông tin trong link đã cấp? Giá và hóa đơn không thay đổi.'))return;
     save.disabled=true;
