@@ -14,7 +14,7 @@ const error=code=>Object.assign(new Error(code),{code});
 const safe=v=>String(v??'').trim();
 const digits=v=>safe(v).replace(/\D/g,'');
 const money=v=>Number.isSafeInteger(v)&&v>=0&&v<=1e11;
-const pct=(v,max=70)=>Number.isSafeInteger(v)&&v>=0&&v<=max;
+const pct=(v,max=100)=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=max;
 const validRef=v=>v&&v.id!=null&&Number.isSafeInteger(v.invoiceNo)&&v.invoiceNo>0;
 const cleanText=(v,max)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
 const sha=v=>crypto.createHash('sha256').update(v).digest('hex');
