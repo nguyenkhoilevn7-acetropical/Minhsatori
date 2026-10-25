@@ -355,6 +355,64 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/quote'&&req.method==='POST'){
    const result=await quote(pool,actor,await json(req));send(res,200,{ok:true,...result});return true;
   }
+  if(pathname==='/api/v2/test-orders'&&req.method==='POST'){
+   // An authenticated, isolated TEST request persisted in new PostgreSQL only.
+   // It never sends anything to Apps Script, PDF generation or the real ledger.
+   error(process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1','TEST_ORDERS_DISABLED',503);
+   const input=await json(req);
+   error(isUuid(input.quoteId)&&isUuid(input.requestId),'TEST_ORDER_ID_REQUIRED');
+   error(input.confirmedTest===true,'EXPLICIT_TEST_CONFIRMATION_REQUIRED',403);
+   const client=await pool.connect();
+   try{
+    await client.query('BEGIN');
+    const quote=await client.query(
+     'SELECT id,account_id,profile_id,address_id,payload,cart_revision,catalogue_revision,expires_at '+
+     'FROM satori_v2_quotes WHERE id=$1 AND account_id=$2 FOR UPDATE',[input.quoteId,actor.id]);
+    error(quote.rows.length===1,'QUOTE_FORBIDDEN',403);
+    const q=quote.rows[0];
+    const prior=await client.query('SELECT id,request_id AS "requestId",quote_id AS "quoteId",state '+
+     'FROM satori_v2_order_requests WHERE account_id=$1 AND (request_id=$2 OR quote_id=$3) FOR UPDATE',
+     [actor.id,input.requestId,q.id]);
+    if(prior.rows.length){
+     error(prior.rows.length===1&&prior.rows[0].quoteId===q.id&&
+      prior.rows[0].requestId===input.requestId,'TEST_ORDER_CONFLICT',409);
+     await client.query('COMMIT');
+     send(res,200,{ok:true,testOnly:true,noInvoice:true,alreadySubmitted:true,
+      orderId:prior.rows[0].id,state:prior.rows[0].state});return true;
+    }
+    error(new Date(q.expires_at).getTime()>Date.now(),'QUOTE_EXPIRED',409);
+    const latest=await client.query('SELECT revision FROM satori_v2_carts '+
+     'WHERE account_id=$1 AND profile_id=$2 FOR UPDATE',[actor.id,q.profile_id]);
+    error(latest.rows.length===1&&latest.rows[0].revision===q.cart_revision,
+     'QUOTE_CART_STALE',409);
+    const cat=await client.query('SELECT COALESCE(MAX(revision),0) AS revision '+
+     'FROM satori_v2_catalogue WHERE active=true');
+    error(Number(cat.rows[0].revision)===q.catalogue_revision,'QUOTE_CATALOGUE_STALE',409);
+    const recorded=await client.query(
+     'INSERT INTO satori_v2_order_requests(quote_id,account_id,request_id,state) '+
+     "VALUES($1,$2,$3,'PENDING_INTEGRATION') ON CONFLICT DO NOTHING "+
+     'RETURNING id,state',[q.id,actor.id,input.requestId]);
+    if(!recorded.rows.length){
+     const existing=await client.query('SELECT id,request_id AS "requestId",quote_id AS "quoteId",state '+
+      'FROM satori_v2_order_requests WHERE account_id=$1 AND (request_id=$2 OR quote_id=$3)',
+      [actor.id,input.requestId,q.id]);
+     error(existing.rows.length===1&&existing.rows[0].quoteId===q.id&&
+      existing.rows[0].requestId===input.requestId,'TEST_ORDER_CONFLICT',409);
+     await client.query('COMMIT');
+     send(res,200,{ok:true,testOnly:true,noInvoice:true,alreadySubmitted:true,
+      orderId:existing.rows[0].id,state:existing.rows[0].state});return true;
+    }
+    await client.query(
+     'INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
+     'VALUES($1,$2,$3,$4,$5)',[actor.id,'account','V2_TEST_ORDER_ONLY',
+      recorded.rows[0].id,JSON.stringify({quoteId:q.id,cartRevision:q.cart_revision,
+       catalogueRevision:q.catalogue_revision,noLedgerWrite:true})]);
+    await client.query('COMMIT');
+    send(res,201,{ok:true,testOnly:true,noInvoice:true,orderId:recorded.rows[0].id,
+     state:'PENDING_INTEGRATION',alreadySubmitted:false});return true;
+   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
+   finally{client.release()}
+  }
   if(pathname==='/api/v2/confirm'&&req.method==='POST'){
    // Do not accept a pseudo-order that never reached the Satori ledger.
    send(res,503,{ok:false,error:'REAL_CHECKOUT_GATE_NOT_VERIFIED',
