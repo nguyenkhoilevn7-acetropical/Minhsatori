@@ -70,6 +70,20 @@ test('in-chat inputs, status, compact controls and retry guard are present',()=>
  assert.match(html,/!e\.shiftKey&&!e\.isComposing/);
  assert.match(html,/id="confirm"[^>]+disabled/);
 });
+test('catalogue search is accent insensitive and includes code matches',()=>{
+ const fold=isolatedFunction('function foldProductSearch(','\n$(\'catalogueSearch\').oninput=','foldProductSearch');
+ assert.equal(fold(' Trà Mãng Cầu '),'tra mang cau');
+ assert.equal(fold('SẢN PHẨM 500ml'),'san pham 500ml');
+ assert.equal(fold('Địa chỉ'),'dia chi');
+ assert.match(html,/id="catalogueSearch" type="search"/);
+ assert.match(html,/Không tìm thấy sản phẩm phù hợp/);
+});
+test('clearing the cart requires user confirmation, saves one empty cart and never deletes an invoice',()=>{
+ assert.match(html,/id="clearCart"[^>]+disabled/);
+ assert.match(html,/if\(!confirm\('Xóa tất cả sản phẩm khỏi giỏ V2/);
+ assert.match(html,/await saveCart\(\[\]\)/);
+ assert.match(html,/\$\('clearCart'\)\.disabled=cart\.length===0/);
+});
 test('inline script remains syntactically valid',()=>{
  assert.doesNotThrow(()=>new vm.Script(inline));
 });
