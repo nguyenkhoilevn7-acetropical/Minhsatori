@@ -3,8 +3,9 @@
  * Uses a single signed, authenticated orders.list month result.
  * No bulk export, persistent customer copies, Gemini prompts or link issuance.
  */
+import {contactPhone} from './contact-phone.mjs';
 const txt=(value,max=200)=>String(value??'').trim().slice(0,max);
-const phoneOf=value=>txt(value,32).replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0');
+const phoneOf=contactPhone;
 const pct=value=>{
  if(value===null||value===undefined||value==='')return null;
  const raw=typeof value==='string'?value.trim().replace(',','.'):value;
