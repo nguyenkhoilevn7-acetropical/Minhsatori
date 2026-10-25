@@ -23,6 +23,8 @@ try{
  await pool.query(sql('../schema.sql')); // repeat migration idempotence
  await pool.query(sql('../migrations/20261025_owner_edits.sql'));
  await pool.query(sql('../migrations/20261025_owner_edits.sql'));
+ await pool.query(sql('../migrations/20261025_policy_revision.sql'));
+ await pool.query(sql('../migrations/20261025_policy_revision.sql'));
  const account=await one(
   'INSERT INTO satori_v2_accounts(google_sub,email,display_name) VALUES($1,$2,$3) RETURNING id',
   ['ci-'+randomUUID(),'sandbox-only@example.invalid','Fake Owner']);
@@ -55,6 +57,24 @@ try{
   'AND p.id=a.profile_id AND p.account_id=$4 AND a.revision=$5 RETURNING a.id',
   [address.id,profile.id,'Stale overwrite rejected',account.id,1]);
  assert.equal(stale.rowCount,0,'stale address edit must not overwrite fresh revision');
+ // Disable a previously approved policy through revision CAS, preserving history.
+ const original=await one('SELECT id,revision FROM satori_v2_policies WHERE profile_id=$1',[profile.id]);
+ assert.equal(original.revision,1);
+ const policyOff=await one(
+  'UPDATE satori_v2_policies SET enabled=false,revision=revision+1 '+
+  'WHERE id=$1 AND revision=$2 AND enabled=true RETURNING revision,enabled',
+  [original.id,1]);
+ assert.equal(policyOff.revision,2);assert.equal(policyOff.enabled,false);
+ const repeatedOff=await pool.query(
+  'UPDATE satori_v2_policies SET enabled=false,revision=revision+1 '+
+  'WHERE id=$1 AND revision=$2 AND enabled=true',[original.id,1]);
+ assert.equal(repeatedOff.rowCount,0,'stale policy updates cannot succeed');
+ const replacement=await one(
+  'INSERT INTO satori_v2_policies(profile_id,address_id,product_code,discount_bps,'+
+  'collaborator_bps,invoice_mode,version,approved_by) '+
+  'VALUES($1,$2,$3,3000,3500,$4,2,$5) RETURNING version,revision,enabled',
+  [profile.id,address.id,'TP-00001','pair','ci-owner']);
+ assert.equal(replacement.version,2);assert.equal(replacement.revision,1);
  const cart=await one(
   'INSERT INTO satori_v2_carts(account_id,profile_id,lines) VALUES($1,$2,$3) '+
   'RETURNING revision',
@@ -113,5 +133,5 @@ try{
   'INSERT INTO satori_v2_quotes(account_id,profile_id,address_id,payload,cart_revision,'+
   "catalogue_revision,expires_at) VALUES($1,$2,$3,'{}',1,1,now()+interval '10 minutes')",
   [stranger.id,unrelated.id,address.id]),{code:'23503'});
- console.log('PASS V2 PostgreSQL schema + migration replay + owner FK + 100 CART CAS + own-address CAS + cross-account denial + 100 identical checkout requestId; sandbox rows only');
+ console.log('PASS V2 PostgreSQL schema + migration replay + owner FK + 100 CART CAS + policy disable CAS + own-address CAS + cross-account denial + 100 identical checkout requestId; sandbox rows only');
 }finally{await pool.end()}
