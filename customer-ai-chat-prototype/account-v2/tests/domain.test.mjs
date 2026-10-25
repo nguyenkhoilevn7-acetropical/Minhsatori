@@ -9,7 +9,8 @@ const otherAddress='c33ec9e3-f568-4542-8f96-bd21fed4d095';
 const catalogue=[{code:'TP-00001',name:'Satori 350ml',unit:'Thùng',listPrice:88000},
  {code:'TP-00003',name:'Satori 500ml',unit:'Thùng',listPrice:98000}];
 const profile={id:profileId,accountId,type:'collaborator'};
-const address={id:addressId,profileId,active:true};
+const address={id:addressId,profileId,active:true,label:'Nhà (mẫu)',recipientName:'Nguyễn Minh',
+ recipientPhone:'0900000000',address:'Số 10, đường kiểm thử'};
 const base={accountId,profile,address,catalogue,cart:[{code:'TP-00003',qty:10}],
  catalogueRevision:170,shippingVnd:0,vatBps:0};
 const policy=(discountBps=2000,extra={})=>({id:'policy-1',profileId,addressId:null,productCode:null,
@@ -30,6 +31,17 @@ test('no approved policy = no discount',()=>{
  assert.equal(q.totalVnd,980000);
  assert.equal(q.invoiceMode,'single');
 });
+test('quote freezes the exact recipient phone/address independent of later address changes',()=>{
+ const input={...address};
+ const result=calculateQuote({...base,address:input});
+ assert.equal(result.delivery.recipientName,'Nguyễn Minh');
+ assert.equal(result.delivery.recipientPhone,'0900000000');
+ assert.equal(result.delivery.address,'Số 10, đường kiểm thử');
+ input.address='Địa chỉ đã đổi sau báo giá';
+ assert.equal(result.delivery.address,'Số 10, đường kiểm thử');
+ assert.equal(Object.isFrozen(result.delivery),true);
+ assert.equal(code(()=>calculateQuote({...base,address:{...address,recipientPhone:'invalid'}})),'PHONE_INVALID');
+});
 test('20% customer discount comes from approved server policy, not user input',()=>{
  const q=calculateQuote({...base,policies:[policy()]});
  assert.equal(q.totalVnd,784000);
@@ -43,7 +55,7 @@ test('address/product policy overrides generic policy',()=>{
  assert.equal(q.policyVersion,2);
 });
 test('other address uses base discount, not discount for a different address',()=>{
- const q=calculateQuote({...base,address:{id:otherAddress,profileId,active:true},
+ const q=calculateQuote({...base,address:{...address,id:otherAddress},
  policies:[policy(2000),policy(3500,{id:'policy-2',addressId,version:2})]});
  assert.equal(q.totalVnd,784000);
 });
