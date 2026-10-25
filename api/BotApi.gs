@@ -869,6 +869,9 @@ function linkSecretSet(s,p){
  need(items.length===1,'LINK_UPDATE_NOT_FOUND','Không có link trong sổ');
  if(items[0].accessCodeVault===p.accessCodeVault)
   return {modified:false,result:{stored:true,id:p.id,duplicate:true}};
+ // Backfill is one-time only: a signed write must not replace an existing PIN vault.
+ need(!items[0].accessCodeVault,'LINK_VAULT_IMMUTABLE',
+  'Mã truy cập đã được lưu; không được ghi đè');
  version(s,p);
  var next=list.map(function(row){return row.id!==p.id?row:Object.assign({},row,{
   accessCodeVault:p.accessCodeVault,secretUpdatedAt:new Date().toISOString()
