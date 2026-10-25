@@ -433,6 +433,11 @@ export async function handleAccountV2(req,res,pathname){
     error(new Date(q.expires_at).getTime()>Date.now(),'QUOTE_EXPIRED',409);
     // Serialize checkout with catalogue refresh, and revalidate all approvals.
     await client.query('SELECT pg_advisory_xact_lock_shared($1,$2)',[20261025,2]);
+    // Auth happened before this transaction. Serialize with Admin suspension,
+    // removal and discount approval, which lock account before profile.
+    const checkedAccount=await client.query(
+     'SELECT access_status FROM satori_v2_accounts WHERE id=$1 FOR SHARE',[actor.id]);
+    error(checkedAccount.rows[0]?.access_status==='ACTIVE','ACCOUNT_ACCESS_DISABLED',403);
     const checkedProfile=await client.query(
      'SELECT id,account_id AS "accountId",type FROM satori_v2_profiles '+
      'WHERE id=$1 AND account_id=$2 FOR SHARE',[q.profile_id,actor.id]);
@@ -544,6 +549,11 @@ export async function handleAccountV2(req,res,pathname){
    const client=await pool.connect();
    try{
     await client.query('BEGIN');
+    // Match policy creation's profile lock: prevents revocation racing checkout
+    // and ensures one lock order (profile, then policy) for all policy writers.
+    const profile=await client.query('SELECT id FROM satori_v2_profiles WHERE id=$1 FOR UPDATE',
+     [input.profileId]);
+    error(profile.rows.length===1,'PROFILE_NOT_FOUND',404);
     const changed=await client.query(
      'UPDATE satori_v2_policies SET enabled=false,revision=revision+1 '+
      'WHERE id=$1 AND profile_id=$2 AND revision=$3 AND enabled=true '+

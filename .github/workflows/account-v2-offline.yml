@@ -105,3 +105,5 @@ jobs:
           SATORI_V2_CI_DATABASE_URL=postgresql://satori_ci:v2_ci_fake_only_never_prod@127.0.0.1:5432/satori_v2_restore \
             node account-v2/tests/restore-readback.mjs
           sudo rm -f "$RUNNER_TEMP/satori-v2-ci-only.dump"
+      - name: HTTP checkout races with Admin revocation and suspension (fake accounts only)
+        run: node account-v2/tests/checkout-races-postgres.mjs
