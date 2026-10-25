@@ -24,13 +24,14 @@ const merge=isolatedFunction('function mergeCartItems(','\nasync function saveCa
 const interpret=isolatedFunction('function demoInterpretMessage(','\nfunction demoCall(','demoInterpretMessage',{demoState:{products:sample}});
 const asJson=x=>JSON.parse(JSON.stringify(x));
 
-test('blue customer text and green assistant text are not just colored bubbles',()=>{
- assert.match(html,/--chatBlue:#1357b9/);
- assert.match(html,/--chatGreen:#17633b/);
- assert.match(html,/\.bubble\.me\{[^}]*color:var\(--chatBlue\)/);
- assert.match(html,/\.bubble\.ai\{[^}]*color:var\(--chatGreen\)/);
+test('iMessage-style customer blue/white and Gemini gray/black are readable and distinct',()=>{
+ assert.match(html,/--iosOutgoing:#007aff/);
+ assert.match(html,/--iosIncoming:#e9e9eb/);
+ assert.match(html,/--iosIncomingInk:#1c1c1e/);
+ assert.match(html,/\.bubble\.me\{[^}]*align-self:flex-end;color:#fff;background:var\(--iosOutgoing\)/);
+ assert.match(html,/\.bubble\.ai\{[^}]*align-self:flex-start;color:var\(--iosIncomingInk\);background:var\(--iosIncoming\)/);
  assert.match(html,/#message\{color:var\(--chatBlue\)/);
- assert.match(html,/\.pick\{[^}]*color:var\(--chatGreen\)/);
+ assert.match(html,/\.pick\{[^}]*color:var\(--iosIncomingInk\);background:var\(--iosIncoming\)/);
 });
 test('one conversation can parse two separate fake items',()=>{
  assert.deepEqual(asJson(interpret('2 thùng 500ml và 3 thùng 350ml')),
