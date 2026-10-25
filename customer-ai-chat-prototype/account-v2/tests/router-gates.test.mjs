@@ -38,7 +38,9 @@ test('owner pilot page is readable, but does not enable customer checkout',async
  assert.match(res.result.body,/id="menu"/);
  assert.match(res.result.body,/id="cartBadge"/);
  assert.match(res.result.body,/id="signIn"/);
- assert.match(res.result.body,/Xác nhận đặt hàng \(chưa mở trong Pilot\)/);
+ assert.match(res.result.body,/Đặt hàng thật — chưa kích hoạt/);
+ assert.match(res.result.body,/id="confirm"[^>]*disabled/);
+ assert.match(res.result.body,/id="submitTestOrder"/);
  assert.match(res.result.headers['content-security-policy'],/frame-ancestors 'none'/);
 });
 
