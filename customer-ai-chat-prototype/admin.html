@@ -1924,20 +1924,22 @@ $('agencyRealFind').onclick=async()=>{
   review.append(reviewHeading);ready.append(readyHeading);
   let needsReview=0;
   for(const p of places){
-   // Only an individual ledger/profile row with its OWN valid telephone
-   // can authorize a real link. Never pair a group's newer phone with
-   // the ID of a historical invoice which had no phone.
-   const sources=(Array.isArray(p.sourceRows)?p.sourceRows:[]).filter(x=>
+   // Customer grouping is by physical address. A bill without a telephone
+   // remains valid evidence of that location, but needs separate owner approval
+   // before a new customer's contact number is used for an order.
+   const records=(Array.isArray(p.sourceRows)?p.sourceRows:[]).filter(x=>
     x?.ref?.id!=null&&Number.isSafeInteger(x.ref.invoiceNo)&&x.ref.invoiceNo>0&&
-    /^\d{9,11}$/.test(String(x.phone||''))&&
     String(x.name||'').trim().length>=2&&String(x.address||'').trim().length>=5);
-   const refs=sources.map(x=>x.ref);
+   const sources=records.filter(x=>/^\d{9,11}$/.test(String(x.phone||'')));
+   const manualSources=sources.length?[]:records.filter(x=>!String(x.phone||'').trim());
+   const choices=sources.length?sources:manualSources;
+   const manual=!!manualSources.length;
    const row=document.createElement('div');row.className='customer';
    row.style.display='grid';row.style.gridTemplateColumns='minmax(0,1fr) minmax(85px,110px)';
    row.style.gap='8px';
    const check=document.createElement('label');check.style.display='flex';check.style.alignItems='flex-start';
-   const tick=document.createElement('input');tick.type='checkbox';tick.style.width='auto';tick.style.marginRight='8px';
-   tick.disabled=!refs.length;
+   const tick=document.createElement('input');tick.type='checkbox';
+   tick.style.width='auto';tick.style.marginRight='8px';tick.disabled=!sources.length;
    const title=document.createElement('span');
    const bought=Array.isArray(p.invoiceNos)?p.invoiceNos.length:0;
    title.textContent=p.address+' • '+bought+' số hóa đơn lịch sử'+
@@ -1947,38 +1949,68 @@ $('agencyRealFind').onclick=async()=>{
    const rate=document.createElement('input');rate.type='number';rate.min='0';rate.max='70';
    rate.step='1';rate.placeholder='Nhập %';rate.required=true;rate.value='';
    label.append(rate);row.append(check,label);
-   if(refs.length){
-    const selLabel=document.createElement('label');selLabel.textContent='Hóa đơn tham chiếu (chọn một giao dịch đúng địa chỉ)';
+   if(choices.length){
+    const selLabel=document.createElement('label');
+    selLabel.textContent='Hóa đơn tham chiếu (đúng địa chỉ giao)';
     const select=document.createElement('select');
-    for(const source of sources){
+    for(const source of choices){
      const ref=source.ref;
-     const option=new Option('HĐ #'+ref.invoiceNo+' • '+source.phone+
+     const option=new Option('HĐ #'+ref.invoiceNo+' • '+
+      (manual?'chưa có SĐT':'SĐT '+source.phone)+
       ' • '+source.name,JSON.stringify({id:ref.id,invoiceNo:ref.invoiceNo}));
      select.append(option);
     }
     selLabel.append(select);selLabel.style.gridColumn='1 / -1';row.append(selLabel);
-    agencyReviewed.push({select,checkbox:tick,rate,place:p});
+    let contactInput=null,ownerChecked=null;
+    if(manual){
+     const panel=document.createElement('div');panel.style.gridColumn='1 / -1';
+     panel.style.padding='10px';panel.style.border='1px solid #cbdde8';
+     panel.style.borderRadius='12px';panel.style.background='#f7fbff';
+     const caption=document.createElement('label');
+     caption.textContent='📱 Số điện thoại người nhận (anh xác minh)';
+     contactInput=document.createElement('input');
+     contactInput.type='tel';contactInput.inputMode='tel';contactInput.maxLength=30;
+     contactInput.autocomplete='off';contactInput.placeholder='Nhập số điện thoại đúng của điểm giao';
+     caption.append(contactInput);panel.append(caption);
+     const approval=document.createElement('label');
+     approval.style.display='flex';approval.style.alignItems='flex-start';approval.style.gap='9px';
+     ownerChecked=document.createElement('input');ownerChecked.type='checkbox';
+     ownerChecked.style.width='auto';ownerChecked.style.flex='none';
+     const words=document.createElement('span');
+     words.textContent='Tôi đã xác minh số này thuộc người nhận tại địa chỉ trên.';
+     approval.append(ownerChecked,words);panel.append(approval);
+     const footnote=document.createElement('p');footnote.className='hint';
+     footnote.textContent='Hóa đơn gốc giữ nguyên. Link lưu số đã xác minh; khi đặt hàng, hệ thống tạo hóa đơn mới với số này.';
+     panel.append(footnote);row.append(panel);
+     const validate=()=>{
+      const contact=contactInput.value.replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0');
+      const valid=/^\d{9,11}$/.test(contact)&&ownerChecked.checked;
+      tick.disabled=!valid;
+      if(!valid)tick.checked=false;
+     };
+     contactInput.oninput=validate;ownerChecked.onchange=validate;
+    }
+    agencyReviewed.push({select,checkbox:tick,rate,place:p,contactInput,ownerChecked});
    }else{
     const note=document.createElement('p');note.className='hint';
-    note.textContent='Chưa có hóa đơn gốc nào tại địa chỉ này chứa số điện thoại hợp lệ. '+ 
-     'Vui lòng bổ sung/xác minh số điện thoại trong hồ sơ nguồn Google Drive rồi tìm lại; '+
-     'không lấy số từ khách hoặc hóa đơn địa chỉ khác.';
+    note.textContent='Không có mã hóa đơn + ID nguồn đáng tin cậy cho điểm giao này. Chưa thể cấp link.';
     note.style.gridColumn='1 / -1';row.append(note);
    }
    if(p.needsReview){
-    const reason=document.createElement('p');reason.className='hint';reason.style.gridColumn='1 / -1';
+    const reason=document.createElement('p');reason.className='hint';
+    reason.style.gridColumn='1 / -1';
     const notes=(p.reviewReasons||[]).map(x=>({
-     MISSING_PHONE:'chưa có số điện thoại',
-     HISTORIC_PHONE_MISSING:'một số hóa đơn cũ chưa có số điện thoại',
-     MULTIPLE_CONTACTS_REVIEW:'có nhiều số điện thoại từng dùng tại địa chỉ này',
+     MISSING_PHONE:'hóa đơn nguồn thiếu số điện thoại',
+     HISTORIC_PHONE_MISSING:'một số hóa đơn lịch sử thiếu số điện thoại',
+     MULTIPLE_CONTACTS_REVIEW:'từng có nhiều số liên hệ tại địa chỉ này',
      MISSING_HISTORIC_REFERENCE:'thiếu tham chiếu hóa đơn'}[x]||x));
-    reason.textContent=(refs.length?'ℹ Có thể cấp link từ hóa đơn đủ liên hệ. ':
-     '⚠ Chưa thể cấp link ở địa chỉ này. ')+notes.join('; ')+'.';
+    reason.textContent=(sources.length?'ℹ Có thể chọn hóa đơn đủ thông tin. ':
+     manual?'⚠ Nhập và xác nhận SĐT để mở ô chọn. ':
+     '⚠ Chưa thể cấp link: thiếu hóa đơn nguồn hợp lệ. ')+notes.join('; ')+'.';
     row.append(reason);
    }
-   if(refs.length)ready.append(row);
+   if(sources.length)ready.append(row);
    else{review.append(row);needsReview++}
-
   }
   root.append(ready,review);
   $('agencyRealStatus').textContent='Lịch sử có '+(d.selected?.sourceProfilesObserved??'?')+
@@ -2000,8 +2032,18 @@ $('agencyRealIssue').onclick=async()=>{
   notify('⚠ Chọn 1–20 địa chỉ có hóa đơn nguồn đầy đủ. Địa chỉ thiếu số điện thoại chưa thể cấp link.');
   return;
  }
- const destinations=selected.map(x=>({customerRef:JSON.parse(x.select.value),
-  discountPercent:x.rate.value===''?NaN:Number(x.rate.value)}));
+ const destinations=selected.map(x=>{
+  const manual=!!x.contactInput;
+  const verifiedPhone=manual?x.contactInput.value.replace(/\D/g,'').replace(/^84(?=\d{9}$)/,'0'):'';
+  return {customerRef:JSON.parse(x.select.value),
+   discountPercent:x.rate.value===''?NaN:Number(x.rate.value),
+   ...(manual?{confirmedPhoneMissing:true,verifiedPhone}:{} )};
+ });
+ if(destinations.some(d=>d.confirmedPhoneMissing===true&&
+    (!/^\d{9,11}$/.test(d.verifiedPhone)||!
+     selected.find(x=>JSON.stringify(JSON.parse(x.select.value))===JSON.stringify(d.customerRef))?.ownerChecked?.checked))){
+  notify('⚠ Chỉ cấp khi đã nhập đúng và xác nhận số điện thoại cho từng điểm giao thiếu SĐT.');return;
+ }
  if(destinations.some(d=>!Number.isSafeInteger(d.discountPercent)||d.discountPercent<0||d.discountPercent>70)){
   notify('⚠ Chiết khấu cần là số nguyên 0–70%. Mức 16,64% hiện chưa được hỗ trợ; không tự làm tròn vì sẽ sai giá.');
   return;
@@ -2019,8 +2061,11 @@ $('agencyRealIssue').onclick=async()=>{
  if(agentName.length<2){
   notify('⚠ Nhập tên đại lý hoặc CTV để lưu đúng người nhận link.');return;
  }
+ const manualCount=destinations.filter(d=>d.confirmedPhoneMissing===true).length;
  if(!confirm('Xác nhận cấp MỘT LINK thật cho '+agentName+' với '+selected.length+
-    ' địa chỉ đã kiểm tra và chiết khấu tương ứng? Link chỉ hoàn tất khi Google Drive xác nhận đã lưu.'))return;
+    ' địa chỉ, gồm '+manualCount+' SĐT anh xác minh bổ sung? '+
+    'Hóa đơn nguồn không đổi. Đơn mới sẽ dùng SĐT đã xác minh. '+
+    'Link chỉ hoàn tất khi Drive xác nhận đã lưu.'))return;
  b.disabled=true;
  notify('⏳ Đang kiểm tra quyền ghi Google Drive và thông tin từng địa chỉ. Vui lòng chờ, không bấm liên tục.');
  try{
