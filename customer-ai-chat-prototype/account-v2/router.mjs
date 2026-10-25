@@ -346,6 +346,20 @@ export async function handleAccountV2(req,res,pathname){
    error(r.rows.length===1,'CART_REVISION_CONFLICT',409);
    send(res,200,{ok:true,lines,revision:r.rows[0].revision});return true;
   }
+  if(pathname==='/api/v2/orders'&&req.method==='GET'){
+   // No broad legacy-ledger search. Only independently authored V2 orders
+   // whose quote AND order request belong to this authenticated Google account.
+   const data=await pool.query(
+    'SELECT r.id,r.request_id AS "requestId",r.state, '+
+    'CASE WHEN r.state=$2 THEN r.ledger_invoice_no ELSE NULL END AS "invoiceNo", '+
+    'q.created_at AS "orderedAt",q.payload->>\'invoiceMode\' AS "invoiceMode", '+
+    'q.payload->>\'totalVnd\' AS "totalVnd",q.payload->>\'currency\' AS currency '+
+    'FROM satori_v2_order_requests r JOIN satori_v2_quotes q ON q.id=r.quote_id '+
+    'WHERE r.account_id=$1 AND q.account_id=$1 '+
+    'ORDER BY q.created_at DESC LIMIT 50',[actor.id,'COMMITTED']);
+   send(res,200,{ok:true,orders:data.rows.map(x=>({...x,verified:x.state==='COMMITTED'&&
+    Number.isSafeInteger(x.invoiceNo)&&x.invoiceNo>0}))});return true;
+  }
   if(pathname==='/api/v2/catalogue'&&req.method==='GET'){
    const r=await pool.query('SELECT code,name,unit,list_price AS "listPrice",revision FROM satori_v2_catalogue '+
     'WHERE active=true ORDER BY code LIMIT 200');
