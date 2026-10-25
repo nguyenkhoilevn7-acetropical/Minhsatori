@@ -91,7 +91,11 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <div id="signIn"></div><p id="loginStatus" class="notice">Đang kiểm tra điều kiện chạy thử...</p>
 </section>
 <section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1">
-<div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý đặt nước</h1><p>Nhắn các sản phẩm và số lượng · Một giỏ hàng chung</p></div></div>
+<div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý đặt hàng</h1><p>Chọn hồ sơ, nhắn số lượng, kiểm tra rồi gửi đơn thử</p></div></div>
+<div class="agent-selector" style="padding:8px 14px;border-bottom:1px solid var(--edge);background:#f5faff">
+<label for="quickAgentProfile" style="display:block;color:#195b93;font-size:12px;font-weight:750">Đặt hàng cho hồ sơ</label>
+<select id="quickAgentProfile" aria-label="Chọn hồ sơ đại lý hoặc CTV" style="width:100%;margin-top:4px;min-height:42px;padding:7px;border:1px solid #c6d9ee;border-radius:11px;background:white;color:#154b85"></select>
+<span id="agentAddressHint" class="muted">Chọn điểm giao trong giỏ hàng</span></div>
 <details class="chat-actions"><summary>Tiện ích đặt hàng</summary><div class="quick-buttons"><button id="quickProducts" type="button">🧃 Sản phẩm</button><button id="quickCart" type="button">🛒 Giỏ hàng</button><button id="quickAddress" type="button">📍 Địa chỉ giao</button><button id="quickRefresh" type="button">↻ Làm mới</button></div></details>
 <div id="messages" role="log" aria-live="polite"></div>
 <button id="chatCartShortcut" class="cart-chat-link" type="button">🛒 Giỏ hàng đang trống · Xem giỏ</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
@@ -105,7 +109,9 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <div class="field"><label>Địa chỉ giao</label><select id="location"></select></div>
 <button id="quote" class="btn primary" style="width:100%">Kiểm tra báo giá</button>
 <div id="quoteResult" class="muted" style="margin-top:12px"></div>
-<button id="confirm" class="btn" style="width:100%;margin-top:10px" disabled>Xác nhận đặt hàng (chưa mở trong Pilot)</button>
+<button id="submitTestOrder" class="btn" type="button" style="width:100%;margin-top:10px;background:#0b7d52;color:white" disabled>Gửi đơn thử — không tạo hóa đơn thật</button>
+<div id="testOrderResult" class="muted" role="status" aria-live="polite" style="margin-top:9px"></div>
+<button id="confirm" class="btn" style="width:100%;margin-top:10px" disabled>Đặt hàng thật — chưa kích hoạt</button>
 </div></section>
 <section id="addressesView" class="view hidden"><div class="panel"><h2>Địa chỉ đã lưu</h2><div id="addresses"></div>
 <details id="userAddressEditor"><summary style="cursor:pointer;color:var(--blue);font-weight:700;padding:12px 0">✎ Sửa hoặc tạm ngưng địa chỉ đã lưu</summary>
@@ -182,6 +188,7 @@ const $=id=>document.getElementById(id);
 const views=['chat','catalogue','cart','addresses','orders','account'];
 const PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
+let lastQuote=null,lastTestRequestId=null,realTestEnabled=false;
 const money=n=>new Intl.NumberFormat('vi-VN').format(n||0)+'đ';
 
 /* In-memory UI demonstration. Never fetches/saves user data, never signs any
@@ -190,20 +197,38 @@ const demoAccountId='a0000000-1111-4111-8111-000000000001';
 const demoCustomerId='a0000000-1111-4111-8111-000000000002';
 const demoCtvId='a0000000-1111-4111-8111-000000000003';
 const demoAddrId='a0000000-1111-4111-8111-000000000004';
+const demoAgencyId='a0000000-1111-4111-8111-000000000005';
+const demoAgencyAddress2='a0000000-1111-4111-8111-000000000006';
+const demoAgencyAddress3='a0000000-1111-4111-8111-000000000007';
+const demoCtvAddress1='a0000000-1111-4111-8111-000000000008';
+const demoCtvAddress2='a0000000-1111-4111-8111-000000000009';
 const demoState={
  account:{id:demoAccountId,name:'Quản trị viên (MẪU)',email:'preview@example.invalid',isAdmin:true},
  profiles:[
-  {id:demoCustomerId,accountId:demoAccountId,type:'retail',name:'Khách hàng mẫu',phone:'0900000000',revision:1},
-  {id:demoCtvId,accountId:demoAccountId,type:'collaborator',name:'Cộng tác viên mẫu',phone:'0900000000',revision:1}
+  {id:demoAgencyId,accountId:demoAccountId,type:'agency',name:'Đại lý mẫu — 3 điểm giao',phone:'0900000000',revision:1},
+  {id:demoCtvId,accountId:demoAccountId,type:'collaborator',name:'Cộng tác viên mẫu — 2 điểm giao',phone:'0900000000',revision:1},
+  {id:demoCustomerId,accountId:demoAccountId,type:'retail',name:'Khách lẻ mẫu',phone:'0900000000',revision:1}
  ],
- addresses:[{id:demoAddrId,profileId:demoCustomerId,label:'Điểm giao thử',recipientName:'Người nhận mẫu',
- recipientPhone:'0900000000',address:'Số 1, đường Minh Họa, TP.HCM',active:true,revision:1}],
+ addresses:[
+  {id:demoAgencyAddress2,profileId:demoAgencyId,label:'Điểm A — Quận 1 (MẪU)',recipientName:'Khách minh họa A',recipientPhone:'0900000000',address:'Đường Mẫu A, TP.HCM',active:true,revision:1},
+  {id:demoAgencyAddress3,profileId:demoAgencyId,label:'Điểm B — Quận 10 (MẪU)',recipientName:'Khách minh họa B',recipientPhone:'0900000000',address:'Đường Mẫu B, TP.HCM',active:true,revision:1},
+  {id:demoAddrId,profileId:demoAgencyId,label:'Điểm C — Bình Thạnh (MẪU)',recipientName:'Khách minh họa C',recipientPhone:'0900000000',address:'Đường Mẫu C, TP.HCM',active:true,revision:1},
+  {id:demoCtvAddress1,profileId:demoCtvId,label:'Khách CTV số 1 (MẪU)',recipientName:'Khách CTV mẫu 1',recipientPhone:'0900000000',address:'Địa chỉ mẫu D, TP.HCM',active:true,revision:1},
+  {id:demoCtvAddress2,profileId:demoCtvId,label:'Khách CTV số 2 (MẪU)',recipientName:'Khách CTV mẫu 2',recipientPhone:'0900000000',address:'Địa chỉ mẫu E, TP.HCM',active:true,revision:1},
+  {id:'a0000000-1111-4111-8111-00000000000a',profileId:demoCustomerId,label:'Nhà (MẪU)',recipientName:'Khách lẻ mẫu',recipientPhone:'0900000000',address:'Đường Mẫu F, TP.HCM',active:true,revision:1}
+ ],
  products:[
   {code:'TP-00001',name:'Sản phẩm 350ml (MẪU)',unit:'thùng',listPrice:100000,revision:1},
   {code:'TP-00003',name:'Sản phẩm 500ml (MẪU)',unit:'thùng',listPrice:120000,revision:1},
   {code:'TP-00136',name:'Sản phẩm 5 lít (MẪU)',unit:'can',listPrice:60000,revision:1}
  ],
- carts:new Map(),policies:[],next:10
+ carts:new Map(),quotes:new Map(),orders:[],
+ policies:[
+  {id:'a0000000-1111-4111-8111-00000000000b',profileId:demoAgencyId,addressId:null,
+   productCode:null,discountBps:1500,invoiceMode:'single',version:1,revision:1,enabled:true},
+  {id:'a0000000-1111-4111-8111-00000000000c',profileId:demoCtvId,addressId:null,
+   productCode:null,discountBps:2000,collaboratorBps:3500,invoiceMode:'pair',version:1,revision:1,enabled:true}
+ ],next:20
 };
 const demoUuid=()=>{
  const next=String(demoState.next++).padStart(12,'0');
