@@ -43,6 +43,7 @@ try{
  const statements=file=>sql(file).replace(/^\s*(?:BEGIN|COMMIT)\s*;\s*$/gmi,'');
  await client.query(statements('migrations/20261025_owner_edits.sql'));
  await client.query(statements('migrations/20261025_policy_revision.sql'));
+ await client.query(statements('migrations/20261025_customer_crm.sql'));
  const expected=[
   'satori_v2_accounts','satori_v2_sessions','satori_v2_profiles',
   'satori_v2_addresses','satori_v2_policies','satori_v2_catalogue',
@@ -54,6 +55,12 @@ try{
   ['satori_v2_%']);
  const found=new Set(check.rows.map(x=>x.table_name));
  if(expected.some(x=>!found.has(x)))throw Error('V2_SCHEMA_READBACK_FAILED');
+ const crmTables=['satori_v2_registrations','satori_v2_customer_leads'];
+ if(crmTables.some(x=>!found.has(x)))throw Error('V2_CRM_READBACK_FAILED');
+ const stateColumns=await client.query(
+  "SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() "+
+  "AND table_name='satori_v2_accounts' AND column_name IN ('access_status','revision')");
+ if(stateColumns.rowCount!==2)throw Error('V2_ACCESS_CONTROL_MIGRATION_FAILED');
  const revisionCheck=await client.query(
   'SELECT table_name FROM information_schema.columns WHERE table_schema=current_schema() '+
   "AND column_name='revision' AND table_name IN ('satori_v2_profiles','satori_v2_addresses','satori_v2_policies')");
