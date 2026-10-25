@@ -128,3 +128,72 @@ Important limitations: no live catalogue import adapter; no address edit/delete;
 - **No existing issued link, PIN, invoice snapshot or price policy is modified.** Disabling a delivery point blocks new V2 quotes for that address (not retroactive historical edits). Real checkout remains disabled.
 - Fresh pilot DB: use updated `schema.sql`. Previously provisioned **separate pilot DB only**: review `migrations/20261025_owner_edits.sql` before applying; it is not an Apps Script migration.
 - Pilot readiness now requires `SATORI_ACCOUNT_V2_OWNER_SUB === SATORI_ACCOUNT_V2_PILOT_SUB`; a different Google subject disables the pilot instead of allowing that account in.
+
+
+## 25 October: interactive iOS V2 preview, staged users and policy lifecycle
+
+**Try the UI without authentication or DB:** \`/app-v2?preview=1\`. This demo is explicitly labeled
+**SYNTHETIC**, runs wholly in browser memory, never sends a real API request,
+never performs Google login, calls Gemini, changes a real invoice or persists sample
+profiles. Use it to verify the ☰ drawer, chat composition, shared cart, profile/address
+forms and Admin price-policy controls on a Samsung or desktop. Its deterministic
+single-product examples and prices are deliberately fictional. Real Gemini chat
+requires configured server-side Gemini and a verified official catalogue.
+
+### Customer access — secure staged rollout
+
+- Default: only the verified owner Google \`sub\` can use the real V2 backend.
+- For private customer trials, explicitly set **both** \`SATORI_ACCOUNT_V2_CUSTOMERS_ENABLED=1\`
+  and \`SATORI_ACCOUNT_V2_CUSTOMER_ALLOWLIST_SUBS\` to a JSON array of immutable
+  Google \`sub\` strings approved by the owner. Never use names, phone numbers,
+  emails or a wildcard as the identity authority.
+- No self-registration without the backend-verified Google ID token, matching
+  Web OAuth audience and trusted HTTPS origin. The allowlist remains private;
+  the public \`/api/v2/status\` only returns Boolean rollout readiness.
+- Customer \`PATCH /api/v2/addresses\` is tenant-scoped **inside the SQL UPDATE**,
+  requires same-origin session, CSRF cookie/header, explicit \`confirmed:true\`,
+  immutable address + profile IDs and expected revision. Inactive addresses
+  cannot be chosen for future quotes. A concurrent change returns HTTP 409.
+
+### Admin price-policy lifecycle
+
+- Owner policy creation requires \`confirmed:true\`. A new policy disables only
+  earlier live revisions of the **same scope** (profile/address/SKU) and logs
+  the approval. Historical quote snapshots remain unchanged.
+- \`PATCH /api/v2/admin/policies\` allows **deactivation only**, with immutable
+  policy ID, profile ID, revision CAS, \`enabled:false\` and explicit owner
+  confirmation. Reactivation requires creating a new approved revision.
+- The iOS V2 Admin screen lists current/archived policy revisions and allows
+  deactivation. A CTV paired quote is still **reference-only**. No two real
+  invoices are created until the signed bridge passes acceptance.
+
+### Dedicated PostgreSQL migration and rollbacks
+
+Create a **separate, durable, backed-up PostgreSQL database**. With private
+credentials only in the server environment, run:
+
+\`\`\`bash
+SATORI_ACCOUNT_V2_MIGRATION_APPROVED=1 \
+SATORI_ACCOUNT_V2_DATABASE_URL='postgresql://...' \
+node customer-ai-chat-prototype/account-v2/migrate.mjs
+\`\`\`
+
+The migrator refuses databases with unrelated application tables, uses an
+advisory transaction lock, applies idempotent schema/additive migrations and
+checks all 10 V2 tables + policy, customer-profile and address revisions.
+It must be exercised on synthetic data first. GitHub CI additionally tests
+100 simultaneous revision updates, 100 identical checkout IDs, cross-tenant
+address denial, policy deactivation, and \`pg_dump\`/\`pg_restore\` readback.
+
+**Never use Render Free PostgreSQL for long-lived customer or invoice storage:**
+free instances expire and do not provide a durable automated backup policy.
+A verified restore procedure and accessible encrypted backup are mandatory.
+
+### Still blocking real public rollout
+
+Google Web OAuth client/origin/owner-sub configuration, a durable provisioned
+PostgreSQL database with restore drill, official catalogue readback, authenticated
+signed HMAC order relay and immutable ledger/PDF reconciliation are not yet
+verified. \`/api/v2/confirm\` must stay 503 until all of these pass. Do not
+merge this branch into the original production code or migrate any historical
+issued link, CTV PIN, accounting invoice or Drive state.
