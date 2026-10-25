@@ -39,6 +39,7 @@ import org.json.JSONObject
 import java.util.UUID
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
@@ -737,6 +738,9 @@ class NativeMainActivity : AppCompatActivity() {
             button(hero, "MỞ TRANG QUẢN TRỊ GEMINI") {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
+            button(hero, "QUẢN TRỊ MINH SATORI V2 • KHÁCH HÀNG / ĐẠI LÝ") {
+                openV2Admin()
+            }
             content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(14)
             })
@@ -886,7 +890,8 @@ class NativeMainActivity : AppCompatActivity() {
             "▤" to "Hóa đơn",
             "♙" to "Khách hàng",
             "◴" to "Công nợ",
-            "＋" to "Lên đơn"
+            "＋" to "Lên đơn",
+            "⚙" to "Quản trị V2"
         )
         var drawerOpened = false
         fun dismissDrawer(after: (() -> Unit)? = null) {
@@ -927,11 +932,14 @@ class NativeMainActivity : AppCompatActivity() {
                 setPadding(dp(14), 0, dp(12), 0)
                 background = background(if (activeTab == index)
                     Color.rgb(232, 242, 255) else white, 14)
-                contentDescription = "Mở mục " + item.second
+                contentDescription = "Mở mục " + item.second + if (item.second == "Quản trị V2") " · Yêu cầu đăng nhập Admin Google trên máy chủ V2" else ""
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
-                    dismissDrawer { activeTab = index; render() }
+                    dismissDrawer {
+                        if (item.second == "Quản trị V2") openV2Admin()
+                        else { activeTab = index; render() }
+                    }
                 }
             }
             drawer.addView(destination, LinearLayout.LayoutParams(-1, dp(54)).apply {
@@ -975,6 +983,31 @@ class NativeMainActivity : AppCompatActivity() {
         row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
+    }
+
+
+    /**
+     * V2 management lives on the isolated V2 service. Chrome Custom Tabs
+     * preserve secure browser Google OAuth and browser session cookies.
+     * Native UI never receives owner credentials or grants Admin privileges.
+     * Backend must validate owner Google subject before every mutation.
+     */
+    private fun openV2Admin() {
+        val destination = Uri.parse(
+            "https://minh-satori-v2-customer-admin.onrender.com/app-v2?view=account"
+        )
+        try {
+            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(this, destination)
+        } catch (_: Exception) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, destination).apply {
+                    addCategory(Intent.CATEGORY_BROWSABLE)
+                })
+            } catch (_: Exception) {
+                Toast.makeText(this, "Không mở được Quản trị V2 trên trình duyệt an toàn.",
+                    Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
