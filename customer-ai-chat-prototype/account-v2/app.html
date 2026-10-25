@@ -263,11 +263,11 @@ const demoState={
  {id:'a0000000-1111-4111-8111-000000000070',email:'agency-trial@example.invalid',
   name:'Đại lý đăng ký thử',fullName:'Đại lý đăng ký thử',phone:'0900000000',
   address:'Địa chỉ mẫu đại lý mới',companyName:'Cửa hàng Demo',taxCode:'',note:'',
-  requestedType:'agency',accessStatus:'PENDING',revision:1,createdAt:new Date().toISOString()},
+  requestedType:'agency',accessStatus:'PENDING',revision:1,registrationRevision:1,createdAt:new Date().toISOString()},
  {id:'a0000000-1111-4111-8111-000000000071',email:'retail-trial@example.invalid',
   name:'Khách đăng ký thử',fullName:'Khách đăng ký thử',phone:'0900000000',
   address:'Địa chỉ mẫu khách lẻ',companyName:'',taxCode:'',note:'',
-  requestedType:'retail',accessStatus:'ACTIVE',revision:1,createdAt:new Date().toISOString()}
+  requestedType:'retail',accessStatus:'ACTIVE',revision:1,registrationRevision:1,createdAt:new Date().toISOString()}
  ],
  leads:[],
  carts:new Map(),quotes:new Map(),orders:[],
@@ -338,6 +338,18 @@ function demoCall(path,data={},method='POST'){
    return {ok:true,customer:{id:customer.id,revision:customer.revision,
     accessStatus:customer.accessStatus}};
   }
+ }
+ if(p==='/api/v2/admin/customers/details'&&method==='PATCH'){
+  const customer=demoState.registrations.find(x=>x.id===data.accountId);
+  if(!customer||customer.registrationRevision!==data.expectedRevision||!data.confirmed)
+   throw Error('CUSTOMER_DETAILS_REVISION_CONFLICT');
+  if(data.email&&data.email!==customer.email)throw Error('VERIFIED_EMAIL_IMMUTABLE');
+  if(customer.accessStatus==='ACTIVE'&&data.requestedType!==customer.requestedType)
+   throw Error('ROLE_CHANGE_REQUIRES_ADMIN_POLICY');
+  for(const k of ['fullName','phone','address','companyName','taxCode','note','requestedType'])
+   customer[k]=data[k];
+  customer.name=data.fullName;customer.registrationRevision++;customer.revision++;
+  return {ok:true,revision:customer.registrationRevision};
  }
  if(p==='/api/v2/admin/customer-leads'){
   if(method==='PATCH'){
@@ -1056,6 +1068,40 @@ function renderCrm(){
     actions.append(btn);
    }
    wrap.append(actions);
+   if(a.registrationRevision){
+    const editor=document.createElement('details');
+    editor.append(node('summary','✎ Sửa thông tin khách đã đăng ký'));
+    const form=document.createElement('form');form.className='crm-form';
+    for(const [label,name,value] of [
+     ['Họ và tên','fullName',a.fullName],['Số điện thoại','phone',a.phone],
+     ['Địa chỉ đăng ký','address',a.address],['Doanh nghiệp','companyName',a.companyName],
+     ['Mã số thuế','taxCode',a.taxCode],['Ghi chú','note',a.note]]){
+     const line=node('div',undefined,'field'),title=node('label',label);
+     const field=document.createElement(['address','note'].includes(name)?'textarea':'input');
+     field.name=name;field.value=value||'';
+     if(['fullName','phone','address'].includes(name))field.required=true;
+     line.append(title,field);form.append(line);
+    }
+    const role=document.createElement('select');role.name='requestedType';
+    for(const type of ['retail','agency','collaborator']){
+     const option=node('option',type);option.value=type;role.append(option);
+    }role.value=a.requestedType;
+    if(a.accessStatus==='ACTIVE')role.disabled=true;
+    form.append(crmField('Loại khách',a.accessStatus==='ACTIVE'?'Đã duyệt — không đổi tại đây':''),role);
+    const save=node('button','Lưu thông tin V2','btn primary');save.type='submit';
+    form.append(save);
+    form.onsubmit=async ev=>{
+     ev.preventDefault();
+     if(!confirm('Xác nhận sửa hồ sơ đã đăng ký? Email Google và hóa đơn cũ không thay đổi.'))return;
+     try{
+      await call('/api/v2/admin/customers/details',{
+       ...crmReadForm(form),requestedType:role.value,email:a.email,
+       accountId:a.id,expectedRevision:a.registrationRevision,confirmed:true},'PATCH');
+      await loadCrm();toast('Đã sửa thông tin khách hàng');
+     }catch(e){await loadCrm();toast(e.message)}
+    };
+    editor.append(form);wrap.append(editor);
+   }
   }
   $('registeredCustomers').append(wrap);
  }
@@ -1069,6 +1115,18 @@ function renderCrm(){
    crmField('Địa chỉ',a.address),crmField('Doanh nghiệp',a.companyName),
    crmField('MST',a.taxCode),crmField('Loại',a.requestedType),
    crmField('Chiết khấu dự kiến',(a.discountBps/100)+'%'),crmField('Ghi chú',a.note));
+  if(a.active&&a.linkedAccountId){
+   const archive=node('button','Ngừng sử dụng hồ sơ liên hệ (không khóa tài khoản Google)','btn');
+   archive.type='button';
+   archive.onclick=async()=>{
+    if(!confirm('Chỉ lưu trữ hồ sơ liên hệ? Muốn khóa đăng nhập phải khóa tài khoản Google ở nhóm trên.'))return;
+    try{await call('/api/v2/admin/customer-leads',{
+     leadId:a.id,expectedRevision:a.revision,active:false,confirmed:true},'PATCH');
+     await loadCrm();toast('Đã lưu trữ liên hệ')
+    }catch(e){toast(e.message)}
+   };
+   wrap.append(archive);
+  }
   if(a.active&&!a.linkedAccountId){
    const panel=document.createElement('details');const summary=node('summary','Sửa · liên kết · xóa hồ sơ liên hệ');panel.append(summary);
    const form=document.createElement('form');form.className='crm-form';
