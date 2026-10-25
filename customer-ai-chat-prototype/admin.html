@@ -206,7 +206,7 @@ button:disabled{opacity:.55}
 </section>
 <section class="card" data-tab-panel="issued-links" hidden id="issuedLinksPanel">
 <h2>🔗 Đại lý &amp; CTV đã cấp link</h2>
-<p class="hint">Link mới cấp hiện ngay trong màn hình cấp link. Sau đó, tìm theo tên, SĐT hoặc địa chỉ để mở lại link cùng toàn bộ điểm giao đã duyệt trong sổ Google Drive. Mã truy cập riêng không lưu ở đây.</p>
+<p class="hint">Link mới cấp hiện ngay trong màn hình cấp link. Tìm theo tên, SĐT hoặc địa chỉ để mở lại. Mã truy cập được lưu mã hóa trong Google Drive nếu đã xác minh; chỉ chủ tài khoản mới xem được.</p>
 <div class="issued-toolbar">
  <label>Tìm tên / SĐT / địa chỉ<input type="search" id="issuedLinkSearch" maxlength="120" placeholder="Tìm đại lý, CTV hoặc khách"></label>
  <label>Loại<select id="issuedLinkType"><option value="">Tất cả</option><option value="agency">Đại lý</option><option value="collaborator">CTV</option><option value="customer">Khách hàng</option></select></label>
@@ -356,7 +356,7 @@ button:disabled{opacity:.55}
 <div class="row">
 <label>Phí giao (%)<input id="agencyRealShipping" type="number" min="0" max="30" step="1" value="0"></label>
 <label>VAT (%)<select id="agencyRealVat"><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></label>
-<label>Thời hạn (ngày)<input id="agencyRealDays" type="number" min="1" max="30" value="30"></label>
+<label>Thời hạn (ngày)<input id="agencyRealDays" type="number" min="1" max="36500" step="1" value="30"></label>
 </div>
 <button type="button" id="agencyRealIssue">🔗 LƯU MỨC GIẢM & CẤP MỘT LINK CHO ĐẠI LÝ</button>
 <p id="agencyRealIssueStatus" role="status" aria-live="polite" class="hint" style="font-weight:700;min-height:24px;margin:9px 0 0"></p>
@@ -387,6 +387,7 @@ button:disabled{opacity:.55}
 <button id="manageSelectedLocations" type="button" class="secondary" hidden>📍 Thêm địa chỉ cho khách đã có</button></p>
 <p class="hint">Một đại lý dùng một link riêng cho tối đa 20 địa chỉ giao, có người nhận và số điện thoại riêng.</p>
 <div class="row"><div><label for="discount">Chiết khấu (%)</label><input id="discount" required type="text" inputmode="decimal" value="20" placeholder="VD: 16,64"></div><div><label for="ship">Phí giao hàng (%)</label><input id="ship" required type="number" min="0" max="30" step="1" value="8"></div><div><label for="vatRate">Thuế VAT (%)</label><select id="vatRate"><option value="0">0% — chưa áp dụng</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div></div>
+<label for="realLinkDays">Thời hạn link cấp cho khách (ngày)</label><input id="realLinkDays" type="number" min="1" max="36500" step="1" value="30" placeholder="60, 365, 730">
 <p class="hint">VAT thử nghiệm tính trên tiền hàng sau chiết khấu, không tính phí giao. Thuế suất thật phải kiểm tra theo từng mặt hàng trước khi sử dụng.</p>
 <p id="realPricingEvidence" class="hint" role="status" hidden></p>
 
@@ -1089,7 +1090,98 @@ function renderIssuedRecords(){
   copy.textContent='Sao chép link';
   copy.onclick=async()=>{try{await navigator.clipboard.writeText(r.link);copy.textContent='✓ Đã sao chép'}
    catch{$('issuedLinkStatus').textContent='Nhấn giữ đường link để sao chép.'}};
-  card.append(name,meta,url,details,copy);root.append(card);
+  // Sensitive credentials are deliberately excluded from list responses.
+  // Show only after a separate, authenticated owner action. Do not cache them.
+  const actions=document.createElement('div');actions.className='row';
+  const extensions=[];
+  actions.append(copy);
+  const credential=document.createElement('p');
+  credential.className='hint';credential.hidden=true;
+  const reveal=document.createElement('button');reveal.type='button';reveal.className='secondary';
+  reveal.textContent='🔒 Xem mã truy cập';
+  reveal.onclick=async()=>{
+   if(!credential.hidden){credential.replaceChildren();credential.hidden=true;reveal.textContent='🔒 Xem mã truy cập';return;}
+   reveal.disabled=true;
+   try{
+    const d=await request('/api/admin/issued-links/access-code','POST',{id:r.id});
+    if(typeof d.accessCode!=='string'||d.accessCode.length<12)throw Error('Chưa xác minh được mã.');
+    credential.textContent='Mã truy cập: '+d.accessCode;
+    credential.hidden=false;reveal.textContent='Ẩn mã truy cập';
+   }catch(e){$('issuedLinkStatus').textContent='⚠ '+e.message;}
+   finally{reveal.disabled=false}
+  };
+  actions.append(reveal);
+  if(!r.hasSavedAccessCode){
+   const backfill=document.createElement('details');backfill.className='location-manager';
+   const head=document.createElement('summary');head.textContent='🔐 Lưu mã truy cập đã cấp';
+   const help=document.createElement('p');help.className='hint';
+   help.textContent='Nhập đúng mã đang sử dụng. Hệ thống xác minh trước khi lưu bản mã hóa vào Drive; không đổi link hoặc mật khẩu.';
+   const pin=document.createElement('input');pin.type='password';pin.autocomplete='new-password';
+   pin.placeholder='Mã truy cập cũ';pin.maxLength=100;
+   const save=document.createElement('button');save.type='button';save.className='secondary';
+   save.textContent='Xác minh và lưu mã';
+   const status=document.createElement('p');status.className='hint';status.setAttribute('role','status');
+   save.onclick=async()=>{
+    const accessCode=pin.value;
+    if(accessCode.length<12){status.textContent='Mã truy cập không hợp lệ.';return;}
+    if(!confirm('Lưu mã truy cập đã xác minh vào kho mã hóa Google Drive?'))return;
+    save.disabled=true;pin.disabled=true;
+    try{
+     const d=await request('/api/admin/issued-links/access-code/save','POST',{id:r.id,accessCode});
+     if(d.saved!==true)throw Error('Chưa xác minh được ghi Drive.');
+     pin.value='';status.textContent='✓ Mã đã lưu mã hóa lên Drive.';
+     await loadIssuedRecords(true);
+    }catch(e){status.textContent='⚠ '+e.message}
+    finally{save.disabled=false;pin.disabled=false}
+   };
+   backfill.append(head,help,pin,save,status);extensions.push(backfill);
+  }
+  if(r.kind==='agency'||r.kind==='customer'){
+   const editor=document.createElement('details');editor.className='location-manager';
+   const head=document.createElement('summary');head.textContent='✏️ Sửa thông tin người nhận và địa chỉ';
+   const note=document.createElement('p');note.className='hint';
+   note.textContent='Chỉ đổi tên, SĐT, địa chỉ. Không đổi link, mã truy cập, chiết khấu hoặc tham chiếu hóa đơn.';
+   const fields=[];
+   function field(label,value,max){
+    const lab=document.createElement('label');lab.textContent=label;
+    const inp=document.createElement('input');inp.type='text';inp.value=String(value||'');
+    inp.maxLength=max;inp.required=true;lab.append(inp);return {lab,inp};
+   }
+   const owner=field('Tên hồ sơ',r.name,150);editor.append(head,note,owner.lab);
+   for(const [i,d] of r.recipients.entries()){
+    const group=document.createElement('fieldset');
+    const legend=document.createElement('legend');legend.textContent='Địa chỉ '+(i+1)+' · CK '+d.discountPercent+'% · Bill #'+d.customerRef.invoiceNo;
+    group.append(legend);
+    const n=field('Người nhận',d.name,150),p=field('Số điện thoại',d.phone,35),
+      a=field('Địa chỉ giao',d.location,500);
+    group.append(n.lab,p.lab,a.lab);editor.append(group);fields.push({n:n.inp,p:p.inp,a:a.inp});
+   }
+   const save=document.createElement('button');save.type='button';save.className='secondary';
+   save.textContent='✓ Lưu thay đổi vào Google Drive';
+   const status=document.createElement('p');status.className='hint';status.setAttribute('role','status');
+   save.onclick=async()=>{
+    const name=owner.inp.value.trim();
+    const recipients=r.recipients.map((d,i)=>({...d,name:fields[i].n.value.trim(),
+      phone:fields[i].p.value.trim(),location:fields[i].a.value.trim()}));
+    if(name.length<2||recipients.some(d=>d.name.length<2||!/^\d{9,11}$/.test(d.phone)||
+     d.location.length<5)){status.textContent='⚠ Kiểm tra tên, SĐT (9–11 số), địa chỉ.';return}
+    if(!confirm('Xác nhận sửa thông tin trong link đã cấp? Giá và hóa đơn không thay đổi.'))return;
+    save.disabled=true;
+    try{
+     const d=await request('/api/admin/issued-links/update','POST',{id:r.id,name,recipients});
+     if(d.saved!==true||d.id!==r.id)throw Error('Chưa có xác nhận cập nhật từ Drive.');
+     status.textContent='✓ Đã lưu trên Drive • Revision '+d.revision;
+     await loadIssuedRecords(true);
+    }catch(e){status.textContent='⚠ '+e.message}
+    finally{save.disabled=false}
+   };
+   editor.append(save,status);extensions.push(editor);
+  }else{
+   const policy=document.createElement('p');policy.className='hint';
+   policy.textContent='CTV: địa chỉ và chiết khấu phải cập nhật qua chính sách CTV được duyệt.';
+   extensions.push(policy);
+  }
+  card.append(name,meta,url,details,actions,credential,...extensions);root.append(card);
  }
 }
 async function loadIssuedRecords(reset=true){
@@ -1652,18 +1744,21 @@ $('realLinkCheck').onclick=async()=>{
      !$('ship').value||!Number.isSafeInteger(shippingPercent)||shippingPercent<0||
      shippingPercent>30||!['0','5','8','10'].includes($('vatRate').value))
    throw Error('Anh cần duyệt chiết khấu, phí giao và VAT hợp lệ.');
+  const daysValid=Number($('realLinkDays').value);
+  if(!$('realLinkDays').value||!Number.isSafeInteger(daysValid)||daysValid<1||daysValid>36500)
+   throw Error('Thời hạn link phải từ 1 đến 36500 ngày.');
   const readiness=await request('/api/admin/real-links/readiness');
   if(!readiness.configured||readiness.registryReady!==true)
    throw Error('Chưa xác minh sổ link Production hoặc HMAC. Không cấp link nếu chưa lưu được Drive.');
   if(!confirm('CẤP LINK ĐẶT HÀNG THẬT cho '+sourceRow.name+' tại '+sourceRow.address+
    '?\nHóa đơn nguồn #'+invoiceNo+'\nChiết khấu '+discount+
    '% • Giao hàng '+shippingPercent+'% • VAT '+vatPercent+
-   '%\nLink chỉ có hiệu lực 30 ngày, có mã truy cập riêng. Tiếp tục?'))return;
+   '%\nLink có hiệu lực '+daysValid+' ngày, có mã truy cập riêng. Tiếp tục?'))return;
   const d=await request('/api/admin/real-links/issue','POST',{
    confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
    customerRef:{id:sourceRow.ref.id,invoiceNo},name:sourceRow.name,
    phone:sourceRow.phone,location:sourceRow.address,
-   discountPercent:discount,shippingPercent,vatPercent,daysValid:30
+   discountPercent:discount,shippingPercent,vatPercent,daysValid
   });
   if(d.registrySaved!==true)throw Error('Chưa xác minh lưu link trên Google Drive.');
    lastLink=d.link;$('newLink').hidden=false;$('linkText').textContent=d.link;
@@ -2064,8 +2159,8 @@ $('agencyRealIssue').onclick=async()=>{
  if(!Number.isSafeInteger(shippingPercent)||shippingPercent<0||shippingPercent>30){
   notify('⚠ Nhập phí giao hàng từ 0 đến 30%. Nếu miễn phí, nhập 0.');return;
  }
- if(!Number.isSafeInteger(daysValid)||daysValid<1||daysValid>30){
-  notify('⚠ Thời hạn link hiện tối đa 30 ngày. Giá trị 60 ngày sẽ bị máy chủ từ chối.');return;
+ if(!Number.isSafeInteger(daysValid)||daysValid<1||daysValid>36500){
+  notify('⚠ Nhập thời hạn link từ 1 đến 36.500 ngày (ví dụ 60, 365, 730 ngày).');return;
  }
  if(agentName.length<2){
   notify('⚠ Nhập tên đại lý hoặc CTV để lưu đúng người nhận link.');return;
