@@ -17,7 +17,7 @@ import {productFor} from './catalogue.mjs';
 const fail=code=>{const e=new Error(code);e.code=code;throw e};
 const okId=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{3,64}$/.test(v);
 const urlRx=/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,180}\/exec$/;
-const pct=(v,max=70)=>Number.isSafeInteger(v)&&v>=0&&v<=max;
+const pct=(v,max=100)=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=max;
 const clean=v=>String(v??'').trim();
 const digest=x=>crypto.createHash('sha256').update(JSON.stringify(x)).digest('hex');
 const secretKey=secret=>crypto.createHash('sha256').update('MINH-SATORI-OWNER-QUOTE-V1\0'+secret).digest();
