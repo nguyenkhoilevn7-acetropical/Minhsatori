@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS satori_v2_policies (
  collaborator_bps integer NULL CHECK (collaborator_bps BETWEEN 0 AND 10000),
  invoice_mode text NOT NULL DEFAULT 'single' CHECK (invoice_mode IN ('single','pair')),
  enabled boolean NOT NULL DEFAULT true,
+ revision integer NOT NULL DEFAULT 1 CHECK (revision >= 1),
  version integer NOT NULL CHECK (version >= 1),
  valid_from timestamptz NULL,
  valid_until timestamptz NULL,
