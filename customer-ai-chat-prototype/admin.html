@@ -622,7 +622,7 @@ async function issueSavedPairLink(id){
   throw Error('Chính sách CTV chưa được bật và xác minh trong sổ thật.');
  const readiness=await request('/api/admin/ctv-links/readiness');
  if(readiness.enabled!==true||readiness.registryReady!==true)
-  throw Error('Cổng CTV hoặc sổ link Google Drive chưa sẵn sàng. Cần cập nhật Apps Script Production.');
+  throw Error('CTV_LINKS_NOT_READY: Cổng CTV hoặc sổ link Google Drive chưa sẵn sàng. Cần cập nhật Apps Script Production.');
  const invitation=await request('/api/admin/ctv-links/issue','POST',{collaboratorId:id});
  if(invitation.production!==true||invitation.oneLink!==true||
     invitation.deliveryLocations!==policy.authorizedDestinations.length||
