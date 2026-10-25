@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,isUuid,isSku,DomainError} from './domain.mjs';
+import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
 import {parseOrder,identityChange} from '../free-parser.mjs';
 import {parseMultiOrder} from '../multi-order.mjs';
 import {parseComplexOrderWithGemini} from '../free-parser.mjs';
@@ -326,6 +326,32 @@ export async function handleAccountV2(req,res,pathname){
      String(input.phone||'').slice(0,30)]);
    send(res,201,{ok:true,profileId:r.rows[0].id});return true;
   }
+  if(pathname==='/api/v2/admin/profiles'&&req.method==='PATCH'){
+   owner(actor);
+   const input=validateAdminProfileEdit(await json(req));
+   const client=await pool.connect();
+   try{
+    await client.query('BEGIN');
+    const saved=await client.query(
+     'UPDATE satori_v2_profiles SET display_name=$2,phone=$3,revision=revision+1 '+
+     'WHERE id=$1 AND revision=$4 RETURNING id,revision',
+     [input.profileId,input.name,input.phone,input.expectedRevision]);
+    if(saved.rows.length!==1){
+     const exists=await client.query('SELECT id FROM satori_v2_profiles WHERE id=$1',[input.profileId]);
+     error(exists.rows.length===1,'PROFILE_NOT_FOUND',404);
+     throw new ApiError('PROFILE_REVISION_CONFLICT',409);
+    }
+    await client.query(
+     'INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
+     'VALUES($1,$2,$3,$4,$5)',
+     [actor.id,'owner','PROFILE_EDITED',input.profileId,JSON.stringify({
+      previousRevision:input.expectedRevision,newRevision:saved.rows[0].revision
+     })]);
+    await client.query('COMMIT');
+    send(res,200,{ok:true,profile:saved.rows[0]});return true;
+   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
+   finally{client.release()}
+  }
   if(pathname==='/api/v2/admin/policies'&&req.method==='POST'){
    const r=await adminPolicy(pool,actor,await json(req));
    send(res,201,{ok:true,policy:r});return true;
@@ -362,7 +388,7 @@ export async function handleAccountV2(req,res,pathname){
    owner(actor);
    const accountId=new URL(req.url,'http://local').searchParams.get('accountId');
    error(isUuid(accountId),'ACCOUNT_INVALID');
-   const list=await pool.query('SELECT id,type,display_name AS name,phone FROM satori_v2_profiles '+
+   const list=await pool.query('SELECT id,type,display_name AS name,phone,revision FROM satori_v2_profiles '+
     'WHERE account_id=$1 ORDER BY created_at',[accountId]);
    send(res,200,{ok:true,profiles:list.rows});return true;
   }
