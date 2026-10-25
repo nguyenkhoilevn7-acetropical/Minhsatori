@@ -1041,6 +1041,7 @@ function renderCrm(){
    crmField('Doanh nghiệp',a.companyName),
    crmField('Mã số thuế',a.taxCode),
    crmField('Loại khách',a.requestedType),
+   crmField('Chiết khấu mặc định đã duyệt',((a.discountBps??0)/100)+'%'),
    crmField('Ghi chú',a.note));
   const actions=node('div');actions.style.display='flex';actions.style.gap='7px';
   actions.style.flexWrap='wrap';actions.style.marginTop='10px';
@@ -1049,7 +1050,7 @@ function renderCrm(){
   percent.setAttribute('aria-label','Chiết khấu khách '+(a.fullName||a.name));
   percent.style.width='94px';
   if(a.accessStatus!=='REMOVED'){
-   actions.append(crmField('Giảm giá %', ''),percent);
+   actions.append(crmField('Sửa chiết khấu mặc định (%)', ''),percent);
    for(const [status,title] of [['ACTIVE',a.accessStatus==='ACTIVE'?'Lưu chiết khấu':'✓ Duyệt'],
     ['SUSPENDED','⏸ Khóa'],['REMOVED','Ngừng sử dụng']]){
     if(status===a.accessStatus&&status!=='ACTIVE')continue;
