@@ -90,7 +90,10 @@ export function createOwnerRealInvoice({
    invoiceCount:status.data.orders,catalogueProducts:catalogue.data.products.length,
    permissions:'orders_read_catalogue_read'});
  }
- async function source(invoiceNo,customerId=null,knownCatalogue=null){
+ async function source(invoiceNo,customerId=null,knownCatalogue=null,{allowMissingPhone=false}={}){
+  // Missing contact is allowed ONLY for an exact owner-reviewed legacy invoice.
+  // This read-only exception cannot authorise an order by itself.
+  if(allowMissingPhone&&customerId==null)fail('OWNER_CUSTOMER_REFERENCE_REQUIRED');
   if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1)fail('OWNER_CUSTOMER_REFERENCE_REQUIRED');
   const [cat,old]=await Promise.all([
    knownCatalogue||bot('catalogue.list',{}),
@@ -106,12 +109,13 @@ export function createOwnerRealInvoice({
   const matched=old.data.orders.filter(o=>Number(o.invoiceNo)===invoiceNo&&
     (customerId==null||String(o.id)===String(customerId))&&
     o.pairRole!=='collaborator'&&o.id!=null&&
-    clean(o.name).length>=2&&!!contactPhone(o.phone||o.customerPhone)&&
+    clean(o.name).length>=2&&(!!contactPhone(o.phone||o.customerPhone)||allowMissingPhone)&&
     clean(o.location).length>=5);
   if(matched.length!==1||Number(old.data.totalMatches)>100)fail('OWNER_CUSTOMER_REFERENCE_AMBIGUOUS');
   const customer=matched[0];
   const verifiedPhone=contactPhone(customer.phone||customer.customerPhone);
-  if(!customer.id||clean(customer.name).length<2||!verifiedPhone||
+  if(customer.id==null||clean(customer.name).length<2||
+    (!verifiedPhone&&!allowMissingPhone)||
     clean(customer.location).length<5)fail('OWNER_CUSTOMER_REFERENCE_INVALID');
   const ids=new Map();
   for(const p of cat.data.products){
@@ -135,7 +139,8 @@ export function createOwnerRealInvoice({
   const found=[];
   for(let i=0;i<refs.length;i+=3){
    const chunk=await Promise.all(refs.slice(i,i+3).map(
-    x=>source(x.invoiceNo,x.id,catalogue)));
+    x=>source(x.invoiceNo,x.id,catalogue,
+     {allowMissingPhone:x.confirmedPhoneMissing===true})));
    found.push(...chunk);
   }
   if(found.some(x=>x.revision!==catalogue.revision))
