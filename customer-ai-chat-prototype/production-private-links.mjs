@@ -19,7 +19,10 @@ const validRef=v=>v&&v.id!=null&&Number.isSafeInteger(v.invoiceNo)&&v.invoiceNo>
 const cleanText=(v,max)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
 const sha=v=>crypto.createHash('sha256').update(v).digest('hex');
 const keyFromSecret=v=>crypto.createHash('sha256').update('MINH-SATORI-REAL-LINK-V1\0'+v).digest();
-const maxAge=30*24*3600*1000;
+// Owner-configurable validity for real links: 1 day up to 100 years.
+// A finite cap prevents invalid timestamps while removing the 30-day business limit.
+const maxDays=36500;
+const maxAge=maxDays*24*3600*1000;
 const sameRef=(a,b)=>a&&b&&String(a.id)===String(b.id)&&a.invoiceNo===b.invoiceNo;
 const validDestination=d=>validRef(d?.customerRef)&&cleanText(d.name,150)&&cleanText(d.location,500)&&digits(d.phone).length>=8&&pct(d.discountPercent);
 
@@ -131,7 +134,7 @@ export function createProductionPrivateLinks({
  }
  function readiness(){
   try{key();return {configured:true,customerLinkIssuanceWired:true,requiresAccessCode:true,
-    backendWriteVerified:false,accessExpiresWithinDays:30}}
+    backendWriteVerified:false,accessExpiresWithinDays:maxDays}}
   catch(e){return {configured:false,customerLinkIssuanceWired:true,reason:e.code||'NO_PRIVATE_KEY',
     backendWriteVerified:false}}
  }
@@ -151,7 +154,7 @@ export function createProductionPrivateLinks({
   const multi=Array.isArray(input?.destinations);
   if(!input||input.confirmation!=='OWNER_APPROVES_REAL_CUSTOMER_LINK'||
      !pct(input.shippingPercent,30)||![0,5,8,10].includes(input.vatPercent)||
-     !Number.isSafeInteger(input.daysValid)||input.daysValid<1||input.daysValid>30||
+     !Number.isSafeInteger(input.daysValid)||input.daysValid<1||input.daysValid>maxDays||
      (multi?(!cleanText(input.agentName,150)||input.destinations.length<1||
        input.destinations.length>20||input.destinations.some(x=>!Number.isSafeInteger(x?.customerRef?.invoiceNo)||x.customerRef.invoiceNo<1||!pct(x.discountPercent))||
        new Set(input.destinations.map(x=>String(x.customerRef.id)+'|'+x.customerRef.invoiceNo)).size!==input.destinations.length):
