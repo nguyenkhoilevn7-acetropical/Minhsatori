@@ -11,6 +11,7 @@ import {interpretLegacyOrder} from './legacy-interpret.mjs';
 import {readMinhSatori} from '../satori-readonly.mjs';
 import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
 import {acceptedSubjects} from './identity-rollout.mjs';
+import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead} from './customer-backend.mjs';
@@ -96,6 +97,11 @@ async function db(){
  }).catch(e=>{poolPromise=null;throw e});
  return poolPromise;
 }
+// The read-only connection/schema check is cached to limit public requests.
+const storageReadiness=createCachedStorageProbe(async()=>{
+ const pool=await db();
+ return inspectV2Storage(pool);
+});
 async function google(){
  if(!googlePromise)googlePromise=import('google-auth-library')
   .then(({OAuth2Client})=>new OAuth2Client(config().clientId))
@@ -252,6 +258,14 @@ export async function handleAccountV2(req,res,pathname){
     'x-frame-options':'DENY','referrer-policy':'no-referrer','x-content-type-options':'nosniff',
     'content-security-policy':"default-src 'none'; style-src 'unsafe-inline' https://accounts.google.com/gsi/style; script-src 'unsafe-inline' https://accounts.google.com/gsi/client; connect-src 'self' https://accounts.google.com/gsi/; img-src 'self' data:; frame-src https://accounts.google.com/gsi/; frame-ancestors 'none'; form-action 'none'; base-uri 'none'"});
    res.end(html);return true;
+  }
+  if(pathname==='/api/v2/storage-readiness'&&req.method==='GET'){
+   const configured=!!config().databaseUrl;
+   const result=configured?await storageReadiness():
+    {connected:false,schemaReady:false,tableCount:0};
+   send(res,200,{ok:true,service:'minh-satori-account-v2',
+    configured,...result,realInvoicesEnabled:false});
+   return true;
   }
   if(pathname==='/api/v2/status'&&req.method==='GET'){
    send(res,200,{...STATUS,enabled:ready(),pilotOnly:!acceptedSubjects().customerRolloutReady,
