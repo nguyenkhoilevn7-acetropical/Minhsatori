@@ -739,7 +739,7 @@ function linkRegister(s,p){
    typeof x.name==='string'&&x.name.length>=2&&x.name.length<=150&&
    typeof x.phone==='string'&&x.phone.length>=8&&x.phone.length<=35&&
    typeof x.location==='string'&&x.location.length>=5&&x.location.length<=500&&
-   Number.isSafeInteger(x.discountPercent)&&x.discountPercent>=0&&x.discountPercent<=70,
+   typeof x.discountPercent==='number'&&Number.isFinite(x.discountPercent)&&x.discountPercent>=0&&x.discountPercent<=100,
    'LINK_REGISTRY_INVALID','Người nhận chưa được duyệt');
   var key=String(x.customerRef.id)+'|'+x.customerRef.invoiceNo;
   need(!unique[key],'LINK_REGISTRY_INVALID','Điểm giao trùng nhau');unique[key]=true;
