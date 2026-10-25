@@ -13,7 +13,7 @@ function helpers(){
  const version=(state,p)=>{if(state.revision!==p.expectedRevision)
   fail('REVISION_CONFLICT','Ledger changed')};
  return new Function('need','fail','version',
-  source.slice(start,end)+'\nreturn {linkRegister,linkList,linkUpdate}')(
+  source.slice(start,end)+'\nreturn {linkRegister,linkList,linkUpdate,linkSecretSet}')(
    need,fail,version);
 }
 const url='https://minh-satori-customer-ai-gemini.onrender.com/real/#'+'a'.repeat(160);
@@ -137,4 +137,28 @@ test('owner link amendments reject wrong ref, price, invalid contact, CTV, and s
   {code:'LINK_UPDATE_CTV_POLICY_REQUIRED'});
  assert.match(source,/'links\.update':'orders:write'/);
  assert.match(source,/identity\.action==='links\.update'/);
+});
+
+
+test('encrypted PIN vault is immutable after owner-only backfill (fake ledger)',()=>{
+ const {linkRegister,linkSecretSet}=helpers();
+ const base={revision:200,values:{satori_orders_v15:'[{"invoiceNo":123}]'}};
+ const created=linkRegister(base,{record,confirmed:true,expectedRevision:200});
+ const saved={revision:201,values:{...base.values,...created.extras}};
+ const vault='A'.repeat(16)+'.'+'B'.repeat(24)+'.'+'C'.repeat(32);
+ const changed='A'.repeat(16)+'.'+'B'.repeat(24)+'.'+'D'.repeat(32);
+ const request={id:record.id,accessCodeVault:vault,confirmed:true,expectedRevision:201};
+ assert.throws(()=>linkSecretSet(saved,{...request,expectedRevision:200}),
+  {code:'REVISION_CONFLICT'});
+ const first=linkSecretSet(saved,request);
+ assert.equal(first.modified,true);
+ assert.equal(saved.values.satori_orders_v15,base.values.satori_orders_v15);
+ const after={revision:202,values:{...saved.values,...first.extras}};
+ assert.equal(JSON.parse(after.values.satori_issued_links_v1)[0].accessCodeVault,vault);
+ const repeated=linkSecretSet(after,{...request,expectedRevision:202});
+ assert.equal(repeated.modified,false);
+ assert.equal(repeated.result.duplicate,true);
+ assert.throws(()=>linkSecretSet(after,{...request,accessCodeVault:changed,expectedRevision:202}),
+  {code:'LINK_VAULT_IMMUTABLE'});
+ assert.match(source,/'links\\.secret\\.set':'orders:write'/);
 });
