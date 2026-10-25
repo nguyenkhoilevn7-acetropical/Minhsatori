@@ -184,6 +184,13 @@ button:disabled{opacity:.55}
 <p><button id="ownerLiveConfirm" type="button" class="danger" disabled>XÁC NHẬN GHI 1 HÓA ĐƠN THẬT</button></p>
 <p id="ownerLiveResult" role="status" class="hint">Chưa ghi dữ liệu thật.</p>
 </section>
+<section class="card" data-tab-panel="live" hidden id="productionFeedCard">
+<h2>🔔 Hóa đơn thật mới • chỉ đọc</h2>
+<p class="hint">Chỉ chủ tài khoản đã đăng nhập mới xem được. Lần đọc đầu chỉ lập mốc, không báo nhầm hóa đơn cũ. Bật chuông ở mục Đơn hàng để nghe âm báo khi đang mở Admin.</p>
+<p><button type="button" class="secondary" id="productionFeedRefresh">↻ Kiểm tra hóa đơn thật</button></p>
+<p id="productionFeedState" role="status" aria-live="polite" class="hint">Chưa kiểm tra hóa đơn thật.</p>
+<div id="productionFeedRows" aria-label="Hóa đơn Production mới nhất"></div>
+</section>
 <section class="card" data-tab-panel="live" hidden>
 <h2>📚 Hóa đơn & khách hàng Minh Satori • CHỈ ĐỌC</h2>
 <p class="hint">Đọc trực tiếp từ sổ kế toán website qua Bot API. Chỉ quản trị viên đăng nhập mới xem được. Không sao chép khách thật vào Gemini Free và không tạo/sửa bill.</p>
@@ -1722,6 +1729,60 @@ for(const id of ['name','phone']){
   }
  });
 }
+
+// Real invoices are polled through the owner-authenticated, read-only Bot API.
+// The existing TEST order inbox remains separate; never use TEST rows as
+// evidence of a real order. The initial read / month rollover is silent.
+let liveOrderBaseline=null,liveOrderMonth='',liveOrderRevision=-1,liveFeedBusy=false;
+const realInvoiceKey=row=>String(row?.invoiceNo??row?.number??row?.id??'').trim();
+async function pollRealOrderFeed(force=false){
+ if(!secret||$('workspace').hidden||liveFeedBusy||(!force&&document.hidden))return;
+ const month=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Ho_Chi_Minh'}).slice(0,7);
+ if(liveOrderMonth!==month){liveOrderMonth=month;liveOrderBaseline=null;liveOrderRevision=-1;}
+ liveFeedBusy=true;
+ const status=$('productionFeedState');
+ try{
+  const data=await request('/api/admin/live-search?kind=invoices&month='+encodeURIComponent(month));
+  if(data.readOnly!==true||!Number.isSafeInteger(data.revision)||!Array.isArray(data.invoices))
+   throw Error('Phản hồi hóa đơn thật không hợp lệ.');
+  const rows=data.invoices.filter(row=>row&&typeof row==='object'&&
+   row.isTest!==true&&row.pairRole!=='collaborator'&&realInvoiceKey(row));
+  const current=new Set(rows.map(realInvoiceKey));
+  const additions=liveOrderBaseline===null?[]:
+   (data.revision>liveOrderRevision?rows.filter(row=>!liveOrderBaseline.has(realInvoiceKey(row))):[]);
+  // Detect only new IDs; a paid-status edit of an old bill is not a new order.
+  liveOrderBaseline=current;liveOrderRevision=data.revision;
+  const root=$('productionFeedRows');root.replaceChildren();
+  for(const invoice of rows.slice(0,5)){
+   const card=document.createElement('article');card.className='customer';
+   const title=document.createElement('strong');
+   title.textContent='#'+realInvoiceKey(invoice)+' • '+money(Number(invoice.total)||0)+'đ';
+   const detail=document.createElement('p');detail.className='hint';
+   detail.textContent=[invoice.name,invoice.phone,invoice.location||invoice.address,
+    invoice.status].filter(Boolean).join(' • ');
+   card.append(title,detail);root.append(card);
+  }
+  if(additions.length){
+   ringForNewOrder();
+   if(bellEnabled&&typeof Notification!=='undefined'&&Notification.permission==='granted'){
+    const latest=additions[0];
+    try{new Notification('Minh Satori • '+additions.length+' hóa đơn thật mới',
+     {body:'#'+realInvoiceKey(latest)+' • '+money(Number(latest.total)||0)+'đ',
+      tag:'minh-satori-real-order-'+realInvoiceKey(latest)});}catch{}
+   }
+  }
+  status.textContent=(additions.length?'🔔 '+additions.length+' hóa đơn thật mới. ':'')+
+   'Tháng '+month+' • '+rows.length+' hóa đơn đọc được • revision '+data.revision+
+   (data.truncated?' • ⚠ Danh sách chưa đầy đủ, kiểm tra trực tiếp sổ kế toán.':'');
+ }catch(e){status.textContent='⚠ Chưa đọc được hóa đơn thật: '+e.message;
+  // Do not reset baseline or fabricate orders after transient network failure.
+ }finally{liveFeedBusy=false}
+}
+$('productionFeedRefresh').onclick=()=>pollRealOrderFeed(true);
+setInterval(()=>{if(secret&&!$('workspace').hidden&&!document.hidden)
+ pollRealOrderFeed().catch(()=>{})},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&secret)
+ pollRealOrderFeed().catch(()=>{})});
 
 // Owner-only live inbox: initial load establishes baseline without a false alarm.
 let knownOrderRefs=null,knownOrderVersions=null,unseenOrderRefs=new Set(),orderPollBusy=false;
