@@ -968,7 +968,9 @@ $('send').onclick=async()=>{
  bubble(message,'me');
  const reply=geminiTypingBubble(),typingStartedAt=Date.now();
  try{
-  const result=await call('/api/v2/interpret',{message});
+  const destination=selectedDeliveryAddress();
+   if(!destination)throw Error('DELIVERY_ADDRESS_REQUIRED');
+   const result=await call('/api/v2/interpret',{message,profileId:$('profile').value,addressId:destination.id});
   // Keep input text unchanged until the request succeeds.
   input.value='';
   if(!Array.isArray(result.suggestedItems)||!result.suggestedItems.length){
