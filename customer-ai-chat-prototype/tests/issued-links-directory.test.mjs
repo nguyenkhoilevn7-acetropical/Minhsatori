@@ -314,3 +314,62 @@ test('missing phone form requires owner verification before enabling exact invoi
  assert.match(privateCode,/allowMissingPhone:d\.ownerVerifiedPhone===true/);
  new vm.Script(html.slice(html.indexOf('<script>')+8,html.lastIndexOf('</script>')));
 });
+
+test('fractions survive issue/price/registry: 16.64% and 25.5%, no invoice writes',async()=>{
+ const env={GEMINI_PRODUCTION_LINKS_ENABLED:'1',GEMINI_OWNER_ONLY_REAL_PILOT:'1',
+  SATORI_BOT_SECRET:'this-is-only-a-test-secret-with-at-least-32-chars'};
+ let writes=0;
+ const customerRefs=[{id:'301',invoiceNo:301},{id:'302',invoiceNo:302}];
+ const source=async(invoiceNo,id)=>{
+  assert.equal(invoiceNo,Number(id));
+  return {revision:161,customer:{id,name:'Recipient '+id,phone:'0900000000',
+   location:invoiceNo+' Satori Avenue'},products:new Map([['TP-00001',
+    {code:'TP-00001',name:'Nước Satori',unit:'Thùng',listPrice:98000}]])};
+ };
+ const engine=createProductionPrivateLinks({env,source,
+  bot:async(action,payload)=>{writes++;assert.equal(action,'orders.create');
+   assert.deepEqual(payload,{});
+   throw Object.assign(Error('INVALID_REQUEST'),{code:'INVALID_REQUEST'});},
+  origin:base,now:()=>Date.UTC(2026,9,25)});
+ const values=[16.64,25.5];
+ const issued=await engine.issue({confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+  agentName:'CTV khách thử',destinations:customerRefs.map((customerRef,i)=>({
+   customerRef,discountPercent:values[i]})),
+  shippingPercent:0,vatPercent:8,daysValid:7});
+ assert.deepEqual(issued.recipients.map(x=>x.discountPercent),values);
+ const {drive,bot}=driveFixture(),registry=createIssuedLinksRegistry({bot});
+ const saved=await registry.register({kind:'agency',name:issued.agentName,
+  link:issued.link,recipients:issued.recipients,issuedAt:issued.issuedAt,
+  expiresAt:issued.expiresAt,shippingPercent:issued.shippingPercent,
+  vatPercent:issued.vatPercent});
+ assert.equal(saved.saved,true);
+ assert.deepEqual(drive.rows[0].recipients.map(x=>x.discountPercent),values);
+ const fresh=await createIssuedLinksRegistry({bot}).list({limit:8});
+ assert.deepEqual(fresh.items[0].recipients.map(x=>x.discountPercent),values);
+ const token=issued.link.split('#')[1];
+ const priced=await Promise.all(customerRefs.map(customerRef=>
+  engine.catalogue({token,accessCode:issued.accessCode,destination:customerRef})));
+ assert.equal(priced[0].products[0].unitPrice,81693);
+ assert.equal(priced[1].products[0].unitPrice,73010);
+ assert.equal(writes,1,'one non-mutating orders.create permission probe only');
+ for(const invalid of [-0.1,100.00001,NaN,Infinity]){
+  await assert.rejects(()=>engine.issue({confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+   agentName:'Bad',destinations:[{customerRef:customerRefs[0],discountPercent:invalid}],
+   shippingPercent:0,vatPercent:8,daysValid:7}),{code:'REAL_LINK_APPROVAL_REQUIRED'});
+ }
+});
+test('localized decimal discount parser accepts Vietnamese commas and blocks invalid percentages',()=>{
+ const html=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ const start=html.indexOf('function parseLinkDiscount(');
+ const end=html.indexOf('let agencyReviewed=[];',start);
+ assert.ok(start>=0&&end>start);
+ const ctxt=vm.createContext({});
+ vm.runInContext(html.slice(start,end)+';globalThis.parse=parseLinkDiscount;',ctxt);
+ for(const [input,expected] of [['16,64',16.64],['16.64',16.64],
+  ['25,5',25.5],['70,125',70.125],['0',0],['100',100]])
+  assert.equal(ctxt.parse(input),expected,'fraction '+input);
+ for(const input of ['','-1','100,0001','16,abc','Infinity','NaN'])
+  assert.ok(Number.isNaN(ctxt.parse(input)),'reject invalid '+input);
+ assert.match(html,/discountPercent:parseLinkDiscount\(x\.rate\.value\)/);
+ assert.match(html,/rate\.inputMode='decimal'/);
+});
