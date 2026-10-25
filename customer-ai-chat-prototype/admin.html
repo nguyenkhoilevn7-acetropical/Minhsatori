@@ -206,7 +206,7 @@ button:disabled{opacity:.55}
 </section>
 <section class="card" data-tab-panel="issued-links" hidden id="issuedLinksPanel">
 <h2>🔗 Đại lý &amp; CTV đã cấp link</h2>
-<p class="hint">Danh sách lưu ở Google Drive Production và đồng bộ trên các máy. Chỉ chủ tài khoản được xem. Mã truy cập riêng không lưu trong lịch sử.</p>
+<p class="hint">Link mới cấp hiện ngay trong màn hình cấp link. Sau đó, tìm theo tên, SĐT hoặc địa chỉ để mở lại link cùng toàn bộ điểm giao đã duyệt trong sổ Google Drive. Mã truy cập riêng không lưu ở đây.</p>
 <div class="issued-toolbar">
  <label>Tìm tên / SĐT / địa chỉ<input type="search" id="issuedLinkSearch" maxlength="120" placeholder="Tìm đại lý, CTV hoặc khách"></label>
  <label>Loại<select id="issuedLinkType"><option value="">Tất cả</option><option value="agency">Đại lý</option><option value="collaborator">CTV</option><option value="customer">Khách hàng</option></select></label>
@@ -613,7 +613,7 @@ async function issueSavedPairLink(id){
  if(readiness.enabled!==true||readiness.registryReady!==true)
   throw Error('CTV_LINKS_NOT_READY: Cổng CTV hoặc sổ link Google Drive chưa sẵn sàng. Cần cập nhật Apps Script Production.');
  const invitation=await request('/api/admin/ctv-links/issue','POST',{collaboratorId:id});
- if(invitation.production!==true||invitation.oneLink!==true||
+ if(invitation.production!==true||invitation.oneLink!==true||invitation.registrySaved!==true||
     invitation.deliveryLocations!==policy.authorizedDestinations.length||
     !invitation.url||!invitation.accessCode)
   throw Error('Thông tin link hoặc số điểm giao không khớp sổ thật.');
@@ -801,7 +801,7 @@ $('ctvWizardConfirm').onclick=async()=>{
    throw Error('Chưa xác minh được chính sách và điểm giao trên Drive. Không bấm lưu lại.');
   ctvDraft.collaboratorId=collaboratorId;
   if(!invitation)invitation=await request('/api/admin/ctv-links/issue','POST',{collaboratorId});
-  if(invitation.production!==true||invitation.oneLink!==true||
+  if(invitation.production!==true||invitation.oneLink!==true||invitation.registrySaved!==true||
      !invitation.url||!invitation.accessCode||
      invitation.deliveryLocations!==nums.length)
    throw Error('Link hoặc số điểm giao không khớp hồ sơ đã duyệt.');
@@ -820,7 +820,7 @@ $('ctvWizardExistingLink').onclick=async()=>{
  $('ctvWizardResult').textContent='Đang cấp lại cùng link CTV từ chương trình đã duyệt…';
  try{
   const d=await request('/api/admin/ctv-links/issue','POST',{collaboratorId:ctvDraft.collaboratorId});
-  if(d.production!==true||d.oneLink!==true||!d.url||!d.accessCode)
+  if(d.production!==true||d.oneLink!==true||d.registrySaved!==true||!d.url||!d.accessCode)
    throw Error('Cổng link chưa trả kết quả hợp lệ.');
   ctvIssuedLink=d.url;$('ctvWizardLink').textContent=d.url;
   $('ctvWizardAccessCode').textContent='Mã truy cập CTV, gửi riêng: '+d.accessCode;
@@ -1038,27 +1038,37 @@ $('ctvAddReceiverDraft').onclick=()=>{
  }catch(e){$('ctvDraftStatus').textContent='⚠ '+e.message}
 };
 
-/* Owner-only Drive directory. Never persist link URLs or access codes in browser storage. */
-let issuedRecords=[],issuedHasMore=false,issuedLoading=false;
+/* Owner-only Drive link history. URLs remain hidden until the owner searches. */
+let issuedRecords=[],issuedHasMore=false,issuedRequestSerial=0;
 const issueDate=x=>{const d=new Date(x||'');return Number.isFinite(d.getTime())?
  d.toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}):'—'};
 function renderIssuedRecords(){
  const root=$('issuedLinkList');root.replaceChildren();
- const q=normalized($('issuedLinkSearch').value),kind=$('issuedLinkType').value;
- const rows=issuedRecords.filter(x=>(!kind||kind===x.kind)&&
-  (!q||normalized([x.name,...x.recipients.flatMap(r=>[r.name,r.phone,r.location])].join(' ')).includes(q)));
- if(!rows.length){const p=document.createElement('p');p.className='hint';
-  p.textContent='Không có link nào phù hợp hoặc chưa lưu trên Drive.';root.append(p)}
- for(const r of rows){
+ const query=$('issuedLinkSearch').value.trim();
+ $('issuedLinkMore').hidden=!issuedHasMore||query.length<2;
+ if(query.length<2){
+  const hint=document.createElement('p');hint.className='hint';
+  hint.textContent='Nhập ít nhất 2 ký tự tên, số điện thoại hoặc địa chỉ để tìm link đã cấp. Link và địa chỉ được ẩn cho đến khi tìm.';
+  root.append(hint);return;
+ }
+ // The Drive Bot API already handles Vietnamese accents and known name aliases.
+ // Do not filter again using a different browser normalization function.
+ if(!issuedRecords.length){
+  const p=document.createElement('p');p.className='hint';
+  p.textContent='Không có link phù hợp đã lưu. Khách và hóa đơn cũ vẫn nằm trong sổ nguồn.';
+  root.append(p);return;
+ }
+ for(const r of issuedRecords){
   const card=document.createElement('article');card.className='issued-link-card';
   const name=document.createElement('strong');name.textContent=
    (r.kind==='collaborator'?'🤝 CTV':r.kind==='agency'?'🏪 Đại lý':'👤 Khách')+' • '+r.name;
   const meta=document.createElement('p');meta.textContent='Cấp: '+issueDate(r.issuedAt)+
    ' • '+(r.expiresAt?'Hạn: '+issueDate(r.expiresAt)+(r.expired?' (Hết hạn)':''):
-     'Hiệu lực theo chính sách CTV');
+      'Hiệu lực theo chính sách CTV');
   const url=document.createElement('div');url.className='issued-link-url';url.textContent=r.link;
-  const details=document.createElement('details'),summary=document.createElement('summary');
-  summary.textContent='Xem '+r.recipients.length+' địa chỉ giao';details.append(summary);
+  const details=document.createElement('details');details.open=true;
+  const summary=document.createElement('summary');
+  summary.textContent='📍 '+r.recipients.length+' địa chỉ đã cấp';details.append(summary);
   for(const d of r.recipients){
    const row=document.createElement('p');row.className='issued-destination';
    row.textContent='👤 '+d.name+' • ☎ '+d.phone+' • 📍 '+d.location+
@@ -1071,35 +1081,48 @@ function renderIssuedRecords(){
    catch{$('issuedLinkStatus').textContent='Nhấn giữ đường link để sao chép.'}};
   card.append(name,meta,url,details,copy);root.append(card);
  }
- $('issuedLinkMore').hidden=!issuedHasMore;
 }
 async function loadIssuedRecords(reset=true){
- if(!secret||issuedLoading)return;
- issuedLoading=true;$('issuedLinkRefresh').disabled=true;$('issuedLinkMore').disabled=true;
+ if(!secret)return;
+ const query=$('issuedLinkSearch').value.trim(),kind=$('issuedLinkType').value;
+ const serial=++issuedRequestSerial;
  if(reset){issuedRecords=[];issuedHasMore=false;renderIssuedRecords()}
- $('issuedLinkStatus').textContent='Đang đồng bộ sổ link Google Drive…';
+ const refresh=$('issuedLinkRefresh'),more=$('issuedLinkMore');
+ if(query.length<2){
+  $('issuedLinkStatus').textContent='🔎 Chỉ hiện link khi anh tìm tên, số điện thoại hoặc địa chỉ.';
+  refresh.disabled=false;more.disabled=false;return;
+ }
+ refresh.disabled=true;more.disabled=true;
+ $('issuedLinkStatus').textContent='Đang tìm link đã cấp trên Google Drive…';
  try{
   const d=await request('/api/admin/issued-links?offset='+issuedRecords.length+'&limit=8'+
-   '&query='+encodeURIComponent($('issuedLinkSearch').value.trim())+
-   '&kind='+encodeURIComponent($('issuedLinkType').value));
+   '&query='+encodeURIComponent(query)+'&kind='+encodeURIComponent(kind));
+  if(serial!==issuedRequestSerial)return;
   if(d.source!=='drive-ledger:satori_issued_links_v1'||!Array.isArray(d.items)||
-     !Number.isSafeInteger(d.total)||typeof d.hasMore!=='boolean')
+      !Number.isSafeInteger(d.total)||typeof d.hasMore!=='boolean')
    throw Error('Phản hồi chưa được xác minh.');
   issuedRecords.push(...d.items);issuedHasMore=d.hasMore;
-  $('issuedLinkStatus').textContent='✓ Đã lưu trên Google Drive • '+
-   issuedRecords.length+'/'+d.total+' link • Revision '+d.revision;
+  $('issuedLinkStatus').textContent=d.total?
+   '✓ Sổ Google Drive • '+issuedRecords.length+'/'+d.total+' link phù hợp • Revision '+d.revision:
+   'Chưa có link nào khớp đã lưu vào Google Drive. Link cũ có thể được cấp trước khi chức năng lưu được triển khai.';
   renderIssuedRecords();
  }catch(e){
-  $('issuedLinkStatus').textContent='⚠ Chưa đọc được sổ link trên Drive: '+e.message+
-   '. Không hiển thị dữ liệu lưu tạm.';
+  if(serial!==issuedRequestSerial)return;
+  $('issuedLinkStatus').textContent='⚠ Chưa đọc được sổ link Google Drive: '+e.message;
   if(reset){issuedRecords=[];issuedHasMore=false;renderIssuedRecords()}
- }finally{issuedLoading=false;$('issuedLinkRefresh').disabled=false;$('issuedLinkMore').disabled=false}
+ }finally{
+  if(serial===issuedRequestSerial){refresh.disabled=false;more.disabled=false}
+ }
 }
 $('issuedLinkRefresh').onclick=()=>void loadIssuedRecords(true);
 $('issuedLinkMore').onclick=()=>void loadIssuedRecords(false);
 let issuedSearchTimer=null;
-$('issuedLinkSearch').oninput=()=>{clearTimeout(issuedSearchTimer);
- issuedSearchTimer=setTimeout(()=>void loadIssuedRecords(true),350)};
+$('issuedLinkSearch').oninput=()=>{
+ clearTimeout(issuedSearchTimer);
+ ++issuedRequestSerial;issuedRecords=[];issuedHasMore=false;renderIssuedRecords();
+ $('issuedLinkRefresh').disabled=false;$('issuedLinkMore').disabled=false;
+ issuedSearchTimer=setTimeout(()=>void loadIssuedRecords(true),400);
+};
 $('issuedLinkType').onchange=()=>void loadIssuedRecords(true);
 function showAdminTab(name){
  for(const section of document.querySelectorAll('[data-tab-panel]'))section.hidden=section.dataset.tabPanel!==name;
@@ -1607,7 +1630,8 @@ $('realLinkCheck').onclick=async()=>{
    phone:sourceRow.phone,location:sourceRow.address,
    discountPercent:discount,shippingPercent,vatPercent,daysValid:30
   });
-  lastLink=d.link;$('newLink').hidden=false;$('linkText').textContent=d.link;
+  if(d.registrySaved!==true)throw Error('Chưa xác minh lưu link trên Google Drive.');
+   lastLink=d.link;$('newLink').hidden=false;$('linkText').textContent=d.link;
   $('result').textContent='✓ Đã tạo link đặt hàng THẬT cho '+d.customer.name+
    ' • hóa đơn gốc #'+d.customer.sourceInvoiceNo;
   $('realDraftStatus').textContent='MÃ TRUY CẬP RIÊNG (CHỈ HIỂN THỊ MỘT LẦN): '+d.accessCode+
@@ -1937,6 +1961,7 @@ $('agencyRealIssue').onclick=async()=>{
    confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',agentName,destinations,
    shippingPercent,vatPercent,daysValid
   });
+  if(d.registrySaved!==true)throw Error('Chưa xác minh lưu link trên Google Drive.');
   $('agencyRealUrl').textContent=d.link;
   $('agencyRealCode').textContent='Mã truy cập riêng: '+d.accessCode;
   $('agencyRealIssued').hidden=false;
