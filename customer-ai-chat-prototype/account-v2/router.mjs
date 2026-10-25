@@ -358,6 +358,43 @@ export async function handleAccountV2(req,res,pathname){
      count:snapshot.products.length});return true;
    }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}finally{client.release()}
   }
+  if(pathname==='/api/v2/admin/profiles'&&req.method==='GET'){
+   owner(actor);
+   const accountId=new URL(req.url,'http://local').searchParams.get('accountId');
+   error(isUuid(accountId),'ACCOUNT_INVALID');
+   const list=await pool.query('SELECT id,type,display_name AS name,phone FROM satori_v2_profiles '+
+    'WHERE account_id=$1 ORDER BY created_at',[accountId]);
+   send(res,200,{ok:true,profiles:list.rows});return true;
+  }
+  if(pathname==='/api/v2/admin/addresses'&&req.method==='GET'){
+   owner(actor);
+   const profileId=new URL(req.url,'http://local').searchParams.get('profileId');
+   error(isUuid(profileId),'PROFILE_INVALID');
+   const list=await pool.query('SELECT id,label,recipient_name AS "recipientName",'+
+    'recipient_phone AS "recipientPhone",address,active FROM satori_v2_addresses '+
+    'WHERE profile_id=$1 ORDER BY created_at',[profileId]);
+   send(res,200,{ok:true,addresses:list.rows});return true;
+  }
+  if(pathname==='/api/v2/admin/addresses'&&req.method==='POST'){
+   owner(actor);const input=await json(req);
+   error(isUuid(input.profileId),'PROFILE_INVALID');
+   const a=validateAddress(input);
+   const profile=await pool.query('SELECT id FROM satori_v2_profiles WHERE id=$1',[input.profileId]);
+   error(profile.rows.length===1,'PROFILE_NOT_FOUND',404);
+   const saved=await pool.query('INSERT INTO satori_v2_addresses(profile_id,label,recipient_name,recipient_phone,address) '+
+    'VALUES($1,$2,$3,$4,$5) RETURNING id',[input.profileId,a.label,a.recipientName,a.recipientPhone,a.address]);
+   send(res,201,{ok:true,id:saved.rows[0].id});return true;
+  }
+  if(pathname==='/api/v2/admin/policies'&&req.method==='GET'){
+   owner(actor);
+   const profileId=new URL(req.url,'http://local').searchParams.get('profileId');
+   error(isUuid(profileId),'PROFILE_INVALID');
+   const list=await pool.query('SELECT id,address_id AS "addressId",product_code AS "productCode", '+
+    'discount_bps AS "discountBps",collaborator_bps AS "collaboratorBps",'+
+    'invoice_mode AS "invoiceMode",version,enabled FROM satori_v2_policies '+
+    'WHERE profile_id=$1 ORDER BY version DESC,created_at DESC LIMIT 100',[profileId]);
+   send(res,200,{ok:true,policies:list.rows});return true;
+  }
   if(pathname==='/api/v2/admin/accounts'&&req.method==='GET'){
    owner(actor);
    const r=await pool.query('SELECT id,email,display_name AS name,created_at FROM satori_v2_accounts '+
