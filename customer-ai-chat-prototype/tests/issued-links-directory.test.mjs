@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {createIssuedLinksRegistry} from '../issued-links-registry.mjs';
+import {createOwnerRealInvoice} from '../owner-live-invoice.mjs';
 import {createProductionPrivateLinks} from '../production-private-links.mjs';
 
 const base='https://minh-satori-customer-ai-gemini.onrender.com';
@@ -159,4 +160,74 @@ test('the recovery form is collapsed, owner-only and does not store links in a b
  assert.match(html,/issuedLinkSearch'\)\.value=result\.name/);
  assert.doesNotMatch(html.slice(html.indexOf("$('issuedRestoreButton').onclick"),html.indexOf("function showAdminTab(name){")),
   /localStorage|sessionStorage/);
+});
+
+test('batch verification of 17 physical destinations uses one catalogue and bounded invoice reads',async()=>{
+ const env={GEMINI_OWNER_ONLY_REAL_PILOT:'1',
+  SATORI_OWNER_CHECKOUT_ENDPOINT:'https://script.google.com/macros/s/FAKE_12345678901234567890123456789012/exec',
+  SATORI_OWNER_CHECKOUT_KEY_ID:'owner_trial_writer',
+  SATORI_OWNER_CHECKOUT_SECRET:'FAKE_HMAC_SIGNING_012345678901234567890123456789',
+  CUSTOMER_LINKS_ADMIN_TOKEN:'FAKE_ADMIN_SECRET_01234567890123456789012',
+  SATORI_READ_KEY_ID:'readonly_key'};
+ let catalogues=0,reads=0,activeReads=0,maximumConcurrent=0,writes=0;
+ const engine=createOwnerRealInvoice({env,fetcher:async(_endpoint,{body})=>{
+  const req=JSON.parse(body);
+  if(req.action==='catalogue.list'){
+   catalogues++;
+   return {ok:true,text:async()=>JSON.stringify({ok:true,action:req.action,revision:161,
+    data:{source:'drive-ledger:satori_catalogue_v15',revision:161,products:[
+     {code:'TP-00001',name:'Nước Satori 500ml',unit:'Thùng',listPrice:98000}
+    ]}})};
+  }
+  if(req.action==='orders.list'){
+   reads++;activeReads++;maximumConcurrent=Math.max(maximumConcurrent,activeReads);
+   await new Promise(r=>setTimeout(r,2));
+   activeReads--;
+   const number=Number(req.payload.query);
+   return {ok:true,text:async()=>JSON.stringify({ok:true,action:req.action,revision:161,
+    data:{totalMatches:1,orders:[{id:String(number+1000),invoiceNo:number,
+     name:'Đại lý thử',phone:'0900000000',location:number+' Đường Satori'}]}})};
+  }
+  writes++;throw Error('unexpected bot action '+req.action);
+ }});
+ const refs=Array.from({length:17},(_,i)=>({id:String(1000+i+1),invoiceNo:i+1}));
+ const verified=await engine.sourceBatch(refs);
+ assert.equal(verified.length,17);
+ assert.equal(catalogues,1);
+ assert.equal(reads,17);
+ assert.ok(maximumConcurrent<=3,'must never flood Apps Script beyond three concurrent invoice reads');
+ assert.equal(writes,0);
+ assert.deepEqual(verified.map(v=>v.customer.id),refs.map(v=>v.id));
+ const linkEngine=createProductionPrivateLinks({env:{
+  GEMINI_PRODUCTION_LINKS_ENABLED:'1',GEMINI_OWNER_ONLY_REAL_PILOT:'1',
+  SATORI_BOT_SECRET:'this-is-only-a-test-secret-with-at-least-32-chars'},
+  now:()=>Date.UTC(2026,9,25),source:async()=>{throw Error('must use batch')},
+  sourceBatch:engine.sourceBatch,
+  bot:async(action,payload)=>{if(action==='orders.create'&&!Object.keys(payload).length)
+   throw Object.assign(Error('INVALID_REQUEST'),{code:'INVALID_REQUEST'});
+   throw Error('never create invoice')},
+  origin:base});
+ const issued=await linkEngine.issue({confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+  agentName:'Đại lý thử',destinations:refs.map(customerRef=>({customerRef,discountPercent:20})),
+  shippingPercent:0,vatPercent:8,daysValid:7});
+ assert.equal(issued.deliveryLocations,17);
+ assert.equal(issued.recipients.length,17);
+ assert.ok(issued.link.startsWith(base+'/real/#'));
+ assert.equal(writes,0);
+});
+test('regression: issue button catches failed Drive readiness and shows validation beside submit',()=>{
+ const html=readFileSync(new URL('../admin.html',import.meta.url),'utf8');
+ const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ const issue=html.slice(html.indexOf("$('agencyRealIssue').onclick"),html.indexOf("$('agencyRealCopy').onclick"));
+ const tryIndex=issue.indexOf('try{'),readinessIndex=issue.indexOf("request('/api/admin/real-links/readiness')");
+ const catchIndex=issue.indexOf('}catch(e)');
+ assert.ok(tryIndex>=0&&readinessIndex>tryIndex&&catchIndex>readinessIndex,
+  'all readiness requests must be inside try/catch; old version left one unhandled');
+ assert.match(issue,/agencyRealIssueStatus/);
+ assert.match(issue,/registryWriteReady/);
+ assert.match(issue,/daysValid>30/);
+ assert.match(server,/ownerInvoice\.sourceBatch/);
+ assert.match(server,/links\.register',\{confirmed:false\}/);
+ assert.match(server,/LINK_REGISTRY_INVALID/);
+ assert.match(server,/registryIssueCode/);
 });
