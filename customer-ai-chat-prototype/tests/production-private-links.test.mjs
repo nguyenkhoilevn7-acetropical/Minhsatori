@@ -648,3 +648,44 @@ test('production cart geometry has one authority without competing important ove
  assert.doesNotMatch(shell,/\.quick-cart\{/,'shell does not inject a second cart layout');
  // Mobile geometry and action order are verified in production-cart-browser.py.
 });
+
+
+test('Drive-backed owner contact edits affect quote and checkout, but cannot change signed discount',async()=>{
+ const env={GEMINI_PRODUCTION_LINKS_ENABLED:'1',GEMINI_OWNER_ONLY_REAL_PILOT:'1',
+  SATORI_BOT_SECRET:'test-only-owner-invite-key-32bytes-minimum'};
+ const now=()=>Date.UTC(2026,9,23,12),origin='https://example.test';
+ const products=new Map([['TP-00001',{code:'TP-00001',name:'Nước 500ml',unit:'Thùng',listPrice:100000}]]);
+ const source=async()=>({revision:113,customer:{...customer},products});
+ let edited=false,discountPercent=20,writes=0,lastPayload;
+ const bot=async(action,payload)=>{
+  assert.equal(action,'orders.create');
+  if(!payload.requestId)throw Object.assign(Error('INVALID_REQUEST'),{code:'INVALID_REQUEST'});
+  ++writes;lastPayload=payload;
+  return {data:{order:{invoiceNo:9213,name:payload.order.name,
+   location:payload.order.location,total:payload.order.total}}};
+ };
+ const directoryLookup=async({token})=>edited?{
+  kind:'customer',link:origin+'/real/#'+token,name:'Updated customer',
+  recipients:[{customerRef:{...ref},name:'Updated customer',
+   phone:'0900111222',location:'42 New Owner Approved Street, HCMC',discountPercent}]
+ }:null;
+ const app=createProductionPrivateLinks({env,now,origin,source,bot,directoryLookup});
+ const link=await app.issue({confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
+  customerRef:{...ref},name:customer.name,phone:customer.phone,location:customer.location,
+  discountPercent:20,shippingPercent:0,vatPercent:0,daysValid:7});
+ const token=link.link.split('/real/#')[1];edited=true;
+ const q=await app.quote({token,accessCode:link.accessCode,items:[{code:'TP-00001',qty:1}]});
+ assert.equal(q.customer.name,'Updated customer');
+ assert.equal(q.customer.phone,'0900111222');
+ assert.equal(q.total,80000);
+ const confirmed=await app.confirm({token,accessCode:link.accessCode,
+  quoteToken:q.quoteToken,confirmation:'CUSTOMER_CONFIRMS_REAL_ORDER'});
+ assert.equal(confirmed.saved,true);
+ assert.equal(lastPayload.order.name,'Updated customer');
+ assert.equal(lastPayload.order.phone,'0900111222');
+ assert.equal(writes,1);
+ discountPercent=35;
+ await assert.rejects(()=>app.quote({token,accessCode:link.accessCode,
+  items:[{code:'TP-00001',qty:1}]}),{code:'REAL_LINK_DIRECTORY_CONFLICT'});
+ assert.equal(writes,1);
+});
