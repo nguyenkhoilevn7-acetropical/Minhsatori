@@ -55,6 +55,15 @@ const ownerPdfGateway=createOriginalPdfGateway();
 const issuedLinks=createIssuedLinksRegistry({bot:(action,payload)=>ownerInvoice.bot(action,payload)});
 const realPrivateLinks=createProductionPrivateLinks({
  source:ownerInvoice.source,sourceBatch:ownerInvoice.sourceBatch,bot:ownerInvoice.bot,
+ // Registry is stored in the same revisioned Drive ledger. In-flight link
+ // requests always resolve the currently approved contact metadata by exact
+ // signed URL; no phone/address overlay is ever accepted from the customer.
+ directoryLookup:async ({token})=>{
+  const url='https://minh-satori-customer-ai-gemini.onrender.com/real/#'+token;
+  const id=issuedLinks.idForLink(url);
+  const found=await issuedLinks.list({id,limit:1});
+  return found.total===1?found.items[0]:null;
+ },
  // Both transports are independently HMAC-protected and read only here.
  // If the owner Bot's orders:read scope fails, use the separate read-only client.
  historyReader:async payload=>{
@@ -416,6 +425,25 @@ const server=http.createServer(async(req,res)=>{
  // Recovery is owner-only and proves the pasted invitation was encrypted
  // by this deployment. It imports just link metadata into Drive, never a PIN
  // and never creates/changes an invoice or collaborator policy.
+ // Owner verified edits of names/contact/location for already-issued
+ // signed real links. No invoices are modified, no prices or link keys rotated.
+ if(p==='/api/admin/issued-links/update'&&req.method==='POST'){
+  if(!customerLinks.adminAuthorized(req))
+   return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được sửa địa chỉ/link.');
+  if(!rateLimit(req,'owner-issued-links-update'))
+   return fail(res,429,'RATE_LIMIT','Vui lòng thử lại sau.');
+  try{
+   const input=await bodyJSON(req,22000);
+   const result=await issuedLinks.update({id:input.id,name:input.name,
+    recipients:input.recipients});
+   return reply(res,200,{ok:true,saved:result.saved,id:result.id,
+    revision:result.revision,updatedAt:result.updatedAt});
+  }catch(e){
+   const code=String(e?.code||'LINK_UPDATE_NOT_VERIFIED');
+   return fail(res,409,code,'Chưa lưu được thông tin mới lên Drive ['+code+
+    ']. Link cũ vẫn giữ nguyên thông tin trước đó.');
+  }
+ }
  if(p==='/api/admin/issued-links/import'&&req.method==='POST'){
   if(!customerLinks.adminAuthorized(req))
    return fail(res,401,'ADMIN_AUTH_REQUIRED','Chỉ chủ tài khoản được khôi phục link.');
