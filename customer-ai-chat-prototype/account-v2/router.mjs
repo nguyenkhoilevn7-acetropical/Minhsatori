@@ -8,7 +8,8 @@ import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
 import {interpretLegacyOrder} from './legacy-interpret.mjs';
-import {readMinhSatori} from '../satori-readonly.mjs';
+import {readMinhSatori,readOnlyReady} from '../satori-readonly.mjs';
+import {monthRange,safeLegacyInvoiceIndex} from './legacy-owner-invoices.mjs';
 import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
 import {acceptedSubjects} from './identity-rollout.mjs';
 import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
@@ -332,9 +333,14 @@ export async function handleAccountV2(req,res,pathname){
    const profiles=await pool.query('SELECT id,type,display_name AS name,phone FROM satori_v2_profiles WHERE account_id=$1 ORDER BY created_at',
     [actor.id]);
    const addresses=await pool.query('SELECT a.id,a.profile_id AS "profileId",a.label, '+
-    'a.recipient_name AS "recipientName",a.recipient_phone AS "recipientPhone",a.address,a.active '+
-    'FROM satori_v2_addresses a JOIN satori_v2_profiles p ON a.profile_id=p.id '+
-    'WHERE p.account_id=$1 ORDER BY a.created_at',[actor.id]);
+    'a.recipient_name AS "recipientName",a.recipient_phone AS "recipientPhone",a.address,a.active, '+
+    'history.last_ordered_at AS "lastOrderedAt" FROM satori_v2_addresses a '+
+    'JOIN satori_v2_profiles p ON a.profile_id=p.id '+
+    'LEFT JOIN LATERAL (SELECT MAX(q.created_at) AS last_ordered_at '+
+    'FROM satori_v2_quotes q JOIN satori_v2_order_requests r ON r.quote_id=q.id '+
+    "AND r.state='COMMITTED' AND r.account_id=p.account_id "+
+    'WHERE q.address_id=a.id AND q.profile_id=a.profile_id AND q.account_id=p.account_id) history ON true '+
+    'WHERE p.account_id=$1 ORDER BY history.last_ordered_at DESC NULLS LAST,a.created_at',[actor.id]);
    send(res,200,{ok:true,account:publicUser(actor),profiles:profiles.rows,addresses:addresses.rows});return true;
   }
   if(pathname==='/api/v2/logout'&&req.method==='POST'){
@@ -410,6 +416,20 @@ export async function handleAccountV2(req,res,pathname){
    }
    error(r.rows.length===1,'CART_REVISION_CONFLICT',409);
    send(res,200,{ok:true,lines,revision:r.rows[0].revision});return true;
+  }
+  if(pathname==='/api/v2/admin/original-invoices'&&req.method==='GET'){
+   // Original ledger is owner-only. Never join by ambiguous name or phone.
+   owner(actor);
+   const month=new URL(req.url,'http://local').searchParams.get('month');
+   let window;
+   try{window=monthRange(month)}
+   catch{throw new ApiError('INVALID_INVOICE_MONTH',400)}
+   if(!readOnlyReady()){
+    send(res,200,{ok:true,configured:false,source:'signed-original-satori-ledger',
+     revision:null,totalMatches:0,truncated:false,orders:[]});return true;
+   }
+   const result=await readMinhSatori('orders.list',{...window,limit:100});
+   send(res,200,{ok:true,configured:true,...safeLegacyInvoiceIndex(result)});return true;
   }
   if(pathname==='/api/v2/orders'&&req.method==='GET'){
    // No broad legacy-ledger search. Only independently authored V2 orders
