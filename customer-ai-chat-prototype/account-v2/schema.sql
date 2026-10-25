@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS satori_v2_profiles (
  type text NOT NULL DEFAULT 'retail' CHECK (type IN ('retail','agency','collaborator')),
  display_name text NOT NULL DEFAULT '',
  phone text NOT NULL DEFAULT '',
+ revision integer NOT NULL DEFAULT 1 CHECK (revision >= 1),
  created_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE(id,account_id)
 );
