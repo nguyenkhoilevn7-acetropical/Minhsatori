@@ -34,6 +34,9 @@ jobs:
           node --check server.mjs
           node --check account-v2/router.mjs
           node --check account-v2/domain.mjs
+      - name: Parse account page inline script without executing it
+        run: |
+          node -e "const fs=require('node:fs');const html=fs.readFileSync('account-v2/app.html','utf8');const m=html.match(/<script>([\\s\\S]*?)<\\/script>/);if(!m)throw Error('INLINE_APP_SCRIPT_MISSING');new Function(m[1]);"
       - name: Pure domain security and pricing tests
         run: npm run test:account-v2
       - name: Existing Gemini parser regression tests
