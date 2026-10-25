@@ -63,7 +63,11 @@ export function createOwnerRealInvoice({
    if(parsed?.ok!==true||parsed.action!==action){
     const code=String(parsed?.error?.code||'');
     if(['FORBIDDEN','AUTH_FAILED','REVISION_CONFLICT','PROFILE_MISMATCH',
-      'CATALOGUE_NOT_PERSISTED','REQUEST_ID_CONFLICT','REUSED_REQUEST_ID','INVALID_REQUEST'].includes(code))
+      'CATALOGUE_NOT_PERSISTED','REQUEST_ID_CONFLICT','REUSED_REQUEST_ID','INVALID_REQUEST',
+      'LINK_REGISTRY_INVALID','LINK_REGISTRY_FULL','LINK_REGISTRY_CONFLICT',
+      'LINK_REGISTRY_READ_UNVERIFIED','LINK_REGISTRY_WRITE_UNVERIFIED',
+      'LINK_REGISTRY_REVISION_INVALID','COMMIT_UNVERIFIED','BACKUP_FAILED',
+      'CONFIG_MISSING'].includes(code))
       fail(code);
     fail('OWNER_BOT_UPSTREAM_REJECTED');
    }
@@ -85,10 +89,10 @@ export function createOwnerRealInvoice({
    invoiceCount:status.data.orders,catalogueProducts:catalogue.data.products.length,
    permissions:'orders_read_catalogue_read'});
  }
- async function source(invoiceNo,customerId=null){
+ async function source(invoiceNo,customerId=null,knownCatalogue=null){
   if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1)fail('OWNER_CUSTOMER_REFERENCE_REQUIRED');
   const [cat,old]=await Promise.all([
-   bot('catalogue.list',{}),
+   knownCatalogue||bot('catalogue.list',{}),
    bot('orders.list',{query:String(invoiceNo),limit:100})
   ]);
   if(cat.revision!==old.revision||cat.data?.revision!==cat.revision||
@@ -115,6 +119,24 @@ export function createOwnerRealInvoice({
    ids.set(p.code,p);
   }
   return {revision:cat.revision,customer,products:ids};
+ }
+ // A 17-location agency used to make 34 sequential signed Drive calls.
+ // Share one immutable catalogue revision and bound the invoice reads to 3
+ // concurrent requests; every historical record is still checked individually.
+ async function sourceBatch(refs){
+  if(!Array.isArray(refs)||refs.length<1||refs.length>20||
+     refs.some(x=>!x||!Number.isSafeInteger(x.invoiceNo)||x.invoiceNo<1||
+      x.id==null))fail('OWNER_CUSTOMER_REFERENCE_REQUIRED');
+  const catalogue=await bot('catalogue.list',{});
+  const found=[];
+  for(let i=0;i<refs.length;i+=3){
+   const chunk=await Promise.all(refs.slice(i,i+3).map(
+    x=>source(x.invoiceNo,x.id,catalogue)));
+   found.push(...chunk);
+  }
+  if(found.some(x=>x.revision!==catalogue.revision))
+   fail('OWNER_LEDGER_SOURCE_MISMATCH');
+  return found;
  }
  function normalizeItems(lines,productMap,discount){
   if(!Array.isArray(lines)||!lines.length||lines.length>6)fail('OWNER_ITEMS_NEED_REVIEW');
@@ -242,5 +264,5 @@ export function createOwnerRealInvoice({
   intents.set(q.id,{status:'confirmed',fingerprint:digest(q),result});
   return result;
  }
- return Object.freeze({readiness,probeWriter,preview,confirm,source,bot});
+ return Object.freeze({readiness,probeWriter,preview,confirm,source,sourceBatch,bot});
 }
