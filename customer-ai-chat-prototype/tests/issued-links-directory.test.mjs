@@ -312,7 +312,7 @@ test('missing phone form requires owner verification before enabling exact invoi
  assert.match(server,/realPrivateLinks\.issue\(input\)/);
  const privateCode=readFileSync(new URL('../production-private-links.mjs',import.meta.url),'utf8');
  assert.match(privateCode,/confirmedNewCustomer:destination\.ownerVerifiedPhone===true/);
- assert.match(privateCode,/allowMissingPhone:d\.ownerVerifiedPhone===true/);
+ assert.match(privateCode,/allowMissingPhone:signed\.ownerVerifiedPhone===true/);
  new vm.Script(html.slice(html.indexOf('<script>')+8,html.lastIndexOf('</script>')));
 });
 
