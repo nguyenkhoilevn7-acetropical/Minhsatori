@@ -291,12 +291,12 @@ function demoCall(path,data={},method='POST'){
  }
  if(p==='/api/v2/admin/policies'){
   if(method==='GET')return {ok:true,policies:demoState.policies.filter(x=>x.profileId===profileId)};
-  if(method==='POST'){
-   if(method==='PATCH'){
+  if(method==='PATCH'){
    const item=demoState.policies.find(x=>x.id===data.policyId&&x.profileId===data.profileId);
    if(!item||item.revision!==data.expectedRevision||!item.enabled)throw Error('POLICY_REVISION_CONFLICT');
    item.enabled=false;item.revision++;return {ok:true,policy:{...item}};
   }
+  if(method==='POST'){
   for(const previous of demoState.policies){
    if(previous.profileId===data.profileId&&previous.addressId===data.addressId&&
     previous.productCode===data.productCode&&previous.enabled){previous.enabled=false;previous.revision++}
