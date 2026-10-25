@@ -282,10 +282,20 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/cart'&&req.method==='PUT'){
    const input=await json(req),profile=await profileFor(pool,actor,input.profileId);
    error(Array.isArray(input.lines),'CART_INVALID');
+   error(Number.isSafeInteger(input.expectedRevision)&&input.expectedRevision>=0&&
+    input.expectedRevision<=1_000_000_000,'CART_REVISION_REQUIRED',409);
    const lines=input.lines.length?normalizeCart(input.lines):[];
-   const r=await pool.query('INSERT INTO satori_v2_carts(account_id,profile_id,lines) VALUES($1,$2,$3) '+
-    'ON CONFLICT(account_id,profile_id) DO UPDATE SET lines=EXCLUDED.lines,revision=satori_v2_carts.revision+1,'+
-    'updated_at=now() RETURNING revision',[actor.id,profile.id,JSON.stringify(lines)]);
+   let r;
+   if(input.expectedRevision===0){
+    r=await pool.query('INSERT INTO satori_v2_carts(account_id,profile_id,lines) VALUES($1,$2,$3) '+
+     'ON CONFLICT(account_id,profile_id) DO NOTHING RETURNING revision',
+     [actor.id,profile.id,JSON.stringify(lines)]);
+   }else{
+    r=await pool.query('UPDATE satori_v2_carts SET lines=$3,revision=revision+1,updated_at=now() '+
+     'WHERE account_id=$1 AND profile_id=$2 AND revision=$4 RETURNING revision',
+     [actor.id,profile.id,JSON.stringify(lines),input.expectedRevision]);
+   }
+   error(r.rows.length===1,'CART_REVISION_CONFLICT',409);
    send(res,200,{ok:true,lines,revision:r.rows[0].revision});return true;
   }
   if(pathname==='/api/v2/catalogue'&&req.method==='GET'){
