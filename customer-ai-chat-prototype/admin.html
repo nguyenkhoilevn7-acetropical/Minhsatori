@@ -356,7 +356,7 @@ button:disabled{opacity:.55}
 <div class="row">
 <label>Phí giao (%)<input id="agencyRealShipping" type="number" min="0" max="30" step="1" value="0"></label>
 <label>VAT (%)<select id="agencyRealVat"><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></label>
-<label>Thời hạn (ngày)<input id="agencyRealDays" type="number" min="1" max="30" value="30"></label>
+<label>Thời hạn (ngày)<input id="agencyRealDays" type="number" min="1" max="36500" step="1" value="30"></label>
 </div>
 <button type="button" id="agencyRealIssue">🔗 LƯU MỨC GIẢM & CẤP MỘT LINK CHO ĐẠI LÝ</button>
 <p id="agencyRealIssueStatus" role="status" aria-live="polite" class="hint" style="font-weight:700;min-height:24px;margin:9px 0 0"></p>
@@ -387,6 +387,7 @@ button:disabled{opacity:.55}
 <button id="manageSelectedLocations" type="button" class="secondary" hidden>📍 Thêm địa chỉ cho khách đã có</button></p>
 <p class="hint">Một đại lý dùng một link riêng cho tối đa 20 địa chỉ giao, có người nhận và số điện thoại riêng.</p>
 <div class="row"><div><label for="discount">Chiết khấu (%)</label><input id="discount" required type="text" inputmode="decimal" value="20" placeholder="VD: 16,64"></div><div><label for="ship">Phí giao hàng (%)</label><input id="ship" required type="number" min="0" max="30" step="1" value="8"></div><div><label for="vatRate">Thuế VAT (%)</label><select id="vatRate"><option value="0">0% — chưa áp dụng</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div></div>
+<label for="realLinkDays">Thời hạn link cấp cho khách (ngày)</label><input id="realLinkDays" type="number" min="1" max="36500" step="1" value="30" placeholder="60, 365, 730">
 <p class="hint">VAT thử nghiệm tính trên tiền hàng sau chiết khấu, không tính phí giao. Thuế suất thật phải kiểm tra theo từng mặt hàng trước khi sử dụng.</p>
 <p id="realPricingEvidence" class="hint" role="status" hidden></p>
 
@@ -1652,18 +1653,21 @@ $('realLinkCheck').onclick=async()=>{
      !$('ship').value||!Number.isSafeInteger(shippingPercent)||shippingPercent<0||
      shippingPercent>30||!['0','5','8','10'].includes($('vatRate').value))
    throw Error('Anh cần duyệt chiết khấu, phí giao và VAT hợp lệ.');
+  const daysValid=Number($('realLinkDays').value);
+  if(!$('realLinkDays').value||!Number.isSafeInteger(daysValid)||daysValid<1||daysValid>36500)
+   throw Error('Thời hạn link phải từ 1 đến 36500 ngày.');
   const readiness=await request('/api/admin/real-links/readiness');
   if(!readiness.configured||readiness.registryReady!==true)
    throw Error('Chưa xác minh sổ link Production hoặc HMAC. Không cấp link nếu chưa lưu được Drive.');
   if(!confirm('CẤP LINK ĐẶT HÀNG THẬT cho '+sourceRow.name+' tại '+sourceRow.address+
    '?\nHóa đơn nguồn #'+invoiceNo+'\nChiết khấu '+discount+
    '% • Giao hàng '+shippingPercent+'% • VAT '+vatPercent+
-   '%\nLink chỉ có hiệu lực 30 ngày, có mã truy cập riêng. Tiếp tục?'))return;
+   '%\nLink có hiệu lực '+daysValid+' ngày, có mã truy cập riêng. Tiếp tục?'))return;
   const d=await request('/api/admin/real-links/issue','POST',{
    confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',
    customerRef:{id:sourceRow.ref.id,invoiceNo},name:sourceRow.name,
    phone:sourceRow.phone,location:sourceRow.address,
-   discountPercent:discount,shippingPercent,vatPercent,daysValid:30
+   discountPercent:discount,shippingPercent,vatPercent,daysValid
   });
   if(d.registrySaved!==true)throw Error('Chưa xác minh lưu link trên Google Drive.');
    lastLink=d.link;$('newLink').hidden=false;$('linkText').textContent=d.link;
@@ -2064,8 +2068,8 @@ $('agencyRealIssue').onclick=async()=>{
  if(!Number.isSafeInteger(shippingPercent)||shippingPercent<0||shippingPercent>30){
   notify('⚠ Nhập phí giao hàng từ 0 đến 30%. Nếu miễn phí, nhập 0.');return;
  }
- if(!Number.isSafeInteger(daysValid)||daysValid<1||daysValid>30){
-  notify('⚠ Thời hạn link hiện tối đa 30 ngày. Giá trị 60 ngày sẽ bị máy chủ từ chối.');return;
+ if(!Number.isSafeInteger(daysValid)||daysValid<1||daysValid>36500){
+  notify('⚠ Nhập thời hạn link từ 1 đến 36.500 ngày (ví dụ 60, 365, 730 ngày).');return;
  }
  if(agentName.length<2){
   notify('⚠ Nhập tên đại lý hoặc CTV để lưu đúng người nhận link.');return;
