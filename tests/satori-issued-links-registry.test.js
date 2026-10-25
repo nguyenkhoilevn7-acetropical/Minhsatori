@@ -79,7 +79,7 @@ test('same CTV URL refreshes its newly approved recipients without changing link
  const saved=linkList({revision:19,values:{...next.values,...refresh.extras}},{limit:10});
  assert.equal(saved.total,1);
  assert.equal(saved.items[0].recipients.length,2);
- assert.equal(saved.items[0].issuedAt,ctv.issuedAt);
+ assert.equal(saved.items[0].issuedAt,new Date(ctv.issuedAt).toISOString());
  assert.equal(saved.items[0].link,ctv.link);
 });
 
@@ -99,7 +99,7 @@ test('owner can change contact and address under SAME link id without touching i
  assert.equal(found.total,1);
  const actual=found.items[0];
  assert.equal(actual.link,record.link);
- assert.equal(actual.issuedAt,record.issuedAt);
+ assert.equal(actual.issuedAt,new Date(record.issuedAt).toISOString());
  assert.equal(actual.recipients[0].customerRef.id,record.recipients[0].customerRef.id);
  assert.equal(actual.recipients[0].discountPercent,20);
  assert.equal(actual.recipients[0].name,'Correct customer');
