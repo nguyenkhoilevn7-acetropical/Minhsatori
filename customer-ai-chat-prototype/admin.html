@@ -581,7 +581,7 @@ $('checkSourceReadonly').onclick=async()=>{
     year:'numeric',month:'2-digit'}).formatToParts(new Date());
    const get=t=>parts.find(p=>p.type===t)?.value||'';
    const month=get('year')+'-'+get('month');
-   if(!/^\\d{4}-\\d{2}$/.test(month))throw Error('Tháng dữ liệu không hợp lệ.');
+   if(!/^\d{4}-\d{2}$/.test(month))throw Error('Tháng dữ liệu không hợp lệ.');
    if(liveOrderMonth!==month){liveOrderMonth=month;liveOrderBaseline=null;}
    if(force)status.textContent='Đang đối chiếu hóa đơn thật…';
    const data=await request('/api/admin/live-search?kind=invoices&month='+encodeURIComponent(month));
@@ -594,6 +594,7 @@ $('checkSourceReadonly').onclick=async()=>{
    if(ids.length!==data.invoices.length||new Set(ids).size!==ids.length)
     throw Error('Dữ liệu hóa đơn thiếu mã xác thực.');
    const current=new Set(ids);
+   const firstRead=liveOrderBaseline===null;
    const additions=liveOrderBaseline===null?[]:ids.filter(id=>!liveOrderBaseline.has(id));
    liveOrderBaseline=current;
    if(additions.length){
@@ -601,7 +602,7 @@ $('checkSourceReadonly').onclick=async()=>{
      ' (chỉ số bill, không tự ghi). Revision '+data.revision+
      '. Mở danh sách hóa đơn thật để xem chi tiết.';
    }else status.textContent='✓ Đã đồng bộ '+current.size+' hóa đơn tháng '+month+
-     ' • revision '+data.revision+(liveOrderBaseline===null?' • Khởi tạo':'');
+     ' • revision '+data.revision+(firstRead?' • Khởi tạo':'');
   }catch(e){status.textContent='⚠ Chưa kiểm chứng đủ hóa đơn thật: '+e.message}
   finally{liveOrderPolling=false;button.disabled=false}
  }
@@ -1303,6 +1304,7 @@ function showAdminTab(name){
   const active=b.dataset.adminTab===name;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
  }
  if(name==='orders')refreshOrderInbox();
+ if(name==='live'&&secret)void pollRealOrderFeed();
  if(name==='settings')refreshVersionStatus();
  if(name==='ctv-ledger'&&secret&&!ctvCatalogueLoaded)void loadCtvLive();
  if(name==='issued-links'&&secret)void loadIssuedRecords(true);
