@@ -1093,6 +1093,7 @@ function renderIssuedRecords(){
   // Sensitive credentials are deliberately excluded from list responses.
   // Show only after a separate, authenticated owner action. Do not cache them.
   const actions=document.createElement('div');actions.className='row';
+  const extensions=[];
   actions.append(copy);
   const credential=document.createElement('p');
   credential.className='hint';credential.hidden=true;
@@ -1133,7 +1134,7 @@ function renderIssuedRecords(){
     }catch(e){status.textContent='⚠ '+e.message}
     finally{save.disabled=false;pin.disabled=false}
    };
-   backfill.append(head,help,pin,save,status);card.append(backfill);
+   backfill.append(head,help,pin,save,status);extensions.push(backfill);
   }
   if(r.kind==='agency'||r.kind==='customer'){
    const editor=document.createElement('details');editor.className='location-manager';
@@ -1174,13 +1175,13 @@ function renderIssuedRecords(){
     }catch(e){status.textContent='⚠ '+e.message}
     finally{save.disabled=false}
    };
-   editor.append(save,status);card.append(editor);
+   editor.append(save,status);extensions.push(editor);
   }else{
    const policy=document.createElement('p');policy.className='hint';
    policy.textContent='CTV: địa chỉ và chiết khấu phải cập nhật qua chính sách CTV được duyệt.';
-   card.append(policy);
+   extensions.push(policy);
   }
-  card.append(name,meta,url,details,actions,credential);root.append(card);
+  card.append(name,meta,url,details,actions,credential,...extensions);root.append(card);
  }
 }
 async function loadIssuedRecords(reset=true){
