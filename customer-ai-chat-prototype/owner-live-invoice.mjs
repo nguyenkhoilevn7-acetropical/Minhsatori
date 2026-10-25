@@ -8,6 +8,7 @@
  * sandbox fake profiles to decide customer/discount/price.
  */
 import crypto from 'node:crypto';
+import {contactPhone} from './contact-phone.mjs';
 import {parseOrder,identityChange} from './free-parser.mjs';
 import {parseMultiOrder} from './multi-order.mjs';
 import {splitOrderAndNote} from './order-with-notes.mjs';
@@ -105,11 +106,12 @@ export function createOwnerRealInvoice({
   const matched=old.data.orders.filter(o=>Number(o.invoiceNo)===invoiceNo&&
     (customerId==null||String(o.id)===String(customerId))&&
     o.pairRole!=='collaborator'&&o.id!=null&&
-    clean(o.name).length>=2&&String(o.phone||'').replace(/\D/g,'').length>=8&&
+    clean(o.name).length>=2&&!!contactPhone(o.phone||o.customerPhone)&&
     clean(o.location).length>=5);
   if(matched.length!==1||Number(old.data.totalMatches)>100)fail('OWNER_CUSTOMER_REFERENCE_AMBIGUOUS');
   const customer=matched[0];
-  if(!customer.id||clean(customer.name).length<2||clean(customer.phone).length<8||
+  const verifiedPhone=contactPhone(customer.phone||customer.customerPhone);
+  if(!customer.id||clean(customer.name).length<2||!verifiedPhone||
     clean(customer.location).length<5)fail('OWNER_CUSTOMER_REFERENCE_INVALID');
   const ids=new Map();
   for(const p of cat.data.products){
@@ -118,7 +120,9 @@ export function createOwnerRealInvoice({
        clean(p.name).length<2||!clean(p.unit))fail('OWNER_CATALOGUE_INVALID');
    ids.set(p.code,p);
   }
-  return {revision:cat.revision,customer,products:ids};
+  // Canonical contact digits are equivalent to a labelled historic phone field.
+  // The Bot API matches the digits, not the recipient annotation, on checkout.
+  return {revision:cat.revision,customer:{...customer,phone:verifiedPhone},products:ids};
  }
  // A 17-location agency used to make 34 sequential signed Drive calls.
  // Share one immutable catalogue revision and bound the invoice reads to 3
