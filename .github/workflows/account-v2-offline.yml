@@ -73,19 +73,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install sandbox Node and database client
-        run: |
-          npm install --no-audit --no-fund
-          sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client-16
+      - name: Install sandbox Node dependencies
+        run: npm install --no-audit --no-fund
       - name: Real PostgreSQL synthetic schema / 100 simultaneous retry guard
         run: node account-v2/tests/postgres-integration.mjs
       - name: Offline logical backup, restore, and readback drill
         run: |
           set -euo pipefail
-          /usr/lib/postgresql/16/bin/pg_dump -Fc --no-owner --no-acl -d satori_v2_ci -f /tmp/satori-v2-ci-only.dump
-          psql -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE satori_v2_restore;'
-          /usr/lib/postgresql/16/bin/pg_restore --no-owner --no-acl -d satori_v2_restore /tmp/satori-v2-ci-only.dump
+          # Use PostgreSQL 16 client in the SAME image as the CI database.
+          # Runner apt may offer newer pg_restore with incompatible SET statements.
+          docker run --rm --network host -e PGPASSWORD \
+            -v "$RUNNER_TEMP:/ci" postgres:16 \
+            pg_dump -h 127.0.0.1 -U satori_ci -d satori_v2_ci -Fc \
+              --no-owner --no-acl -f /ci/satori-v2-ci-only.dump
+          docker run --rm --network host -e PGPASSWORD postgres:16 \
+            psql -h 127.0.0.1 -U satori_ci -d postgres -v ON_ERROR_STOP=1 \
+              -c 'CREATE DATABASE satori_v2_restore;'
+          docker run --rm --network host -e PGPASSWORD \
+            -v "$RUNNER_TEMP:/ci" postgres:16 \
+            pg_restore -h 127.0.0.1 -U satori_ci --no-owner --no-acl \
+              -d satori_v2_restore /ci/satori-v2-ci-only.dump
           SATORI_V2_CI_DATABASE_URL=postgresql://satori_ci:v2_ci_fake_only_never_prod@127.0.0.1:5432/satori_v2_restore \
             node account-v2/tests/restore-readback.mjs
-          rm -f /tmp/satori-v2-ci-only.dump
+          sudo rm -f "$RUNNER_TEMP/satori-v2-ci-only.dump"
