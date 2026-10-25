@@ -359,6 +359,7 @@ button:disabled{opacity:.55}
 <label>Thời hạn (ngày)<input id="agencyRealDays" type="number" min="1" max="30" value="30"></label>
 </div>
 <button type="button" id="agencyRealIssue">🔗 LƯU MỨC GIẢM & CẤP MỘT LINK CHO ĐẠI LÝ</button>
+<p id="agencyRealIssueStatus" role="status" aria-live="polite" class="hint" style="font-weight:700;min-height:24px;margin:9px 0 0"></p>
 <p class="hint">Chiết khấu và điểm giao của link là bản đã duyệt tại thời điểm cấp. Muốn sửa tỷ lệ cần cấp link mới, chưa có chức năng lưu chính sách theo tài khoản bền vững.</p>
 <div id="agencyRealIssued" hidden>
 <p class="hint">Chỉ gửi link cho đúng đại lý; gửi mã truy cập qua kênh riêng.</p>
@@ -1972,39 +1973,66 @@ $('agencyRealFind').onclick=async()=>{
  finally{b.disabled=false}
 };
 $('agencyRealIssue').onclick=async()=>{
+ const b=$('agencyRealIssue');
+ if(b.disabled)return;
+ const notify=text=>{
+  $('agencyRealStatus').textContent=text;
+  $('agencyRealIssueStatus').textContent=text;
+  $('agencyRealIssueStatus').scrollIntoView({block:'nearest',behavior:'smooth'});
+ };
  const selected=agencyReviewed.filter(x=>x.checkbox.checked);
- if(!selected.length||selected.length>20){$('agencyRealStatus').textContent='Chọn 1–20 điểm giao đã xác minh.';return}
+ if(!selected.length||selected.length>20){
+  notify('⚠ Chọn 1–20 địa chỉ có hóa đơn nguồn đầy đủ. Địa chỉ thiếu số điện thoại chưa thể cấp link.');
+  return;
+ }
  const destinations=selected.map(x=>({customerRef:JSON.parse(x.select.value),
   discountPercent:x.rate.value===''?NaN:Number(x.rate.value)}));
  if(destinations.some(d=>!Number.isSafeInteger(d.discountPercent)||d.discountPercent<0||d.discountPercent>70)){
-  $('agencyRealStatus').textContent='Chiết khấu từng địa chỉ phải là số nguyên từ 0 đến 70.';return
- }
- const shippingPercent=Number($('agencyRealShipping').value),vatPercent=Number($('agencyRealVat').value),
-  daysValid=Number($('agencyRealDays').value),agentName=$('agencyRealName').value.trim();
- if(!confirm('Xác nhận cấp MỘT LINK thật cho '+agentName+' với '+selected.length+
-    ' địa chỉ đã kiểm tra và chiết khấu tương ứng? Link này cho phép đặt hóa đơn THẬT sau khi khách xác nhận.'))return;
- const gate=await request('/api/admin/real-links/readiness');
- if(gate.registryReady!==true){
-  $('agencyRealStatus').textContent='⚠ Sổ link Google Drive chưa được cập nhật. Không cấp link chưa lưu.';
+  notify('⚠ Chiết khấu cần là số nguyên 0–70%. Mức 16,64% hiện chưa được hỗ trợ; không tự làm tròn vì sẽ sai giá.');
   return;
  }
- const b=$('agencyRealIssue');b.disabled=true;$('agencyRealIssued').hidden=true;
- $('agencyRealStatus').textContent='Đang xác minh từng hóa đơn nguồn và quyền cấp link; chưa tạo hóa đơn.';
+ const shipRaw=$('agencyRealShipping').value.trim();
+ const shippingPercent=shipRaw===''?NaN:Number(shipRaw),
+  vatPercent=Number($('agencyRealVat').value),
+  daysValid=Number($('agencyRealDays').value),agentName=$('agencyRealName').value.trim();
+ if(!Number.isSafeInteger(shippingPercent)||shippingPercent<0||shippingPercent>30){
+  notify('⚠ Nhập phí giao hàng từ 0 đến 30%. Nếu miễn phí, nhập 0.');return;
+ }
+ if(!Number.isSafeInteger(daysValid)||daysValid<1||daysValid>30){
+  notify('⚠ Thời hạn link hiện tối đa 30 ngày. Giá trị 60 ngày sẽ bị máy chủ từ chối.');return;
+ }
+ if(agentName.length<2){
+  notify('⚠ Nhập tên đại lý hoặc CTV để lưu đúng người nhận link.');return;
+ }
+ if(!confirm('Xác nhận cấp MỘT LINK thật cho '+agentName+' với '+selected.length+
+    ' địa chỉ đã kiểm tra và chiết khấu tương ứng? Link chỉ hoàn tất khi Google Drive xác nhận đã lưu.'))return;
+ b.disabled=true;
+ notify('⏳ Đang kiểm tra quyền ghi Google Drive và thông tin từng địa chỉ. Vui lòng chờ, không bấm liên tục.');
  try{
+  const gate=await request('/api/admin/real-links/readiness');
+  if(gate.configured!==true)throw Error('Cấu hình link Production chưa sẵn sàng: '+(gate.reason||'REAL_LINKS_NOT_ENABLED'));
+  if(gate.registryReady!==true)throw Error('Chưa đọc được sổ link trên Google Drive: '+(gate.registryIssueCode||'REGISTRY_READ_NOT_VERIFIED'));
+  if(gate.registryWriteReady!==true)throw Error(
+   'Quyền ghi links.register chưa được xác minh ('+(gate.registryIssueCode||'UNKNOWN')+
+   '). Cần kiểm tra HMAC orders:write và deployment Apps Script Production.');
+  notify('⏳ Đang xác minh các hóa đơn gốc, tạo một link và lưu lại vào Drive...');
   const d=await request('/api/admin/real-links/issue','POST',{
    confirmation:'OWNER_APPROVES_REAL_CUSTOMER_LINK',agentName,destinations,
    shippingPercent,vatPercent,daysValid
   });
-  if(d.registrySaved!==true)throw Error('Chưa xác minh lưu link trên Google Drive.');
+  if(d.registrySaved!==true||!d.link||!d.accessCode)throw Error('Chưa xác minh lưu link trên Google Drive.');
   $('agencyRealUrl').textContent=d.link;
   $('agencyRealCode').textContent='Mã truy cập riêng: '+d.accessCode;
   $('agencyRealIssued').hidden=false;
   $('issuedLinkSearch').value=agentName;
   $('issuedLinkType').value='';
-  $('agencyRealStatus').textContent=(d.registrySaved?'✓ Đã lưu Drive • ':'⚠ Chưa xác minh lưu • ')+
-   'Đã cấp một link với '+d.deliveryLocations+' địa chỉ. Xem tab Link đã cấp.';
- }catch(e){$('agencyRealStatus').textContent='KHÔNG CẤP ĐƯỢC: '+e.message;}
- finally{b.disabled=false}
+  notify('✅ Đã cấp và đọc lại link đã lưu trên Drive • '+d.deliveryLocations+
+   ' địa chỉ. Link hiện ở ngay bên dưới; vào Link đã cấp để tìm lại.');
+  $('agencyRealIssued').scrollIntoView({block:'nearest',behavior:'smooth'});
+ }catch(e){
+  notify('❌ KHÔNG CẤP ĐƯỢC: '+e.message+
+   ' • Nếu vẫn thấy link của lần cấp trước, đó là link cũ; đừng gửi như link mới.');
+ }finally{b.disabled=false}
 };
 $('agencyRealCopy').onclick=()=>navigator.clipboard.writeText($('agencyRealUrl').textContent)
  .then(()=>{$('agencyRealStatus').textContent='Đã sao chép link.'})
