@@ -292,8 +292,17 @@ function demoCall(path,data={},method='POST'){
  if(p==='/api/v2/admin/policies'){
   if(method==='GET')return {ok:true,policies:demoState.policies.filter(x=>x.profileId===profileId)};
   if(method==='POST'){
-   const item={...data,id:demoUuid(),version:demoState.policies.length+1,enabled:true};
-   demoState.policies.push(item);return {ok:true,policy:item};
+   if(method==='PATCH'){
+   const item=demoState.policies.find(x=>x.id===data.policyId&&x.profileId===data.profileId);
+   if(!item||item.revision!==data.expectedRevision||!item.enabled)throw Error('POLICY_REVISION_CONFLICT');
+   item.enabled=false;item.revision++;return {ok:true,policy:{...item}};
+  }
+  for(const previous of demoState.policies){
+   if(previous.profileId===data.profileId&&previous.addressId===data.addressId&&
+    previous.productCode===data.productCode&&previous.enabled){previous.enabled=false;previous.revision++}
+  }
+  const item={...data,id:demoUuid(),version:demoState.policies.length+1,revision:1,enabled:true};
+  demoState.policies.push(item);return {ok:true,policy:item};
   }
  }
  if(p==='/api/v2/admin/catalogue/refresh')throw Error('Chỉ xem giao diện: không kết nối danh mục thật');
@@ -498,7 +507,7 @@ setInterval(async()=>{
   if(r.revision>cartRev){cart=r.lines;cartRev=r.revision;renderBadge();renderCart();toast('Giỏ hàng đã đồng bộ')}
  }catch{}
 },10000);
-let ownerAccounts=[],ownerProfiles=[],ownerAddresses=[];
+let ownerAccounts=[],ownerProfiles=[],ownerAddresses=[],ownerPolicies=[];
 function editAddressSelection(){
  const a=ownerAddresses.find(x=>x.id===$('adminEditAddress').value);
  $('saveAdminAddress').disabled=!a;
@@ -546,7 +555,29 @@ async function loadAdminAddresses(){
  if(ownerAddresses.some(a=>a.id===selected))$('adminEditAddress').value=selected;
  editAddressSelection();
  const policies=await call('/api/v2/admin/policies?profileId='+encodeURIComponent(id),undefined,'GET');
- $('adminPolicies').replaceChildren(node('p','Đã lưu '+policies.policies.length+' phiên bản chính sách.','muted'));
+ ownerPolicies=policies.policies;
+ $('adminPolicies').replaceChildren(node('p','Đã lưu '+ownerPolicies.length+' phiên bản chính sách.','muted'));
+ for(const p of ownerPolicies){
+  const row=node('div',undefined,'address-line'),label=node('div');
+  const address=p.addressId?ownerAddresses.find(a=>a.id===p.addressId)?.label||'Điểm giao': 'Mọi địa chỉ';
+  const product=p.productCode?products.find(x=>x.code===p.productCode)?.name||p.productCode:'Mọi sản phẩm';
+  label.append(node('strong',(p.enabled?'● Đang áp dụng · ':'○ Đã tắt · ')+
+   (p.discountBps/100)+'%'),
+   node('small',address+' / '+product+' / bản '+p.version));
+  row.append(label);
+  if(p.enabled){
+   const off=node('button','Tắt','btn');
+   off.onclick=async()=>{
+    if(!confirm('Tắt chính sách này trên V2? Báo giá và hóa đơn đã lưu không đổi.'))return;
+    try{await call('/api/v2/admin/policies',{policyId:p.id,profileId:id,
+     enabled:false,confirmed:true,expectedRevision:p.revision},'PATCH');
+     await loadAdminAddresses();toast('Đã tắt chính sách');}
+    catch(e){await loadAdminAddresses();toast(e.message)}
+   };
+   row.append(off);
+  }
+  $('adminPolicies').append(row);
+ }
 }
 async function loadOwner(){
  const data=await call('/api/v2/admin/accounts',undefined,'GET');
@@ -630,7 +661,7 @@ $('savePolicy').onclick=async()=>{
   const collaboratorBps=basis($('adminCtvDiscount').value);
   const addressId=$('adminPolicyAddress').value||null,productCode=$('adminPolicySku').value||null;
   if(!confirm('Lưu chính sách V2? Không thay đổi link và hóa đơn cũ.'))return;
-  const payload={profileId,addressId,productCode,discountBps,invoiceMode,
+  const payload={profileId,addressId,productCode,discountBps,invoiceMode,confirmed:true,
    ...(invoiceMode==='pair'?{collaboratorBps}:{})};
   const data=await call('/api/v2/admin/policies',payload);
   await loadAdminAddresses();toast('Đã lưu chính sách phiên bản '+data.policy.version);
