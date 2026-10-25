@@ -31,7 +31,7 @@ try{
  async function session(account){
   const token=randomBytes(32).toString('hex'),csrf=randomBytes(32).toString('hex');
   await pool.query("INSERT INTO satori_v2_sessions(token_hash,csrf_hash,account_id,expires_at) VALUES($1,$2,$3,now()+interval '1 hour')",[hash(token),hash(csrf),account.id]);
-  return {cookie:'satori_v2_session='+token,'x-satori-csrf':csrf,origin,'content-type':'application/json'};
+  return {cookie:'satori_v2_session='+token+'; satori_v2_csrf='+csrf,'x-satori-csrf':csrf,origin,'content-type':'application/json'};
  }
  const ownerHeaders=await session(owner),customerHeaders=await session(customer);
  child=spawn(process.execPath,['account-v2/standalone.mjs'],{env:{...process.env,PORT:'18769',
