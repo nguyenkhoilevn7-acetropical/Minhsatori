@@ -59,10 +59,14 @@ test('rejects unexpected SKU, invalid and excessive quantity without mutation',(
 });
 test('in-chat inputs, status, compact controls and retry guard are present',()=>{
  assert.match(html,/id="chatStatus"[^>]+aria-live="polite"/);
- assert.match(html,/id="chatCartShortcut"/);
- assert.match(html,/id="quickProducts"/);
- assert.match(html,/id="quickCart"/);
- assert.match(html,/id="quickAddress"/);
+ assert.doesNotMatch(html,/id="chatCartShortcut"/);
+ assert.doesNotMatch(html,/id="quickProducts"/);
+ assert.doesNotMatch(html,/id="quickCart"/);
+ assert.doesNotMatch(html,/id="quickAddress"/);
+ assert.doesNotMatch(html,/Tiện ích đặt hàng/);
+ assert.match(html,/id="deliveryPrompt"/);
+ assert.match(html,/id="cartBadge"/);
+ assert.match(html,/class="satori-logo"/);
  assert.match(html,/qty\.setAttribute\('aria-label'/);
  assert.match(html,/if\(add\.disabled\)return/);
  assert.match(html,/const merged=mergeCartItems\(cart,selected\)/);
