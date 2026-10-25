@@ -24,7 +24,7 @@ const sameRef=(a,b)=>a&&b&&String(a.id)===String(b.id)&&a.invoiceNo===b.invoiceN
 const validDestination=d=>validRef(d?.customerRef)&&cleanText(d.name,150)&&cleanText(d.location,500)&&digits(d.phone).length>=8&&pct(d.discountPercent);
 
 export function createProductionPrivateLinks({
- env=process.env, now=Date.now, rand=crypto.randomBytes, source, sourceBatch=null, bot,historyReader=null,
+ env=process.env, now=Date.now, rand=crypto.randomBytes, source, sourceBatch=null, bot,historyReader=null, directoryLookup=null,
  origin='https://minh-satori-customer-ai-gemini.onrender.com'
 }={}){
  if(typeof source!=='function'||typeof bot!=='function')throw Error('SERVER_BINDINGS_REQUIRED');
@@ -84,6 +84,36 @@ export function createProductionPrivateLinks({
   if(!crypto.timingSafeEqual(candidate,expected))throw error('ACCESS_CODE_REQUIRED');
   return invite;
  }
+ // The encrypted customer link is immutable. Only a VERIFIED Drive registry
+ // entry corresponding to its exact URL may overlay owner-updated contacts.
+ // Rates, source refs, shipment/VAT, PIN and expiry are always taken from
+ // the signed invitation and can never be changed by registry edits.
+ async function currentInvite(signed,token){
+  if(typeof directoryLookup!=='function')return signed;
+  const saved=await directoryLookup({token});
+  if(saved==null)return signed; // Legacy links issued before Drive directory.
+  const url=origin.replace(/\\/$/,'')+'/real/#'+token;
+  const agency=signed.type==='agency-invite';
+  if(saved.link!==url||saved.kind!==(agency?'agency':'customer')||
+     !Array.isArray(saved.recipients))throw error('REAL_LINK_DIRECTORY_CONFLICT');
+  const previous=agency?signed.destinations:[signed];
+  if(saved.recipients.length!==previous.length)throw error('REAL_LINK_DIRECTORY_CONFLICT');
+  const edited=previous.map(sourceRecipient=>{
+   const matches=saved.recipients.filter(r=>
+    sameRef(sourceRecipient.customerRef,r.customerRef));
+   if(matches.length!==1||sourceRecipient.discountPercent!==matches[0].discountPercent)
+    throw error('REAL_LINK_DIRECTORY_CONFLICT');
+   const r=matches[0];
+   if(!cleanText(r.name,150)||!/^\\d{9,11}$/.test(r.phone||'')||
+      !cleanText(r.location,500))throw error('REAL_LINK_DIRECTORY_CONFLICT');
+   const changed=r.name!==sourceRecipient.name||
+    r.phone!==sourceRecipient.phone||r.location!==sourceRecipient.location;
+   return changed?{...sourceRecipient,name:r.name,phone:r.phone,location:r.location,
+    ownerOverride:true,sourceSigned:sourceRecipient}:sourceRecipient;
+  });
+  if(agency)return {...signed,agentName:saved.name,destinations:edited};
+  return {...signed,...edited[0]};
+ }
  function destinations(invite){return invite.type==='agency-invite'?invite.destinations:[invite]}
  function chosen(invite,ref){
   const available=destinations(invite);
@@ -94,17 +124,18 @@ export function createProductionPrivateLinks({
  }
  async function checked(invite,destination){
   const d=destination||chosen(invite);
+  const signed=d.sourceSigned||d;
   const live=await source(d.customerRef.invoiceNo,d.customerRef.id,null,
-   {allowMissingPhone:d.ownerVerifiedPhone===true});
+   {allowMissingPhone:signed.ownerVerifiedPhone===true});
   // A manually verified phone is allowed only while the EXACT signed source
   // invoice still has no contact. If source is subsequently corrected the
   // owner must reissue the link from its new authoritative contact.
-  const phoneMatches=d.ownerVerifiedPhone===true?
-   digits(live.customer.phone)===''&&/^\d{9,11}$/.test(d.phone):
-   digits(live.customer.phone)===digits(d.phone);
+  const phoneMatches=signed.ownerVerifiedPhone===true?
+   digits(live.customer.phone)===''&&/^\d{9,11}$/.test(signed.phone):
+   digits(live.customer.phone)===digits(signed.phone);
   if(String(live.customer.id)!==String(d.customerRef.id)||
-     live.customer.name!==d.name||!phoneMatches||
-     live.customer.location!==d.location)throw error('REAL_CUSTOMER_SOURCE_CHANGED');
+     live.customer.name!==signed.name||!phoneMatches||
+     live.customer.location!==signed.location)throw error('REAL_CUSTOMER_SOURCE_CHANGED');
   return live;
  }
  function priced(destination,live,requested){
@@ -251,12 +282,14 @@ export function createProductionPrivateLinks({
  // owner-approved destination without querying Drive for each keystroke/message.
  // All prices and invoice writes still revalidate CURRENT Drive data at quote/confirm.
  function chatContext({token,accessCode,destination:ref}={}){
-  const invite=access(token,accessCode),d=chosen(invite,ref);
+  const invite=await currentInvite(access(token,accessCode),token),
+   d=chosen(invite,ref);
   return {production:true,customer:{name:d.name,phone:d.phone,location:d.location},
    destination:d.customerRef};
  }
  async function catalogue({token,accessCode,destination:ref}={}){
-  const invite=access(token,accessCode),agency=invite.type==='agency-invite';
+  const invite=await currentInvite(access(token,accessCode),token),
+   agency=invite.type==='agency-invite';
   const d=agency?(ref?chosen(invite,ref):null):chosen(invite);
   // No disclosure until both independent credentials are verified.
   // When an agent has not selected an address, return no priced catalogue.
@@ -304,13 +337,14 @@ export function createProductionPrivateLinks({
    sourceRevision:live.revision,requestId,
    customerRef:d.customerRef,issuedAt:now(),expiresAt:now()+600000,
    items:amount.items,deliveryNote,shippingAmount:amount.shippingAmount,
-   vatAmount:amount.vatAmount,total:amount.total,discountPercent:d.discountPercent};
+   vatAmount:amount.vatAmount,total:amount.total,discountPercent:d.discountPercent,
+   contactDigest:sha([d.name,d.phone,d.location].join('\\0'))};
   return {production:true,confirmationRequired:true,quoteToken:seal(q,'customer-quote'),
    expiresAt:new Date(q.expiresAt).toISOString(),sourceRevision:live.revision,
    ...amount,discountPercent:d.discountPercent,customer:{name:d.name,phone:d.phone,location:d.location},deliveryNote};
  }
  async function confirm({token,accessCode,quoteToken,confirmation}={}){
-  const invite=access(token,accessCode);
+  const invite=await currentInvite(access(token,accessCode),token);
   if(confirmation!=='CUSTOMER_CONFIRMS_REAL_ORDER')throw error('REAL_CONFIRMATION_REQUIRED');
   const q=unseal(quoteToken,'customer-quote');
   if(q.type!=='customer-real-quote'||q.inviteId!==invite.id||
@@ -321,7 +355,8 @@ export function createProductionPrivateLinks({
    throw error('REAL_QUOTE_INVALID');
   const destination=chosen(invite,q.customerRef);
   if(!sameRef(destination.customerRef,q.customerRef)||
-     q.discountPercent!==undefined&&q.discountPercent!==destination.discountPercent)
+     q.discountPercent!==undefined&&q.discountPercent!==destination.discountPercent||
+     q.contactDigest!==sha([destination.name,destination.phone,destination.location].join('\\0')))
    throw error('REAL_QUOTE_STALE');
   const live=await checked(invite,destination);
   if(live.revision!==q.sourceRevision)throw error('REAL_QUOTE_STALE');
@@ -337,8 +372,9 @@ export function createProductionPrivateLinks({
     // GAS matches phone on a historical customerRef. A legacy invoice with
     // blank phone cannot pass that match. Owner-authorised recovery therefore
     // creates a NEW order using the verified phone, never mutating old invoice.
-    ...(destination.ownerVerifiedPhone?{}:{customerRef:q.customerRef}),
-    confirmedNewCustomer:destination.ownerVerifiedPhone===true,
+    ...(destination.ownerVerifiedPhone||destination.ownerOverride?{}:{customerRef:q.customerRef}),
+    confirmedNewCustomer:destination.ownerVerifiedPhone===true||
+     destination.ownerOverride===true,
     order:{name:destination.name,phone:destination.phone,location:destination.location,
      items:q.items,shippingAmount:q.shippingAmount,vatAmount:q.vatAmount,
      total:q.total,deliveryNote:q.deliveryNote}
