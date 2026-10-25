@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import pg from 'pg';
 import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatus,
- adminLinkLead,adminCustomerList,registrationRead} from '../customer-backend.mjs';
+ adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer} from '../customer-backend.mjs';
 
 const url=process.env.SATORI_V2_CI_DATABASE_URL||'';
 assert.ok(url.includes('127.0.0.1')&&url.endsWith('/satori_v2_ci'),
@@ -51,9 +51,20 @@ try{
  const policy=await one('SELECT discount_bps AS discount,version FROM satori_v2_policies '+
   'WHERE profile_id=$1 AND enabled=true ORDER BY version DESC LIMIT 1',[activated.profileId]);
  assert.equal(policy.discount,2500);
+ const edited=await adminEditRegisteredCustomer(pool,owner,{
+  accountId:customer.id,expectedRevision:1,confirmed:true,
+  ...form,fullName:'Fake Agency Updated',address:'Edited Registration Address'});
+ assert.equal(edited.revision,2);
+ await assert.rejects(()=>adminEditRegisteredCustomer(pool,owner,{
+  accountId:customer.id,expectedRevision:1,confirmed:true,...form}),
+  /CUSTOMER_DETAILS_REVISION_CONFLICT/);
+ await assert.rejects(()=>adminEditRegisteredCustomer(pool,owner,{
+  accountId:customer.id,expectedRevision:2,confirmed:true,
+  ...form,email:'different@example.invalid'}),/VERIFIED_EMAIL_IMMUTABLE/);
  const list=await adminCustomerList(pool);
  const readback=list.registered.find(x=>x.id===customer.id);
- assert.equal(readback.address,form.address);
+ assert.equal(readback.address,'Edited Registration Address');
+ assert.equal(readback.fullName,'Fake Agency Updated');
  assert.equal(readback.companyName,form.companyName);
  assert.equal(readback.taxCode,form.taxCode);
  assert.ok(!('password' in readback));
@@ -66,12 +77,12 @@ try{
  await pool.query('INSERT INTO satori_v2_sessions(token_hash,csrf_hash,account_id,expires_at) '+
   "VALUES($1,$2,$3,now()+interval '1 day')",['a'.repeat(64),'b'.repeat(64),customer.id]);
  const blocked=await adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
-  expectedRevision:2,status:'SUSPENDED',confirmed:true});
+  expectedRevision:3,status:'SUSPENDED',confirmed:true});
  assert.equal(blocked.customer.accessStatus,'SUSPENDED');
  const sessions=await one('SELECT count(*)::int AS count FROM satori_v2_sessions WHERE account_id=$1',
   [customer.id]);assert.equal(sessions.count,0,'Suspension kills all sessions');
  const removed=await adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
-  expectedRevision:3,status:'REMOVED',confirmed:true});
+  expectedRevision:4,status:'REMOVED',confirmed:true});
  assert.equal(removed.customer.accessStatus,'REMOVED');
  const allPolicies=await one('SELECT count(*)::int AS count FROM satori_v2_policies '+
   'WHERE profile_id=$1 AND enabled=true',[activated.profileId]);
