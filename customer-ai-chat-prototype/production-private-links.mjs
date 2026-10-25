@@ -100,7 +100,7 @@ export function createProductionPrivateLinks({
   // invoice still has no contact. If source is subsequently corrected the
   // owner must reissue the link from its new authoritative contact.
   const phoneMatches=d.ownerVerifiedPhone===true?
-   digits(live.customer.phone)===''&&/^\\d{9,11}$/.test(d.phone):
+   digits(live.customer.phone)===''&&/^\d{9,11}$/.test(d.phone):
    digits(live.customer.phone)===digits(d.phone);
   if(String(live.customer.id)!==String(d.customerRef.id)||
      live.customer.name!==d.name||!phoneMatches||
@@ -170,14 +170,14 @@ export function createProductionPrivateLinks({
   for(const [index,requested] of refs.entries()){
    const ownerVerified=requested.confirmedPhoneMissing===true&&
      typeof requested.verifiedPhone==='string'&&
-     /^\\d{9,11}$/.test(requested.verifiedPhone);
+     /^\d{9,11}$/.test(requested.verifiedPhone);
    // No owner-verified phone without a concrete verified invoice row.
    if((requested.confirmedPhoneMissing===true&&!ownerVerified)||
       (requested.verifiedPhone!==undefined&&!ownerVerified))
     throw error('OWNER_PHONE_VERIFICATION_REQUIRED');
    const live=verified?verified[index]:await source(requested.customerRef.invoiceNo,requested.customerRef.id,null,
     {allowMissingPhone:ownerVerified});
-   if(ownerVerified&&digits(live.customer.phone)!=='')
+   if(ownerVerified&&digits(live?.customer?.phone)!=='')
     throw error('OWNER_PHONE_VERIFICATION_CONFLICT');
    if(!live?.customer||!Number.isSafeInteger(live.revision)||
       (verified&&live.revision!==verified[0]?.revision)||(requested.customerRef.id!=null&&String(live.customer.id)!==String(requested.customerRef.id))||
