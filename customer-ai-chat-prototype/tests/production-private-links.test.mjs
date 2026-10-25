@@ -413,12 +413,11 @@ test('PDF same as website and real owner-only order notification; no 0đ summary
  assert.match(frontend,/frame\.src=pdfObjectUrl/);
  assert.match(frontend,/blob\.type!=='application\/pdf'/);
  assert.doesNotMatch(frontend,/row\.subtotal/,'original incorrect zero-price summary removed');
- assert.match(admin,/function pollRealOrderFeed\(force=false\)/);
- assert.match(admin,/\/api\/admin\/live-search\?kind=invoices&month=/);
- assert.match(admin,/const additions=liveOrderBaseline===null\?\[\]:/,
-  'first owner read establishes baseline with no false ringing');
- assert.match(admin,/if\(additions\.length\)/);
- assert.doesNotMatch(admin.slice(admin.indexOf('async function pollRealOrderFeed'),admin.indexOf("$('productionFeedRefresh')")),/\/api\/admin\/new-orders/);
+ // No duplicate real-invoice polling surface in Admin. The owner reads
+ // directly from the HMAC-protected production invoice search on demand.
+ assert.doesNotMatch(admin,/function pollRealOrderFeed\(force=false\)/);
+ assert.match(admin,/id="liveFindInvoices"/);
+ assert.match(admin,/api\/admin\/live-search/);
  for(const [,source] of admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
   new vm.Script(source,{filename:'owner-live-orders.js'});
  for(const [,source] of frontend.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
