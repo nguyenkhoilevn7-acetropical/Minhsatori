@@ -536,6 +536,7 @@ $('menu').onclick=()=>menu(!document.body.classList.contains('menu-open'));
 $('scrim').onclick=()=>menu(false);
 function view(name){
  if(!views.includes(name)||!me)return;
+ if(me?.account?.accessStatus==='PENDING'&&!me.account.isAdmin)name='account';
  for(const n of views){$(n+'View').classList.toggle('hidden',name!==n)}
  for(const btn of document.querySelectorAll('[data-view]'))btn.classList.toggle('active',btn.dataset.view===name);
  menu(false);
@@ -713,9 +714,30 @@ async function loadOrders(){
 }
 $('refreshOrders').onclick=()=>loadOrders().catch(e=>toast(e.message));
 async function refresh(){
- const [mine,catalogue]=await Promise.all([
-  call('/api/v2/me',undefined,'GET'),call('/api/v2/catalogue',undefined,'GET')]);
- me=mine;products=catalogue.items;
+ const mine=await call('/api/v2/me',undefined,'GET');
+ me=mine;
+ const pending=!me.account.isAdmin&&me.account.accessStatus==='PENDING';
+ $('gate').classList.add('hidden');
+ $('accountDetails').replaceChildren(node('strong',me.account.name),
+  node('p',me.account.email,'muted'),
+  node('p',pending?'Trạng thái: Đang chờ Admin duyệt':'Trạng thái: Đã kích hoạt','muted'));
+ $('registrationBox').hidden=!pending;
+ if(pending){
+  $('customerRegistration').elements.email.value=me.account.email;
+  try{
+   const data=await call('/api/v2/register',undefined,'GET');
+   if(data.registration){
+    for(const [key,value] of Object.entries(data.registration)){
+     const field=$('customerRegistration').elements.namedItem(key);
+     if(field&&typeof value==='string'&&key!=='email')field.value=value;
+    }
+    $('registrationStatus').textContent='Hồ sơ đã được gửi. Chờ Admin duyệt để đặt hàng.';
+   }
+  }catch(e){toast(e.message)}
+  view('account');return;
+ }
+ const catalogue=await call('/api/v2/catalogue',undefined,'GET');
+ products=catalogue.items;
  $('ownerPanel').hidden=!me.account.isAdmin;
  if(me.account.isAdmin)loadOwner().catch(e=>toast(e.message));
  $('gate').classList.add('hidden');$('chatView').classList.remove('hidden');
@@ -869,7 +891,11 @@ $('message').oninput=()=>{
 async function refreshData(){
  if(savingCart||busy){toast('Đang xử lý, vui lòng thử sau');return}
  $('chatStatus').textContent='Đang đồng bộ dữ liệu...';
- try{const [mine,catalogue]=await Promise.all([call('/api/v2/me',undefined,'GET'),
+ try{
+  if(me?.account?.accessStatus==='PENDING'&&!me.account.isAdmin){
+   await refresh();toast('Đã cập nhật trạng thái hồ sơ');return;
+  }
+  const [mine,catalogue]=await Promise.all([call('/api/v2/me',undefined,'GET'),
    call('/api/v2/catalogue',undefined,'GET')]);
   me=mine;products=catalogue.items;renderProducts();renderAddresses();
   await changeProfile();toast('Đã làm mới thông tin, sản phẩm và giỏ hàng')
@@ -1234,7 +1260,9 @@ async function boot(){
   const status=await call('/api/v2/status',undefined,'GET');
   pilot=!!status.enabled;realTestEnabled=status.testOrdersEnabled===true;
   if(!pilot){$('loginStatus').textContent='Pilot tài khoản chưa được cấu hình trên server. Hóa đơn và link hiện tại không đổi.';return}
-  $('loginStatus').textContent=status.customerRolloutEnabled?
+  $('loginStatus').textContent=status.signupEnabled?
+    'Đăng nhập Google để đăng ký. Admin sẽ xem hồ sơ và duyệt quyền đặt hàng.':
+    status.customerRolloutEnabled?
     'Đăng nhập bằng tài khoản Google đã được duyệt để đặt hàng.':
     'Pilot chỉ dành cho Admin đã xác minh bằng Google.';
   const init=()=>{
