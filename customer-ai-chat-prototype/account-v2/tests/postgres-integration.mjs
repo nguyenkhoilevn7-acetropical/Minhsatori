@@ -126,6 +126,17 @@ try{
   'AND p.id=a.profile_id AND p.account_id=$4 AND a.revision=$5 RETURNING a.id',
   [address.id,profile.id,'Cross-account overwrite attempt',stranger.id,2]);
  assert.equal(forbidden.rowCount,0,'customer cannot update another account address');
+ // V2 history is cross-checked against BOTH quote and request account IDs.
+ const ownHistory=await pool.query(
+  'SELECT r.state,q.payload->>\'totalVnd\' AS total_vnd FROM '+
+  'satori_v2_order_requests r JOIN satori_v2_quotes q ON q.id=r.quote_id '+
+  'WHERE r.account_id=$1 AND q.account_id=$1',[account.id]);
+ assert.equal(ownHistory.rowCount,1);
+ assert.equal(ownHistory.rows[0].state,'PENDING_INTEGRATION');
+ const strangerHistory=await pool.query(
+  'SELECT r.id FROM satori_v2_order_requests r JOIN satori_v2_quotes q ON q.id=r.quote_id '+
+  'WHERE r.account_id=$1 AND q.account_id=$1',[stranger.id]);
+ assert.equal(strangerHistory.rowCount,0,'history must never leak across accounts');
  const unrelated=await one(
   'INSERT INTO satori_v2_profiles(account_id,type,display_name) VALUES($1,$2,$3) RETURNING id',
   [stranger.id,'retail','Other']);
