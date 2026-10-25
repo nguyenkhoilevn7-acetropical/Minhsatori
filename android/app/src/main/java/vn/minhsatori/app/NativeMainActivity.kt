@@ -53,19 +53,19 @@ import com.google.android.gms.common.api.Scope
  * is configured and tested against a sandbox. No raw token or invoice stored.
  */
 class NativeMainActivity : AppCompatActivity() {
-    private val teal = Color.rgb(10, 100, 116)
-    private val dark = Color.rgb(30, 41, 59)
-    private val muted = Color.rgb(100, 116, 139)
-    private val pale = Color.rgb(243, 247, 250)
-    private val gold = Color.rgb(180, 83, 9)
+    private val teal = Color.rgb(0, 122, 255)
+    private val dark = Color.rgb(28, 28, 30)
+    private val muted = Color.rgb(110, 110, 115)
+    private val pale = Color.rgb(242, 242, 247)
+    private val gold = Color.rgb(175, 94, 0)
     private val white = Color.WHITE
     private var dashboardMode = false
-    private val ink = Color.rgb(226, 232, 240)
-    private val softInk = Color.rgb(148, 163, 184)
-    private val cyan = Color.rgb(103, 232, 249)
-    private val night = Color.rgb(2, 6, 23)
-    private val surface = Color.rgb(15, 23, 42)
-    private val indigo = Color.rgb(30, 58, 138)
+    private val ink = Color.rgb(28, 28, 30)
+    private val softInk = Color.rgb(110, 110, 115)
+    private val cyan = Color.rgb(0, 122, 255)
+    private val night = Color.rgb(242, 242, 247)
+    private val surface = Color.rgb(255, 255, 255)
+    private val indigo = Color.rgb(229, 239, 255)
     private var activeTab = 0
     private var accessToken: String? = null
     private var snapshot: SatoriSnapshot? = null
@@ -415,11 +415,12 @@ class NativeMainActivity : AppCompatActivity() {
 
     private fun label(parent: LinearLayout, content: String, size: Float = 14f,
                       isBold: Boolean = false, color: Int = dark, marginTop: Int = 0): TextView {
-        val actualColor = if (!dashboardMode) color else when (color) {
-            dark -> ink
+        // iOS light grouped palette: labels stay readable across all native screens.
+        val actualColor = when (color) {
+            white, dark -> ink
             muted -> softInk
             teal -> cyan
-            gold -> Color.rgb(251, 191, 36)
+            gold -> Color.rgb(175, 94, 0)
             else -> color
         }
         val view = TextView(this).apply {
@@ -438,7 +439,7 @@ class NativeMainActivity : AppCompatActivity() {
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), Color.rgb(42, 59, 86))
+            setStroke(dp(1), Color.rgb(227, 229, 234))
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
@@ -456,10 +457,10 @@ class NativeMainActivity : AppCompatActivity() {
             setTextColor(if (main) white else cyan)
             background = if (main) {
                 GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                    intArrayOf(Color.rgb(37, 99, 235), Color.rgb(8, 145, 178))).apply {
-                    cornerRadius = dp(12).toFloat()
+                    intArrayOf(Color.rgb(0, 122, 255), Color.rgb(66, 151, 255))).apply {
+                    cornerRadius = dp(14).toFloat()
                 }
-            } else panelBackground(Color.rgb(19, 37, 64), 12)
+            } else panelBackground(Color.rgb(248, 249, 252), 14)
             setOnClickListener { click() }
         }
         parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
@@ -579,13 +580,13 @@ class NativeMainActivity : AppCompatActivity() {
         previousScrollView = scroll
         if (oldScrollY > 0) scroll.post { scroll.scrollTo(0, oldScrollY) }
 
-        // Web brand parity: midnight header, cyan gradient and original Satori logo.
+        // iOS-style light grouped header; retain original Satori logo and owner actions.
         val brand = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(10), dp(12), dp(10))
             background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(Color.rgb(15, 23, 42), indigo, Color.rgb(8, 89, 121))).apply {
+                intArrayOf(Color.rgb(255, 255, 255), indigo, Color.rgb(232, 245, 255))).apply {
                 cornerRadius = dp(18).toFloat()
             }
         }
@@ -604,13 +605,13 @@ class NativeMainActivity : AppCompatActivity() {
         }
         label(brandText, "MINH SATORI", 19f, true, white)
         label(brandText, "HÓA ĐƠN  •  SỔ KẾ TOÁN", 10f,
-            false, Color.rgb(186, 230, 253), 5)
+            false, Color.rgb(79, 102, 132), 5)
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
         val refreshButton = TextView(this).apply {
             text = "↻ Refresh"
             textSize = 11.5f
             gravity = Gravity.CENTER
-            setTextColor(white)
+            setTextColor(cyan)
             contentDescription = "Refresh trang và đồng bộ hóa đơn ngay từ server"
             isClickable = true
             isFocusable = true
@@ -622,7 +623,7 @@ class NativeMainActivity : AppCompatActivity() {
                     "satori_live_notifications", false)) "🔔" else "🔕"
             textSize = 20f
             gravity = Gravity.CENTER
-            setTextColor(white)
+            setTextColor(ink)
             contentDescription = "Bật hoặc tắt thông báo hóa đơn thật mới"
             isClickable = true
             isFocusable = true
@@ -648,7 +649,7 @@ class NativeMainActivity : AppCompatActivity() {
             text = "⚙"
             textSize = 23f
             gravity = Gravity.CENTER
-            setTextColor(white)
+            setTextColor(ink)
             contentDescription = "Cài đặt kết nối"
             isClickable = true
             isFocusable = true
@@ -658,7 +659,7 @@ class NativeMainActivity : AppCompatActivity() {
         content.addView(brand, LinearLayout.LayoutParams(-1, -2))
 
         val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn")
-        label(content, pages[activeTab], 20f, true, white, 12)
+        label(content, pages[activeTab], 22f, true, ink, 12)
         label(content, "MINH SATORI  •  ANDROID " + BuildConfig.VERSION_NAME,
             10.5f, true, cyan, 6)
 
@@ -667,8 +668,8 @@ class NativeMainActivity : AppCompatActivity() {
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(9), dp(12), dp(9))
-            background = panelBackground(if (connected) Color.rgb(8, 47, 53)
-                  else Color.rgb(48, 35, 24))
+            background = panelBackground(if (connected) Color.rgb(232, 248, 240)
+                  else Color.rgb(255, 245, 230))
         }
         val stale = statusMessage.startsWith("⚠")
         label(info, when {
@@ -677,19 +678,19 @@ class NativeMainActivity : AppCompatActivity() {
             isLoading || authorizationPending -> "●  ĐANG TỰ ĐỘNG KẾT NỐI…"
             else -> "●  CHƯA KẾT NỐI DỮ LIỆU"
         },
-            12f, true, if (connected) Color.rgb(94, 234, 212)
-                else Color.rgb(253, 186, 116))
+            12f, true, if (connected) Color.rgb(17, 133, 91)
+                else Color.rgb(181, 95, 6))
         label(info, if (connected)
             (dataSource.ifBlank { "Nguồn dữ liệu" } + "  •  Revision " +
                 data!!.revision + "  •  " + data.invoices.size + " hóa đơn")
             else statusMessage,
-            12f, false, if (connected) Color.rgb(153, 246, 228)
-                else Color.rgb(254, 215, 170), 5)
+            12f, false, if (connected) Color.rgb(17, 133, 91)
+                else Color.rgb(164, 100, 15), 5)
         if (stale && connected) label(info, statusMessage, 11.5f, true,
-            Color.rgb(253, 186, 116), 6)
+            Color.rgb(181, 95, 6), 6)
         if (preferredSource() == AutoSyncPolicy.FILE) {
             label(info, "⚠ File được chọn có thể là bản tĩnh. Bấm ↻ Refresh để chuyển sang đồng bộ Drive live.",
-                11f, true, Color.rgb(253, 186, 116), 6)
+                11f, true, Color.rgb(181, 95, 6), 6)
         }
         if (connected && lastReadAt.isNotBlank()) {
             label(info, "Cập nhật lúc " + lastReadAt +
@@ -709,7 +710,7 @@ class NativeMainActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(16), dp(14), dp(16), dp(16))
                 background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                    intArrayOf(Color.rgb(18, 48, 86), Color.rgb(7, 87, 116))).apply {
+                    intArrayOf(Color.rgb(227, 239, 255), Color.rgb(232, 246, 255))).apply {
                     cornerRadius = dp(18).toFloat()
                 }
             }
@@ -738,11 +739,11 @@ class NativeMainActivity : AppCompatActivity() {
             val welcome = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(18), dp(20), dp(18), dp(17))
-                background = panelBackground(Color.rgb(19, 37, 64))
+                background = panelBackground(Color.rgb(248, 249, 252))
             }
             label(welcome, "Quản lý kinh doanh trong một ứng dụng", 20f, true, white)
             label(welcome, "Hóa đơn • Khách hàng • Công nợ • Bảng giá • PDF",
-                12f, false, Color.rgb(186, 230, 253), 11)
+                12f, false, Color.rgb(79, 102, 132), 11)
             label(welcome, "Bản cài thử này chưa liên kết API. Dữ liệu thật được bảo vệ " +
                 "và sẽ không được sửa cho đến khi kết nối được xác minh.",
                 12f, false, muted, 12)
@@ -783,7 +784,7 @@ class NativeMainActivity : AppCompatActivity() {
                 }
                 metricTile(stats, "HÓA ĐƠN", data.invoices.size.toString())
                 metricTile(stats, "CẦN THU", data.outstandingCount.toString(),
-                    Color.rgb(253, 186, 116))
+                    Color.rgb(181, 95, 6))
                 content.addView(stats)
             }
             if (activeTab == 4 && canWrite) {
@@ -825,7 +826,7 @@ class NativeMainActivity : AppCompatActivity() {
 
         val tabs = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.rgb(8, 18, 37))
+            setBackgroundColor(Color.rgb(255, 255, 255))
             setPadding(dp(5), dp(8), dp(5), dp(8))
         }
         listOf("Tổng quan", "Hóa đơn", "Khách", "Công nợ", "Lên đơn").forEachIndexed { i, name ->
@@ -835,14 +836,14 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
                 maxLines = 2
                 setPadding(dp(2), dp(8), dp(2), dp(8))
-                setTextColor(if (activeTab == i) white else softInk)
+                setTextColor(if (activeTab == i) cyan else softInk)
                 setTypeface(typeface, if (activeTab == i) Typeface.BOLD else Typeface.NORMAL)
                 background = if (activeTab == i)
                     GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                        intArrayOf(Color.rgb(37, 99, 235), Color.rgb(8, 145, 178))).apply {
+                        intArrayOf(Color.rgb(235, 244, 255), Color.rgb(222, 237, 255))).apply {
                         cornerRadius = dp(12).toFloat()
                     }
-                    else background(Color.rgb(8, 18, 37), 12)
+                    else background(Color.rgb(255, 255, 255), 12)
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Mở mục " + name
@@ -880,12 +881,12 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(0, dp(9), 0, 0)
         }
         actionTile(row1, "Hóa đơn", data.invoices.size.toString() + " hóa đơn",
-            Color.rgb(96, 165, 250)) {
+            Color.rgb(0, 122, 255)) {
             activeTab = 1
             render()
         }
         actionTile(row1, "Khách hàng", "Hồ sơ & địa chỉ",
-            Color.rgb(94, 234, 212)) {
+            Color.rgb(17, 133, 91)) {
             activeTab = 2
             render()
         }
@@ -895,12 +896,12 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(0, dp(10), 0, 0)
         }
         actionTile(row2, "Công nợ", "Theo dõi cần thu",
-            Color.rgb(253, 186, 116)) {
+            Color.rgb(181, 95, 6)) {
             activeTab = 3
             render()
         }
         actionTile(row2, "Lên đơn", if (canWrite) "Tạo hóa đơn mới" else "Cần kết nối API",
-            Color.rgb(196, 181, 253)) {
+            Color.rgb(114, 76, 196)) {
             activeTab = 4
             render()
         }
@@ -915,7 +916,7 @@ class NativeMainActivity : AppCompatActivity() {
             showCatalogue(data)
         }
         actionTile(tools1, "Sổ kế toán", "Tra cứu & đối chiếu",
-            Color.rgb(196, 181, 253)) {
+            Color.rgb(114, 76, 196)) {
             showLedger(data)
         }
         parent.addView(tools1)
@@ -924,11 +925,11 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(0, dp(10), 0, 0)
         }
         actionTile(tools2, "Trí nhớ AI", data.customerMemory.size.toString() + " hồ sơ",
-            Color.rgb(94, 234, 212)) {
+            Color.rgb(17, 133, 91)) {
             showCustomerMemory(data)
         }
         actionTile(tools2, "Đối chiếu giá", "Kiểm tra trùng đơn",
-            Color.rgb(253, 186, 116)) {
+            Color.rgb(181, 95, 6)) {
             showPriceComparison(data)
         }
         parent.addView(tools2)
@@ -1212,8 +1213,8 @@ class NativeMainActivity : AppCompatActivity() {
             this@NativeMainActivity, android.R.layout.simple_spinner_item, values) {
             private fun style(item: View): View = item.apply {
                 if (this is TextView) {
-                    setTextColor(white)
-                    setBackgroundColor(Color.rgb(19, 37, 64))
+                    setTextColor(ink)
+                    setBackgroundColor(Color.rgb(248, 249, 252))
                     setPadding(dp(12), dp(8), dp(12), dp(8))
                     textSize = 13f
                 }
@@ -1225,7 +1226,7 @@ class NativeMainActivity : AppCompatActivity() {
                 parent: android.view.ViewGroup): View =
                 style(super.getDropDownView(position, convertView, parent))
         }
-        background = panelBackground(Color.rgb(19, 37, 64), 10)
+        background = panelBackground(Color.rgb(248, 249, 252), 10)
     }
 
     // Match the website's read-only search, customer, date-range, month/year and
@@ -1248,9 +1249,9 @@ class NativeMainActivity : AppCompatActivity() {
             hint = hintText
             setSingleLine(true)
             textSize = 13f
-            setTextColor(white)
+            setTextColor(ink)
             setHintTextColor(softInk)
-            background = panelBackground(Color.rgb(19, 37, 64), 10)
+            background = panelBackground(Color.rgb(248, 249, 252), 10)
             setPadding(dp(12), 0, dp(12), 0)
         }
         fun fieldTitle(title: String) {
@@ -1296,11 +1297,11 @@ class NativeMainActivity : AppCompatActivity() {
         var toIso = ""
         lateinit var refresh: () -> Unit
         fun dateButton(): TextView = TextView(this).apply {
-            setTextColor(white)
+            setTextColor(ink)
             textSize = 12f
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), 0, dp(8), 0)
-            background = panelBackground(Color.rgb(19, 37, 64), 10)
+            background = panelBackground(Color.rgb(248, 249, 252), 10)
         }
         val fromDate = dateButton()
         val toDate = dateButton()
@@ -1334,7 +1335,7 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
                 textSize = 11f
                 setTextColor(cyan)
-                background = panelBackground(Color.rgb(19, 37, 64), 10)
+                background = panelBackground(Color.rgb(248, 249, 252), 10)
                 isClickable = true
                 setOnClickListener { onTap() }
             }
@@ -1371,7 +1372,7 @@ class NativeMainActivity : AppCompatActivity() {
         val totalsView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(11), dp(12), dp(11))
-            background = panelBackground(Color.rgb(9, 38, 57))
+            background = panelBackground(Color.rgb(238, 245, 252))
         }
         content.addView(totalsView, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(12)
@@ -1402,19 +1403,19 @@ class NativeMainActivity : AppCompatActivity() {
             totalsView.removeAllViews()
             rows.removeAllViews()
             if (invalidRange) label(totalsView, "⚠ Ngày bắt đầu sau ngày kết thúc.",
-                12f, true, Color.rgb(253, 186, 116))
+                12f, true, Color.rgb(181, 95, 6))
             label(totalsView, "PHẠM VI LỌC: " + t.recordCount + " hóa đơn",
                 12f, true, cyan)
             label(totalsView, "Doanh thu: " + SatoriData.money(t.revenue),
                 16f, true, white, 5)
             label(totalsView, "Đã thu: " + SatoriData.money(t.customerPaid) +
                 "   •   Cần thu: " + SatoriData.money(t.customerUnpaid),
-                12f, true, Color.rgb(153, 246, 228), 5)
+                12f, true, Color.rgb(17, 133, 91), 5)
             label(totalsView, "Tính doanh thu: " + t.countedCount +
                 "   •   Loại trừ: " + t.excludedCount, 11f, false, softInk, 5)
             if (t.invalidDateCount > 0) label(totalsView,
                 "⚠ " + t.invalidDateCount + " ngày hóa đơn cần kiểm tra",
-                11f, false, Color.rgb(253, 186, 116), 5)
+                11f, false, Color.rgb(181, 95, 6), 5)
             label(rows, "DANH SÁCH HÓA ĐƠN (" + filtered.size + ")", 13f, true, cyan, 12)
             filtered.take(150).forEach { inv ->
                 section(rows, "HÓA ĐƠN #" + inv.number + "  •  " +
@@ -1472,6 +1473,146 @@ class NativeMainActivity : AppCompatActivity() {
             (resources.displayMetrics.heightPixels * .87f).toInt())
     }
 
+    /**
+     * Compact, iOS-inspired cards: separate identity, contact/address and
+     * money so long Vietnamese addresses never compete with the amount.
+     * Actions use the exact same owner-only soft-delete pathway as the detail.
+     */
+    private fun infoStrip(parent: LinearLayout, value: String, tint: Int) {
+        val strip = TextView(this).apply {
+            text = value
+            textSize = 11.5f
+            setTextColor(tint)
+            maxLines = 3
+            setPadding(dp(10), dp(7), dp(10), dp(7))
+            background = panelBackground(Color.rgb(248, 249, 252), 10)
+            includeFontPadding = false
+        }
+        parent.addView(strip, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(6)
+        })
+    }
+
+    private fun compactAction(text: String, color: Int, action: () -> Unit): TextView =
+        TextView(this).apply {
+            this.text = text
+            gravity = Gravity.CENTER
+            textSize = 11.5f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(color)
+            setPadding(dp(13), dp(8), dp(13), dp(8))
+            minHeight = dp(37)
+            background = panelBackground(Color.rgb(248, 249, 252), 11)
+            isClickable = true
+            isFocusable = true
+            contentDescription = text
+            setOnClickListener { action() }
+        }
+
+    private fun invoiceQuickCard(parent: LinearLayout, invoice: SatoriInvoice,
+                                 fromDebt: Boolean = false) {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(12), dp(13), dp(12))
+            background = panelBackground(Color.rgb(255, 255, 255), 16)
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val code = TextView(this).apply {
+            text = "HÓA ĐƠN #" + invoice.number
+            textSize = 13.5f
+            setTextColor(Color.rgb(25, 104, 181))
+            setTypeface(typeface, Typeface.BOLD)
+        }
+        top.addView(code, LinearLayout.LayoutParams(0, -2, 1f))
+        val amount = TextView(this).apply {
+            text = SatoriData.money(invoice.total)
+            textSize = 15f
+            setTextColor(if (fromDebt) Color.rgb(181, 95, 6)
+                else Color.rgb(17, 133, 91))
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.END
+        }
+        top.addView(amount, LinearLayout.LayoutParams(-2, -2))
+        card.addView(top)
+        label(card, "👤 " + invoice.customer, 14f, true, white, 9)
+        infoStrip(card, "☎  " + invoice.phone.ifBlank { "Chưa có số điện thoại" },
+            Color.rgb(18, 128, 88))
+        infoStrip(card, "📍  " + invoice.address.ifBlank { "Chưa có địa chỉ" },
+            Color.rgb(25, 104, 181))
+        label(card, invoice.displayDate + "   •   " + invoice.status,
+            11f, false, if (fromDebt) Color.rgb(181, 95, 6) else softInk, 8)
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            setPadding(0, dp(9), 0, 0)
+        }
+        actions.addView(compactAction("Xem chi tiết", cyan) { openInvoice(invoice) },
+            LinearLayout.LayoutParams(0, dp(38), 1f))
+        if (invoice.canEditOrDelete) {
+            actions.addView(compactAction("🗑 Xóa đơn",
+                if (canAction("orders.delete")) Color.rgb(215, 44, 43)
+                else Color.rgb(110, 110, 115)) {
+                confirmSoftDelete(invoice)
+            }, LinearLayout.LayoutParams(-2, dp(38)).apply { marginStart = dp(8) })
+        }
+        card.addView(actions)
+        parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(9)
+        })
+    }
+
+    /** One guarded soft-delete from the invoice list, debt list and detail. */
+    private fun confirmSoftDelete(invoice: SatoriInvoice, after: (() -> Unit)? = null) {
+        val number = invoice.number.toIntOrNull()?.takeIf { it > 0 }
+        if (!invoice.canEditOrDelete || number == null) {
+            Toast.makeText(this, "Hóa đơn này không đủ điều kiện xóa.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!canAction("orders.delete")) {
+            AlertDialog.Builder(this)
+                .setTitle("Cần quyền xóa của chủ tài khoản")
+                .setMessage("Kết nối Mobile API Production bằng Google của chủ tài khoản " +
+                    "và bật quyền orders.delete. Chế độ xem Drive không được phép xóa.")
+                .setNegativeButton("Đóng", null)
+                .setPositiveButton("Cài đặt kết nối") { _, _ -> showConnectionSettings() }
+                .show()
+            return
+        }
+        val current = snapshot?.invoices?.find { it.id == invoice.id }
+        if (current == null || current.number != invoice.number ||
+            current.customer != invoice.customer || current.total != invoice.total) {
+            Toast.makeText(this, "Dữ liệu hóa đơn đã thay đổi. Làm mới trước khi xóa.",
+                Toast.LENGTH_LONG).show()
+            return
+        }
+        val requestId = UUID.randomUUID().toString().replace("-", "")
+        AlertDialog.Builder(this)
+            .setTitle("Chuyển hóa đơn #" + number + " vào thùng rác?")
+            .setMessage("Khách: " + invoice.customer + "\n" +
+                "Số tiền: " + SatoriData.money(invoice.total) +
+                "\n\nXóa mềm trên Google Drive. Có thể khôi phục trong 30 ngày. " +
+                "Các đơn đã thanh toán và đơn đối soát được bảo vệ.")
+            .setNegativeButton("Hủy", null)
+            .setPositiveButton("XÁC NHẬN XÓA") { _, _ ->
+                // No local deletion and no optimistic count change.
+                val payload = JSONObject()
+                    .put("expectedRevision", snapshot?.revision ?: -1)
+                    .put("requestId", requestId)
+                    .put("id", invoice.id)
+                    .put("invoiceNo", number)
+                    .put("expectedName", invoice.customer)
+                    .put("expectedTotal", invoice.total)
+                    .put("confirmed", true)
+                executeWrite("orders.delete", payload) { success, _ ->
+                    if (success) after?.invoke()
+                }
+            }
+            .show()
+    }
+
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
         button(parent, "▤ SỔ KẾ TOÁN · LỌC TRẠNG THÁI") { showLedger(data) }
         if (canWrite) button(parent, "+ TẠO HÓA ĐƠN", true) { launchEditor() }
@@ -1491,10 +1632,10 @@ class NativeMainActivity : AppCompatActivity() {
             hint = "Tìm hóa đơn…"
             textSize = 14f
             setSingleLine(true)
-            setTextColor(white)
+            setTextColor(ink)
             setHintTextColor(softInk)
             setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = panelBackground(Color.rgb(19, 37, 64), 11)
+            background = panelBackground(Color.rgb(248, 249, 252), 11)
             setText(searchText)
         }
         parent.addView(input, LinearLayout.LayoutParams(-1, dp(48)).apply {
@@ -1519,16 +1660,7 @@ class NativeMainActivity : AppCompatActivity() {
                 (if (status != "Tất cả") " • " + status else ""),
                 11.5f, true, cyan, 7)
             matching.take(120).forEach { inv ->
-                section(list, "HÓA ĐƠN #" + inv.number + "   •   " +
-                    SatoriData.money(inv.total),
-                    inv.customer + "  •  " + inv.displayDate + "\n" +
-                    (if (inv.isLinkedPairBill) inv.pairLabel + "\n" else "") +
-                    inv.status + "  •  " + inv.phone + "\n" +
-                    inv.address + "\n" +
-                    inv.lines.joinToString(", ") { it.description + " x" + it.quantity } +
-                    (if (inv.deliveryNote.isNotBlank()) "\nCó ghi chú giao hàng" else "")) {
-                    openInvoice(inv)
-                }
+                invoiceQuickCard(list, inv)
             }
         }
         filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
@@ -1547,6 +1679,27 @@ class NativeMainActivity : AppCompatActivity() {
         updateList()
     }
 
+    private fun customerQuickCard(parent: LinearLayout, customer: SatoriInvoice,
+                                  count: Int, onClick: () -> Unit) {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(12), dp(13), dp(12))
+            background = panelBackground(Color.rgb(255, 255, 255), 16)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Xem khách " + customer.customer + ", " + count + " hóa đơn"
+            setOnClickListener { onClick() }
+        }
+        label(card, "👤 " + customer.customer, 14f, true, white)
+        infoStrip(card, "☎  " + customer.phone.ifBlank { "Chưa có SĐT" },
+            Color.rgb(18, 128, 88))
+        infoStrip(card, "📍  " + customer.address.ifBlank { "Chưa có địa chỉ" },
+            Color.rgb(25, 104, 181))
+        label(card, count.toString() + " hóa đơn  •  Chạm để xem chi tiết",
+            11f, true, cyan, 8)
+        parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(9) })
+    }
+
     private fun renderCustomers(parent: LinearLayout, data: SatoriSnapshot) {
         label(parent, "Khách trùng tên nhưng khác địa chỉ hoặc điện thoại được tách riêng.",
             12f, false, muted, 12)
@@ -1559,9 +1712,7 @@ class NativeMainActivity : AppCompatActivity() {
             13f, true, teal, 8)
         groups.forEach { group ->
             val representative = group.first()
-            section(parent, representative.customer,
-                representative.phone + " · " + representative.address +
-                    " · " + group.size + " hóa đơn") {
+            customerQuickCard(parent, representative, group.size) {
                 AlertDialog.Builder(this)
                     .setTitle(representative.customer)
                     .setMessage(representative.phone + "\n" + representative.address +
@@ -1595,9 +1746,7 @@ class NativeMainActivity : AppCompatActivity() {
         section(parent, "CẦN THU " + data.outstandingCount + " HÓA ĐƠN",
             SatoriData.money(data.outstandingAmount))
         data.invoices.filter { it.isOutstanding }.forEach { inv ->
-            section(parent, "#" + inv.number + " · " + inv.customer,
-                inv.displayDate + " · " + SatoriData.money(inv.total) +
-                    " · " + inv.address) { openInvoice(inv) }
+            invoiceQuickCard(parent, inv, fromDebt = true)
         }
     }
 
@@ -1691,21 +1840,21 @@ class NativeMainActivity : AppCompatActivity() {
         val heading = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(13), dp(14), dp(13))
-            background = panelBackground(Color.rgb(19, 37, 64))
+            background = panelBackground(Color.rgb(248, 249, 252))
         }
         label(heading, "HÓA ĐƠN #" + invoice.number, 21f, true, white)
         label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true, cyan, 7)
         label(heading, SatoriData.money(invoice.total), 20f, true,
-            Color.rgb(153, 246, 228), 8)
+            Color.rgb(17, 133, 91), 8)
         content.addView(heading)
         if (invoice.isTest) label(content,
             "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ",
-            12f, true, Color.rgb(253, 186, 116), 9)
+            12f, true, Color.rgb(181, 95, 6), 9)
         if (invoice.isLinkedPairBill) {
             label(content, invoice.pairLabel, 13f, true, cyan, 10)
             if (invoice.isInternalCollaboratorBill) label(content,
                 "BẢN ĐỐI SOÁT CTV • KHÔNG CỘNG DOANH THU, KHÔNG THU TIỀN KHÁCH",
-                12f, true, Color.rgb(253, 186, 116), 6)
+                12f, true, Color.rgb(181, 95, 6), 6)
             if (invoice.pairDiscountPercent != null) label(content,
                 "Chiết khấu đã lưu: " + invoice.pairDiscountPercent + "%",
                 12f, false, softInk, 6)
@@ -1720,7 +1869,7 @@ class NativeMainActivity : AppCompatActivity() {
         if (invoice.duplicateFrom.isNotBlank()) label(content,
             "Bản giá sao từ #" + invoice.duplicateFrom +
                 " — kiểm tra trạng thái trước khi tính doanh thu.",
-            12f, true, Color.rgb(253, 186, 116), 8)
+            12f, true, Color.rgb(181, 95, 6), 8)
 
         label(content, "SẢN PHẨM (" + invoice.lines.size + " dòng)",
             13f, true, cyan, 16)
@@ -1744,7 +1893,7 @@ class NativeMainActivity : AppCompatActivity() {
         label(content, "Thuế VAT: " + SatoriData.money(invoice.vat),
             12f, false, softInk, 5)
         label(content, "TỔNG THANH TOÁN: " + SatoriData.money(invoice.total),
-            18f, true, Color.rgb(153, 246, 228), 11)
+            18f, true, Color.rgb(17, 133, 91), 11)
         if (invoice.deliveryNote.isNotBlank()) {
             label(content, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, cyan, 13)
             label(content, invoice.deliveryNote, 13f, false, white, 5)
@@ -1787,27 +1936,8 @@ class NativeMainActivity : AppCompatActivity() {
                         }
                     }.show()
             }
-            val deleteId = UUID.randomUUID().toString().replace("-", "")
-            if (invoice.canEditOrDelete && canAction("orders.delete")) button(content, "XÓA MỀM VÀO THÙNG RÁC 30 NGÀY") {
-                AlertDialog.Builder(this)
-                    .setTitle("Xóa mềm hóa đơn #" + invoice.number + "?")
-                    .setMessage("Khách: " + invoice.customer + "\n" +
-                        SatoriData.money(invoice.total) +
-                        "\nĐơn chuyển vào thùng rác trong 30 ngày; chưa xóa vĩnh viễn.")
-                    .setNegativeButton("Hủy", null)
-                    .setPositiveButton("XÁC NHẬN XÓA") { _, _ ->
-                        val p = JSONObject()
-                            .put("expectedRevision", snapshot?.revision ?: -1)
-                            .put("requestId", deleteId)
-                            .put("id", invoice.id)
-                            .put("invoiceNo", invoice.number.toInt())
-                            .put("expectedName", invoice.customer)
-                            .put("expectedTotal", invoice.total)
-                            .put("confirmed", true)
-                        executeWrite("orders.delete", p) { success, _ ->
-                            if (success) invoiceDialog?.dismiss()
-                        }
-                    }.show()
+            if (invoice.canEditOrDelete) button(content, "🗑 XÓA ĐƠN • THÙNG RÁC 30 NGÀY") {
+                confirmSoftDelete(invoice) { invoiceDialog?.dismiss() }
             }
         }
         fun confirmInternalShare(action: () -> Unit) {
