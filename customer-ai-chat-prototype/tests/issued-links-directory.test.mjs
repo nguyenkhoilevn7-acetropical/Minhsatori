@@ -301,7 +301,7 @@ test('missing phone form requires owner verification before enabling exact invoi
  const issue=html.slice(html.indexOf("$('agencyRealIssue').onclick"),
   html.indexOf("$('agencyRealCopy').onclick"));
  assert.match(area,/manualSources/);
- assert.match(area,/confirmed/);
+ assert.match(area,/xác minh/);
  assert.match(area,/contactInput\.type='tel'/);
  assert.match(area,/ownerChecked\.checked/);
  assert.match(area,/tick\.disabled=!valid/);
