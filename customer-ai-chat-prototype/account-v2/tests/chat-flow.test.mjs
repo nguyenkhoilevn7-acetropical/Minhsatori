@@ -84,6 +84,10 @@ test('clearing the cart requires user confirmation, saves one empty cart and nev
  assert.match(html,/await saveCart\(\[\]\)/);
  assert.match(html,/\$\('clearCart'\)\.disabled=cart\.length===0/);
 });
+test('empty quantity entry does not silently remove a product',()=>{
+ assert.match(html,/input\.value=item\.qty;toast\('Hãy nhập số nguyên từ 0 đến 500/);
+ assert.match(html,/Nhập 0 để xóa sản phẩm/);
+});
 test('inline script remains syntactically valid',()=>{
  assert.doesNotThrow(()=>new vm.Script(inline));
 });
