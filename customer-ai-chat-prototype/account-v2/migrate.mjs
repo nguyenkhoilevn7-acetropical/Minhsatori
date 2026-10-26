@@ -48,14 +48,17 @@ try{
  await client.query(statements('migrations/20261026_invoice_bindings.sql'));
  await client.query(statements('migrations/20261026_gemini_budget.sql'));
  await client.query(statements('migrations/20261026_ctv_mode.sql'));
+ await client.query(statements('migrations/20261026_sandbox_ledger.sql'));
  const expected=[
   'satori_v2_accounts','satori_v2_sessions','satori_v2_profiles',
   'satori_v2_addresses','satori_v2_policies','satori_v2_catalogue',
   'satori_v2_carts','satori_v2_quotes','satori_v2_order_requests','satori_v2_audit',
   'satori_v2_commission_grants','satori_v2_test_invoices','satori_v2_test_settlements',
   'satori_v2_invoice_bindings','satori_v2_gemini_budget',
+  'satori_v2_sandbox_receipts','satori_v2_sandbox_commission_ledger','satori_v2_sandbox_payment_events',
   'satori_v2_commission_grants','satori_v2_test_invoices','satori_v2_test_settlements',
-  'satori_v2_invoice_bindings','satori_v2_gemini_budget'
+  'satori_v2_invoice_bindings','satori_v2_gemini_budget',
+  'satori_v2_sandbox_receipts','satori_v2_sandbox_commission_ledger','satori_v2_sandbox_payment_events'
  ];
  const check=await client.query(
   'SELECT table_name FROM information_schema.tables '+

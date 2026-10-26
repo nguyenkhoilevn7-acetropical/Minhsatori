@@ -20,7 +20,10 @@ export const V2_REQUIRED_COLUMNS=Object.freeze({
  satori_v2_test_invoices:['id','order_id','account_id','snapshot'],
  satori_v2_test_settlements:['invoice_id','settled_by'],
  satori_v2_invoice_bindings:['id','account_id','legacy_id','invoice_no','verified_revision'],
- satori_v2_gemini_budget:['day','bucket','calls']
+ satori_v2_gemini_budget:['day','bucket','calls'],
+ satori_v2_sandbox_receipts:['invoice_id','canonical_id','revision','paid_vnd'],
+ satori_v2_sandbox_commission_ledger:['invoice_id','collaborator_account_id','amount_vnd'],
+ satori_v2_sandbox_payment_events:['event_id','invoice_id','revision']
 });
 
 export async function inspectV2Storage(pool){

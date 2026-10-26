@@ -91,6 +91,8 @@ jobs:
         run: node account-v2/tests/commissions-postgres.mjs
       - name: Invoice ownership and durable Gemini budget races
         run: node account-v2/tests/history-budget-postgres.mjs
+      - name: Signed sandbox ledger, payment reconciliation and invoice isolation
+        run: node account-v2/tests/sandbox-ledger-postgres.mjs
       - name: Offline logical backup, restore, and readback drill
         run: |
           set -euo pipefail

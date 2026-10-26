@@ -3,6 +3,8 @@
  * No production invoice writes. PostgreSQL is mandatory for any customer state.
  */
 import fs from 'node:fs';
+import {validGoogleClaims} from './google-claims.mjs';
+import {reconcileSandbox,sandboxHistory} from './sandbox-ledger.mjs';
 import {inferV2Order,reserveGeminiBudget} from './gemini-order.mjs';
 import {bindInvoice,invoiceDetail,invoiceIndex} from './invoice-history.mjs';
 import {postgresConfig} from './postgres-config.mjs';
@@ -154,7 +156,7 @@ async function login(req,res,pool){
   const ticket=await client.verifyIdToken({idToken:input.credential,audience:config().clientId});
   payload=ticket.getPayload();
  }catch{throw new ApiError('GOOGLE_TOKEN_INVALID',401)}
- error(payload&&payload.email_verified===true&&typeof payload.sub==='string','GOOGLE_ACCOUNT_UNVERIFIED',401);
+ error(validGoogleClaims(payload,config().clientId),'GOOGLE_ACCOUNT_UNVERIFIED',401);
  error(signupOpen()||acceptedSubjects().allows(payload.sub),'ACCOUNT_NOT_APPROVED',403);
  const conn=await pool.connect();
  try{
@@ -346,6 +348,15 @@ export async function handleAccountV2(req,res,pathname){
   // Customers without owner approval can only complete their registration.
   error(isOwner||actor.access_status==='ACTIVE'||isRegistrationRoute,
    'CUSTOMER_PENDING_ADMIN_APPROVAL',403);
+  if(pathname==='/api/v2/admin/sandbox-ledger'&&req.method==='POST'){
+   owner(actor);error(process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1','TEST_ORDERS_DISABLED',503);
+   send(res,200,await reconcileSandbox(pool,actor,await json(req),process.env.SATORI_V2_SANDBOX_LEDGER_HMAC_KEY));return true;
+  }
+  if(['/api/v2/sandbox-invoices','/api/v2/admin/sandbox-invoices'].includes(pathname)&&req.method==='GET'){
+   error(process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1','TEST_ORDERS_DISABLED',503);
+   const admin=pathname.includes('/admin/');if(admin)owner(actor);
+   send(res,200,await sandboxHistory(pool,actor,{admin,id:new URL(req.url,'http://local').searchParams.get('id')}));return true;
+  }
   if(pathname==='/api/v2/admin/ctv-mode'&&req.method==='PATCH'){
    owner(actor);send(res,200,await setCtvMode(pool,actor,await json(req)));return true;
   }
