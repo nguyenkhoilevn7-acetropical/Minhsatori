@@ -251,6 +251,7 @@ header .satori-logo{width:31px;height:31px}
 .product strong,.cart-line strong{font-size:13px}.product small{display:block;color:var(--sub);font-size:11px}
 .num{display:flex;align-items:center;gap:5px}.num button{background:var(--blueSoft);color:var(--blue);border:0;border-radius:10px;width:33px;height:33px;font-weight:800}
 .num input{width:49px;height:33px;text-align:center;border:1px solid var(--edge);border-radius:10px}
+.catalogue-notice{margin:5px 15px 0;padding:9px 12px;border-radius:12px;background:#fff4e4;color:#865414;font-size:12px;line-height:1.4}
 #toast{position:fixed;bottom:83px;left:50%;transform:translateX(-50%);max-width:92vw;padding:12px 15px;background:#1f344c;color:white;border-radius:12px;z-index:30;box-shadow:0 5px 22px #0a2b4b33}
 @media(min-width:700px){#app{border-left:1px solid var(--edge);border-right:1px solid var(--edge)}}
 @media(prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
@@ -292,6 +293,7 @@ header .satori-logo{width:31px;height:31px}
 </section>
 <section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1;min-height:0">
 <div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý Gemini</h1><p id="chatProviderStatus">Đang kiểm tra kết nối AI…</p></div></div>
+<div id="catalogueNotice" hidden role="status" class="catalogue-notice">⚠️ Chưa đồng bộ sản phẩm chính thức. Chưa thể thêm hàng vào giỏ V2.</div>
 <div id="messages" role="log" aria-live="polite"></div>
 <button id="deliveryPrompt" class="delivery-prompt" type="button" hidden>Chọn điểm giao để bắt đầu</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
 <div class="composer"><textarea id="message" rows="1" disabled placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" type="button" class="send composer-action" aria-label="Mở giỏ hàng" title="Mở giỏ hàng"><svg class="action-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M2 3h2l2.3 12.5a2 2 0 0 0 2 1.6H20a2 2 0 0 0 2-1.6L23 7H5"/></svg><svg class="action-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16"/><path d="m13 5 7 7-7 7"/></svg><b id="cartCount" class="composer-cart-count">0</b></button></div>
@@ -1036,6 +1038,7 @@ function foldProductSearch(text){
 }
 $('catalogueSearch').oninput=renderProducts;
 function renderProducts(){
+ $('catalogueNotice').hidden=products.length>0;
  $('products').replaceChildren();
  const needle=foldProductSearch($('catalogueSearch').value);
  const shown=products.filter(p=>!needle||foldProductSearch(
@@ -1090,8 +1093,15 @@ function showCartPriceSummary(pricing){
  }
  if(!pricing){
   const error=cartPricingErrorKey===pricingContextKey();
-  wrap.append(node('p',error?'Chưa kiểm tra được giá. Đóng và mở lại giỏ để thử lại.':
+  wrap.append(node('p',error?'Chưa xác minh được giá sau chiết khấu. Vui lòng kiểm tra lại, chưa thể xác nhận đơn.':
    'Đang kiểm tra chiết khấu và tổng tiền theo hồ sơ…','muted'));
+  if(error){
+   const retry=node('button','↻ Kiểm tra lại giá','btn');
+   retry.type='button';
+   retry.disabled=busy||savingCart;
+   retry.onclick=()=>{if(busy||savingCart)return;invalidateCartPricing();renderCart()};
+   wrap.append(retry);
+  }
   return;
  }
  const subtotal=pricing.items.reduce((total,i)=>total+i.listPrice*i.qty,0);
@@ -1646,6 +1656,13 @@ async function refreshData(){
  finally{$('chatStatus').textContent='';menu(false)}
 }
 $('manualRefresh').onclick=refreshData;
+// When a device reconnects, cached pricing errors must not trap checkout.
+window.addEventListener('online',()=>{
+ if(!me||busy||savingCart)return;
+ if(!$('cartView').classList.contains('hidden')){
+  invalidateCartPricing();renderCart();
+ }
+});
 
  $('agentAddressManage').onclick=()=>{closeDeliveryDialog(true);view('addresses')};
 
