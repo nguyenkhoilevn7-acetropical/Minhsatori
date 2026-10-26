@@ -1048,6 +1048,11 @@ class NativeMainActivity : AppCompatActivity() {
             12f, false, Color.rgb(157, 92, 13), 11)
         label(v2, "Không tự động lấy quyền Admin từ đăng nhập Drive hoặc trình duyệt khách.",
             11f, false, muted, 6)
+        button(v2, "⚙  QUẢN LÝ TOÀN BỘ V2 TRONG ỨNG DỤNG", true) {
+            startActivity(Intent(this, V2OwnerAdminActivity::class.java))
+        }
+        label(v2, "Khách hàng • Duyệt đăng ký • Đại lý/CTV • Địa chỉ • Chiết khấu • Bảng giá • Đơn V2",
+            12f, false, muted, 8)
         button(v2, "↻  Đồng bộ hóa đơn đang có") { refreshNow() }
         parent.addView(v2, LinearLayout.LayoutParams(-1, -2).apply { topMargin=dp(12) })
     }
