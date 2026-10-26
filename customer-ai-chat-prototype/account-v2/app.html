@@ -455,6 +455,43 @@ function demoInterpretMessage(text){
  if(items.some(x=>x.qty>500)||items.reduce((sum,x)=>sum+x.qty,0)>500)return [];
  return items;
 }
+/**
+ * In-memory demo pricing only. Mimics domain's per-unit VND rounding.
+ * Never produces an official invoice or uses Production customer data.
+ */
+function demoCartPricing(profileId,addressId){
+ const current=demoState.carts.get(profileId)||{lines:[],revision:0};
+ if(!current.lines.length)throw Error('Giỏ hàng mẫu trống');
+ const profile=demoState.profiles.find(p=>p.id===profileId);
+ const address=demoState.addresses.find(a=>a.id===addressId&&a.profileId===profileId&&a.active);
+ if(!profile||!address)throw Error('Điểm giao mẫu không hợp lệ');
+ let goodsVnd=0,internalGoodsVnd=0,invoiceMode='single';
+ const items=current.lines.map(line=>{
+  const product=demoState.products.find(p=>p.code===line.code);
+  if(!product)throw Error('Sản phẩm mẫu không còn trong danh mục');
+  const policy=demoState.policies.filter(p=>p.enabled&&p.profileId===profileId&&
+   (!p.addressId||p.addressId===addressId)&&(!p.productCode||p.productCode===line.code))
+   .sort((a,b)=>Number(!!b.addressId)*2+Number(!!b.productCode)-
+    (Number(!!a.addressId)*2+Number(!!a.productCode))||b.version-a.version)[0];
+  if(policy?.invoiceMode==='pair'&&profile.type!=='collaborator')throw Error('Chính sách CTV không đúng hồ sơ');
+  if(policy?.invoiceMode==='pair')invoiceMode='pair';
+  const discountBps=policy?.discountBps||0;
+  const unitPrice=Math.round(product.listPrice*(10000-discountBps)/10000);
+  const internalUnit=Math.round(product.listPrice*
+   (10000-(policy?.collaboratorBps??discountBps))/10000);
+  const lineTotal=unitPrice*line.qty;
+  goodsVnd+=lineTotal;internalGoodsVnd+=internalUnit*line.qty;
+  return {...line,name:product.name,unit:product.unit,listPrice:product.listPrice,
+   discountBps,unitPrice,lineTotal,amount:lineTotal};
+ });
+ return {currency:'VND',catalogueRevision:1,cartRevision:current.revision,
+  profileId,addressId:address.id,
+  delivery:{addressId:address.id,label:address.label,recipientName:address.recipientName,
+   recipientPhone:address.recipientPhone,address:address.address},
+  items,goodsVnd,shippingVnd:0,vatVnd:0,totalVnd:goodsVnd,
+  invoiceMode,chargesConfigured:false,
+  internalReference:invoiceMode==='pair'?{goodsVnd:internalGoodsVnd,totalVnd:internalGoodsVnd}:null};
+}
 function demoCall(path,data={},method='POST'){
  const p=path.split('?')[0],query=new URLSearchParams((path.split('?')[1]||''));
  const profileId=data?.profileId||query.get('profileId')||demoCustomerId;
@@ -552,39 +589,16 @@ function demoCall(path,data={},method='POST'){
   return {ok:true,suggestedItems,source:'offline-interface-demo',
    message:'Đây là kết quả nhận dạng mẫu, hãy kiểm tra số lượng rồi thêm vào giỏ chung.'};
  }
+ if(p==='/api/v2/cart-pricing'&&method==='GET'){
+  const {internalReference,...customerPricing}=demoCartPricing(profileId,query.get('addressId'));
+  return {ok:true,...customerPricing};
+ }
  if(p==='/api/v2/quote'&&method==='POST'){
-  const current=demoState.carts.get(profileId)||{lines:[],revision:0},lines=current.lines;
-  if(!lines.length)throw Error('Giỏ hàng mẫu trống');
-  const address=demoState.addresses.find(x=>x.id===data.addressId&&x.profileId===profileId&&x.active);
-  if(!address)throw Error('Địa chỉ mẫu không hợp lệ');
-  const profile=demoState.profiles.find(x=>x.id===profileId);
-  if(!profile)throw Error('Không có hồ sơ đại lý');
-  const quoteItems=[];
-  let totalVnd=0,collaboratorTotalVnd=0,invoiceMode='single';
-  for(const line of lines){
-   const product=demoState.products.find(p=>p.code===line.code);
-   if(!product)throw Error('Sản phẩm mẫu không còn trong danh mục');
-   const policy=demoState.policies.filter(x=>x.enabled&&x.profileId===profileId&&
-    (!x.addressId||x.addressId===address.id)&&(!x.productCode||x.productCode===line.code))
-    .sort((a,b)=>Number(!!b.addressId)*2+Number(!!b.productCode)-
-     (Number(!!a.addressId)*2+Number(!!a.productCode))||b.version-a.version)[0];
-   if(policy?.invoiceMode==='pair'&&profile.type!=='collaborator')throw Error('Chính sách CTV không đúng hồ sơ');
-   if(policy?.invoiceMode==='pair')invoiceMode='pair';
-   const discountBps=policy?.discountBps||0;
-   const amount=Math.round(product.listPrice*line.qty*(1-discountBps/10000));
-   const collaboratorAmount=Math.round(product.listPrice*line.qty*
-    (1-(policy?.collaboratorBps??discountBps)/10000));
-   quoteItems.push({...line,name:product.name,listPrice:product.listPrice,discountBps,amount});
-   totalVnd+=amount;collaboratorTotalVnd+=collaboratorAmount;
-  }
+  const priced=demoCartPricing(profileId,data.addressId);
   const quoteId=demoUuid();
-  const result={ok:true,quoteId,totalVnd,items:quoteItems,invoiceMode,
-   internalReference:invoiceMode==='pair'?{totalVnd:collaboratorTotalVnd}:null,
-   delivery:{addressId:address.id,label:address.label,recipientName:address.recipientName,
-    recipientPhone:address.recipientPhone,address:address.address},
-   profileId,addressId:address.id,cartRevision:current.revision,
+  const result={ok:true,...priced,quoteId,
    expiresAt:new Date(Date.now()+600000).toISOString(),
-   note:'SỐ TIỀN MẪU · đơn này không tạo hóa đơn thật'};
+   note:'SỐ TIỀN MẪU · không tạo hóa đơn thật'};
   demoState.quotes.set(quoteId,result);
   return result;
  }
