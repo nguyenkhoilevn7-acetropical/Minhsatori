@@ -57,16 +57,23 @@ export async function dispatchSandboxInvoice(pool,actor,{invoiceId,idempotencyKe
 export async function resolveSandboxPdf(pool,actor,{invoiceId,admin=false},reader=disabledDriveReader){
  check(reader.testOnly===true&&typeof reader.read==='function','CANONICAL_PDF_NOT_CONFIGURED');
  await ownedInvoice(pool,actor,invoiceId,admin);
- const r=await pool.query('SELECT canonical_id,pdf FROM satori_v2_sandbox_receipts WHERE invoice_id=$1',[invoiceId]);
+ const receiptQuery='SELECT canonical_id,pdf,revision FROM satori_v2_sandbox_receipts WHERE invoice_id=$1';
+ const r=await pool.query(receiptQuery,[invoiceId]);
  const ref=r.rows[0];check(ref?.pdf,'CANONICAL_PDF_NOT_READY');
+ check(Number.isSafeInteger(ref.revision)&&ref.revision>0,'PDF_REVISION_INVALID');
  // The caller supplies only the local invoice ID, never a Drive ID or arbitrary URL.
- const file=await reader.read({fileId:ref.pdf.fileId,canonicalId:ref.canonical_id});
+ const file=await reader.read({fileId:ref.pdf.fileId,canonicalId:ref.canonical_id,expectedRevision:ref.revision});
  check(file?.fileId===ref.pdf.fileId&&file.canonicalId===ref.canonical_id&&file.mimeType==='application/pdf','PDF_IDENTITY_MISMATCH');
  check(Buffer.isBuffer(file.bytes)&&file.bytes.length>5&&file.bytes.length<=10*1024*1024&&file.bytes.subarray(0,5).toString()==='%PDF-','PDF_CONTENT_INVALID');
  check(createHash('sha256').update(file.bytes).digest('hex')===ref.pdf.sha256,'PDF_HASH_MISMATCH');
  // Revocation during a slow Drive fetch must take effect before any bytes are returned.
  await ownedInvoice(pool,actor,invoiceId,admin);
- return {testOnly:true,mimeType:'application/pdf',bytes:file.bytes,sha256:ref.pdf.sha256};
+ // A payment/reconciliation update may race the remote read. Never deliver
+ // bytes tied to metadata that is no longer current; the caller can retry.
+ const latest=(await pool.query(receiptQuery,[invoiceId])).rows[0];
+ check(latest&&latest.revision===ref.revision&&latest.canonical_id===ref.canonical_id&&
+  digest(latest.pdf)===digest(ref.pdf),'PDF_REVISION_CONFLICT');
+ return {testOnly:true,mimeType:'application/pdf',bytes:file.bytes,sha256:ref.pdf.sha256,revision:ref.revision};
 }
 
 export const disabledPaymentReader=Object.freeze({
