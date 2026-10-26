@@ -1,0 +1,91 @@
+name: Account V2 PostgreSQL 18 synthetic backup and restore
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/account-v2-pg18-backup-sandbox.yml'
+      - 'customer-ai-chat-prototype/account-v2/backup/**'
+      - 'customer-ai-chat-prototype/account-v2/tests/backup-roundtrip-postgres.mjs'
+      - 'customer-ai-chat-prototype/account-v2/tests/restore-readback.mjs'
+      - 'customer-ai-chat-prototype/account-v2/migrate.mjs'
+      - 'customer-ai-chat-prototype/account-v2/schema.sql'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pg18-synthetic-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres18:
+        image: postgres:18
+        env:
+          POSTGRES_USER: satori_ci
+          POSTGRES_PASSWORD: v2_fake_ci_only_not_prod
+          POSTGRES_DB: satori_v2_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U satori_ci -d satori_v2_ci"
+          --health-interval=5s --health-timeout=5s --health-retries=15
+    defaults:
+      run:
+        working-directory: customer-ai-chat-prototype
+    env:
+      SATORI_V2_CI_DATABASE_URL: postgresql://satori_ci:v2_fake_ci_only_not_prod@127.0.0.1:5432/satori_v2_ci
+      PGPASSWORD: v2_fake_ci_only_not_prod
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: satori_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies only in synthetic workspace
+        run: npm install --no-audit --no-fund
+      - name: Apply V2 migrations to disposable PG18 only
+        env:
+          SATORI_ACCOUNT_V2_MIGRATION_APPROVED: '1'
+          SATORI_ACCOUNT_V2_DATABASE_URL: postgresql://satori_ci:v2_fake_ci_only_not_prod@127.0.0.1:5432/satori_v2_ci
+        run: |
+          set -euo pipefail
+          node account-v2/migrate.mjs
+          node account-v2/migrate.mjs
+      - name: Seed synthetic V2 data and exercise isolated application invariants
+        run: |
+          set -euo pipefail
+          node account-v2/tests/postgres-integration.mjs
+          node account-v2/tests/crm-postgres-integration.mjs
+      - name: Prove encrypted PG18 dump and independent PG18 restore
+        run: |
+          set -euo pipefail
+          test -n "${RUNNER_TEMP:-}"
+          mkdir -p "$RUNNER_TEMP/v2-pg18-bin"
+          cat > "$RUNNER_TEMP/v2-pg18-bin/pg_dump" <<'SCRIPT'
+          #!/bin/sh
+          exec docker run --rm --network host \
+            -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD \
+            -e PGDATABASE -e PGSSLMODE -e PGCONNECT_TIMEOUT \
+            postgres:18 pg_dump "$@"
+          SCRIPT
+          chmod 700 "$RUNNER_TEMP/v2-pg18-bin/pg_dump"
+          export PATH="$RUNNER_TEMP/v2-pg18-bin:$PATH"
+          pg_dump --version
+          node account-v2/tests/backup-roundtrip-postgres.mjs seal "$RUNNER_TEMP/v2-pg18-ci-only"
+          docker run --rm --network host -e PGPASSWORD postgres:18 \
+            psql -h 127.0.0.1 -U satori_ci -d postgres -v ON_ERROR_STOP=1 \
+              -c 'CREATE DATABASE satori_v2_restore;'
+          docker run --rm --network host -e PGPASSWORD \
+            -v "$RUNNER_TEMP:/ci:ro" postgres:18 \
+            pg_restore -h 127.0.0.1 -U satori_ci --no-owner --no-acl \
+              -d satori_v2_restore /ci/v2-pg18-ci-only.recovered.dump
+          SATORI_V2_CI_DATABASE_URL=postgresql://satori_ci:v2_fake_ci_only_not_prod@127.0.0.1:5432/satori_v2_restore \
+            node account-v2/tests/restore-readback.mjs
+          SATORI_V2_CI_DATABASE_URL=postgresql://satori_ci:v2_fake_ci_only_not_prod@127.0.0.1:5432/satori_v2_restore \
+            node account-v2/tests/backup-roundtrip-postgres.mjs verify "$RUNNER_TEMP/v2-pg18-ci-only"
+          # The source and restore are CI-only. Remove all temporary key/dump material.
+          rm -f "$RUNNER_TEMP"/v2-pg18-ci-only.*
+      - name: Confirm PG18 toolchain and fresh restore were used
+        run: |
+          docker run --rm postgres:18 pg_dump --version
+          docker run --rm postgres:18 pg_restore --version
