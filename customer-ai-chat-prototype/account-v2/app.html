@@ -403,7 +403,7 @@ const views=['chat','catalogue','cart','addresses','orders','account'];
 const PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
 let crmRows={registered:[],leads:[]};
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
-let lastQuote=null,lastTestRequestId=null,realTestEnabled=false;
+let lastQuote=null,lastTestRequestId=null,realTestEnabled=false,lastSubmittedCartKey='';
 let deliverySelectionProfileId=null;
 let cartPricing=null,cartPricingKey='',cartPricingErrorKey='',cartPricingLoadingKey='',cartPricingEpoch=0;
 const money=n=>new Intl.NumberFormat('vi-VN').format(n||0)+'đ';
@@ -1014,6 +1014,7 @@ function renderCart(fetchPrices=true){
  }
  if(!cart.length)$('cartLines').append(node('p','Giỏ hàng đang trống.','muted'));
  showCartPriceSummary(pricing);
+ updateDeliveryGate();
  if(fetchPrices&&key&&!pricing&&!cartPricingErrorKey&&
   !$('cartView').classList.contains('hidden'))void loadCartPricing();
 }
@@ -1048,7 +1049,10 @@ function updateDeliveryGate(){
  $('headerDelivery').classList.toggle('required',!ready);
  $('headerDelivery').setAttribute('aria-label',ready?'Điểm giao: '+selectedDeliveryAddress().label:'Chọn địa điểm giao hàng');
  $('quote').disabled=!ready;
- $('submitTestOrder').disabled=!ready||!lastQuote||(!PREVIEW&&!realTestEnabled);
+ const key=pricingContextKey();
+ $('submitTestOrder').disabled=!ready||!cart.length||busy||savingCart||
+  !key||cartPricingKey!==key||!cartPricing||
+  key===lastSubmittedCartKey||(!PREVIEW&&!realTestEnabled);
  return ready;
 }
 function requireDeliverySelection(){
@@ -1251,49 +1255,49 @@ $('addressForm').onsubmit=async ev=>{
   ev.target.reset();me=await call('/api/v2/me',undefined,'GET');renderAddresses();toast('Đã lưu địa chỉ');
  }catch(e){toast(e.message)}
 };
-$('quote').onclick=async()=>{
- resetTestQuote();
- $('quote').disabled=true;
- try{
-  if(!cart.length)throw Error('Giỏ hàng trống');
-  if(!requireDeliverySelection())throw Error('Vui lòng chọn địa chỉ giao hàng');
-  const data=await call('/api/v2/quote',{profileId:$('profile').value,addressId:$('location').value});
-  lastQuote=data;
-  const parts=[
-   'Điểm giao: '+(data.delivery?.label||$('location').selectedOptions[0]?.textContent||'Chưa rõ'),
-   'Số loại sản phẩm: '+data.items.length,
-   'Tổng khách phải trả: '+money(data.totalVnd),
-   data.invoiceMode==='pair'?'CTV: hai mức chiết khấu, chứng từ tham chiếu chưa được phát hành':
-     'Chính sách: một hóa đơn',
-   'Đây là báo giá thử · chưa phát hành hóa đơn thật.'
-  ];
-  $('quoteResult').replaceChildren();
-  for(const line of parts)$('quoteResult').append(node('p',line));
-  $('submitTestOrder').disabled=!(PREVIEW||realTestEnabled)||!selectedDeliveryAddress();
-  if(!PREVIEW&&!realTestEnabled)$('testOrderResult').textContent=
-   'Môi trường DB chưa được Admin cho phép ghi đơn thử.';
- }catch(e){toast(e.message)}
- finally{updateDeliveryGate()}
-};
+// Single checkout action. A fresh, backend-calculated quote is still
+// mandatory; it is not exposed as an extra screen/button to customers.
 $('submitTestOrder').onclick=async()=>{
- if(!lastQuote||$('submitTestOrder').disabled||!requireDeliverySelection())return;
- if(!confirm('Đây là ĐƠN THỬ, không giao hàng và không tạo hóa đơn thật. Xác nhận lưu yêu cầu thử?'))return;
- if(!lastTestRequestId)lastTestRequestId=crypto.randomUUID();
+ if(busy||savingCart||!cart.length)return;
+ if(!requireDeliverySelection())return;
+ if(!PREVIEW&&!realTestEnabled){
+  toast('Đặt hàng thật chưa được kích hoạt.');return;
+ }
+ const key=pricingContextKey();
+ if(!key||key===lastSubmittedCartKey){
+  toast('Giỏ hàng này đã gửi hoặc không còn hợp lệ.');return;
+ }
+ if(cartPricingKey!==key||!cartPricing){
+  toast('Đang kiểm tra giá và chiết khấu.');renderCart();return;
+ }
+ if(!confirm('Xác nhận Submit order THỬ? Không giao hàng, không thanh toán và không tạo hóa đơn thật.'))return;
+ const priceShown=cartPricing;
  $('submitTestOrder').disabled=true;
- $('testOrderResult').textContent='Đang kiểm tra và ghi đơn thử...';
+ $('testOrderResult').textContent='Đang kiểm tra giá và lưu đơn thử…';
  try{
-  const result=await call('/api/v2/test-orders',{quoteId:lastQuote.quoteId,
+  const q=await call('/api/v2/quote',{profileId:$('profile').value,addressId:selectedDeliveryAddress().id});
+  // Never submit silently after an admin price/policy change.
+  if(q.totalVnd!==priceShown.totalVnd||q.goodsVnd!==priceShown.goodsVnd||
+   q.shippingVnd!==priceShown.shippingVnd||q.vatVnd!==priceShown.vatVnd||
+   q.items.length!==priceShown.items.length||key!==pricingContextKey()){
+   invalidateCartPricing();renderCart();
+   $('testOrderResult').textContent='Giá hoặc chính sách đã thay đổi. Vui lòng kiểm tra lại tổng tiền trước khi Submit order.';
+   return;
+  }
+  lastQuote=q;
+  if(!lastTestRequestId)lastTestRequestId=crypto.randomUUID();
+  const result=await call('/api/v2/test-orders',{quoteId:q.quoteId,
    requestId:lastTestRequestId,confirmedTest:true});
-  $('testOrderResult').textContent='✓ Đã ghi ĐƠN THỬ '+String(result.orderId).slice(0,8)+
-   ' · Không có hóa đơn, không phát sinh thanh toán/giao hàng.';
+  lastSubmittedCartKey=key;
+  $('testOrderResult').textContent='✓ Đã nhận ĐƠN THỬ '+String(result.orderId).slice(0,8)+
+   ' · Không tạo hóa đơn thật hay phát sinh thanh toán.';
   lastQuote=null;
   await loadOrders();
-  toast('Đã ghi một yêu cầu thử, không phải hóa đơn thật');
+  toast('Đã gửi đơn thử; chưa tạo hóa đơn thật.');
  }catch(e){
-  $('testOrderResult').textContent='Chưa xác nhận lưu đơn thử: '+e.message+
-   '. Có thể bấm lại với cùng mã yêu cầu, không tạo trùng.';
-  $('submitTestOrder').disabled=false;
- }
+  $('testOrderResult').textContent='Chưa lưu được đơn thử: '+e.message+
+   '. Có thể thử lại cùng yêu cầu; hệ thống kiểm tra chống trùng.';
+ }finally{updateDeliveryGate()}
 };
 $('send').onclick=async()=>{
  if(!$('send').classList.contains('is-send')){view('cart');return}
