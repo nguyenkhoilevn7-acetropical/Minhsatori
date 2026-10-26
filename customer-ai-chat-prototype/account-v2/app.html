@@ -473,27 +473,30 @@ const demoUuid=()=>{
  return 'a0000000-1111-4111-8111-'+next;
 };
 function demoInterpretMessage(text){
- // Deterministic SAMPLE-only parser to demonstrate several SKUs per message.
- // This NEVER represents Gemini output, price authority or a real invoice.
+ // Offline preview only. Exact public product and quantity, no silent default 1.
+ const normalize=value=>String(value||'').normalize('NFD')
+  .replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toLowerCase();
+ const spoken={mot:1,hai:2,ba:3,bon:4,nam:5,muoi:10};
+ const input=normalize(text).trim().replace(/^(?:cho (?:toi|anh|chi|em|minh)\s+|(?:anh|chi|em) (?:lay|dat|mua|cho)\s+|lay\s+|dat\s+|them\s+)/,'');
+ const parts=input.split(/\s*(?:,|;|\bva\b|\bvoi\b)\s*/).filter(Boolean);
+ if(!parts.length||parts.length>6)return [];
  const parsed=new Map();
- const pattern=/\b([1-9]\d{0,2})\s*(?:thùng|chai|can|bình|hộp)?\s*(350\s*ml|500\s*ml|5\s*(?:lít|lit|l)\b)/gi;
- for(const match of String(text||'').matchAll(pattern)){
-  const type=match[2].toLowerCase().replace(/\s+/g,'');
-  const code=type==='350ml'?'TP-00001':type==='500ml'?'TP-00003':'TP-00136';
-  const qty=Number(match[1]);
-  parsed.set(code,(parsed.get(code)||0)+qty);
- }
- if(parsed.size===0){
-  const sample=demoState.products.find(p=>
-   String(text||'').toLowerCase().includes(p.code.toLowerCase())||
-   (p.code==='TP-00001'&&/350\s*ml/i.test(text))||
-   (p.code==='TP-00003'&&/500\s*ml/i.test(text))||
-   (p.code==='TP-00136'&&/(?:5\s*lít|5\s*l\b)/i.test(text)));
-  if(sample)parsed.set(sample.code,1);
+ for(const phrase of parts){
+  const m=phrase.trim().match(/^(\d{1,3}|mot|hai|ba|bon|nam|muoi)\s*(thung|thg|chai|can|binh)?\s*(?:(?:nuoc\s+)?(?:suoi|satori|nuoc|tinh\s+khiet)\s+)*(350\s*ml|500\s*ml|5\s*(?:lit|l))\s*[.!?]*$/);
+  if(!m)return []; // Never accept a partial cart.
+  const qty=/^\d+$/.test(m[1])?Number(m[1]):spoken[m[1]];
+  const volume=m[3].replace(/\s+/g,'');
+  const code=volume==='350ml'?'TP-00001':volume==='500ml'?'TP-00003':'TP-00136';
+  const product=demoState.products.find(p=>p.code===code);
+  const unit=m[2]==='thg'?'thung':m[2];
+  if(!Number.isSafeInteger(qty)||qty<1||qty>500||!product||
+   (unit&&unit!==normalize(product.unit)))return [];
+  const next=(parsed.get(code)||0)+qty;
+  if(next>500)return [];
+  parsed.set(code,next);
  }
  const items=[...parsed].map(([code,qty])=>({code,qty}));
- if(items.some(x=>x.qty>500)||items.reduce((sum,x)=>sum+x.qty,0)>500)return [];
- return items;
+ return items.reduce((total,x)=>total+x.qty,0)<=500?items:[];
 }
 /**
  * In-memory demo pricing only. Mimics domain's per-unit VND rounding.
@@ -624,10 +627,10 @@ function demoCall(path,data={},method='POST'){
  }
  if(p==='/api/v2/interpret'&&method==='POST'){
   const suggestedItems=demoInterpretMessage(String(data.message||''));
-  if(!suggestedItems.length)return {ok:true,needsClarification:true,
-   message:'Bản thử: nhắn “2 thùng 500ml và 3 thùng 350ml”. Chỉ có sản phẩm mẫu, không phải Gemini.'};
-  return {ok:true,suggestedItems,source:'offline-interface-demo',
-   message:'Đây là kết quả nhận dạng mẫu, hãy kiểm tra số lượng rồi thêm vào giỏ chung.'};
+  if(!suggestedItems.length)return {ok:true,needsClarification:true,provider:'offline-demo',
+   message:'Cần số lượng và quy cách rõ ràng, ví dụ: 10 thùng nước suối 500ml.'};
+  return {ok:true,suggestedItems,provider:'offline-demo',source:'offline-interface-demo',
+   message:'✓ Đã hiểu '+suggestedItems.reduce((n,x)=>n+x.qty,0)+' đơn vị.'};
  }
  if(p==='/api/v2/cart-pricing'&&method==='GET'){
   const {internalReference,...customerPricing}=demoCartPricing(profileId,query.get('addressId'));
