@@ -23,7 +23,8 @@ export const V2_REQUIRED_COLUMNS=Object.freeze({
  satori_v2_gemini_budget:['day','bucket','calls'],
  satori_v2_sandbox_receipts:['invoice_id','canonical_id','revision','paid_vnd'],
  satori_v2_sandbox_commission_ledger:['invoice_id','collaborator_account_id','amount_vnd'],
- satori_v2_sandbox_payment_events:['event_id','invoice_id','revision']
+ satori_v2_sandbox_payment_events:['event_id','invoice_id','revision'],
+ satori_v2_sandbox_outbox:['invoice_id','idempotency_key','quote_digest','state','attempt_count']
 });
 
 export async function inspectV2Storage(pool){

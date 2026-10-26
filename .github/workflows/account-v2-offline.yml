@@ -93,6 +93,8 @@ jobs:
         run: node account-v2/tests/history-budget-postgres.mjs
       - name: Signed sandbox ledger, payment reconciliation and invoice isolation
         run: node account-v2/tests/sandbox-ledger-postgres.mjs
+      - name: Canonical adapter timeout recovery and PDF access contract
+        run: node account-v2/tests/canonical-adapters-postgres.mjs
       - name: Offline logical backup, restore, and readback drill
         run: |
           set -euo pipefail

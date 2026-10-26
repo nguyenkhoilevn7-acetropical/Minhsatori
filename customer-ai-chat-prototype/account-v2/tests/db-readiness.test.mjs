@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import {createCachedStorageProbe,inspectV2Storage,V2_REQUIRED_COLUMNS} from '../db-readiness.mjs';
 const rows=()=>Object.entries(V2_REQUIRED_COLUMNS).flatMap(([tableName,columns])=>
  columns.map(columnName=>({tableName,columnName})));
-test('read-only schema probe verifies 20 expected V2-only tables and columns',async()=>{
+test('read-only schema probe verifies 21 expected V2-only tables and columns',async()=>{
  const queries=[];
  const result=await inspectV2Storage({query:async(sql,params)=>{
   queries.push({sql,params});return {rows:rows()};
  }});
- assert.deepEqual(result,{connected:true,schemaReady:true,tableCount:20});
+ assert.deepEqual(result,{connected:true,schemaReady:true,tableCount:21});
  assert.equal(queries.length,1);
  assert.match(queries[0].sql,/information_schema\.tables/);
  assert.doesNotMatch(queries[0].sql,/SELECT\s+\*/i);
- assert.equal(queries[0].params[0].length,20);
+ assert.equal(queries[0].params[0].length,21);
 });
 test('missing CRM migration column is NOT declared ready',async()=>{
  const filtered=rows().filter(x=>!(
@@ -20,19 +20,19 @@ test('missing CRM migration column is NOT declared ready',async()=>{
  const result=await inspectV2Storage({query:async()=>({rows:filtered})});
  assert.equal(result.connected,true);
  assert.equal(result.schemaReady,false);
- assert.equal(result.tableCount,20);
+ assert.equal(result.tableCount,21);
 });
 test('missing CRM table is NOT declared ready',async()=>{
  const filtered=rows().filter(x=>x.tableName!=='satori_v2_customer_leads');
  const result=await inspectV2Storage({query:async()=>({rows:filtered})});
  assert.equal(result.schemaReady,false);
- assert.equal(result.tableCount,19);
+ assert.equal(result.tableCount,20);
 });
 test('concurrent public readiness requests collapse to one read and cache result',async()=>{
  let t=1000,calls=0;
  const cached=createCachedStorageProbe(async()=>{
   calls++;await Promise.resolve();
-  return {connected:true,schemaReady:true,tableCount:20};
+  return {connected:true,schemaReady:true,tableCount:21};
  },()=>t,30000);
  const all=await Promise.all(Array.from({length:100},()=>cached()));
  assert.equal(calls,1);
