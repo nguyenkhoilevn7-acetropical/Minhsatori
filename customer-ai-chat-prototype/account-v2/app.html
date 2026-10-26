@@ -744,7 +744,9 @@ $('scrim').onclick=()=>menu(false);
 function view(name){
  if(!views.includes(name)||!me)return;
  if(me?.account?.accessStatus==='PENDING'&&!me.account.isAdmin)name='account';
+ if(name!=='chat')$('message').blur();
  for(const n of views){$(n+'View').classList.toggle('hidden',name!==n)}
+ updateComposerAction();
  for(const btn of document.querySelectorAll('[data-view]'))btn.classList.toggle('active',btn.dataset.view===name);
  menu(false);
  if(name==='cart'){invalidateCartPricing();renderCart()}
