@@ -1,0 +1,44 @@
+name: Android V2 owner contract (no signing)
+on:
+  push:
+    branches:
+      - feature/android-v2-owner-native-console-20261026
+    paths:
+      - 'android/app/src/main/java/vn/minhsatori/app/V2OwnerAdminActivity.kt'
+      - 'android/app/src/main/java/vn/minhsatori/app/V2OwnerApi.kt'
+      - 'android/tools/test_v2_*.py'
+      - '.github/workflows/android-v2-owner-contract.yml'
+  pull_request:
+    paths:
+      - 'android/app/src/main/java/vn/minhsatori/app/V2OwnerAdminActivity.kt'
+      - 'android/app/src/main/java/vn/minhsatori/app/V2OwnerApi.kt'
+      - 'android/tools/test_v2_*.py'
+      - '.github/workflows/android-v2-owner-contract.yml'
+permissions:
+  contents: read
+jobs:
+  owner-contract-and-debug-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check native V2 owner contract without credentials
+        run: python3 -m unittest discover -s android/tools -p 'test_v2_*.py' -v
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install SDK 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compile Android owner console, no signing or release
+        run: gradle -p android :app:compileDebugKotlin --no-daemon
