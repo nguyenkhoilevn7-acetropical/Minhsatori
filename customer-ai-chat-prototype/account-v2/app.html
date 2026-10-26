@@ -271,13 +271,13 @@ header .satori-logo{width:31px;height:31px}
 <span id="agentAddressHint" class="sr-only" role="status">Chưa chọn địa chỉ</span>
 </dialog>
 <main>
-<div id="previewBanner" class="hidden" role="status" style="background:#fff1d9;color:#7a4a0a;border-bottom:1px solid #f1d5a9;padding:9px 14px;text-align:center;font-size:12px;font-weight:700">BẢN XEM THỬ GIAO DIỆN · DỮ LIỆU GIẢ · KHÔNG KẾT NỐI GEMINI · KHÔNG TẠO HÓA ĐƠN</div>
+<div id="previewBanner" class="hidden" role="status" style="background:#fff1d9;color:#7a4a0a;border-bottom:1px solid #f1d5a9;padding:9px 14px;text-align:center;font-size:12px;font-weight:700">BẢN XEM THỬ · GEMINI CHƯA KÍCH HOẠT · KHÔNG CÓ ĐƠN THẬT</div>
 <section id="gate"><div id="gateBrand" class="gate-logo"></div><h1>Đặt nước dễ dàng</h1>
 <p>Đăng nhập Google để quản lý nhiều địa chỉ và đặt hàng bằng chat. Không cần link riêng.</p>
 <div id="signIn"></div><p id="loginStatus" class="notice">Đang kiểm tra điều kiện chạy thử...</p>
 </section>
 <section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1;min-height:0">
-<div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý đặt hàng</h1><p>Nhắn sản phẩm và số lượng cho Gemini</p></div></div>
+<div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý Gemini</h1><p id="chatProviderStatus">Đang kiểm tra kết nối AI…</p></div></div>
 <div id="messages" role="log" aria-live="polite"></div>
 <button id="deliveryPrompt" class="delivery-prompt" type="button" hidden>Chọn điểm giao để bắt đầu</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
 <div class="composer"><textarea id="message" rows="1" disabled placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" type="button" class="send composer-action" aria-label="Mở giỏ hàng" title="Mở giỏ hàng"><svg class="action-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M2 3h2l2.3 12.5a2 2 0 0 0 2 1.6H20a2 2 0 0 0 2-1.6L23 7H5"/></svg><svg class="action-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16"/><path d="m13 5 7 7-7 7"/></svg><b id="cartCount" class="composer-cart-count">0</b></button></div>
@@ -1856,11 +1856,12 @@ async function boot(){
   if(PREVIEW){
    $('previewBanner').classList.remove('hidden');
    await refresh();
-   bubble('Đây là bản xem thử giao diện với dữ liệu giả. Không có Google đăng nhập, Gemini, thanh toán hoặc hóa đơn thật.');
+   $('chatProviderStatus').textContent='Mô phỏng ngoại tuyến · không sử dụng Gemini API';
    return;
   }
   const status=await call('/api/v2/status',undefined,'GET');
   pilot=!!status.enabled;realTestEnabled=status.testOrdersEnabled===true;
+  $('chatProviderStatus').textContent=status.geminiConfigured?'Gemini đã cấu hình · Minh Satori':'Gemini chưa cấu hình trên V2';
   if(!pilot){$('loginStatus').textContent='Pilot tài khoản chưa được cấu hình trên server. Hóa đơn và link hiện tại không đổi.';return}
   $('loginStatus').textContent=status.signupEnabled?
     'Đăng nhập Google để đăng ký. Admin sẽ xem hồ sơ và duyệt quyền đặt hàng.':
