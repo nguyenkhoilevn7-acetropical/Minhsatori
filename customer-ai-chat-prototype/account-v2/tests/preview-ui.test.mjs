@@ -11,7 +11,7 @@ test('new V2 preview JavaScript parses in Chrome-compatible ECMAScript',()=>{
 test('preview banner is explicit, synthetic and guarded against live network actions',()=>{
  assert.match(html,/id="previewBanner"/);
  assert.match(html,/DỮ LIỆU GIẢ/);
- assert.match(html,/KHÔNG KẾT NỐI GEMINI/);
+ assert.match(html,/GEMINI CHƯA KÍCH HOẠT/);
  assert.match(html,/const PREVIEW=new URLSearchParams\(location.search\).get\('preview'\)==='1'/);
  assert.match(inline[1],/if\(PREVIEW\)return demoCall\(path,data,method\)/);
  assert.match(inline[1],/if\(p==='\/api\/v2\/admin\/catalogue\/refresh'\)throw Error/);
