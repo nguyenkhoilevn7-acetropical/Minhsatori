@@ -951,7 +951,13 @@ function sameCartLines(actual,expected){
   if(typeof line.code!=='string'||!Number.isSafeInteger(line.qty)||expectedMap.has(line.code))return false;
   expectedMap.set(line.code,line.qty);
  }
- return actual.every(line=>expectedMap.get(line.code)===line.qty);
+ const seen=new Set();
+ for(const line of actual){
+  if(typeof line?.code!=='string'||!Number.isSafeInteger(line.qty)||
+     seen.has(line.code)||expectedMap.get(line.code)!==line.qty)return false;
+  seen.add(line.code);
+ }
+ return seen.size===expectedMap.size;
 }
 
 function count(){return cart.reduce((n,x)=>n+x.qty,0)}
