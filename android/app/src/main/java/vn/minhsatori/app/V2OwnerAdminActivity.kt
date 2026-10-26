@@ -12,12 +12,18 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import android.content.Intent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigDecimal
@@ -48,27 +54,10 @@ class V2OwnerAdminActivity : AppCompatActivity() {
     private var profileId: String? = null
     private var profileType: String = "retail"
 
-    private val googleLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode != RESULT_OK) {
-            alert("Đăng nhập Google chưa hoàn tất. Không mở quyền Admin.")
-            return@registerForActivityResult
-        }
-        try {
-            val account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-                .getResult(ApiException::class.java)
-            val idToken = account.idToken
-                ?: throw SecurityException("Google không cung cấp ID token cho V2")
-            work({ api.ownerLogin(idToken) }) { verified ->
-                owner = verified
-                page = "home"
-                renderHome()
-            }
-        } catch (_: Exception) {
-            alert("Không xác minh được Google ID token. Kiểm tra Web OAuth V2.")
-        }
-    }
+    // Google Play services 22 removed legacy GoogleSignIn. Credential Manager
+    // obtains a fresh Google ID token only after the owner taps Sign in.
+    private val loginScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val credentialManager by lazy { CredentialManager.create(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,8 +105,8 @@ class V2OwnerAdminActivity : AppCompatActivity() {
         })
     }
 
-    private fun LinearLayout.action(label: String, click: () -> Unit,
-                                    destructive: Boolean = false) {
+    private fun LinearLayout.action(label: String, destructive: Boolean = false,
+                                    click: () -> Unit) {
         val item = text(label, 14f, true, if (destructive) red else blue).apply {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(14), dp(10), dp(14), dp(10))
@@ -164,7 +153,7 @@ class V2OwnerAdminActivity : AppCompatActivity() {
             setPadding(dp(16), dp(6), dp(16), dp(9))
         }
         root.addView(indicator)
-        val scroll = ScrollView(this).apply { fillViewport = true }
+        val scroll = ScrollView(this).apply { isFillViewport = true }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(14), dp(14), dp(26))
@@ -225,11 +214,27 @@ class V2OwnerAdminActivity : AppCompatActivity() {
             alert("Máy chủ chưa công bố Web OAuth Client ID hợp lệ.")
             return
         }
-        val opts = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .requestIdToken(clientId)
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(GetSignInWithGoogleOption.Builder(clientId).build())
             .build()
-        googleLauncher.launch(GoogleSignIn.getClient(this, opts).signInIntent)
+        loginScope.launch {
+            try {
+                val response = credentialManager.getCredential(
+                    context = this@V2OwnerAdminActivity, request = request)
+                val credential = response.credential
+                if (credential !is CustomCredential ||
+                    credential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL)
+                    throw SecurityException("Không nhận được thông tin Google hợp lệ")
+                val idToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
+                work({ api.ownerLogin(idToken) }) { verified ->
+                    owner = verified
+                    page = "home"
+                    renderHome()
+                }
+            } catch (_: Exception) {
+                alert("Không xác minh được Google ID token. Kiểm tra Web OAuth V2.")
+            }
+        }
     }
 
     private fun ensureOwner(): Boolean {
@@ -740,6 +745,7 @@ class V2OwnerAdminActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        loginScope.cancel()
         api.clear()
         owner=null
         super.onDestroy()
