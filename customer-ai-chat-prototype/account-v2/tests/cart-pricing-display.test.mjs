@@ -8,16 +8,16 @@ const js=html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]||'';
 const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
 const getMarkup=(name)=>html.match(new RegExp('<section id="'+name+'View"[\\s\\S]*?<\\/section>'))?.[0]||'';
 
-test('cart displays prices and immutable buyer/receiver contact, not editable buyer profile',()=>{
+test('cart displays pricing and recipient/address; buyer profile remains internal for policies',()=>{
  const cart=getMarkup('cart');
- for(const id of ['cartPriceSummary','cartBuyerName','cartBuyerPhone',
+ for(const id of ['cartPriceSummary',
   'cartRecipientName','cartRecipientPhone','cartAddressLabel','cartAddressText',
   'cartChangeAddress','quote','cartLines']){
   assert.match(cart,new RegExp('id="'+id+'"'));
  }
  assert.match(cart,/<select id="profile" hidden aria-hidden="true" tabindex="-1"><\/select>/);
  assert.match(cart,/<select id="location" hidden aria-hidden="true" tabindex="-1"><\/select>/);
- assert.doesNotMatch(cart,/<label>Người mua \/ hồ sơ<\/label><select/);
+ assert.doesNotMatch(cart,/id="cartBuyerName"|id="cartBuyerPhone"|Người mua \/ hồ sơ/);
  assert.match(cart,/class="screen-close back-to-chat"/);
  assert.match(html,/document.querySelectorAll\('\.back-to-chat'\)\.forEach\(btn=>btn\.onclick=\(\)=>view\('chat'\)\)/);
  assert.match(html,/function changeCartDeliveryOnly\(\)/);
