@@ -56,6 +56,10 @@ jobs:
           set -euo pipefail
           node account-v2/tests/postgres-integration.mjs
           node account-v2/tests/crm-postgres-integration.mjs
+          node account-v2/tests/commissions-postgres.mjs
+          node account-v2/tests/history-budget-postgres.mjs
+          node account-v2/tests/sandbox-ledger-postgres.mjs
+          node account-v2/tests/canonical-adapters-postgres.mjs
       - name: Prove encrypted PG18 dump and independent PG18 restore
         run: |
           set -euo pipefail
