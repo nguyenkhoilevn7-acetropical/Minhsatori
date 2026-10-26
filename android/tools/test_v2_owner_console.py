@@ -19,8 +19,9 @@ class NativeV2OwnerConsole(unittest.TestCase):
         self.assertNotIn('/app-v2?preview=1',OWNER)
 
     def test_google_verified_owner_not_drive_token(self):
-        self.assertIn('GoogleSignInOptions.DEFAULT_SIGN_IN',OWNER)
-        self.assertIn('.requestIdToken(clientId)',OWNER)
+        self.assertIn('CredentialManager.create(this)',OWNER)
+        self.assertIn('GetSignInWithGoogleOption.Builder(clientId)',OWNER)
+        self.assertIn('GoogleIdTokenCredential.createFrom(credential.data).idToken',OWNER)
         self.assertIn('api.ownerLogin(idToken)',OWNER)
         self.assertIn('account.optBoolean("isAdmin", false)',API)
         self.assertIn('fun clear() { session = null; csrf = null }',API)
