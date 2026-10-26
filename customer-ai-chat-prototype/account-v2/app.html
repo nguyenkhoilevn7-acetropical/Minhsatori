@@ -142,6 +142,35 @@ header .satori-logo{width:31px;height:31px}
 .drawer-brand .satori-logo{width:38px;height:38px;flex:none}
 .gate-logo{display:flex;justify-content:center;margin-bottom:15px}
 .gate-logo .satori-logo{width:64px;height:64px;border-radius:16px}
+
+/* Compact cart detail: immutable buyer, selectable address, verified price summary. */
+.screen-actions{display:flex;align-items:center;justify-content:flex-end;min-height:32px}
+.screen-close{width:33px;height:33px;flex:none;display:grid;place-items:center;border:0;border-radius:50%;background:#f2f2f7;color:#59677a;font-size:23px;line-height:1}
+.screen-close:focus-visible{outline:3px solid #80c5fc}
+.cart-heading-actions{gap:6px}
+.cart-clear{padding:7px 9px;font-size:11px;min-height:33px}
+.cart-panel h2,.delivery-panel h2{margin:0}
+.cart-item-info{flex:1;min-width:0}
+.cart-line{align-items:flex-start}
+.cart-item-info>strong{display:block;overflow-wrap:anywhere}
+.cart-price-line{display:block;color:#5d7184;font-size:12px;line-height:1.48;margin-top:3px}
+.cart-price-line.discount{color:#007aff}
+.cart-price-line.total{font-weight:750;color:#143149}
+.cart-price-summary{padding:9px 0 0;margin-top:7px;border-top:1px solid #eaf0f6}
+.cart-price-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0;font-size:13px}
+.cart-price-row>strong{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cart-price-row.discount>strong{color:#0879ed}
+.cart-price-row.grand-total{border-top:1px solid #dfe8f2;margin-top:7px;padding-top:11px;font-size:17px;font-weight:750;color:#142637}
+.cart-price-row.grand-total>strong{color:#007aff}
+.cart-price-note{margin:8px 0 0;color:#778492;font-size:11px;line-height:1.42}
+.delivery-record{display:grid;gap:0;margin:10px 0 13px}
+.delivery-row{padding:10px 0;border-bottom:1px solid #eff2f6;display:flex;flex-direction:column;gap:2px}
+.delivery-row:last-child{border-bottom:0}
+.delivery-label{font-size:11px;color:#748190;font-weight:600}
+.delivery-row strong{font-size:14px;overflow-wrap:anywhere}
+.delivery-secondary{font-size:12px;color:#586b7c;overflow-wrap:anywhere}
+.delivery-change{font-size:12px;padding:7px 10px;min-height:34px;color:#007aff}
+@media(max-width:460px){.cart-line{gap:6px}.num{gap:3px}.num button{width:29px;height:33px}.num input{width:40px}.cart-panel,.delivery-panel{padding:13px}.cart-heading-actions{gap:4px}}
 .composer{position:relative;bottom:auto;flex:0 0 auto;background:#fff;border-top:1px solid var(--edge);padding:7px 12px;padding-bottom:max(7px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:8px}
 .composer textarea{flex:1;width:100%;min-height:42px;max-height:104px;border:1px solid #dce5ec;border-radius:15px;outline:none;padding:10px 12px;resize:vertical;background:#f6f8fb;color:var(--ink)}
 .composer textarea:focus{border-color:#6abbff}
@@ -205,19 +234,27 @@ header .satori-logo{width:31px;height:31px}
 <button id="deliveryPrompt" class="delivery-prompt" type="button" hidden>Chọn điểm giao để bắt đầu</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
 <div class="composer"><textarea id="message" rows="1" disabled placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" class="send" aria-label="Gửi tin" disabled>➤</button></div>
 </section>
-<section id="catalogueView" class="view hidden"><div class="panel"><h2>Danh mục sản phẩm</h2>
+<section id="catalogueView" class="view hidden"><div class="screen-actions"><button class="screen-close back-to-chat" type="button" aria-label="Đóng màn hình và quay lại chat" title="Trở về chat">×</button></div><div class="panel"><h2>Danh mục sản phẩm</h2>
 <div class="field"><label for="catalogueSearch">Tìm tên hoặc mã sản phẩm</label><input id="catalogueSearch" type="search" maxlength="100" autocomplete="off" placeholder="Ví dụ: 500ml, 350ml, Satori"></div>
 <div id="products"></div></div></section>
-<section id="cartView" class="view hidden"><div class="panel"><div class="bar"><h2>Giỏ hàng</h2><div class="bar"><span class="muted" id="cartState"></span><button id="clearCart" class="btn" type="button" style="padding:8px;font-size:12px" disabled>Xóa giỏ</button></div></div><div id="cartLines"></div></div>
-<div class="panel"><h2>Giao hàng</h2><div class="field"><label>Người mua / hồ sơ</label><select id="profile"></select></div>
-<div class="field"><label>Địa chỉ giao</label><select id="location"></select></div>
+<section id="cartView" class="view hidden"><div class="panel cart-panel">
+<div class="bar cart-heading"><h2>Giỏ hàng</h2><div class="bar cart-heading-actions"><span class="muted" id="cartState"></span><button id="clearCart" class="btn cart-clear" type="button" disabled>Xóa giỏ</button><button class="screen-close back-to-chat" type="button" aria-label="Đóng giỏ hàng và quay lại chat" title="Quay lại chat">×</button></div></div>
+<div id="cartLines"></div><div id="cartPriceSummary" class="cart-price-summary" aria-live="polite"></div></div>
+<div class="panel delivery-panel"><div class="bar"><h2>Giao hàng</h2><button id="cartChangeAddress" class="btn delivery-change" type="button">Đổi địa chỉ</button></div>
+<select id="profile" hidden aria-hidden="true" tabindex="-1"></select>
+<select id="location" hidden aria-hidden="true" tabindex="-1"></select>
+<div class="delivery-record">
+<div class="delivery-row"><span class="delivery-label">Người mua / hồ sơ</span><strong id="cartBuyerName">—</strong><span id="cartBuyerPhone" class="delivery-secondary"></span></div>
+<div class="delivery-row"><span class="delivery-label">Người nhận</span><strong id="cartRecipientName">Chưa chọn điểm giao</strong><span id="cartRecipientPhone" class="delivery-secondary"></span></div>
+<div class="delivery-row"><span class="delivery-label">Địa chỉ giao</span><strong id="cartAddressLabel">Chưa chọn điểm giao</strong><span id="cartAddressText" class="delivery-secondary"></span></div>
+</div>
 <button id="quote" class="btn primary" style="width:100%">Kiểm tra báo giá</button>
 <div id="quoteResult" class="muted" style="margin-top:12px"></div>
 <button id="submitTestOrder" class="btn" type="button" style="width:100%;margin-top:10px;background:#0b7d52;color:white" disabled>Gửi đơn thử — không tạo hóa đơn thật</button>
 <div id="testOrderResult" class="muted" role="status" aria-live="polite" style="margin-top:9px"></div>
 <button id="confirm" class="btn" style="width:100%;margin-top:10px" disabled>Đặt hàng thật — chưa kích hoạt</button>
 </div></section>
-<section id="addressesView" class="view hidden"><div class="panel"><h2>Địa chỉ đã lưu</h2><div id="addresses"></div>
+<section id="addressesView" class="view hidden"><div class="screen-actions"><button class="screen-close back-to-chat" type="button" aria-label="Đóng màn hình và quay lại chat" title="Trở về chat">×</button></div><div class="panel"><h2>Địa chỉ đã lưu</h2><div id="addresses"></div>
 <details id="userAddressEditor"><summary style="cursor:pointer;color:var(--blue);font-weight:700;padding:12px 0">✎ Sửa hoặc tạm ngưng địa chỉ đã lưu</summary>
 <div class="field"><label>Chọn điểm giao</label><select id="userEditAddress"></select></div>
 <div class="field"><label>Nhãn địa chỉ</label><input id="userEditLabel" maxlength="70"></div>
@@ -235,7 +272,7 @@ header .satori-logo{width:31px;height:31px}
 <div class="field"><label>Địa chỉ đầy đủ</label><input name="address" required maxlength="400"></div>
 <button type="submit" class="btn primary" style="width:100%">Lưu địa chỉ</button>
 </form></section>
-<section id="ordersView" class="view hidden"><div class="panel">
+<section id="ordersView" class="view hidden"><div class="screen-actions"><button class="screen-close back-to-chat" type="button" aria-label="Đóng màn hình và quay lại chat" title="Trở về chat">×</button></div><div class="panel">
 <div class="bar"><div class="invoice-masthead" id="invoiceMasthead"><h2>Hóa đơn Minh Satori</h2></div><button id="refreshOrders" class="btn" type="button" aria-label="Làm mới danh sách hóa đơn">↻</button></div>
 <section id="ownerOriginalInvoices" hidden><p class="muted">Sổ hóa đơn gốc · Chỉ Admin được xem trực tiếp khi kết nối đọc đã xác minh.</p>
 <div class="invoice-month-tools"><input id="originalInvoiceMonth" type="month" aria-label="Tháng cần xem hóa đơn gốc"><button id="loadOriginalInvoices" class="btn primary" type="button">Xem hóa đơn gốc</button></div>
@@ -246,7 +283,7 @@ header .satori-logo{width:31px;height:31px}
 <h3 class="invoice-section-subtitle">Đơn hàng V2</h3>
 <p class="notice">Chỉ hiển thị đơn V2 gắn với tài khoản Google đã xác minh. Hóa đơn cũ chưa được đối chiếu định danh, không tự động gộp. Đơn chưa được sổ Satori xác nhận không hiển thị như đã tạo hóa đơn.</p>
 <div id="orderRows" class="muted"></div></div></section>
-<section id="accountView" class="view hidden"><div class="panel"><h2>Tài khoản</h2><div id="accountDetails"></div></div>
+<section id="accountView" class="view hidden"><div class="screen-actions"><button class="screen-close back-to-chat" type="button" aria-label="Đóng màn hình và quay lại chat" title="Trở về chat">×</button></div><div class="panel"><h2>Tài khoản</h2><div id="accountDetails"></div></div>
 <section id="registrationBox" class="panel" hidden>
 <h2>Đăng ký tài khoản Minh Satori V2</h2>
 <p class="notice">Thông tin chỉ lưu trong backend mới, chờ Admin duyệt. Đăng nhập bằng Google; hệ thống không hỏi hoặc lưu mật khẩu Google.</p>
