@@ -34,8 +34,8 @@ class V2AdminEntryContract(unittest.TestCase):
 
     def test_application_identity_preserved(self):
         self.assertIn('applicationId = "vn.minhsatori.app"', GRADLE)
-        self.assertIn('versionCode = 26', GRADLE)
-        self.assertIn('versionName = "0.4.9"', GRADLE)
+        self.assertIn('versionCode = 27', GRADLE)
+        self.assertIn('versionName = "0.4.10"', GRADLE)
 
 if __name__ == '__main__':
     unittest.main()
