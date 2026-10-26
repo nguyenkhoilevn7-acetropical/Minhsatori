@@ -37,7 +37,9 @@ test('frontend never silently chooses the first profile address and guards chat/
  assert.match(inline,/if\(!requireDeliverySelection\(\)\)return/);
  assert.match(inline,/call\('\/api\/v2\/interpret',\{message,profileId:\$\('profile'\)\.value,addressId:destination\.id\}\)/);
  assert.match(html,/id="deliveryPrompt"/);
- assert.match(html,/id="cartBadge"/);
+ assert.doesNotMatch(html,/id="cartBadge"/);
+ assert.match(html,/id="send"[^>]*class="send composer-action"/);
+ assert.match(html,/id="cartCount" class="composer-cart-count"/);
  assert.doesNotMatch(html,/id="chatCartShortcut"/);
  assert.doesNotThrow(()=>new vm.Script(inline));
 });
