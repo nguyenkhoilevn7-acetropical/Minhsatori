@@ -43,6 +43,15 @@ main>.view:not(.hidden){flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-be
 @keyframes gemini-typing-dot{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-3px);opacity:1}}
 @media(prefers-reduced-motion:reduce){.typing-dots i{animation:none;opacity:.75}}
 
+.chat-order-receipt{align-self:flex-start;max-width:min(95%,420px);width:max-content;padding:11px 13px;background:#f7f8fa;border:1px solid #e5e8ee;border-radius:16px;color:#1c1c1e;box-shadow:0 2px 8px #0b1c3010}
+.chat-order-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:750;color:#007aff;margin-bottom:6px}
+.chat-order-line{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #e6e9ef;font-size:13px}
+.chat-order-line:last-of-type{border-bottom:0}.receipt-qty{white-space:nowrap;font-weight:750;color:#007aff}
+.receipt-product{flex:1;overflow-wrap:anywhere}.receipt-price{white-space:nowrap;color:#3c5063;font-weight:650;font-variant-numeric:tabular-nums}
+.chat-order-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px}
+.chat-order-total{font-size:12px;font-weight:750;color:#1c344b}
+.chat-order-open{display:grid;place-items:center;min-width:34px;min-height:34px;border:0;border-radius:50%;background:#e6f2ff;color:#007aff}
+.chat-order-open svg{width:19px;height:19px}
 .pick{align-self:flex-start;max-width:95%;padding:13px 14px;color:var(--iosIncomingInk);background:var(--iosIncoming);border:0;border-radius:17px}
 .pick button{margin-top:8px;width:100%;border:0;border-radius:12px;padding:10px;background:var(--iosOutgoing);color:#fff;font-weight:750}
 #message{color:var(--chatBlue);font-weight:560}#message::placeholder{color:#687d90;font-weight:400}
@@ -1313,6 +1322,37 @@ $('submitTestOrder').onclick=async()=>{
    '. Có thể thử lại cùng yêu cầu; hệ thống kiểm tra chống trùng.';
  }finally{updateDeliveryGate()}
 };
+async function addChatOrderReceipt(selection){
+ const card=node('div',undefined,'chat-order-receipt');
+ card.setAttribute('aria-label','Sản phẩm vừa thêm vào giỏ hàng');
+ const head=node('div',undefined,'chat-order-head');
+ head.append(node('span','✓'),node('strong','ĐƠN HÀNG'));card.append(head);
+ let priced=null;
+ try{
+  const address=selectedDeliveryAddress();
+  if(address){
+   const params=new URLSearchParams({profileId:$('profile').value,addressId:address.id});
+   const info=await call('/api/v2/cart-pricing?'+params.toString(),undefined,'GET');
+   if(info.cartRevision===cartRev&&pricingContextKey())priced=info;
+  }
+ }catch{} // No invented totals when server pricing is unavailable.
+ for(const line of selection){
+  const product=products.find(p=>p.code===line.code);
+  const row=node('div',undefined,'chat-order-line');
+  row.append(node('span',line.qty+' ×','receipt-qty'),node('span',product?.name||line.code,'receipt-product'));
+  const item=priced?.items?.find(i=>i.code===line.code);
+  if(item&&Number.isSafeInteger(item.unitPrice)&&item.unitPrice>=0)
+   row.append(node('span',money(item.unitPrice*line.qty),'receipt-price'));
+  card.append(row);
+ }
+ const bottom=node('div',undefined,'chat-order-bottom');
+ bottom.append(node('span',priced?'Giỏ: '+money(priced.totalVnd):'🛒 '+count()+' sản phẩm','chat-order-total'));
+ const open=node('button',undefined,'chat-order-open');open.type='button';
+ open.setAttribute('aria-label','Mở giỏ hàng');
+ open.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M2 3h2l2.3 12.5a2 2 0 0 0 2 1.6H20a2 2 0 0 0 2-1.6L23 7H5"/></svg>';
+ open.onclick=()=>view('cart');bottom.append(open);card.append(bottom);
+ $('messages').append(card);$('messages').scrollTop=$('messages').scrollHeight;
+}
 $('send').onclick=async()=>{
  if(!$('send').classList.contains('is-send')){view('cart');return}
  const input=$('message'),message=input.value.trim();
@@ -1328,45 +1368,19 @@ $('send').onclick=async()=>{
   const destination=selectedDeliveryAddress();
    if(!destination)throw Error('DELIVERY_ADDRESS_REQUIRED');
    const result=await call('/api/v2/interpret',{message,profileId:$('profile').value,addressId:destination.id});
-  // Keep input text unchanged until the request succeeds.
-  input.value='';
   if(!Array.isArray(result.suggestedItems)||!result.suggestedItems.length){
-   await revealGeminiReply(reply,result.message||'Vui lòng cho biết tên sản phẩm và số lượng.',typingStartedAt);
+   input.value='';updateComposerAction();
+   await revealGeminiReply(reply,result.message||'Vui lòng cho biết sản phẩm và số lượng.',typingStartedAt);
    return;
   }
-  await revealGeminiReply(reply,result.message||'Đã nhận sản phẩm, anh/chị xác nhận số lượng trước khi thêm vào giỏ.',typingStartedAt);
+  // Validate exact quantities, then update the ONE shared cart in one atomic PUT.
+  // No redundant numeric input or second add-to-cart button.
   const selection=result.suggestedItems.map(x=>({code:x.code,qty:x.qty}));
-  const missing=selection.some(x=>!products.some(p=>p.code===x.code));
-  const box=node('div',undefined,'pick');
-  const heading=node('div','Chọn số lượng ngay trong chat','pick-title');box.append(heading);
-  const inputs=[];
-  for(const line of selection){
-   const p=products.find(item=>item.code===line.code);
-   const row=node('div',undefined,'pick-row');
-   const label=node('strong',p?.name||line.code);
-   const qty=document.createElement('input');
-   qty.type='number';qty.inputMode='numeric';qty.min='1';qty.max='500';
-   qty.value=line.qty;qty.setAttribute('aria-label','Số lượng '+(p?.name||line.code));
-   row.append(label,qty);box.append(row);inputs.push(qty);
-  }
-  if(missing)box.append(node('p','Có mã sản phẩm chưa được xác nhận trong danh mục. Không thể tự ý tạo giá hoặc đặt hàng.','muted'));
-  const add=node('button','✓ Thêm vào giỏ chung');add.disabled=missing;
-  add.onclick=async()=>{
-   if(add.disabled)return;
-   add.disabled=true;add.textContent='Đang lưu giỏ hàng...';
-   try{
-    const selected=selection.map((x,i)=>({code:x.code,qty:Number(inputs[i].value)}));
-    // This is one atomic cart update, NOT one invoice per message/SKU.
-    const merged=mergeCartItems(cart,selected);
-    await saveCart(merged);
-    box.replaceChildren(node('div','✓ Đã thêm '+selected.length+' loại sản phẩm. Giỏ chung hiện có '+count()+' đơn vị.'));
-    bubble('Đã cập nhật giỏ chung. Anh/chị có thể nhắn thêm sản phẩm hoặc mở giỏ để báo giá.','ai');
-   }catch(e){
-    add.disabled=false;add.textContent='✓ Thêm vào giỏ chung';
-    toast(e.message==='CART_REVISION_CONFLICT'?'Giỏ thay đổi trên thiết bị khác. Đã đồng bộ; kiểm tra lại số lượng rồi thử tiếp.':e.message);
-   }
-  };
-  box.append(add);$('messages').append(box);$('messages').scrollTop=$('messages').scrollHeight;
+  const merged=mergeCartItems(cart,selection);
+  await saveCart(merged);
+  input.value='';updateComposerAction();
+  await revealGeminiReply(reply,'✓ Đã thêm vào giỏ',typingStartedAt);
+  await addChatOrderReceipt(selection);
  }catch(e){
   await revealGeminiReply(reply,'Chưa xử lý được. Nội dung đã được giữ lại để gửi lại. '+(PREVIEW?'Kiểm tra sản phẩm mẫu.':'Kiểm tra kết nối và thử lại.'),typingStartedAt);
   reply.classList.add('error');
