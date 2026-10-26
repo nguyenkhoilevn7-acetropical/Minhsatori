@@ -3,6 +3,9 @@
  * No production invoice writes. PostgreSQL is mandatory for any customer state.
  */
 import fs from 'node:fs';
+import {inferV2Order,reserveGeminiBudget} from './gemini-order.mjs';
+import {bindInvoice,invoiceDetail,invoiceIndex} from './invoice-history.mjs';
+import {postgresConfig} from './postgres-config.mjs';
 import {isDeepStrictEqual} from 'node:util';
 import {commissionReport,saveGrant,grantFor,commissionQuote,customerQuote,recordTestInvoice,listTestInvoices} from './commissions.mjs';
 import path from 'node:path';
@@ -96,9 +99,7 @@ function enforceOrigin(req){
 }
 async function db(){
  if(!poolPromise)poolPromise=import('pg').then(({default:pg})=>{
-  return new pg.Pool({connectionString:config().databaseUrl,max:5,
-   connectionTimeoutMillis:5000,idleTimeoutMillis:20000,
-   ssl:process.env.SATORI_ACCOUNT_V2_PG_SSL==='1'?{rejectUnauthorized:true}:undefined});
+  return new pg.Pool({...postgresConfig(),max:5,idleTimeoutMillis:20000});
  }).catch(e=>{poolPromise=null;throw e});
  return poolPromise;
 }
@@ -269,13 +270,22 @@ export async function assertSelectedDelivery(pool,actor,input){
  error(r.rows.length===1,'DELIVERY_ADDRESS_REQUIRED',409);
  return true;
 }
-async function interpret(pool,input){
+async function interpret(pool,input,actor){
  error(typeof input.message==='string'&&input.message.trim().length>=2&&input.message.length<=500,'MESSAGE_INVALID');
+ // A configured V2 request attempts real inference; fallback never claims Gemini.
+ let inferenceFailure=null;
+ if(geminiConfigured()){
+  const catalogue=await pool.query('SELECT code,name,unit,active FROM satori_v2_catalogue WHERE active=true');
+  const inferred=await inferV2Order({message:input.message,catalogue:catalogue.rows,
+   consume:()=>reserveGeminiBudget(pool,actor.id)});
+  if(inferred.ok)return {...inferred,geminiConfigured:true};
+  inferenceFailure=inferred.reason;
+ }
  // Reuse the ORIGINAL multi-order parser, rule memory and optional Gemini
  // segmentation; identity and pricing remain protected by the V2 backend.
- const result=await interpretLegacyOrder(input.message);
+ const result=await interpretLegacyOrder(input.message,{}, {allowGemini:false});
  const fallback={...result,provider:/gemini/.test(result?.source||'')?'gemini':'satori-rules',
-  geminiConfigured:geminiConfigured()};
+  geminiConfigured:geminiConfigured(),degraded:!!inferenceFailure,degradedReason:inferenceFailure};
  if(Array.isArray(result?.suggestedItems)&&result.suggestedItems.length){
   const r=await pool.query('SELECT code FROM satori_v2_catalogue WHERE active=true');
   const available=new Set(r.rows.map(p=>p.code));
@@ -286,7 +296,7 @@ async function interpret(pool,input){
  }
  // Product FAQ may use the same server-side Gemini provider only when both
  // the Free Tier is configured and a sanitized PUBLIC-product question is safe.
- if(geminiConfigured()&&productQuestionEligible(input.message)){
+ if(!inferenceFailure&&geminiConfigured()&&productQuestionEligible(input.message)){
   const r=await pool.query('SELECT code,name,unit,active FROM satori_v2_catalogue WHERE active=true');
   const help=await answerGeminiProductQuestion(input.message,r.rows);
   if(help)return {...help,geminiConfigured:true};
@@ -373,6 +383,14 @@ export async function handleAccountV2(req,res,pathname){
      "VALUES($1,'owner','TEST_COMMISSION_SETTLED',$2)",[actor.id,input.invoiceId]);
     await c.query('COMMIT');send(res,200,{ok:true,testOnly:true,changed:r.rows.length===1});return true;
    }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
+  }
+  if(pathname==='/api/v2/admin/invoice-bindings'&&req.method==='POST'){
+   owner(actor);send(res,201,await bindInvoice(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/invoices'&&req.method==='GET'){
+   const params=new URL(req.url,'http://local').searchParams;
+   send(res,200,params.has('id')?await invoiceDetail(pool,actor,params.get('id')):
+    await invoiceIndex(pool,actor,{before:params.get('before')}));return true;
   }
   if(pathname==='/api/v2/register'&&req.method==='GET'){
    send(res,200,await registrationRead(pool,actor));return true;
@@ -523,7 +541,7 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/interpret'&&req.method==='POST'){
    const input=await json(req);
    await assertSelectedDelivery(pool,actor,input);
-   const result=await interpret(pool,input);send(res,200,{ok:true,...result});return true;
+   const result=await interpret(pool,input,actor);send(res,200,{ok:true,...result});return true;
   }
   if(pathname==='/api/v2/cart-pricing'&&req.method==='GET'){
    // Authenticated, account-owned, active delivery; no invoice/quote INSERT.

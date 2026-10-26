@@ -1,3 +1,4 @@
+import {assertNeonMigrationTarget} from './postgres-config.mjs';
 /**
  * Guard the Render Free V2 pilot DB only. This is not a generic production
  * migrator. Never log connection strings or raw parser errors.
@@ -5,6 +6,7 @@
 const PILOT_DB='minh_satori_v2_pilot_isolated';
 const PILOT_HOST='dpg-dbevfkm7bikc73bl2v80-a';
 export function assertPilotMigrationTarget(env=process.env){
+ if(env.SATORI_ACCOUNT_V2_DATABASE_PROVIDER==='neon-free')return assertNeonMigrationTarget(env);
  if(env.SATORI_ACCOUNT_V2_MIGRATION_APPROVED!=='1')
   throw Error('V2_MIGRATION_NOT_APPROVED');
  if(env.SATORI_ACCOUNT_V2_MIGRATION_TARGET_DATABASE!==PILOT_DB)

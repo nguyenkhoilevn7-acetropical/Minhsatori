@@ -17,7 +17,7 @@ test('Gemini uses original protected server-side keys, not a separate frontend S
  assert.match(router,/import \{geminiConfigured\} from '\.\.\/free-parser\.mjs'/);
  assert.match(router,/import \{answerGeminiProductQuestion,productQuestionEligible\}/);
  assert.match(router,/geminiConfigured:geminiConfigured\(\)/);
- assert.match(router,/await interpretLegacyOrder\(input\.message\)/);
+ assert.match(router,/await interpretLegacyOrder\(input\.message,\{\}, \{allowGemini:false\}\)/);
  assert.match(router,/await answerGeminiProductQuestion\(input\.message,r\.rows\)/);
  assert.doesNotMatch(html,/GEMINI_API_KEY|x-goog-api-key|generativelanguage\.googleapis\.com/);
 });
@@ -36,4 +36,20 @@ test('customer UI never pretends a preview bot is a real Gemini API',()=>{
  assert.match(html,/const PREVIEW=new URLSearchParams\(location\.search\)\.get\('preview'\)==='1'/);
  assert.match(html,/provider:'offline-demo'/);
  assert.match(html,/BẢN XEM THỬ/);
+});
+
+test('V2 rules-only fallback never calls Gemini after budget denial',async()=>{
+ const oldFetch=globalThis.fetch,oldKey=process.env.GEMINI_API_KEY,oldFree=process.env.GEMINI_FREE_TIER_ONLY;
+ let calls=0;
+ globalThis.fetch=async()=>{calls++;throw Error('unbudgeted network request')};
+ process.env.GEMINI_API_KEY='synthetic';process.env.GEMINI_FREE_TIER_ONLY='true';
+ try {
+  await interpretLegacyOrder('lấy nước uống cho buổi họp ngày mai',{}, {allowGemini:false});
+  await interpretLegacyOrder('lấy loại nước lạ và thêm một thứ khác',{}, {allowGemini:false});
+  assert.equal(calls,0);
+ } finally {
+  globalThis.fetch=oldFetch;
+  if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;
+  if(oldFree===undefined)delete process.env.GEMINI_FREE_TIER_ONLY;else process.env.GEMINI_FREE_TIER_ONLY=oldFree;
+ }
 });

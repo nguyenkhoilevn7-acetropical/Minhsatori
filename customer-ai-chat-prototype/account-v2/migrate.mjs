@@ -12,19 +12,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import pg from 'pg';
+import {postgresConfig,assertNeonMigrationTarget} from './postgres-config.mjs';
 const here=path.dirname(fileURLToPath(import.meta.url));
 const uri=process.env.SATORI_ACCOUNT_V2_DATABASE_URL||'';
 if(process.env.SATORI_ACCOUNT_V2_MIGRATION_APPROVED!=='1')
  throw Error('V2_MIGRATION_NOT_APPROVED');
 if(!/^postgres(?:ql)?:\/\//.test(uri))throw Error('V2_DATABASE_URL_REQUIRED');
 const u=new URL(uri);
+// Direct CLI execution must enforce the same Neon destination as boot.
+if(u.hostname.endsWith('.neon.tech')||process.env.SATORI_ACCOUNT_V2_DATABASE_PROVIDER==='neon-free')
+ assertNeonMigrationTarget();
 if(!u.hostname||!u.pathname||u.pathname==='/postgres'||u.pathname==='/template1')
  throw Error('V2_DEDICATED_DATABASE_REQUIRED');
-const client=new pg.Client({
- connectionString:uri,
- connectionTimeoutMillis:5000,
- ssl:process.env.SATORI_ACCOUNT_V2_PG_SSL==='1'?{rejectUnauthorized:true}:undefined
-});
+const client=new pg.Client(postgresConfig());
 await client.connect();
 let committed=false;
 try{
@@ -45,10 +45,16 @@ try{
  await client.query(statements('migrations/20261025_policy_revision.sql'));
  await client.query(statements('migrations/20261025_customer_crm.sql'));
  await client.query(statements('migrations/20261026_commissions.sql'));
+ await client.query(statements('migrations/20261026_invoice_bindings.sql'));
+ await client.query(statements('migrations/20261026_gemini_budget.sql'));
  const expected=[
   'satori_v2_accounts','satori_v2_sessions','satori_v2_profiles',
   'satori_v2_addresses','satori_v2_policies','satori_v2_catalogue',
-  'satori_v2_carts','satori_v2_quotes','satori_v2_order_requests','satori_v2_audit'
+  'satori_v2_carts','satori_v2_quotes','satori_v2_order_requests','satori_v2_audit',
+  'satori_v2_commission_grants','satori_v2_test_invoices','satori_v2_test_settlements',
+  'satori_v2_invoice_bindings','satori_v2_gemini_budget',
+  'satori_v2_commission_grants','satori_v2_test_invoices','satori_v2_test_settlements',
+  'satori_v2_invoice_bindings','satori_v2_gemini_budget'
  ];
  const check=await client.query(
   'SELECT table_name FROM information_schema.tables '+
