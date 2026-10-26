@@ -717,7 +717,7 @@ function view(name){
  for(const n of views){$(n+'View').classList.toggle('hidden',name!==n)}
  for(const btn of document.querySelectorAll('[data-view]'))btn.classList.toggle('active',btn.dataset.view===name);
  menu(false);
- if(name==='cart'){if(cartPricingErrorKey)cartPricingErrorKey='';renderCart()}
+ if(name==='cart'){invalidateCartPricing();renderCart()}
  if(name==='orders'){
   loadOrders().catch(e=>toast(e.message));
   if(me.account.isAdmin)loadOriginalInvoices().catch(e=>toast(e.message));
