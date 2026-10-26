@@ -13,10 +13,15 @@ try{
  }
  const one=await pool.query('SELECT r.state,c.revision,q.catalogue_revision FROM '+
   'satori_v2_order_requests r JOIN satori_v2_quotes q ON r.quote_id=q.id '+
-  'JOIN satori_v2_carts c ON c.account_id=q.account_id AND c.profile_id=q.profile_id');
+  'JOIN satori_v2_carts c ON c.account_id=q.account_id AND c.profile_id=q.profile_id '+
+  "JOIN satori_v2_accounts a ON a.id=r.account_id WHERE a.email='sandbox-only@example.invalid'");
  assert.equal(one.rowCount,1);
  assert.equal(one.rows[0].state,'PENDING_INTEGRATION');
  assert.equal(one.rows[0].revision,2);
  assert.equal(one.rows[0].catalogue_revision,1);
+ const restored=await pool.query("SELECT i.snapshot,s.invoice_id FROM satori_v2_test_invoices i JOIN satori_v2_test_settlements s ON s.invoice_id=i.id");
+ assert.equal(restored.rowCount,1);
+ assert.equal(restored.rows[0].snapshot.commission.commissionVnd,150000);
+ assert.equal(restored.rows[0].snapshot.commission.grantVersion,2);
  console.log('PASS isolated V2 pg_dump/pg_restore owner-data readback; no invoice marked committed');
 }finally{await pool.end()}
