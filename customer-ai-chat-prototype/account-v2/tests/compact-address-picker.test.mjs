@@ -5,13 +5,14 @@ import vm from 'node:vm';
 
 const html=readFileSync(new URL('../app.html',import.meta.url),'utf8');
 const script=html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1];
-test('header shows agency/profile and map-pin beside only one cart',()=>{
+test('header contains agency/location icons; single cart control is in composer',()=>{
  const header=html.match(/<header>([\s\S]*?)<\/header>/)?.[1]||'';
  assert.match(header,/id="headerProfile"/);
  assert.match(header,/id="headerDelivery"/);
- assert.match(header,/id="cartBadge"/);
- assert.ok(header.indexOf('id="headerProfile"')<header.indexOf('id="cartBadge"'));
- assert.ok(header.indexOf('id="headerDelivery"')<header.indexOf('id="cartBadge"'));
+ assert.doesNotMatch(header,/id="cartBadge"/);
+ assert.ok(header.indexOf('id="headerProfile"')<header.indexOf('id="headerDelivery"'));
+ assert.match(html,/class="send composer-action"/);
+ assert.match(html,/id="cartCount" class="composer-cart-count"/);
  assert.match(header,/class="satori-logo"/);
 });
 test('login dialog makes explicit previous/saved delivery choice in compact accessible panel',()=>{
