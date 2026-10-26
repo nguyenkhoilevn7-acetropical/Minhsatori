@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
 import {interpretLegacyOrder} from './legacy-interpret.mjs';
+import {geminiConfigured} from '../free-parser.mjs';
 import {readMinhSatori,readOnlyReady} from '../satori-readonly.mjs';
 import {monthRange,safeLegacyInvoiceIndex} from './legacy-owner-invoices.mjs';
 import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
@@ -299,6 +300,7 @@ export async function handleAccountV2(req,res,pathname){
     customerRolloutEnabled:ready()&&(signupOpen()||acceptedSubjects().customerRolloutReady),
     signupEnabled:ready()&&signupOpen(),
     testOrdersEnabled:ready()&&process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1',
+     geminiConfigured:geminiConfigured(),geminiModel:geminiConfigured()?'gemini-3.5-flash-lite':null,
     googleClientId:flag()?config().clientId:null,durableStorageReady:!!config().databaseUrl});
    return true;
   }
