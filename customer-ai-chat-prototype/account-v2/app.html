@@ -419,8 +419,8 @@ header .satori-logo{width:31px;height:31px}
 <div class="field"><label>Áp dụng cho địa chỉ</label><select id="adminPolicyAddress"></select></div>
 <div class="field"><label>Áp dụng cho sản phẩm</label><select id="adminPolicySku"></select></div>
 <div class="field"><label>Chiết khấu khách hàng (%)</label><input id="adminDiscount" type="number" min="0" max="100" step="0.01" value="0"></div>
-<div class="field"><label>Loại hóa đơn</label><select id="adminInvoiceMode"><option value="single">Một hóa đơn</option><option value="pair">Hai hóa đơn CTV (tham chiếu riêng)</option></select></div>
-<div class="field"><label>Chiết khấu CTV (%) — chỉ dùng khi chọn hai hóa đơn</label><input id="adminCtvDiscount" type="number" min="0" max="100" step="0.01" value="35"></div>
+<div class="field"><label>Loại hóa đơn</label><select id="adminInvoiceMode"><option value="single">Một hóa đơn</option><option value="pair">BẬT · một hóa đơn, tự tính lời CTV</option></select></div>
+<div class="field"><label>Chiết khấu CTV (%) — khi bật tự tính lời</label><input id="adminCtvDiscount" type="number" min="0" max="100" step="0.01" value="35"></div>
 <button id="savePolicy" class="btn primary">Lưu phiên bản chính sách mới</button>
 <div id="adminPolicies" class="muted"></div>
 </section>
@@ -532,7 +532,7 @@ function demoCartPricing(profileId,addressId){
  const profile=demoState.profiles.find(p=>p.id===profileId);
  const address=demoState.addresses.find(a=>a.id===addressId&&a.profileId===profileId&&a.active);
  if(!profile||!address)throw Error('Điểm giao mẫu không hợp lệ');
- let goodsVnd=0,internalGoodsVnd=0,invoiceMode='single';
+ let goodsVnd=0;
  const items=current.lines.map(line=>{
   const product=demoState.products.find(p=>p.code===line.code);
   if(!product)throw Error('Sản phẩm mẫu không còn trong danh mục');
@@ -540,14 +540,11 @@ function demoCartPricing(profileId,addressId){
    (!p.addressId||p.addressId===addressId)&&(!p.productCode||p.productCode===line.code))
    .sort((a,b)=>Number(!!b.addressId)*2+Number(!!b.productCode)-
     (Number(!!a.addressId)*2+Number(!!a.productCode))||b.version-a.version)[0];
-  if(policy?.invoiceMode==='pair'&&profile.type!=='collaborator')throw Error('Chính sách CTV không đúng hồ sơ');
-  if(policy?.invoiceMode==='pair')invoiceMode='pair';
+  if(policy?.collaboratorBps!=null&&profile.type!=='collaborator')throw Error('Chính sách CTV không đúng hồ sơ');
   const discountBps=policy?.discountBps||0;
   const unitPrice=Math.round(product.listPrice*(10000-discountBps)/10000);
-  const internalUnit=Math.round(product.listPrice*
-   (10000-(policy?.collaboratorBps??discountBps))/10000);
   const lineTotal=unitPrice*line.qty;
-  goodsVnd+=lineTotal;internalGoodsVnd+=internalUnit*line.qty;
+  goodsVnd+=lineTotal;
   return {...line,name:product.name,unit:product.unit,listPrice:product.listPrice,
    discountBps,unitPrice,lineTotal,amount:lineTotal};
  });
@@ -556,8 +553,7 @@ function demoCartPricing(profileId,addressId){
   delivery:{addressId:address.id,label:address.label,recipientName:address.recipientName,
    recipientPhone:address.recipientPhone,address:address.address},
   items,goodsVnd,shippingVnd:0,vatVnd:0,totalVnd:goodsVnd,
-  invoiceMode,chargesConfigured:false,
-  internalReference:invoiceMode==='pair'?{goodsVnd:internalGoodsVnd,totalVnd:internalGoodsVnd}:null};
+  invoiceMode:'single',chargesConfigured:false};
 }
 function demoCall(path,data={},method='POST'){
  const p=path.split('?')[0],query=new URLSearchParams((path.split('?')[1]||''));
@@ -1938,7 +1934,7 @@ $('saveAdminAddress').onclick=async()=>{
 };
 $('savePolicy').onclick=async()=>{
  try{
-  const profileId=$('adminProfile').value,invoiceMode=$('adminInvoiceMode').value;
+  const profileId=$('adminProfile').value,commissionEnabled=$('adminInvoiceMode').value==='pair';
   const basis=x=>{
    const value=String(x).trim();
    if(!/^(?:100(?:\.0{1,2})?|\d{1,2}(?:\.\d{1,2})?)$/.test(value))
@@ -1949,8 +1945,8 @@ $('savePolicy').onclick=async()=>{
   const collaboratorBps=basis($('adminCtvDiscount').value);
   const addressId=$('adminPolicyAddress').value||null,productCode=$('adminPolicySku').value||null;
   if(!confirm('Lưu chính sách V2? Không thay đổi link và hóa đơn cũ.'))return;
-  const payload={profileId,addressId,productCode,discountBps,invoiceMode,confirmed:true,
-   ...(invoiceMode==='pair'?{collaboratorBps}:{})};
+  const payload={profileId,addressId,productCode,discountBps,invoiceMode:'single',confirmed:true,
+   ...(commissionEnabled?{collaboratorBps}:{})};
   const data=await call('/api/v2/admin/policies',payload);
   await loadAdminAddresses();toast('Đã lưu chính sách phiên bản '+data.policy.version);
  }catch(e){toast(e.message)}
