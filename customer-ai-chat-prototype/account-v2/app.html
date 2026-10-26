@@ -437,6 +437,7 @@ let crmRows={registered:[],leads:[]};
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
 // In-memory only. Never persist a customer conversation or guessed SKU.
 let pendingCatalogueProduct=null;
+let catalogueQuestionHasUnavailableProduct=false;
 let lastQuote=null,lastTestRequestId=null,realTestEnabled=false,lastSubmittedCartKey='';
 let deliverySelectionProfileId=null;
 let cartPricing=null,cartPricingKey='',cartPricingErrorKey='',cartPricingLoadingKey='',cartPricingEpoch=0;
@@ -905,13 +906,17 @@ function quantityOnlyMessage(message){
 // permitted context for a short follow-up such as "cho 5 thùng".
 function clearPendingCatalogueProduct(){
  pendingCatalogueProduct=null;
+ catalogueQuestionHasUnavailableProduct=false;
 }
 function rememberVerifiedCatalogueProduct(result,profileId,addressId){
  clearPendingCatalogueProduct();
+ catalogueQuestionHasUnavailableProduct=result?.source==='verified-v2-catalogue-faq'&&
+  !result.availableProductCode;
  if(result?.source!=='verified-v2-catalogue-faq'||
     typeof result.availableProductCode!=='string')return;
  const product=products.find(item=>item.code===result.availableProductCode);
  if(!product)return;
+ catalogueQuestionHasUnavailableProduct=false;
  pendingCatalogueProduct={
   code:product.code,unit:foldProductSearch(product.unit),profileId,addressId,
   expiresAt:Date.now()+120000
@@ -1554,13 +1559,41 @@ $('send').onclick=async()=>{
  try{
   const destination=selectedDeliveryAddress();
    if(!destination)throw Error('DELIVERY_ADDRESS_REQUIRED');
+   const followUp=pendingCatalogueQuantity(
+    message,$('profile').value,destination.id);
+   if(followUp){
+    if(followUp.message){
+     input.value='';updateComposerAction();
+     await revealGeminiReply(reply,followUp.message,typingStartedAt);
+     return;
+    }
+    const selection=[{code:followUp.code,qty:followUp.qty}];
+    await saveCart(mergeCartItems(cart,selection));
+    input.value='';updateComposerAction();
+    await revealGeminiReply(reply,'✓ Đã thêm '+followUp.qty+' vào giỏ chung',typingStartedAt);
+    await addChatOrderReceipt(selection).catch(()=>toast('Giỏ đã cập nhật; chưa hiển thị được phiếu tóm tắt.'));
+    return;
+   }
    const amount=quantityOnlyMessage(message);
+   if(amount!==null&&catalogueQuestionHasUnavailableProduct){
+    input.value='';updateComposerAction();
+    await revealGeminiReply(reply,
+     'Sản phẩm vừa hỏi chưa được đồng bộ vào V2. Em không sửa số lượng món khác trong giỏ.',
+     typingStartedAt);
+    return;
+   }
    if(amount!==null&&cart.length===1){
+    const existingProduct=products.find(product=>product.code===cart[0].code);
+    if(!existingProduct||foldProductSearch(existingProduct.unit)!=='thung'){
+     input.value='';updateComposerAction();
+     await revealGeminiReply(reply,'Vui lòng ghi rõ tên sản phẩm và đơn vị để tránh sửa nhầm.',typingStartedAt);
+     return;
+    }
     const revised=[{code:cart[0].code,qty:amount}];
     await saveCart(revised); // Server validates SKU, address, revision and amount.
     input.value='';updateComposerAction();
     await revealGeminiReply(reply,'✓ Đã cập nhật số lượng thành '+amount+' thùng',typingStartedAt);
-    await addChatOrderReceipt(revised);
+    await addChatOrderReceipt(revised).catch(()=>toast('Giỏ đã cập nhật; chưa hiển thị được phiếu tóm tắt.'));
     return;
    }
    if(amount!==null&&cart.length>1){
@@ -1570,6 +1603,7 @@ $('send').onclick=async()=>{
    }
    const result=await call('/api/v2/interpret',{message,profileId:$('profile').value,addressId:destination.id});
   if(!Array.isArray(result.suggestedItems)||!result.suggestedItems.length){
+   rememberVerifiedCatalogueProduct(result,$('profile').value,destination.id);
    input.value='';updateComposerAction();
    await revealGeminiReply(reply,result.message||'Vui lòng cho biết sản phẩm và số lượng.',typingStartedAt);
    return;
@@ -1581,9 +1615,9 @@ $('send').onclick=async()=>{
   await saveCart(merged);
   input.value='';updateComposerAction();
   await revealGeminiReply(reply,'✓ Đã thêm vào giỏ',typingStartedAt);
-  await addChatOrderReceipt(selection);
+  await addChatOrderReceipt(selection).catch(()=>toast('Giỏ đã cập nhật; chưa hiển thị được phiếu tóm tắt.'));
  }catch(e){
-  await revealGeminiReply(reply,'Chưa xử lý được. Nội dung đã được giữ lại để gửi lại. '+(PREVIEW?'Kiểm tra sản phẩm mẫu.':'Kiểm tra kết nối và thử lại.'),typingStartedAt);
+  await revealGeminiReply(reply,'Chưa xử lý xong: '+e.message+'. Nội dung vẫn ở ô chat. Kiểm tra giỏ trước khi thử lại.',typingStartedAt);
   reply.classList.add('error');
  }finally{
   busy=false;updateDeliveryGate();
