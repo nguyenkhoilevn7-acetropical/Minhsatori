@@ -7,9 +7,10 @@ const html=readFileSync(new URL('../app.html',import.meta.url),'utf8');
 const css=html.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
 const js=html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]||'';
 function rule(selector){
- const escaped=selector.replace(/[.*+?^${\}()|[\]\\]/g,'\\$&');
- return css.match(new RegExp('(?:^|\\n)'+escaped+'\\{([^}]+)\\}'))?.[1]||'';
+ const start=css.indexOf(selector+'{');
+ return start<0?'':css.slice(start+selector.length+1).split('}',1)[0];
 }
+
 test('chat page uses real dynamic viewport height and no document-overflow gap',()=>{
  assert.match(html,/interactive-widget=resizes-content/);
  assert.match(rule('#app'),/height:100dvh/);
