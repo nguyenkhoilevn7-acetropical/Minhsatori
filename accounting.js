@@ -17,7 +17,7 @@ function status(id,value){
   const matches=orders.filter(o=>C.key(o)===String(id));
   if(matches.length!==1)throw Error('Không xác định duy nhất hóa đơn để cập nhật. Tải lại dữ liệu rồi thử lại.');
   const o=matches[0],now=new Date().toISOString();
-  const patch={status:value,satoriPaidAt:value==='Đã TT Satori'?o.satoriPaidAt||now:null};
+  const patch={status:value,satoriPaidAt:value==='Đã TT Satori'?o.satoriPaidAt||now:o.satoriPaidAt||null};
   if(value==='Đã TT Satori'&&C.paid(o))patch.customerPaidAt=o.customerPaidAt||now;
   if(value==='Đã thanh toán')patch.customerPaidAt=o.customerPaidAt||now;
   if(value==='Chưa thanh toán')patch.customerPaidAt=null;
@@ -26,7 +26,7 @@ function status(id,value){
  }catch(e){error(e);renderTable();return false;}
 }
 function formMeta(original){const id=$('acct-form-partner')?.value||'',p=registry().find(p=>p.id===id);return {collaboratorId:id,collaboratorDiscountPercent:id&&original?.collaboratorId===id?original.collaboratorDiscountPercent??p?.discountPercent:p?.discountPercent??null};}
-function paymentMeta(original={}){const value=$('paymentStatus')?.value||'Chưa thanh toán',now=new Date().toISOString();return {customerPaidAt:value==='Đã thanh toán'?original.customerPaidAt||now:value==='Đã TT Satori'&&C.paid(original)?original.customerPaidAt||now:null,satoriPaidAt:value==='Đã TT Satori'?original.satoriPaidAt||now:null};}
+function paymentMeta(original={}){const value=$('paymentStatus')?.value||'Chưa thanh toán',now=new Date().toISOString();return {customerPaidAt:value==='Đã thanh toán'?original.customerPaidAt||now:value==='Đã TT Satori'&&C.paid(original)?original.customerPaidAt||now:null,satoriPaidAt:value==='Đã TT Satori'?original.satoriPaidAt||now:original.satoriPaidAt||null};}
 function partnerOptions(selected=''){return '<option value="">Chưa gắn CTV</option>'+registry().filter(p=>p.active!==false||p.id===selected).map(p=>`<option value="${esc(p.id)}" ${p.id===selected?'selected':''}>${esc(p.name)} · CK ${p.discountPercent}%</option>`).join('');}
 function formSelect(id=''){if($('acct-form-partner'))$('acct-form-partner').innerHTML=partnerOptions(id);}
 function suggestPartner(contact){const matches=registry().filter(p=>p.active!==false&&(C.norm(p.name)===C.norm(contact.customer)||contact.phone&&aiPhone(p.phone)&&aiPhone(p.phone)===aiPhone(contact.phone)));formSelect(matches.length===1?matches[0].id:'');}
