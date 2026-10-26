@@ -61,6 +61,11 @@ test('pure cart reconciliation compares exact validated quantities without order
   '[{code:"TP-00003",qty:5},{code:"TP-00058",qty:2}])'),false);
  assert.equal(run('sameCartLines([{code:"TP-00003",qty:5},{code:"TP-00003",qty:5}],'+
   '[{code:"TP-00003",qty:5},{code:"TP-00003",qty:5}])'),false);
+ assert.equal(run('sameCartLines([{code:"TP-00003",qty:5},{code:"TP-00003",qty:5}],'+
+  '[{code:"TP-00003",qty:5},{code:"TP-00058",qty:2}])'),false,
+  'Duplicate actual SKU must never masquerade as a valid multi-line cart');
+ assert.equal(run('sameCartLines([{code:"TP-00003",qty:5},{code:"TP-00058",qty:2}],'+
+  '[{code:"TP-00003",qty:5},{code:"TP-00058",qty:2}])'),true);
 });
 test('mobile chat never blindly retries a potentially persisted cart write',()=>{
  const start=html.indexOf('async function saveCart(lines){');
