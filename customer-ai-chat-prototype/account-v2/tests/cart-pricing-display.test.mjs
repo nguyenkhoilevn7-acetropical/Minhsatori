@@ -75,3 +75,12 @@ test('demo unit discount uses same integer per-unit rounding and totals as backe
  for(const label of ['Tạm tính','Chiết khấu','Tiền hàng sau chiết khấu',
   'Phí giao hàng','VAT','Tổng khách phải trả'])assert.ok(display.includes(label),label);
 });
+
+
+test('cart destructive and close icons use the same iOS red style',()=>{
+ const cart=getMarkup('cart');
+ assert.match(cart,/id="clearCart" class="icon-button cart-clear"/);
+ assert.match(cart,/class="screen-close back-to-chat"/);
+ assert.match(html,/\.cart-heading-actions \.cart-clear,\.cart-heading-actions \.screen-close\{background:#fff0ee;color:#ff3b30;/);
+ assert.match(html,/\.cart-heading-actions \.cart-clear:hover:not\(:disabled\),\.cart-heading-actions \.screen-close:hover\{background:#ffe0dc\}/);
+});
