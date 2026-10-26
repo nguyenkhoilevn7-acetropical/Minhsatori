@@ -74,6 +74,23 @@ try{
  assert.equal(readback.taxCode,form.taxCode);
  assert.equal(readback.discountBps,2500,
   'Admin list must read approved policy rather than reset discount display to zero');
+ assert.equal(readback.hasCtvProfile,false,'Agency is not eligible for CTV mode switch');
+ assert.equal(readback.ctvEnabled,true,'Default mode value remains explicit');
+ // Owner list must distinguish real collaborator eligibility from a registration label.
+ const ctv=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,'ctv-contract@example.invalid','ACTIVE') RETURNING id,revision",
+  ['ci-ctv-'+randomUUID()]);
+ await one("INSERT INTO satori_v2_profiles(account_id,type,display_name) "+
+  "VALUES($1,'collaborator','Fake CTV') RETURNING id",[ctv.id]);
+ const ctvBefore=(await adminCustomerList(pool)).registered.find(x=>x.id===ctv.id);
+ assert.equal(ctvBefore.hasCtvProfile,true,'Real collaborator profile gates owner toggle');
+ assert.equal(ctvBefore.ctvEnabled,true);
+ // Simulate a committed owner mode change; the API must reflect it on re-read.
+ await pool.query('UPDATE satori_v2_accounts SET ctv_enabled=false,revision=revision+1 WHERE id=$1',[ctv.id]);
+ const ctvAfter=(await adminCustomerList(pool)).registered.find(x=>x.id===ctv.id);
+ assert.equal(ctvAfter.ctvEnabled,false);
+ assert.equal(ctvAfter.hasCtvProfile,true);
+ assert.equal(ctvAfter.revision,ctvBefore.revision+1);
  assert.ok(!('password' in readback));
  assert.ok(!('google_sub' in readback),'Do not return immutable Google subject');
  // CAS prevents stale review and owner lockout.
