@@ -30,7 +30,8 @@ test('prices come from read-only canonical server quote calculations, not client
  assert.match(endpoint,/req\.method==='GET'/);
  assert.match(endpoint,/await pricedCart\(pool,actor/);
  assert.match(endpoint,/customerPricing\(priced\)/);
- assert.doesNotMatch(endpoint.replace(/\\/\\/[^\\n]*/g,''),/INSERT|UPDATE|DELETE|BEGIN|COMMIT/);
+ const endpointCode=endpoint.split('\\n').filter(line=>!line.trim().startsWith('//')).join('\\n');
+ assert.doesNotMatch(endpointCode,/INSERT|UPDATE|DELETE|BEGIN|COMMIT/);
  const implementation=router.match(/async function pricedCart\([\s\S]*?(?=function customerPricing)/)?.[0]||'';
  assert.match(implementation,/profileFor\(pool,actor,input\.profileId\)/);
  assert.match(implementation,/calculateQuote\(\{/);
