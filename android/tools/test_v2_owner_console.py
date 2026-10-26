@@ -56,6 +56,18 @@ class NativeV2OwnerConsole(unittest.TestCase):
         self.assertIn('Lưu trữ hồ sơ',OWNER)
         self.assertIn('Không sao chép hoặc tự tạo lại hóa đơn',OWNER)
 
+    def test_owner_ctv_toggle_requires_real_backend_eligibility(self):
+        # Not a client-side authorization decision: backend verifies immutable
+        # Google owner sub, ACTIVE account, collaborator profile and revision.
+        self.assertIn('item.optBoolean("hasCtvProfile", false)', OWNER)
+        self.assertIn('item.optBoolean("ctvEnabled", false)', OWNER)
+        self.assertIn('active == "ACTIVE"', OWNER)
+        self.assertIn('"/api/v2/admin/ctv-mode"', OWNER)
+        self.assertIn('.put("expectedRevision",item.getInt("revision"))', OWNER)
+        self.assertIn('.put("enabled",nextEnabled).put("confirmed",true)', OWNER)
+        self.assertIn('Không thay đổi hoa hồng, hóa đơn đã phát hành', OWNER)
+        self.assertIn('save("PATCH","/api/v2/admin/ctv-mode",data) { fetchCustomers() }', OWNER)
+
     def test_previous_main_ledger_still_available(self):
         for old in ('renderInvoices(content, data)','renderCustomers(content, data)',
                     'renderDebt(content, data)','renderNewOrderInfo(content)'):
