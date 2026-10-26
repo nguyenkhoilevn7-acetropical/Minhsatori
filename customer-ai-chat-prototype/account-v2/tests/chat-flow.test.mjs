@@ -65,7 +65,11 @@ test('in-chat inputs, status, compact controls and retry guard are present',()=>
  assert.doesNotMatch(html,/id="quickAddress"/);
  assert.doesNotMatch(html,/Tiện ích đặt hàng/);
  assert.match(html,/id="deliveryPrompt"/);
- assert.match(html,/id="cartBadge"/);
+ assert.doesNotMatch(html,/id="cartBadge"/);
+ assert.match(html,/id="send"[^>]*class="send composer-action"/);
+ assert.match(html,/id="cartCount" class="composer-cart-count"/);
+ assert.match(html,/class="action-cart"/);
+ assert.match(html,/class="action-send"/);
  assert.match(html,/class="satori-logo"/);
  assert.match(html,/qty\.setAttribute\('aria-label'/);
  assert.match(html,/if\(add\.disabled\)return/);
