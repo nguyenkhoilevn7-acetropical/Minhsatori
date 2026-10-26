@@ -23,7 +23,7 @@ internal class V2OwnerApi {
 
     fun clear() { session = null; csrf = null }
 
-    fun status(): JSONObject = request("GET", "/api/v2/status")
+    fun status(): JSONObject = request("GET", "/api/v2/status", requiresAuth = false)
 
     fun ownerLogin(idToken: String): JSONObject {
         require(idToken.length > 100) { "Thiếu Google ID Token" }
