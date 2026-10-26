@@ -8,7 +8,7 @@
  * The account-backed catalogue and server pricing remain authoritative.
  */
 import {normalizeCart,isSku} from './domain.mjs';
-import {identityChange,parseOrder,parseComplexOrderWithGemini} from '../free-parser.mjs';
+import {identityChange,parseRules,parseOrder,parseComplexOrderWithGemini} from '../free-parser.mjs';
 import {parseMultiOrder,parseColloquialBasket,parseWaterClarificationBasket,
   colloquialQuestion,parseOneClause,looksCompoundOrder} from '../multi-order.mjs';
 import {productFor} from '../catalogue.mjs';
@@ -17,7 +17,7 @@ const aka=Object.freeze({S500:'TP-00003',S350:'TP-00001',S5L:'TP-00136'});
 const clarification=(message)=>({needsClarification:true,
  message:message||'Vui lòng ghi rõ tên sản phẩm, quy cách và số lượng. Giỏ hàng chưa thay đổi.'});
 
-export async function interpretLegacyOrder(message,profile={}){
+export async function interpretLegacyOrder(message,profile={}, {allowGemini=true}={}){
  if(typeof message!=='string'||message.trim().length<2||message.length>500)
   return clarification('Tin nhắn cần từ 2 đến 500 ký tự.');
  const text=message.trim();
@@ -37,7 +37,7 @@ export async function interpretLegacyOrder(message,profile={}){
    return clarification(partial.message||'Vui lòng xác nhận rõ loại nước, dung tích và số lượng; giỏ chưa thay đổi.');
  }
  if(!parsed&&looksCompoundOrder(text)){
-  parsed=await parseComplexOrderWithGemini(text,profile);
+  parsed=allowGemini?await parseComplexOrderWithGemini(text,profile):null;
   if(!parsed)return clarification(
    'Em chưa hiểu đầy đủ tất cả sản phẩm. Anh/chị vui lòng ghi rõ từng mặt hàng; giỏ chưa thay đổi.');
  }
@@ -45,7 +45,7 @@ export async function interpretLegacyOrder(message,profile={}){
   const one=parseOneClause(text,profile);
   if(one)parsed={items:[one],source:'original-single-clause'};
   else{
-   const result=await parseOrder(text,profile);
+   const result=allowGemini?await parseOrder(text,profile):parseRules(text,profile);
    if(result?.intent==='order'&&result.sku&&Number.isSafeInteger(result.qty)&&
       result.qty>0&&!result.needsHuman&&!result.needMoreDetails)
     parsed={items:[{sku:result.sku,qty:result.qty}],source:result.source||'original-parser'};

@@ -4,7 +4,7 @@
  * never customer rows, connection URLs, DB errors, addresses or passwords.
  */
 export const V2_REQUIRED_COLUMNS=Object.freeze({
- satori_v2_accounts:['id','google_sub','access_status','revision'],
+ satori_v2_accounts:['id','google_sub','access_status','revision','ctv_enabled'],
  satori_v2_sessions:['token_hash','csrf_hash','account_id'],
  satori_v2_profiles:['id','account_id','type','revision'],
  satori_v2_addresses:['id','profile_id','active','revision'],
@@ -15,7 +15,16 @@ export const V2_REQUIRED_COLUMNS=Object.freeze({
  satori_v2_order_requests:['id','quote_id','request_id','state'],
  satori_v2_audit:['id','event_type'],
  satori_v2_registrations:['account_id','full_name','phone','address','revision'],
- satori_v2_customer_leads:['id','discount_bps','revision']
+ satori_v2_customer_leads:['id','discount_bps','revision'],
+ satori_v2_commission_grants:['profile_id','collaborator_account_id','revision'],
+ satori_v2_test_invoices:['id','order_id','account_id','snapshot'],
+ satori_v2_test_settlements:['invoice_id','settled_by'],
+ satori_v2_invoice_bindings:['id','account_id','legacy_id','invoice_no','verified_revision'],
+ satori_v2_gemini_budget:['day','bucket','calls'],
+ satori_v2_sandbox_receipts:['invoice_id','canonical_id','revision','paid_vnd'],
+ satori_v2_sandbox_commission_ledger:['invoice_id','collaborator_account_id','amount_vnd'],
+ satori_v2_sandbox_payment_events:['event_id','invoice_id','revision'],
+ satori_v2_sandbox_outbox:['invoice_id','idempotency_key','quote_digest','state','attempt_count']
 });
 
 export async function inspectV2Storage(pool){

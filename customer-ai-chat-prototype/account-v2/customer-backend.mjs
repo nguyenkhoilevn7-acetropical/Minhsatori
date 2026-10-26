@@ -53,7 +53,9 @@ export async function registrationRead(pool,actor){
 export async function adminCustomerList(pool){
  const [registered,leads]=await Promise.all([
   pool.query('SELECT a.id,a.email,a.display_name AS name,a.access_status AS "accessStatus",'+
-   'a.revision,a.created_at AS "createdAt",r.full_name AS "fullName",'+
+   'a.revision,a.ctv_enabled AS "ctvEnabled",'+
+   'EXISTS(SELECT 1 FROM satori_v2_profiles cp WHERE cp.account_id=a.id AND cp.type=\'collaborator\') AS "hasCtvProfile",'+
+   'a.created_at AS "createdAt",r.full_name AS "fullName",'+
    'r.phone,r.address,r.company_name AS "companyName",r.tax_code AS "taxCode",'+
    'r.note,r.requested_type AS "requestedType",r.revision AS "registrationRevision",'+
    'r.submitted_at AS "submittedAt",'+

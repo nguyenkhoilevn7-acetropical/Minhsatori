@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feature/account-based-ordering-v2-20261025
+      - work/v2-backend-20261026
     paths:
       - 'customer-ai-chat-prototype/account-v2/**'
       - 'customer-ai-chat-prototype/server.mjs'
@@ -86,24 +87,37 @@ jobs:
         run: node account-v2/tests/postgres-integration.mjs
       - name: CRM registered customer, owner discounts, suspension and revocation (fake accounts only)
         run: node account-v2/tests/crm-postgres-integration.mjs
+      - name: CTV single invoice, tenant privacy, 100 retries and process restart
+        run: node account-v2/tests/commissions-postgres.mjs
+      - name: Invoice ownership and durable Gemini budget races
+        run: node account-v2/tests/history-budget-postgres.mjs
+      - name: Signed sandbox ledger, payment reconciliation and invoice isolation
+        run: node account-v2/tests/sandbox-ledger-postgres.mjs
+      - name: Canonical adapter timeout recovery and PDF access contract
+        run: node account-v2/tests/canonical-adapters-postgres.mjs
       - name: Offline logical backup, restore, and readback drill
         run: |
           set -euo pipefail
-          # Use PostgreSQL 16 client in the SAME image as the CI database.
-          # Runner apt may offer newer pg_restore with incompatible SET statements.
-          docker run --rm --network host -e PGPASSWORD \
-            -v "$RUNNER_TEMP:/ci" postgres:16 \
-            pg_dump -h 127.0.0.1 -U satori_ci -d satori_v2_ci -Fc \
-              --no-owner --no-acl -f /ci/satori-v2-ci-only.dump
+          # Run the real snapshot export runner with a matching PostgreSQL client.
+          mkdir -p "$RUNNER_TEMP/v2-backup-bin"
+          cat > "$RUNNER_TEMP/v2-backup-bin/pg_dump" <<'SCRIPT'
+          #!/bin/sh
+          exec docker run --rm --network host -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE -e PGSSLMODE -e PGCONNECT_TIMEOUT postgres:16 pg_dump "$@"
+          SCRIPT
+          chmod 700 "$RUNNER_TEMP/v2-backup-bin/pg_dump"
+          export PATH="$RUNNER_TEMP/v2-backup-bin:$PATH"
+          node account-v2/tests/backup-roundtrip-postgres.mjs seal "$RUNNER_TEMP/satori-v2-ci-only"
           docker run --rm --network host -e PGPASSWORD postgres:16 \
             psql -h 127.0.0.1 -U satori_ci -d postgres -v ON_ERROR_STOP=1 \
               -c 'CREATE DATABASE satori_v2_restore;'
           docker run --rm --network host -e PGPASSWORD \
             -v "$RUNNER_TEMP:/ci" postgres:16 \
             pg_restore -h 127.0.0.1 -U satori_ci --no-owner --no-acl \
-              -d satori_v2_restore /ci/satori-v2-ci-only.dump
+              -d satori_v2_restore /ci/satori-v2-ci-only.recovered.dump
           SATORI_V2_CI_DATABASE_URL=postgresql://satori_ci:v2_ci_fake_only_never_prod@127.0.0.1:5432/satori_v2_restore \
             node account-v2/tests/restore-readback.mjs
-          sudo rm -f "$RUNNER_TEMP/satori-v2-ci-only.dump"
+          SATORI_V2_CI_DATABASE_URL=postgresql://satori_ci:v2_ci_fake_only_never_prod@127.0.0.1:5432/satori_v2_restore \
+            node account-v2/tests/backup-roundtrip-postgres.mjs verify "$RUNNER_TEMP/satori-v2-ci-only"
+          sudo rm -f "$RUNNER_TEMP"/satori-v2-ci-only.*
       - name: HTTP checkout races with Admin revocation and suspension (fake accounts only)
         run: node account-v2/tests/checkout-races-postgres.mjs
