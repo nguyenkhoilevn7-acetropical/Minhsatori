@@ -22,6 +22,26 @@ function consumeQuota(){
  if(calls>=limit)return false;
  calls++;return true;
 }
+/**
+ * The model may disregard the instruction not to invent commercial terms.
+ * Reject such replies at the server boundary; prices, discounts, stock and
+ * delivery promises must come from authoritative V2 backend data.
+ * This check deliberately prefers a safe local clarification to false facts.
+ */
+export function validatedPublicGeminiReply(value){
+ const reply=typeof value==='string'?value.trim():'';
+ if(!reply||reply.length>650)return null;
+ const normalized=fold(reply).replace(/đ/g,'d');
+ if(/https?:\/\/|www\./i.test(reply))return null;
+ if(/\b(?:0\d{9,10}|84\d{9,10})\b/.test(reply.replace(/[ .()\-]/g,'')))return null;
+ if(/\b\d{1,9}(?:[.,]\d{1,3})*\s*(?:vnd|dong|d|k)\b/.test(normalized)||
+    /\b\d{1,6}(?:[.,]\d+)*\s*%/.test(normalized)||
+    /[₫$€]/.test(reply))return null;
+ if(/\b(?:mien phi (?:ship|giao hang|van chuyen)|giao hang mien phi|free\s*ship|freeship|cam ket co hang|bao dam co hang)\b/.test(normalized))return null;
+ if(/\b(?:giao|nhan)\b.{0,25}\b\d{1,3}\s*(?:gio|ngay|phut)\b/.test(normalized))return null;
+ return reply;
+}
+
 export async function answerGeminiProductQuestion(message,catalogue=[]){
  if(!geminiConfigured()||!productQuestionEligible(message))return null;
  const sanitized=sanitizedGeminiOrder(message);
@@ -50,8 +70,9 @@ export async function answerGeminiProductQuestion(message,catalogue=[]){
   });
   if(!response.ok)return null;
   const data=await response.json();
-  const reply=String(data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'').trim();
-  if(!reply||reply.length>650)return null;
+  const reply=validatedPublicGeminiReply(
+   data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'');
+  if(!reply)return null;
   return {needsClarification:true,provider:'gemini',source:'original-satori-gemini-product-help',message:reply};
  }catch{return null}finally{clearTimeout(timer)}
 }
