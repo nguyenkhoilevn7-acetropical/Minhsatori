@@ -7,8 +7,10 @@
 import {spawnSync} from 'node:child_process';
 import {assertPilotMigrationTarget} from './migration-bootstrap.mjs';
 import {readOnlyReady} from '../satori-readonly.mjs';
+import {describeCanonicalReadEnv} from './read-transport-diagnostic.mjs';
 // Logs only a boolean, never the signed ledger endpoint/key/secret.
 console.info('SATORI_V2_CANONICAL_READ_READY',readOnlyReady());
+console.info('SATORI_V2_CANONICAL_READ_FLAGS',JSON.stringify(describeCanonicalReadEnv(process.env)));
 import {describeGeminiRuntime} from './gemini-env-diagnostic.mjs';
 // Private Render log: boolean-only checks, never API key contents.
 console.info('SATORI_V2_GEMINI_RUNTIME_FLAGS',JSON.stringify(describeGeminiRuntime(process.env)));
