@@ -1,18 +1,19 @@
 {
-  "purpose": "android-v0.4.11-native-v2-owner-console-samsung-acceptance",
+  "purpose": "android-v0.4.12-single-invoice-ctv-profit-samsung-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.11",
-  "versionCode": 28,
-  "branch": "feature/android-v2-owner-native-console-20261026",
+  "version": "0.4.12",
+  "versionCode": 29,
+  "branch": "feature/android-v2-ctv-profit-single-invoice-20261026",
   "requestedOn": "2026-10-26",
   "sourcePRs": [
-    158
+    158,
+    160
   ],
-  "scope": "Owner-only native Android V2 CRM/account registrations, customers, agencies, collaborators, delivery addresses, discounts, catalogues and owner order review; Google Credential Manager verified owner Web OAuth. Existing Android invoice/debt/PDF/sync remain unchanged; no production invoices or insecure authentication.",
+  "scope": "Owner-only native Android V2 CRM/account registrations, customers, agencies, collaborators, delivery addresses, discounts, catalogues and owner order review; Google Credential Manager verified owner Web OAuth. Existing Android invoice/debt/PDF/sync remain unchanged; no production invoices or insecure authentication. CTV one-invoice ON/OFF and separate internal merchandise profit report.",
   "notes": [
     "Build signed acceptance APK only after Android unit/build, screenshot emulator, native outbox instrumentation CI PASS.",
     "Use existing stable private release signing keystore; validate against pinned SATORI_ANDROID_SIGNING_CERT_SHA256. Never use debug signing for installed app.",
-    "Confirm package vn.minhsatori.app, versionName 0.4.11, versionCode 28, certificate SHA1/SHA256 and APK SHA256 before user installs.",
+    "Confirm package vn.minhsatori.app, versionName 0.4.12, versionCode 29, certificate SHA1/SHA256 and APK SHA256 before user installs.",
     "OAuth V2 owner readiness is independent from APK signing: without verified V2 owner credentials, admin writes remain fail-closed.",
     "Do not auto-enable real invoice checkout or touch legacy production, signed accounting ledger, Apps Script, HMAC or customer data."
   ]
