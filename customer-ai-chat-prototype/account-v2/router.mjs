@@ -3,6 +3,8 @@
  * No production invoice writes. PostgreSQL is mandatory for any customer state.
  */
 import fs from 'node:fs';
+import {isDeepStrictEqual} from 'node:util';
+import {commissionReport,saveGrant,grantFor,commissionQuote,customerQuote,recordTestInvoice,listTestInvoices} from './commissions.mjs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
@@ -239,20 +241,17 @@ async function pricedCart(pool,actor,input){
  const priced=calculateQuote({accountId:actor.id,profile,address:addressRow.rows[0],cart:cartRow.rows[0].lines,
   catalogue:cat.rows.map(x=>({...x,listPrice:Number(x.listPrice)})),policies:policies.rows,
   catalogueRevision:cat.rows[0].revision,vatBps:0,shippingVnd:0});
- return {priced,cartRevision:cartRow.rows[0].revision,catalogueRevision:cat.rows[0].revision};
+ return {priced:commissionQuote(priced,await grantFor(pool,profile.id)),cartRevision:cartRow.rows[0].revision,catalogueRevision:cat.rows[0].revision};
 }
 function customerPricing(data){
- // The CTV internal reference is not a customer-facing sale price.
- const {internalReference,...shown}=data.priced;
- return {...shown,items:shown.items.map(({internalUnitPrice,...line})=>line),
-  cartRevision:data.cartRevision,chargesConfigured:false};
+ return {...customerQuote(data.priced),cartRevision:data.cartRevision,chargesConfigured:false};
 }
 async function quote(pool,actor,input){
  const {priced,cartRevision,catalogueRevision}=await pricedCart(pool,actor,input);
  const r=await pool.query('INSERT INTO satori_v2_quotes(account_id,profile_id,address_id,payload,cart_revision,catalogue_revision,expires_at) '+
   'VALUES($1,$2,$3,$4,$5,$6,now()+interval \'10 minutes\') RETURNING id,expires_at',
   [actor.id,priced.profileId,priced.addressId,JSON.stringify(priced),cartRevision,catalogueRevision]);
- return {quoteId:r.rows[0].id,expiresAt:r.rows[0].expires_at,...priced,
+ return {quoteId:r.rows[0].id,expiresAt:r.rows[0].expires_at,...customerQuote(priced),
   note:'Báo giá kiểm thử. Chưa tạo hóa đơn thật hoặc ghi công nợ.'};
 }
 /**
@@ -337,6 +336,44 @@ export async function handleAccountV2(req,res,pathname){
   // Customers without owner approval can only complete their registration.
   error(isOwner||actor.access_status==='ACTIVE'||isRegistrationRoute,
    'CUSTOMER_PENDING_ADMIN_APPROVAL',403);
+  if(pathname==='/api/v2/admin/commission-grants'&&req.method==='PUT'){
+   owner(actor);send(res,200,await saveGrant(pool,actor,await json(req),{admin:true}));return true;
+  }
+  if(pathname==='/api/v2/ctv/customer-discount'&&req.method==='PATCH'){
+   send(res,200,await saveGrant(pool,actor,await json(req)));return true;
+  }
+  if(['/api/v2/admin/commission-grants','/api/v2/ctv/commission-grants'].includes(pathname)&&req.method==='GET'){
+   const admin=pathname.includes('/admin/');if(admin)owner(actor);
+   const r=await pool.query('SELECT profile_id AS "profileId",collaborator_account_id AS "collaboratorAccountId",'+
+    'enabled,collaborator_bps AS "collaboratorBps",customer_bps AS "customerBps",'+
+    'min_customer_bps AS "minCustomerBps",max_customer_bps AS "maxCustomerBps",revision '+
+    'FROM satori_v2_commission_grants WHERE ($2::boolean OR collaborator_account_id=$1)',[actor.id,admin]);
+   send(res,200,{ok:true,grants:r.rows});return true;
+  }
+  if(['/api/v2/test-invoices','/api/v2/admin/test-invoices'].includes(pathname)&&req.method==='GET'){
+   const admin=pathname.includes('/admin/');if(admin)owner(actor);
+   const params=new URL(req.url,'http://local').searchParams;
+   const invoices=await listTestInvoices(pool,actor,{admin,id:params.get('id'),month:params.get('month')});
+   send(res,200,{ok:true,testOnly:true,invoices,limit:250});return true;
+  }
+  if(['/api/v2/ctv/test-report','/api/v2/admin/test-report'].includes(pathname)&&req.method==='GET'){
+   const admin=pathname.includes('/admin/');if(admin)owner(actor);
+   send(res,200,await commissionReport(pool,actor,{admin,month:new URL(req.url,'http://local').searchParams.get('month')}));return true;
+  }
+  if(pathname==='/api/v2/admin/test-settlements'&&req.method==='POST'){
+   owner(actor);const input=await json(req);
+   error(input.confirmedTest===true&&isUuid(input.invoiceId),'TEST_SETTLEMENT_CONFIRMATION_REQUIRED');
+   const c=await pool.connect();
+   try{
+    await c.query('BEGIN');
+    const r=await c.query('INSERT INTO satori_v2_test_settlements(invoice_id,settled_by) '+
+     'SELECT id,$2 FROM satori_v2_test_invoices WHERE id=$1 AND collaborator_account_id IS NOT NULL '+
+     'ON CONFLICT(invoice_id) DO NOTHING RETURNING invoice_id',[input.invoiceId,actor.id]);
+    if(r.rows.length)await c.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id) '+
+     "VALUES($1,'owner','TEST_COMMISSION_SETTLED',$2)",[actor.id,input.invoiceId]);
+    await c.query('COMMIT');send(res,200,{ok:true,testOnly:true,changed:r.rows.length===1});return true;
+   }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
+  }
   if(pathname==='/api/v2/register'&&req.method==='GET'){
    send(res,200,await registrationRead(pool,actor));return true;
   }
@@ -558,12 +595,14 @@ export async function handleAccountV2(req,res,pathname){
      'enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
      'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',
      [q.profile_id]);
-    assertCurrentQuote({
-     snapshot:q.payload,accountId:actor.id,profile:checkedProfile.rows[0],
+    const quoteContext={
+     accountId:actor.id,profile:checkedProfile.rows[0],
      address:checkedAddress.rows[0],cart:latest.rows[0].lines,
      catalogue:cat.rows.map(p=>({...p,listPrice:Number(p.listPrice)})),
      policies:approvedPolicies.rows,catalogueRevision:q.catalogue_revision
-    });
+    };
+    const current=commissionQuote(calculateQuote(quoteContext),await grantFor(client,q.profile_id));
+    error(isDeepStrictEqual(JSON.parse(JSON.stringify(current)),q.payload),'QUOTE_CHANGED_REQUOTE_REQUIRED',409);
     const recorded=await client.query(
      'INSERT INTO satori_v2_order_requests(quote_id,account_id,request_id,state) '+
      "VALUES($1,$2,$3,'PENDING_INTEGRATION') ON CONFLICT DO NOTHING "+
@@ -583,8 +622,9 @@ export async function handleAccountV2(req,res,pathname){
      'VALUES($1,$2,$3,$4,$5)',[actor.id,'account','V2_TEST_ORDER_ONLY',
       recorded.rows[0].id,JSON.stringify({quoteId:q.id,cartRevision:q.cart_revision,
        catalogueRevision:q.catalogue_revision,noLedgerWrite:true})]);
+    await recordTestInvoice(client,{orderId:recorded.rows[0].id,accountId:actor.id,snapshot:q.payload});
     await client.query('COMMIT');
-    send(res,201,{ok:true,testOnly:true,noInvoice:true,orderId:recorded.rows[0].id,
+    send(res,201,{ok:true,testOnly:true,noInvoice:true,testInvoiceCreated:true,orderId:recorded.rows[0].id,
      state:'PENDING_INTEGRATION',alreadySubmitted:false});return true;
    }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
    finally{client.release()}

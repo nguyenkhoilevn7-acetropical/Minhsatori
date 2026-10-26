@@ -67,7 +67,8 @@ test('CTV pair uses TWO independently calculated totals; never adds both as reve
  const q=calculateQuote({...base,policies:[policy(2000,{invoiceMode:'pair',collaboratorBps:3500})]});
  assert.equal(q.totalVnd,784000);
  assert.equal(q.internalReference.totalVnd,637000);
- assert.equal(q.invoiceMode,'pair');
+ assert.equal(q.invoiceMode,'single');
+ assert.equal(q.commission.commissionVnd,147000);
  assert.match(q.internalReference.note,/never double-count/);
 });
 test('CTV pair forbidden on ordinary retail account',()=>{

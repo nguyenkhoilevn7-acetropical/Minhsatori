@@ -124,13 +124,15 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
  const vatVnd=Math.round(goods*vatBps/10_000),total=goods+shippingVnd+vatVnd;
  ensure(Number.isSafeInteger(total)&&total<=100_000_000_000,'ORDER_TOTAL_TOO_LARGE');
  const summary={currency:'VND',catalogueRevision,policyVersion,addressId:address.id,profileId:profile.id,
-  delivery,items:priced,goodsVnd:goods,shippingVnd,vatVnd,totalVnd:total,
-  invoiceMode:pair?'pair':'single'};
+  delivery,items:priced,goodsVnd:goods,shippingVnd,vatBps,vatVnd,totalVnd:total,
+  invoiceMode:'single'};
  if(pair){
+  ensure(collabGoods<=goods,'CTV_DISCOUNT_OUT_OF_RANGE');
+  summary.commission={settlementGoodsVnd:collabGoods,commissionVnd:goods-collabGoods,basis:'goods-only',companyProfitVnd:null};
   const internalVatVnd=Math.round(collabGoods*vatBps/10_000);
   summary.internalReference={goodsVnd:collabGoods,vatVnd:internalVatVnd,
     shippingVnd,totalVnd:collabGoods+shippingVnd+internalVatVnd,
-    note:'Reference CTV bill only; never double-count revenue'};
+    note:'CTV settlement reference only; never double-count revenue; one order = one invoice'};
  }
  return Object.freeze(summary);
 }

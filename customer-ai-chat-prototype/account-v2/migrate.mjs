@@ -44,6 +44,7 @@ try{
  await client.query(statements('migrations/20261025_owner_edits.sql'));
  await client.query(statements('migrations/20261025_policy_revision.sql'));
  await client.query(statements('migrations/20261025_customer_crm.sql'));
+ await client.query(statements('migrations/20261026_commissions.sql'));
  const expected=[
   'satori_v2_accounts','satori_v2_sessions','satori_v2_profiles',
   'satori_v2_addresses','satori_v2_policies','satori_v2_catalogue',

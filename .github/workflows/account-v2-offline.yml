@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feature/account-based-ordering-v2-20261025
+      - work/v2-backend-20261026
     paths:
       - 'customer-ai-chat-prototype/account-v2/**'
       - 'customer-ai-chat-prototype/server.mjs'
@@ -86,6 +87,8 @@ jobs:
         run: node account-v2/tests/postgres-integration.mjs
       - name: CRM registered customer, owner discounts, suspension and revocation (fake accounts only)
         run: node account-v2/tests/crm-postgres-integration.mjs
+      - name: CTV single invoice, tenant privacy, 100 retries and process restart
+        run: node account-v2/tests/commissions-postgres.mjs
       - name: Offline logical backup, restore, and readback drill
         run: |
           set -euo pipefail
