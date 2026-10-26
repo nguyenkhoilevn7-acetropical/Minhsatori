@@ -18,7 +18,7 @@ function section(source,first,last){
  assert.ok(begin>=0&&end>begin,'Missing handler boundary '+first);
  return source.slice(begin,end);
 }
-const accountingHandlers=section(accounting,'function saveOrders(next)', 'function formMeta(original)');
+const accountingHandlers=section(accounting,'function saveOrders(next)', 'function partnerOptions(');
 const fallbackHandler=section(html,'function updateStatus(id, newStatus)', 'function viewInvoice(id)');
 function harness(fallback=false){
  const writes=[],messages=[],renders=[];
@@ -31,6 +31,7 @@ function harness(fallback=false){
    populateExcelCustomerFilter(){},aiEscape:String,
    error(e){messages.push(String(e.message||e))},
    showModal(_title,message){messages.push(String(message))},
+   $:id=>id==='paymentStatus'?{value:'Đã thanh toán'}:null,
    Date,JSON,Number,String,Error,Object,Array
  };
  vm.createContext(ctx);
@@ -54,10 +55,13 @@ for(const fallback of [false,true]){
    assert.equal(h.change(id,'Chưa thanh toán'),true);
    assert.equal(h.ctx.orders[2].status,'Chưa thanh toán');
    assert.equal(h.ctx.orders[2].customerPaidAt,null);
-   assert.equal(h.ctx.orders[2].satoriPaidAt,null);
+   assert.equal(h.ctx.orders[2].satoriPaidAt,fixture[2].satoriPaidAt);
+   assert.equal(h.change(id,'Đã thanh toán'),true);
+   assert.ok(h.ctx.orders[2].customerPaidAt);
+   assert.equal(h.ctx.orders[2].satoriPaidAt,fixture[2].satoriPaidAt);
    assert.equal(h.change(id,'Đã TT Satori'),true);
-   assert.ok(h.ctx.orders[2].satoriPaidAt);
-   assert.equal(C.paid(h.ctx.orders[2]),false);
+   assert.equal(h.ctx.orders[2].satoriPaidAt,fixture[2].satoriPaidAt);
+   assert.equal(C.paid(h.ctx.orders[2]),true);
  });
  test(kind+' blocks writes while Drive is unverified and reports the failure',()=>{
    const h=harness(fallback);
@@ -84,6 +88,13 @@ for(const fallback of [false,true]){
    assert.match(h.messages.join(' '),/quota/);
  });
 }
+test('editing customer payment preserves independent Satori receipt proof',()=>{
+ const h=harness(false);
+ const updated=h.ctx.paymentMeta(fixture[2]);
+ assert.equal(updated.satoriPaidAt,fixture[2].satoriPaidAt);
+ assert.ok(updated.customerPaidAt);
+});
+
 test('embedded handler delegates to accounting extension when available',()=>{
  const h=harness(true);
  let called=0;
