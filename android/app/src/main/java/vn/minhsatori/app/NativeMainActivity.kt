@@ -39,7 +39,6 @@ import org.json.JSONObject
 import java.util.UUID
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
@@ -673,7 +672,7 @@ class NativeMainActivity : AppCompatActivity() {
         // Keep the hamburger and primary controls visible while long ledgers scroll.
         shell.addView(brand, 0, LinearLayout.LayoutParams(-1, -2))
 
-        val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn")
+        val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn", "Quản trị hệ thống")
         label(content, pages[activeTab], 22f, true, ink, 12)
         label(content, "MINH SATORI  •  ANDROID " + BuildConfig.VERSION_NAME,
             10.5f, true, cyan, 6)
@@ -738,8 +737,9 @@ class NativeMainActivity : AppCompatActivity() {
             button(hero, "MỞ TRANG QUẢN TRỊ GEMINI") {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
-            button(hero, "QUẢN TRỊ MINH SATORI V2 • KHÁCH HÀNG / ĐẠI LÝ") {
-                openV2Admin()
+            button(hero, "⚙ QUẢN TRỊ HỆ THỐNG • MINH SATORI") {
+                activeTab = 5
+                render()
             }
             content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(14)
@@ -753,7 +753,9 @@ class NativeMainActivity : AppCompatActivity() {
         if (isLoading) {
             label(content, "Đang đồng bộ dữ liệu…", 12f, true, cyan, 12)
         }
-        if (data == null) {
+        if (activeTab == 5) {
+            renderV2OwnerBackend(content, data)
+        } else if (data == null) {
             val welcome = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(18), dp(20), dp(18), dp(17))
@@ -813,7 +815,9 @@ class NativeMainActivity : AppCompatActivity() {
                 1 -> renderInvoices(content, data)
                 2 -> renderCustomers(content, data)
                 3 -> renderDebt(content, data)
-                else -> renderNewOrderInfo(content)
+                4 -> renderNewOrderInfo(content)
+                5 -> renderV2OwnerBackend(content, data)
+                else -> renderOverview(content, data)
             }
             button(content, if (dataSource in setOf("Minh Satori API",
                         "Google Drive API", "file Google Drive")) "LÀM MỚI DỮ LIỆU"
@@ -891,7 +895,7 @@ class NativeMainActivity : AppCompatActivity() {
             "♙" to "Khách hàng",
             "◴" to "Công nợ",
             "＋" to "Lên đơn",
-            "⚙" to "Quản trị V2"
+            "⚙" to "Quản trị hệ thống"
         )
         var drawerOpened = false
         fun dismissDrawer(after: (() -> Unit)? = null) {
@@ -932,13 +936,13 @@ class NativeMainActivity : AppCompatActivity() {
                 setPadding(dp(14), 0, dp(12), 0)
                 background = background(if (activeTab == index)
                     Color.rgb(232, 242, 255) else white, 14)
-                contentDescription = "Mở mục " + item.second + if (item.second == "Quản trị V2") " · Yêu cầu đăng nhập Admin Google trên máy chủ V2" else ""
+                contentDescription = "Mở mục " + item.second + if (item.second == "Quản trị hệ thống") " · Quản trị bên trong ứng dụng Minh Satori" else ""
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
                     dismissDrawer {
-                        if (item.second == "Quản trị V2") openV2Admin()
-                        else { activeTab = index; render() }
+                        activeTab = index
+                        render()
                     }
                 }
             }
@@ -987,27 +991,65 @@ class NativeMainActivity : AppCompatActivity() {
 
 
     /**
-     * V2 management lives on the isolated V2 service. Chrome Custom Tabs
-     * preserve secure browser Google OAuth and browser session cookies.
-     * Native UI never receives owner credentials or grants Admin privileges.
-     * Backend must validate owner Google subject before every mutation.
+     * Owner's back office is a NATIVE SCREEN inside the installed Minh Satori
+     * app. Customer order website is never used as an admin console.
+     *
+     * Existing ledger actions retain their independently verified Mobile API
+     * authorization. V2 CRM/discount writes are deliberately locked until
+     * Google OAuth V2 validates the owner's immutable Google subject.
      */
-    private fun openV2Admin() {
-        val destination = Uri.parse(
-            "https://minh-satori-v2-customer-admin.onrender.com/app-v2?view=account"
-        )
-        try {
-            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(this, destination)
-        } catch (_: Exception) {
-            try {
-                startActivity(Intent(Intent.ACTION_VIEW, destination).apply {
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                })
-            } catch (_: Exception) {
-                Toast.makeText(this, "Không mở được Quản trị V2 trên trình duyệt an toàn.",
-                    Toast.LENGTH_LONG).show()
-            }
+    private fun renderV2OwnerBackend(parent: LinearLayout, current: SatoriSnapshot?) {
+        val title = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(15), dp(14), dp(15))
+            background = panelBackground(Color.WHITE, 17)
         }
+        label(title, "QUẢN TRỊ MINH SATORI", 19f, true, ink)
+        label(title, "Backend của ứng dụng • không hiển thị trên website đặt hàng",
+            12f, false, muted, 5)
+        label(title, if (current == null) "Chưa liên kết dữ liệu" else
+            "Đang xem sổ Satori • " + current.invoices.size + " hóa đơn • Revision " +
+            current.revision, 12f, true, cyan, 9)
+        parent.addView(title, LinearLayout.LayoutParams(-1, -2))
+        val modules = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(10), dp(14), dp(14))
+            background = panelBackground(Color.WHITE, 17)
+        }
+        label(modules, "DỮ LIỆU QUẢN TRỊ HIỆN CÓ", 13f, true, ink)
+        button(modules, "▤  Hóa đơn & trạng thái thanh toán") {
+            activeTab = 1
+            render()
+        }
+        button(modules, "♙  Khách hàng & hồ sơ hiện có") {
+            activeTab = 2
+            render()
+        }
+        button(modules, "◴  Công nợ & đối chiếu") {
+            activeTab = 3
+            render()
+        }
+        button(modules, "＋  Lên đơn với quyền API đã xác minh") {
+            activeTab = 4
+            render()
+        }
+        parent.addView(modules, LinearLayout.LayoutParams(-1, -2).apply { topMargin=dp(12) })
+        val v2 = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            background = panelBackground(Color.WHITE, 17)
+        }
+        label(v2, "HỆ THỐNG KHÁCH HÀNG V2", 13f, true, ink)
+        label(v2, "Đại lý / CTV • Hồ sơ & địa chỉ • Chính sách chiết khấu • Phân quyền",
+            12f, false, muted, 7)
+        label(v2,
+            "Quản trị V2 sẽ thao tác trực tiếp từ App qua Backend đã xác thực Admin. " +
+            "Google OAuth V2 chưa xác minh chủ tài khoản nên các tác vụ ghi vẫn khóa.",
+            12f, false, Color.rgb(157, 92, 13), 11)
+        label(v2, "Không tự động lấy quyền Admin từ đăng nhập Drive hoặc trình duyệt khách.",
+            11f, false, muted, 6)
+        button(v2, "↻  Đồng bộ hóa đơn đang có") { refreshNow() }
+        parent.addView(v2, LinearLayout.LayoutParams(-1, -2).apply { topMargin=dp(12) })
     }
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
