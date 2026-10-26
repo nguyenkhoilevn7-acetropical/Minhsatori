@@ -16,6 +16,7 @@ on:
       - 'release/android-v0.4.5-drive403-owner-recovery-20261024'
       - 'release/android-v0.4.6-canonical-live-ledger-20261024'
       - 'release/android-v0.4.8-ios-ui-20261025'
+      - 'feature/android-v2-owner-native-console-20261026'
     paths:
       - 'android/release-request.json'
 
