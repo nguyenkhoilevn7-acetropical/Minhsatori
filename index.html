@@ -6531,14 +6531,49 @@
         }
 
         function updateStatus(id, newStatus) {
-            const idx = orders.findIndex(o => o.id === id);
-            if (idx !== -1) {
-                orders[idx].status = newStatus;
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+            // The selector passes SatoriAccountingCore.key(order), not the raw numeric order.id.
+            if (window.Acct && typeof window.Acct.status === 'function') {
+                return window.Acct.status(id, newStatus);
+            }
+            if (window.__SATORI_DRIVE_APP__ && !window.__SATORI_DRIVE_READY__) {
+                showModal('Google Drive chưa đồng bộ', 'Không thể đổi trạng thái thanh toán khi Drive chưa xác nhận dữ liệu. Kiểm tra kết nối rồi thử lại.', 'info');
+                renderTable();
+                return false;
+            }
+            try {
+                if (!['Chưa thanh toán', 'Đã thanh toán', 'Đã TT Satori', 'Không Tính', 'Đã hủy'].includes(newStatus)) {
+                    throw Error('Trạng thái thanh toán không hợp lệ.');
+                }
+                const key = String(id);
+                const matches = orders.filter(o => SatoriAccountingCore.key(o) === key);
+                if (matches.length !== 1) {
+                    throw Error('Không tìm được duy nhất hóa đơn. Tải lại dữ liệu trước khi đổi trạng thái.');
+                }
+                const original = matches[0];
+                const now = new Date().toISOString();
+                const patch = {status: newStatus, updatedAt: Date.now(),
+                    satoriPaidAt: newStatus === 'Đã TT Satori' ? original.satoriPaidAt || now : null};
+                if (newStatus === 'Đã TT Satori' && SatoriAccountingCore.paid(original))
+                    patch.customerPaidAt = original.customerPaidAt || now;
+                if (newStatus === 'Đã thanh toán')
+                    patch.customerPaidAt = original.customerPaidAt || now;
+                if (newStatus === 'Chưa thanh toán')
+                    patch.customerPaidAt = null;
+                const next = orders.map(o => SatoriAccountingCore.key(o) === key ? {...o, ...patch} : o);
+                // Commit local storage first: the Drive bridge observes this write and syncs it.
+                // Never update the in-memory orders until storage accepts the entire transaction.
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+                orders = next;
                 populateCustomerDatalist();
                 populateExcelCustomerFilter();
                 renderTable();
                 renderArchiveInvoices();
+                updateCounters();
+                return true;
+            } catch (error) {
+                showModal('Chưa lưu được trạng thái', aiEscape(error.message || String(error)), 'error');
+                renderTable();
+                return false;
             }
         }
 
