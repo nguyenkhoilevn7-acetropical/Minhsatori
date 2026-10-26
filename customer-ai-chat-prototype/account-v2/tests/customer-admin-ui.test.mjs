@@ -32,7 +32,10 @@ test('Admin lists registered fields, old customers and owner-approved discount, 
  assert.match(js,/await call\('\/api\/v2\/admin\/customers'/);
  assert.match(js,/await call\('\/api\/v2\/register'/);
  assert.match(js,/manualIdentityVerified:!a\.email/);
- assert.match(js,/ownerPanel'\)\.hidden=!me\.account\.isAdmin/);
+ // CRM forms remain in an inactive template pending native-app management.
+ assert.match(html,/#ownerPanel,#ownerOriginalInvoices\{display:none!important\}/);
+ assert.match(js,/ownerPanel'\)\.hidden=true/);
+ assert.doesNotMatch(js,/if\(me\.account\.isAdmin\)loadOwner\(\)/);
 });
 test('iOS V2 website JS remains parseable without browser globals',()=>{
  assert.ok(js);
