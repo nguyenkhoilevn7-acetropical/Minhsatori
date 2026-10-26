@@ -23,3 +23,5 @@ if(process.env.SATORI_ACCOUNT_V2_MIGRATION_APPROVED==='1'){
  console.info('V2_MIGRATION_SCHEMA_READBACK_PASSED');
 }
 await import('./standalone.mjs');
+// Async read-only catalogue coverage; never block service availability.
+import('./catalogue-readiness-log.mjs').then(({logCatalogueSnapshot})=>logCatalogueSnapshot()).catch(()=>{});
