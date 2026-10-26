@@ -15,7 +15,12 @@ export const V2_REQUIRED_COLUMNS=Object.freeze({
  satori_v2_order_requests:['id','quote_id','request_id','state'],
  satori_v2_audit:['id','event_type'],
  satori_v2_registrations:['account_id','full_name','phone','address','revision'],
- satori_v2_customer_leads:['id','discount_bps','revision']
+ satori_v2_customer_leads:['id','discount_bps','revision'],
+ satori_v2_commission_grants:['profile_id','collaborator_account_id','revision'],
+ satori_v2_test_invoices:['id','order_id','account_id','snapshot'],
+ satori_v2_test_settlements:['invoice_id','settled_by'],
+ satori_v2_invoice_bindings:['id','account_id','legacy_id','invoice_no','verified_revision'],
+ satori_v2_gemini_budget:['day','bucket','calls']
 });
 
 export async function inspectV2Storage(pool){

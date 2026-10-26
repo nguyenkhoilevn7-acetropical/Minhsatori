@@ -89,6 +89,8 @@ jobs:
         run: node account-v2/tests/crm-postgres-integration.mjs
       - name: CTV single invoice, tenant privacy, 100 retries and process restart
         run: node account-v2/tests/commissions-postgres.mjs
+      - name: Invoice ownership and durable Gemini budget races
+        run: node account-v2/tests/history-budget-postgres.mjs
       - name: Offline logical backup, restore, and readback drill
         run: |
           set -euo pipefail
