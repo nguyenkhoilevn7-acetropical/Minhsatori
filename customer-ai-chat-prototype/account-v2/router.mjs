@@ -9,6 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
 import {interpretLegacyOrder} from './legacy-interpret.mjs';
 import {geminiConfigured} from '../free-parser.mjs';
+import {answerGeminiProductQuestion,productQuestionEligible} from './gemini-product-assistant.mjs';
 import {readMinhSatori,readOnlyReady} from '../satori-readonly.mjs';
 import {monthRange,safeLegacyInvoiceIndex} from './legacy-owner-invoices.mjs';
 import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
@@ -269,11 +270,29 @@ export async function assertSelectedDelivery(pool,actor,input){
  error(r.rows.length===1,'DELIVERY_ADDRESS_REQUIRED',409);
  return true;
 }
-async function interpret(input){
+async function interpret(pool,input){
  error(typeof input.message==='string'&&input.message.trim().length>=2&&input.message.length<=500,'MESSAGE_INVALID');
- // Original app's parser + clarification protections. Never bypass the
- // server-verified V2 catalogue, tenant isolation or signed checkout gates.
- return interpretLegacyOrder(input.message);
+ // Reuse the ORIGINAL multi-order parser, rule memory and optional Gemini
+ // segmentation; identity and pricing remain protected by the V2 backend.
+ const result=await interpretLegacyOrder(input.message);
+ const fallback={...result,provider:/gemini/.test(result?.source||'')?'gemini':'satori-rules',
+  geminiConfigured:geminiConfigured()};
+ if(Array.isArray(result?.suggestedItems)&&result.suggestedItems.length){
+  const r=await pool.query('SELECT code FROM satori_v2_catalogue WHERE active=true');
+  const available=new Set(r.rows.map(p=>p.code));
+  if(!result.suggestedItems.every(line=>available.has(line.code)))
+   return {needsClarification:true,provider:'satori-rules',geminiConfigured:geminiConfigured(),
+    message:'Một sản phẩm chưa có trong danh mục V2. Vui lòng chọn loại hiện có; giỏ chưa thay đổi.'};
+  return fallback;
+ }
+ // Product FAQ may use the same server-side Gemini provider only when both
+ // the Free Tier is configured and a sanitized PUBLIC-product question is safe.
+ if(geminiConfigured()&&productQuestionEligible(input.message)){
+  const r=await pool.query('SELECT code,name,unit,active FROM satori_v2_catalogue WHERE active=true');
+  const help=await answerGeminiProductQuestion(input.message,r.rows);
+  if(help)return {...help,geminiConfigured:true};
+ }
+ return fallback;
 }
 export async function handleAccountV2(req,res,pathname){
  const page=pathname==='/app-v2'||pathname==='/app-v2/';
@@ -467,7 +486,7 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/interpret'&&req.method==='POST'){
    const input=await json(req);
    await assertSelectedDelivery(pool,actor,input);
-   const result=await interpret(input);send(res,200,{ok:true,...result});return true;
+   const result=await interpret(pool,input);send(res,200,{ok:true,...result});return true;
   }
   if(pathname==='/api/v2/cart-pricing'&&req.method==='GET'){
    // Authenticated, account-owned, active delivery; no invoice/quote INSERT.
