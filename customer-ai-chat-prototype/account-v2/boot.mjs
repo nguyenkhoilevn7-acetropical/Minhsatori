@@ -6,6 +6,9 @@
  */
 import {spawnSync} from 'node:child_process';
 import {assertPilotMigrationTarget} from './migration-bootstrap.mjs';
+import {describeGeminiRuntime} from './gemini-env-diagnostic.mjs';
+// Private Render log: boolean-only checks, never API key contents.
+console.info('SATORI_V2_GEMINI_RUNTIME_FLAGS',JSON.stringify(describeGeminiRuntime(process.env)));
 if(process.env.SATORI_ACCOUNT_V2_MIGRATION_APPROVED==='1'){
  try{assertPilotMigrationTarget()}
  catch{console.error('V2_MIGRATION_TARGET_BLOCKED');process.exit(1)}
