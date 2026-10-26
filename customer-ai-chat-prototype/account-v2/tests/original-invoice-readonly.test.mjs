@@ -39,8 +39,11 @@ test('owner routes are backend-authorized, never returned from customer invoices
  const html=readFileSync(new URL('../app.html',import.meta.url),'utf8');
  assert.match(html,/id="ownerOriginalInvoices" hidden/);
  assert.match(html,/id="invoiceMasthead"/);
- assert.match(html,/const openAdmin=me\.account\.isAdmin&&new URLSearchParams\(location\.search\)\.get\('view'\)==='account'/);
- assert.match(html,/view\(openAdmin\?'account':'chat'\)/);
+ assert.match(html,/#ownerPanel,#ownerOriginalInvoices\{display:none!important\}/);
+ assert.match(html,/\$\('ownerPanel'\)\.hidden=true/);
+ assert.match(html,/\$\('ownerOriginalInvoices'\)\.hidden=true/);
+ assert.doesNotMatch(html,/if\(me\.account\.isAdmin\)loadOwner\(\)/);
+ assert.doesNotMatch(html,/const openAdmin=me\.account\.isAdmin/);
  assert.match(html,/id="originalInvoiceMonth" type="month"/);
  const inline=html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]||'';
  assert.doesNotThrow(()=>new vm.Script(inline));
