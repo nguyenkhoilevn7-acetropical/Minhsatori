@@ -44,6 +44,12 @@ test('multi-line fake messages sum same SKU before one cart update',()=>{
 test('5 lít is not mistakenly parsed as five cans without quantity',()=>{
  assert.deepEqual(asJson(interpret('Cho một can 5 lít')), [{code:'TP-00136',qty:1}]);
 });
+test('10 thùng nước suối 500ml yields ten, never default one',()=>{
+ assert.deepEqual(asJson(interpret('10 thùng nước suối 500ml')),[{code:'TP-00003',qty:10}]);
+ assert.deepEqual(asJson(interpret('10 thùng nước suối 500 ml')),[{code:'TP-00003',qty:10}]);
+ assert.deepEqual(asJson(interpret('500ml')),[]);
+ assert.deepEqual(asJson(interpret('10 thùng nước suối 500ml và 2 thùng trà sữa')),[]);
+});
 test('shared cart aggregates repeat products over messages without separate bills',()=>{
  assert.deepEqual(asJson(merge([{code:'TP-00003',qty:2}],
   [{code:'TP-00003',qty:3},{code:'TP-00001',qty:4}])),
@@ -71,10 +77,13 @@ test('in-chat inputs, status, compact controls and retry guard are present',()=>
  assert.match(html,/class="action-cart"/);
  assert.match(html,/class="action-send"/);
  assert.match(html,/class="satori-logo"/);
- assert.match(html,/qty\.setAttribute\('aria-label'/);
- assert.match(html,/if\(add\.disabled\)return/);
- assert.match(html,/const merged=mergeCartItems\(cart,selected\)/);
+ assert.match(html,/async function addChatOrderReceipt\(selection\)/);
+ assert.match(html,/const merged=mergeCartItems\(cart,selection\)/);
  assert.match(html,/await saveCart\(merged\)/);
+ assert.match(html,/await addChatOrderReceipt\(selection\)/);
+ assert.match(html,/class="chat-order-receipt"|'chat-order-receipt'/);
+ assert.doesNotMatch(html,/Chọn số lượng ngay trong chat/);
+ assert.doesNotMatch(html,/✓ Thêm vào giỏ chung/);
  assert.match(html,/reply\.classList\.add\('error'\)/);
  assert.match(html,/!e\.shiftKey&&!e\.isComposing/);
  assert.match(html,/id="confirm"[^>]+disabled/);
