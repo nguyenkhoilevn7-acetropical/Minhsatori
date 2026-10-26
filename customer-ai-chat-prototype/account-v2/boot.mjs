@@ -6,6 +6,9 @@
  */
 import {spawnSync} from 'node:child_process';
 import {assertPilotMigrationTarget} from './migration-bootstrap.mjs';
+import {readOnlyReady} from '../satori-readonly.mjs';
+// Logs only a boolean, never the signed ledger endpoint/key/secret.
+console.info('SATORI_V2_CANONICAL_READ_READY',readOnlyReady());
 import {describeGeminiRuntime} from './gemini-env-diagnostic.mjs';
 // Private Render log: boolean-only checks, never API key contents.
 console.info('SATORI_V2_GEMINI_RUNTIME_FLAGS',JSON.stringify(describeGeminiRuntime(process.env)));
