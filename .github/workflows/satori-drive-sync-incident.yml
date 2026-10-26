@@ -6,6 +6,8 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "accounting.js"
+      - "tests/payment-status-regression.test.js"
       - "tests/satori-drive-sync-recovery.test.js"
 permissions:
   contents: read
@@ -19,4 +21,4 @@ jobs:
         with:
           node-version: "22"
       - name: Test Drive conflict handling and ensure existing bot still passes
-        run: node --test tests/satori-drive-sync-recovery.test.js tests/satori-bot-live.test.js
+        run: node --test tests/satori-drive-sync-recovery.test.js tests/satori-bot-live.test.js tests/payment-status-regression.test.js

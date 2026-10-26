@@ -10,9 +10,23 @@ function error(e){showModal('Chưa lưu được',esc(e.message||e),'error');}
 function sizeCheck(key,value){let size=0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith('satori_')&&!/recovery|pending|bridge|cloud/.test(k))size+=(k===key?value:localStorage.getItem(k)||'').length;}if(!localStorage.getItem(key))size+=value.length;if(size>MAX_STATE)throw Error('Dữ liệu/chứng từ vượt dung lượng đồng bộ hiện tại. Dùng liên kết Google Drive cho chứng từ lớn; dữ liệu cũ vẫn được giữ nguyên.');}
 function saveOrders(next){next=C.preserveReceiptAssets(next,orders);const text=JSON.stringify(next);sizeCheck(STORAGE_KEY,text);localStorage.setItem(STORAGE_KEY,text);orders=next;renderTable();renderArchiveInvoices();updateCounters();}
 function patchOrder(id,patch){const found=orders.some(o=>C.key(o)===String(id));if(!found)throw Error('Không còn tìm thấy hóa đơn. Tải lại dữ liệu.');saveOrders(orders.map(o=>C.key(o)===String(id)?{...o,...patch,updatedAt:Date.now()}:o));}
-function status(id,value){try{const o=orders.find(o=>C.key(o)===String(id));if(!o)return;const patch={status:value,satoriPaidAt:value==='Đã TT Satori'?o.satoriPaidAt||new Date().toISOString():null};if(value==='Đã TT Satori'){patch.satoriPaidAt=new Date().toISOString();if(C.paid(o))patch.customerPaidAt=o.customerPaidAt||new Date().toISOString();}if(value==='Đã thanh toán')patch.customerPaidAt=new Date().toISOString();if(value==='Chưa thanh toán')patch.customerPaidAt=null;patchOrder(id,patch);}catch(e){error(e);}}
+function status(id,value){
+ try{
+  if(window.__SATORI_DRIVE_APP__ && !window.__SATORI_DRIVE_READY__)throw Error('Google Drive chưa đồng bộ. Chưa thể đổi trạng thái thanh toán an toàn; kiểm tra kết nối Drive và thử lại.');
+  if(!['Chưa thanh toán','Đã thanh toán','Đã TT Satori','Không Tính','Đã hủy'].includes(value))throw Error('Trạng thái thanh toán không hợp lệ.');
+  const matches=orders.filter(o=>C.key(o)===String(id));
+  if(matches.length!==1)throw Error('Không xác định duy nhất hóa đơn để cập nhật. Tải lại dữ liệu rồi thử lại.');
+  const o=matches[0],now=new Date().toISOString();
+  const patch={status:value,satoriPaidAt:value==='Đã TT Satori'?o.satoriPaidAt||now:o.satoriPaidAt||null};
+  if(value==='Đã TT Satori'&&C.paid(o))patch.customerPaidAt=o.customerPaidAt||now;
+  if(value==='Đã thanh toán')patch.customerPaidAt=o.customerPaidAt||now;
+  if(value==='Chưa thanh toán')patch.customerPaidAt=null;
+  patchOrder(id,patch);
+  return true;
+ }catch(e){error(e);renderTable();return false;}
+}
 function formMeta(original){const id=$('acct-form-partner')?.value||'',p=registry().find(p=>p.id===id);return {collaboratorId:id,collaboratorDiscountPercent:id&&original?.collaboratorId===id?original.collaboratorDiscountPercent??p?.discountPercent:p?.discountPercent??null};}
-function paymentMeta(original={}){const value=$('paymentStatus')?.value||'Chưa thanh toán',now=new Date().toISOString();return {customerPaidAt:value==='Đã thanh toán'?original.customerPaidAt||now:value==='Đã TT Satori'&&C.paid(original)?original.customerPaidAt||now:null,satoriPaidAt:value==='Đã TT Satori'?original.satoriPaidAt||now:null};}
+function paymentMeta(original={}){const value=$('paymentStatus')?.value||'Chưa thanh toán',now=new Date().toISOString();return {customerPaidAt:value==='Đã thanh toán'?original.customerPaidAt||now:value==='Đã TT Satori'&&C.paid(original)?original.customerPaidAt||now:null,satoriPaidAt:value==='Đã TT Satori'?original.satoriPaidAt||now:original.satoriPaidAt||null};}
 function partnerOptions(selected=''){return '<option value="">Chưa gắn CTV</option>'+registry().filter(p=>p.active!==false||p.id===selected).map(p=>`<option value="${esc(p.id)}" ${p.id===selected?'selected':''}>${esc(p.name)} · CK ${p.discountPercent}%</option>`).join('');}
 function formSelect(id=''){if($('acct-form-partner'))$('acct-form-partner').innerHTML=partnerOptions(id);}
 function suggestPartner(contact){const matches=registry().filter(p=>p.active!==false&&(C.norm(p.name)===C.norm(contact.customer)||contact.phone&&aiPhone(p.phone)&&aiPhone(p.phone)===aiPhone(contact.phone)));formSelect(matches.length===1?matches[0].id:'');}

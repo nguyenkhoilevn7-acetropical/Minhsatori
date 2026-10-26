@@ -5,9 +5,14 @@ const browser=fs.readFileSync(__dirname+'/../pdf-drive-archive.js','utf8');
 const gas=fs.readFileSync(__dirname+'/../api/InvoicePdfArchive.gs','utf8');
 new vm.Script(browser,{filename:'pdf-drive-archive.js'});
 new vm.Script(gas,{filename:'InvoicePdfArchive.gs'});
-assert(html.includes('<script src="pdf-drive-archive.js?v=1"></script>'));
+const archiveScriptPrefix='<script src="pdf-drive-archive.js?v=';
+const archiveScript=html.indexOf(archiveScriptPrefix);
+assert(archiveScript>=0, 'PDF archive module must be loaded');
+const archiveScriptEnd=html.indexOf('"></script>',archiveScript);
+assert(archiveScriptEnd>archiveScript &&
+  /^[0-9]+$/.test(html.slice(archiveScript+archiveScriptPrefix.length,archiveScriptEnd)),
+  'PDF archive module must use a numeric cache-busting version');
 const driveModeInit=html.indexOf('window.__SATORI_DRIVE_APP__ = true;');
-const archiveScript=html.indexOf('<script src="pdf-drive-archive.js?v=1"></script>');
 assert(driveModeInit>=0 && archiveScript>driveModeInit,
   'PDF archive module must load after Drive mode flag, or it exits before registering itself');
 assert(html.includes('window.satoriArchiveSavedInvoicePdf(lastSavedPdfOrder)'));
