@@ -258,6 +258,7 @@ class V2OwnerAdminActivity : AppCompatActivity() {
             "profiles" -> fetchProfiles()
             "addresses" -> fetchAddresses()
             "policies" -> fetchPolicies()
+            "ctv-summary" -> fetchCtvSummary()
             "catalogue" -> fetchCatalogue()
             "orders" -> fetchMyOrders()
             else -> renderHome()
@@ -547,12 +548,16 @@ class V2OwnerAdminActivity : AppCompatActivity() {
                     profileId = profile.optString("id")
                     profileType = profile.optString("type")
                     AlertDialog.Builder(this).setTitle(profile.optString("name"))
-                        .setItems(arrayOf("Sửa tên / điện thoại","Điểm giao hàng",
-                            "Chiết khấu / chính sách")) { _, index ->
+                        .setItems(if (profileType == "collaborator")
+                            arrayOf("Sửa tên / điện thoại","Điểm giao hàng",
+                                "Chiết khấu / chính sách","📈 Lợi nhuận CTV")
+                            else arrayOf("Sửa tên / điện thoại","Điểm giao hàng",
+                                "Chiết khấu / chính sách")) { _, index ->
                             when(index) {
                                 0 -> editProfile(profile)
                                 1 -> navigate("addresses")
                                 2 -> navigate("policies")
+                                3 -> navigate("ctv-summary")
                             }
                         }.show()
                 }
@@ -642,7 +647,7 @@ class V2OwnerAdminActivity : AppCompatActivity() {
         if(id.isNullOrBlank()){navigate("home");return}
         reset("Chiết khấu / chính sách")
         content.block("Phân quyền theo hồ sơ, địa chỉ hoặc sản phẩm",
-            "Chiết khấu 0–100%. CTV được cấu hình hai mức giá theo quy tắc V2. " +
+            "CTV: BẬT hoặc TẮT tự tính lợi nhuận. Một đơn chỉ có một hóa đơn. " +
                 "Chính sách mới phải được Admin xác nhận.")
         content.action("＋ Tạo chính sách") { createPolicy(id) }
         work({ api.request("GET","/api/v2/admin/policies?profileId=$id") }) { result ->
@@ -650,11 +655,16 @@ class V2OwnerAdminActivity : AppCompatActivity() {
             content.action("＋ Tạo chính sách") { createPolicy(id) }
             records(result.optJSONArray("policies") ?: JSONArray()) { p ->
                 content.block("CK " + p.optInt("discountBps")/100.0 + "%" +
-                        (if(p.optString("invoiceMode")=="pair") " · CTV hai giá" else "") +
+                        (if(!p.isNull("collaboratorBps")) " · CTV BẬT" else " · CTV TẮT") +
                         if(p.optBoolean("enabled")) "" else " · Ngừng",
                     "Địa chỉ: " + p.optString("addressId","Toàn bộ") +
                         "\nSKU: " + p.optString("productCode","Toàn bộ") +
-                        " · V" + p.optInt("version")) {
+                        " · V" + p.optInt("version") +
+                        (if(!p.isNull("collaboratorBps"))
+                            "\nCK CTV " + p.optInt("collaboratorBps")/100.0 +
+                            "% · chênh lệch " +
+                            (p.optInt("collaboratorBps")-p.optInt("discountBps"))/100.0 +
+                            "% trên giá gốc (trước VAT/phí giao)" else "")) {
                     if (p.optBoolean("enabled")) confirm("Ngưng chính sách",
                         "Chỉ vô hiệu hóa chính sách này, không sửa hóa đơn và đơn giá đã chốt.") {
                         val payload=JSONObject().put("profileId",id)
@@ -669,30 +679,77 @@ class V2OwnerAdminActivity : AppCompatActivity() {
     }
 
     private fun createPolicy(profile: String) {
-        form("Tạo chính sách giá",listOf(
-            Field("discount","Chiết khấu khách %","0"),
-            Field("mode","single / pair (pair chỉ CTV)","single"),
-            Field("ctvDiscount","Chiết khấu CTV % nếu pair","35"),
-            Field("addressId","ID điểm giao (trống = toàn bộ)"),
-            Field("productCode","Mã sản phẩm (trống = toàn bộ)")
-        )) { input ->
+        val fields = mutableListOf(Field("discount","Chiết khấu khách %","20"))
+        if (profileType == "collaborator") {
+            fields += Field("ctvMode","Tự tính lợi nhuận CTV: ON / OFF","OFF")
+            fields += Field("ctvDiscount","Chiết khấu CTV % khi ON","35")
+        }
+        fields += Field("addressId","ID điểm giao (trống = toàn bộ)")
+        fields += Field("productCode","Mã sản phẩm (trống = toàn bộ)")
+        form("Chính sách CTV · 1 hóa đơn",fields) { input ->
             try {
-                val mode=input["mode"].orEmpty()
-                require(mode=="single" || (mode=="pair" && profileType=="collaborator")) {
-                    "Hai giá chỉ áp dụng cho CTV"
+                val customer = discountBps(input["discount"].orEmpty())
+                val enabled = profileType == "collaborator" &&
+                    input["ctvMode"].orEmpty().trim().uppercase() == "ON"
+                require(profileType != "collaborator" ||
+                    input["ctvMode"].orEmpty().trim().uppercase() in setOf("ON","OFF")) {
+                    "CTV chỉ nhận ON hoặc OFF"
                 }
                 val data=JSONObject().put("profileId",profile)
-                    .put("discountBps",discountBps(input["discount"].orEmpty()))
-                    .put("invoiceMode",mode).put("confirmed",true)
-                if (mode=="pair") data.put("collaboratorBps",
-                    discountBps(input["ctvDiscount"].orEmpty()))
-                input["addressId"]?.takeIf(String::isNotBlank)?.let{data.put("addressId",it)}
-                input["productCode"]?.takeIf(String::isNotBlank)?.let{data.put("productCode",it)}
-                confirm("Xác nhận thay đổi giá",
-                    "Thao tác tạo phiên bản chính sách mới. Giá và hóa đơn cũ không bị sửa.") {
+                    .put("discountBps",customer)
+                    .put("invoiceMode","single")
+                    .put("confirmed",true)
+                if (enabled) {
+                    val ctv = discountBps(input["ctvDiscount"].orEmpty())
+                    require(ctv > customer) {
+                        "Chiết khấu CTV phải lớn hơn chiết khấu khách để có lợi nhuận"
+                    }
+                    data.put("collaboratorBps",ctv)
+                }
+                input["addressId"]?.takeIf(String::isNotBlank)?.let { data.put("addressId",it) }
+                input["productCode"]?.takeIf(String::isNotBlank)?.let { data.put("productCode",it) }
+                val detail = if (enabled)
+                    "CTV BẬT. Một hóa đơn khách; tự tính chênh lệch " +
+                    ((data.optInt("collaboratorBps")-customer)/100.0) +
+                    "% trên giá gốc (chưa VAT/phí giao)."
+                else "CTV TẮT. Một hóa đơn khách; không ghi nhận lợi nhuận CTV."
+                confirm("Xác nhận chính sách giá",detail +
+                    "\nChính sách và hóa đơn cũ không thay đổi.") {
                     save("POST","/api/v2/admin/policies",data){fetchPolicies()}
                 }
             } catch (e: Exception) { alert(e.message ?: "Chiết khấu không hợp lệ") }
+        }
+    }
+
+    private fun fetchCtvSummary() {
+        val id = profileId
+        if (id.isNullOrBlank() || profileType != "collaborator") {
+            alert("Hãy chọn một hồ sơ CTV"); return
+        }
+        reset("📈 Lợi nhuận CTV")
+        content.block("Một hóa đơn · một lần ghi doanh số",
+            "Chênh lệch tiền hàng giữa chiết khấu khách và mức CTV. " +
+            "Chưa trừ chi phí vận hành; không tính VAT/phí giao.")
+        work({ api.request("GET","/api/v2/admin/ctv-summary?profileId=$id") }) { result ->
+            reset("📈 Lợi nhuận CTV")
+            val money: (Long) -> String = { n ->
+                java.text.NumberFormat.getIntegerInstance(
+                    java.util.Locale("vi","VN")).format(n) + " đ"
+            }
+            content.block(result.optString("name","CTV"),"Mã hồ sơ: " + id)
+            content.block("✅ HÓA ĐƠN THẬT · CHỈ KHI ĐÃ PHÁT HÀNH",
+                "Số hóa đơn: " + result.optInt("completedInvoices") +
+                "\nDoanh số tiền hàng: " + money(result.optLong("salesVnd")) +
+                "\nLợi nhuận CTV: " + money(result.optLong("profitVnd")))
+            content.block("🧪 ĐƠN THỬ · KHÔNG GHI DOANH SỐ",
+                "Số đơn thử: " + result.optInt("testOrders") +
+                "\nTiền hàng thử: " + money(result.optLong("testSalesVnd")) +
+                "\nLợi nhuận mô phỏng: " + money(result.optLong("testProfitVnd")))
+            if (result.optBoolean("truncated"))
+                content.block("⚠️ Giới hạn báo cáo",
+                    "Bản tổng hợp vượt 1.000 đơn, cần phân trang để đối soát đủ.")
+            content.action("％ Chỉnh chính sách CTV") { navigate("policies") }
+            content.action("↻ Tải lại") { fetchCtvSummary() }
         }
     }
 
