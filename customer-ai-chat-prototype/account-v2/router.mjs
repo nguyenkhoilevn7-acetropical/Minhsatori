@@ -7,7 +7,7 @@ import {inferV2Order,reserveGeminiBudget} from './gemini-order.mjs';
 import {bindInvoice,invoiceDetail,invoiceIndex} from './invoice-history.mjs';
 import {postgresConfig} from './postgres-config.mjs';
 import {isDeepStrictEqual} from 'node:util';
-import {commissionReport,saveGrant,grantFor,commissionQuote,customerQuote,recordTestInvoice,listTestInvoices} from './commissions.mjs';
+import {setCtvMode,commissionReport,saveGrant,grantFor,commissionQuote,customerQuote,recordTestInvoice,listTestInvoices} from './commissions.mjs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
@@ -346,6 +346,9 @@ export async function handleAccountV2(req,res,pathname){
   // Customers without owner approval can only complete their registration.
   error(isOwner||actor.access_status==='ACTIVE'||isRegistrationRoute,
    'CUSTOMER_PENDING_ADMIN_APPROVAL',403);
+  if(pathname==='/api/v2/admin/ctv-mode'&&req.method==='PATCH'){
+   owner(actor);send(res,200,await setCtvMode(pool,actor,await json(req)));return true;
+  }
   if(pathname==='/api/v2/admin/commission-grants'&&req.method==='PUT'){
    owner(actor);send(res,200,await saveGrant(pool,actor,await json(req),{admin:true}));return true;
   }
@@ -580,6 +583,7 @@ export async function handleAccountV2(req,res,pathname){
       orderId:prior.rows[0].id,state:prior.rows[0].state});return true;
     }
     error(new Date(q.expires_at).getTime()>Date.now(),'QUOTE_EXPIRED',409);
+    await client.query('SELECT pg_advisory_xact_lock_shared($1,$2)',[20261026,3]);
     // Serialize checkout with catalogue refresh, and revalidate all approvals.
     await client.query('SELECT pg_advisory_xact_lock_shared($1,$2)',[20261025,2]);
     // Auth happened before this transaction. Serialize with Admin suspension,

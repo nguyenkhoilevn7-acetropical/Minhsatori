@@ -23,6 +23,7 @@ export async function saveGrant(pool,actor,input,{admin=false}={}){
  const c=await pool.connect();
  try{
   await c.query('BEGIN');
+  await c.query('SELECT pg_advisory_xact_lock_shared($1,$2)',[20261026,3]);
   // Same lock as quote confirmation: price changes cannot race confirmation.
   const profile=await c.query('SELECT id FROM satori_v2_profiles WHERE id=$1 FOR UPDATE',[input.profileId]);
   check(profile.rows.length===1,'PROFILE_FORBIDDEN');
@@ -30,6 +31,8 @@ export async function saveGrant(pool,actor,input,{admin=false}={}){
   const g=old.rows[0];
   if(!admin){
    check(g&&g.enabled&&g.collaborator_account_id===actor.id,'CTV_GRANT_FORBIDDEN');
+   const mode=await c.query('SELECT ctv_enabled FROM satori_v2_accounts WHERE id=$1',[actor.id]);
+   check(mode.rows[0]?.ctv_enabled===true,'CTV_MODE_DISABLED');
    check(input.customerBps>=g.min_customer_bps&&input.customerBps<=g.max_customer_bps,'CTV_DISCOUNT_OUT_OF_RANGE');
   }else{
    const ctv=await c.query("SELECT a.id FROM satori_v2_accounts a WHERE a.id=$1 AND a.access_status='ACTIVE' "+
@@ -59,7 +62,7 @@ export async function saveGrant(pool,actor,input,{admin=false}={}){
 export async function grantFor(pool,profileId){
  const r=await pool.query('SELECT g.* FROM satori_v2_commission_grants g '+
   'JOIN satori_v2_accounts a ON a.id=g.collaborator_account_id '+
-  "WHERE g.profile_id=$1 AND g.enabled=true AND a.access_status='ACTIVE'",[profileId]);
+  "WHERE g.profile_id=$1 AND g.enabled=true AND a.access_status='ACTIVE' AND a.ctv_enabled=true",[profileId]);
  return r.rows[0]||null;
 }
 export function commissionQuote(quote,grant){
@@ -124,4 +127,23 @@ export async function commissionReport(pool,actor,{admin=false,month}={}){
  AND to_char(i.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh','YYYY-MM')=$3
  GROUP BY i.collaborator_account_id`,[actor.id,admin,month]);
  return {ok:true,testOnly:true,month,companyProfitVnd:null,reports:r.rows};
+}
+
+/** Owner authorization is enforced at the router; serialize with grant edits and confirmation. */
+export async function setCtvMode(pool,actor,input){
+ check(input?.confirmed===true&&isUuid(input.accountId)&&typeof input.enabled==='boolean','CTV_MODE_INVALID');
+ check(Number.isInteger(input.expectedRevision)&&input.expectedRevision>0,'CTV_MODE_REVISION_REQUIRED');
+ const c=await pool.connect();
+ try{
+  await c.query('BEGIN');
+  await c.query('SELECT pg_advisory_xact_lock($1,$2)',[20261026,3]);
+  const r=await c.query("UPDATE satori_v2_accounts a SET ctv_enabled=$2,revision=revision+1 "+
+   "WHERE a.id=$1 AND a.revision=$3 AND a.access_status='ACTIVE' "+
+   "AND EXISTS(SELECT 1 FROM satori_v2_profiles p WHERE p.account_id=a.id AND p.type='collaborator') "+
+   'RETURNING revision,ctv_enabled AS enabled',[input.accountId,input.enabled,input.expectedRevision]);
+  check(r.rows.length===1,'CTV_MODE_REVISION_OR_ACCOUNT_CONFLICT');
+  await c.query("INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) VALUES($1,'owner','CTV_MODE_CHANGED',$2,$3)",
+   [actor.id,input.accountId,JSON.stringify(r.rows[0])]);
+  await c.query('COMMIT');return {ok:true,accountId:input.accountId,...r.rows[0]};
+ }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
 }

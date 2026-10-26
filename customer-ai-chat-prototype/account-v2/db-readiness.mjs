@@ -4,7 +4,7 @@
  * never customer rows, connection URLs, DB errors, addresses or passwords.
  */
 export const V2_REQUIRED_COLUMNS=Object.freeze({
- satori_v2_accounts:['id','google_sub','access_status','revision'],
+ satori_v2_accounts:['id','google_sub','access_status','revision','ctv_enabled'],
  satori_v2_sessions:['token_hash','csrf_hash','account_id'],
  satori_v2_profiles:['id','account_id','type','revision'],
  satori_v2_addresses:['id','profile_id','active','revision'],

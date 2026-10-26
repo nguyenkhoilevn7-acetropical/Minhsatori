@@ -73,6 +73,17 @@ try{
  assert.equal((await api(stranger,'ctv/test-report?month='+month)).reports.length,0);
  assert.equal((await api(owner,'admin/test-settlements',{invoiceId:id,confirmedTest:true})).status,200);
  assert.equal((await api(ctv,'ctv/test-report?month='+month)).reports[0].settledCommissionVnd,'150000');
+ // Per-CTV OFF spans all current/future grants, but preserves prior commission snapshots.
+ const mode={accountId:ctv.id,enabled:false,expectedRevision:1,confirmed:true};
+ assert.equal((await api(ctv,'admin/ctv-mode',mode,'PATCH')).status,403);
+ assert.equal((await api(owner,'admin/ctv-mode',mode,'PATCH')).status,200);
+ assert.equal((await api(owner,'admin/ctv-mode',mode,'PATCH')).status,409);
+ assert.equal((await api(ctv,'ctv/customer-discount',{...edit,expectedRevision:2},'PATCH')).status,409);
+ const disabled=await api(buyer,'quote',{profileId:buyer.profileId,addressId:addr.id});
+ assert.equal(disabled.totalVnd,1000000);
+ assert.equal((await api(ctv,'test-invoices?id='+id)).invoices[0].commission.commissionVnd,150000);
+ assert.equal((await api(owner,'admin/ctv-mode',{...mode,enabled:true,expectedRevision:2},'PATCH')).status,200);
+ assert.equal((await api(buyer,'quote',{profileId:buyer.profileId,addressId:addr.id})).totalVnd,800000);
  // Grant changes cannot rewrite issued test invoice snapshots.
  assert.equal((await api(owner,'admin/commission-grants',{...grant,enabled:false,expectedRevision:2},'PUT')).status,200);
  await stop();await start();
