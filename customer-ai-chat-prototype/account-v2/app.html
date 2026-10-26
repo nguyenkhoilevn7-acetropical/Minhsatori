@@ -847,6 +847,16 @@ async function revealGeminiReply(reply,text,startedAt){
  return reply;
 }
 
+// A bare quantity after selecting one product is an exact revision, not an
+// additional cart line. Multi-product/empty carts must never guess a SKU.
+function quantityOnlyMessage(message){
+ const value=String(message||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .toLowerCase().replace(/đ/g,'d').trim().replace(/[.!?]+$/,'').trim();
+ const match=value.match(/^(?:(?:cho\s+(?:anh|chi|em|minh|toi)\s+)|(?:(?:anh|chi|em|minh|toi)\s+(?:lay|dat|mua|cho|can)\s+)|(?:(?:lay|dat|mua|doi(?:\s+thanh)?|sua(?:\s+thanh)?|tang\s+len|giam\s+xuong)\s+))?(\d{1,3})\s*(?:thung|thg|t)$/);
+ if(!match)return null;
+ const number=Number(match[1]);
+ return Number.isSafeInteger(number)&&number>=1&&number<=500?number:null;
+}
 function count(){return cart.reduce((n,x)=>n+x.qty,0)}
 function resetTestQuote(){
  lastQuote=null;lastTestRequestId=null;
@@ -1366,6 +1376,20 @@ $('send').onclick=async()=>{
  try{
   const destination=selectedDeliveryAddress();
    if(!destination)throw Error('DELIVERY_ADDRESS_REQUIRED');
+   const amount=quantityOnlyMessage(message);
+   if(amount!==null&&cart.length===1){
+    const revised=[{code:cart[0].code,qty:amount}];
+    await saveCart(revised); // Server validates SKU, address, revision and amount.
+    input.value='';updateComposerAction();
+    await revealGeminiReply(reply,'✓ Đã cập nhật số lượng thành '+amount+' thùng',typingStartedAt);
+    await addChatOrderReceipt(revised);
+    return;
+   }
+   if(amount!==null&&cart.length>1){
+    input.value='';updateComposerAction();
+    await revealGeminiReply(reply,'Giỏ có nhiều mặt hàng. Vui lòng ghi tên sản phẩm kèm số lượng để tránh sửa nhầm.',typingStartedAt);
+    return;
+   }
    const result=await call('/api/v2/interpret',{message,profileId:$('profile').value,addressId:destination.id});
   if(!Array.isArray(result.suggestedItems)||!result.suggestedItems.length){
    input.value='';updateComposerAction();
