@@ -318,7 +318,17 @@ class V2OwnerAdminActivity : AppCompatActivity() {
             setPadding(dp(19), dp(10), dp(19), dp(8))
         }
         val inputs = mutableMapOf<String, EditText>()
+        val toggles = mutableMapOf<String, android.widget.Switch>()
         for (field in fields) {
+            if (field.key == "ctvMode") {
+                val toggle = android.widget.Switch(this).apply {
+                    text = "Tự động tính lợi nhuận CTV"
+                    isChecked = field.initial == "ON"
+                }
+                toggles[field.key] = toggle
+                container.addView(toggle)
+                continue
+            }
             container.addView(text(field.label, 12f, true, muted))
             val edit = EditText(this).apply {
                 setText(field.initial)
@@ -338,7 +348,10 @@ class V2OwnerAdminActivity : AppCompatActivity() {
             .create().apply {
                 setOnShowListener {
                     getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                        val values = inputs.mapValues { it.value.text.toString().trim() }
+                        val values = inputs.mapValues { it.value.text.toString().trim() }.toMutableMap()
+                        toggles.forEach { (key, toggle) ->
+                            values[key] = if (toggle.isChecked) "ON" else "OFF"
+                        }
                         submit(values)
                         dismiss()
                     }
