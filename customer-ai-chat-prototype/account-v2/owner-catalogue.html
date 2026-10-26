@@ -96,11 +96,16 @@ byId('sync').addEventListener('click',async()=>{
  if(!confirm('Xác nhận đọc danh mục chính thức và cập nhật RIÊNG danh mục V2? Không tạo hay sửa hóa đơn thật.'))return;
  busy=true;byId('sync').disabled=true;byId('refresh').disabled=true;
  state('Đang kiểm tra chữ ký nguồn và đồng bộ danh mục…');
+ let message='',kind='success';
  try{
   const result=await api('/api/v2/admin/catalogue/refresh','POST',{confirmed:true});
-  state('Đồng bộ thành công '+result.count+' sản phẩm, revision '+result.revision+'.','success');
- }catch(e){state('Không đồng bộ được: '+e.message+'. Danh mục hiện tại không bị ghi dữ liệu chưa xác minh.','error')}
- finally{busy=false;await reload()}
+  message='Đồng bộ thành công '+result.count+' sản phẩm, revision '+result.revision+'.';
+ }catch(e){
+  kind='error';
+  message='Không đồng bộ được: '+e.message+'. Không ghi dữ liệu chưa xác minh.';
+ }finally{
+  busy=false;await reload();state(message,kind);
+ }
 });
 (async()=>{
  try{
