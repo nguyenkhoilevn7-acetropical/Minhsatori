@@ -6552,7 +6552,7 @@
                 const original = matches[0];
                 const now = new Date().toISOString();
                 const patch = {status: newStatus, updatedAt: Date.now(),
-                    satoriPaidAt: newStatus === 'Đã TT Satori' ? original.satoriPaidAt || now : null};
+                    satoriPaidAt: newStatus === 'Đã TT Satori' ? original.satoriPaidAt || now : original.satoriPaidAt || null};
                 if (newStatus === 'Đã TT Satori' && SatoriAccountingCore.paid(original))
                     patch.customerPaidAt = original.customerPaidAt || now;
                 if (newStatus === 'Đã thanh toán')
