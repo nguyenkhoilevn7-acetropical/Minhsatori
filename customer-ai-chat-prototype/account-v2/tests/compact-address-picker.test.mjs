@@ -31,7 +31,7 @@ test('modal choices are scoped to profile, explicit selection and validated quot
  assert.match(script,/me\?\.addresses\?\.filter\(x=>x\.profileId===\$\('profile'\)\.value&&x\.active\)/);
  assert.match(script,/const choices=\$\('agentAddressChoices'\);choices\.replaceChildren\(\)/);
  assert.match(script,/button\.setAttribute\('aria-pressed',String\(address\.id===\$\('location'\)\.value\)\)/);
- assert.match(script,/deliverySelectionProfileId=\$\('profile'\)\.value;\s*\$\('location'\)\.value=address\.id;\s*resetTestQuote\(\);\s*renderAddresses\(\);\s*closeDeliveryDialog\(\)/);
+ assert.match(script,/deliverySelectionProfileId=\$\('profile'\)\.value;\s*\$\('location'\)\.value=address\.id;\s*resetTestQuote\(\);invalidateCartPricing\(\);\s*renderAddresses\(\);\s*closeDeliveryDialog\(\)/);
  assert.match(script,/if\(!selectedDeliveryAddress\(\)\)openDeliveryDialog\(\)/);
  assert.match(script,/\$\('headerProfile'\)\.onclick=openDeliveryDialog/);
  assert.match(script,/\$\('headerDelivery'\)\.onclick=openDeliveryDialog/);
