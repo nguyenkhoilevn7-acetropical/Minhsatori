@@ -58,15 +58,14 @@ test('agent can choose address, get a discounted TEST quote, then create ONE tri
  assert.throws(()=>demoCall('/api/v2/test-orders',{quoteId:q.quoteId,
   requestId:demoUuid(),confirmedTest:true}),/TEST_ORDER_CONFLICT/);
 });
-test('collaborator TEST quote computes 20% customer and 35% internal reference separately',()=>{
+test('collaborator TEST quote is a single sale without exposing profit',()=>{
  demoCall('/api/v2/cart',{profileId:demoCtvId,
   lines:[{code:'TP-00003',qty:10}],expectedRevision:0},'PUT');
  const q=demoCall('/api/v2/quote',{profileId:demoCtvId,addressId:demoCtvAddress1});
- assert.equal(q.invoiceMode,'pair');
+ assert.equal(q.invoiceMode,'single');
  assert.equal(q.totalVnd,960000);
- assert.equal(q.internalReference.totalVnd,780000);
- // Reference amount is not part of turnover.
- assert.notEqual(q.totalVnd+q.internalReference.totalVnd,q.totalVnd);
+ assert.equal(q.internalReference,undefined);
+ assert.equal(q.collaboratorSettlement,undefined);
 });
 test('test quote cannot be submitted after shopping cart revision changes',()=>{
  const profileId=demoAgencyId;

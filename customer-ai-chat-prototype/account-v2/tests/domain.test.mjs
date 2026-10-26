@@ -63,17 +63,37 @@ test('discount 100% is valid and totals zero',()=>{
  const q=calculateQuote({...base,policies:[policy(10000)]});
  assert.equal(q.totalVnd,0);
 });
-test('CTV pair uses TWO independently calculated totals; never adds both as revenue',()=>{
- const q=calculateQuote({...base,policies:[policy(2000,{invoiceMode:'pair',collaboratorBps:3500})]});
+test('CTV mode ON computes one buyer invoice and internal 15% goods spread',()=>{
+ const q=calculateQuote({...base,policies:[policy(2000,{collaboratorBps:3500})]});
  assert.equal(q.totalVnd,784000);
- assert.equal(q.internalReference.totalVnd,637000);
- assert.equal(q.invoiceMode,'pair');
- assert.match(q.internalReference.note,/never double-count/);
+ assert.equal(q.invoiceMode,'single');
+ assert.equal(q.collaboratorSettlement.customerGoodsVnd,784000);
+ assert.equal(q.collaboratorSettlement.settlementGoodsVnd,637000);
+ assert.equal(q.collaboratorSettlement.profitVnd,147000);
+ assert.equal(q.internalReference,undefined);
 });
-test('CTV pair forbidden on ordinary retail account',()=>{
+test('legacy pair rules convert to single invoice, never two invoices',()=>{
+ const q=calculateQuote({...base,policies:[policy(2000,{invoiceMode:'pair',collaboratorBps:3500})]});
+ assert.equal(q.invoiceMode,'single');
+ assert.equal(q.collaboratorSettlement.profitVnd,147000);
+});
+test('CTV mode OFF gives only regular buyer price',()=>{
+ const q=calculateQuote({...base,policies:[policy(2000)]});
+ assert.equal(q.totalVnd,784000);
+ assert.equal(q.collaboratorSettlement,undefined);
+});
+test('CTV commission is forbidden on ordinary retail accounts',()=>{
  const q=()=>calculateQuote({...base,profile:{...profile,type:'retail'},
- policies:[policy(2000,{invoiceMode:'pair',collaboratorBps:3500})]});
- assert.equal(code(q),'PAIR_NOT_AUTHORIZED');
+  policies:[policy(2000,{collaboratorBps:3500})]});
+ assert.equal(code(q),'COMMISSION_NOT_AUTHORIZED');
+});
+test('CTV discount must exceed buyer discount; VAT and freight not profit',()=>{
+ assert.equal(code(()=>calculateQuote({...base,policies:[policy(3500,{collaboratorBps:2000})]})),
+  'COLLABORATOR_RATE_INVALID');
+ const q=calculateQuote({...base,vatBps:1000,shippingVnd:30000,
+  policies:[policy(2000,{collaboratorBps:3500})]});
+ assert.equal(q.totalVnd,892400);
+ assert.equal(q.collaboratorSettlement.profitVnd,147000);
 });
 test('no cross-account or cross-profile access even with valid UUID',()=>{
  assert.equal(code(()=>calculateQuote({...base,accountId:otherAccount})),'PROFILE_FORBIDDEN');
@@ -84,11 +104,14 @@ test('stale catalogue, invalid price or unknown product rejects checkout',()=>{
  assert.equal(code(()=>calculateQuote({...base,catalogue:[{...catalogue[0],listPrice:-1}]})),'CATALOGUE_INVALID');
  assert.equal(code(()=>calculateQuote({...base,cart:[{code:'TP-99999',qty:1}]})),'PRODUCT_UNAVAILABLE');
 });
-test('mixed pair/single policy never generates one-sided invoice',()=>{
- const policies=[policy(2000,{invoiceMode:'pair',collaboratorBps:3500,productCode:'TP-00001'}),
+test('mixed per-SKU commission scopes still create one invoice',()=>{
+ const policies=[policy(2000,{collaboratorBps:3500,productCode:'TP-00001',version:2}),
   policy(2000,{productCode:'TP-00003'})];
  const cart=[{code:'TP-00001',qty:1},{code:'TP-00003',qty:1}];
- assert.equal(code(()=>calculateQuote({...base,cart,policies})),'MIXED_INVOICE_POLICY');
+ const q=calculateQuote({...base,cart,policies});
+ assert.equal(q.invoiceMode,'single');
+ assert.equal(q.items.length,2);
+ assert.equal(q.collaboratorSettlement.profitVnd,13200);
 });
 test('same-priority policy collision fails closed',()=>{
  const policies=[policy(2000),policy(3500,{id:'other'})];

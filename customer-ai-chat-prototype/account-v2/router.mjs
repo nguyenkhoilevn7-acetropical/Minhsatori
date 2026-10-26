@@ -182,16 +182,19 @@ async function adminPolicy(pool,actor,input){
  error(input.addressId==null||isUuid(input.addressId),'ADDRESS_INVALID');
  error(input.productCode==null||isSku(input.productCode),'SKU_INVALID');
  error(Number.isInteger(input.discountBps)&&input.discountBps>=0&&input.discountBps<=10000,'DISCOUNT_INVALID');
+ // New policies have one invoice. Optional CTV discount enables internal profit.
  const mode=input.invoiceMode||'single';
- error(['single','pair'].includes(mode),'INVOICE_MODE_INVALID');
- error(mode!=='pair'||Number.isInteger(input.collaboratorBps)&&input.collaboratorBps>=0&&input.collaboratorBps<=10000,
+ error(mode==='single','TWO_INVOICES_DISABLED');
+ const hasCommission=input.collaboratorBps!==undefined&&input.collaboratorBps!==null;
+ error(!hasCommission||(Number.isInteger(input.collaboratorBps)&&
+  input.collaboratorBps>input.discountBps&&input.collaboratorBps<=10000),
   'COLLABORATOR_DISCOUNT_INVALID');
  const client=await pool.connect();
  try{
   await client.query('BEGIN');
   const profile=await client.query('SELECT id,type FROM satori_v2_profiles WHERE id=$1 FOR UPDATE',[input.profileId]);
   error(profile.rows.length===1,'PROFILE_NOT_FOUND',404);
-  error(mode!=='pair'||profile.rows[0].type==='collaborator','PAIR_NOT_AUTHORIZED');
+  error(!hasCommission||profile.rows[0].type==='collaborator','COMMISSION_NOT_AUTHORIZED');
   if(input.addressId){
    const addr=await client.query('SELECT id FROM satori_v2_addresses WHERE id=$1 AND profile_id=$2',
     [input.addressId,input.profileId]);
@@ -210,11 +213,11 @@ async function adminPolicy(pool,actor,input){
    '(profile_id,address_id,product_code,discount_bps,collaborator_bps,invoice_mode,version,approved_by) '+
    'VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,version',
    [input.profileId,input.addressId||null,input.productCode||null,input.discountBps,
-    mode==='pair'?input.collaboratorBps:null,mode,version.rows[0].version,actor.google_sub]);
+    hasCommission?input.collaboratorBps:null,'single',version.rows[0].version,actor.google_sub]);
   await client.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
    'VALUES($1,$2,$3,$4,$5)',[actor.id,'owner','POLICY_APPROVED',policy.rows[0].id,
     JSON.stringify({profileId:input.profileId,addressId:input.addressId||null,productCode:input.productCode||null,
-     discountBps:input.discountBps,collaboratorBps:mode==='pair'?input.collaboratorBps:null,mode})]);
+     discountBps:input.discountBps,collaboratorBps:hasCommission?input.collaboratorBps:null,invoiceMode:'single',commissionEnabled:hasCommission})]);
   await client.query('COMMIT');
   return policy.rows[0];
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}finally{client.release()}
@@ -243,7 +246,7 @@ async function pricedCart(pool,actor,input){
 }
 function customerPricing(data){
  // The CTV internal reference is not a customer-facing sale price.
- const {internalReference,...shown}=data.priced;
+ const {collaboratorSettlement,...shown}=data.priced;
  return {...shown,items:shown.items.map(({internalUnitPrice,...line})=>line),
   cartRevision:data.cartRevision,chargesConfigured:false};
 }
@@ -252,7 +255,7 @@ async function quote(pool,actor,input){
  const r=await pool.query('INSERT INTO satori_v2_quotes(account_id,profile_id,address_id,payload,cart_revision,catalogue_revision,expires_at) '+
   'VALUES($1,$2,$3,$4,$5,$6,now()+interval \'10 minutes\') RETURNING id,expires_at',
   [actor.id,priced.profileId,priced.addressId,JSON.stringify(priced),cartRevision,catalogueRevision]);
- return {quoteId:r.rows[0].id,expiresAt:r.rows[0].expires_at,...priced,
+ return {quoteId:r.rows[0].id,expiresAt:r.rows[0].expires_at,...customerPricing({priced,cartRevision}),
   note:'Báo giá kiểm thử. Chưa tạo hóa đơn thật hoặc ghi công nợ.'};
 }
 /**
@@ -766,6 +769,36 @@ export async function handleAccountV2(req,res,pathname){
     'invoice_mode AS "invoiceMode",version,enabled,revision FROM satori_v2_policies '+
     'WHERE profile_id=$1 ORDER BY version DESC,created_at DESC LIMIT 100',[profileId]);
    send(res,200,{ok:true,policies:list.rows});return true;
+  }
+  if(pathname==='/api/v2/admin/ctv-summary'&&req.method==='GET'){
+   owner(actor);
+   const profileId=new URL(req.url,'http://local').searchParams.get('profileId');
+   error(isUuid(profileId),'PROFILE_INVALID');
+   const profile=await pool.query(
+    'SELECT id,type,display_name AS name FROM satori_v2_profiles WHERE id=$1',[profileId]);
+   error(profile.rows.length===1&&profile.rows[0].type==='collaborator','CTV_PROFILE_REQUIRED',404);
+   const rows=await pool.query(
+    'SELECT r.state,q.payload FROM satori_v2_order_requests r '+
+    'JOIN satori_v2_quotes q ON q.id=r.quote_id '+
+    'WHERE q.profile_id=$1 ORDER BY q.created_at DESC LIMIT 1000',[profileId]);
+   const totals={completedInvoices:0,salesVnd:0,profitVnd:0,
+    testOrders:0,testSalesVnd:0,testProfitVnd:0};
+   for(const row of rows.rows){
+    const privateCost=row.payload?.collaboratorSettlement;
+    if(!privateCost?.enabled)continue;
+    const sale=Number(privateCost.customerGoodsVnd),profit=Number(privateCost.profitVnd);
+    if(!Number.isSafeInteger(sale)||!Number.isSafeInteger(profit)||
+     profit<0||profit>sale)continue;
+    if(row.state==='COMMITTED'){
+     totals.completedInvoices++;totals.salesVnd+=sale;totals.profitVnd+=profit;
+    }else if(row.state==='PENDING_INTEGRATION'){
+     totals.testOrders++;totals.testSalesVnd+=sale;totals.testProfitVnd+=profit;
+    }
+   }
+   send(res,200,{ok:true,profileId,name:profile.rows[0].name,currency:'VND',
+    ...totals,truncated:rows.rows.length===1000,
+    note:'Merchandise spread only; VAT and delivery excluded; tests are not revenue.'});
+   return true;
   }
   if(pathname==='/api/v2/admin/accounts'&&req.method==='GET'){
    owner(actor);

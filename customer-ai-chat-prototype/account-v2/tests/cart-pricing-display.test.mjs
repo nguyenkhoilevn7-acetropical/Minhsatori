@@ -37,7 +37,7 @@ test('prices come from read-only canonical server quote calculations, not client
  assert.match(implementation,/calculateQuote\(\{/);
  assert.doesNotMatch(implementation,/INSERT INTO|UPDATE satori_v2/);
  const publicShape=router.match(/function customerPricing\([\s\S]*?(?=async function quote)/)?.[0]||'';
- assert.match(publicShape,/internalReference/);
+ assert.match(publicShape,/collaboratorSettlement/);
  assert.match(publicShape,/internalUnitPrice/);
  assert.match(html,/function loadCartPricing\(\)/);
  assert.match(html,/\/api\/v2\/cart-pricing\?/);

@@ -69,12 +69,16 @@ export function selectPolicy({profileId,addressId,code,policies=[],at=Date.now()
  const best=match[0];
  ensure(bps(best.discountBps)&&Number.isSafeInteger(best.version)&&best.version>=1,'POLICY_INVALID');
  ensure(best.invoiceMode==='single'||best.invoiceMode==='pair','POLICY_INVALID');
- ensure(best.invoiceMode!=='pair'||bps(best.collaboratorBps),'COLLABORATOR_RATE_REQUIRED');
+ ensure(best.invoiceMode!=='pair'||best.collaboratorBps!=null,'COLLABORATOR_RATE_REQUIRED');
+ const collaboratorBps=best.collaboratorBps==null?null:best.collaboratorBps;
+ ensure(collaboratorBps===null||bps(collaboratorBps),'COLLABORATOR_RATE_REQUIRED');
+ ensure(collaboratorBps===null||collaboratorBps>best.discountBps,'COLLABORATOR_RATE_INVALID');
  const duplicate=match[1];
  if(duplicate&&duplicate._specificity===best._specificity&&duplicate.version===best.version)
   throw new DomainError('POLICY_AMBIGUOUS');
- return {discountBps:best.discountBps,collaboratorBps:best.invoiceMode==='pair'?best.collaboratorBps:null,
-  invoiceMode:best.invoiceMode,version:best.version,policyId:best.id||null};
+ // Legacy V2 "pair" policies are treated as a settlement spread: one invoice only.
+ return {discountBps:best.discountBps,collaboratorBps,
+  invoiceMode:'single',version:best.version,policyId:best.id||null};
 }
 function percentPrice(price,discountBps){
  // Per-unit VND rounding. Integer-only multiplication: price <= 1e9.
@@ -102,38 +106,35 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
   products.set(product.code,product);
  }
  const lines=normalizeCart(cart);
- let goods=0,collabGoods=0,pair=false,policyVersion=0;
+ let goods=0,settlementGoods=0,commissionEnabled=false,policyVersion=0;
  const priced=lines.map(line=>{
   const product=products.get(line.code);
   ensure(product&&product.active!==false,'PRODUCT_UNAVAILABLE');
   const policy=selectPolicy({profileId:profile.id,addressId:address.id,code:line.code,policies,at});
-  ensure(policy.invoiceMode!=='pair'||profile.type==='collaborator','PAIR_NOT_AUTHORIZED');
-  if(pair&&policy.invoiceMode!=='pair')throw new DomainError('MIXED_INVOICE_POLICY');
-  if(policy.invoiceMode==='pair'&&pricedModeConflict(lines,policies,profile.id,address.id,at))throw new DomainError('MIXED_INVOICE_POLICY');
-  if(policy.invoiceMode==='pair')pair=true;
+  const enabled=policy.collaboratorBps!==null;
+  ensure(!enabled||profile.type==='collaborator','COMMISSION_NOT_AUTHORIZED');
   const unitPrice=percentPrice(product.listPrice,policy.discountBps);
-  const internalUnitPrice=policy.invoiceMode==='pair'?percentPrice(product.listPrice,policy.collaboratorBps):null;
+  const internalUnitPrice=enabled?percentPrice(product.listPrice,policy.collaboratorBps):unitPrice;
   goods+=unitPrice*line.qty;
-  if(internalUnitPrice!=null)collabGoods+=internalUnitPrice*line.qty;
+  settlementGoods+=internalUnitPrice*line.qty;
+  commissionEnabled ||= enabled;
   policyVersion=Math.max(policyVersion,policy.version);
   return {code:line.code,name:product.name,unit:product.unit,qty:line.qty,listPrice:product.listPrice,
-    discountBps:policy.discountBps,unitPrice,lineTotal:unitPrice*line.qty,
-    policyId:policy.policyId,policyVersion:policy.version,internalUnitPrice};
+   discountBps:policy.discountBps,unitPrice,lineTotal:unitPrice*line.qty,
+   policyId:policy.policyId,policyVersion:policy.version,
+   internalUnitPrice:enabled?internalUnitPrice:null};
  });
  ensure(Number.isSafeInteger(goods)&&goods<=100_000_000_000,'ORDER_TOTAL_TOO_LARGE');
+ ensure(Number.isSafeInteger(settlementGoods)&&settlementGoods<=100_000_000_000,'ORDER_TOTAL_TOO_LARGE');
  const vatVnd=Math.round(goods*vatBps/10_000),total=goods+shippingVnd+vatVnd;
  ensure(Number.isSafeInteger(total)&&total<=100_000_000_000,'ORDER_TOTAL_TOO_LARGE');
  const summary={currency:'VND',catalogueRevision,policyVersion,addressId:address.id,profileId:profile.id,
-  delivery,items:priced,goodsVnd:goods,shippingVnd,vatVnd,totalVnd:total,
-  invoiceMode:pair?'pair':'single'};
- if(pair){
-  const internalVatVnd=Math.round(collabGoods*vatBps/10_000);
-  summary.internalReference={goodsVnd:collabGoods,vatVnd:internalVatVnd,
-    shippingVnd,totalVnd:collabGoods+shippingVnd+internalVatVnd,
-    note:'Reference CTV bill only; never double-count revenue'};
+  delivery,items:priced,goodsVnd:goods,shippingVnd,vatVnd,totalVnd:total,invoiceMode:'single'};
+ // Only owner may see commission snapshots. Profit excludes VAT and freight.
+ if(commissionEnabled){
+  summary.collaboratorSettlement={enabled:true,currency:'VND',customerGoodsVnd:goods,
+   settlementGoodsVnd:settlementGoods,profitVnd:goods-settlementGoods,
+   basis:'MERCHANDISE_ONLY_EXCLUDES_VAT_SHIPPING'};
  }
  return Object.freeze(summary);
-}
-function pricedModeConflict(lines,policies,profileId,addressId,at){
- return lines.some(l=>selectPolicy({profileId,addressId,code:l.code,policies,at}).invoiceMode!=='pair');
 }
