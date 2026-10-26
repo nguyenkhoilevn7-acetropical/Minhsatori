@@ -175,6 +175,21 @@ header .satori-logo{width:31px;height:31px}
 .cart-price-row.grand-total{border-top:1px solid #dfe8f2;margin-top:7px;padding-top:11px;font-size:17px;font-weight:750;color:#142637}
 .cart-price-row.grand-total>strong{color:#007aff}
 .cart-price-note{margin:8px 0 0;color:#778492;font-size:11px;line-height:1.42}
+.test-invoice{margin-top:16px;padding:17px 13px;border:1px solid #d9e4ee;border-radius:17px;background:#fff;box-shadow:0 5px 20px #0f31500b}
+.test-invoice-brand{display:flex;align-items:center;gap:10px;border-bottom:1px solid #dce5ed;padding-bottom:12px}
+.test-invoice-brand .satori-logo{width:49px;height:49px;border-radius:13px}
+.test-invoice-brand strong{display:block;font-size:19px;color:#15395d}
+.test-invoice-brand span,.test-invoice-notice{font-size:11px;color:#657889}
+.test-invoice-title{margin:15px 0 10px;text-align:center;color:#15395d;font-weight:800;font-size:16px}
+.test-invoice-details{font-size:12px;color:#253e54;line-height:1.7}
+.test-invoice-table{width:100%;margin-top:12px;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.test-invoice-table th{background:#edf5fe;color:#244d73;text-align:left}
+.test-invoice-table th,.test-invoice-table td{padding:9px 5px;border-bottom:1px solid #e6edf4;overflow-wrap:anywhere}
+.test-invoice-table td:nth-child(n+2),.test-invoice-table th:nth-child(n+2){text-align:right}
+.test-invoice-totals{margin-top:12px;display:grid;gap:7px;font-size:13px}
+.test-invoice-totals div{display:flex;justify-content:space-between;gap:8px}
+.test-invoice-totals .total{font-size:17px;font-weight:800;color:#007aff;border-top:1px solid #dce5ed;padding-top:11px}
+.test-invoice-notice{margin:14px 0 0;line-height:1.5}
 .delivery-record{display:grid;gap:0;margin:10px 0 13px}
 .delivery-row{padding:10px 0;border-bottom:1px solid #eff2f6;display:flex;flex-direction:column;gap:2px}
 .delivery-row:last-child{border-bottom:0}
@@ -291,7 +306,6 @@ header .satori-logo{width:31px;height:31px}
 <select id="profile" hidden aria-hidden="true" tabindex="-1"></select>
 <select id="location" hidden aria-hidden="true" tabindex="-1"></select>
 <div class="delivery-record">
-<div class="delivery-row"><span class="delivery-label">Người mua / hồ sơ</span><strong id="cartBuyerName">—</strong><span id="cartBuyerPhone" class="delivery-secondary"></span></div>
 <div class="delivery-row"><span class="delivery-label">Người nhận</span><strong id="cartRecipientName">Chưa chọn điểm giao</strong><span id="cartRecipientPhone" class="delivery-secondary"></span></div>
 <div class="delivery-row"><span class="delivery-label">Địa chỉ giao</span><strong id="cartAddressLabel">Chưa chọn điểm giao</strong><span id="cartAddressText" class="delivery-secondary"></span></div>
 </div>
@@ -299,6 +313,7 @@ header .satori-logo{width:31px;height:31px}
 <div id="quoteResult" hidden></div>
 <button id="submitTestOrder" class="btn primary checkout-submit" type="button" aria-label="Submit order" disabled>Submit order</button>
 <div id="testOrderResult" class="muted" role="status" aria-live="polite" style="margin-top:9px"></div>
+<section id="testInvoicePreview" class="test-invoice" hidden aria-label="Xác nhận đơn thử có logo Minh Satori"></section>
 <button id="confirm" type="button" hidden disabled aria-hidden="true" tabindex="-1"></button>
 </div></section>
 <section id="addressesView" class="view hidden"><div class="screen-actions"><button class="screen-close back-to-chat" type="button" aria-label="Đóng màn hình và quay lại chat" title="Trở về chat">×</button></div><div class="panel"><h2>Địa chỉ đã lưu</h2><div id="addresses"></div>
@@ -771,6 +786,7 @@ function view(name){
  for(const btn of document.querySelectorAll('[data-view]'))btn.classList.toggle('active',btn.dataset.view===name);
  menu(false);
  if(name==='cart'){invalidateCartPricing();renderCart()}
+ if(name==='chat'&&!selectedDeliveryAddress())requestAnimationFrame(openDeliveryDialog);
  if(name==='orders'){
   loadOrders().catch(e=>toast(e.message));
   // Owner's invoice tools belong only to the installed Minh Satori back office.
@@ -792,14 +808,25 @@ $('message').addEventListener('blur',e=>{
  requestAnimationFrame(updateComposerAction);
 });
 
+// Delivery is mandatory before chat/order. Only the address editor may
+// temporarily leave the modal while there is no valid active destination.
+function syncDeliveryDialogGate(){
+ const required=!selectedDeliveryAddress();
+ $('deliveryClose').hidden=required;
+ $('deliveryDialog').classList.toggle('delivery-required',required);
+ return required;
+}
 function openDeliveryDialog(){
  if(!me||(!me.account.isAdmin&&me.account.accessStatus==='PENDING'))return;
  $('agentAddressMenu').open=true;
+ syncDeliveryDialogGate();
  if(!$('deliveryDialog').open)$('deliveryDialog').showModal();
 }
-function closeDeliveryDialog(){
+function closeDeliveryDialog(forAddressManagement=false){
+ if(!forAddressManagement&&syncDeliveryDialogGate())return false;
  if($('deliveryDialog').open)$('deliveryDialog').close();
  $('quickAgentProfile').disabled=false;
+ return true;
 }
 function changeCartDeliveryOnly(){
  // Cart address editor cannot change the buyer/agency profile.
@@ -809,7 +836,10 @@ function changeCartDeliveryOnly(){
 }
 $('cartChangeAddress').onclick=changeCartDeliveryOnly;
 $('headerDelivery').onclick=openDeliveryDialog;
-$('deliveryClose').onclick=closeDeliveryDialog;
+$('deliveryClose').onclick=()=>closeDeliveryDialog();
+$('deliveryDialog').addEventListener('cancel',event=>{
+ if(syncDeliveryDialogGate())event.preventDefault();
+});
 $('deliveryDialog').onclick=e=>{if(e.target===$('deliveryDialog'))closeDeliveryDialog()};
 const deliveryBrandLogo=document.querySelector('.brand .satori-logo');
 if(deliveryBrandLogo){
@@ -863,6 +893,8 @@ function resetTestQuote(){
  $('submitTestOrder').disabled=true;
  $('quoteResult').textContent='';
  $('testOrderResult').textContent='';
+ $('testInvoicePreview').hidden=true;
+ $('testInvoicePreview').replaceChildren();
 }
 function renderBadge(){
  const total=count();
@@ -940,8 +972,6 @@ function invalidateCartPricing(){
 function renderCartBuyer(){
  const profile=me?.profiles?.find(p=>p.id===$('profile').value);
  const delivery=selectedDeliveryAddress();
- $('cartBuyerName').textContent=profile?.name||'Chưa có hồ sơ';
- $('cartBuyerPhone').textContent=profile?.phone?'SĐT: '+profile.phone:'';
  $('cartRecipientName').textContent=delivery?.recipientName||'Chưa chọn điểm giao';
  $('cartRecipientPhone').textContent=delivery?.recipientPhone?'SĐT: '+delivery.recipientPhone:'';
  $('cartAddressLabel').textContent=delivery?.label||'Vui lòng chọn địa chỉ';
@@ -1080,6 +1110,7 @@ function updateDeliveryGate(){
  $('agentAddressMenu').classList.toggle('required',!ready);
  $('headerDelivery').classList.toggle('required',!ready);
  $('headerDelivery').setAttribute('aria-label',ready?'Điểm giao: '+selectedDeliveryAddress().label:'Chọn địa điểm giao hàng');
+ syncDeliveryDialogGate();
  $('quote').disabled=!ready;
  const key=pricingContextKey();
  $('submitTestOrder').disabled=!ready||!cart.length||busy||savingCart||
@@ -1287,9 +1318,62 @@ $('addressForm').onsubmit=async ev=>{
   ev.target.reset();me=await call('/api/v2/me',undefined,'GET');renderAddresses();toast('Đã lưu địa chỉ');
  }catch(e){toast(e.message)}
 };
+// Show a polished, clearly NON-FISCAL order confirmation with the same
+// Satori logo used by the app. Official invoices/PDF remain source-of-truth
+// documents produced by the original signed ledger, never by V2 preview.
+function renderTestInvoice(quote,result){
+ const wrap=$('testInvoicePreview');wrap.replaceChildren();
+ const brand=node('div',undefined,'test-invoice-brand');
+ const logo=document.querySelector('.brand .satori-logo');
+ if(logo)brand.append(logo.cloneNode(true));
+ const brandText=node('div');
+ brandText.append(node('strong','MINH SATORI'),
+  node('span','Xác nhận đơn hàng · giao diện mẫu'));
+ brand.append(brandText);
+ wrap.append(brand,node('h3','PHIẾU XÁC NHẬN ĐƠN THỬ','test-invoice-title'));
+ const detail=node('div',undefined,'test-invoice-details');
+ detail.append(node('div','Mã đơn thử: '+String(result.orderId).slice(0,8)),
+  node('div','Ngày: '+new Intl.DateTimeFormat('vi-VN',{dateStyle:'short',timeStyle:'short'}).format(new Date())),
+  node('div','Người nhận: '+String(quote.delivery?.recipientName||'—')),
+  node('div','Điện thoại: '+String(quote.delivery?.recipientPhone||'—')),
+  node('div','Địa chỉ: '+String(quote.delivery?.address||'—')));
+ wrap.append(detail);
+ const table=node('table',undefined,'test-invoice-table');
+ const head=node('thead'),headRow=node('tr');
+ for(const label of ['Sản phẩm','SL','Đơn giá','Thành tiền']){
+  headRow.append(node('th',label));
+ }
+ head.append(headRow);table.append(head);
+ const body=node('tbody');
+ for(const item of quote.items||[]){
+  const row=node('tr');
+  for(const value of [item.name||item.code||'—',String(item.qty),
+   money(item.unitPrice),money(item.lineTotal)]){
+   row.append(node('td',value));
+  }
+  body.append(row);
+ }
+ table.append(body);wrap.append(table);
+ const totals=node('div',undefined,'test-invoice-totals');
+ const subtotal=(quote.items||[]).reduce((sum,item)=>sum+Number(item.listPrice||0)*Number(item.qty||0),0);
+ const lines=[['Tạm tính',subtotal],['Chiết khấu',subtotal-quote.goodsVnd],
+  ['Phí giao hàng',quote.shippingVnd],['VAT',quote.vatVnd],
+  ['Tổng thanh toán',quote.totalVnd]];
+ for(let i=0;i<lines.length;i++){
+  const row=node('div',undefined,i===lines.length-1?'total':'');
+  row.append(node('span',lines[i][0]),
+   node('strong',(i===1?'-':'')+money(lines[i][1])));
+  totals.append(row);
+ }
+ wrap.append(totals,node('p',
+  'ĐƠN THỬ · KHÔNG PHẢI HÓA ĐƠN CHÍNH THỨC · KHÔNG PHÁT SINH THANH TOÁN. Hóa đơn PDF thật chỉ được xuất từ sổ Minh Satori sau khi hệ thống xác nhận phát hành.',
+  'test-invoice-notice'));
+ wrap.hidden=false;
+}
 // Single checkout action. A fresh, backend-calculated quote is still
 // mandatory; it is not exposed as an extra screen/button to customers.
 $('submitTestOrder').onclick=async()=>{
+ document.activeElement?.blur?.();
  if(busy||savingCart||!cart.length)return;
  if(!requireDeliverySelection())return;
  if(!PREVIEW&&!realTestEnabled){
@@ -1321,6 +1405,7 @@ $('submitTestOrder').onclick=async()=>{
   const result=await call('/api/v2/test-orders',{quoteId:q.quoteId,
    requestId:lastTestRequestId,confirmedTest:true});
   lastSubmittedCartKey=key;
+  renderTestInvoice(q,result);
   $('testOrderResult').textContent='✓ Đã nhận ĐƠN THỬ '+String(result.orderId).slice(0,8)+
    ' · Không tạo hóa đơn thật hay phát sinh thanh toán.';
   lastQuote=null;
@@ -1368,6 +1453,7 @@ $('send').onclick=async()=>{
  if(!message||busy)return;
  if(!requireDeliverySelection())return;
  if(message.length>500){toast('Tin nhắn tối đa 500 ký tự');return}
+ input.blur(); // Never reopen the mobile keyboard after async chat completion.
  busy=true;$('send').disabled=true;input.disabled=true;
  $('chatStatus').textContent='';
  $('chatView').setAttribute('aria-busy','true');
@@ -1410,7 +1496,7 @@ $('send').onclick=async()=>{
  }finally{
   busy=false;updateDeliveryGate();
   $('chatStatus').textContent='';$('chatView').setAttribute('aria-busy','false');
-  input.focus();
+  input.blur();
  }
 };
 $('message').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('send').click()}};
@@ -1435,7 +1521,7 @@ async function refreshData(){
 }
 $('manualRefresh').onclick=refreshData;
 
- $('agentAddressManage').onclick=()=>{closeDeliveryDialog();view('addresses')};
+ $('agentAddressManage').onclick=()=>{closeDeliveryDialog(true);view('addresses')};
 
 // All V2 clients reconcile catalogue, authorized profiles, addresses and cart
 // while visible. Never write data or discard unsaved form fields.
@@ -1467,7 +1553,7 @@ setInterval(async()=>{
     $('profile').value=selected;$('quickAgentProfile').value=selected;
    }else{
     deliverySelectionProfileId=null;cart=[];cartRev=0;resetTestQuote();
-    renderBadge();updateDeliveryGate();closeDeliveryDialog();view('account');
+    renderBadge();updateDeliveryGate();closeDeliveryDialog(true);view('account');
     toast('Quyền hồ sơ đã thay đổi. Vui lòng kiểm tra lại.');
     return;
    }
@@ -1479,7 +1565,7 @@ setInterval(async()=>{
   }
   if(oldAccount!==me.account.accessStatus&&!me.account.isAdmin&&me.account.accessStatus!=='ACTIVE'){
    deliverySelectionProfileId=null;resetTestQuote();updateDeliveryGate();
-   closeDeliveryDialog();view('account');return;
+   closeDeliveryDialog(true);view('account');return;
   }
   if(JSON.stringify(products)!==JSON.stringify(remoteCatalogue.items)){
    products=remoteCatalogue.items;resetTestQuote();invalidateCartPricing();renderProducts();renderCart();
