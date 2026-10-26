@@ -179,7 +179,11 @@ header .satori-logo{width:31px;height:31px}
 .icon-button svg{width:19px;height:19px}
 .icon-button:active{transform:scale(.94)}
 .icon-button:focus-visible{outline:3px solid #80c5fc}
-.cart-clear{padding:0;background:#f3f4f7;color:#75808a}
+.cart-heading-actions .cart-clear,.cart-heading-actions .screen-close{background:#fff0ee;color:#ff3b30;transition:background-color .18s ease,color .18s ease,transform .18s ease}
+.cart-heading-actions .cart-clear{padding:0}
+.cart-heading-actions .cart-clear:hover:not(:disabled),.cart-heading-actions .screen-close:hover{background:#ffe0dc}
+.cart-heading-actions .cart-clear:active,.cart-heading-actions .screen-close:active{transform:scale(.94)}
+.cart-heading-actions .cart-clear:focus-visible,.cart-heading-actions .screen-close:focus-visible{outline:3px solid #ffb4ac}
 .delivery-change{background:#edf4ff;color:#007aff;padding:0}
 .checkout-submit{display:block;width:100%;min-height:48px;margin-top:11px;
  background:#007aff!important;color:#fff;font-weight:750;border-radius:14px}
