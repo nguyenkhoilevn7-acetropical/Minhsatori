@@ -486,7 +486,7 @@ function demoInterpretMessage(text){
  const normalize=value=>String(value||'').normalize('NFD')
   .replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toLowerCase();
  const spoken={mot:1,hai:2,ba:3,bon:4,nam:5,muoi:10};
- const input=normalize(text).trim().replace(/^(?:cho (?:toi|anh|chi|em|minh)\s+|(?:anh|chi|em) (?:lay|dat|mua|cho)\s+|lay\s+|dat\s+|them\s+)/,'');
+ const input=normalize(text).trim().replace(/^(?:cho (?:toi|anh|chi|em|minh)\s+|(?:anh|chi|em) (?:lay|dat|mua|cho)\s+|cho\s+|lay\s+|dat\s+|them\s+)/,'');
  const parts=input.split(/\s*(?:,|;|\bva\b|\bvoi\b)\s*/).filter(Boolean);
  if(!parts.length||parts.length>6)return [];
  const parsed=new Map();
@@ -498,8 +498,9 @@ function demoInterpretMessage(text){
   const code=volume==='350ml'?'TP-00001':volume==='500ml'?'TP-00003':'TP-00136';
   const product=demoState.products.find(p=>p.code===code);
   const unit=m[2]==='thg'?'thung':m[2];
+  const officialUnit=normalize(product?.unit||(code==='TP-00136'?'can':'thùng'));
   if(!Number.isSafeInteger(qty)||qty<1||qty>500||!product||
-   (unit&&unit!==normalize(product.unit)))return [];
+   (unit&&unit!==officialUnit))return [];
   const next=(parsed.get(code)||0)+qty;
   if(next>500)return [];
   parsed.set(code,next);
