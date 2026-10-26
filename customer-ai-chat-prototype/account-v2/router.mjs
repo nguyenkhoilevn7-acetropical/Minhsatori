@@ -278,8 +278,12 @@ export async function interpret(pool,input){
  const question=recognisedCatalogueQuestion(input.message);
  if(question){
   const r=await pool.query('SELECT code,name,unit FROM satori_v2_catalogue WHERE active=true');
+  const verified=r.rows.some(product=>product.code===question.code);
   return {needsClarification:true,provider:'verified-v2-catalogue',
    source:'verified-v2-catalogue-faq',geminiConfigured:geminiConfigured(),
+   // A verified SKU allows a short, scoped follow-up such as "5 thùng".
+   // Never offer this context if the product is absent from active V2.
+   availableProductCode:verified?question.code:null,
    message:verifiedAvailabilityAnswer(question,r.rows)};
  }
  // Reuse the original Vietnamese parser. Every proposed SKU must subsequently
