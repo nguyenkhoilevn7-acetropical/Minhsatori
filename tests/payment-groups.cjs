@@ -26,6 +26,22 @@ function harness(){
  const frozen=harness();frozen.nodes.get('excelFilterCustomerName').value='khach a';frozen.c.window.Acct.bulkForm();frozen.nodes.get('excelFilterCustomerName').value='khach b';await frozen.form.submit({preventDefault(){}});assert.equal(frozen.c.orders[0].status,'Đã thanh toán');assert.equal(frozen.c.orders[2].status,'Chưa thanh toán','changing filters must not change captured group');
  const stale=harness();stale.c.window.Acct.bulkForm();stale.nodes.get('acct-bulk-file').files=[{name:'proof.pdf',type:'application/pdf',size:100,slice:()=>({text:async()=>'%PDF-'})}];const pending=stale.form.submit({preventDefault(){}});for(let i=0;i<5;i++)await Promise.resolve();assert(stale.reader);stale.c.orders[0]={...stale.c.orders[0],total:999};stale.reader.result='data:application/pdf;base64,dGVzdA==';stale.reader.onload();await pending;assert.equal(stale.writes,0);assert.match(stale.nodes.get('acct-bulk-progress').textContent,/thay đổi/);
  const cancel=harness();cancel.c.window.Acct.bulkForm();cancel.nodes.get('acct-bulk-file').files=[{name:'proof.pdf',type:'application/pdf',size:100,slice:()=>({text:async()=>'%PDF-'})}];const cancelled=cancel.form.submit({preventDefault(){}});for(let i=0;i<5;i++)await Promise.resolve();cancel.c.window.Acct.cancelBulk();cancel.reader.result='data:application/pdf;base64,dGVzdA==';cancel.reader.onload();await cancelled;assert.equal(cancel.writes,0,'closing the dedicated dialog cancels pending uploads');assert.equal(cancel.nodes.has('acct-bulk-dialog'),false);
+  const proof=harness(),paidKey=C.key(proof.c.orders[0]);
+ proof.c.window.Acct.status(paidKey,'Đã TT Satori');
+ const satoriProof=proof.c.orders[0].satoriPaidAt;
+ assert.ok(satoriProof,'Satori payment receives independent proof');
+ assert.equal(C.paid(proof.c.orders[0]),false,'Satori payment does not imply customer payment');
+ proof.c.window.Acct.status(paidKey,'Đã thanh toán');
+ assert.ok(C.paid(proof.c.orders[0]),'Customer payment can be independently recorded');
+ assert.equal(proof.c.orders[0].satoriPaidAt,satoriProof,
+  'Customer payment must not erase Satori payment receipt');
+ proof.c.window.Acct.status(paidKey,'Chưa thanh toán');
+ assert.equal(C.paid(proof.c.orders[0]),false);
+ assert.equal(proof.c.orders[0].satoriPaidAt,satoriProof,
+  'Undoing customer payment must preserve independent Satori payment');
+ proof.nodes.set('paymentStatus',{value:'Đã thanh toán'});
+ assert.equal(proof.c.window.Acct.paymentMeta(proof.c.orders[0]).satoriPaidAt,satoriProof,
+  'Editing an old invoice must not erase Satori payment proof');
  console.log('PASS: stable-key grouping, independent customer/Satori payment, single receipt storage and resolution, deletion promotion, invalid/cancelled IDs, customer-code/phone/date filtering, complete group form save, atomic quota failure and invalid-link rejection, all scripts syntax');
 })().catch(e=>{console.error(e);process.exitCode=1;});
 

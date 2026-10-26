@@ -1,0 +1,26 @@
+name: Legacy payment status preservation (offline only)
+on:
+  pull_request:
+    paths:
+      - 'accounting.js'
+      - 'accounting-core.js'
+      - 'index.html'
+      - 'tests/payment-groups.cjs'
+      - '.github/workflows/legacy-payment-status-fake.yml'
+permissions:
+  contents: read
+jobs:
+  payment-state:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Offline customer and Satori payment state regressions
+        run: node tests/payment-groups.cjs
+      - name: Verify accounting JS parses
+        run: node --check accounting.js
