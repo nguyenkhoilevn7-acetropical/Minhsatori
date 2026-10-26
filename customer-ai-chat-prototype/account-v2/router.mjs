@@ -306,11 +306,12 @@ export async function interpret(pool,input){
 }
 export async function handleAccountV2(req,res,pathname){
  const page=pathname==='/app-v2'||pathname==='/app-v2/';
+ const ownerPage=pathname==='/owner-v2'||pathname==='/owner-v2/';
  const api=pathname.startsWith('/api/v2/');
- if(!page&&!api)return false;
+ if(!page&&!ownerPage&&!api)return false;
  try{
-  if(page){
-   const html=fs.readFileSync(path.join(HERE,'app.html'),'utf8');
+  if(page||ownerPage){
+   const html=fs.readFileSync(path.join(HERE,ownerPage?'owner-catalogue.html':'app.html'),'utf8');
    res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store',
     'x-frame-options':'DENY','referrer-policy':'no-referrer','x-content-type-options':'nosniff',
     'content-security-policy':"default-src 'none'; style-src 'unsafe-inline' https://accounts.google.com/gsi/style; script-src 'unsafe-inline' https://accounts.google.com/gsi/client; connect-src 'self' https://accounts.google.com/gsi/; img-src 'self' data:; frame-src https://accounts.google.com/gsi/; frame-ancestors 'none'; form-action 'none'; base-uri 'none'"});
@@ -486,6 +487,22 @@ export async function handleAccountV2(req,res,pathname){
     'ORDER BY q.created_at DESC LIMIT 50',[actor.id,'COMMITTED']);
    send(res,200,{ok:true,orders:data.rows.map(x=>({...x,verified:x.state==='COMMITTED'&&
     Number.isSafeInteger(x.invoiceNo)&&x.invoiceNo>0}))});return true;
+  }
+  if(pathname==='/api/v2/admin/catalogue/readiness'&&req.method==='GET'){
+   // Owner-only, aggregate-only diagnostic. Never exposes HMAC credentials,
+   // customer records, financial records, or a read gateway endpoint.
+   owner(actor);
+   const r=await pool.query(
+    "SELECT COUNT(*) FILTER (WHERE active=true)::int AS active_count, "+
+    "COALESCE(MAX(revision),0)::int AS revision, "+
+    "COUNT(*) FILTER (WHERE active=true AND code='TP-00003')::int AS satori500, "+
+    "COUNT(*) FILTER (WHERE active=true AND code='TP-00058')::int AS oihong "+
+    "FROM satori_v2_catalogue");
+   const x=r.rows[0];
+   send(res,200,{ok:true,activeCount:Number(x.active_count),
+    revision:Number(x.revision),satori500Active:Number(x.satori500)>0,
+    oiHongActive:Number(x.oihong)>0,readTransportConfigured:readOnlyReady()});
+   return true;
   }
   if(pathname==='/api/v2/catalogue'&&req.method==='GET'){
    const r=await pool.query('SELECT code,name,unit,list_price AS "listPrice",revision FROM satori_v2_catalogue '+
