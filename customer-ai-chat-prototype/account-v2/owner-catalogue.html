@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f6f8fc"><title>Quản trị danh mục · Minh Satori V2</title>
+<style>
+:root{color-scheme:light;--bg:#f6f8fc;--ink:#162b45;--sub:#526782;--line:#dce5ee;--blue:#0879ed;--pale:#e7f2ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{width:min(720px,100%);padding:24px 18px 40px;margin:auto}
+header{display:flex;align-items:center;gap:12px;margin-bottom:24px}header a{color:var(--blue);text-decoration:none;font-weight:650}
+header h1{font-size:22px;margin:0}.eyebrow{color:var(--sub);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.card{border:1px solid var(--line);border-radius:21px;background:#fff;padding:22px;margin:14px 0;box-shadow:0 7px 24px #1b4d8b0b}
+h2{font-size:19px;margin:0 0 6px}p{margin:6px 0 14px;color:var(--sub)}
+.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
+.metric{border:1px solid var(--line);border-radius:15px;padding:14px;background:#fafcff}
+.metric small{display:block;color:var(--sub);font-size:12px}.metric strong{display:block;font-size:24px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+button{cursor:pointer;border:0;border-radius:13px;font:inherit;font-weight:650;padding:12px 17px;background:var(--blue);color:white}
+button:disabled{cursor:not-allowed;opacity:.45}button.secondary{background:var(--pale);color:#095aaa}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+#notice{padding:12px;border-radius:12px;background:#f1f6fc;color:var(--ink);overflow-wrap:anywhere}#notice[data-kind="error"]{background:#fff3e8;color:#86510c}
+#notice[data-kind="success"]{background:#e7f8ed;color:#166637}
+.badge{font-size:13px;padding:4px 9px;border-radius:20px;background:var(--pale);color:#145c9d;display:inline-block}
+details{margin-top:13px;color:var(--sub);font-size:14px}details summary{cursor:pointer}
+[hidden]{display:none!important}
+@media(max-width:440px){main{padding:20px 13px 30px}.card{padding:18px}}
+</style></head>
+<body>
+<main>
+<header><a href="/app-v2" aria-label="Quay về ứng dụng đặt hàng">‹ Ứng dụng</a><span aria-hidden="true">/</span><div><div class="eyebrow">Backoffice · V2 độc lập</div><h1>Đồng bộ danh mục</h1></div></header>
+<section class="card" aria-label="Quyền truy cập">
+ <span class="badge">Chỉ quản trị viên</span>
+ <p>Dùng phiên Google Admin hiện tại. Không cần nhập lại API key, HMAC secret hoặc mật khẩu.</p>
+ <p id="authState" role="status">Đang kiểm tra quyền truy cập…</p>
+</section>
+<section class="card" id="console" hidden>
+ <h2>Danh mục đã xác minh</h2>
+ <p>Dữ liệu trên PostgreSQL V2, tách biệt với sổ hóa đơn và các link đại lý cũ.</p>
+ <div class="metrics">
+   <div class="metric"><small>Sản phẩm đang hoạt động</small><strong id="count">—</strong></div>
+   <div class="metric"><small>Revision danh mục</small><strong id="revision">—</strong></div>
+   <div class="metric"><small>Satori 500ml · TP-00003</small><strong id="s500">—</strong></div>
+   <div class="metric"><small>Ổi hồng · TP-00058</small><strong id="oi">—</strong></div>
+ </div>
+ <p id="gateway">Đang kiểm tra kết nối đọc…</p>
+ <div id="notice" role="status" aria-live="polite">Đang tải thông tin danh mục.</div>
+ <div class="actions">
+  <button id="refresh" class="secondary" type="button">↻ Kiểm tra lại</button>
+  <button id="sync" type="button" disabled>Đồng bộ từ Satori chính thức</button>
+ </div>
+ <details><summary>Điều kiện đồng bộ an toàn</summary>
+  <p>Backend cần bộ quyền đọc HMAC <code>catalogue:read</code> và danh mục chính thức đã được lưu trên Drive. Nút đồng bộ yêu cầu xác nhận của Admin, kiểm tra revision và xác minh dữ liệu sau khi ghi vào PostgreSQL V2. Không chuyển hóa đơn, công nợ hoặc hồ sơ khách hàng.</p>
+ </details>
+</section>
+<section class="card" id="denied" hidden>
+ <h2>Chưa thể mở quản trị</h2>
+ <p id="deniedText">Vui lòng đăng nhập tài khoản Admin trong ứng dụng V2.</p>
+ <a href="/app-v2">Mở ứng dụng V2 để đăng nhập Google</a>
+</section>
+</main>
+<script>
+'use strict';
+const byId=id=>document.getElementById(id);
+const csrf=()=>document.cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith('satori_v2_csrf='))?.slice(15)||'';
+let isOwner=false,busy=false,sourceReady=false;
+function state(message,kind='info'){byId('notice').textContent=message;byId('notice').dataset.kind=kind}
+async function api(route,method='GET',body){
+ const headers={'accept':'application/json'};
+ if(method!=='GET'){headers['content-type']='application/json';headers['x-satori-csrf']=csrf()}
+ const response=await fetch(route,{method,credentials:'same-origin',cache:'no-store',headers,
+  body:method==='GET'?undefined:JSON.stringify(body||{})});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(data.error||'CONNECTION_UNAVAILABLE');
+ return data;
+}
+async function reload(){
+ if(!isOwner)return;
+ busy=true;byId('refresh').disabled=true;byId('sync').disabled=true;
+ try{
+  const info=await api('/api/v2/admin/catalogue/readiness');
+  byId('count').textContent=String(info.activeCount);
+  byId('revision').textContent=info.revision>0?String(info.revision):'Chưa có';
+  byId('s500').textContent=info.satori500Active?'Đã có':'Chưa có';
+  byId('oi').textContent=info.oiHongActive?'Đã có':'Chưa có';
+  sourceReady=info.readTransportConfigured===true;
+  byId('gateway').textContent=sourceReady
+   ?'Kết nối đọc đã được cấu hình; quyền thực tế sẽ được xác minh khi đồng bộ.'
+   :'Kết nối đọc Apps Script chưa sẵn sàng. Cần cấu hình riêng quyền catalogue:read cho V2.';
+  state(sourceReady
+   ?(info.activeCount>0?'Danh mục V2 đã có sản phẩm. Có thể đồng bộ để kiểm tra revision mới.':'Danh mục V2 đang trống. Có thể đồng bộ sau khi xác minh nguồn.')
+   :'Không thể đồng bộ cho đến khi cấu hình quyền đọc chính thức trên Render.',
+   sourceReady?'info':'error');
+ }catch(e){sourceReady=false;state('Không đọc được trạng thái: '+e.message,'error')}
+ finally{busy=false;byId('refresh').disabled=false;byId('sync').disabled=!sourceReady}
+}
+byId('refresh').addEventListener('click',reload);
+byId('sync').addEventListener('click',async()=>{
+ if(!isOwner||busy||!sourceReady)return;
+ if(!confirm('Xác nhận đọc danh mục chính thức và cập nhật RIÊNG danh mục V2? Không tạo hay sửa hóa đơn thật.'))return;
+ busy=true;byId('sync').disabled=true;byId('refresh').disabled=true;
+ state('Đang kiểm tra chữ ký nguồn và đồng bộ danh mục…');
+ try{
+  const result=await api('/api/v2/admin/catalogue/refresh','POST',{confirmed:true});
+  state('Đồng bộ thành công '+result.count+' sản phẩm, revision '+result.revision+'.','success');
+ }catch(e){state('Không đồng bộ được: '+e.message+'. Danh mục hiện tại không bị ghi dữ liệu chưa xác minh.','error')}
+ finally{busy=false;await reload()}
+});
+(async()=>{
+ try{
+  const me=await api('/api/v2/me');
+  if(!me?.account?.isAdmin)throw Error('ADMIN_REQUIRED');
+  isOwner=true;byId('authState').textContent='Đã xác thực quyền Admin.';
+  byId('console').hidden=false;await reload();
+ }catch(e){
+  byId('authState').textContent='Không có phiên Admin hợp lệ.';
+  byId('denied').hidden=false;
+  byId('deniedText').textContent=e.message==='ADMIN_REQUIRED'
+   ?'Tài khoản hiện tại không có quyền quản trị.'
+   :'Vui lòng đăng nhập Google bằng tài khoản Admin V2.';
+ }
+})();
+</script>
+</body></html>
