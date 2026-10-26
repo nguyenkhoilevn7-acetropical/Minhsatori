@@ -384,7 +384,11 @@ class V2OwnerAdminActivity : AppCompatActivity() {
             records(result.optJSONArray("registered") ?: JSONArray()) { item ->
                 val name = item.optString("fullName").ifBlank { item.optString("name") }
                 val account = item.optString("id")
-                content.block(name + " · " + item.optString("accessStatus"),
+                val ctvTag = if (item.optBoolean("hasCtvProfile", false))
+                    if (item.optBoolean("ctvEnabled", false)) " · CTV đang bật"
+                    else " · CTV đã tắt"
+                    else ""
+                content.block(name + " · " + item.optString("accessStatus") + ctvTag,
                     item.optString("phone") + "\n" + item.optString("address") +
                     "\n" + item.optString("email") + " · CK " +
                     (item.optInt("discountBps") / 100.0).toString() + "%") {
@@ -473,8 +477,13 @@ class V2OwnerAdminActivity : AppCompatActivity() {
 
     private fun showRegisteredActions(item: JSONObject) {
         val active = item.optString("accessStatus")
-        val options = arrayOf("Duyệt tài khoản / cấp chiết khấu", "Tạm khóa tài khoản",
-            "Sửa thông tin đã đăng ký", "Quản lý hồ sơ / điểm giao", "Thu hồi quyền V2")
+        val ctvEnabled = item.optBoolean("ctvEnabled", false)
+        val options = mutableListOf("Duyệt tài khoản / cấp chiết khấu", "Tạm khóa tài khoản",
+            "Sửa thông tin đã đăng ký", "Quản lý hồ sơ / điểm giao", "Thu hồi quyền V2").apply {
+            if (active == "ACTIVE" && item.optBoolean("hasCtvProfile", false)) {
+                add(if (ctvEnabled) "Tắt chế độ CTV" else "Bật chế độ CTV")
+            }
+        }.toTypedArray()
         AlertDialog.Builder(this).setTitle(item.optString("fullName", item.optString("name")))
             .setItems(options) { _, index ->
                 when(index) {
@@ -502,6 +511,17 @@ class V2OwnerAdminActivity : AppCompatActivity() {
                     }
                     2 -> editRegistered(item)
                     3 -> { accountId=item.optString("id"); navigate("profiles") }
+                    5 -> {
+                        val nextEnabled = !ctvEnabled
+                        val data = JSONObject().put("accountId",item.getString("id"))
+                            .put("expectedRevision",item.getInt("revision"))
+                            .put("enabled",nextEnabled).put("confirmed",true)
+                        confirm(if (nextEnabled) "Bật CTV" else "Tắt CTV",
+                            "Chỉ áp dụng cho báo giá và hoa hồng mới. " +
+                                "Không thay đổi hoa hồng, hóa đơn đã phát hành.") {
+                            save("PATCH","/api/v2/admin/ctv-mode",data) { fetchCustomers() }
+                        }
+                    }
                 }
             }.show()
     }
