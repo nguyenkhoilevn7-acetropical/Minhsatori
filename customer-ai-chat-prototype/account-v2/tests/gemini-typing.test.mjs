@@ -15,7 +15,7 @@ function isolatedTyping(nowValue){
   Date:{now:()=>nowValue},
   setTimeout:(callback,ms)=>{scheduled.push(ms);callback()}
  });
- const start=inline.indexOf('const GEMINI_TYPING_MIN_MS=1500;');
+ const start=inline.indexOf('const GEMINI_TYPING_MIN_MS=220;');
  const end=inline.indexOf('\nfunction count()',start);
  assert.ok(start>=0&&end>start,'typing implementation must exist');
  vm.runInContext(inline.slice(start,end),context,{timeout:500});
@@ -30,18 +30,18 @@ test('compact three-dot indicator uses subtle gray, respects reduced motion',()=
  assert.match(inline,/for\(let i=0;i<3;i\+\+\)dots\.append\(node\('i'\)\)/);
  assert.doesNotMatch(inline,/textContent='Đang phân tích yêu cầu\.\.\.'/);
 });
-test('response ready immediately still displays typing for at least 1500 milliseconds',async()=>{
+test('response ready immediately displays a brief status without artificial delay',async()=>{
  const t=isolatedTyping(10_000);
  await t.context.revealGeminiReply(t.reply,'Đã nhận',10_000);
- assert.deepEqual(t.scheduled,[1500]);
+ assert.deepEqual(t.scheduled,[220]);
  assert.equal(t.reply.textContent,'Đã nhận');
  assert.ok(t.reply.classList.removed.includes('typing'));
  assert.deepEqual(t.reply.removed,['role','aria-label']);
 });
 test('slower backend only waits remaining time; never delays an already slow answer',async()=>{
- const medium=isolatedTyping(10_800);
+ const medium=isolatedTyping(10_080);
  await medium.context.revealGeminiReply(medium.reply,'OK',10_000);
- assert.deepEqual(medium.scheduled,[700]);
+ assert.deepEqual(medium.scheduled,[140]);
  const slow=isolatedTyping(13_000);
  await slow.context.revealGeminiReply(slow.reply,'OK',10_000);
  assert.deepEqual(slow.scheduled,[]);
@@ -49,7 +49,7 @@ test('slower backend only waits remaining time; never delays an already slow ans
 test('success and error both replace typing without prematurely releasing send button',()=>{
  assert.match(inline,/const reply=geminiTypingBubble\(\),typingStartedAt=Date\.now\(\)/);
  assert.match(inline,/await revealGeminiReply\(reply,result\.message\|\|/);
- assert.match(inline,/await revealGeminiReply\(reply,'Chưa xử lý được/);
+ assert.match(inline,/await revealGeminiReply\(reply,'Chưa xử lý xong:/);
  assert.match(inline,/\}finally\{\s*busy=false;updateDeliveryGate\(\)/);
  assert.doesNotThrow(()=>new vm.Script(inline));
 });
