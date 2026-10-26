@@ -11,6 +11,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/Theme.MinhSatori"
         android:supportsRtl="true">
+        <activity android:name=".V2OwnerAdminActivity" android:exported="false" />
         <activity android:name=".AiSandboxActivity" android:exported="false" />
         <activity android:name=".AiCustomerPortalActivity" android:exported="false" />
         <activity
