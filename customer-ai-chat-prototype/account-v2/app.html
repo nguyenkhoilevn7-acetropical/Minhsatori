@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="vi"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <meta name="theme-color" content="#f5f7fb">
 <title>Minh Satori • Trợ lý đặt hàng</title>
 <style>
 :root{color-scheme:light;--bg:#f5f7fb;--card:#fff;--ink:#142637;--sub:#62758a;--edge:#e1e7ee;--blue:#0879ed;--blueSoft:#e6f3ff;--mint:#e7f7f1;--chatBlue:#1357b9;--chatGreen:#17633b;--iosOutgoing:#007aff;--iosIncoming:#e9e9eb;--iosIncomingInk:#1c1c1e;--radius:19px}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:15px/1.48 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
 button,input,textarea,select{font:inherit}button{cursor:pointer;touch-action:manipulation}button:disabled{cursor:not-allowed;opacity:.55}
-.hidden,[hidden]{display:none!important}#app{max-width:700px;min-height:100dvh;margin:auto;display:flex;flex-direction:column;background:var(--card);box-shadow:0 0 50px #16304b0a}
+.hidden,[hidden]{display:none!important}#app{max-width:700px;height:100vh;height:100dvh;min-height:0;overflow:hidden;margin:auto;display:flex;flex-direction:column;background:var(--card);box-shadow:0 0 50px #16304b0a}
 header{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:10px;background:#fffc;backdrop-filter:blur(19px);border-bottom:1px solid var(--edge);padding:9px 13px;padding-top:max(9px,env(safe-area-inset-top))}
 .hamburger{display:grid;place-content:center;gap:4px;border:1px solid var(--edge);background:#f8fafc;width:39px;height:39px;border-radius:12px}
 .hamburger span{width:17px;height:2px;border-radius:5px;background:#243c54;display:block}
@@ -19,14 +19,17 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:10px
 body.menu-open .scrim{opacity:1;pointer-events:auto}body.menu-open .drawer{transform:translateX(0)}
 .drawer h2{font-size:20px;margin:12px 5px 18px}.nav{width:100%;text-align:left;background:#f6f8fb;border:0;border-radius:13px;padding:14px;color:#1f3a55;font-weight:700}
 .nav.active{background:var(--blueSoft);color:var(--blue)}
-main{flex:1;display:flex;flex-direction:column;min-height:0}
-#gate{margin:auto;padding:38px 20px;max-width:410px;text-align:center;width:100%}
+main{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#gate{margin:auto;padding:38px 20px;max-width:410px;max-height:100%;overflow-y:auto;text-align:center;width:100%}
 #gate h1{margin:5px 0;font-size:25px}#gate p{color:var(--sub);font-size:13px}#signIn{min-height:40px;display:flex;justify-content:center;margin:26px auto}
 .notice{font-size:12px;color:#8b4c22;background:#fff5e9;border:1px solid #f7dfc0;border-radius:10px;padding:10px 12px}
 .intro{padding:17px 15px 11px;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:12px}
 .ai-avatar{width:43px;height:43px;display:grid;place-items:center;border-radius:16px;color:#fff;background:linear-gradient(145deg,#1b92e7,#16b7b1);font-size:24px}
 .intro h1{font-size:18px;margin:0}.intro p{margin:3px 0 0;color:var(--sub);font-size:11px}
-#messages{height:calc(100dvh - 305px);min-height:250px;overflow:auto;display:flex;flex-direction:column;gap:11px;padding:15px;background:linear-gradient(#f9fbff,#fff)}
+#chatView{flex:1 1 auto;min-height:0;overflow:hidden}
+#messages{flex:1 1 auto;height:auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:11px;padding:15px;background:linear-gradient(#f9fbff,#fff)}
+main>.view:not(.hidden){flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;align-content:start}
+#previewBanner{flex:0 0 auto}
 .bubble{max-width:85%;padding:11px 14px;background:var(--iosIncoming);color:var(--iosIncomingInk);font-weight:450;border:0;border-radius:18px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.48}
 .bubble.me{align-self:flex-end;color:#fff;background:var(--iosOutgoing);border-bottom-right-radius:5px}
 .bubble.ai{align-self:flex-start;color:var(--iosIncomingInk);background:var(--iosIncoming);border-bottom-left-radius:5px}
@@ -139,7 +142,7 @@ header .satori-logo{width:31px;height:31px}
 .drawer-brand .satori-logo{width:38px;height:38px;flex:none}
 .gate-logo{display:flex;justify-content:center;margin-bottom:15px}
 .gate-logo .satori-logo{width:64px;height:64px;border-radius:16px}
-.composer{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--edge);padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:8px}
+.composer{position:relative;bottom:auto;flex:0 0 auto;background:#fff;border-top:1px solid var(--edge);padding:7px 12px;padding-bottom:max(7px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:8px}
 .composer textarea{flex:1;width:100%;min-height:42px;max-height:104px;border:1px solid #dce5ec;border-radius:15px;outline:none;padding:10px 12px;resize:vertical;background:#f6f8fb;color:var(--ink)}
 .composer textarea:focus{border-color:#6abbff}
 .send{border:0;border-radius:50%;background:var(--blue);color:white;width:42px;height:42px;flex:none;font-size:23px}
@@ -196,7 +199,7 @@ header .satori-logo{width:31px;height:31px}
 <p>Đăng nhập Google để quản lý nhiều địa chỉ và đặt hàng bằng chat. Không cần link riêng.</p>
 <div id="signIn"></div><p id="loginStatus" class="notice">Đang kiểm tra điều kiện chạy thử...</p>
 </section>
-<section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1">
+<section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1;min-height:0">
 <div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý đặt hàng</h1><p>Nhắn sản phẩm và số lượng cho Gemini</p></div></div>
 <div id="messages" role="log" aria-live="polite"></div>
 <button id="deliveryPrompt" class="delivery-prompt" type="button" hidden>Chọn điểm giao để bắt đầu</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
