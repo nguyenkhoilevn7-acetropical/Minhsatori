@@ -375,6 +375,7 @@ let crmRows={registered:[],leads:[]};
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
 let lastQuote=null,lastTestRequestId=null,realTestEnabled=false;
 let deliverySelectionProfileId=null;
+let cartPricing=null,cartPricingKey='',cartPricingErrorKey='',cartPricingLoadingKey='',cartPricingEpoch=0;
 const money=n=>new Intl.NumberFormat('vi-VN').format(n||0)+'đ';
 
 /* In-memory UI demonstration. Never fetches/saves user data, never signs any
@@ -836,14 +837,109 @@ function renderProducts(){
  if(!products.length)$('products').append(node('p','Danh mục chính thức chưa được đồng bộ.','notice'));
  else if(!shown.length)$('products').append(node('p','Không tìm thấy sản phẩm phù hợp.','muted'));
 }
-function renderCart(){
+/**
+ * Prices in this screen are read-only canonical V2 policy calculations. Only the
+ * server can decide the discount; UI never guesses a user's net amount.
+ */
+function pricingContextKey(){
+ const address=selectedDeliveryAddress();
+ if(!cart.length||!address)return '';
+ const catalog=products.map(p=>p.code+':'+p.listPrice+':'+(p.revision||0)).join(';');
+ return [$('profile').value,address.id,cartRev,catalog].join('|');
+}
+function invalidateCartPricing(){
+ cartPricing=null;cartPricingKey='';cartPricingErrorKey='';cartPricingLoadingKey='';
+ cartPricingEpoch++;
+}
+function renderCartBuyer(){
+ const profile=me?.profiles?.find(p=>p.id===$('profile').value);
+ const delivery=selectedDeliveryAddress();
+ $('cartBuyerName').textContent=profile?.name||'Chưa có hồ sơ';
+ $('cartBuyerPhone').textContent=profile?.phone?'SĐT: '+profile.phone:'';
+ $('cartRecipientName').textContent=delivery?.recipientName||'Chưa chọn điểm giao';
+ $('cartRecipientPhone').textContent=delivery?.recipientPhone?'SĐT: '+delivery.recipientPhone:'';
+ $('cartAddressLabel').textContent=delivery?.label||'Vui lòng chọn địa chỉ';
+ $('cartAddressText').textContent=delivery?.address||'Chọn điểm giao để xem báo giá.';
+ $('cartChangeAddress').disabled=!profile||savingCart||busy;
+}
+function priceSummaryRow(parent,label,value,kind=''){
+ const row=node('div',undefined,'cart-price-row'+(kind?' '+kind:''));
+ row.append(node('span',label),node('strong',value));
+ parent.append(row);
+}
+function showCartPriceSummary(pricing){
+ const wrap=$('cartPriceSummary');wrap.replaceChildren();
+ if(!cart.length){wrap.hidden=true;return}
+ wrap.hidden=false;
+ if(!selectedDeliveryAddress()){
+  wrap.append(node('p','Chọn điểm giao để xem đơn giá sau chiết khấu và tổng tiền.','muted'));
+  return;
+ }
+ if(!pricing){
+  const error=cartPricingErrorKey===pricingContextKey();
+  wrap.append(node('p',error?'Chưa kiểm tra được giá. Đóng và mở lại giỏ để thử lại.':
+   'Đang kiểm tra chiết khấu và tổng tiền theo hồ sơ…','muted'));
+  return;
+ }
+ const subtotal=pricing.items.reduce((total,i)=>total+i.listPrice*i.qty,0);
+ const discount=subtotal-pricing.goodsVnd;
+ priceSummaryRow(wrap,'Tạm tính',money(subtotal));
+ priceSummaryRow(wrap,'Chiết khấu','−'+money(discount),'discount');
+ priceSummaryRow(wrap,'Tiền hàng sau chiết khấu',money(pricing.goodsVnd));
+ priceSummaryRow(wrap,'Phí giao hàng',money(pricing.shippingVnd));
+ priceSummaryRow(wrap,'VAT',money(pricing.vatVnd));
+ priceSummaryRow(wrap,'Tổng khách phải trả',money(pricing.totalVnd),'grand-total');
+ if(pricing.chargesConfigured===false)
+  wrap.append(node('p','Shipping và VAT hiện được hệ thống V2 tính 0đ; chưa có cấu hình phí/thuế chính thức.','cart-price-note'));
+ if(PREVIEW)wrap.append(node('p','GIÁ MẪU · Không phải báo giá hoặc hóa đơn thật.','cart-price-note'));
+}
+async function loadCartPricing(){
+ const key=pricingContextKey();
+ if(!key||cartPricingKey===key||cartPricingLoadingKey===key||cartPricingErrorKey===key)return;
+ const epoch=++cartPricingEpoch;
+ cartPricingLoadingKey=key;
+ try{
+  const q=new URLSearchParams({profileId:$('profile').value,addressId:selectedDeliveryAddress().id});
+  const data=await call('/api/v2/cart-pricing?'+q.toString(),undefined,'GET');
+  if(epoch!==cartPricingEpoch||key!==pricingContextKey())return;
+  if(data.cartRevision!==cartRev||!Array.isArray(data.items)||
+   !data.items.every(item=>Number.isSafeInteger(item.unitPrice)&&
+    Number.isSafeInteger(item.lineTotal)&&Number.isSafeInteger(item.listPrice)&&
+    Number.isSafeInteger(item.discountBps))||
+   ![data.goodsVnd,data.shippingVnd,data.vatVnd,data.totalVnd].every(Number.isSafeInteger))
+   throw Error('PRICE_NOT_VERIFIED');
+  cartPricing=data;cartPricingKey=key;cartPricingErrorKey='';
+ }catch(e){
+  if(epoch===cartPricingEpoch){cartPricing=null;cartPricingKey='';cartPricingErrorKey=key}
+ }finally{
+  if(epoch===cartPricingEpoch){
+   cartPricingLoadingKey='';
+   if(!$('cartView').classList.contains('hidden'))renderCart(false);
+  }
+ }
+}
+function renderCart(fetchPrices=true){
  $('cartLines').replaceChildren();
  $('cartState').textContent=count()+' sản phẩm';
  $('clearCart').disabled=cart.length===0||savingCart;
+ renderCartBuyer();
+ const key=pricingContextKey();
+ const pricing=key&&cartPricingKey===key?cartPricing:null;
  for(const item of cart){
   const p=products.find(p=>p.code===item.code);
-  const row=node('div',undefined,'cart-line'),info=node('div'),num=node('div',undefined,'num');
+  const priced=pricing?.items?.find(line=>line.code===item.code&&line.qty===item.qty);
+  const row=node('div',undefined,'cart-line'),info=node('div',undefined,'cart-item-info'),num=node('div',undefined,'num');
   info.append(node('strong',p?.name||item.code),node('small',p?.unit||''));
+  if(priced){
+   info.append(node('span','Đơn giá: '+money(priced.listPrice),'cart-price-line'));
+   info.append(node('span','Chiết khấu: '+(priced.discountBps/100).toLocaleString('vi-VN')+
+    '% · Giảm '+money(priced.listPrice-priced.unitPrice)+'/đơn vị','cart-price-line discount'));
+   info.append(node('span','Giá sau CK: '+money(priced.unitPrice),'cart-price-line'));
+   info.append(node('span','Thành tiền: '+money(priced.lineTotal),'cart-price-line total'));
+  }else if(p&&Number.isSafeInteger(p.listPrice)){
+   info.append(node('span','Đơn giá niêm yết: '+money(p.listPrice),'cart-price-line'));
+   info.append(node('span','Đang kiểm tra giá sau chiết khấu…','cart-price-line'));
+  }
   const minus=node('button','−'),input=document.createElement('input'),plus=node('button','+');
   input.type='number';input.min='0';input.max='500';input.value=item.qty;
   const update=async qty=>{try{
@@ -855,7 +951,7 @@ function renderCart(){
   input.inputMode='numeric';
   input.onchange=()=>{
    const raw=String(input.value).trim();
-   if(!/^(?:0|[1-9]\d{0,2})$/.test(raw)||Number(raw)>500){
+   if(!/^(?:0|[1-9]\\d{0,2})$/.test(raw)||Number(raw)>500){
     input.value=item.qty;toast('Hãy nhập số nguyên từ 0 đến 500. Nhập 0 để xóa sản phẩm.');return;
    }
    update(Number(raw));
@@ -863,6 +959,9 @@ function renderCart(){
   num.append(minus,input,plus);row.append(info,num);$('cartLines').append(row);
  }
  if(!cart.length)$('cartLines').append(node('p','Giỏ hàng đang trống.','muted'));
+ showCartPriceSummary(pricing);
+ if(fetchPrices&&key&&!pricing&&!cartPricingErrorKey&&
+  !$('cartView').classList.contains('hidden'))void loadCartPricing();
 }
 $('clearCart').onclick=async()=>{
  if(!cart.length||savingCart)return;
