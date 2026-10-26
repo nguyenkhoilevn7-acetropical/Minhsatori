@@ -217,7 +217,8 @@ async function adminPolicy(pool,actor,input){
   return policy.rows[0];
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}finally{client.release()}
 }
-async function quote(pool,actor,input){
+/** Canonical policy-approved read used without a write for cart preview. */
+async function pricedCart(pool,actor,input){
  const profile=await profileFor(pool,actor,input.profileId);
  error(isUuid(input.addressId),'ADDRESS_REQUIRED');
  const addressRow=await pool.query('SELECT id,profile_id AS "profileId",active,label,recipient_name AS "recipientName", '+
@@ -236,9 +237,19 @@ async function quote(pool,actor,input){
  const priced=calculateQuote({accountId:actor.id,profile,address:addressRow.rows[0],cart:cartRow.rows[0].lines,
   catalogue:cat.rows.map(x=>({...x,listPrice:Number(x.listPrice)})),policies:policies.rows,
   catalogueRevision:cat.rows[0].revision,vatBps:0,shippingVnd:0});
+ return {priced,cartRevision:cartRow.rows[0].revision,catalogueRevision:cat.rows[0].revision};
+}
+function customerPricing(data){
+ // The CTV internal reference is not a customer-facing sale price.
+ const {internalReference,...shown}=data.priced;
+ return {...shown,items:shown.items.map(({internalUnitPrice,...line})=>line),
+  cartRevision:data.cartRevision,chargesConfigured:false};
+}
+async function quote(pool,actor,input){
+ const {priced,cartRevision,catalogueRevision}=await pricedCart(pool,actor,input);
  const r=await pool.query('INSERT INTO satori_v2_quotes(account_id,profile_id,address_id,payload,cart_revision,catalogue_revision,expires_at) '+
   'VALUES($1,$2,$3,$4,$5,$6,now()+interval \'10 minutes\') RETURNING id,expires_at',
-  [actor.id,profile.id,input.addressId,JSON.stringify(priced),cartRow.rows[0].revision,cat.rows[0].revision]);
+  [actor.id,priced.profileId,priced.addressId,JSON.stringify(priced),cartRevision,catalogueRevision]);
  return {quoteId:r.rows[0].id,expiresAt:r.rows[0].expires_at,...priced,
   note:'Báo giá kiểm thử. Chưa tạo hóa đơn thật hoặc ghi công nợ.'};
 }
@@ -455,6 +466,14 @@ export async function handleAccountV2(req,res,pathname){
    const input=await json(req);
    await assertSelectedDelivery(pool,actor,input);
    const result=await interpret(input);send(res,200,{ok:true,...result});return true;
+  }
+  if(pathname==='/api/v2/cart-pricing'&&req.method==='GET'){
+   // Authenticated, account-owned, active delivery; no invoice/quote INSERT.
+   const query=new URL(req.url,'http://local').searchParams;
+   const priced=await pricedCart(pool,actor,{
+    profileId:query.get('profileId'),addressId:query.get('addressId')});
+   send(res,200,{ok:true,...customerPricing(priced)});
+   return true;
   }
   if(pathname==='/api/v2/quote'&&req.method==='POST'){
    const result=await quote(pool,actor,await json(req));send(res,200,{ok:true,...result});return true;
