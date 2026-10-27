@@ -269,6 +269,56 @@ header .satori-logo{width:31px;height:31px}
 #toast{position:fixed;bottom:83px;left:50%;transform:translateX(-50%);max-width:92vw;padding:12px 15px;background:#1f344c;color:white;border-radius:12px;z-index:30;box-shadow:0 5px 22px #0a2b4b33}
 @media(min-width:700px){#app{border-left:1px solid var(--edge);border-right:1px solid var(--edge)}}
 @media(prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
+
+/* MINH SATORI UNIFIED LIGHT UI — visual-only Android 0.4.13 parity.
+   Kept additive: existing IDs, handlers, API calls, cart/payment logic and
+   authenticated account permissions are deliberately untouched. */
+:root{
+ --bg:#f2f2f7;--card:#fff;--ink:#1c1c1e;--sub:#637083;
+ --edge:#e0e5ed;--blue:#007aff;--blueSoft:#eaf3ff;
+ --mint:#eaf9f1;--radius:17px
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif}
+header{box-shadow:0 2px 10px #24456c0b}
+.hamburger,.header-icon,.round{border:1px solid #dfe6ee;background:#fff;box-shadow:0 2px 7px #1a3c5a0a}
+.nav{border:1px solid transparent;transition:background-color .15s,border-color .15s}
+.nav.active{background:var(--blueSoft);color:#086ed6;border-color:#d5e8fb}
+.panel,.cart-panel,.delivery-panel,.chat-order-receipt,.chat-help{
+ border-color:#e0e6ee;border-radius:17px;box-shadow:0 3px 14px #1a38550a
+}
+.agent-address-choice{border:1px solid #e8eef5;border-radius:13px;margin:5px 0;background:#fff}
+.agent-address-choice[aria-pressed="true"]{border-color:#b4d8fa;background:#eaf3ff}
+.agent-address-choice .address-title{font-size:16px;font-weight:750;color:#1c1c1e}
+.agent-address-choice .address-phone{
+ display:block;color:#14794f;font-size:14px;font-weight:650;
+ background:#eaf9f1;border-radius:9px;padding:5px 8px;margin-top:5px
+}
+.agent-address-choice .address-subtitle{
+ display:block;color:#186daf;font-size:14px;
+ background:#ecf5ff;border-radius:9px;padding:6px 8px;margin-top:5px
+}
+.saved-address>summary strong{font-size:15px;color:#1c1c1e;white-space:normal}
+.address-detail{color:#4d6279;font-size:13.5px;line-height:1.5}
+.invoice-ledger-row{
+ background:#fff;border:1px solid #e0e6ee;border-radius:16px;
+ box-shadow:0 3px 12px #16304b0a;padding:13px;margin:9px 0
+}
+.invoice-ledger-row .invoice-name{color:#1c1c1e;font-size:15px;font-weight:750}
+.invoice-ledger-row .invoice-detail{color:#526578;font-size:13px;line-height:1.5}
+.invoice-ledger-amount{color:#007aff;font-variant-numeric:tabular-nums;font-weight:750}
+.invoice-masthead{border-color:#dfebf9}
+button:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,.agent-address-choice:focus-visible{
+ outline:2px solid #007aff;outline-offset:2px
+}
+@media(max-width:440px){
+ .invoice-ledger-row{padding:11px}
+ .agent-address-choice .address-title{font-size:15px}
+ .agent-address-choice .address-subtitle{font-size:14px}
+}
+@media print{.invoice-ledger-row{box-shadow:none}}
+/* END MINH SATORI UNIFIED LIGHT UI */
+
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">

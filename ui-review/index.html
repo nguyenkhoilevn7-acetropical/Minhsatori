@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f2f2f7">
+<title>Minh Satori — Xem trước giao diện đồng bộ</title>
+<style>
+:root{color-scheme:light;--bg:#f2f2f7;--card:#fff;--ink:#1c1c1e;--sub:#657287;--line:#dfe6ee;--blue:#007aff;--blue-soft:#eaf3ff;--mint:#eaf9f1;--green:#14784d;--amber:#ad631f;--amber-soft:#fff6e8}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.top-notice{position:sticky;top:0;z-index:3;background:#fff4db;color:#81531c;font-size:12px;font-weight:750;text-align:center;padding:9px 12px;border-bottom:1px solid #f3dfa9}
+header{max-width:1120px;margin:auto;padding:16px;display:flex;align-items:center;gap:11px}
+.logo{width:44px;height:44px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:3px;object-fit:contain}
+.heading{flex:1;min-width:0}.heading strong{display:block;font-size:18px}.heading span{display:block;font-size:11px;color:var(--sub)}
+.round{border:1px solid var(--line);background:#fff;color:var(--blue);height:40px;min-width:40px;padding:0 11px;border-radius:12px;font-weight:750}
+.shell{max-width:1120px;margin:auto;padding:0 16px 40px}
+nav{display:flex;gap:7px;overflow-x:auto;padding:3px 0 14px;scrollbar-width:thin}
+nav button{border:1px solid var(--line);background:#fff;color:#506376;border-radius:12px;padding:10px 12px;white-space:nowrap;font-size:13px;font-weight:700}
+nav button.active{background:var(--blue-soft);color:var(--blue);border-color:#c8e1ff}
+.view{display:none}.view.active{display:block}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin:0 0 14px}
+.metric{background:var(--card);padding:15px;border:1px solid var(--line);border-radius:17px}
+.metric small{display:block;color:var(--sub);font-size:12px}.metric strong{display:block;font-size:21px;margin-top:7px;font-variant-numeric:tabular-nums}
+.card{background:#fff;border:1px solid var(--line);border-radius:17px;padding:15px;box-shadow:0 3px 15px #1b37530b;margin:10px 0}
+.card h2{font-size:16px;margin:0 0 9px}
+.card h3{font-size:15px;margin:0 0 8px}
+.card p{margin:6px 0}
+.hero{display:flex;align-items:center;gap:12px}
+.hero svg{width:42px;height:42px;padding:10px;background:var(--blue-soft);border-radius:12px;color:var(--blue);flex:none}
+.hero-name{font-size:17px;font-weight:800;overflow-wrap:anywhere}.muted{color:var(--sub);font-size:12px}
+.header-line{display:flex;justify-content:space-between;align-items:center;gap:10px}.header-line strong{font-size:18px}
+.amount{font-size:17px;color:var(--blue);font-weight:800;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;border-radius:99px;padding:5px 9px;background:var(--blue-soft);color:var(--blue);font-size:11px;font-weight:750}
+.status-row{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0}
+.status{display:inline-flex;font-size:12px;font-weight:750;padding:5px 9px;border-radius:99px;background:var(--amber-soft);color:var(--amber)}
+.status.paid{background:var(--mint);color:var(--green)}
+.contact{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;margin:8px 0}
+.contact svg{width:21px;height:21px;flex:none}
+.contact .caption{font-size:10px;font-weight:800;letter-spacing:.3px}
+.contact .value{font-size:14px;font-weight:700;overflow-wrap:anywhere}
+.phone{background:var(--mint);color:var(--green)}.phone .value{color:#1c1c1e}
+.address{background:#ecf5ff;color:#166ab2}.address .value{color:#1c1c1e}
+.product{border-top:1px solid #edf1f6;padding-top:9px;margin-top:11px;color:#435365;font-size:13px}
+.product b{color:var(--ink)}
+.action{padding:9px 13px;background:var(--blue);color:#fff;border:0;border-radius:11px;font-weight:750}
+.outline{background:#eef5fe;color:var(--blue)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.search{width:100%;min-height:43px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:#fff;margin:4px 0 10px}
+.note{font-size:12px;color:#657287;line-height:1.6}
+.check{display:block;padding:10px 0;border-bottom:1px solid #edf1f6;font-size:13px}.check input{accent-color:#007aff}
+footer{max-width:1120px;margin:20px auto;padding:12px 16px 25px;font-size:12px;color:var(--sub)}
+dialog{width:min(520px,calc(100vw - 24px));border:1px solid var(--line);border-radius:20px;padding:18px;background:#fff;color:var(--ink);box-shadow:0 18px 60px #183a5360}
+dialog::backdrop{background:#152c4c88}
+.chat{display:flex;flex-direction:column;gap:12px}.bubble{padding:12px 14px;border-radius:17px;max-width:87%;font-size:14px}.bubble.ai{background:#e9e9eb;color:#1c1c1e}.bubble.me{background:#007aff;color:#fff;margin-left:auto}
+@media(max-width:660px){header{padding:12px}.shell{padding:0 12px 25px}.summary{gap:7px}.metric{padding:11px}.metric strong{font-size:16px}.metric small{font-size:10px}.grid{grid-template-columns:1fr}.card{padding:12px}.header-line strong{font-size:16px}.amount{font-size:15px}.heading strong{font-size:15px}.heading span{font-size:10px}}
+
+/* VÒNG 2 — restore icon-first familiar navigation, keep original screen hierarchy.
+   Pure CSS + inline SVG only: invoice, account, permission and payment logic untouched. */
+:root{
+ --bg:#eaf0f7;--ink:#182c41;--sub:#596e85;--line:#d7e3ef;
+ --blue:#086fdf;--blue-soft:#e0efff;--mint:#e1f5e9;
+ --green:#126b44;--amber:#99541c;--amber-soft:#fff0d9
+}
+html{background:#eaf0f7}
+body{background:linear-gradient(180deg,#e8f1fa 0,#eff3f8 280px,#eaf0f7 100%);color:var(--ink)}
+.top-notice{background:linear-gradient(90deg,#fff1ce,#fff9ec);color:#80501c;padding:7px 12px;font-size:11.5px;letter-spacing:.03em}
+header{background:linear-gradient(105deg,#dceeff 0%,#e7f2ff 46%,#f0f3f9 100%);border-bottom:1px solid #cfdeef;border-radius:0 0 18px 18px;margin-bottom:12px;padding:15px 18px;box-shadow:0 8px 20px #173d6410}
+.heading strong{color:#173b60;letter-spacing:-.3px}
+.heading span{color:#4a6784}
+.logo{border-color:#bcd4ed;box-shadow:0 2px 10px #123f7217}
+.round{background:#ecf6ff;border-color:#c2d9f1;color:#086fdf}
+nav{background:linear-gradient(90deg,#d9e7f8,#e4eef9);padding:8px;border-radius:16px;border:1px solid #cddff3;margin:0 0 14px;gap:7px;box-shadow:0 3px 10px #19456d12;scroll-snap-type:x proximity}
+nav button{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:0 0 auto;min-height:42px;border:1px solid #cedff0;background:#f5f9ff;color:#375b7e;border-radius:11px;padding:8px 12px;font-size:12.5px;font-weight:750;box-shadow:0 1px 4px #173e6310;scroll-snap-align:start}
+nav button svg{width:20px;height:20px;flex:none;stroke-width:1.85}
+nav button.active{background:linear-gradient(130deg,#087be9,#0865cb);color:white;border-color:#0865cb;box-shadow:0 4px 12px #0877dd37}
+nav button:hover:not(.active){background:#eaf4ff;border-color:#a6cbed;color:#0b5fb7}
+nav button:focus-visible{outline:3px solid #efad4d;outline-offset:2px}
+.summary{gap:10px}
+.metric{background:linear-gradient(145deg,#f9fbff,#e8f2ff);border-color:#cddff3;border-top:3px solid #4986d2;box-shadow:0 3px 11px #22476b0d;padding:13px 14px}
+.metric:nth-child(2){background:linear-gradient(145deg,#f8fffb,#e6f6ec);border-top-color:#2d986c;border-color:#cbe6d8}
+.metric:nth-child(3){background:linear-gradient(145deg,#fffdf7,#fff0df);border-top-color:#c58b39;border-color:#ecd9ba}
+.metric small{font-size:11px;font-weight:750;letter-spacing:.35px;color:#536b82}
+.metric strong{color:#1b416c}
+.card{background:linear-gradient(155deg,#fff,#f9fbfe);border-color:#d4e0ec;box-shadow:0 4px 15px #173c5e11}
+.card:hover{border-color:#c1d6ed}
+.search{background:#fafdff;border:1px solid #ccdeef;box-shadow:0 2px 8px #1f538410}
+.header-line strong{color:#193b60}
+.amount{color:#0871dc}
+.hero-name{color:#1c3047}
+.hero svg{background:#e1f0ff;color:#0871dc;border:1px solid #cfe3f8}
+.phone{background:#e1f6ea;color:#0b754d}
+.address{background:#e4f1ff;color:#176bb5}
+.status{background:#fff0da;color:#9c581b}
+.status.paid{background:#dff5e8;color:#116c43}
+.action{background:#0876e8}
+.action.outline{background:#e4f1ff;color:#0968c6}
+.note{color:#5d6f82}
+@media(max-width:660px){
+ header{padding:11px 12px}
+ nav{gap:6px;padding:7px}
+ nav button{min-height:42px;gap:6px;padding:8px 10px;font-size:12px}
+ nav button svg{width:19px;height:19px}
+ .metric{padding:10px 11px}
+}
+@media (prefers-reduced-motion:reduce){nav button{transition:none}}
+/* END PREVIEW VÒNG 2 */
+</style>
+</head>
+<body>
+<div class="top-notice">BẢN PREVIEW · DỮ LIỆU GIẢ · KHÔNG KẾT NỐI KẾ TOÁN THẬT</div>
+<header>
+<img class="logo" src="logo-satori-3394.jpg" alt="Minh Satori" onerror="this.style.display='none'">
+<div class="heading"><strong>MINH SATORI</strong><span>Android · Website · Quản trị</span></div>
+<button class="round" id="reviewHelp" title="Thông tin bản xem trước">ⓘ</button>
+</header>
+<div class="shell">
+<nav aria-label="Xem trước các khu vực">
+<button class="active" data-view="ledger" aria-label="Sổ kế toán" title="Sổ kế toán" aria-controls="ledger"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h7a3 3 0 0 1 3 3V20a3 3 0 0 0-3-3H4z"/><path d="M20 4.5h-3a3 3 0 0 0-3 3V20a3 3 0 0 1 3-3h3z"/><path d="M7 9h3M7 12h3"/></svg><span>Kế toán</span></button>
+<button data-view="customer" aria-label="Khách hàng" title="Khách hàng" aria-controls="customer"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.2"/><path d="M3.5 20c0-4 2.5-6 6.5-6s6.5 2 6.5 6M17 5.5a3 3 0 0 1 0 5.8M18 14c2 .5 3 2.5 3 5"/></svg><span>Khách</span></button>
+<button data-view="invoices" aria-label="Hóa đơn" title="Hóa đơn" aria-controls="invoices"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span>Hóa đơn</span></button>
+<button data-view="debt" aria-label="Công nợ" title="Công nợ" aria-controls="debt"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2M7 3h11"/></svg><span>Công nợ</span></button>
+<button data-view="orders" aria-label="Lên đơn" title="Lên đơn" aria-controls="orders"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.3 11.5h10.5L20 8H6"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/><path d="M15.5 3v5M13 5.5h5"/></svg><span>Lên đơn</span></button>
+<button data-view="admin" aria-label="Quản trị V2" title="Quản trị V2" aria-controls="admin"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/></svg><span>Quản trị</span></button>
+<button data-view="chat" aria-label="Gemini" title="Gemini" aria-controls="chat"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z"/></svg><span>Gemini</span></button>
+<button data-view="review" aria-label="Nghiệm thu" title="Nghiệm thu" aria-controls="review"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.6 2.6L16.5 9"/></svg><span>Duyệt UI</span></button>
+</nav>
+<section class="view active" id="ledger">
+<div class="summary"><div class="metric"><small>HÓA ĐƠN</small><strong>4</strong></div><div class="metric"><small>ĐÃ THU</small><strong style="color:#13784e">1,23 tr</strong></div><div class="metric"><small>CẦN THU</small><strong style="color:#ad631f">865 k</strong></div></div>
+<input class="search" id="searchInvoice" placeholder="Tìm tên khách hoặc số hóa đơn (dữ liệu thử nghiệm)">
+<div id="ledgerItems"></div>
+</section>
+<section class="view" id="customer">
+<div class="card"><h2>Hồ sơ khách hàng</h2><p class="note">Tên khách, SĐT và địa chỉ được trình bày cùng màu và icon với danh sách hóa đơn.</p></div>
+<div id="customerItems"></div>
+</section>
+<section class="view" id="invoices">
+<div class="card"><h2>Kho hóa đơn</h2><div class="status-row"><span class="chip">Tìm kiếm</span><span class="chip">Lọc ngày</span><span class="chip">PDF</span><span class="chip">Thùng rác 30 ngày</span></div><p class="note">Các thao tác này vẫn phải có trong website thật. Bản xem trước chỉ minh họa vị trí và giao diện, không ghi dữ liệu.</p></div><div id="invoiceItems"></div>
+</section>
+<section class="view" id="debt"><div class="summary"><div class="metric"><small>CHƯA THU</small><strong>2</strong></div><div class="metric"><small>TỔNG CÔNG NỢ</small><strong>865 k</strong></div><div class="metric"><small>SATORI</small><strong>Độc lập</strong></div></div><div class="card"><h2>Công nợ và đối soát</h2><p>Trạng thái khách thanh toán và Satori nhận thanh toán luôn tách biệt.</p><div class="status-row"><span class="status">Khách chưa trả</span><span class="status paid">Đã TT Satori</span></div></div></section>
+<section class="view" id="orders"><div class="card"><h2>Lên đơn hàng</h2><p class="note">Website thật cần giữ nguyên các trường: khách, số điện thoại, địa chỉ, sản phẩm, số lượng, giá bán, chiết khấu, VAT, phí giao hàng, ghi chú, xem trước PDF và xác nhận.</p><div class="grid"><label>Khách hàng<input class="search" value="Khách A · dữ liệu giả" readonly></label><label>Loại nước<input class="search" value="Satori 500ml (mẫu)" readonly></label><label>Số lượng<input class="search" value="5" readonly></label><label>Địa chỉ<input class="search" value="Địa chỉ thử nghiệm" readonly></label></div><button class="action" disabled title="Bản xem trước không tạo đơn">Tạo hóa đơn (khóa trong bản xem trước)</button></div></section>
+<section class="view" id="admin"><div class="card"><h2>Quản trị V2 · Tài khoản & đại lý</h2><div class="grid"><div class="card"><h3>Hồ sơ khách hàng</h3><p class="note">Đủ tên, điện thoại, địa chỉ giao hàng, tài khoản và lịch sử</p></div><div class="card"><h3>CTV và chiết khấu</h3><p class="note">Giữ quyền admin, chiết khấu, cấp link, địa chỉ, đối soát</p></div></div><div class="status-row"><span class="chip">Phân quyền</span><span class="chip">Bảng giá</span><span class="chip">Danh sách link</span></div><p class="note">Bản thử không đăng nhập và không tải dữ liệu khách thật.</p></div></section>
+<section class="view" id="chat"><div class="card"><h2>Gemini · iMessage Light</h2><div class="chat"><div class="bubble ai">Anh muốn đặt loại nước nào? Em có thể giúp kiểm tra sản phẩm và chuẩn bị đơn hàng.</div><div class="bubble me">Cho 5 thùng Satori 500ml.</div><div class="bubble ai">Em đã chuẩn bị bản xem trước. Hãy kiểm tra địa chỉ, số lượng và giá trước khi xác nhận.</div></div><p class="note">Chỉ là ví dụ giao diện, không phải Gemini thật đang hoạt động.</p></div></section>
+<section class="view" id="review"><div class="card"><h2>Checklist nghiệm thu giao diện</h2><p class="note">Tích các mục anh đã kiểm tra. Mỗi ô chỉ lưu trên màn hình này; không gửi thông tin lên server.</p><div id="reviewList"></div><button class="action" id="copyReview" style="margin-top:14px">Sao chép kết quả kiểm tra</button><p id="reviewMessage" class="note" aria-live="polite"></p></div><div class="card"><h3>Phạm vi kiểm thử chức năng thật — chưa bao gồm demo</h3><p class="note">Bước nghiệm thu thứ hai phải diễn ra trên staging kết nối sandbox đã sao lưu: CRUD khách hàng, đơn hàng, PDF, lọc hóa đơn, công nợ, thanh toán độc lập, OAuth, Drive, CTV, AI và đối soát. Không xác nhận production chỉ từ bản UI này.</p></div></section>
+</div>
+<dialog id="detailDialog"><div id="detailBody"></div><form method="dialog" style="text-align:right;margin-top:14px"><button class="action outline">Đóng</button></form></dialog>
+<footer>Minh Satori UI Review · Chỉ giao diện thử nghiệm · Không có dữ liệu thật, không có API thanh toán hoặc thao tác ghi.</footer>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const icons={
+ user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-5 3-7 8-7s8 2 8 7"/></svg>',
+ phone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 3 3 5-2 2c1 3 4 6 7 7l2-2 4 3-2 3C10 22 2 14 3 5Z"/></svg>',
+ pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>'
+};
+const samples=[
+ {id:'T-1001',name:'Khách A (giả lập)',phone:'09xx xxx 001',address:'Địa chỉ thử nghiệm A · TP.HCM',amount:'423.000 đ',paid:false,satori:false,goods:'Satori 500ml × 5'},
+ {id:'T-1002',name:'Khách B (giả lập)',phone:'09xx xxx 002',address:'Địa chỉ thử nghiệm B · TP.HCM',amount:'702.000 đ',paid:true,satori:false,goods:'Satori 350ml × 10'},
+ {id:'T-1003',name:'Khách C (giả lập)',phone:'09xx xxx 003',address:'Địa chỉ thử nghiệm C · TP.HCM',amount:'442.000 đ',paid:false,satori:true,goods:'Satori Premium × 4'},
+ {id:'T-1004',name:'Đại lý D (giả lập)',phone:'09xx xxx 004',address:'Địa chỉ thử nghiệm D · TP.HCM',amount:'780.000 đ',paid:true,satori:true,goods:'Nước khoáng 500ml × 10'}
+];
+const escapeHTML=v=>String(v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+function contact(icon,title,value,kind){
+ return '<div class="contact '+kind+'">'+icons[icon]+'<div><div class="caption">'+title+'</div><div class="value">'+escapeHTML(value)+'</div></div></div>';
+}
+function statuses(s){return '<div class="status-row"><span class="status '+(s.paid?'paid':'')+'">Khách: '+(s.paid?'đã thanh toán':'chưa thanh toán')+'</span><span class="status '+(s.satori?'paid':'')+'">Satori: '+(s.satori?'đã thanh toán':'chưa thanh toán')+'</span></div>';}
+function ledgerCard(s){return '<article class="card"><div class="header-line"><strong>HÓA ĐƠN #'+s.id+'</strong><span class="amount">'+s.amount+'</span></div><div class="muted">27/10/2026 · Dữ liệu giả</div>'+statuses(s)+'<div class="hero">'+icons.user+'<div><div class="hero-name">'+escapeHTML(s.name)+'</div><div class="muted">Hồ sơ khách hàng</div></div></div>'+contact('phone','SỐ ĐIỆN THOẠI',s.phone,'phone')+contact('pin','ĐỊA CHỈ GIAO HÀNG',s.address,'address')+'<div class="product"><b>SẢN PHẨM</b> · '+escapeHTML(s.goods)+'</div><button class="action outline" data-detail="'+s.id+'" style="margin-top:12px">Xem chi tiết</button></article>';}
+function customerCard(s){return '<article class="card"><div class="hero">'+icons.user+'<div><div class="hero-name">'+escapeHTML(s.name)+'</div><span class="chip">1 hóa đơn thử nghiệm</span></div></div>'+contact('phone','SỐ ĐIỆN THOẠI',s.phone,'phone')+contact('pin','ĐỊA CHỈ GIAO HÀNG',s.address,'address')+'<button class="action outline" data-detail="'+s.id+'">Xem lịch sử</button></article>';}
+function render(){
+ const q=$('searchInvoice').value.trim().toLowerCase();
+ $('ledgerItems').innerHTML=samples.filter(s=>!q||[s.name,s.id,s.phone,s.address].some(x=>x.toLowerCase().includes(q))).map(ledgerCard).join('')||'<div class="card">Không có kết quả trong dữ liệu mẫu.</div>';
+ $('customerItems').innerHTML=samples.map(customerCard).join('');
+ $('invoiceItems').innerHTML=samples.slice(0,2).map(ledgerCard).join('');
+}
+render();$('searchInvoice').addEventListener('input',render);
+document.addEventListener('click',event=>{
+ const nav=event.target.closest('button[data-view]');
+ if(nav){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b===nav));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===nav.dataset.view));return;}
+ const detail=event.target.closest('button[data-detail]');
+ if(detail){const s=samples.find(x=>x.id===detail.dataset.detail);if(!s)return;$('detailBody').innerHTML='<h2 style="margin-top:0">Hóa đơn #'+s.id+'</h2><div class="hero">'+icons.user+'<strong>'+escapeHTML(s.name)+'</strong></div>'+contact('phone','SỐ ĐIỆN THOẠI',s.phone,'phone')+contact('pin','ĐỊA CHỈ GIAO HÀNG',s.address,'address')+statuses(s)+'<p class="product">'+escapeHTML(s.goods)+'</p><strong>'+s.amount+'</strong><p class="note">Chỉ xem trước. Không có nút thanh toán thật.</p>';$('detailDialog').showModal();return;}
+});
+$('reviewHelp').onclick=()=>alert('Đây là bản xem trước GIAO DIỆN dùng dữ liệu giả lập, không phải staging nghiệp vụ. Không có dữ liệu khách thật hay kết nối thanh toán.');
+const checklist=['Giao diện chung và logo','Màu sắc, font, khoảng cách, icon','Sổ kế toán và thẻ hóa đơn','Tên khách, điện thoại màu xanh lá','Địa chỉ giao hàng màu xanh dương','Hai trạng thái thanh toán độc lập','Hồ sơ khách hàng và lịch sử','Công nợ và bộ lọc','Lên đơn, PDF và quản trị (bố cục)','Chat Gemini và hiển thị trên Samsung'];
+$('reviewList').innerHTML=checklist.map((name,i)=>'<label class="check"><input type="checkbox" data-check="'+i+'"> '+escapeHTML(name)+'</label>').join('');
+$('copyReview').onclick=async()=>{const lines=checklist.map((item,i)=>(document.querySelector('[data-check="'+i+'"]').checked?'[x] ':'[ ] ')+item);const t='Minh Satori — nghiệm thu giao diện (dữ liệu giả)\\n'+lines.join('\\n');try{await navigator.clipboard.writeText(t);$('reviewMessage').textContent='Đã sao chép. Anh có thể dán nhận xét trong ChatGPT.';}catch{$('reviewMessage').textContent='Không sao chép được tự động; vui lòng chụp ảnh hoặc chọn nội dung.';}};
+</script>
+</body></html>
