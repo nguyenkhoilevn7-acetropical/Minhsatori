@@ -450,6 +450,22 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 /* The chat composer, catalogue, cart and invoice panels keep their own scroll;
    bottom actions never overlay the last message or checkout button. */
 /* END MONEY-MIND STRUCTURAL NAV */
+
+/* Motion system — view transitions 190ms, action feedback 140ms,
+   drawer remains on transform-only 290ms, no layout thrashing. */
+@keyframes mm-view-enter{from{opacity:.68;transform:translate3d(0,7px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes mm-modal-enter{from{opacity:.6;transform:translate3d(0,8px,0) scale(.985)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+#chatView:not(.hidden),main>.view:not(.hidden){animation:mm-view-enter 190ms cubic-bezier(.22,.68,0,1) both}
+.mm-bottom-tab{transition:color 180ms ease}
+.mm-bottom-tab .mm-bottom-icon{transition:transform 160ms cubic-bezier(.2,.7,.2,1)}
+.mm-bottom-tab:active .mm-bottom-icon{transform:scale(.90)}
+.mm-bottom-tab.active:not(.mm-bottom-center) .mm-bottom-icon{transform:translateY(-2px)}
+.delivery-dialog[open],dialog[open]{animation:mm-modal-enter 185ms cubic-bezier(.22,.68,0,1) both}
+@media(prefers-reduced-motion:reduce){
+ #chatView:not(.hidden),main>.view:not(.hidden),.delivery-dialog[open],dialog[open]{animation:none!important}
+ .mm-bottom-tab,.mm-bottom-tab .mm-bottom-icon,.drawer,.scrim{transition:none!important}
+}
+/* END MONEY-MIND NATURAL MOTION */
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
