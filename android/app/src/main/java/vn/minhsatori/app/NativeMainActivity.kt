@@ -2408,32 +2408,51 @@ class NativeMainActivity : AppCompatActivity() {
                     }
                 }
             if (invoice.canChangePayment) {
-                val possibilities = listOf(
-                    Triple("payments.markCustomerPaid", "Khách đã thanh toán", R.drawable.ic_satori_check),
-                    Triple("payments.markCustomerUnpaid", "Khách chưa thanh toán", R.drawable.ic_satori_undo),
-                    Triple("payments.markSatoriPaid", "Đã thanh toán Satori", R.drawable.ic_satori_check),
-                    Triple("payments.markSatoriUnpaid", "Chưa thanh toán Satori", R.drawable.ic_satori_undo))
-                var enabled = false
-                possibilities.forEach { (action, title, icon) ->
-                    val wanted = when (action) {
-                        "payments.markCustomerPaid" -> !invoice.customerHasPaid
-                        "payments.markCustomerUnpaid" -> invoice.customerHasPaid
-                        "payments.markSatoriPaid" -> !invoice.satoriHasPaid
-                        else -> invoice.satoriHasPaid
-                    }
-                    if (wanted && canAction(action)) {
-                        enabled = true
-                        button(content, title, iconRes = icon) {
+                // Show both independent owner payment controls even before the
+                // backend is connected. The click handler NEVER bypasses canAction.
+                label(content, "CẬP NHẬT THANH TOÁN", 12f, true, cyan, 14)
+                val paymentChoices = listOf(
+                    Triple(
+                        if (invoice.customerHasPaid) "payments.markCustomerUnpaid"
+                        else "payments.markCustomerPaid",
+                        if (invoice.customerHasPaid) "Khách: chuyển về CHƯA thanh toán"
+                        else "Khách: đánh dấu ĐÃ thanh toán",
+                        if (invoice.customerHasPaid) R.drawable.ic_satori_undo
+                        else R.drawable.ic_satori_check
+                    ),
+                    Triple(
+                        if (invoice.satoriHasPaid) "payments.markSatoriUnpaid"
+                        else "payments.markSatoriPaid",
+                        if (invoice.satoriHasPaid) "Satori: chuyển về CHƯA thanh toán"
+                        else "Satori: đánh dấu ĐÃ thanh toán",
+                        if (invoice.satoriHasPaid) R.drawable.ic_satori_undo
+                        else R.drawable.ic_satori_check
+                    )
+                )
+                paymentChoices.forEach { (action, title, icon) ->
+                    button(content, title, iconRes = icon) {
+                        if (!canAction(action)) {
+                            AlertDialog.Builder(this)
+                                .setTitle("Chưa kết nối quyền thanh toán")
+                                .setMessage("Chức năng này cần Google Owner và Mobile API " +
+                                    "được cấp quyền " + action + ". " +
+                                    "Đang đọc Google Drive hoặc thiếu API thì chỉ được xem. " +
+                                    "Không ghi nhận thanh toán khi chưa xác minh.")
+                                .setNegativeButton("Đóng", null)
+                                .setPositiveButton("Kiểm tra kết nối") { _, _ ->
+                                    showConnectionSettings()
+                                }.show()
+                        } else {
                             confirmInvoicePayment(invoice, action) {
                                 invoiceDialog?.dismiss()
                             }
                         }
                     }
                 }
-                if (!enabled) label(content,
-                    "Chỉnh sửa thanh toán yêu cầu Google Owner và Mobile API đã cấp quyền. " +
-                        "Nếu còn thiếu lệnh, cần cập nhật API trước khi ghi.",
-                    11.5f, false, softInk, 8)
+                if (paymentChoices.any { !canAction(it.first) })
+                    label(content, "Nút đã hiển thị để kiểm tra giao diện; " +
+                        "quyền ghi vẫn khóa đến khi Mobile API chủ tài khoản được xác minh.",
+                        11.5f, false, softInk, 8)
             }
             if (invoice.canEditOrDelete)
                 button(content, "XÓA ĐƠN • THÙNG RÁC 30 NGÀY",
