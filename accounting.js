@@ -184,7 +184,7 @@ const previousRender=renderTable;renderTable=function(){previousRender();render(
 updateStatus=status;exportToExcel=()=>exportWorkbook(true);
 const previousEdit=editOrder;editOrder=function(id){const result=previousEdit(id);formSelect(orders.find(o=>o.id===id)?.collaboratorId||'');return result;};
 window.addEventListener('load',()=>{if($('syncStatusBadge'))$('syncStatusBadge').textContent='Bản V18.2 · Công nợ khách';mount();render();renderBulkBar();});
-return {model,registry,render,formMeta,paymentMeta,formSelect,suggestPartner,assign,patchOrder,receiptData,exportWorkbook,exportCustomerDebt,filteredOrders,status,bulkForm,renderBulkBar,cancelBulk:()=>{bulkGeneration++;closeBulkDialog();}};
+return {model,registry,render,formMeta,paymentMeta,formSelect,suggestPartner,assign,patchOrder,receiptData,exportWorkbook,exportCustomerDebt,filteredOrders,status,satoriSettlement,bulkForm,renderBulkBar,cancelBulk:()=>{bulkGeneration++;closeBulkDialog();}};
 })();
 
 
