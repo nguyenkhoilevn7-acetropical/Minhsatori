@@ -3905,9 +3905,17 @@
                         updatedAt: Date.now()
                     };
 
-                    orders[editIdx] = updatedOrder;
+                    // Never mutate the UI's in-memory ledger before an atomic storage write.
+                    // The Drive bridge intercepts this storage write and queues cloud sync.
+                    const updatedOrders = orders.map((order, i) => i===editIdx?updatedOrder:order);
+                    try {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrders));
+                    } catch (e) {
+                        showModal('Chưa lưu được hóa đơn', aiEscape(e.message||String(e)), 'error');
+                        return;
+                    }
+                    orders = updatedOrders;
                     trainAIMemoryFromOrder(updatedOrder);
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
 
                     // Send updated order to Google Sheets
                     syncToGoogleSheets(updatedOrder);
@@ -3925,7 +3933,7 @@
                     rememberSavedInvoicePdf(updatedOrder);
                     showModalWithActions(
                         "CẬP NHẬT HÓA ĐƠN THÀNH CÔNG!",
-                        `Hóa đơn #${finishedInvNo} đã được lưu thay đổi và đồng bộ chính xác 100% vào Sổ Kế Toán!`,
+                        `Hóa đơn #${finishedInvNo} đã lưu trên thiết bị. ${window.__SATORI_DRIVE_APP__ ? "Đang chờ xác nhận đồng bộ Google Drive ở thanh trạng thái." : "Bản này lưu cục bộ; mở bản Google Drive để đồng bộ giữa các thiết bị."}`,
                         [
                             { text: "Xem Trong Sổ Kế Toán", action: () => { closeModal(); switchTab('sheet'); }, primary: true },
                             { text: "Gửi Zalo", action: () => { closeModal(); shareInvoicePDF('zalo',updatedOrder); }, primary: true },
@@ -4377,6 +4385,10 @@
                                 <option value="Không Tính" ${o.status === 'Không Tính' ? 'selected' : ''}>Không Tính</option>
                                 <option value="Đã hủy" ${o.status === 'Đã hủy' ? 'selected' : ''}>Đã hủy</option>
                             </select>
+                            <button type="button" onclick="window.Acct?.satoriSettlement(${aiEscape(JSON.stringify(SatoriAccountingCore.key(o)))}, ${!(o.status==='Đã TT Satori'||!!o.satoriPaidAt)})"
+                              title="${o.status==='Đã TT Satori'||!!o.satoriPaidAt?'Hủy đánh dấu đã TT Satori (có xác nhận)':'Đánh dấu đã TT cho Satori'}"
+                              aria-label="${o.status==='Đã TT Satori'||!!o.satoriPaidAt?'Hủy TT Satori':'Đã TT Satori'}"
+                              class="ml-1 px-2 py-1 rounded-lg text-[11px] ${o.status==='Đã TT Satori'||!!o.satoriPaidAt?'bg-emerald-900 text-emerald-200':'bg-slate-800 text-slate-300'}">Satori ${o.status==='Đã TT Satori'||!!o.satoriPaidAt?'✓':'○'}</button>
                         </td>
                         <td class="p-3 text-center space-x-1">
                             <button onclick="viewInvoiceDetailModal(${o.id})" class="text-blue-400 hover:text-blue-300 p-1 transition" title="Xem Hóa Đơn">
@@ -6509,6 +6521,10 @@
                             <option value="Không Tính" ${o.status === 'Không Tính' ? 'selected' : ''}>Không Tính</option>
                             <option value="Đã hủy" ${o.status === 'Đã hủy' ? 'selected' : ''}>Đã hủy</option>
                         </select>
+                            <button type="button" onclick="window.Acct?.satoriSettlement(${aiEscape(JSON.stringify(SatoriAccountingCore.key(o)))}, ${!(o.status==='Đã TT Satori'||!!o.satoriPaidAt)})"
+                              title="${o.status==='Đã TT Satori'||!!o.satoriPaidAt?'Hủy đánh dấu đã TT Satori (có xác nhận)':'Đánh dấu đã TT cho Satori'}"
+                              aria-label="${o.status==='Đã TT Satori'||!!o.satoriPaidAt?'Hủy TT Satori':'Đã TT Satori'}"
+                              class="ml-1 px-2 py-1 rounded-lg text-[11px] ${o.status==='Đã TT Satori'||!!o.satoriPaidAt?'bg-emerald-900 text-emerald-200':'bg-slate-800 text-slate-300'}">Satori ${o.status==='Đã TT Satori'||!!o.satoriPaidAt?'✓':'○'}</button>
                     </td>
                     <td class="p-3 text-center">
                         <div class="flex items-center justify-center gap-1.5">
