@@ -1,5 +1,7 @@
 """Owner management must be a native page in Minh Satori, not a customer checkout page."""
 import pathlib
+import json
+import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -34,8 +36,13 @@ class V2AdminEntryContract(unittest.TestCase):
 
     def test_application_identity_preserved(self):
         self.assertIn('applicationId = "vn.minhsatori.app"', GRADLE)
-        self.assertIn('versionCode = 27', GRADLE)
-        self.assertIn('versionName = "0.4.10"', GRADLE)
+        request = json.loads((ROOT / 'release-request.json').read_text())
+        version_code = int(re.search(r'versionCode\s*=\s*(\d+)', GRADLE).group(1))
+        version_name = re.search(r'versionName\s*=\s*"([^"]+)"', GRADLE).group(1)
+        self.assertGreaterEqual(version_code, 27)
+        self.assertEqual(version_code, request['versionCode'])
+        self.assertEqual(version_name, request['version'])
+        self.assertEqual(request['package'], 'vn.minhsatori.app')
 
 if __name__ == '__main__':
     unittest.main()

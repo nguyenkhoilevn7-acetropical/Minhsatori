@@ -1,20 +1,22 @@
 {
-  "purpose": "android-0.4.8-ios-light-hamburger-navigation-samsung-owner-acceptance",
+  "purpose": "android-0.4.13-customer-identity-ui-samsung-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.8",
-  "versionCode": 25,
-  "branch": "release/android-v0.4.8-ios-ui-20261025",
-  "requestedOn": "2026-10-25",
+  "version": "0.4.13",
+  "versionCode": 30,
+  "branch": "release/android-v0.4.13-customer-info-20261027",
+  "requestedOn": "2026-10-27",
   "sourcePRs": [
-    144,
-    149
+    187,
+    192,
+    195
   ],
-  "scope": "Owner native Android UI only: iOS light palette, clear compact invoice/customer/debt cards, animated hamburger drawer replacing always-visible five tabs, pinned header. Preserve login, existing Gemini customer portal, PDF preview/sharing, offline outbox, secure soft-delete, source selection and live ledger sync. No changes to Apps Script, accounting ledger, HMAC, Render production or any invoice.",
+  "sourceCommit": "de3d4da6aab17f8eb8d16ae0ef40aec89b26d78f",
+  "scope": "Android UI-only: customer identity cards, colored phone/address rows, grouped profile and invoice details, plus the EXACT accounting ledger filter result cards shown in the owner's screenshot; include separate customer-paid and Satori-paid indicators. Maintain existing backend safeguards and owner-only payment controls. No production API, ledger, or database changes.",
   "notes": [
-    "Only release if Gradle unit/build, emulator UI capture, offline store tests and signing verification PASS.",
-    "Use existing stable release keystore and verify against pinned GitHub SATORI_ANDROID_SIGNING_CERT_SHA256. Do not produce debug-signed APK for an existing installed production app.",
-    "Check package vn.minhsatori.app, versionName 0.4.8, versionCode 25, SHA-256 certificate and APK SHA-256; upload signed ZIP to owner's Google Drive releases folder, verify size/readback.",
-    "No production invoice create/update/delete for acceptance. Keep previous signed APK available to roll back.",
-    "2026-10-25: refresh regression updated for compact icon-only header while retaining refreshNow() owner action and accessibility label; retry signed release CI against latest head."
+    "Use existing stable keystore from GitHub Secrets and pinned public release certificate. Preserve package vn.minhsatori.app and increase versionCode from 29 to 30 for direct Samsung update without uninstall.",
+    "Do not run real payment or invoice writes. Native customer cards are view-only improvements; backend payments still require separate Apps Script approval.",
+    "Release acceptance requires Python source tests, Android debug/release unit tests, signed release assemble, APK/cert/SHA-256 verification. UI screenshot emulator and manual Samsung test remain separate.",
+    "Keep signed 0.4.12 available for recovery. This acceptance release does not deploy Apps Script, Android Mobile API or PostgreSQL.",
+    "Acceptance revision includes the accounting Sổ kế toán filtered result list; prior 0.4.13 run on commit 6d5fc25 was incomplete UI scope and must not be distributed. Use final SHA of this request only."
   ]
 }
