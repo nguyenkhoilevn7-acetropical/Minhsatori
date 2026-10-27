@@ -15,6 +15,7 @@
     "Signed acceptance APK only; real isolated HTTP/Owner OAuth E2E and separate Apps Script deployment approval remain required.",
     "Verify package, version, stable certificate, non-debuggable flag and APK SHA-256 using existing release verifier.",
     "Do not rotate credentials or use real invoices for tests.",
-    "Version 0.4.12/code 29 supersedes 0.4.10/code 27 and reserves previously discussed 0.4.11/code 28."
+    "Version 0.4.12/code 29 supersedes 0.4.10/code 27 and reserves previously discussed 0.4.11/code 28.",
+    "Release contract checks compare the Gradle identity with this request and reject versionCode below 27, rather than freezing version 0.4.10."
   ]
 }
