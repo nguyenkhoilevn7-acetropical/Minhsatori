@@ -35,6 +35,19 @@ data class PendingMobileWrite(
                     it.total == p.optLong("amount", -1) && it.customerHasPaid &&
                     it.paymentRequestId == requestId && !it.isExcluded
             } != null
+            "payments.markCustomerUnpaid", "payments.markSatoriPaid",
+            "payments.markSatoriUnpaid" -> snapshot.invoices.singleOrNull {
+                val changeToPaid = action == "payments.markSatoriPaid"
+                val customerUnpaid = action == "payments.markCustomerUnpaid"
+                it.id == p.optString("id") &&
+                    it.number == p.optString("invoiceNo") &&
+                    it.customer == p.optString("expectedName") &&
+                    it.total == p.optLong("expectedTotal", -1L) &&
+                    !it.isExcluded &&
+                    it.paymentAuditKeys.contains("$action:$requestId") &&
+                    (if (customerUnpaid) !it.customerHasPaid
+                    else it.satoriHasPaid == changeToPaid)
+            } != null
             "orders.delete" -> {
                 val entries = trash?.optJSONArray("orders")
                 entries != null && (0 until entries.length()).any {
@@ -54,7 +67,8 @@ data class PendingMobileWrite(
 
     companion object {
         val ACTIONS = setOf("orders.create", "orders.update", "orders.delete", "orders.restore",
-            "payments.markCustomerPaid")
+            "payments.markCustomerPaid", "payments.markCustomerUnpaid",
+            "payments.markSatoriPaid", "payments.markSatoriUnpaid")
 
         fun decode(value: String): PendingMobileWrite {
             val json = JSONObject(value)
