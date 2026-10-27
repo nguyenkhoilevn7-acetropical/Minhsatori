@@ -27,3 +27,10 @@ test('full accounting workflow and existing controls remain in markup',()=>{
    assert.ok(html.includes(callback),callback);
  }
 });
+
+test('legacy tab selection follows the existing switchTab active utility class',()=>{
+ assert.match(html,/nav button\[class\*="bg-gradient-to-r"\]/);
+ assert.match(html,/nav button:not\(\[class\*="bg-gradient-to-r"\]\)/);
+ assert.doesNotMatch(html,/nav button:not\(#btn-tab-input\)/);
+ assert.match(html,/background:linear-gradient\(120deg,#086fe3,#0761c7\)/);
+});
