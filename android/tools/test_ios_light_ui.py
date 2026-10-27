@@ -49,7 +49,11 @@ class IOSLightThemeTests(unittest.TestCase):
         self.assertIn('activeTab = index', self.source)
         self.assertIn('5 -> renderV2OwnerBackend(content, data)', self.source)
         self.assertNotIn('openV2Admin()', self.source)
-        self.assertIn('drawer.animate().translationX(0f).setDuration(260)', self.source)
+        self.assertIn('drawer.animate().translationX(0f).setDuration(245)', self.source)
+        self.assertIn('setInterpolator(DecelerateInterpolator())', self.source)
+        self.assertIn('if (!motionEnabled()) {', self.source)
+        self.assertIn('if (tabChanged && motionEnabled())', self.source)
+        self.assertIn('ValueAnimator.areAnimatorsEnabled()', self.source)
         self.assertIn('scrim.setOnClickListener { dismissDrawer() }', self.source)
         self.assertNotIn('shell.addView(tabs)', self.source)
 
