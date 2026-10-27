@@ -319,6 +319,34 @@ textarea:focus-visible,.agent-address-choice:focus-visible{
 @media print{.invoice-ledger-row{box-shadow:none}}
 /* END MINH SATORI UNIFIED LIGHT UI */
 
+
+/* SATORI FULL-UI REVIEW: shared Android palette; no account/auth/checkout changes. */
+:root{--bg:#eaf0f7;--card:#fff;--ink:#20364b;--sub:#5e7287;
+ --edge:#cfddeb;--blue:#086fdf;--blueSoft:#e2effd;--mint:#e1f5e9;
+ --iosOutgoing:#0875e6;--iosIncoming:#edf2f7}
+html,body{background:var(--bg)}
+#app{background:#f7fbff;border-left:1px solid #d4e3f0;border-right:1px solid #d4e3f0}
+header{background:linear-gradient(115deg,#dcecffea,#f6fafff2);border-color:#cbddef;box-shadow:0 4px 16px #163f6b13}
+.drawer{background:linear-gradient(180deg,#e9f3ff,#f8fbff 220px);border-right:1px solid #c4d9ed}
+.drawer .nav{background:#f4f9ff;color:#295178;border:1px solid #dbe8f3;display:flex;align-items:center;gap:12px;min-height:45px}
+.drawer .nav svg,.drawer .nav .inline-icon{width:20px;height:20px;flex-shrink:0}
+.drawer .nav.active{background:#e0efff;color:#075fb7;border-color:#aed3f7}
+#messages{background:linear-gradient(180deg,#eef5fd,#f9fbff 180px);padding-bottom:18px}
+.intro,.chat-help{background:#f3f9ff;border-color:#cedeed}
+.ai-avatar{background:linear-gradient(145deg,#0877df,#2d9fc6)}
+.bubble.ai{background:#e4edf6;border:1px solid #d3e0ed;color:#24374c;box-shadow:0 2px 9px #17384d0b}
+.bubble.me{background:#0875e6;border:1px solid #0869cf;color:#fff;box-shadow:0 3px 8px #0d68b426}
+.chat-order-receipt,.cart-panel,.delivery-panel,.panel,.chat-help{background:#fff;border:1px solid #cfdeeb;box-shadow:0 5px 18px #1c496b12;border-radius:17px}
+.agent-address-choice{background:#f9fcff;border-color:#d9e6f3}
+.agent-address-choice .address-phone{background:#e1f6e9;color:#137447}
+.agent-address-choice .address-subtitle{background:#e6f1ff;color:#1766ab}
+.invoice-ledger-row{background:linear-gradient(135deg,#fff,#f8fbff);border-color:#d1dfec}
+.invoice-ledger-row .invoice-name{color:#1c3856}
+.invoice-ledger-amount{color:#0872d8}
+#gate{background:linear-gradient(180deg,#eaf3fd,#fff 240px)}
+:where(.chat-help,.delivery-panel,.cart-panel,.panel) :is(button,input,select,textarea):focus-visible{outline:2px solid #086fdf;outline-offset:2px}
+@media (max-width:640px){header{backdrop-filter:none}.drawer .nav{min-height:44px}}
+/* END SATORI FULL-UI REVIEW */
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
