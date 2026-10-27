@@ -7,6 +7,8 @@ import {validGoogleClaims} from './google-claims.mjs';
 import {reconcileSandbox,sandboxHistory} from './sandbox-ledger.mjs';
 import {inferV2Order,reserveGeminiBudget} from './gemini-order.mjs';
 import {bindInvoice,invoiceDetail,invoiceIndex} from './invoice-history.mjs';
+import {invoiceChatReply,parseInvoiceCommand} from './invoice-chat-command.mjs';
+import {readSharedSandboxPdf,sendSharedPdf,SHARED_SANDBOX_PDF_PATH} from './invoice-document.mjs';
 import {postgresConfig} from './postgres-config.mjs';
 import {isDeepStrictEqual} from 'node:util';
 import {setCtvMode,commissionReport,saveGrant,grantFor,commissionQuote,customerQuote,recordTestInvoice,listTestInvoices} from './commissions.mjs';
@@ -274,6 +276,8 @@ export async function assertSelectedDelivery(pool,actor,input){
 }
 async function interpret(pool,input,actor){
  error(typeof input.message==='string'&&input.message.trim().length>=2&&input.message.length<=500,'MESSAGE_INVALID');
+ const invoiceCommand=await invoiceChatReply(pool,actor,input.message);
+ if(invoiceCommand)return {...invoiceCommand,geminiConfigured:geminiConfigured()};
  // A configured V2 request attempts real inference; fallback never claims Gemini.
  let inferenceFailure=null;
  if(geminiConfigured()){
@@ -356,6 +360,22 @@ export async function handleAccountV2(req,res,pathname){
    error(process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1','TEST_ORDERS_DISABLED',503);
    const admin=pathname.includes('/admin/');if(admin)owner(actor);
    send(res,200,await sandboxHistory(pool,actor,{admin,id:new URL(req.url,'http://local').searchParams.get('id')}));return true;
+  }
+  if(pathname===SHARED_SANDBOX_PDF_PATH&&req.method==='GET'){
+   error(process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1',
+    'TEST_ORDERS_DISABLED',503);
+   const invoiceId=new URL(req.url,'http://local').searchParams.get('invoiceId');
+   error(isUuid(invoiceId),'INVOICE_ID_INVALID',400);
+   // This is the only binary download contract across website, Android and Gemini.
+   // Production remains fail-closed until a reviewed authenticated Drive reader exists.
+   try{
+    const document=await readSharedSandboxPdf(pool,actor,invoiceId);
+    sendSharedPdf(res,document);return true;
+   }catch(e){
+    if(e?.code==='CANONICAL_PDF_NOT_CONFIGURED')
+     throw new ApiError('CANONICAL_PDF_NOT_CONFIGURED',503);
+    throw e;
+   }
   }
   if(pathname==='/api/v2/admin/ctv-mode'&&req.method==='PATCH'){
    owner(actor);send(res,200,await setCtvMode(pool,actor,await json(req)));return true;
@@ -554,7 +574,9 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/interpret'&&req.method==='POST'){
    const input=await json(req);
-   await assertSelectedDelivery(pool,actor,input);
+   // Read-only invoice history can be accessed without selecting a delivery address.
+   // Only verified invoice intent is exempt; shopping intents still require delivery.
+   if(!parseInvoiceCommand(input.message))await assertSelectedDelivery(pool,actor,input);
    const result=await interpret(pool,input,actor);send(res,200,{ok:true,...result});return true;
   }
   if(pathname==='/api/v2/cart-pricing'&&req.method==='GET'){
