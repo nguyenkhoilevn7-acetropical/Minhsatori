@@ -1,0 +1,23 @@
+name: Gemini owner startup probes (synthetic, no credentials)
+on:
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/tests/owner-startup-probes-fake.test.mjs'
+      - 'customer-ai-chat-prototype/owner-live-invoice.mjs'
+      - 'customer-ai-chat-prototype/satori-readonly.mjs'
+      - '.github/workflows/gemini-owner-startup-probes-fake.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  startup-probe-mock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check customer-ai-chat-prototype/tests/owner-startup-probes-fake.test.mjs
+      - run: node customer-ai-chat-prototype/tests/owner-startup-probes-fake.test.mjs
+      - run: echo 'SYNTHETIC ONLY. No credentials, no production network, no invoice writes.'
