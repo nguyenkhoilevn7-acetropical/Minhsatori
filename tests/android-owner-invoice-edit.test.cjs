@@ -158,3 +158,49 @@ assert.ok(!('satori_order_edit_audit_v1' in snapshot.data.values));
 assert.equal(req('orders.rename',good).error.code,'INVALID_ACTION');
 assert.deepEqual(count(),[1,1,201]);
 console.log('PASS synthetic owner invoice update: OAuth/identity/revision/paid/CTV/write audit/backup/readback/idempotency');
+
+const payment=(action,requestId,rev,reason)=>{
+ const p={id:6001,invoiceNo:9001,expectedName:'Synthetic Customer A',
+  expectedTotal:30000,expectedRevision:rev,confirmed:true,requestId};
+ if(action==='payments.markCustomerPaid')p.amount=30000;
+ else p.reason=reason||'Fake verified owner payment adjustment';
+ return req(action,p);
+};
+let paid=payment('payments.markCustomerPaid','fake-customer-paid-001',201);
+assert.equal(paid.ok,true,JSON.stringify(paid.error));
+assert.equal(paid.revision,202);
+let mixed=JSON.parse(data.values.satori_orders_v15);
+assert.ok(mixed[0].customerPaidAt);
+assert.equal(mixed[0].satoriPaidAt,undefined);
+let reconciled=payment('payments.markSatoriPaid','fake-satori-paid-001',202);
+assert.equal(reconciled.ok,true,JSON.stringify(reconciled.error));
+assert.equal(reconciled.revision,203);
+mixed=JSON.parse(data.values.satori_orders_v15);
+assert.ok(mixed[0].customerPaidAt&&mixed[0].satoriPaidAt,
+ 'customer and Satori independently marked paid');
+assert.equal(mixed[0].status,'Đã TT Satori');
+assert.equal(payment('payments.markSatoriPaid','fake-satori-paid-001',202).data.alreadyApplied,true,
+ 'exact historic payment request is idempotent');
+assert.equal(data.revision,203);
+let revertCustomer=payment('payments.markCustomerUnpaid','fake-customer-unpaid-001',203);
+assert.equal(revertCustomer.ok,true,JSON.stringify(revertCustomer.error));
+assert.equal(revertCustomer.revision,204);
+mixed=JSON.parse(data.values.satori_orders_v15);
+assert.equal(mixed[0].customerPaidAt,null);
+assert.ok(mixed[0].satoriPaidAt,'customer unpaid must not change Satori settlement');
+let revertSatori=payment('payments.markSatoriUnpaid','fake-satori-unpaid-001',204);
+assert.equal(revertSatori.ok,true,JSON.stringify(revertSatori.error));
+assert.equal(revertSatori.revision,205);
+mixed=JSON.parse(data.values.satori_orders_v15);
+assert.equal(mixed[0].satoriPaidAt,null);
+assert.equal(mixed[0].status,'Chưa thanh toán');
+assert.equal(mixed[1].total,45000,'duplicate invoice number remains untouched');
+assert.equal(JSON.parse(data.values.satori_orders_v15)[2].status,'Đã thanh toán');
+assert.equal(mixed[0].paymentAudit.length,3,
+ 'three corrective payment entries must be recorded');
+const paymentsSnapshot=req('mobile.snapshot',{});
+const paymentRead=JSON.parse(paymentsSnapshot.data.values.satori_orders_v15);
+assert.equal(paymentRead[0].status,'Chưa thanh toán',
+ 'final readback agrees with canonical ledger after independent toggles');
+console.log('PASS synthetic four payment toggles: independent customer/Satori states, audit, replays, readback');
+
