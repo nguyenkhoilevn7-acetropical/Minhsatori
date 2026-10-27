@@ -68,6 +68,7 @@ class NativeMainActivity : AppCompatActivity() {
     private val surface = Color.rgb(255, 255, 255)
     private val indigo = Color.rgb(226, 246, 243)
     private var activeTab = 0
+    private var showAdvancedOverview = false
     private var accessToken: String? = null
     private var snapshot: SatoriSnapshot? = null
     private var statusMessage = "Chưa liên kết dữ liệu Google Drive. Bấm KẾT NỐI DỮ LIỆU để bắt đầu."
@@ -696,43 +697,38 @@ class NativeMainActivity : AppCompatActivity() {
 
         val data = snapshot
         val connected = data != null
+
+        // Compact connection indicator. The detailed warning stays accessible
+        // by tap, rather than occupying most of the MoneyMind home screen.
+        val stale = statusMessage.startsWith("⚠")
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(9), dp(12), dp(9))
+            setPadding(dp(11), dp(10), dp(11), dp(10))
             background = panelBackground(if (connected) Color.rgb(232, 248, 240)
-                  else Color.rgb(255, 245, 230))
+                else Color.rgb(255, 247, 230), 12)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Trạng thái đồng bộ. Chạm xem chi tiết."
+            setOnClickListener {
+                AlertDialog.Builder(this@NativeMainActivity)
+                    .setTitle(if (connected) "Trạng thái đồng bộ" else "Cần kết nối Minh Satori")
+                    .setMessage(statusMessage +
+                        (if (preferredSource() == AutoSyncPolicy.FILE)
+                            "\n\nLưu ý: file chọn thủ công có thể là dữ liệu tĩnh." else "") +
+                        (if (connected) "\n\nNguồn: " + dataSource +
+                            " · Revision " + data!!.revision else ""))
+                    .setPositiveButton("Đóng", null).show()
+            }
         }
-        val stale = statusMessage.startsWith("⚠")
         label(info, when {
-            stale -> "●  CẢNH BÁO ĐỒNG BỘ"
-            connected -> "●  ĐÃ ĐỒNG BỘ DỮ LIỆU"
-            isLoading || authorizationPending -> "●  ĐANG TỰ ĐỘNG KẾT NỐI…"
-            else -> "●  CHƯA KẾT NỐI DỮ LIỆU"
-        },
-            12f, true, if (connected) Color.rgb(17, 133, 91)
-                else Color.rgb(181, 95, 6))
-        label(info, if (connected)
-            (dataSource.ifBlank { "Nguồn dữ liệu" } + "  •  Revision " +
-                data!!.revision + "  •  " + data.invoices.size + " hóa đơn")
-            else statusMessage,
-            12f, false, if (connected) Color.rgb(17, 133, 91)
-                else Color.rgb(164, 100, 15), 5)
-        if (stale && connected) label(info, statusMessage, 11.5f, true,
-            Color.rgb(181, 95, 6), 6)
-        if (preferredSource() == AutoSyncPolicy.FILE) {
-            label(info, "⚠ File được chọn có thể là bản tĩnh. Bấm ↻ Refresh để chuyển sang đồng bộ Drive live.",
-                11f, true, Color.rgb(181, 95, 6), 6)
-        }
-        if (connected && lastReadAt.isNotBlank()) {
-            label(info, "Cập nhật lúc " + lastReadAt +
-                (if (preferredSource() != AutoSyncPolicy.FILE)
-                    " • Kiểm tra mỗi 20 giây; đối chiếu đầy đủ mỗi 60 giây" else ""),
-                11f, false, muted, 5)
-        }
-        content.addView(info, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(10)
-        })
-
+            stale -> "●  Cảnh báo đồng bộ · Chạm xem"
+            connected -> "●  Đã đồng bộ · Rev " + data!!.revision
+            isLoading || authorizationPending -> "●  Đang kết nối..."
+            else -> "●  Chưa kết nối dữ liệu · Chạm xem"
+        }, 11f, true, if (connected) Color.rgb(17, 133, 91)
+            else Color.rgb(171, 95, 18))
+        if (connected && lastReadAt.isNotBlank())
+            label(info, "Cập nhật " + lastReadAt, 10f, false, softInk, 3)
 
         // MoneyMind reference: a compact colored dashboard hero, not a stack of
         // giant CTA panels. The underlying owner-only Gemini entry is unchanged.
@@ -760,60 +756,52 @@ class NativeMainActivity : AppCompatActivity() {
                     .putExtra("mode", "admin"))
             }
             content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
-                topMargin = dp(10)
+                topMargin = dp(9)
             })
+            renderMoneyMindShortcuts(content)
         }
+        content.addView(info, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(if (activeTab == 0) 6 else 10)
+        })
         if (isLoading) {
             label(content, "Đang đồng bộ dữ liệu…", 12f, true, cyan, 12)
         }
         if (activeTab == 5) {
             renderV2OwnerBackend(content, data)
+
         } else if (data == null) {
-            val welcome = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(18), dp(20), dp(18), dp(17))
-                background = panelBackground(Color.rgb(248, 249, 252))
+            // No fabricated numbers: reference layout with real API-only values.
+            if (activeTab == 0) {
+                val metrics = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, dp(10), 0, 0)
+                }
+                metricTile(metrics, "HÓA ĐƠN", "—")
+                metricTile(metrics, "CẦN THU", "—", Color.rgb(181, 95, 6))
+                content.addView(metrics)
+                label(content, "Hóa đơn gần đây", 15f, true, ink, 15)
+                section(content, "Chưa đồng bộ hóa đơn",
+                    "Kết nối tài khoản để xem dữ liệu thực tế.")
             }
-            label(welcome, "Quản lý kinh doanh trong một ứng dụng", 20f, true, white)
-            label(welcome, "Hóa đơn • Khách hàng • Công nợ • Bảng giá • PDF",
-                12f, false, Color.rgb(79, 102, 132), 11)
-            label(welcome, "Bản cài thử này chưa liên kết API. Dữ liệu thật được bảo vệ " +
-                "và sẽ không được sửa cho đến khi kết nối được xác minh.",
-                12f, false, muted, 12)
-            content.addView(welcome, LinearLayout.LayoutParams(-1, -2).apply {
-                topMargin = dp(13)
-            })
-            button(content, if (apiEndpoint == null) "KẾT NỐI MINH SATORI" else
-                if (accessToken == null) "ĐĂNG NHẬP GOOGLE" else
-                "ĐỒNG BỘ MOBILE API", true) {
+            button(content, if (apiEndpoint == null) "Kết nối Minh Satori" else
+                if (accessToken == null) "Đăng nhập Google" else
+                "Đồng bộ Mobile API", true) {
                 when {
                     apiEndpoint == null -> configureMobileApi()
                     accessToken == null -> connectGoogle()
                     else -> refreshFromMobileApi()
                 }
             }
-            button(content, "XEM GOOGLE DRIVE (CHỈ ĐỌC)") {
+            button(content, "Xem Google Drive · chỉ đọc") {
                 getPreferences(MODE_PRIVATE).edit()
                     .putBoolean("google_drive_auto_read", true).apply()
                 if (accessToken == null) connectGoogle() else refreshFromDrive()
             }
-            val metrics = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, dp(16), 0, 0)
-            }
-            metricTile(metrics, "HÓA ĐƠN", "—")
-            metricTile(metrics, "CÔNG NỢ", "—")
-            content.addView(metrics)
-            section(content, "Bắt đầu sử dụng",
-                "1  Kết nối API sandbox được cấp phép.\n" +
-                "2  Đăng nhập tài khoản Google thử nghiệm.\n" +
-                "3  Đồng bộ để xem hóa đơn, khách hàng và công nợ.\n\n" +
-                "Nếu chưa có API, chỉ nên chọn Google Drive ở chế độ xem.")
         } else {
             if (activeTab == 0) {
                 val stats = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    setPadding(0, dp(14), 0, 0)
+                    setPadding(0, dp(10), 0, 0)
                 }
                 metricTile(stats, "HÓA ĐƠN", data.invoices.size.toString())
                 metricTile(stats, "CẦN THU", data.outstandingCount.toString(),
@@ -824,7 +812,16 @@ class NativeMainActivity : AppCompatActivity() {
                 button(content, "+ TẠO ĐƠN HÀNG", true) { launchEditor() }
             }
             when (activeTab) {
-                0 -> renderOverview(content, data)
+                0 -> {
+                    renderMoneyMindRecent(content, data)
+                    section(content, "Công cụ nâng cao",
+                        if (showAdvancedOverview) "Chạm để thu gọn công cụ"
+                        else "Sổ kế toán · Bảng giá · Trí nhớ AI · Đối chiếu") {
+                        showAdvancedOverview = !showAdvancedOverview
+                        render()
+                    }
+                    if (showAdvancedOverview) renderOverview(content, data)
+                }
                 1 -> renderInvoices(content, data)
                 2 -> renderCustomers(content, data)
                 3 -> renderDebt(content, data)
@@ -1052,6 +1049,73 @@ class NativeMainActivity : AppCompatActivity() {
         closeButton.setOnClickListener { dismissDrawer() }
         scrim.setOnClickListener { dismissDrawer() }
         dashboardMode = false
+    }
+
+
+    /** Four colorful native shortcuts with original authorized callbacks. */
+    private fun renderMoneyMindShortcuts(parent: LinearLayout) {
+        val icons = listOf(
+            Triple("Hóa đơn", R.drawable.ic_satori_invoice, Color.rgb(245, 157, 19)),
+            Triple("Khách", R.drawable.ic_satori_users, Color.rgb(16, 156, 91)),
+            Triple("Công nợ", R.drawable.ic_satori_debt, Color.rgb(49, 139, 221)),
+            Triple("Gemini", R.drawable.ic_satori_plus, Color.rgb(130, 75, 198))
+        )
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(11), 0, dp(7))
+        }
+        icons.forEachIndexed { index, (title, icon, accent) ->
+            val tile = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(2), dp(3), dp(2), dp(3))
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Mở " + title
+                setOnClickListener {
+                    when (index) {
+                        0 -> { activeTab = 1; render() }
+                        1 -> { activeTab = 2; render() }
+                        2 -> { activeTab = 3; render() }
+                        else -> startActivity(Intent(this@NativeMainActivity,
+                            AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
+                    }
+                }
+            }
+            val iconView = ImageView(this).apply {
+                setImageResource(icon)
+                setColorFilter(accent)
+                setPadding(dp(9), dp(9), dp(9), dp(9))
+                background = panelBackground(when (index) {
+                    0 -> Color.rgb(255, 243, 222)
+                    1 -> Color.rgb(224, 248, 236)
+                    2 -> Color.rgb(226, 241, 255)
+                    else -> Color.rgb(244, 235, 255)
+                }, 13)
+                contentDescription = null
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            tile.addView(iconView, LinearLayout.LayoutParams(dp(46), dp(46)))
+            label(tile, title, 11f, true, ink, 5)
+            row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        parent.addView(row)
+    }
+
+    /** Recent invoices only from the verified ledger; no demo amounts. */
+    private fun renderMoneyMindRecent(parent: LinearLayout, data: SatoriSnapshot) {
+        label(parent, "Hóa đơn gần đây", 15f, true, ink, 15)
+        if (data.invoices.isEmpty()) {
+            section(parent, "Chưa có hóa đơn", "Đồng bộ lại để xem dữ liệu.")
+            return
+        }
+        data.invoices.take(4).forEach { invoice ->
+            section(parent, "#" + invoice.number + "  ·  " + invoice.customer,
+                invoice.displayDate + "  ·  " + SatoriData.money(invoice.total)) {
+                openInvoice(invoice)
+            }
+        }
     }
 
     private fun actionTile(row: LinearLayout, title: String, subtitle: String,
