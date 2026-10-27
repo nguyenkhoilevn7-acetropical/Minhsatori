@@ -611,6 +611,110 @@ function create(s,all,p,aiMode){
  all.unshift(next);return {modified:true,result:{order:visible(next),duplicate:false}};
 }
 
+// Owner-only correction to an UNPAID standalone invoice. This action is
+// intentionally NOT in HMAC SCOPES: only AndroidOwnerMobileApi's verified
+// Google Owner path may call ownerMobileWrite('orders.update').
+function updateUnpaidOrder(s,all,p){
+ need(p&&p.confirmed===true,'CONFIRMATION_REQUIRED','Anh cần xác nhận nội dung hóa đơn sửa');
+ var requestId=String(p.requestId||'');
+ need(/^[a-zA-Z0-9_-]{8,100}$/.test(requestId),'INVALID_REQUEST','Thiếu requestId sửa đơn');
+ need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0&&p.id!==undefined,
+  'INVALID_ORDER','Cần số hóa đơn và ID chính xác');
+ need(String(p.expectedName||'').trim().length>=2&&Number.isFinite(p.expectedTotal)&&p.expectedTotal>=0,
+  'CONFIRMATION_REQUIRED','Cần tên khách và tổng tiền hóa đơn gốc');
+ var draft=p.order;
+ need(draft&&typeof draft==='object'&&!Array.isArray(draft)&&
+  Array.isArray(draft.items)&&draft.items.length>=1&&draft.items.length<=50,
+  'INVALID_ORDER','Thiếu sản phẩm hoặc dữ liệu hóa đơn sửa');
+ var hash=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+   JSON.stringify(draft),Utilities.Charset.UTF_8).map(function(b){
+     return ('0'+(b&255).toString(16)).slice(-2);
+   }).join('');
+ var audit=JSON.parse(s.values.satori_order_edit_audit_v1||'[]');
+ need(Array.isArray(audit)&&audit.length<50000,'INVALID_STATE','Nhật ký sửa hóa đơn không hợp lệ');
+ var prior=audit.find(function(x){return x&&x.requestId===requestId});
+ if(prior){
+  need(String(prior.id)===String(p.id)&&Number(prior.invoiceNo)===p.invoiceNo&&
+   prior.requestHash===hash&&norm(prior.expectedName)===norm(p.expectedName)&&
+   Number(prior.expectedTotal)===p.expectedTotal,
+   'REUSED_REQUEST_ID','Mã thao tác đã dùng cho nội dung khác');
+  var replay=all.filter(function(o){
+   return String(o.id)===String(p.id)&&Number(o.invoiceNo)===p.invoiceNo&&
+    o.apiUpdateRequestId===requestId;
+  });
+  need(replay.length===1,'REQUEST_SUPERSEDED',
+   'Hóa đơn đã có sửa đổi sau yêu cầu này. Hãy đồng bộ lại');
+  return {modified:false,result:{duplicate:true,updated:true,order:visible(replay[0])}};
+ }
+ version(s,p);
+ var found=all.filter(function(o){return String(o.id)===String(p.id)&&
+  Number(o.invoiceNo)===p.invoiceNo});
+ need(found.length===1,'INVALID_ORDER','Không xác định duy nhất hóa đơn cần sửa');
+ var original=found[0];
+ need(!original.pairGroupId&&!original.pairRole&&!original.pairInvoiceNo,
+  'PAIRED_ORDER_LOCKED','Không sửa riêng hóa đơn liên kết CTV');
+ need(!original.isTest&&!original.testOrder&&
+  !['Không Tính','Đã hủy','Đã thanh toán','Đã TT Satori'].includes(String(original.status||''))&&
+  !original.customerPaidAt&&!original.satoriPaidAt,
+  'PAID_ORDER_PROTECTED','Chỉ sửa hóa đơn chưa thanh toán, chưa đối soát');
+ need(norm(original.name)===norm(p.expectedName)&&Number(original.total)===p.expectedTotal,
+  'ORDER_CHANGED','Tên khách hoặc tổng tiền gốc đã khác; hãy tải lại');
+ var trash=JSON.parse(s.values.satori_trash_bin_v15||'[]');
+ need(Array.isArray(trash),'INVALID_STATE','Thùng rác không hợp lệ');
+ need(!all.some(function(o){return o.apiRequestId===requestId||
+  o.apiRestoreRequestId===requestId||o.apiDeleteRequestId===requestId})&&
+  !trash.some(function(t){return t&&
+   (t.apiDeleteRequestId===requestId||t.order&&
+    (t.order.apiRequestId===requestId||t.order.apiUpdateRequestId===requestId))}),
+  'REUSED_REQUEST_ID','Mã yêu cầu đã dùng cho thao tác khác');
+ var name=String(draft.name||'').trim(),phone=String(draft.phone||'').trim(),
+  location=String(draft.location||'').trim(),note=String(draft.deliveryNote||'').trim();
+ need(name.length>=2&&name.length<=150&&phone.length<=60&&
+  location.length>=5&&location.length<=500&&note.length<=1000,
+  'INVALID_ORDER','Thông tin khách, địa chỉ hoặc ghi chú không hợp lệ');
+ var items=draft.items.map(function(i){
+  need(i&&typeof i==='object'&&String(i.product||i.name||'').trim().length>=2,
+   'INVALID_ITEM','Thiếu tên sản phẩm');
+  var qty=Number(i.qty),price=money(i.unitPrice);
+  need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Số lượng không hợp lệ');
+  var list=i.listPrice==null?price:money(i.listPrice);
+  need(list>=price,'INVALID_ITEM','Giá niêm yết không thể thấp hơn giá bán');
+  return {id:Utilities.getUuid(),code:String(i.code||'').slice(0,50),
+   product:String(i.product||i.name).trim().slice(0,200),
+   unit:String(i.unit||'Thùng').slice(0,30),
+   qty:qty,unitPrice:price,listPrice:list,discountAmount:list-price,
+   subtotal:Math.round(qty*price)};
+ });
+ var shipping=money(draft.shippingAmount==null?0:draft.shippingAmount),
+  vat=money(draft.vatAmount==null?0:draft.vatAmount),
+  goods=Math.round(items.reduce(function(n,i){return n+i.qty*i.unitPrice},0));
+ var total=Math.round(goods+shipping+vat);
+ need(total<=1e11,'INVALID_AMOUNT','Tổng tiền hóa đơn quá lớn');
+ need(draft.total!==undefined&&money(draft.total)===total,
+  'TOTAL_MISMATCH','Tổng tiền hóa đơn không khớp');
+ // A missing/blank delivery date in older APKs must not erase a stored date.
+ var deliveryDate=String(draft.deliveryDate||'').trim()||
+  String(original.deliveryDate||'').trim();
+ need(!deliveryDate||/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate),
+  'INVALID_ORDER','Ngày giao không hợp lệ');
+ var now=new Date().toISOString();
+ var revised=Object.assign({},original,{
+  name:name,phone:phone,location:location,
+  items:items,product:items.map(function(i){return i.product+' x'+i.qty}).join(', '),
+  qty:items.reduce(function(n,i){return n+i.qty},0),
+  goodsTotal:goods,shippingAmount:shipping,vatAmount:vat,vat:vat?'yes':'no',
+  total:total,deliveryDate:deliveryDate||null,deliveryNote:note,
+  apiUpdateRequestId:requestId,updatedAt:now
+ });
+ all[all.indexOf(original)]=revised;
+ audit.push({requestId:requestId,id:original.id,invoiceNo:original.invoiceNo,
+  expectedName:original.name,expectedTotal:original.total,requestHash:hash,
+  beforeTotal:original.total,afterTotal:total,
+  timestamp:now,actor:'verified_owner_android',revision:s.revision+1});
+ return {modified:true,extras:{satori_order_edit_audit_v1:JSON.stringify(audit)},
+  result:{updated:true,duplicate:false,order:visible(revised)}};
+}
+
 function markPaid(s,all,p){
  version(s,p);
  need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Thiếu số hóa đơn');
@@ -1064,6 +1168,7 @@ function write(s,action,p){
   action==='orders.create.pair'?createPair(s,all,p):
   action==='pricing.approve'?approveAIPricing(s,all,p):
   (action==='orders.create'||action==='orders.create.ai')?create(s,all,p,action==='orders.create.ai'):
+  action==='orders.update'?updateUnpaidOrder(s,all,p):
   action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):
   action==='payments.markCustomerPaid'?markPaid(s,all,p):
   changePaymentFlag(s,all,p,action);
@@ -1105,7 +1210,7 @@ function handle(e){
 // owner Google OAuth access token, allowed signing client and request shape.
 // Reuse the SAME revision lock, prewrite backup and soft-delete/restore checks.
 function ownerMobileWrite(action,p,nonce){
- need(['orders.delete','orders.restore','payments.markCustomerPaid',
+ need(['orders.create','orders.update','orders.delete','orders.restore','payments.markCustomerPaid',
   'payments.markCustomerUnpaid','payments.markSatoriPaid',
   'payments.markSatoriUnpaid'].indexOf(action)>=0,
    'FORBIDDEN','Mobile owner action not supported');
