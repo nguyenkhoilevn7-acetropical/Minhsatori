@@ -12,12 +12,16 @@
         android:theme="@style/Theme.MinhSatori"
         android:supportsRtl="true">
         <activity android:name=".AiSandboxActivity" android:exported="false" />
-        <activity android:name=".AiCustomerPortalActivity" android:exported="false" />
+        <activity
+            android:name=".AiCustomerPortalActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout" />
         <activity
             android:name=".NativeMainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="screenSize|smallestScreenSize|orientation">
+            android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
