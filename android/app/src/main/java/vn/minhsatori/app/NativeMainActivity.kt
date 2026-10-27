@@ -1991,22 +1991,35 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
-        button(parent, "▤ SỔ KẾ TOÁN · LỌC TRẠNG THÁI") { showLedger(data) }
-        if (canWrite) button(parent, "+ TẠO HÓA ĐƠN", true) { launchEditor() }
+        // MoneyMind: compact toolbar instead of three full-width CTA blocks.
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, dp(7))
+        }
+        fun tool(text: String, tint: Int, action: () -> Unit) {
+            toolbar.addView(compactAction(text, tint) { action() },
+                LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                    marginEnd = dp(5)
+                })
+        }
+        tool("☷ Lọc sổ", cyan) { showLedger(data) }
+        if (canWrite) tool("+ Tạo đơn", Color.rgb(16, 122, 78)) { launchEditor() }
         if (canAction("mobile.trash") && canAction("orders.restore")) {
-            button(parent, "♻ THÙNG RÁC 30 NGÀY · KHÔI PHỤC") { showTrash() }
+            tool("Thùng rác", Color.rgb(197, 66, 76)) { showTrash() }
         } else if (preferredSource() == AutoSyncPolicy.DRIVE) {
-            label(parent, "Google Drive chỉ cho phép xem và tự đồng bộ. " +
-                "Muốn xóa mềm/khôi phục, kết nối Mobile API chủ tài khoản đã xác thực.",
-                12f, false, softInk, 9)
-            button(parent, "⚙ KẾT NỐI QUYỀN XÓA / KHÔI PHỤC") {
-                showConnectionSettings()
+            tool("Quyền ghi", Color.rgb(173, 105, 18)) {
+                AlertDialog.Builder(this)
+                    .setTitle("Chế độ chỉ đọc Google Drive")
+                    .setMessage("Muốn sửa, xóa mềm hoặc khôi phục hóa đơn, hãy kết nối Mobile API chủ tài khoản đã xác thực. Drive không được phép ghi trực tiếp.")
+                    .setNegativeButton("Đóng", null)
+                    .setPositiveButton("Kết nối") { _, _ -> showConnectionSettings() }
+                    .show()
             }
         }
-        label(parent, "Tìm số hóa đơn, khách hàng, số điện thoại hoặc địa chỉ", 12f,
-            false, muted, 14)
+        parent.addView(toolbar)
         val input = EditText(this).apply {
-            hint = "Tìm hóa đơn…"
+            hint = "Tìm mã hóa đơn, khách, SĐT..."
             textSize = 14f
             setSingleLine(true)
             setTextColor(ink)
@@ -2316,15 +2329,26 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderDebt(parent: LinearLayout, data: SatoriSnapshot) {
-        button(parent, "▤ BỘ LỌC SỔ KẾ TOÁN") { showLedger(data) }
-        label(parent, "Chỉ tính các hóa đơn chưa ghi nhận khách trả tiền. Không cộng " +
-            "các bản giá cộng tác viên có trạng thái 'Không Tính'.",
-            12f, false, muted, 12)
-        section(parent, "CẦN THU " + data.outstandingCount + " HÓA ĐƠN",
-            SatoriData.money(data.outstandingAmount))
-        data.invoices.filter { it.isOutstanding }.forEach { inv ->
-            invoiceQuickCard(parent, inv, fromDebt = true)
+        val summary = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(15), dp(16), dp(14))
+            background = panelBackground(Color.rgb(227, 247, 243), 18)
         }
+        label(summary, "Tổng công nợ cần thu", 12f, true, Color.rgb(20, 103, 104))
+        label(summary, SatoriData.money(data.outstandingAmount), 24f, true, ink, 5)
+        label(summary, data.outstandingCount.toString() +
+            " hóa đơn khách chưa thanh toán", 11.5f, false, softInk, 5)
+        parent.addView(summary)
+        button(parent, "☷ Lọc hóa đơn") { showLedger(data) }
+        label(parent, "Công nợ theo khách hàng", 15f, true, ink, 14)
+        data.invoices.filter { it.isOutstanding }.forEach { invoice ->
+            invoiceQuickCard(parent, invoice, fromDebt = true)
+        }
+        if (data.outstandingCount == 0)
+            section(parent, "Không có hóa đơn cần thu",
+                "Dữ liệu lấy từ sổ đã đồng bộ, không bao gồm bản 'Không Tính'.")
+        label(parent, "Lưu ý: Khách thanh toán và thanh toán cho Satori là hai trạng thái độc lập.",
+            10.5f, false, softInk, 12)
     }
 
     private fun renderNewOrderInfo(parent: LinearLayout) {
