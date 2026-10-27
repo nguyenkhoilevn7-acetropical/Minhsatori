@@ -18,9 +18,11 @@ class OwnerInvoiceEditPaymentContract(unittest.TestCase):
         detail = UI.split("private fun openInvoice(", 1)[1].split("private fun configureMobileApi(", 1)[0]
         self.assertIn('if (invoice.canEditOrDelete)', detail)
         self.assertIn('button(content, "SỬA HÓA ĐƠN"', detail)
-        self.assertIn('if (!canAction("orders.update"))', detail)
-        self.assertIn('showConnectionSettings()', detail)
-        self.assertIn('launchEditor(editing = invoice)', detail)
+        self.assertIn('requestInvoiceEdit(invoice)', detail)
+        helper = UI.split("private fun requestInvoiceEdit(", 1)[1].split("private fun confirmSoftDelete(", 1)[0]
+        self.assertIn('if (!canAction("orders.update"))', helper)
+        self.assertIn('showConnectionSettings()', helper)
+        self.assertIn('launchEditor(editing = invoice)', helper)
 
     def test_independent_payment_actions_visible_but_never_bypass_permission(self):
         detail = UI.split("private fun openInvoice(", 1)[1].split("private fun configureMobileApi(", 1)[0]
