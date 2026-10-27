@@ -604,11 +604,11 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(7), dp(8), dp(7), dp(8))
-            background = panelBackground(Color.WHITE, 18)
+            background = panelBackground(if (activeTab == 0) teal else Color.WHITE, 18)
         }
         val menuButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_menu)
-            setColorFilter(ink)
+            setColorFilter(if (activeTab == 0) white else ink)
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(10), dp(11), dp(10), dp(11))
@@ -628,13 +628,18 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(7), 0, 0, 0)
         }
-        label(brandText, "MINH SATORI", 16f, true, ink)
-        label(brandText, "HÓA ĐƠN  •  SỔ KẾ TOÁN", 9f,
-            false, Color.rgb(79, 102, 132), 5)
+        label(brandText, "MINH SATORI", 15f, true, ink).apply {
+            if (activeTab == 0) setTextColor(Color.WHITE)
+        }
+        label(brandText, if (activeTab == 0) "Xin chào, Quản trị viên 👋"
+            else "HÓA ĐƠN  •  SỔ KẾ TOÁN", 10f,
+            false, Color.rgb(79, 102, 132), 4).apply {
+            if (activeTab == 0) setTextColor(Color.rgb(224, 252, 246))
+        }
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
         val refreshButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_refresh)
-            setColorFilter(cyan)
+            setColorFilter(if (activeTab == 0) white else cyan)
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(8), dp(12), dp(8), dp(12))
@@ -647,7 +652,7 @@ class NativeMainActivity : AppCompatActivity() {
                 "satori_live_notifications", false)
             setImageResource(if (enabled) R.drawable.ic_satori_bell
                 else R.drawable.ic_satori_bell_off)
-            setColorFilter(if (enabled) cyan else softInk)
+            setColorFilter(if (activeTab == 0) white else if (enabled) cyan else softInk)
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(7), dp(11), dp(7), dp(11))
@@ -673,7 +678,7 @@ class NativeMainActivity : AppCompatActivity() {
         brand.addView(bellButton, LinearLayout.LayoutParams(dp(38), dp(46)))
         val options = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_settings)
-            setColorFilter(ink)
+            setColorFilter(if (activeTab == 0) white else ink)
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(10), dp(11), dp(10), dp(11))
@@ -685,9 +690,9 @@ class NativeMainActivity : AppCompatActivity() {
         shell.addView(brand, 0, LinearLayout.LayoutParams(-1, -2))
 
         val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn", "Quản trị hệ thống")
-        label(content, pages[activeTab], 22f, true, ink, 12)
-        label(content, "MINH SATORI  •  ANDROID " + BuildConfig.VERSION_NAME,
-            10.5f, true, cyan, 6)
+        if (activeTab != 0) {
+            label(content, pages[activeTab], 21f, true, ink, 11)
+        }
 
         val data = snapshot
         val connected = data != null
@@ -728,36 +733,35 @@ class NativeMainActivity : AppCompatActivity() {
             topMargin = dp(10)
         })
 
-        // One customer-facing storefront, one server-side price/discount engine.
-        // This sandbox owner hero delegates all cart, invoice and customer-link
-        // workflows to the same UI the customer opens from the shared link.
+
+        // MoneyMind reference: a compact colored dashboard hero, not a stack of
+        // giant CTA panels. The underlying owner-only Gemini entry is unchanged.
         if (activeTab == 0) {
             val hero = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(16), dp(14), dp(16), dp(16))
-                background = panelBackground(Color.rgb(230, 248, 243), 18)
+                setPadding(dp(17), dp(15), dp(17), dp(14))
+                background = panelBackground(teal, 19)
             }
-            label(hero, "GEMINI • TẠO HÓA ĐƠN THẬT", 20f, true, white)
-            label(hero, "Chỉ tài khoản quản trị • Giá lấy từ Google Drive • Anh duyệt rồi mới ghi hóa đơn",
-                12f, false, Color.rgb(56, 89, 91), 7)
-            button(hero, "TẠO HÓA ĐƠN THẬT VỚI GEMINI", true, R.drawable.ic_satori_plus) {
-                startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
+            label(hero, "Tổng quan kinh doanh", 12f, false, white).apply {
+                setTextColor(Color.rgb(223, 250, 245))
             }
-            button(hero, "MỞ TRANG QUẢN TRỊ GEMINI") {
-                startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
+            label(hero, if (data == null) "Chưa kết nối dữ liệu"
+                else SatoriData.money(data.outstandingAmount), 25f, true, white, 4).apply {
+                setTextColor(Color.WHITE)
             }
-            button(hero, "QUẢN TRỊ HỆ THỐNG • MINH SATORI", iconRes = R.drawable.ic_satori_settings) {
-                activeTab = 5
-                render()
+            label(hero, if (data == null) "Kết nối để xem số liệu Satori"
+                else "Cần thu từ khách  ·  " + data.outstandingCount + " hóa đơn",
+                11.5f, false, white, 5).apply {
+                setTextColor(Color.rgb(226, 255, 249))
+            }
+            button(hero, "✦  Tạo hóa đơn với Gemini", true,
+                R.drawable.ic_satori_plus) {
+                startActivity(Intent(this, AiCustomerPortalActivity::class.java)
+                    .putExtra("mode", "admin"))
             }
             content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
-                topMargin = dp(14)
+                topMargin = dp(10)
             })
-            label(content, "CHỈ CHỦ TÀI KHOẢN: Gemini quản trị tạo hóa đơn thật khi anh xác nhận. Các link khách đang tắt.",
-                11f, false, muted, 6)
-        }
-        button(content, "✦ GEMINI • QUẢN TRỊ & TẠO HÓA ĐƠN THẬT") {
-            startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
         }
         if (isLoading) {
             label(content, "Đang đồng bộ dữ liệu…", 12f, true, cyan, 12)
@@ -855,7 +859,67 @@ class NativeMainActivity : AppCompatActivity() {
             }
         }
 
-        // A single hamburger keeps all tasks accessible without five permanent tabs.
+        // MoneyMind reference: persistent five-action bottom navigation. Legacy
+        // drawer retains all six routes, including Khách hàng and advanced tools.
+        val bottomNav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(6), dp(4), dp(6))
+            background = panelBackground(Color.WHITE, 0)
+            elevation = dp(5).toFloat()
+        }
+        val bottomDestinations = listOf(
+            Triple(0, "Trang chủ", R.drawable.ic_satori_dashboard),
+            Triple(1, "Hóa đơn", R.drawable.ic_satori_invoice),
+            Triple(4, "Lên đơn", R.drawable.ic_satori_plus),
+            Triple(3, "Công nợ", R.drawable.ic_satori_debt),
+            Triple(5, "Cá nhân", R.drawable.ic_satori_settings)
+        )
+        bottomDestinations.forEach { (index, title, drawable) ->
+            val selected = activeTab == index
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(2), dp(4), dp(2), dp(3))
+                minimumHeight = dp(53)
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Mở " + title
+                setOnClickListener {
+                    if (activeTab != index) {
+                        activeTab = index
+                        render()
+                    }
+                }
+            }
+            val glyph = ImageView(this).apply {
+                setImageResource(drawable)
+                setColorFilter(if (index == 4) Color.WHITE
+                    else if (selected) teal else softInk)
+                setPadding(dp(6), dp(6), dp(6), dp(6))
+                background = if (index == 4) panelBackground(teal, 28)
+                    else panelBackground(Color.TRANSPARENT, 12)
+                contentDescription = null
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            item.addView(glyph, LinearLayout.LayoutParams(
+                dp(if (index == 4) 45 else 33), dp(if (index == 4) 45 else 33)))
+            val text = TextView(this).apply {
+                this.text = title
+                textSize = 9f
+                gravity = Gravity.CENTER
+                setTextColor(if (selected) teal else softInk)
+                setTypeface(typeface, if (selected) Typeface.BOLD else Typeface.NORMAL)
+                includeFontPadding = false
+            }
+            item.addView(text, LinearLayout.LayoutParams(-1, dp(16)).apply {
+                topMargin = dp(2)
+            })
+            bottomNav.addView(item, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        shell.addView(bottomNav, LinearLayout.LayoutParams(-1, -2))
+
+        // Preserve the drawer as the full advanced navigation inventory.
         // Pure native Android animation: no webview, no new dependencies.
         val scrim = View(this).apply {
             setBackgroundColor(Color.argb(115, 10, 16, 28))
@@ -998,8 +1062,8 @@ class NativeMainActivity : AppCompatActivity() {
         val tile = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
-            minimumHeight = dp(112)
-            setPadding(dp(13), dp(13), dp(11), dp(13))
+            minimumHeight = dp(91)
+            setPadding(dp(8), dp(9), dp(6), dp(8))
             val tint = when (accent) {
                 Color.rgb(17, 133, 91) -> Color.rgb(225, 247, 236)
                 Color.rgb(181, 95, 6) -> Color.rgb(255, 244, 220)
@@ -1021,9 +1085,9 @@ class NativeMainActivity : AppCompatActivity() {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             background = panelBackground(Color.WHITE, 11)
         }
-        tile.addView(pictogram, LinearLayout.LayoutParams(dp(34), dp(34)))
-        label(tile, title, 14f, true, ink, 7)
-        label(tile, subtitle, 11f, false, softInk, 5)
+        tile.addView(pictogram, LinearLayout.LayoutParams(dp(31), dp(31)))
+        label(tile, title, 12f, true, ink, 5)
+        label(tile, subtitle, 10f, false, softInk, 3)
         row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
@@ -1093,7 +1157,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
-        label(parent, "QUẢN LÝ NHANH", 12f, true, cyan, 19)
+        label(parent, "Truy cập nhanh", 15f, true, ink, 15)
         val row1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(9), 0, 0)
@@ -1163,7 +1227,7 @@ class NativeMainActivity : AppCompatActivity() {
             SatoriData.money(data.outstandingAmount) +
             "\nTrạng thái thanh toán Satori không đồng nghĩa khách đã thanh toán.")
 
-        label(parent, "HÓA ĐƠN GẦN ĐÂY", 12f, true, cyan, 21)
+        label(parent, "Hóa đơn gần đây", 15f, true, ink, 16)
         if (data.invoices.isEmpty()) {
             section(parent, "Chưa có hóa đơn", "Đồng bộ lại hoặc tạo hóa đơn trong sandbox.")
         } else {
