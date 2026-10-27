@@ -744,7 +744,7 @@ class NativeMainActivity : AppCompatActivity() {
             }
             label(hero, "GEMINI • TẠO HÓA ĐƠN THẬT", 20f, true, white)
             label(hero, "Chỉ tài khoản quản trị • Giá lấy từ Google Drive • Anh duyệt rồi mới ghi hóa đơn",
-                12f, false, Color.rgb(202, 239, 249), 7)
+                12f, false, Color.rgb(52, 83, 118), 7)
             button(hero, "TẠO HÓA ĐƠN THẬT VỚI GEMINI", true, R.drawable.ic_satori_plus) {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
