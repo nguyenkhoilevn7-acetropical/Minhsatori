@@ -1451,7 +1451,7 @@ async function loadCustomerInvoiceHistory(before=null,append=false){
 async function downloadVerifiedCustomerInvoice(invoice){
  const pdf=invoice?.pdf,path=pdf?.downloadPath;
  if(pdf?.available!==true||typeof path!=='string'||
-    !/^\\/api\\/v2\\/invoice-document\\?id=[0-9a-fA-F-]{36}$/.test(path)||
+    !/^\/api\/v2\/invoice-document\?id=[0-9a-fA-F-]{36}$/.test(path)||
     !/^[a-f0-9]{64}$/.test(pdf.sha256)){
   throw Error('PDF gốc chưa được xác minh; không thể tải bản thay thế');
  }
