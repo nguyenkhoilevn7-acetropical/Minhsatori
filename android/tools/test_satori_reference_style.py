@@ -20,6 +20,17 @@ class SatoriReferenceStyleContract(unittest.TestCase):
         self.assertIn("Color.rgb(229, 246, 236)",SRC)
         self.assertIn("Color.rgb(255, 242, 222)",SRC)
 
+    def test_dashboard_icons_replace_abstract_diamond_without_changing_actions(self):
+        self.assertIn('iconRes: Int = R.drawable.ic_satori_invoice', SRC)
+        self.assertIn('setImageResource(iconRes)', SRC)
+        self.assertIn('background = panelBackground(tint, 17)', SRC)
+        for token in ('R.drawable.ic_satori_invoice) {',
+                      'R.drawable.ic_satori_users) {',
+                      'R.drawable.ic_satori_debt) {',
+                      'R.drawable.ic_satori_plus) {'):
+            self.assertIn(token, SRC)
+        self.assertNotIn('label(tile, "◆"', SRC)
+
     def test_no_business_navigation_or_financial_actions_removed(self):
         for token in ('R.drawable.ic_satori_debt to "Công nợ"',
                       'R.drawable.ic_satori_plus to "Lên đơn"',
