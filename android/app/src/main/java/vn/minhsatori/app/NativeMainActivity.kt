@@ -1181,27 +1181,62 @@ class NativeMainActivity : AppCompatActivity() {
         parent.addView(title, LinearLayout.LayoutParams(-1, -2))
         val modules = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(10), dp(14), dp(14))
+            setPadding(dp(11), dp(8), dp(11), dp(8))
             background = panelBackground(Color.WHITE, 17)
         }
-        label(modules, "DỮ LIỆU QUẢN TRỊ HIỆN CÓ", 13f, true, ink)
-        button(modules, "Hóa đơn & trạng thái thanh toán", iconRes = R.drawable.ic_satori_invoice) {
-            activeTab = 1
-            render()
+        // MoneyMind personal/settings hierarchy: small colored icon, label and
+        // chevron. Routes still target their original native Owner pages.
+        fun profileRow(text: String, iconRes: Int, tint: Int, destination: Int) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(52)
+                setPadding(dp(5), dp(4), dp(6), dp(4))
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Mở " + text
+                setOnClickListener { activeTab = destination; render() }
+            }
+            val icon = ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(tint)
+                background = panelBackground(when(destination) {
+                    1 -> Color.rgb(255, 244, 220)
+                    2 -> Color.rgb(233, 241, 255)
+                    3 -> Color.rgb(225, 248, 237)
+                    else -> Color.rgb(241, 233, 255)
+                }, 11)
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                contentDescription = null
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            row.addView(icon, LinearLayout.LayoutParams(dp(37), dp(37)).apply {
+                marginEnd = dp(12)
+            })
+            val label = TextView(this).apply {
+                this.text = text
+                textSize = 13f
+                setTextColor(ink)
+                setTypeface(typeface, Typeface.BOLD)
+            }
+            row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+            val arrow = TextView(this).apply {
+                this.text = "›"
+                textSize = 22f
+                setTextColor(softInk)
+            }
+            row.addView(arrow)
+            modules.addView(row)
         }
-        button(modules, "Khách hàng & hồ sơ hiện có", iconRes = R.drawable.ic_satori_users) {
-            activeTab = 2
-            render()
-        }
-        button(modules, "Công nợ & đối chiếu", iconRes = R.drawable.ic_satori_debt) {
-            activeTab = 3
-            render()
-        }
-        button(modules, "Lên đơn với quyền API đã xác minh", iconRes = R.drawable.ic_satori_plus) {
-            activeTab = 4
-            render()
-        }
-        parent.addView(modules, LinearLayout.LayoutParams(-1, -2).apply { topMargin=dp(12) })
+        profileRow("Hóa đơn & trạng thái thanh toán",
+            R.drawable.ic_satori_invoice, Color.rgb(204, 143, 14), 1)
+        profileRow("Khách hàng & hồ sơ hiện có",
+            R.drawable.ic_satori_users, Color.rgb(46, 112, 217), 2)
+        profileRow("Công nợ & đối chiếu",
+            R.drawable.ic_satori_debt, Color.rgb(21, 159, 98), 3)
+        profileRow("Lên đơn với quyền API đã xác minh",
+            R.drawable.ic_satori_plus, Color.rgb(139, 84, 201), 4)
+        parent.addView(modules, LinearLayout.LayoutParams(-1, -2).apply { topMargin=dp(10) })
         val v2 = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(14), dp(14), dp(14))
@@ -1210,12 +1245,16 @@ class NativeMainActivity : AppCompatActivity() {
         label(v2, "HỆ THỐNG KHÁCH HÀNG V2", 13f, true, ink)
         label(v2, "Đại lý / CTV • Hồ sơ & địa chỉ • Chính sách chiết khấu • Phân quyền",
             12f, false, muted, 7)
-        label(v2,
-            "Quản trị V2 sẽ thao tác trực tiếp từ App qua Backend đã xác thực Admin. " +
-            "Google OAuth V2 chưa xác minh chủ tài khoản nên các tác vụ ghi vẫn khóa.",
-            12f, false, Color.rgb(157, 92, 13), 11)
-        label(v2, "Không tự động lấy quyền Admin từ đăng nhập Drive hoặc trình duyệt khách.",
-            11f, false, muted, 6)
+        label(v2, "● Quản trị V2 chưa cấp quyền ghi", 12f, true,
+            Color.rgb(157, 92, 13), 11)
+        button(v2, "Xem trạng thái phân quyền") {
+            AlertDialog.Builder(this)
+                .setTitle("Phân quyền V2")
+                .setMessage("Quản trị V2 sẽ thao tác trực tiếp từ App qua Backend đã xác thực Admin. " +
+                    "Google OAuth V2 chưa xác minh chủ tài khoản nên các tác vụ ghi vẫn khóa.\n\n" +
+                    "Không tự động lấy quyền Admin từ đăng nhập Drive hoặc trình duyệt khách.")
+                .setPositiveButton("Đóng", null).show()
+        }
         button(v2, "↻  Đồng bộ hóa đơn đang có") { refreshNow() }
         parent.addView(v2, LinearLayout.LayoutParams(-1, -2).apply { topMargin=dp(12) })
     }
