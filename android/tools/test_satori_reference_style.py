@@ -20,6 +20,10 @@ class SatoriReferenceStyleContract(unittest.TestCase):
         self.assertIn("Color.rgb(229, 246, 236)",SRC)
         self.assertIn("Color.rgb(255, 242, 222)",SRC)
 
+    def test_gemini_hero_helper_uses_readable_dark_blue_on_pale_background(self):
+        self.assertIn('12f, false, Color.rgb(52, 83, 118), 7)', SRC)
+        self.assertNotIn('12f, false, Color.rgb(202, 239, 249), 7)', SRC)
+
     def test_dashboard_icons_replace_abstract_diamond_without_changing_actions(self):
         self.assertIn('iconRes: Int = R.drawable.ic_satori_invoice', SRC)
         self.assertIn('setImageResource(iconRes)', SRC)
