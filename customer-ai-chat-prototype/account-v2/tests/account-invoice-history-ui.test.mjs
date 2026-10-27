@@ -27,3 +27,12 @@ test('no fallback PDF renderer: download only exact endpoint, SHA-256 verified',
  assert.match(inline,/PDF gốc chưa có hoặc chưa được đối soát/);
  assert.doesNotMatch(inline,/new jsPDF\(|pdfMake\.createPdf\(/);
 });
+
+test('in-app Gemini invoice command opens identical verified PDF or account history',()=>{
+ assert.match(inline,/result\.invoiceReference/);
+ assert.match(inline,/await downloadVerifiedCustomerInvoice\(invoice\)/);
+ assert.match(inline,/await loadCustomerInvoiceDetail\(ref\.id\)/);
+ assert.match(inline,/result\.invoiceReferences/);
+ assert.match(inline,/🧾 Xem hóa đơn/);
+ assert.doesNotMatch(inline,/geminiPdf|renderGeminiInvoicePdf/);
+});
