@@ -8,7 +8,7 @@ GRADLE = (ROOT / "app/build.gradle.kts").read_text(encoding="utf-8")
 
 class V2AdminEntryContract(unittest.TestCase):
     def test_owner_backoffice_is_a_native_tab(self):
-        self.assertIn('"⚙" to "Quản trị hệ thống"', SOURCE)
+        self.assertIn('R.drawable.ic_satori_settings to "Quản trị hệ thống"', SOURCE)
         self.assertIn('val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn", "Quản trị hệ thống")', SOURCE)
         self.assertIn('5 -> renderV2OwnerBackend(content, data)', SOURCE)
         self.assertIn('if (activeTab == 5) {\n            renderV2OwnerBackend(content, data)', SOURCE)
