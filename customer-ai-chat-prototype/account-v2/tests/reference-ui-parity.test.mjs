@@ -68,3 +68,28 @@ test('invoice and ownership are still guarded, no new external image/script sour
     'visual-only style must not add network or script dependencies');
  }
 });
+
+test('reference five-action customer toolbar retains genuine routes and safe cart reset',()=>{
+ const v2=read('v2');
+ const bar=v2.match(/<nav class="reference-quick-actions"[\s\S]*?<\/nav>/)?.[0]||'';
+ assert.equal((bar.match(/class="reference-quick"/g)||[]).length,5,'five visible toolbar actions');
+ for(const route of ['catalogue','addresses','chat','orders']){
+   assert.match(bar,new RegExp('data-view="'+route+'"'),'real V2 route '+route);
+ }
+ assert.match(bar,/id="newCart"/);
+ assert.match(v2,/id="referenceCartCount"/);
+ assert.match(v2,/\$\('referenceCartCount'\)\.textContent=total/);
+ assert.match(v2,/if\(!confirm\('Tạo giỏ mới/);
+ assert.match(v2,/await saveCart\(\[\]\)/,'reuse server-verified cart update');
+ assert.match(v2,/\.reference-quick:nth-child\(n\+4\)/);
+ assert.match(v2,/\.reference-chat-footer/);
+});
+test('classic Gemini shell has the same quick navigation without modifying transport',()=>{
+ const html=read('classicGemini');
+ for(const id of ['catalogLaunch','locationsToggle','suggestionsToggle','historyButton','headerNewCart']){
+   assert.match(html,new RegExp('id="'+id+'"'),'Gemini nav action '+id);
+ }
+ assert.match(html,/\.catalog-launch-bar>button:nth-child\(n\+4\)/);
+ assert.match(html,/\$\('quickCartNew'\)\.click\(\)/,'reuse original new-cart confirmation');
+ assert.match(html,/\$\('historyButton'\)\.addEventListener\('click',openHistory\)/);
+});
