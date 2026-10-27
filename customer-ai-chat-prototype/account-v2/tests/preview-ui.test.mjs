@@ -20,6 +20,8 @@ test('preview banner is explicit, synthetic and guarded against live network act
 test('self-serve address edit requires explicit confirmation and a revision',()=>{
  assert.match(html,/id="userAddressEditor"/);
  assert.match(html,/id="saveUserAddress"/);
- assert.match(inline[1],/expectedRevision:old\.revision,confirmed:true/);
+ assert.match(inline[1],/expectedRevision:userAddressDraftDirty&&userAddressDraftId===old\.id&&/);
+ assert.match(inline[1],/userAddressDraftProfileId===old\.profileId\?userAddressDraftRevision:old\.revision/);
+ assert.match(inline[1],/confirmed:true,label:\$\('userEditLabel'\)\.value/);
  assert.match(inline[1],/if\(e\.message==='ADDRESS_REVISION_CONFLICT'\)/);
 });
