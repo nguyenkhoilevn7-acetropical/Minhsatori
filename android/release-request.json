@@ -10,12 +10,13 @@
     192,
     195
   ],
-  "sourceCommit": "bca47880796dd054af9ec47d055ba75518a70eb2",
-  "scope": "Android UI-only customer identity grouping: outlined user/phone/location icons, distinct green phone and blue delivery-address surfaces, larger name and contact fields, invoice history and invoice customer detail. Preserve four Owner-only payment capabilities from PR #192. No production API, data, Google Apps Script, payment, accounting or database changes.",
+  "sourceCommit": "de3d4da6aab17f8eb8d16ae0ef40aec89b26d78f",
+  "scope": "Android UI-only: customer identity cards, colored phone/address rows, grouped profile and invoice details, plus the EXACT accounting ledger filter result cards shown in the owner's screenshot; include separate customer-paid and Satori-paid indicators. Maintain existing backend safeguards and owner-only payment controls. No production API, ledger, or database changes.",
   "notes": [
     "Use existing stable keystore from GitHub Secrets and pinned public release certificate. Preserve package vn.minhsatori.app and increase versionCode from 29 to 30 for direct Samsung update without uninstall.",
     "Do not run real payment or invoice writes. Native customer cards are view-only improvements; backend payments still require separate Apps Script approval.",
     "Release acceptance requires Python source tests, Android debug/release unit tests, signed release assemble, APK/cert/SHA-256 verification. UI screenshot emulator and manual Samsung test remain separate.",
-    "Keep signed 0.4.12 available for recovery. This acceptance release does not deploy Apps Script, Android Mobile API or PostgreSQL."
+    "Keep signed 0.4.12 available for recovery. This acceptance release does not deploy Apps Script, Android Mobile API or PostgreSQL.",
+    "Acceptance revision includes the accounting Sổ kế toán filtered result list; prior 0.4.13 run on commit 6d5fc25 was incomplete UI scope and must not be distributed. Use final SHA of this request only."
   ]
 }
