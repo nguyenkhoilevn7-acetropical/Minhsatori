@@ -140,7 +140,28 @@ nav button:focus-visible{outline:3px solid #efad4d;outline-offset:2px}
 <section class="view" id="debt"><div class="summary"><div class="metric"><small>CHƯA THU</small><strong>2</strong></div><div class="metric"><small>TỔNG CÔNG NỢ</small><strong>865 k</strong></div><div class="metric"><small>SATORI</small><strong>Độc lập</strong></div></div><div class="card"><h2>Công nợ và đối soát</h2><p>Trạng thái khách thanh toán và Satori nhận thanh toán luôn tách biệt.</p><div class="status-row"><span class="status">Khách chưa trả</span><span class="status paid">Đã TT Satori</span></div></div></section>
 <section class="view" id="orders"><div class="card"><h2>Lên đơn hàng</h2><p class="note">Website thật cần giữ nguyên các trường: khách, số điện thoại, địa chỉ, sản phẩm, số lượng, giá bán, chiết khấu, VAT, phí giao hàng, ghi chú, xem trước PDF và xác nhận.</p><div class="grid"><label>Khách hàng<input class="search" value="Khách A · dữ liệu giả" readonly></label><label>Loại nước<input class="search" value="Satori 500ml (mẫu)" readonly></label><label>Số lượng<input class="search" value="5" readonly></label><label>Địa chỉ<input class="search" value="Địa chỉ thử nghiệm" readonly></label></div><button class="action" disabled title="Bản xem trước không tạo đơn">Tạo hóa đơn (khóa trong bản xem trước)</button></div></section>
 <section class="view" id="admin"><div class="card"><h2>Quản trị V2 · Tài khoản & đại lý</h2><div class="grid"><div class="card"><h3>Hồ sơ khách hàng</h3><p class="note">Đủ tên, điện thoại, địa chỉ giao hàng, tài khoản và lịch sử</p></div><div class="card"><h3>CTV và chiết khấu</h3><p class="note">Giữ quyền admin, chiết khấu, cấp link, địa chỉ, đối soát</p></div></div><div class="status-row"><span class="chip">Phân quyền</span><span class="chip">Bảng giá</span><span class="chip">Danh sách link</span></div><p class="note">Bản thử không đăng nhập và không tải dữ liệu khách thật.</p></div></section>
-<section class="view" id="chat"><div class="card"><h2>Gemini · iMessage Light</h2><div class="chat"><div class="bubble ai">Anh muốn đặt loại nước nào? Em có thể giúp kiểm tra sản phẩm và chuẩn bị đơn hàng.</div><div class="bubble me">Cho 5 thùng Satori 500ml.</div><div class="bubble ai">Em đã chuẩn bị bản xem trước. Hãy kiểm tra địa chỉ, số lượng và giá trước khi xác nhận.</div></div><p class="note">Chỉ là ví dụ giao diện, không phải Gemini thật đang hoạt động.</p></div></section>
+<section class="view" id="chat">
+<div class="card" style="padding:0;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:14px;background:linear-gradient(115deg,#dcecff,#f5faff);border-bottom:1px solid #d0e2f1">
+<div style="width:42px;height:42px;border-radius:14px;display:grid;place-items:center;color:white;background:linear-gradient(130deg,#0876de,#24a4c6);font-size:22px" aria-hidden="true">✦</div>
+<div style="flex:1"><h2 style="margin:0;color:#154473">Gemini · Minh Satori</h2><div class="note">Trợ lý đặt nước và xem hóa đơn</div></div>
+<span class="chip">UI DEMO</span></div>
+<div class="chat" style="padding:15px;background:linear-gradient(180deg,#edf6ff,#fff 230px)">
+<div class="bubble ai">Anh muốn đặt loại nước nào? Em có thể giúp kiểm tra sản phẩm và chuẩn bị đơn hàng.</div>
+<div class="bubble me">Cho 5 thùng Satori 500ml.</div>
+<div class="bubble ai">Đã nhận 5 thùng Satori 500ml. Em sẽ hiển thị bản tạm tính để kiểm tra trước khi xác nhận.</div>
+<div style="max-width:95%;width:360px;background:#fff;border:1px solid #cfe0f0;border-radius:16px;padding:13px;box-shadow:0 3px 15px #1e46690e">
+<div class="header-line"><strong style="font-size:14px;color:#155eaf">Hóa đơn nháp</strong><span class="chip">CHƯA GỬI</span></div>
+<div class="product">Satori 500ml <b>× 5 thùng</b></div>
+<div class="contact phone" style="margin-top:10px"><span style="font-size:20px">✓</span><div><div class="caption">GIỎ HÀNG</div><div class="value">5 thùng đã chọn</div></div></div>
+<div class="note">Giá, chiết khấu và tổng thanh toán chỉ được tính bởi backend thật khi kết nối; không tự tạo số tiền.</div>
+<div style="display:flex;gap:8px;justify-content:end;margin-top:10px"><span class="chip">Xem</span><span class="chip">Chỉnh đơn</span><span class="chip">Xác nhận</span></div>
+</div>
+</div>
+<div style="padding:13px;border-top:1px solid #d3e3f0;background:#f4f9ff">
+<div style="display:flex;gap:8px;align-items:center"><div style="flex:1;border:1px solid #cbdced;border-radius:24px;background:white;color:#718298;padding:10px 15px;font-size:13px">Nhập yêu cầu cho Gemini (demo)</div><span style="display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#0875e6;color:white" aria-label="Nút gửi minh họa">➤</span></div>
+<p class="note">Đây chỉ là mô phỏng thiết kế; Gemini không chạy và không có lệnh đặt hàng thật trong bản xem trước.</p>
+</div></div></section>
 <section class="view" id="review"><div class="card"><h2>Checklist nghiệm thu giao diện</h2><p class="note">Tích các mục anh đã kiểm tra. Mỗi ô chỉ lưu trên màn hình này; không gửi thông tin lên server.</p><div id="reviewList"></div><button class="action" id="copyReview" style="margin-top:14px">Sao chép kết quả kiểm tra</button><p id="reviewMessage" class="note" aria-live="polite"></p></div><div class="card"><h3>Phạm vi kiểm thử chức năng thật — chưa bao gồm demo</h3><p class="note">Bước nghiệm thu thứ hai phải diễn ra trên staging kết nối sandbox đã sao lưu: CRUD khách hàng, đơn hàng, PDF, lọc hóa đơn, công nợ, thanh toán độc lập, OAuth, Drive, CTV, AI và đối soát. Không xác nhận production chỉ từ bản UI này.</p></div></section>
 </div>
 <dialog id="detailDialog"><div id="detailBody"></div><form method="dialog" style="text-align:right;margin-top:14px"><button class="action outline">Đóng</button></form></dialog>
