@@ -12,6 +12,7 @@ var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
  'orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','pricing.eligibility':'orders:ai:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
  'payments.markCustomerPaid':'payments:write',
+ 'payments.correctStatus':'payments:correct',
  'collaborators.pair.list':'collaborators:pair:read',
  'collaborators.pair.configure':'collaborators:pair:approve','collaborators.mark':'collaborators:pair:approve',
  'orders.create.pair':'collaborators:pair:write',
@@ -43,7 +44,7 @@ function state(){
 }
 function rows(s){var x=JSON.parse(s.values[ORDER_KEY]);need(Array.isArray(x),'INVALID_STATE','Dữ liệu hóa đơn hỏng');return x;}
 function version(s,p){need(Number.isInteger(p.expectedRevision),'REVISION_REQUIRED','Thiếu expectedRevision');need(s.revision===p.expectedRevision,'REVISION_CONFLICT','Dữ liệu vừa được cập nhật, hãy đọc lại');}
-function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCommissionAmount:o.pairCommissionAmount??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
+function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCommissionAmount:o.pairCommissionAmount??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,satoriPaidAt:o.satoriPaidAt||null,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
 function iso(date){
  var m=String(date||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
  var d=new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
@@ -608,6 +609,82 @@ function create(s,all,p,aiMode){
  all.unshift(next);return {modified:true,result:{order:visible(next),duplicate:false}};
 }
 
+/**
+ * Dedicated owner-correction action. Not a substitute for customer receipt posting:
+ * 'Đã TT Satori' is supplier settlement and never proves customer payment.
+ * Never reclassify a paid bill by matching only its amount or customer name.
+ * Requires a separate HMAC 'payments:correct' scope (not payments:write).
+ */
+function correctPaymentStatus(s,all,p){
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần quản trị xác nhận sửa trạng thái');
+ need(/^[A-Za-z0-9_-]{8,100}$/.test(String(p.requestId||'')),
+   'INVALID_REQUEST','Thiếu requestId chống cập nhật lặp');
+ need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0&&
+   (typeof p.id==='string'||Number.isSafeInteger(p.id))&&String(p.id).length>0,
+   'INVALID_ORDER','Cần ID và số hóa đơn chính xác');
+ need(typeof p.expectedName==='string'&&p.expectedName.trim().length>=2&&
+   typeof p.expectedTotal==='number'&&Number.isFinite(p.expectedTotal),
+   'CONFIRMATION_REQUIRED','Cần tên và tổng tiền đã kiểm tra');
+ need(typeof p.reason==='string'&&p.reason.trim().length>=12&&p.reason.length<=300,
+   'CONFIRMATION_REQUIRED','Cần lý do điều chỉnh đủ chi tiết');
+ need(p.targetStatus==='Đã TT Satori'||p.targetStatus==='Chưa thanh toán',
+   'INVALID_STATUS','Trạng thái đích không hỗ trợ');
+ need(p.expectedStatus==='Đã thanh toán'||p.expectedStatus==='Chưa thanh toán',
+   'INVALID_STATUS','Cần trạng thái hiện tại trước khi sửa');
+ need(p.expectedCustomerPaidAt===null||
+   (typeof p.expectedCustomerPaidAt==='string'&&
+     !isNaN(Date.parse(p.expectedCustomerPaidAt))&&p.expectedCustomerPaidAt.length<=40),
+   'INVALID_REQUEST','Cần thời gian thu tiền đã kiểm tra, hoặc null');
+ var found=all.filter(function(o){return String(o.id)===String(p.id)&&
+   Number(o.invoiceNo)===p.invoiceNo});
+ need(found.length===1&&active(found[0]),'INVALID_ORDER','Hóa đơn không duy nhất, đã hủy hoặc không tồn tại');
+ var old=found[0];
+ need(!old.pairGroupId&&!old.pairRole,'PAIRED_ORDER_LOCKED',
+   'Không được sửa riêng hóa đơn trong cặp CTV');
+ need(norm(old.name)===norm(p.expectedName)&&money(old.total)===money(p.expectedTotal),
+   'ORDER_CHANGED','Tên khách hoặc tiền khác lúc đối chiếu');
+ var audit=JSON.parse(s.values.satori_payment_status_audit_v1||'[]');
+ need(Array.isArray(audit)&&audit.length<10000,'INVALID_STATE','Nhật ký điều chỉnh không hợp lệ');
+ var previous=audit.filter(function(x){return x&&x.requestId===p.requestId});
+ need(previous.length<=1,'INVALID_STATE','Mã điều chỉnh trùng trong nhật ký');
+ if(previous.length){
+   var prior=previous[0];
+   need(String(prior.id)===String(p.id)&&prior.invoiceNo===p.invoiceNo&&
+     prior.targetStatus===p.targetStatus&&prior.expectedStatus===p.expectedStatus&&
+     prior.expectedCustomerPaidAt===p.expectedCustomerPaidAt&&
+     prior.reason===p.reason,'REQUEST_ID_CONFLICT','Mã yêu cầu đã dùng cho chỉnh sửa khác');
+   need(old.status===p.targetStatus,'REVISION_CONFLICT',
+     'Trạng thái đã được sửa tiếp sau lần điều chỉnh trước');
+   return {modified:false,result:{order:visible(old),duplicate:true}};
+ }
+ version(s,p);
+ need(old.status===p.expectedStatus&&
+   (old.customerPaidAt||null)===p.expectedCustomerPaidAt,
+   'ORDER_CHANGED','Trạng thái hoặc thời gian thu tiền đã thay đổi');
+ need(!old.satoriPaidAt,'SETTLEMENT_ALREADY_RECORDED',
+   'Đã có ngày thanh toán cho Satori; cần đối soát riêng');
+ var changedAt=new Date().toISOString(),updated;
+ if(p.targetStatus==='Đã TT Satori'){
+   updated=Object.assign({},old,{status:'Đã TT Satori',
+     satoriPaidAt:changedAt,updatedAt:Date.now()});
+ }else{
+   need(old.status==='Đã thanh toán'&&!!old.customerPaidAt,
+     'INVALID_STATUS','Chỉ hoàn tác hóa đơn đã ghi nhận khách thanh toán');
+   need(!old.customerPaymentReceiptUrl&&!old.customerPaymentReceiptAt&&
+     !old.customerPaymentNote&&
+     (!Array.isArray(old.paymentGroups)||old.paymentGroups.length===0),
+     'PAYMENT_PROOF_PROTECTED','Có chứng từ hoặc nhóm thanh toán; không tự hoàn tác');
+   updated=Object.assign({},old,{status:'Chưa thanh toán',
+     customerPaidAt:null,updatedAt:Date.now()});
+ }
+ all[all.indexOf(old)]=updated;
+ audit.push({requestId:p.requestId,id:old.id,invoiceNo:old.invoiceNo,
+   name:old.name,total:old.total,expectedStatus:p.expectedStatus,
+   expectedCustomerPaidAt:p.expectedCustomerPaidAt,targetStatus:p.targetStatus,
+   reason:p.reason,changedAt:changedAt,source:'bot-owner-correction'});
+ return {modified:true,extras:{satori_payment_status_audit_v1:JSON.stringify(audit)},
+   result:{order:visible(updated),duplicate:false,auditRecorded:true}};
+}
 function markPaid(s,all,p){
  version(s,p);
  need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Thiếu số hóa đơn');
@@ -974,7 +1051,8 @@ function write(s,action,p){
   action==='orders.create.pair'?createPair(s,all,p):
   action==='pricing.approve'?approveAIPricing(s,all,p):
   (action==='orders.create'||action==='orders.create.ai')?create(s,all,p,action==='orders.create.ai'):
-  action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):markPaid(s,all,p);
+  action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):
+  action==='payments.correctStatus'?correctPaymentStatus(s,all,p):markPaid(s,all,p);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
  need(!!fileId,'CONFIG_MISSING','Thiếu STATE_FILE_ID');
@@ -1000,7 +1078,7 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='links.register'||identity.action==='links.update'||identity.action==='links.secret.set'||identity.action==='collaborators.mark'||identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='links.register'||identity.action==='links.update'||identity.action==='links.secret.set'||identity.action==='collaborators.mark'||identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid'||identity.action==='payments.correctStatus';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
