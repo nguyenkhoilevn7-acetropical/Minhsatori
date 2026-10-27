@@ -133,6 +133,39 @@ button:disabled{opacity:.55}
 .issued-toolbar{display:grid;grid-template-columns:minmax(0,1fr) 145px auto;gap:8px;align-items:end}
 .issued-toolbar input,.issued-toolbar select{width:100%;min-width:0;min-height:44px}
 @media(max-width:620px){.issued-toolbar{grid-template-columns:1fr 1fr}.issued-toolbar label:first-child{grid-column:1/-1}.issued-toolbar>button{grid-column:1/-1}}
+
+/* MINH SATORI UNIFIED LIGHT UI — admin appearance only, preserve all actions. */
+:root{--satori-ink:#1c1c1e;--satori-blue:#007aff;--satori-green:#13784e;
+ --satori-line:#dfe6ee;--satori-phone:#eaf9f1;--satori-address:#ecf5ff}
+body{background:#f2f2f7;color:var(--satori-ink)}
+.card,.directory-card,.issued-link-card,.ctv-person{
+ border-color:var(--satori-line);border-radius:17px;background:#fff;
+ box-shadow:0 3px 15px #193a560b
+}
+.admin-tabs{background:#f2f2f7ef}
+.admin-tab.active{color:var(--satori-blue);border-color:#d6e8fb}
+.directory-card-title strong{font-size:16px;line-height:1.4;color:var(--satori-ink)}
+.directory-card-title small{font-size:12.5px;line-height:1.55;color:#617083}
+.directory-avatar{background:#eaf3ff;color:var(--satori-blue);border:1px solid #dceaff}
+.directory-pill{background:#eaf3ff;color:#176dab}
+.directory-places{border-top-color:#e3eaf2}
+.directory-places summary{color:#0879d3;font-size:13.5px}
+.directory-places li{background:#f8faff;border:1px solid #e7eef5;border-radius:10px;
+ padding:10px 11px;margin:7px 0;overflow-wrap:anywhere}
+.directory-places li small{font-size:13px;color:#51667d}
+.directory-stat{background:#f3f8ff;border-color:#deebf9}
+.directory-stat strong{color:#0879d3}
+#newOrders .customer{background:#fff;border-color:var(--satori-line);border-radius:14px}
+button:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,.admin-tab:focus-visible{
+ outline:2px solid #007aff;outline-offset:2px
+}
+@media(max-width:640px){
+ .directory-card-title strong{font-size:15.5px}
+ .directory-places li small{font-size:12.5px}
+}
+/* END MINH SATORI UNIFIED LIGHT UI */
+
 </style></head><body><main>
 <header class="admin-branded-header"><span class="production-tag">● PRODUCTION</span><span class="admin-brand"><img src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="46" height="46"><strong>MINH SATORI <small id="adminModeTag">• Đang kiểm tra</small></strong></span></header>
 <h1>Quản lý Minh Satori</h1>
