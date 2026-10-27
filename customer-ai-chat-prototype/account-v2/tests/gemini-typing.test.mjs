@@ -50,6 +50,6 @@ test('success and error both replace typing without prematurely releasing send b
  assert.match(inline,/const reply=geminiTypingBubble\(\),typingStartedAt=Date\.now\(\)/);
  assert.match(inline,/await revealGeminiReply\(reply,result\.message\|\|/);
  assert.match(inline,/await revealGeminiReply\(reply,'Chưa xử lý xong:/);
- assert.match(inline,/\}finally\{\s*busy=false;updateDeliveryGate\(\)/);
+ assert.match(inline,/\}finally\{\s*busy=false;input\.disabled=false;updateDeliveryGate\(\);updateComposerAction\(\)/);
  assert.doesNotThrow(()=>new vm.Script(inline));
 });
