@@ -34,3 +34,14 @@ test('legacy tab selection follows the existing switchTab active utility class',
  assert.doesNotMatch(html,/nav button:not\(#btn-tab-input\)/);
  assert.match(html,/background:linear-gradient\(120deg,#086fe3,#0761c7\)/);
 });
+
+test('MoneyMind is opt-in CSS only and original invoice/PDF templates stay intact',()=>{
+ const start=html.indexOf('/* MONEY-MIND SATORI FLAT TEAL');
+ const end=html.indexOf('/* END MINH SATORI LEGACY REVIEW-ONLY UI */',start);
+ assert.ok(start>=0&&end>start);
+ const css=html.slice(start,end);
+ assert.match(css,/html\.satori-light-review/);
+ assert.match(css,/#009c99/i);
+ assert.doesNotMatch(css,/<script|@import|@media\s+print|javascript:/i);
+ assert.equal(fnv32(html.slice(html.indexOf('</head>')+7)),'0e1acc25');
+});
