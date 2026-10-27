@@ -1743,6 +1743,11 @@ class NativeMainActivity : AppCompatActivity() {
         actions.addView(compactAction("Xem chi tiết", cyan) { openInvoice(invoice) },
             LinearLayout.LayoutParams(0, dp(38), 1f))
         if (invoice.canEditOrDelete) {
+            actions.addView(compactAction("Sửa", cyan) {
+                openInvoice(invoice)
+            }, LinearLayout.LayoutParams(-2, dp(38)).apply { marginStart = dp(8) })
+        }
+        if (invoice.canEditOrDelete) {
             actions.addView(compactAction("🗑 Xóa đơn",
                 if (canAction("orders.delete")) Color.rgb(215, 44, 43)
                 else Color.rgb(110, 110, 115)) {
@@ -2383,10 +2388,24 @@ class NativeMainActivity : AppCompatActivity() {
             label(content, "Số hóa đơn không hợp lệ. Đã khóa ghi trạng thái.",
                 12f, true, gold, 10)
         } else {
-            if (invoice.canEditOrDelete && canAction("orders.update"))
+            // Keep the Edit affordance visible even when the owner Mobile API
+            // has not yet been deployed. Never bypass the server permission.
+            if (invoice.canEditOrDelete)
                 button(content, "SỬA HÓA ĐƠN", iconRes = R.drawable.ic_satori_edit) {
-                    invoiceDialog?.dismiss()
-                    launchEditor(editing = invoice)
+                    if (!canAction("orders.update")) {
+                        AlertDialog.Builder(this)
+                            .setTitle("Chưa được cấp quyền sửa hóa đơn")
+                            .setMessage("Sửa đơn cần Google Owner và Mobile API cấp " +
+                                "orders.update. Chế độ đọc Google Drive không được ghi. " +
+                                "Hãy kết nối API chủ tài khoản rồi đồng bộ lại.")
+                            .setNegativeButton("Đóng", null)
+                            .setPositiveButton("Kiểm tra kết nối") { _, _ ->
+                                showConnectionSettings()
+                            }.show()
+                    } else {
+                        invoiceDialog?.dismiss()
+                        launchEditor(editing = invoice)
+                    }
                 }
             if (invoice.canChangePayment) {
                 val possibilities = listOf(
