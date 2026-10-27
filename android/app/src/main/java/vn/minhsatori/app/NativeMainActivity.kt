@@ -1761,7 +1761,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     /** Explicit, owner-verified edit entry from both invoice list and detail. */
-    private fun requestInvoiceEdit(invoice: SatoriInvoice) {
+    private fun requestInvoiceEdit(invoice: SatoriInvoice, afterAuthorized: (() -> Unit)? = null) {
         if (!invoice.canEditOrDelete) {
             Toast.makeText(this, "Chỉ sửa được hóa đơn chưa thanh toán và không thuộc cặp CTV.",
                 Toast.LENGTH_LONG).show()
@@ -1779,7 +1779,7 @@ class NativeMainActivity : AppCompatActivity() {
                 }.show()
             return
         }
-        invoiceDialog?.dismiss()
+        afterAuthorized?.invoke()
         launchEditor(editing = invoice)
     }
 
@@ -2415,7 +2415,7 @@ class NativeMainActivity : AppCompatActivity() {
             // has not yet been deployed. Never bypass the server permission.
             if (invoice.canEditOrDelete)
                 button(content, "SỬA HÓA ĐƠN", iconRes = R.drawable.ic_satori_edit) {
-                    requestInvoiceEdit(invoice)
+                    requestInvoiceEdit(invoice) { invoiceDialog?.dismiss() }
                 }
             if (invoice.canChangePayment) {
                 // Show both independent owner payment controls even before the
