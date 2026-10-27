@@ -466,6 +466,23 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
  .mm-bottom-tab,.mm-bottom-tab .mm-bottom-icon,.drawer,.scrim{transition:none!important}
 }
 /* END MONEY-MIND NATURAL MOTION */
+
+/* Responsive unfolded Fold/normal bar phones, also half-screen multitasking. */
+@media(min-width:740px) and (max-width:1200px){
+ #app{width:min(100%,700px);max-width:700px;margin-inline:auto}
+ .drawer{left:max(0px,calc((100vw - 700px)/2));max-width:min(310px,42vw)}
+}
+@media(max-width:380px){
+ .mm-bottom-nav{gap:0;padding-inline:1px}
+ .mm-bottom-tab{font-size:9px;letter-spacing:-.15px}
+ .mm-bottom-tab svg{width:19px;height:19px}
+ .reference-quick-actions{gap:4px;padding-inline:6px}
+ .reference-quick{min-width:0;font-size:10px;padding-inline:6px}
+}
+@media(max-height:460px) and (hover:none){
+ .mm-bottom-nav{display:none} /* Keyboard/short split-screen leaves chat composer clear */
+}
+/* END FOLD-READY V2 */
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
