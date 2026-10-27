@@ -204,3 +204,48 @@ assert.equal(paymentRead[0].status,'Chưa thanh toán',
  'final readback agrees with canonical ledger after independent toggles');
 console.log('PASS synthetic four payment toggles: independent customer/Satori states, audit, replays, readback');
 
+// Infrastructure failure/recovery coverage; all storage and OAuth remain fake.
+function resetEditFixture() {
+ data={revision:200,updatedAt:'2026-10-27T00:00:00Z',values:{
+  satori_orders_v15:JSON.stringify(start),satori_trash_bin_v15:'[]',
+  satori_deleted_invoice_nos:'[]'}};
+ writes=0;backups=0;cache.clear();
+}
+resetEditFixture();
+const originalGetFile=context.DriveApp.getFileById;
+const beforeFailedBackup=JSON.stringify(data);
+context.DriveApp.getFileById=id=>({ ...originalGetFile(id),makeCopy:()=>null });
+const failedBackup=req('orders.update',payload('backup-failure-001'));
+assert.equal(failedBackup.ok,false);
+assert.equal(failedBackup.error.code,'BACKUP_FAILED');
+assert.equal(JSON.stringify(data),beforeFailedBackup);
+assert.deepEqual(count(),[0,0,200]);
+context.DriveApp.getFileById=originalGetFile;
+console.log('PASS edit recovery: failed backup leaves ledger byte-identical');
+
+resetEditFixture();
+const lostPayload=payload('lost-response-001');
+// Server commits, but the client discards the response as on transport loss.
+req('orders.update',lostPayload);
+assert.deepEqual(count(),[1,1,201]);
+const retryAfterLoss=req('orders.update',lostPayload);
+assert.equal(retryAfterLoss.ok,true);
+assert.equal(retryAfterLoss.data.duplicate,true);
+assert.deepEqual(count(),[1,1,201]);
+const recoverySnapshot=req('mobile.snapshot',{});
+const recoveryRows=JSON.parse(recoverySnapshot.data.values.satori_orders_v15);
+assert.equal(recoveryRows.find(x=>x.id===6001).apiUpdateRequestId,lostPayload.requestId);
+assert.equal(JSON.parse(data.values.satori_order_edit_audit_v1).length,1);
+console.log('PASS edit recovery: lost response retry produces one write and one audit');
+
+const secondEdit={...payload('later-edit-002'),expectedRevision:201,
+ expectedTotal:30000,order:{...order(),location:'99 Later Synthetic Avenue'}};
+assert.equal(req('orders.update',secondEdit).ok,true);
+const beforeOldRetry=JSON.stringify(data);
+const oldRetry=req('orders.update',lostPayload);
+assert.equal(oldRetry.ok,false);
+assert.equal(oldRetry.error.code,'REQUEST_SUPERSEDED');
+assert.equal(JSON.stringify(data),beforeOldRetry);
+assert.deepEqual(count(),[2,2,202]);
+assert.equal(JSON.parse(data.values.satori_order_edit_audit_v1).length,2);
+console.log('PASS edit recovery: superseded request cannot overwrite a later edit');
