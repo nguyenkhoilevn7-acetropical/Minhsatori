@@ -7,6 +7,7 @@ import {validGoogleClaims} from './google-claims.mjs';
 import {reconcileSandbox,sandboxHistory} from './sandbox-ledger.mjs';
 import {inferV2Order,reserveGeminiBudget} from './gemini-order.mjs';
 import {bindInvoice,invoiceDetail,invoiceIndex} from './invoice-history.mjs';
+import {invoiceChatReply} from './invoice-chat-command.mjs';
 import {readSharedSandboxPdf,sendSharedPdf,SHARED_SANDBOX_PDF_PATH} from './invoice-document.mjs';
 import {postgresConfig} from './postgres-config.mjs';
 import {isDeepStrictEqual} from 'node:util';
@@ -275,6 +276,8 @@ export async function assertSelectedDelivery(pool,actor,input){
 }
 async function interpret(pool,input,actor){
  error(typeof input.message==='string'&&input.message.trim().length>=2&&input.message.length<=500,'MESSAGE_INVALID');
+ const invoiceCommand=await invoiceChatReply(pool,actor,input.message);
+ if(invoiceCommand)return {...invoiceCommand,geminiConfigured:geminiConfigured()};
  // A configured V2 request attempts real inference; fallback never claims Gemini.
  let inferenceFailure=null;
  if(geminiConfigured()){
