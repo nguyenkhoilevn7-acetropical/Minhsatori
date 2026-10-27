@@ -879,6 +879,41 @@ body{background:linear-gradient(180deg,#e3f0ff,#ecf2f8 340px);color:var(--text)}
 .production-gemini #productionGeminiApp .quick-cart,
 .production-gemini #productionGeminiApp .real-submitted-card{border-color:#cddfea;box-shadow:0 5px 17px #143e6315}
 @media print{body{background:#fff}.paper{background:#fff;color:#172232} .quote{box-shadow:none}}
+
+/* Reference 3+2 icon-led actions for the existing Gemini shell; no model changes. */
+.chat-head{flex-wrap:wrap}
+.chat-head>.catalog-launch-bar,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar{
+ display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;
+ width:100%;max-width:100%;flex-basis:100%;order:3;margin:8px 0 0;
+ background:#f8fbff;padding:8px;border:1px solid #d7e6f7;border-radius:18px
+}
+.chat-head>.catalog-launch-bar>button,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button{
+ grid-column:span 2;min-width:0;min-height:42px;border:1px solid #cbdef6;
+ background:#f2f7fd;color:#0963b8;border-radius:14px;font-size:12px;
+ font-weight:750;white-space:normal;line-height:1.2;padding:8px 4px
+}
+.chat-head>.catalog-launch-bar>button:nth-child(n+4),
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button:nth-child(n+4){grid-column:span 3}
+.chat-head>.catalog-launch-bar>button:first-child,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button:first-child{
+ background:#086de2;color:#fff;border-color:#086de2
+}
+.chat-head>.catalog-launch-bar>button[hidden],
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button[hidden]{display:none}
+#messages .quote,.production-gemini #productionGeminiApp .real-submitted-card{
+ border-radius:19px;border:1px solid #c9ddf3;background:#fff;
+ box-shadow:0 8px 22px #143d6614
+}
+#sendForm{background:#fff;border:1px solid #d4e3f1;border-radius:18px;padding:8px}
+#sendForm textarea{background:#fff;border:1px solid #cddbea;border-radius:15px}
+#sendForm>.btn.primary{background:#086ee3;border-radius:14px;font-weight:750}
+@media(max-width:400px){
+ .chat-head>.catalog-launch-bar>button,
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button{font-size:11px;padding:7px 2px}
+}
+
 /* END SATORI FULL-UI REVIEW */
 </style>
 </head>
@@ -901,6 +936,7 @@ body{background:linear-gradient(180deg,#e3f0ff,#ecf2f8 340px);color:var(--text)}
 <button id="locationsToggle" type="button" aria-expanded="false" aria-controls="locationsPanel" aria-label="Tất cả địa chỉ giao hàng của đại lý" hidden>📍 Tất cả địa chỉ</button>
 <button id="suggestionsToggle" type="button" aria-controls="suggestionsList" aria-expanded="false">✨ Gợi ý sản phẩm</button>
 <button class="history-trigger" type="button" id="historyButton">🧾 Lịch sử &amp; Excel</button>
+<button type="button" id="headerNewCart" aria-label="Tạo giỏ hàng mới">＋ Giỏ hàng mới</button>
 </div></div>
 <section id="locationsPanel" class="locations-panel" aria-label="Tất cả địa chỉ giao của đại lý" hidden></section>
 <section class="suggestions-inline" id="suggestionsInline" aria-label="Gợi ý mặt hàng thường mua" hidden>
@@ -1458,6 +1494,11 @@ $('historyMonth').addEventListener('change',renderHistory);
 $('historySearch').addEventListener('input',renderHistory);
 function closeHistory(){$('historyBackdrop').classList.remove('open');document.body.style.overflow=''}
 $('historyButton').addEventListener('click',openHistory);
+$('headerNewCart').addEventListener('click',()=>{
+ // Reuse the existing confirmed clear; do not bypass quote/server restrictions.
+ if(serverMode)$('quickCartNew').click();
+ else $('reset').click();
+});
 $('historyClose').addEventListener('click',closeHistory);
 $('historyBackdrop').addEventListener('click',e=>{if(e.target===$('historyBackdrop'))closeHistory()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('historyBackdrop').classList.contains('open'))closeHistory()});
