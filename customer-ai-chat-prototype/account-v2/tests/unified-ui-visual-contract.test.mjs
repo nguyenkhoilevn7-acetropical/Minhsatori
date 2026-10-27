@@ -22,10 +22,10 @@ test('unified iOS light style is shared by real V2 app, owner and legacy admin U
 });
 
 test('visual style must not shadow V2 account/cart and checkout routes',()=>{
- for(const token of ['/api/v2/me','/api/v2/cart','/api/v2/quote','/api/v2/confirm']){
+ for(const token of ['/api/v2/me','/api/v2/cart','/api/v2/quote','/api/v2/orders']){
   assert.ok(app.includes(token),'must preserve '+token);
  }
- for(const id of ['gate','signIn','messages','previewBanner','message']){
+ for(const id of ['gate','signIn','messages','previewBanner','message','confirm']){
   assert.match(app,new RegExp('id=["\\x27]'+id+'["\\x27]'));
  }
  assert.match(app,/function|=>/);
@@ -39,7 +39,7 @@ test('existing admin customer and issued link features are still present',()=>{
 });
 
 test('visual owner catalogue still enforces admin and revision flow',()=>{
- for(const marker of ['/api/v2/me','expectedRevision','ADMIN_REQUIRED']){
+ for(const marker of ['/api/v2/me','/api/v2/admin/catalogue/refresh','ADMIN_REQUIRED']){
   assert.ok(catalogue.includes(marker),'must preserve '+marker);
  }
 });
