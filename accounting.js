@@ -10,9 +10,60 @@ function error(e){showModal('Chưa lưu được',esc(e.message||e),'error');}
 function sizeCheck(key,value){let size=0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith('satori_')&&!/recovery|pending|bridge|cloud/.test(k))size+=(k===key?value:localStorage.getItem(k)||'').length;}if(!localStorage.getItem(key))size+=value.length;if(size>MAX_STATE)throw Error('Dữ liệu/chứng từ vượt dung lượng đồng bộ hiện tại. Dùng liên kết Google Drive cho chứng từ lớn; dữ liệu cũ vẫn được giữ nguyên.');}
 function saveOrders(next){next=C.preserveReceiptAssets(next,orders);const text=JSON.stringify(next);sizeCheck(STORAGE_KEY,text);localStorage.setItem(STORAGE_KEY,text);orders=next;renderTable();renderArchiveInvoices();updateCounters();}
 function patchOrder(id,patch){const found=orders.some(o=>C.key(o)===String(id));if(!found)throw Error('Không còn tìm thấy hóa đơn. Tải lại dữ liệu.');saveOrders(orders.map(o=>C.key(o)===String(id)?{...o,...patch,updatedAt:Date.now()}:o));}
-function status(id,value){try{const o=orders.find(o=>C.key(o)===String(id));if(!o)return;const patch={status:value,satoriPaidAt:value==='Đã TT Satori'?o.satoriPaidAt||new Date().toISOString():null};if(value==='Đã TT Satori'){patch.satoriPaidAt=new Date().toISOString();if(C.paid(o))patch.customerPaidAt=o.customerPaidAt||new Date().toISOString();}if(value==='Đã thanh toán')patch.customerPaidAt=new Date().toISOString();if(value==='Chưa thanh toán')patch.customerPaidAt=null;patchOrder(id,patch);}catch(e){error(e);}}
+// Customer payment and Satori settlement are independent, auditable facts.
+function status(id,value){
+ try{
+  if(window.__SATORI_DRIVE_APP__ && !window.__SATORI_DRIVE_READY__)
+   throw Error('Google Drive chưa đồng bộ. Không thay đổi trạng thái khi sổ chưa sẵn sàng.');
+  if(!['Chưa thanh toán','Đã thanh toán','Đã TT Satori','Không Tính','Đã hủy'].includes(value))
+   throw Error('Trạng thái thanh toán không hợp lệ.');
+  const matches=orders.filter(o=>C.key(o)===String(id));
+  if(matches.length!==1)throw Error('Không xác định duy nhất hóa đơn. Tải lại rồi thử lại.');
+  const original=matches[0],now=new Date().toISOString();
+  const patch={status:value,satoriPaidAt:original.satoriPaidAt||null,
+   customerPaidAt:original.customerPaidAt||null};
+  if(value==='Đã thanh toán')patch.customerPaidAt=original.customerPaidAt||now;
+  else if(value==='Chưa thanh toán')patch.customerPaidAt=null;
+  else if(value==='Đã TT Satori'){
+   patch.satoriPaidAt=original.satoriPaidAt||now;
+   // A prior customer-paid status must survive switching the visible status.
+   if(C.paid(original))patch.customerPaidAt=original.customerPaidAt||now;
+  }
+  patchOrder(id,patch);
+  return true;
+ }catch(e){error(e);renderTable();return false}
+}
+// This secondary action can mark/unmark Satori without changing a customer's debt.
+function satoriSettlement(id,settled){
+ try{
+  if(window.__SATORI_DRIVE_APP__ && !window.__SATORI_DRIVE_READY__)
+   throw Error('Google Drive chưa đồng bộ. Chưa thể cập nhật thanh toán Satori.');
+  if(typeof settled!=='boolean')throw Error('Giá trị thanh toán Satori không hợp lệ.');
+  const matches=orders.filter(o=>C.key(o)===String(id));
+  if(matches.length!==1)throw Error('Không tìm được duy nhất hóa đơn.');
+  const original=matches[0],wasPaid=original.status==='Đã TT Satori'||!!original.satoriPaidAt;
+  if(wasPaid===settled)return true;
+  if(!settled && !confirm('Hủy đánh dấu đã thanh toán Satori cho hóa đơn này? Lịch sử thanh toán khách hàng vẫn được giữ nguyên.'))
+   return false;
+  const customerPaid=original.status==='Đã thanh toán'||!!original.customerPaidAt;
+  const now=new Date().toISOString();
+  const patch={satoriPaidAt:settled?original.satoriPaidAt||now:null};
+  if(settled && customerPaid && !original.customerPaidAt)patch.customerPaidAt=now;
+  if(original.status==='Đã TT Satori'&&!settled)
+   patch.status=customerPaid?'Đã thanh toán':'Chưa thanh toán';
+  patchOrder(id,patch);
+  return true;
+ }catch(e){error(e);renderTable();return false}
+}
 function formMeta(original){const id=$('acct-form-partner')?.value||'',p=registry().find(p=>p.id===id);return {collaboratorId:id,collaboratorDiscountPercent:id&&original?.collaboratorId===id?original.collaboratorDiscountPercent??p?.discountPercent:p?.discountPercent??null};}
-function paymentMeta(original={}){const value=$('paymentStatus')?.value||'Chưa thanh toán',now=new Date().toISOString();return {customerPaidAt:value==='Đã thanh toán'?original.customerPaidAt||now:value==='Đã TT Satori'&&C.paid(original)?original.customerPaidAt||now:null,satoriPaidAt:value==='Đã TT Satori'?original.satoriPaidAt||now:null};}
+function paymentMeta(original={}){
+ const value=$('paymentStatus')?.value||'Chưa thanh toán',now=new Date().toISOString();
+ const customerPaidAt=value==='Chưa thanh toán'?null:
+  value==='Đã thanh toán'?original.customerPaidAt||now:
+  value==='Đã TT Satori'&&C.paid(original)?original.customerPaidAt||now:
+  original.customerPaidAt||null;
+ return {customerPaidAt,satoriPaidAt:value==='Đã TT Satori'?original.satoriPaidAt||now:original.satoriPaidAt||null};
+}
 function partnerOptions(selected=''){return '<option value="">Chưa gắn CTV</option>'+registry().filter(p=>p.active!==false||p.id===selected).map(p=>`<option value="${esc(p.id)}" ${p.id===selected?'selected':''}>${esc(p.name)} · CK ${p.discountPercent}%</option>`).join('');}
 function formSelect(id=''){if($('acct-form-partner'))$('acct-form-partner').innerHTML=partnerOptions(id);}
 function suggestPartner(contact){const matches=registry().filter(p=>p.active!==false&&(C.norm(p.name)===C.norm(contact.customer)||contact.phone&&aiPhone(p.phone)&&aiPhone(p.phone)===aiPhone(contact.phone)));formSelect(matches.length===1?matches[0].id:'');}
@@ -133,7 +184,7 @@ const previousRender=renderTable;renderTable=function(){previousRender();render(
 updateStatus=status;exportToExcel=()=>exportWorkbook(true);
 const previousEdit=editOrder;editOrder=function(id){const result=previousEdit(id);formSelect(orders.find(o=>o.id===id)?.collaboratorId||'');return result;};
 window.addEventListener('load',()=>{if($('syncStatusBadge'))$('syncStatusBadge').textContent='Bản V18.2 · Công nợ khách';mount();render();renderBulkBar();});
-return {model,registry,render,formMeta,paymentMeta,formSelect,suggestPartner,assign,patchOrder,receiptData,exportWorkbook,exportCustomerDebt,filteredOrders,status,bulkForm,renderBulkBar,cancelBulk:()=>{bulkGeneration++;closeBulkDialog();}};
+return {model,registry,render,formMeta,paymentMeta,formSelect,suggestPartner,assign,patchOrder,receiptData,exportWorkbook,exportCustomerDebt,filteredOrders,status,satoriSettlement,bulkForm,renderBulkBar,cancelBulk:()=>{bulkGeneration++;closeBulkDialog();}};
 })();
 
 
