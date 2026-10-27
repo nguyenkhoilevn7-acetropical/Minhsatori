@@ -1,0 +1,23 @@
+name: Payment connector to Bot API synthetic chain
+on:
+  pull_request:
+    paths:
+      - 'connector/lib/satori.mjs'
+      - 'connector/tests/payment-chain.mjs'
+      - 'api/BotApi.gs'
+      - 'accounting-core.js'
+      - '.github/workflows/payment-connector-chain.yml'
+permissions:
+  contents: read
+jobs:
+  signed-synthetic-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test connector/tests/payment-chain.mjs
