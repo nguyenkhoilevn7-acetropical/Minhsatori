@@ -102,7 +102,22 @@ oauthEmail=owner;oauthClient='9999999999-wrongclient.apps.googleusercontent.com'
 assert.equal(request('orders.delete',payload).error.code,'FORBIDDEN');
 assert.equal(mobileWrites.length,6,'no unauthorized writes');
 oauthClient=clientId;
-assert.equal(request('orders.update',payload).error.code,'INVALID_ACTION',
- 'dangerous and unsupported orders.update denied');
+assert.ok(snap.data.allowedActions.includes('orders.update'),
+ 'only Google Owner may receive edit permission');
+assert.ok(snap.data.allowedActions.includes('orders.create'),
+ 'owner can receive create permission after server deploy');
+const ownerEdit={...payload,requestId:'update-owner-req-0001',
+ order:{name:'FAKE EDITED',phone:'0999888777',location:'Fake sandbox street',
+ items:[{product:'Satori fake 500ml',qty:2,unitPrice:20000}],total:40000}};
+assert.equal(request('orders.update',ownerEdit).ok,true);
+assert.equal(mobileWrites.at(-1).action,'orders.update');
+const ownerCreate={expectedRevision:133,requestId:'create-owner-req-0001',
+ confirmedNewCustomer:true,order:{name:'FAKE C',location:'Fake street',
+ items:[{product:'Satori fake 500ml',qty:1,unitPrice:20000}],total:20000}};
+assert.equal(request('orders.create',ownerCreate).ok,true);
+assert.equal(mobileWrites.at(-1).action,'orders.create');
+assert.equal(request('orders.rename',ownerEdit).error.code,'INVALID_ACTION',
+ 'other nonallowlisted owner actions remain denied');
+assert.equal(mobileWrites.length,8);
 assert.equal(request('orders.delete',payload,'short').error.code,'AUTH_FAILED');
-console.log('PASS fake production Mobile API: OAuth, ledger proof, four owner payment routes, delete/restore, forbidden calls');
+console.log('PASS fake Owner Mobile API: OAuth, canonical ledger, owner create/update, four payments, delete/restore, forbidden actions');
