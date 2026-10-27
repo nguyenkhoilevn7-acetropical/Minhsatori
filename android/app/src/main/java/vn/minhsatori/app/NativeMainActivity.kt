@@ -444,7 +444,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
-                       click: () -> Unit) {
+                       iconRes: Int = 0, click: () -> Unit) {
         val b = Button(this).apply {
             this.text = text
             textSize = 12f
@@ -456,6 +456,15 @@ class NativeMainActivity : AppCompatActivity() {
             stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(if (main) white else cyan)
+            if (iconRes != 0) {
+                val symbol = androidx.core.content.ContextCompat.getDrawable(
+                    this@NativeMainActivity, iconRes)?.mutate()
+                symbol?.setTint(if (main) white else cyan)
+                symbol?.setBounds(0, 0, dp(17), dp(17))
+                setCompoundDrawablesRelative(symbol, null, null, null)
+                compoundDrawablePadding = dp(9)
+                gravity = Gravity.CENTER
+            }
             background = if (main) {
                 GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                     intArrayOf(Color.rgb(0, 122, 255), Color.rgb(66, 151, 255))).apply {
@@ -2007,6 +2016,61 @@ class NativeMainActivity : AppCompatActivity() {
         }.start()
     }
 
+    /** Owner-only financial correction. Never updates the UI optimistically. */
+    private fun confirmInvoicePayment(invoice: SatoriInvoice, action: String,
+                                      onSuccess: () -> Unit) {
+        val no = invoice.number.toIntOrNull()?.takeIf { it > 0 } ?: return
+        if (!invoice.canChangePayment || !canAction(action) || isLoading) return
+        val title = when (action) {
+            "payments.markCustomerPaid" -> "Xác nhận khách đã trả đủ"
+            "payments.markCustomerUnpaid" -> "Chuyển khách về chưa thanh toán"
+            "payments.markSatoriPaid" -> "Đã thanh toán cho Satori"
+            "payments.markSatoriUnpaid" -> "Hoàn tác thanh toán Satori"
+            else -> return
+        }
+        val isCorrection = action != "payments.markCustomerPaid"
+        val confirmation = "Hóa đơn #" + no + "\nKhách: " + invoice.customer +
+            "\nTổng: " + SatoriData.money(invoice.total) +
+            "\n\nTrạng thái KHÁCH và SATORI là hai khoản ghi nhận độc lập. " +
+            "Chỉ xác nhận sau khi đã đối chiếu thanh toán thật."
+        val reason = EditText(this).apply {
+            hint = "Lý do / chứng từ đối soát (bắt buộc)"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            setSingleLine(false)
+            minLines = 2
+            maxLines = 3
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(title).setMessage(confirmation)
+            .apply { if (isCorrection) setView(reason) }
+            .setNegativeButton("Hủy", null)
+            .setPositiveButton("XÁC NHẬN", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val note = reason.text.toString().trim()
+                if (isCorrection && (note.length < 3 || note.length > 300)) {
+                    reason.error = "Cần ghi lý do từ 3 đến 300 ký tự"
+                    return@setOnClickListener
+                }
+                val payload = JSONObject()
+                    .put("expectedRevision", snapshot?.revision ?: -1L)
+                    .put("invoiceNo", no)
+                    .put("id", invoice.id)
+                    .put("expectedName", invoice.customer)
+                    .put("expectedTotal", invoice.total)
+                    .put("confirmed", true)
+                if (isCorrection) payload.put("reason", note)
+                else payload.put("amount", invoice.total)
+                dialog.dismiss()
+                executeWrite(action, payload) { success, _ ->
+                    if (success) onSuccess()
+                }
+            }
+        }
+        dialog.show()
+    }
+
     private fun openInvoice(invoice: SatoriInvoice) {
         val wrapper = ScrollView(this).apply { setBackgroundColor(night) }
         val content = LinearLayout(this).apply {
@@ -2078,45 +2142,62 @@ class NativeMainActivity : AppCompatActivity() {
         }
         // The first invoice action must show the actual A4 PDF in this app.
         // Never implicitly download when the user only chooses View.
-        button(content, "👁 XEM HÓA ĐƠN PDF", true) {
+        button(content, "XEM HÓA ĐƠN PDF", true, R.drawable.ic_satori_eye) {
             NativeInvoicePdf.preview(this, invoice)
         }
         var invoiceDialog: AlertDialog? = null
-        // Legacy/partially restored rows may have a missing/non-numeric number.
-        // Continue read-only display, but never crash on toInt() or send a write.
+        // Payment facts are independent; the legacy single status cannot convey both.
+        label(content, "TRẠNG THÁI THANH TOÁN", 13f, true, cyan, 15)
+        label(content, "Khách hàng: " +
+            (if (invoice.customerHasPaid) "ĐÃ THANH TOÁN" else "CHƯA THANH TOÁN"),
+            13f, true, if (invoice.customerHasPaid) Color.rgb(15, 126, 83) else gold, 7)
+        label(content, "Đối soát Satori: " +
+            (if (invoice.satoriHasPaid) "ĐÃ THANH TOÁN SATORI" else "CHƯA THANH TOÁN SATORI"),
+            13f, true, if (invoice.satoriHasPaid) Color.rgb(15, 126, 83) else gold, 6)
+
         val validInvoiceNumber = invoice.number.toIntOrNull()?.takeIf { it > 0 }
         if (validInvoiceNumber == null) {
-            label(content, "⚠ Số hóa đơn cần kiểm tra. Đã khóa sửa, xóa và ghi thanh toán.",
+            label(content, "Số hóa đơn không hợp lệ. Đã khóa ghi trạng thái.",
                 12f, true, gold, 10)
-        }
-        if (validInvoiceNumber != null &&
-            (invoice.canEditOrDelete || invoice.canMarkCustomerPaid)) {
-            if (invoice.canEditOrDelete && canAction("orders.update")) button(content, "SỬA HÓA ĐƠN") {
-                invoiceDialog?.dismiss()
-                launchEditor(editing = invoice)
-            }
-            if (invoice.canMarkCustomerPaid && canAction("payments.markCustomerPaid")) button(content, "GHI NHẬN ĐÃ THANH TOÁN") {
-                AlertDialog.Builder(this)
-                    .setTitle("Xác nhận đã thực nhận tiền?")
-                    .setMessage("Hóa đơn #" + invoice.number + "\nKhách: " +
-                        invoice.customer + "\nĐã nhận đủ " + SatoriData.money(invoice.total) +
-                        "?\nChỉ đánh dấu khi tiền đã thực sự nhận.")
-                    .setNegativeButton("Chưa nhận", null)
-                    .setPositiveButton("XÁC NHẬN ĐỦ TIỀN") { _, _ ->
-                        val p = JSONObject()
-                            .put("expectedRevision", snapshot?.revision ?: -1)
-                            .put("invoiceNo", invoice.number.toInt())
-                            .put("id", invoice.id)
-                            .put("amount", invoice.total)
-                            .put("confirmed", true)
-                        executeWrite("payments.markCustomerPaid", p) { success, _ ->
-                            if (success) invoiceDialog?.dismiss()
+        } else {
+            if (invoice.canEditOrDelete && canAction("orders.update"))
+                button(content, "SỬA HÓA ĐƠN", iconRes = R.drawable.ic_satori_edit) {
+                    invoiceDialog?.dismiss()
+                    launchEditor(editing = invoice)
+                }
+            if (invoice.canChangePayment) {
+                val possibilities = listOf(
+                    Triple("payments.markCustomerPaid", "Khách đã thanh toán", R.drawable.ic_satori_check),
+                    Triple("payments.markCustomerUnpaid", "Khách chưa thanh toán", R.drawable.ic_satori_undo),
+                    Triple("payments.markSatoriPaid", "Đã thanh toán Satori", R.drawable.ic_satori_check),
+                    Triple("payments.markSatoriUnpaid", "Chưa thanh toán Satori", R.drawable.ic_satori_undo))
+                var enabled = false
+                possibilities.forEach { (action, title, icon) ->
+                    val wanted = when (action) {
+                        "payments.markCustomerPaid" -> !invoice.customerHasPaid
+                        "payments.markCustomerUnpaid" -> invoice.customerHasPaid
+                        "payments.markSatoriPaid" -> !invoice.satoriHasPaid
+                        else -> invoice.satoriHasPaid
+                    }
+                    if (wanted && canAction(action)) {
+                        enabled = true
+                        button(content, title, iconRes = icon) {
+                            confirmInvoicePayment(invoice, action) {
+                                invoiceDialog?.dismiss()
+                            }
                         }
-                    }.show()
+                    }
+                }
+                if (!enabled) label(content,
+                    "Chỉnh sửa thanh toán yêu cầu Google Owner và Mobile API đã cấp quyền. " +
+                        "Nếu còn thiếu lệnh, cần cập nhật API trước khi ghi.",
+                    11.5f, false, softInk, 8)
             }
-            if (invoice.canEditOrDelete) button(content, "🗑 XÓA ĐƠN • THÙNG RÁC 30 NGÀY") {
-                confirmSoftDelete(invoice) { invoiceDialog?.dismiss() }
-            }
+            if (invoice.canEditOrDelete)
+                button(content, "XÓA ĐƠN • THÙNG RÁC 30 NGÀY",
+                    iconRes = R.drawable.ic_satori_trash) {
+                    confirmSoftDelete(invoice) { invoiceDialog?.dismiss() }
+                }
         }
         fun confirmInternalShare(action: () -> Unit) {
             if (!invoice.isInternalCollaboratorBill) { action(); return }
@@ -2128,7 +2209,7 @@ class NativeMainActivity : AppCompatActivity() {
                 .setPositiveButton("Đúng CTV, tiếp tục") { _, _ -> action() }
                 .show()
         }
-        button(content, "GỬI PDF QUA ZALO") {
+        button(content, "GỬI PDF QUA ZALO", iconRes = R.drawable.ic_satori_share) {
             confirmInternalShare {
             try { NativeInvoicePdf.shareZalo(this, invoice) }
             catch (error: Exception) {
@@ -2137,7 +2218,7 @@ class NativeMainActivity : AppCompatActivity() {
             }
             }
         }
-        button(content, "GỬI PDF QUA MESSENGER") {
+        button(content, "GỬI PDF QUA MESSENGER", iconRes = R.drawable.ic_satori_share) {
             confirmInternalShare {
             try { NativeInvoicePdf.shareMessenger(this, invoice) }
             catch (error: Exception) {
