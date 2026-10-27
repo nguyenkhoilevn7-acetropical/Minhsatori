@@ -61,6 +61,43 @@ class PendingMobileWriteTest {
         assertFalse(old.confirmedIn(snapshot(bill())))
     }
 
+    @Test fun correctionProofNeedsExactAuditRequestInvoiceAndCurrentIndependentStatus() {
+        val actions = listOf(
+            Triple("payments.markSatoriPaid", "Đã TT Satori", true),
+            Triple("payments.markSatoriUnpaid", "Đã thanh toán", false),
+            Triple("payments.markCustomerUnpaid", "Chưa thanh toán", false)
+        )
+        actions.forEach { (action, status, satoriExpected) ->
+            val p = JSONObject().put("id", "branch-a-order").put("invoiceNo", 99)
+                .put("expectedName", "Khách thử").put("expectedTotal", 20000)
+            val old = pending(action, p)
+            val audit = JSONArray().put(JSONObject().put("action", action)
+                .put("requestId", old.requestId))
+            val candidate = bill().put("status", status).put("paymentAudit", audit)
+            if (satoriExpected) candidate.put("satoriPaidAt", "2026-10-27T03:00:00Z")
+            assertTrue(action, old.confirmedIn(snapshot(candidate)))
+            assertFalse(action, old.confirmedIn(snapshot(JSONObject(candidate.toString())
+                .put("id", "another-branch"))))
+            assertFalse(action, old.confirmedIn(snapshot(JSONObject(candidate.toString())
+                .put("paymentAudit", JSONArray()))))
+            assertFalse(action, old.confirmedIn(snapshot(JSONObject(candidate.toString())
+                .put("total", 20001))))
+        }
+    }
+
+    @Test fun settlementProofCannotAccidentallyResolveAnUnrelatedCustomerPayment() {
+        val p = JSONObject().put("id", "branch-a-order").put("invoiceNo", 99)
+            .put("expectedName", "Khách thử").put("expectedTotal", 20000)
+        val old = pending("payments.markSatoriUnpaid", p)
+        val fake = bill().put("status", "Đã TT Satori")
+            .put("paymentAudit", JSONArray().put(JSONObject()
+                .put("action", "payments.markSatoriUnpaid")
+                .put("requestId", old.requestId)))
+        assertFalse(old.confirmedIn(snapshot(fake)))
+        fake.put("status", "Đã thanh toán")
+        assertTrue(old.confirmedIn(snapshot(fake)))
+    }
+
     @Test fun deletionProofRequiresOriginalRequestAndExactInvoice() {
         val old = pending("orders.delete", JSONObject().put("id", "branch-a-order").put("invoiceNo", 99))
         val trash = JSONObject().put("orders", JSONArray().put(JSONObject()
