@@ -163,3 +163,82 @@ assert.equal(call('pricing.eligibility',query).error.code,'AI_CUSTOMER_UNVERIFIE
 assert.equal(writes,beforeEligibilityWrites,'eligibility never changes Drive');
 assert.equal(backs,beforeEligibilityBackups,'eligibility never creates backups');
 console.log('PASS — Gemini exact customer+location approved pricing eligibility, revocation, HMAC scope, no ledger mutation');
+
+
+// Three-way payment-state commands: all invoices here are synthetic.
+// Verify independent customer/Satori bits, duplicate number guards, audit history,
+// idempotent requests, and preservation of unrelated customer rows.
+data={revision:50,updatedAt:'2026-10-27T00:00:00Z',values:{
+ satori_orders_v15:JSON.stringify([
+  {id:501,invoiceNo:701,name:'Fixture Branch A',total:125000,status:'Chưa thanh toán'},
+  {id:502,invoiceNo:701,name:'Fixture Branch B',total:250000,status:'Đã thanh toán',customerPaidAt:'2026-10-20T01:00:00.000Z'},
+  {id:503,invoiceNo:702,name:'Fixture CTV Internal',total:80000,status:'Chưa thanh toán',pairRole:'collaborator'}
+ ]),satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'
+}};
+const readRows=()=>JSON.parse(data.values.satori_orders_v15);
+const change=(action,{id=501,invoiceNo=701,expectedName='Fixture Branch A',expectedTotal=125000,
+ requestId='test_correction_001',reason='Owner reconciled actual bank settlement',expectedRevision=data.revision,...rest}={})=>
+ call(action,{expectedRevision,requestId,id,invoiceNo,expectedName,expectedTotal,
+  confirmed:true,reason,...rest});
+let correctionWrites=writes,correctionBackups=backs;
+assert.equal(call('payments.markSatoriPaid',{expectedRevision:50,invoiceNo:701,
+ confirmed:true,reason:'Confirmed'}).error.code,'INVALID_ORDER','must use immutable ID');
+assert.equal(change('payments.markSatoriPaid',{expectedName:'Wrong Branch'}).error.code,'ORDER_CHANGED');
+assert.equal(change('payments.markSatoriPaid',{expectedTotal:125001}).error.code,'ORDER_CHANGED');
+assert.equal(change('payments.markSatoriPaid',{reason:''}).error.code,'REASON_REQUIRED');
+assert.equal(change('payments.markSatoriPaid',{id:503,invoiceNo:702,
+ expectedName:'Fixture CTV Internal',expectedTotal:80000}).error.code,'CTV_INTERNAL_NOT_RECEIVABLE');
+assert.equal(writes,correctionWrites,'failed financial corrections may never write');
+let settlement=change('payments.markSatoriPaid');
+assert.equal(settlement.ok,true);
+assert.equal(settlement.backupCreated,true);
+assert.equal(data.revision,51);
+assert.equal(settlement.data.satoriPaid,true);
+assert.equal(settlement.data.customerPaid,false);
+assert.equal(readRows()[0].status,'Đã TT Satori');
+assert.equal(readRows()[0].paymentAudit.length,1);
+assert.ok(readRows()[0].satoriPaidAt);
+assert.equal(readRows()[1].customerPaidAt,'2026-10-20T01:00:00.000Z','another invoice with reused number stays unchanged');
+assert.equal(call('orders.list',{query:'701'}).data.orders.filter(x=>x.id===501)[0].satoriPaid,true);
+assert.equal(call('orders.list',{query:'701'}).data.orders.filter(x=>x.id===501)[0].customerPaid,false);
+correctionWrites=writes;
+let idempotent=change('payments.markSatoriPaid',{expectedRevision:51});
+assert.equal(idempotent.data.alreadyApplied,true);
+assert.equal(writes,correctionWrites,'repeated exact requestId does not write');
+assert.equal(change('payments.markSatoriUnpaid',{requestId:'test_correction_001'}).error.code,'REQUEST_ID_CONFLICT');
+
+let customer=call('payments.markCustomerPaid',{expectedRevision:51,invoiceNo:701,id:501,
+ expectedName:'Fixture Branch A',expectedTotal:125000,confirmed:true,amount:125000});
+assert.equal(customer.ok,true);
+assert.equal(customer.data.order.status,'Đã TT Satori','customer receipt must not clear supplier settlement');
+assert.equal(readRows()[0].customerPaidAt!==undefined,true);
+assert.equal(readRows()[0].satoriPaidAt!==undefined,true);
+
+let reverseCustomer=change('payments.markCustomerUnpaid',{requestId:'test_correction_002'});
+assert.equal(reverseCustomer.ok,true);
+assert.equal(reverseCustomer.data.customerPaid,false);
+assert.equal(reverseCustomer.data.satoriPaid,true);
+assert.equal(readRows()[0].status,'Đã TT Satori');
+assert.equal(readRows()[0].customerPaidAt,null);
+assert.equal(readRows()[0].paymentAudit[1].previousCustomerPaidAt!==null,true);
+let undoSupplier=change('payments.markSatoriUnpaid',{requestId:'test_correction_003'});
+assert.equal(undoSupplier.ok,true);
+assert.equal(undoSupplier.data.customerPaid,false);
+assert.equal(undoSupplier.data.satoriPaid,false);
+assert.equal(readRows()[0].status,'Chưa thanh toán');
+assert.equal(readRows()[0].satoriPaidAt,null);
+assert.equal(readRows()[0].paymentAudit.length,3,'all changes leave a durable audit trail');
+assert.equal(readRows()[1].status,'Đã thanh toán','reused invoiceNo different ID stays untouched');
+assert.equal(readRows()[2].status,'Chưa thanh toán','internal CTV reference untouched');
+
+let paidWithoutSatori=change('payments.markSatoriPaid',{id:502,invoiceNo:701,
+ expectedName:'Fixture Branch B',expectedTotal:250000,requestId:'test_correction_004'});
+assert.equal(paidWithoutSatori.data.customerPaid,true);
+assert.equal(paidWithoutSatori.data.satoriPaid,true);
+let undoSupplierOnly=change('payments.markSatoriUnpaid',{id:502,invoiceNo:701,
+ expectedName:'Fixture Branch B',expectedTotal:250000,requestId:'test_correction_005'});
+assert.equal(undoSupplierOnly.data.customerPaid,true);
+assert.equal(readRows()[1].status,'Đã thanh toán','undo supplier must not erase customer payment');
+assert.equal(writes,correctionWrites+5,'exactly five new correction/payment commits from replay point');
+assert.equal(backs,correctionBackups+6,'every changed payment has a verified Drive prewrite backup');
+console.log('PASS — three-way payment-state commands, exact-ID, correction audit, HMAC, Drive backup/readback, idempotency');
