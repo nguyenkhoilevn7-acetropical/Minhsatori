@@ -162,3 +162,11 @@ test('both accounting views expose independent Satori control; edit uses atomic 
  assert.doesNotMatch(html,/đồng bộ chính xác 100% vào Sổ Kế Toán/);
  assert.match(html,/Đang chờ xác nhận đồng bộ Google Drive/);
 });
+
+test('payment patch is discoverable and browser cannot reuse the old accounting.js?v=191 asset',()=>{
+ assert.match(html,/<script src="accounting\.js\?v=2026102701"><\/script>/);
+ assert.doesNotMatch(html,/<script src="accounting\.js\?v=191"><\/script>/);
+ assert.match(html,/V18\.3 · Thanh toán khách \/ Satori/);
+ assert.match(accounting,/V18\.3 · Thanh toán khách \/ Satori/);
+ assert.match(accounting,/window\.__SATORI_DRIVE_READY__/);
+});

@@ -183,7 +183,7 @@ async function exportWorkbook(filtered=true,reconciliation=null){try{if(reconcil
 const previousRender=renderTable;renderTable=function(){previousRender();render();renderBulkBar();const m=model(),primary=m.rows.filter(r=>C.active(r.order)&&!r.secondary);for(const [id,value] of [['statTotalProfit',primary.reduce((s,r)=>s+getOrderProfit(r.order)-r.profit,0)],['statTotalRevenue',primary.reduce((s,r)=>s+C.total(r.order),0)],['statPaid',primary.filter(r=>r.customerPaid).reduce((s,r)=>s+C.total(r.order),0)],['statUnpaid',primary.filter(r=>!r.customerPaid).reduce((s,r)=>s+C.total(r.order),0)]])if($(id))$(id).textContent=money(value);};
 updateStatus=status;exportToExcel=()=>exportWorkbook(true);
 const previousEdit=editOrder;editOrder=function(id){const result=previousEdit(id);formSelect(orders.find(o=>o.id===id)?.collaboratorId||'');return result;};
-window.addEventListener('load',()=>{if($('syncStatusBadge'))$('syncStatusBadge').textContent='Bản V18.2 · Công nợ khách';mount();render();renderBulkBar();});
+window.addEventListener('load',()=>{if($('syncStatusBadge'))$('syncStatusBadge').textContent='V18.3 · Thanh toán khách / Satori';mount();render();renderBulkBar();});
 return {model,registry,render,formMeta,paymentMeta,formSelect,suggestPartner,assign,patchOrder,receiptData,exportWorkbook,exportCustomerDebt,filteredOrders,status,satoriSettlement,bulkForm,renderBulkBar,cancelBulk:()=>{bulkGeneration++;closeBulkDialog();}};
 })();
 
