@@ -54,25 +54,76 @@ dialog{width:min(520px,calc(100vw - 24px));border:1px solid var(--line);border-r
 dialog::backdrop{background:#152c4c88}
 .chat{display:flex;flex-direction:column;gap:12px}.bubble{padding:12px 14px;border-radius:17px;max-width:87%;font-size:14px}.bubble.ai{background:#e9e9eb;color:#1c1c1e}.bubble.me{background:#007aff;color:#fff;margin-left:auto}
 @media(max-width:660px){header{padding:12px}.shell{padding:0 12px 25px}.summary{gap:7px}.metric{padding:11px}.metric strong{font-size:16px}.metric small{font-size:10px}.grid{grid-template-columns:1fr}.card{padding:12px}.header-line strong{font-size:16px}.amount{font-size:15px}.heading strong{font-size:15px}.heading span{font-size:10px}}
+
+/* VÒNG 2 — restore icon-first familiar navigation, keep original screen hierarchy.
+   Pure CSS + inline SVG only: invoice, account, permission and payment logic untouched. */
+:root{
+ --bg:#eaf0f7;--ink:#182c41;--sub:#596e85;--line:#d7e3ef;
+ --blue:#086fdf;--blue-soft:#e0efff;--mint:#e1f5e9;
+ --green:#126b44;--amber:#99541c;--amber-soft:#fff0d9
+}
+html{background:#eaf0f7}
+body{background:linear-gradient(180deg,#e8f1fa 0,#eff3f8 280px,#eaf0f7 100%);color:var(--ink)}
+.top-notice{background:linear-gradient(90deg,#fff1ce,#fff9ec);color:#80501c;padding:7px 12px;font-size:11.5px;letter-spacing:.03em}
+header{background:linear-gradient(105deg,#dceeff 0%,#e7f2ff 46%,#f0f3f9 100%);border-bottom:1px solid #cfdeef;border-radius:0 0 18px 18px;margin-bottom:12px;padding:15px 18px;box-shadow:0 8px 20px #173d6410}
+.heading strong{color:#173b60;letter-spacing:-.3px}
+.heading span{color:#4a6784}
+.logo{border-color:#bcd4ed;box-shadow:0 2px 10px #123f7217}
+.round{background:#ecf6ff;border-color:#c2d9f1;color:#086fdf}
+nav{background:linear-gradient(90deg,#d9e7f8,#e4eef9);padding:8px;border-radius:16px;border:1px solid #cddff3;margin:0 0 14px;gap:7px;box-shadow:0 3px 10px #19456d12;scroll-snap-type:x proximity}
+nav button{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:0 0 auto;min-height:42px;border:1px solid #cedff0;background:#f5f9ff;color:#375b7e;border-radius:11px;padding:8px 12px;font-size:12.5px;font-weight:750;box-shadow:0 1px 4px #173e6310;scroll-snap-align:start}
+nav button svg{width:20px;height:20px;flex:none;stroke-width:1.85}
+nav button.active{background:linear-gradient(130deg,#087be9,#0865cb);color:white;border-color:#0865cb;box-shadow:0 4px 12px #0877dd37}
+nav button:hover:not(.active){background:#eaf4ff;border-color:#a6cbed;color:#0b5fb7}
+nav button:focus-visible{outline:3px solid #efad4d;outline-offset:2px}
+.summary{gap:10px}
+.metric{background:linear-gradient(145deg,#f9fbff,#e8f2ff);border-color:#cddff3;border-top:3px solid #4986d2;box-shadow:0 3px 11px #22476b0d;padding:13px 14px}
+.metric:nth-child(2){background:linear-gradient(145deg,#f8fffb,#e6f6ec);border-top-color:#2d986c;border-color:#cbe6d8}
+.metric:nth-child(3){background:linear-gradient(145deg,#fffdf7,#fff0df);border-top-color:#c58b39;border-color:#ecd9ba}
+.metric small{font-size:11px;font-weight:750;letter-spacing:.35px;color:#536b82}
+.metric strong{color:#1b416c}
+.card{background:linear-gradient(155deg,#fff,#f9fbfe);border-color:#d4e0ec;box-shadow:0 4px 15px #173c5e11}
+.card:hover{border-color:#c1d6ed}
+.search{background:#fafdff;border:1px solid #ccdeef;box-shadow:0 2px 8px #1f538410}
+.header-line strong{color:#193b60}
+.amount{color:#0871dc}
+.hero-name{color:#1c3047}
+.hero svg{background:#e1f0ff;color:#0871dc;border:1px solid #cfe3f8}
+.phone{background:#e1f6ea;color:#0b754d}
+.address{background:#e4f1ff;color:#176bb5}
+.status{background:#fff0da;color:#9c581b}
+.status.paid{background:#dff5e8;color:#116c43}
+.action{background:#0876e8}
+.action.outline{background:#e4f1ff;color:#0968c6}
+.note{color:#5d6f82}
+@media(max-width:660px){
+ header{padding:11px 12px}
+ nav{gap:6px;padding:7px}
+ nav button{min-height:42px;gap:6px;padding:8px 10px;font-size:12px}
+ nav button svg{width:19px;height:19px}
+ .metric{padding:10px 11px}
+}
+@media (prefers-reduced-motion:reduce){nav button{transition:none}}
+/* END PREVIEW VÒNG 2 */
 </style>
 </head>
 <body>
-<div class="top-notice">BẢN XEM TRƯỚC GIAO DIỆN · DỮ LIỆU GIẢ LẬP · KHÔNG KẾT NỐI KẾ TOÁN THẬT</div>
+<div class="top-notice">BẢN PREVIEW · DỮ LIỆU GIẢ · KHÔNG KẾT NỐI KẾ TOÁN THẬT</div>
 <header>
 <img class="logo" src="logo-satori-3394.jpg" alt="Minh Satori" onerror="this.style.display='none'">
-<div class="heading"><strong>MINH SATORI</strong><span>Giao diện đồng bộ Android · Website · Quản trị</span></div>
+<div class="heading"><strong>MINH SATORI</strong><span>Android · Website · Quản trị</span></div>
 <button class="round" id="reviewHelp" title="Thông tin bản xem trước">ⓘ</button>
 </header>
 <div class="shell">
 <nav aria-label="Xem trước các khu vực">
-<button class="active" data-view="ledger">Sổ kế toán</button>
-<button data-view="customer">Khách hàng</button>
-<button data-view="invoices">Hóa đơn</button>
-<button data-view="debt">Công nợ</button>
-<button data-view="orders">Lên đơn</button>
-<button data-view="admin">Quản trị V2</button>
-<button data-view="chat">Gemini</button>
-<button data-view="review">Nghiệm thu</button>
+<button class="active" data-view="ledger" aria-label="Sổ kế toán" title="Sổ kế toán" aria-controls="ledger"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h7a3 3 0 0 1 3 3V20a3 3 0 0 0-3-3H4z"/><path d="M20 4.5h-3a3 3 0 0 0-3 3V20a3 3 0 0 1 3-3h3z"/><path d="M7 9h3M7 12h3"/></svg><span>Sổ sách</span></button>
+<button data-view="customer" aria-label="Khách hàng" title="Khách hàng" aria-controls="customer"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.2"/><path d="M3.5 20c0-4 2.5-6 6.5-6s6.5 2 6.5 6M17 5.5a3 3 0 0 1 0 5.8M18 14c2 .5 3 2.5 3 5"/></svg><span>Khách</span></button>
+<button data-view="invoices" aria-label="Hóa đơn" title="Hóa đơn" aria-controls="invoices"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span>Hóa đơn</span></button>
+<button data-view="debt" aria-label="Công nợ" title="Công nợ" aria-controls="debt"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2M7 3h11"/></svg><span>Công nợ</span></button>
+<button data-view="orders" aria-label="Lên đơn" title="Lên đơn" aria-controls="orders"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.3 11.5h10.5L20 8H6"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/><path d="M15.5 3v5M13 5.5h5"/></svg><span>Lên đơn</span></button>
+<button data-view="admin" aria-label="Quản trị V2" title="Quản trị V2" aria-controls="admin"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/></svg><span>Quản trị</span></button>
+<button data-view="chat" aria-label="Gemini" title="Gemini" aria-controls="chat"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z"/></svg><span>Gemini</span></button>
+<button data-view="review" aria-label="Nghiệm thu" title="Nghiệm thu" aria-controls="review"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.6 2.6L16.5 9"/></svg><span>Duyệt UI</span></button>
 </nav>
 <section class="view active" id="ledger">
 <div class="summary"><div class="metric"><small>HÓA ĐƠN</small><strong>4</strong></div><div class="metric"><small>ĐÃ THU</small><strong style="color:#13784e">1,23 tr</strong></div><div class="metric"><small>CẦN THU</small><strong style="color:#ad631f">865 k</strong></div></div>
