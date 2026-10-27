@@ -166,6 +166,50 @@ textarea:focus-visible,.admin-tab:focus-visible{
 }
 /* END MINH SATORI UNIFIED LIGHT UI */
 
+
+/* SATORI FULL-UI REVIEW: owner admin visual parity only */
+:root{--satori-ink:#20364b;--satori-blue:#086fdf;--satori-green:#137447;--satori-line:#d1dfed}
+body{background:linear-gradient(180deg,#e5f1ff,#eff3f8 300px);color:var(--satori-ink)}
+header{background:linear-gradient(110deg,#d9ecff,#f2f8ff);border:1px solid #cddfec;border-radius:16px;padding:12px 14px}
+.admin-tabs{background:#dcebf9f5;border:1px solid #c9ddf1;border-radius:15px;padding:7px;margin:10px 0;box-shadow:0 3px 12px #23476e14}
+.admin-tab{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:#edf6ff;color:#2e5279;border:1px solid #d5e5f3}
+.admin-tab svg{width:19px;height:19px;flex:none}
+.admin-tab.active{background:linear-gradient(130deg,#0877df,#1265c2);color:#fff;border-color:#1265c2;box-shadow:0 3px 10px #086abf33}
+.card,.directory-card,.issued-link-card,.ctv-person{background:linear-gradient(150deg,#fff,#f8fbff);border-color:#cfdfed;box-shadow:0 4px 17px #264a6f12}
+.directory-avatar,.directory-pill{background:#dfeeff;color:#145fbd}
+.directory-places li{background:#f1f8ff;border-color:#d7e5f3}
+.directory-stat{background:#e5f1ff;border-color:#c7dbef}
+.directory-stat strong{color:#086fdf}
+button.secondary{background:#e8f2ff;color:#1d609f;border-color:#c6ddef}
+button.danger{background:#fff0f0;color:#a52e39;border-color:#edc9cf}
+#newOrders .customer{background:#f6fbff}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #086fdf;outline-offset:2px}
+/* END SATORI FULL-UI REVIEW */
+
+
+/* MONEY-MIND FLAT DESIGN — visual only; owner CRUD and authorization untouched */
+:root{color-scheme:light;background:#f1f4f5;color:#102b38;--satori-ink:#102b38;--satori-blue:#009c99;--satori-green:#0f976c;--satori-line:#e0e8e8}
+body{background:#f1f4f5;color:#102b38}
+header{background:#fff;border:1px solid #e3ebeb;border-radius:18px;box-shadow:none}
+h1,h2,.admin-brand strong{color:#113344}
+.card,.directory-card,.issued-link-card,.ctv-person,.new-location-item,.ctv-add-box,.location-manager,.issued-link-card details,
+.ctv-live-receiver,.test-order-bar,.directory-stat{background:#fff!important;border:1px solid #e2e9e9!important;border-radius:18px!important;box-shadow:none!important}
+.admin-tabs{background:#fff;border:1px solid #e1eaea;border-radius:17px;box-shadow:none;gap:6px;padding:7px}
+.admin-tab{background:#f3f7f7;color:#44616a;border:1px solid #e2ebeb;border-radius:13px;box-shadow:none;min-height:45px}
+.admin-tab.active{background:#009c99!important;border-color:#009c99!important;color:#fff!important;box-shadow:none!important}
+button:not(.admin-tab):not(.danger):not(.secondary){background:#009c99;color:#fff;border-radius:13px;box-shadow:none}
+button.secondary,.suggestions button{background:#eaf7f5;color:#007b7a;border:1px solid #d1eae5}
+button.danger{background:#fff0f0;color:#c54049;border:1px solid #f4d7d9}
+.production-tag{background:#e6f7ef;color:#127d55;border-color:#d2eddf}
+.directory-avatar,.directory-pill{background:#e3f6f3;color:#087e7c}
+.directory-stat strong,.directory-card-title strong{color:#0c7574}
+.directory-places li,.issued-link-url{background:#f6faf9;border-color:#e3eaea}
+input,select,textarea{background:#f7fafa!important;border:1px solid #dfe7e7!important;border-radius:13px;color:#172f3d}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid #009c99;outline-offset:2px}
+#newOrders .customer{background:#fff;border-color:#e2e9e9}
+@media(max-width:640px){body{padding:10px}.admin-tabs{gap:5px}.admin-tab{padding:8px 9px}}
+/* END MONEY-MIND FLAT DESIGN */
+
 </style></head><body><main>
 <header class="admin-branded-header"><span class="production-tag">● PRODUCTION</span><span class="admin-brand"><img src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="46" height="46"><strong>MINH SATORI <small id="adminModeTag">• Đang kiểm tra</small></strong></span></header>
 <h1>Quản lý Minh Satori</h1>
@@ -176,13 +220,13 @@ textarea:focus-visible,.admin-tab:focus-visible{
 <button id="login">Mở quản lý</button> <span id="authState" class="hint"></span><p id="error" role="alert"></p></section>
 <div id="workspace" hidden>
 <nav class="admin-tabs" aria-label="Chức năng quản trị">
- <button type="button" class="admin-tab" data-admin-tab="orders" aria-pressed="false" style="display:none">🧪 Đơn thử</button>
- <button type="button" class="admin-tab" data-admin-tab="live" aria-pressed="false">🧾 Hóa đơn thật</button>
- <button type="button" class="admin-tab active" data-admin-tab="customers" aria-pressed="true">👥 Khách hàng</button>
- <button type="button" class="admin-tab" data-admin-tab="ctv-ledger" aria-pressed="false">📊 Bảng CTV</button>
-  <button type="button" class="admin-tab" data-admin-tab="issued-links" aria-pressed="false">🔗 Link đã cấp</button>
- <button type="button" class="admin-tab" data-admin-tab="changes" aria-pressed="false" style="display:none">🧪 Yêu cầu thử</button>
- <button type="button" class="admin-tab" data-admin-tab="settings" aria-pressed="false">⚙️ Cài đặt</button>
+ <button type="button" class="admin-tab" data-admin-tab="orders" aria-pressed="false" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18v14H3z"/><path d="M9 3v6M15 3v6M8 13h8"/></svg> Đơn thử</button>
+ <button type="button" class="admin-tab" data-admin-tab="live" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 9h6M9 13h6"/></svg> Hóa đơn</button>
+ <button type="button" class="admin-tab active" data-admin-tab="customers" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="8" r="3"/><path d="M3 21c0-4.5 2.6-7 7-7s7 2.5 7 7M17 5a3 3 0 0 1 0 6M18 15c2 .5 3 2.4 3 6"/></svg> Khách hàng</button>
+ <button type="button" class="admin-tab" data-admin-tab="ctv-ledger" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V11h4v9M10 20V4h4v16M16 20v-7h4v7M2 20h20"/></svg> Bảng CTV</button>
+  <button type="button" class="admin-tab" data-admin-tab="issued-links" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 14 4-4M7 17H5a4 4 0 0 1 0-8h3M17 7h2a4 4 0 0 1 0 8h-3"/></svg> Link đã cấp</button>
+ <button type="button" class="admin-tab" data-admin-tab="changes" aria-pressed="false" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4zM8 10h8M8 14h5"/></svg> Yêu cầu thử</button>
+ <button type="button" class="admin-tab" data-admin-tab="settings" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.2 2.2M16.9 16.9l2.2 2.2M2 12h3M19 12h3M4.9 19.1l2.2-2.2M16.9 7.1l2.2-2.2"/></svg> Cài đặt</button>
 </nav>
 <section class="card" id="orderPanel" data-tab-panel="orders" aria-labelledby="ordersHeading">
 <h2 id="ordersHeading">🔔 Đơn hàng mới <span id="newOrderCount">0</span></h2>

@@ -104,7 +104,48 @@ nav button:focus-visible{outline:3px solid #efad4d;outline-offset:2px}
  .metric{padding:10px 11px}
 }
 @media (prefers-reduced-motion:reduce){nav button{transition:none}}
+
+/* PREVIEW ONLY: match the reference customer Gemini 3+2 icon-first layout. */
+.preview-gemini-tools{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;padding:12px;border-bottom:1px solid #d1e1f1;background:#f9fcff}
+.preview-gemini-tools button{grid-column:span 2;min-width:0;min-height:43px;border-radius:14px;border:1px solid #cbdff2;background:#eff6ff;color:#0a61ae;padding:8px 4px;font-weight:760;font-size:12px}
+.preview-gemini-tools button:nth-child(n+4){grid-column:span 3}
+.preview-gemini-tools button:first-child{background:#086fdf;border-color:#086fdf;color:#fff}
+.preview-chat-footer{display:flex;gap:9px;align-items:center;padding:10px 13px;background:#f8fbff;border-top:1px solid #d1e1f1}
+.preview-blue-notice{flex:1;min-width:0;background:#0872df;color:white;padding:11px;border-radius:15px;font-size:12px;font-weight:670}
+.preview-cart-shortcut{display:grid;place-items:center;flex:0 0 47px;min-height:47px;border:0;background:#0875e6;color:#fff;border-radius:15px;position:relative;font-size:23px}
+.preview-cart-shortcut b{position:absolute;top:-7px;right:-6px;background:#f04452;border:2px solid white;color:#fff;font-size:11px;border-radius:20px;padding:2px 5px}
+@media(max-width:400px){.preview-gemini-tools{gap:5px;padding:8px}.preview-gemini-tools button{font-size:11px}}
 /* END PREVIEW VÒNG 2 */
+
+
+/* MONEY-MIND FLAT DESIGN REFERENCE: flat teal, solid cards, no shadow */
+:root{color-scheme:light;--bg:#f1f4f5;--card:#fff;--ink:#102b38;--sub:#697c84;--line:#e1e9e9;--blue:#009c99;--blue-soft:#e3f6f2;--mint:#e3f6ee;--green:#0f916b;--amber:#ac6c16;--amber-soft:#fff4dc}
+html,body{background:#f1f4f5;color:#102b38}
+.top-notice{background:#fff8e8;border-color:#f4e5c6;color:#856018}
+header{background:#fff;border:1px solid #e1e9e9;border-radius:0 0 19px 19px;box-shadow:none}
+.heading strong{color:#123846}
+.round{background:#e4f6f2;border-color:#d8eae7;color:#008583}
+nav{background:#fff;border:1px solid #e2eaea;box-shadow:none}
+nav button{background:#f3f8f7;color:#336568;border-color:#e3ebea;box-shadow:none;border-radius:14px}
+nav button.active{background:#009c99;color:#fff;border-color:#009c99;box-shadow:none}
+.summary .metric,.card,.chat .bubble{box-shadow:none}
+.metric{background:#fff;border:1px solid #e1eaea;border-top:3px solid #009c99}
+.metric:nth-child(2){background:#f2faf6;border-top-color:#0caf74;border-color:#d9ebe3}
+.metric:nth-child(3){background:#fff9eb;border-top-color:#ffc235;border-color:#f2e7c9}
+.metric strong,.amount,.header-line strong,.hero-name{color:#123a45}
+.card{background:#fff;border:1px solid #e2eaea}
+.contact.phone{background:#e4f7ed}.contact.address{background:#eaf7f8}
+.action{background:#009c99;color:#fff}.action.outline{background:#e9f6f3;color:#008582}
+.chip{background:#e4f5f2;color:#087b77}
+.bubble.me{background:#009c99;color:#fff}.bubble.ai{background:#eff3f3;color:#18333d}
+.preview-gemini-tools{background:#fff;border-color:#e1eaea}
+.preview-gemini-tools button{background:#edf7f5;border-color:#e0ece8;color:#087d7b}
+.preview-gemini-tools button:first-child{background:#009c99;border-color:#009c99;color:#fff}
+.preview-chat-footer{background:#fff;border-color:#e1eaea}
+.preview-blue-notice,.preview-cart-shortcut{background:#009c99}
+.preview-cart-shortcut b{background:#ffbf2b;color:#513a00}
+/* END MONEY-MIND FLAT DESIGN */
+
 </style>
 </head>
 <body>
@@ -119,7 +160,7 @@ nav button:focus-visible{outline:3px solid #efad4d;outline-offset:2px}
 <button class="active" data-view="ledger" aria-label="Sổ kế toán" title="Sổ kế toán" aria-controls="ledger"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h7a3 3 0 0 1 3 3V20a3 3 0 0 0-3-3H4z"/><path d="M20 4.5h-3a3 3 0 0 0-3 3V20a3 3 0 0 1 3-3h3z"/><path d="M7 9h3M7 12h3"/></svg><span>Kế toán</span></button>
 <button data-view="customer" aria-label="Khách hàng" title="Khách hàng" aria-controls="customer"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.2"/><path d="M3.5 20c0-4 2.5-6 6.5-6s6.5 2 6.5 6M17 5.5a3 3 0 0 1 0 5.8M18 14c2 .5 3 2.5 3 5"/></svg><span>Khách</span></button>
 <button data-view="invoices" aria-label="Hóa đơn" title="Hóa đơn" aria-controls="invoices"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span>Hóa đơn</span></button>
-<button data-view="debt" aria-label="Công nợ" title="Công nợ" aria-controls="debt"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2M7 3h11"/></svg><span>Công nợ</span></button>
+<button data-view="debt" aria-label="Công nợ" title="Công nợ" aria-controls="debt"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="19" height="11" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 9.5h1M17 14.5h1M12 9.5v5M13.5 10.7c-.6-.7-2.5-.5-2.5.5 0 1.2 3 .6 3 2 0 1-2.3 1.1-3 .2"/></svg><span>Công nợ</span></button>
 <button data-view="orders" aria-label="Lên đơn" title="Lên đơn" aria-controls="orders"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.3 11.5h10.5L20 8H6"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/><path d="M15.5 3v5M13 5.5h5"/></svg><span>Lên đơn</span></button>
 <button data-view="admin" aria-label="Quản trị V2" title="Quản trị V2" aria-controls="admin"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/></svg><span>Quản trị</span></button>
 <button data-view="chat" aria-label="Gemini" title="Gemini" aria-controls="chat"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z"/></svg><span>Gemini</span></button>
@@ -140,7 +181,36 @@ nav button:focus-visible{outline:3px solid #efad4d;outline-offset:2px}
 <section class="view" id="debt"><div class="summary"><div class="metric"><small>CHƯA THU</small><strong>2</strong></div><div class="metric"><small>TỔNG CÔNG NỢ</small><strong>865 k</strong></div><div class="metric"><small>SATORI</small><strong>Độc lập</strong></div></div><div class="card"><h2>Công nợ và đối soát</h2><p>Trạng thái khách thanh toán và Satori nhận thanh toán luôn tách biệt.</p><div class="status-row"><span class="status">Khách chưa trả</span><span class="status paid">Đã TT Satori</span></div></div></section>
 <section class="view" id="orders"><div class="card"><h2>Lên đơn hàng</h2><p class="note">Website thật cần giữ nguyên các trường: khách, số điện thoại, địa chỉ, sản phẩm, số lượng, giá bán, chiết khấu, VAT, phí giao hàng, ghi chú, xem trước PDF và xác nhận.</p><div class="grid"><label>Khách hàng<input class="search" value="Khách A · dữ liệu giả" readonly></label><label>Loại nước<input class="search" value="Satori 500ml (mẫu)" readonly></label><label>Số lượng<input class="search" value="5" readonly></label><label>Địa chỉ<input class="search" value="Địa chỉ thử nghiệm" readonly></label></div><button class="action" disabled title="Bản xem trước không tạo đơn">Tạo hóa đơn (khóa trong bản xem trước)</button></div></section>
 <section class="view" id="admin"><div class="card"><h2>Quản trị V2 · Tài khoản & đại lý</h2><div class="grid"><div class="card"><h3>Hồ sơ khách hàng</h3><p class="note">Đủ tên, điện thoại, địa chỉ giao hàng, tài khoản và lịch sử</p></div><div class="card"><h3>CTV và chiết khấu</h3><p class="note">Giữ quyền admin, chiết khấu, cấp link, địa chỉ, đối soát</p></div></div><div class="status-row"><span class="chip">Phân quyền</span><span class="chip">Bảng giá</span><span class="chip">Danh sách link</span></div><p class="note">Bản thử không đăng nhập và không tải dữ liệu khách thật.</p></div></section>
-<section class="view" id="chat"><div class="card"><h2>Gemini · iMessage Light</h2><div class="chat"><div class="bubble ai">Anh muốn đặt loại nước nào? Em có thể giúp kiểm tra sản phẩm và chuẩn bị đơn hàng.</div><div class="bubble me">Cho 5 thùng Satori 500ml.</div><div class="bubble ai">Em đã chuẩn bị bản xem trước. Hãy kiểm tra địa chỉ, số lượng và giá trước khi xác nhận.</div></div><p class="note">Chỉ là ví dụ giao diện, không phải Gemini thật đang hoạt động.</p></div></section>
+<section class="view" id="chat">
+<div class="card" style="padding:0;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:14px;background:linear-gradient(115deg,#dcecff,#f5faff);border-bottom:1px solid #d0e2f1">
+<div style="width:42px;height:42px;border-radius:14px;display:grid;place-items:center;color:white;background:linear-gradient(130deg,#0876de,#24a4c6);font-size:22px" aria-hidden="true">✦</div>
+<div style="flex:1"><h2 style="margin:0;color:#154473">Gemini · Minh Satori</h2><div class="note">Trợ lý đặt nước và xem hóa đơn</div></div>
+<span class="chip">UI DEMO</span></div>
+<div class="preview-gemini-tools" aria-label="Thanh công cụ Gemini minh họa">
+<button data-view="orders" type="button">▣ Sản phẩm</button>
+<button data-view="customer" type="button">⌖ Địa chỉ</button>
+<button data-view="chat" type="button">✦ Gợi ý</button>
+<button data-view="invoices" type="button">▤ Hóa đơn</button>
+<button type="button" id="previewNewCart" aria-label="Minh họa giỏ hàng mới">＋ Giỏ mới</button>
+</div>
+<div class="chat" style="padding:15px;background:linear-gradient(180deg,#edf6ff,#fff 230px)">
+<div class="bubble ai">Anh muốn đặt loại nước nào? Em có thể giúp kiểm tra sản phẩm và chuẩn bị đơn hàng.</div>
+<div class="bubble me">Cho 5 thùng Satori 500ml.</div>
+<div class="bubble ai">Đã nhận 5 thùng Satori 500ml. Em sẽ hiển thị bản tạm tính để kiểm tra trước khi xác nhận.</div>
+<div style="max-width:95%;width:360px;background:#fff;border:1px solid #cfe0f0;border-radius:16px;padding:13px;box-shadow:0 3px 15px #1e46690e">
+<div class="header-line"><strong style="font-size:14px;color:#155eaf">Hóa đơn nháp</strong><span class="chip">CHƯA GỬI</span></div>
+<div class="product">Satori 500ml <b>× 5 thùng</b></div>
+<div class="contact phone" style="margin-top:10px"><span style="font-size:20px">✓</span><div><div class="caption">GIỎ HÀNG</div><div class="value">5 thùng đã chọn</div></div></div>
+<div class="note">Giá, chiết khấu và tổng thanh toán chỉ được tính bởi backend thật khi kết nối; không tự tạo số tiền.</div>
+<div style="display:flex;gap:8px;justify-content:end;margin-top:10px"><span class="chip">Xem</span><span class="chip">Chỉnh đơn</span><span class="chip">Xác nhận</span></div>
+</div>
+</div>
+<div class="preview-chat-footer"><div class="preview-blue-notice">Kiểm tra giỏ và báo giá trước khi bấm Xác nhận.</div><button class="preview-cart-shortcut" type="button" id="previewCart" aria-label="Minh họa xem giỏ hàng">♧<b>1</b></button></div>
+<div style="padding:13px;border-top:1px solid #d3e3f0;background:#f4f9ff">
+<div style="display:flex;gap:8px;align-items:center"><div style="flex:1;border:1px solid #cbdced;border-radius:24px;background:white;color:#718298;padding:10px 15px;font-size:13px">Nhập yêu cầu cho Gemini (demo)</div><span style="display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#0875e6;color:white" aria-label="Nút gửi minh họa">➤</span></div>
+<p class="note">Đây chỉ là mô phỏng thiết kế; Gemini không chạy và không có lệnh đặt hàng thật trong bản xem trước.</p>
+</div></div></section>
 <section class="view" id="review"><div class="card"><h2>Checklist nghiệm thu giao diện</h2><p class="note">Tích các mục anh đã kiểm tra. Mỗi ô chỉ lưu trên màn hình này; không gửi thông tin lên server.</p><div id="reviewList"></div><button class="action" id="copyReview" style="margin-top:14px">Sao chép kết quả kiểm tra</button><p id="reviewMessage" class="note" aria-live="polite"></p></div><div class="card"><h3>Phạm vi kiểm thử chức năng thật — chưa bao gồm demo</h3><p class="note">Bước nghiệm thu thứ hai phải diễn ra trên staging kết nối sandbox đã sao lưu: CRUD khách hàng, đơn hàng, PDF, lọc hóa đơn, công nợ, thanh toán độc lập, OAuth, Drive, CTV, AI và đối soát. Không xác nhận production chỉ từ bản UI này.</p></div></section>
 </div>
 <dialog id="detailDialog"><div id="detailBody"></div><form method="dialog" style="text-align:right;margin-top:14px"><button class="action outline">Đóng</button></form></dialog>
@@ -173,9 +243,12 @@ function render(){
  $('invoiceItems').innerHTML=samples.slice(0,2).map(ledgerCard).join('');
 }
 render();$('searchInvoice').addEventListener('input',render);
+$('previewCart').addEventListener('click',()=>alert('Đây là bản mô phỏng giao diện; giỏ hàng thật nằm trong website V2 và Gemini.'));
+$('previewNewCart').addEventListener('click',()=>alert('Giỏ hàng mới: chỉ mô phỏng UI; không ghi đơn hoặc xóa dữ liệu.'));
+
 document.addEventListener('click',event=>{
  const nav=event.target.closest('button[data-view]');
- if(nav){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b===nav));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===nav.dataset.view));return;}
+ if(nav){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===nav.dataset.view));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===nav.dataset.view));return;}
  const detail=event.target.closest('button[data-detail]');
  if(detail){const s=samples.find(x=>x.id===detail.dataset.detail);if(!s)return;$('detailBody').innerHTML='<h2 style="margin-top:0">Hóa đơn #'+s.id+'</h2><div class="hero">'+icons.user+'<strong>'+escapeHTML(s.name)+'</strong></div>'+contact('phone','SỐ ĐIỆN THOẠI',s.phone,'phone')+contact('pin','ĐỊA CHỈ GIAO HÀNG',s.address,'address')+statuses(s)+'<p class="product">'+escapeHTML(s.goods)+'</p><strong>'+s.amount+'</strong><p class="note">Chỉ xem trước. Không có nút thanh toán thật.</p>';$('detailDialog').showModal();return;}
 });
