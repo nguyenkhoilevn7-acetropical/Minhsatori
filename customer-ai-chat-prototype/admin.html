@@ -224,6 +224,19 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 #workspace{padding-bottom:76px}
 @media(min-width:860px){.mm-admin-bottom{width:620px}}
 /* END MONEY-MIND ADMIN BOTTOM BAR */
+
+/* MoneyMind panel and tab motion. The fixed bar itself never moves. */
+@keyframes mm-admin-enter{from{opacity:.70;transform:translate3d(0,7px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+[data-tab-panel]:not([hidden]){animation:mm-admin-enter 190ms cubic-bezier(.22,.68,0,1) both}
+.mm-admin-tab{transition:color 170ms ease}
+.mm-admin-tab svg{transition:transform 160ms cubic-bezier(.22,.68,0,1)}
+.mm-admin-tab:active svg{transform:scale(.90)}
+.mm-admin-tab.active:not(.mm-admin-center) svg{transform:translateY(-2px)}
+@media(prefers-reduced-motion:reduce){
+ [data-tab-panel]:not([hidden]){animation:none!important}
+ .mm-admin-tab,.mm-admin-tab svg{transition:none!important}
+}
+/* END MONEY-MIND ADMIN MOTION */
 </style></head><body><main>
 <header class="admin-branded-header"><span class="production-tag">● PRODUCTION</span><span class="admin-brand"><img src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="46" height="46"><strong>MINH SATORI <small id="adminModeTag">• Đang kiểm tra</small></strong></span></header>
 <h1>Quản lý Minh Satori</h1>
