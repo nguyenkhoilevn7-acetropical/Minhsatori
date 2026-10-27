@@ -5300,7 +5300,7 @@
             return JSON.parse(JSON.stringify(order || currentModalViewedOrder || (lastSavedPdfOrder && lastSavedPdfFormSignature===pdfFormSignature()?lastSavedPdfOrder:null) || getCurrentInvoiceData()));
         }
         function invoicePdfKey(o) {
-            return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount]);
+            return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount,o.total]);
         }
         function pdfShareFilename(name) {
             const stem=String(name || 'Hoa_don.pdf').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/\.pdf$/i,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,120);

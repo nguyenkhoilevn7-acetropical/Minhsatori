@@ -11,7 +11,7 @@ var SatoriInvoicePdfArchive=(function(){
   function canonical(o){
     return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,
       o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,
-      o.vat,o.vatAmount,o.shippingAmount])+'\n'+suffix;
+      o.vat,o.vatAmount,o.shippingAmount,o.total])+'\n'+suffix;
   }
   function digest(bytes){
     return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
@@ -59,12 +59,18 @@ var SatoriInvoicePdfArchive=(function(){
       var existing=folder.getFilesByName(name);
       if(existing.hasNext()){
         var file=existing.next();
+        // A filename match is not proof of identical archived PDF bytes.
+        var storedBytes=file.getBlob().getBytes();
+        if(storedBytes.length!==bytes.length||digest(storedBytes)!==p.pdfSha256)
+          fail('PDF da luu khong khop SHA-256; can chu so huu doi soat.');
+        if(existing.hasNext())fail('Nhieu PDF trung ten phien ban; can doi soat.');
         return {fileId:file.getId(),invoiceNo:no,versionKey:p.versionKey,duplicate:true};
       }
       var saved=folder.createFile(Utilities.newBlob(bytes,'application/pdf',name));
       saved.setDescription(JSON.stringify({source:'Minh Satori website pdfmake',
         invoiceNo:no,total:total,version:version,createdAt:new Date().toISOString()}));
-      if(saved.getSize()!==bytes.length)fail('Drive chưa xác minh đúng kích thước PDF.');
+      if(saved.getSize()!==bytes.length||digest(saved.getBlob().getBytes())!==p.pdfSha256)
+         fail('Drive chưa xác minh đúng kích thước và SHA-256 PDF.');
       return {fileId:saved.getId(),invoiceNo:no,versionKey:p.versionKey,duplicate:false};
     } finally {lock.releaseLock();}
   }
