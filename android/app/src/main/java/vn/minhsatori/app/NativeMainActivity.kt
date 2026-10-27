@@ -1755,6 +1755,16 @@ class NativeMainActivity : AppCompatActivity() {
             Color.rgb(25, 104, 181))
         label(card, invoice.displayDate + "   •   " + invoice.status,
             11f, false, if (fromDebt) Color.rgb(181, 95, 6) else softInk, 8)
+        // These are distinct payment facts: show both on the invoice card,
+        // without deriving either from the legacy summary status.
+        label(card, if (invoice.customerHasPaid) "✓ Khách đã thanh toán"
+            else "● Khách chưa thanh toán", 12f, true,
+            if (invoice.customerHasPaid) Color.rgb(16, 122, 78)
+            else Color.rgb(171, 95, 18), 7)
+        label(card, if (invoice.satoriHasPaid) "✓ Đã thanh toán Satori"
+            else "○ Chưa thanh toán Satori", 11.5f, true,
+            if (invoice.satoriHasPaid) Color.rgb(16, 122, 78)
+            else softInk, 4)
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
