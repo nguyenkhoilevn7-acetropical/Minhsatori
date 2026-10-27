@@ -591,7 +591,7 @@ class NativeMainActivity : AppCompatActivity() {
         super.onConfigurationChanged(newConfig)
         // AndroidManifest handles screenSize changes to retain owner session,
         // but that requires an explicit responsive rerender after folding.
-        if (dashboardMode) render()
+        if (previousScrollView != null) render()
     }
 
     private fun render() {
