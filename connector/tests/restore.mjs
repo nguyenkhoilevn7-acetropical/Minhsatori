@@ -4,3 +4,37 @@ const p={expectedRevision:1,requestId:'restore-test-001',id:'fake-103',invoiceNo
 test('trash read is available without write scope, restore hidden when writes disabled',()=>{assert(tools().some(t=>t.name==='satori_trash_list'));assert(!tools().some(t=>t.name==='satori_restore_order'));assert(tools(env).some(t=>t.name==='satori_restore_order'));});
 test('restore signs exact UTF8 payload and never sends secret',async()=>{await callTool('satori_restore_order',p,env,async(u,o)=>{const b=JSON.parse(o.body);assert.equal(b.action,'orders.restore');assert.deepEqual(b.payload,p);assert.equal(b.signature,createHmac('sha256',env.SATORI_BOT_SECRET).update([b.keyId,b.timestamp,b.nonce,b.action,JSON.stringify(p)].join('\n'),'utf8').digest('hex'));assert(!o.body.includes(env.SATORI_BOT_SECRET));return Response.json({ok:true,revision:2,data:{restored:true}});});});
 test('restore missing confirmation or invoice identity rejected before HTTP',async()=>{let calls=0;for(const input of [{...p,confirmed:false},{...p,id:undefined},{...p,expectedRevision:undefined}])await assert.rejects(()=>callTool('satori_restore_order',input,env,async()=>{calls++;}));assert.equal(calls,0);});
+
+test('payment corrections expose only to write-enabled owner and sign each distinct HMAC action',async()=>{
+ const cases=[
+  ['satori_mark_customer_unpaid','payments.markCustomerUnpaid'],
+  ['satori_mark_satori_paid','payments.markSatoriPaid'],
+  ['satori_mark_satori_unpaid','payments.markSatoriUnpaid']
+ ];
+ const payload={...p,requestId:'fixture_payment_001',reason:'Owner verified Satori bank statement'};
+ for(const [name,action] of cases){
+  assert(!tools().some(t=>t.name===name),'fail closed with writes disabled');
+  assert(tools(env).some(t=>t.name===name),'available only with write configuration');
+  await callTool(name,payload,env,async(u,o)=>{
+   const b=JSON.parse(o.body);
+   assert.equal(b.action,action);assert.deepEqual(b.payload,payload);
+   assert.equal(b.signature,createHmac('sha256',env.SATORI_BOT_SECRET)
+    .update([b.keyId,b.timestamp,b.nonce,b.action,JSON.stringify(payload)].join('\\n'),'utf8').digest('hex'));
+   return Response.json({ok:true,revision:2,data:{auditRecorded:true}});
+  });
+ }
+});
+test('payment corrections reject missing identity, explicit approval and audit reason before HTTP',async()=>{
+ const payload={...p,requestId:'fixture_payment_002',reason:'Owner verified payment record'};
+ let calls=0;
+ for(const name of ['satori_mark_customer_unpaid','satori_mark_satori_paid','satori_mark_satori_unpaid']){
+  for(const changed of [
+   {...payload,reason:undefined},{...payload,confirmed:false},
+   {...payload,id:undefined},{...payload,expectedName:undefined},
+   {...payload,expectedTotal:undefined},{...payload,requestId:undefined}
+  ]){
+   await assert.rejects(()=>callTool(name,changed,env,async()=>{calls++}));
+  }
+ }
+ assert.equal(calls,0);
+});
