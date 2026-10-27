@@ -33,9 +33,11 @@ test('all functional website scripts are still present',()=>{
    'data-admin-tab="live"','id="newOrderCount"']){
    assert.ok(admin.includes(token),token);
  }
- assert.match(classic,/productionGeminiApp/);
- assert.match(classic,/quickCartCount/);
- assert.match(classic,/real-submitted-card/);
+ // These selectors are part of the production Gemini styling shell;
+ // the actual customer chat is dynamically mounted, not static body markup.
+ assert.match(read('classicGemini'),/productionGeminiApp/);
+ assert.match(read('classicGemini'),/quickCartCount/);
+ assert.match(read('classicGemini'),/real-submitted-card/);
 });
 test('all V2 and admin navigation buttons are icon-led with original tab IDs',()=>{
  const v2=read('v2'),admin=read('admin');
