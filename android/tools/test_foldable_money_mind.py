@@ -11,6 +11,7 @@ WORKFLOW = (ROOT.parent / ".github/workflows/android-native-ui-screenshot.yml").
 class FoldableMoneyMindContract(unittest.TestCase):
     def test_resize_live_preserves_accounting_session_and_tabs(self):
         self.assertIn('android:configChanges="screenSize|smallestScreenSize|orientation"', MANIFEST)
+        self.assertIn('android:windowSoftInputMode="adjustResize"', MANIFEST)
         self.assertIn('override fun onConfigurationChanged(newConfig: Configuration)', NATIVE)
         method = NATIVE.split('override fun onConfigurationChanged(newConfig: Configuration)', 1)[1].split(
             'private fun render()', 1)[0]
