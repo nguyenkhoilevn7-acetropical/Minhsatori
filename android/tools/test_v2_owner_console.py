@@ -89,6 +89,8 @@ class NativeV2OwnerConsole(unittest.TestCase):
         self.assertIn('fun invoiceDetails(bindingId: String)',API)
         self.assertIn('fun originalInvoicePdfBytes(invoiceId: String, expectedSha256: String)',API)
         self.assertIn("V2CanonicalInvoicePdf.download",API)
+        paths=(ROOT/"app/src/main/res/xml/file_paths.xml").read_text(encoding="utf-8")
+        self.assertIn('path="v2_verified_invoices/"',paths)
 
     def test_previous_main_ledger_still_available(self):
         for old in ('renderInvoices(content, data)','renderCustomers(content, data)',
