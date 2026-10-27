@@ -1746,10 +1746,12 @@ $('send').onclick=async()=>{
   await revealGeminiReply(reply,'✓ Đã thêm vào giỏ',typingStartedAt);
   await addChatOrderReceipt(selection).catch(()=>toast('Giỏ đã cập nhật; chưa hiển thị được phiếu tóm tắt.'));
  }catch(e){
-  await revealGeminiReply(reply,'Chưa xử lý xong: '+e.message+'. Nội dung vẫn ở ô chat. Kiểm tra giỏ trước khi thử lại.',typingStartedAt);
+  // Preserve the failed message for a safe manual retry; never clear the composer on error.
+  if(!input.value.trim())input.value=message;
+  await revealGeminiReply(reply,'Chưa xử lý xong: '+e.message+'. Nội dung đã được giữ lại trong ô chat. Kiểm tra giỏ trước khi gửi lại.',typingStartedAt);
   reply.classList.add('error');
  }finally{
-  busy=false;updateDeliveryGate();
+  busy=false;input.disabled=false;updateDeliveryGate();updateComposerAction();
   $('chatStatus').textContent='';$('chatView').setAttribute('aria-busy','false');
   input.blur();
  }
