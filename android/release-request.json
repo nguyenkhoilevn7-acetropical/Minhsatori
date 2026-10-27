@@ -1,22 +1,23 @@
 {
-  "purpose": "android-0.4.13-customer-identity-ui-samsung-acceptance",
+  "purpose": "android-0.4.14-owner-invoice-edit-independent-payment-buttons-samsung-ui-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.13",
-  "versionCode": 30,
-  "branch": "release/android-v0.4.13-customer-info-20261027",
+  "version": "0.4.14",
+  "versionCode": 31,
+  "branch": "release/android-v0.4.14-owner-edit-payment-20261027",
   "requestedOn": "2026-10-27",
   "sourcePRs": [
     187,
     192,
-    195
+    195,
+    200
   ],
-  "sourceCommit": "de3d4da6aab17f8eb8d16ae0ef40aec89b26d78f",
-  "scope": "Android UI-only: customer identity cards, colored phone/address rows, grouped profile and invoice details, plus the EXACT accounting ledger filter result cards shown in the owner's screenshot; include separate customer-paid and Satori-paid indicators. Maintain existing backend safeguards and owner-only payment controls. No production API, ledger, or database changes.",
+  "sourceCommit": "6e7d8152e1875d42fccc81b78c3319792f2a0e48",
+  "scope": "Android owner-only invoice edit and payment UI acceptance. Make edit visible on eligible unpaid standalone invoices; present independent customer payment/Satori settlement actions with accurate current statuses and explicit owner Mobile API permission diagnostics. Code includes guarded backend orders.create/orders.update proposal on draft feature branch; no GAS, DB or ledger production deployment.",
   "notes": [
-    "Use existing stable keystore from GitHub Secrets and pinned public release certificate. Preserve package vn.minhsatori.app and increase versionCode from 29 to 30 for direct Samsung update without uninstall.",
-    "Do not run real payment or invoice writes. Native customer cards are view-only improvements; backend payments still require separate Apps Script approval.",
-    "Release acceptance requires Python source tests, Android debug/release unit tests, signed release assemble, APK/cert/SHA-256 verification. UI screenshot emulator and manual Samsung test remain separate.",
-    "Keep signed 0.4.12 available for recovery. This acceptance release does not deploy Apps Script, Android Mobile API or PostgreSQL.",
-    "Acceptance revision includes the accounting Sổ kế toán filtered result list; prior 0.4.13 run on commit 6d5fc25 was incomplete UI scope and must not be distributed. Use final SHA of this request only."
+    "Use exact existing persistent signing keystore from GitHub Secrets, verify public certificate and SHA-256; increment stable package vn.minhsatori.app from signed v0.4.13 code 30 to v0.4.14 code 31; never uninstall.",
+    "Signed release APK is UI acceptance ONLY until Apps Script source/properties are independently backed up and owner-authorized Google OAuth/sandbox HTTP readback is verified. Do not assume edit/payment writes work on currently deployed backend.",
+    "Do not deploy production Apps Script, change state file ID, create/edit paid or linked CTV invoices, or perform real money status changes in acceptance testing.",
+    "Keep signed 0.4.13 for recovery. No production API, live V18.3 ledger, V2 customer service or PostgreSQL changes.",
+    "Requires Python UI contract tests, Android debug and release tests, signed assembleRelease/cert verification, emulator screenshots, owner Samsung UAT before production approval."
   ]
 }
