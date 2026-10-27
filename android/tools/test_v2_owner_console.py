@@ -68,6 +68,28 @@ class NativeV2OwnerConsole(unittest.TestCase):
         self.assertIn('Không thay đổi hoa hồng, hóa đơn đã phát hành', OWNER)
         self.assertIn('save("PATCH","/api/v2/admin/ctv-mode",data) { fetchCustomers() }', OWNER)
 
+    def test_original_pdf_download_contract_is_single_source_and_verified(self):
+        original=(ANDROID/"V2CanonicalInvoicePdf.kt").read_text(encoding="utf-8")
+        for required in (
+            "/api/v2/invoice-document?id=",
+            "application/pdf",
+            "X-Content-SHA256",
+            "MessageDigest.getInstance(\"SHA-256\")",
+            "computed == expectedSha256",
+            "connection.instanceFollowRedirects = false",
+            "MAX_BYTES",
+            "connection.disconnect()",
+            "context.cacheDir",
+        ):
+            self.assertIn(required,original)
+        self.assertNotIn("PdfDocument(",original)
+        self.assertNotIn("WebsiteInvoicePdf.render",original)
+        self.assertNotIn("SharedPreferences",original)
+        self.assertIn('fun invoiceHistory(): JSONObject',API)
+        self.assertIn('fun invoiceDetails(bindingId: String)',API)
+        self.assertIn('fun originalInvoicePdfBytes(invoiceId: String, expectedSha256: String)',API)
+        self.assertIn("V2CanonicalInvoicePdf.download",API)
+
     def test_previous_main_ledger_still_available(self):
         for old in ('renderInvoices(content, data)','renderCustomers(content, data)',
                     'renderDebt(content, data)','renderNewOrderInfo(content)'):
