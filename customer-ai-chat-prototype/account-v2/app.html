@@ -27,6 +27,19 @@ main{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .ai-avatar{width:43px;height:43px;display:grid;place-items:center;border-radius:16px;color:#fff;background:linear-gradient(145deg,#1b92e7,#16b7b1);font-size:24px}
 .intro h1{font-size:18px;margin:0}.intro p{margin:3px 0 0;color:var(--sub);font-size:11px}
 #chatView{flex:1 1 auto;min-height:0;overflow:hidden}
+/* Onboarding sits inside the scrollable transcript, not over the composer. */
+.chat-help{align-self:stretch;flex:none;border:1px solid #dce6f2;border-radius:17px;background:#fff;overflow:hidden;color:#23364d;font-size:14px;line-height:1.55}
+.chat-help>summary{cursor:pointer;list-style:none;padding:13px 14px;font-size:15px;font-weight:750;color:#1468b5;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.chat-help>summary::-webkit-details-marker{display:none}
+.chat-help>summary:after{content:'⌄';font-size:19px;line-height:1}
+.chat-help[open]>summary:after{content:'⌃'}
+.chat-help>summary:focus-visible{outline:2px solid #007aff;outline-offset:-3px}
+.chat-help-content{padding:0 14px 12px;border-top:1px solid #edf1f6}
+.chat-help-content p{margin:11px 0 5px}
+.chat-help-content ul,.chat-help-content ol{padding-left:21px;margin:5px 0 9px}
+.chat-help-content li{padding:2px 0;overflow-wrap:anywhere}
+.chat-help-content li::marker{color:#0879ed}
+.chat-help-content .chat-help-note{font-size:13px;color:#617082;margin:10px 0 0}
 #messages{flex:1 1 auto;height:auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:11px;padding:15px;background:linear-gradient(#f9fbff,#fff)}
 main>.view:not(.hidden){flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;align-content:start}
 #previewBanner{flex:0 0 auto}
@@ -54,7 +67,9 @@ main>.view:not(.hidden){flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-be
 .chat-order-open svg{width:19px;height:19px}
 .pick{align-self:flex-start;max-width:95%;padding:13px 14px;color:var(--iosIncomingInk);background:var(--iosIncoming);border:0;border-radius:17px}
 .pick button{margin-top:8px;width:100%;border:0;border-radius:12px;padding:10px;background:var(--iosOutgoing);color:#fff;font-weight:750}
-#message{color:var(--chatBlue);font-weight:560}#message::placeholder{color:#687d90;font-weight:400}
+/* Draft text stays neutral. Only a sent .bubble.me becomes iMessage blue. */
+#message{color:#1c1c1e;font-weight:450;caret-color:#007aff;-webkit-text-fill-color:#1c1c1e}
+#message::placeholder{color:#687d90;font-weight:400;-webkit-text-fill-color:#687d90}
 .chat-status{min-height:20px;padding:1px 15px;color:var(--chatGreen);font-size:12px;font-weight:650}
 .chat-status:empty{display:none}
 .chat-actions{border-bottom:1px solid var(--edge);padding:6px 14px;background:#fafdff;color:var(--sub);font-size:12px}
@@ -77,13 +92,13 @@ main>.view:not(.hidden){flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-be
 .agent-address-menu[open]>summary{background:#e0ecff}
 .agent-avatar svg{width:20px;height:20px}.agent-address-menu>summary svg{width:21px;height:21px}
 .agent-address-popover{position:absolute;z-index:15;top:45px;right:0;width:min(304px,calc(100vw - 28px));max-height:48dvh;overflow-y:auto;padding:10px;background:white;border:1px solid #e5e5ea;border-radius:17px;box-shadow:0 10px 28px #1c31462e}
-.agent-address-heading{font-size:12px;font-weight:700;color:#6c7380;margin:3px 7px 8px}
-.agent-address-choice{display:flex;align-items:center;gap:9px;width:100%;min-height:49px;padding:8px;border:0;border-radius:11px;text-align:left;background:#fff;color:#1c1c1e}
+.agent-address-choice{display:flex;align-items:center;width:100%;min-height:72px;padding:11px 12px;border:0;border-radius:12px;text-align:left;background:#fff;color:#1c1c1e;cursor:pointer}
 .agent-address-choice[aria-pressed="true"]{background:#e8f2ff}
-.agent-address-choice .pin{font-size:23px;flex:none;color:#007aff}
-.agent-address-choice .address-meta{display:block;flex:1;min-width:0}
-.agent-address-choice .address-title{display:block;font-size:13px;font-weight:700}
-.agent-address-choice .address-subtitle{display:block;font-size:11px;color:#6e7782;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agent-address-choice:focus-visible{outline:2px solid #007aff;outline-offset:2px}
+.agent-address-choice .address-meta{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.agent-address-choice .address-title{display:block;font-size:16px;line-height:1.35;font-weight:750;overflow-wrap:anywhere}
+.agent-address-choice .address-subtitle{display:block;font-size:15px;line-height:1.45;color:#465665;white-space:normal;overflow-wrap:anywhere}
+.agent-address-choice .address-phone{display:block;font-size:14px;line-height:1.45;color:#596b7d;overflow-wrap:anywhere}
 .agent-address-manage{width:100%;min-height:38px;border:0;border-radius:10px;background:#f2f2f7;color:#007aff;font-weight:700;margin-top:8px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .saved-address{border-bottom:1px solid #f0f0f4}
@@ -130,9 +145,8 @@ header .satori-logo{width:31px;height:31px}
 .delivery-dialog .agent-address-menu>summary{width:auto;min-height:39px;border-radius:10px;display:flex;align-items:center;gap:8px;justify-content:flex-start;padding:8px;font-size:13px;font-weight:700}
 .delivery-dialog .agent-address-menu>summary svg{width:20px;height:20px}
 .delivery-dialog .agent-address-popover{position:static;top:auto;right:auto;width:100%;max-height:none;overflow:visible;padding:5px 0 0;background:transparent;border:0;border-radius:0;box-shadow:none}
-.delivery-dialog .agent-address-heading{font-size:11px;color:#7a8590}
-.delivery-dialog .agent-address-choice .pin svg,.saved-address .address-round-icon svg{width:21px;height:21px}
-.delivery-dialog .agent-address-choice{min-height:52px;border-bottom:1px solid #f2f3f6;border-radius:9px}
+.delivery-dialog .saved-address .address-round-icon svg{width:21px;height:21px}
+.delivery-dialog .agent-address-choice{min-height:72px;border-bottom:1px solid #eceff3;border-radius:10px}
 .invoice-masthead{display:flex;align-items:center;gap:9px;min-width:0}
 .invoice-masthead .satori-logo{height:35px;width:35px;border-radius:10px}
 .invoice-masthead h2{margin:0;font-size:16px}
@@ -282,7 +296,7 @@ header .satori-logo{width:31px;height:31px}
 <label class="delivery-profile-label" for="quickAgentProfile">Hồ sơ khách hàng / đại lý / CTV</label>
 <select id="quickAgentProfile" class="delivery-profile-select" aria-label="Chọn khách hàng hoặc đại lý"></select>
 <details id="agentAddressMenu" class="agent-address-menu" open><summary title="Chọn điểm giao hàng" aria-label="Chọn địa chỉ giao hàng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Điểm giao đã lưu</span></summary>
-<div class="agent-address-popover"><div class="agent-address-heading">Địa chỉ đã lưu · ưu tiên địa chỉ từng đặt</div><div id="agentAddressChoices"></div><button id="agentAddressManage" class="agent-address-manage" type="button">+ Thêm hoặc chỉnh sửa địa chỉ</button></div></details>
+<div class="agent-address-popover"><div id="agentAddressChoices" aria-label="Danh sách địa chỉ giao hàng"></div><button id="agentAddressManage" class="agent-address-manage" type="button">+ Thêm hoặc chỉnh sửa địa chỉ</button></div></details>
 <span id="agentAddressHint" class="sr-only" role="status">Chưa chọn địa chỉ</span>
 </dialog>
 <main>
@@ -294,7 +308,24 @@ header .satori-logo{width:31px;height:31px}
 <section id="chatView" class="hidden" style="display:flex;flex-direction:column;flex:1;min-height:0">
 <div class="intro"><div class="ai-avatar">✦</div><div><h1>Trợ lý Gemini</h1><p id="chatProviderStatus">Đang kiểm tra kết nối AI…</p></div></div>
 <div id="catalogueNotice" hidden role="status" class="catalogue-notice">⚠️ Chưa đồng bộ sản phẩm chính thức. Chưa thể thêm hàng vào giỏ V2.</div>
-<div id="messages" role="log" aria-live="polite"></div>
+<div id="messages" role="log" aria-live="polite"><details id="chatHelp" class="chat-help" open>
+<summary>Hướng dẫn đặt hàng với Gemini</summary>
+<div class="chat-help-content">
+<p><strong>Trợ lý có thể giúp:</strong></p>
+<ul>
+<li>Tìm sản phẩm theo tên hoặc dung tích.</li>
+<li>Thêm nhiều mặt hàng vào cùng một giỏ hàng.</li>
+<li>Kiểm tra số lượng và giá đã xác minh trong giỏ trước khi xác nhận.</li>
+</ul>
+<p><strong>Ví dụ cách nhắn:</strong></p>
+<ol>
+<li><span>5 thùng Satori 500ml</span></li>
+<li><span>Cho thêm 2 thùng ổi hồng</span></li>
+<li><span>Satori có nước 500ml không?</span></li>
+</ol>
+<p class="chat-help-note">Chạm biểu tượng giỏ hàng để xem hoặc xác nhận đơn. Chỉ thêm hàng khi danh mục chính thức đã đồng bộ.</p>
+</div>
+</details></div>
 <button id="deliveryPrompt" class="delivery-prompt" type="button" hidden>Chọn điểm giao để bắt đầu</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
 <div class="composer"><textarea id="message" rows="1" disabled placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" type="button" class="send composer-action" aria-label="Mở giỏ hàng" title="Mở giỏ hàng"><svg class="action-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M2 3h2l2.3 12.5a2 2 0 0 0 2 1.6H20a2 2 0 0 0 2-1.6L23 7H5"/></svg><svg class="action-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16"/><path d="m13 5 7 7-7 7"/></svg><b id="cartCount" class="composer-cart-count">0</b></button></div>
 </section>
@@ -1306,11 +1337,15 @@ function renderAddresses(){
  for(const address of active){
   const button=node('button',undefined,'agent-address-choice');button.type='button';
   button.setAttribute('aria-pressed',String(address.id===$('location').value));
-  const pin=node('span',undefined,'pin'),meta=node('span',undefined,'address-meta');
-  pin.append($('agentAddressMenu').querySelector('summary svg').cloneNode(true));
-  meta.append(node('span',address.label+(address.lastOrderedAt?' · Đã đặt gần đây':''),'address-title'),
-   node('span',address.address,'address-subtitle'));
-  button.append(pin,meta);
+  // Each saved address is text-only: no repeated map pins or extra metadata.
+  // The group heading already carries the location icon.
+  const meta=node('span',undefined,'address-meta');
+  meta.append(node('span',address.label,'address-title'),
+   node('span',address.address,'address-subtitle'),
+   node('span',address.recipientPhone||'Chưa lưu số điện thoại','address-phone'));
+  button.append(meta);
+  button.setAttribute('aria-label',
+   [address.label,address.address,address.recipientPhone||'Chưa lưu số điện thoại'].join(', '));
   button.onclick=()=>{
    deliverySelectionProfileId=$('profile').value;
    $('location').value=address.id;
@@ -1476,7 +1511,8 @@ async function refresh(){
  renderProducts();await changeProfile();
   view('chat');
   if(!selectedDeliveryAddress())openDeliveryDialog();
- if(!$('messages').children.length)bubble('Xin chào! Anh/chị nhắn sản phẩm và số lượng. Em sẽ giữ mọi mặt hàng trong một giỏ hàng chung.','ai');
+ // The inline help card is the initial conversation guide. It remains
+ // available via its heading if the customer needs to see examples again.
 }
 $('saveUserAddress').onclick=async()=>{
  try{
@@ -1643,6 +1679,7 @@ $('send').onclick=async()=>{
  if(!requireDeliverySelection())return;
  if(message.length>500){toast('Tin nhắn tối đa 500 ký tự');return}
  input.blur(); // Never reopen the mobile keyboard after async chat completion.
+ if($('chatHelp'))$('chatHelp').open=false;
  busy=true;$('send').disabled=true;input.disabled=true;
  $('chatStatus').textContent='';
  $('chatView').setAttribute('aria-busy','true');

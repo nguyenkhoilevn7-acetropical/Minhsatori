@@ -30,7 +30,9 @@ test('iMessage-style customer blue/white and Gemini gray/black are readable and 
  assert.match(html,/--iosIncomingInk:#1c1c1e/);
  assert.match(html,/\.bubble\.me\{[^}]*align-self:flex-end;color:#fff;background:var\(--iosOutgoing\)/);
  assert.match(html,/\.bubble\.ai\{[^}]*align-self:flex-start;color:var\(--iosIncomingInk\);background:var\(--iosIncoming\)/);
- assert.match(html,/#message\{color:var\(--chatBlue\)/);
+ // Draft text is neutral; the blue background belongs only to the sent bubble.
+ assert.match(html,/#message\{color:#1c1c1e;font-weight:450;caret-color:#007aff/);
+ assert.doesNotMatch(html,/#message\{color:var\(--chatBlue\)/);
  assert.match(html,/\.pick\{[^}]*color:var\(--iosIncomingInk\);background:var\(--iosIncoming\)/);
 });
 test('one conversation can parse two separate fake items',()=>{
