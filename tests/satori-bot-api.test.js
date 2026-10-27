@@ -202,13 +202,14 @@ assert.equal(readRows()[1].customerPaidAt,'2026-10-20T01:00:00.000Z','another in
 assert.equal(call('orders.list',{query:'701'}).data.orders.filter(x=>x.id===501)[0].satoriPaid,true);
 assert.equal(call('orders.list',{query:'701'}).data.orders.filter(x=>x.id===501)[0].customerPaid,false);
 correctionWrites=writes;
-let idempotent=change('payments.markSatoriPaid',{expectedRevision:51});
+let idempotent=change('payments.markSatoriPaid',{expectedRevision:50});
 assert.equal(idempotent.data.alreadyApplied,true);
 assert.equal(writes,correctionWrites,'repeated exact requestId does not write');
 assert.equal(change('payments.markSatoriUnpaid',{requestId:'test_correction_001'}).error.code,'REQUEST_ID_CONFLICT');
 
 let customer=call('payments.markCustomerPaid',{expectedRevision:51,invoiceNo:701,id:501,
- expectedName:'Fixture Branch A',expectedTotal:125000,confirmed:true,amount:125000});
+ expectedName:'Fixture Branch A',expectedTotal:125000,confirmed:true,amount:125000,
+ receiptUrl:'https://drive.google.com/file/d/1kZZZZZZZZZZZZZZZZZZZZ/view'});
 assert.equal(customer.ok,true);
 assert.equal(customer.data.order.status,'Đã TT Satori','customer receipt must not clear supplier settlement');
 assert.equal(readRows()[0].customerPaidAt!==undefined,true);
@@ -221,6 +222,9 @@ assert.equal(reverseCustomer.data.satoriPaid,true);
 assert.equal(readRows()[0].status,'Đã TT Satori');
 assert.equal(readRows()[0].customerPaidAt,null);
 assert.equal(readRows()[0].paymentAudit[1].previousCustomerPaidAt!==null,true);
+assert.equal(readRows()[0].paymentAudit[1].previousCustomerPaymentReceiptUrl,
+ 'https://drive.google.com/file/d/1kZZZZZZZZZZZZZZZZZZZZ/view');
+assert.equal(readRows()[0].customerPaymentReceiptUrl,null,'invalidated customer receipt must not appear as active proof');
 let undoSupplier=change('payments.markSatoriUnpaid',{requestId:'test_correction_003'});
 assert.equal(undoSupplier.ok,true);
 assert.equal(undoSupplier.data.customerPaid,false);
