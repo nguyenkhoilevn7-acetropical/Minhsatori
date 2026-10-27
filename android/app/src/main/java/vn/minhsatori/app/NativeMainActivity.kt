@@ -1393,7 +1393,8 @@ class NativeMainActivity : AppCompatActivity() {
             row.addView(icon, LinearLayout.LayoutParams(dp(37), dp(37)).apply {
                 marginEnd = dp(12)
             })
-            label(row, text, 13f, true, ink)
+            label(row, text, 13f, true, ink).layoutParams =
+                LinearLayout.LayoutParams(0, -2, 1f)
             val chevron = TextView(this).apply {
                 this.text = "›"
                 textSize = 22f
