@@ -1,0 +1,24 @@
+name: Payment cross-adapter A-G (synthetic only)
+on:
+  pull_request:
+    paths:
+      - 'connector/tests/payment-cross-adapter.mjs'
+      - 'connector/lib/satori.mjs'
+      - 'api/BotApi.gs'
+      - 'api/AndroidOwnerMobileApi.gs'
+      - 'accounting-core.js'
+      - '.github/workflows/payment-cross-adapter.yml'
+permissions:
+  contents: read
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test connector/tests/payment-cross-adapter.mjs
