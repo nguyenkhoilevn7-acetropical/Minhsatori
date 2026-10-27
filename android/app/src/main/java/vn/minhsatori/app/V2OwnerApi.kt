@@ -43,6 +43,24 @@ internal class V2OwnerApi {
         }
     }
 
+    /** History is account-scoped by V2 backend; never match invoices by phone. */
+    fun invoiceHistory(): JSONObject = request("GET", "/api/v2/invoices")
+
+    fun invoiceDetails(bindingId: String): JSONObject {
+        val id = runCatching { java.util.UUID.fromString(bindingId).toString() }.getOrNull()
+            ?: throw IllegalArgumentException("Mã liên kết hóa đơn không hợp lệ")
+        require(bindingId.equals(id, true))
+        return request("GET", "/api/v2/invoices?id=$id")
+    }
+
+    /** Original PDF bytes only: no Android invoice renderer for V2. */
+    fun originalInvoicePdfBytes(invoiceId: String, expectedSha256: String): ByteArray {
+        if (!authenticated) throw SecurityException("Chưa đăng nhập V2")
+        return V2CanonicalInvoicePdf.download(invoiceId, expectedSha256,
+            session ?: throw SecurityException("Thiếu phiên V2"),
+            csrf ?: throw SecurityException("Thiếu xác minh V2"))
+    }
+
     fun request(method: String, path: String, data: JSONObject? = null,
                 requiresAuth: Boolean = true): JSONObject {
         require(method in setOf("GET", "POST", "PATCH", "PUT")) { "Unsupported HTTP method" }
