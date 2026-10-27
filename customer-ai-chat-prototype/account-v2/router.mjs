@@ -7,7 +7,7 @@ import {validGoogleClaims} from './google-claims.mjs';
 import {reconcileSandbox,sandboxHistory} from './sandbox-ledger.mjs';
 import {inferV2Order,reserveGeminiBudget} from './gemini-order.mjs';
 import {bindInvoice,invoiceDetail,invoiceIndex} from './invoice-history.mjs';
-import {invoiceChatReply} from './invoice-chat-command.mjs';
+import {invoiceChatReply,parseInvoiceCommand} from './invoice-chat-command.mjs';
 import {readSharedSandboxPdf,sendSharedPdf,SHARED_SANDBOX_PDF_PATH} from './invoice-document.mjs';
 import {postgresConfig} from './postgres-config.mjs';
 import {isDeepStrictEqual} from 'node:util';
@@ -574,7 +574,9 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/interpret'&&req.method==='POST'){
    const input=await json(req);
-   await assertSelectedDelivery(pool,actor,input);
+   // Read-only invoice history can be accessed without selecting a delivery address.
+   // Only verified invoice intent is exempt; shopping intents still require delivery.
+   if(!parseInvoiceCommand(input.message))await assertSelectedDelivery(pool,actor,input);
    const result=await interpret(pool,input,actor);send(res,200,{ok:true,...result});return true;
   }
   if(pathname==='/api/v2/cart-pricing'&&req.method==='GET'){
