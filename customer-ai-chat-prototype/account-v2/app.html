@@ -375,10 +375,16 @@ header .satori-logo{width:31px;height:31px}
 <p class="muted">PDF chính thức vẫn được xuất từ website Minh Satori, không tạo bản PDF thay thế từ dữ liệu thử.</p>
 <a class="original-invoice-link" href="https://nguyenkhoilevn7-acetropical.github.io/Minhsatori/" rel="noopener noreferrer" target="_blank">Mở website Minh Satori để xem / xuất PDF chính thức</a>
 <hr class="invoice-divider"></section>
+<h3 class="invoice-section-subtitle">Lịch sử hóa đơn của tôi</h3>
+<p class="notice">Chỉ hiển thị hóa đơn gốc đã được Admin xác minh và liên kết đúng tài khoản. PDF chưa được đối soát sẽ không có nút tải; không tự tạo hóa đơn thay thế.</p>
+<div id="customerInvoiceStatus" class="muted" role="status" aria-live="polite"></div>
+<div id="customerInvoiceRows" class="muted"></div>
+<div id="customerInvoiceDetail" class="muted"></div>
+<hr class="invoice-divider">
 <h3 class="invoice-section-subtitle">Đơn hàng V2</h3>
 <p class="notice">Chỉ hiển thị đơn V2 gắn với tài khoản Google đã xác minh. Hóa đơn cũ chưa được đối chiếu định danh, không tự động gộp. Đơn chưa được sổ Satori xác nhận không hiển thị như đã tạo hóa đơn.</p>
 <div id="orderRows" class="muted"></div></div></section>
-<section id="accountView" class="view hidden"><div class="screen-actions"><button class="screen-close back-to-chat" type="button" aria-label="Đóng màn hình và quay lại chat" title="Trở về chat">×</button></div><div class="panel"><h2>Tài khoản</h2><div id="accountDetails"></div></div>
+<section id="accountView" class="view hidden"><div class="screen-actions"><button class="screen-close back-to-chat" type="button" aria-label="Đóng màn hình và quay lại chat" title="Trở về chat">×</button></div><div class="panel"><h2>Tài khoản</h2><div id="accountDetails"></div><button id="accountInvoiceHistory" type="button" class="btn" aria-label="Xem lịch sử hóa đơn đã xác minh">🧾 Lịch sử hóa đơn</button></div>
 <section id="registrationBox" class="panel" hidden>
 <h2>Đăng ký tài khoản Minh Satori V2</h2>
 <p class="notice">Thông tin chỉ lưu trong backend mới, chờ Admin duyệt. Đăng nhập bằng Google; hệ thống không hỏi hoặc lưu mật khẩu Google.</p>
@@ -838,6 +844,7 @@ function view(name){
  if(name==='chat'&&!selectedDeliveryAddress())requestAnimationFrame(openDeliveryDialog);
  if(name==='orders'){
   loadOrders().catch(e=>toast(e.message));
+  loadCustomerInvoiceHistory().catch(()=>{$('customerInvoiceStatus').textContent='Chưa đọc được lịch sử hóa đơn đã xác minh.'});
   // Owner's invoice tools belong only to the installed Minh Satori back office.
  }
 }
@@ -1410,6 +1417,83 @@ $('quickAgentProfile').onchange=async()=>{
  await changeProfile();
  if(!selectedDeliveryAddress())openDeliveryDialog();
 };
+
+async function loadCustomerInvoiceHistory(before=null,append=false){
+ const status=$('customerInvoiceStatus'),rows=$('customerInvoiceRows');
+ status.textContent='Đang tải lịch sử hóa đơn đã xác minh…';
+ if(!append){rows.replaceChildren();$('customerInvoiceDetail').replaceChildren()}
+ const query=before?'?before='+encodeURIComponent(before):'';
+ let data;
+ try{data=await call('/api/v2/invoices'+query,undefined,'GET')}
+ catch(e){
+  status.textContent='Lịch sử hóa đơn chưa được kết nối hoặc tài khoản chưa được xác minh.';
+  return;
+ }
+ for(const item of data.invoices||[]){
+  if(typeof item.id!=='string')continue;
+  const row=node('div',undefined,'invoice-ledger-row'),info=node('div');
+  info.append(node('strong','#'+String(item.invoiceNo||'')),
+   node('small','Đã liên kết · '+String(item.linkedAt||'').slice(0,10),'muted'));
+  const button=node('button','Chi tiết','btn');
+  button.type='button';
+  button.onclick=()=>loadCustomerInvoiceDetail(item.id).catch(()=>toast('Chưa xác minh được chi tiết hóa đơn'));
+  row.append(info,button);rows.append(row);
+ }
+ if(!append&&!(data.invoices||[]).length)
+  rows.append(node('p','Chưa có hóa đơn gốc nào được liên kết với tài khoản này.','muted'));
+ status.textContent=(data.invoices||[]).length?'Dữ liệu từ các hóa đơn có liên kết định danh chính xác.':'';
+ if(data.nextBefore){
+  const more=node('button','Xem thêm hóa đơn','btn');
+  more.type='button';more.onclick=()=>{more.remove();loadCustomerInvoiceHistory(String(data.nextBefore),true)};
+  rows.append(more);
+ }
+}
+async function downloadVerifiedCustomerInvoice(invoice){
+ const pdf=invoice?.pdf,path=pdf?.downloadPath;
+ if(pdf?.available!==true||typeof path!=='string'||
+    !/^\/api\/v2\/invoice-document\?id=[0-9a-fA-F-]{36}$/.test(path)||
+    !/^[a-f0-9]{64}$/.test(pdf.sha256)){
+  throw Error('PDF gốc chưa được xác minh; không thể tải bản thay thế');
+ }
+ const response=await fetch(path,{method:'GET',credentials:'same-origin',cache:'no-store'});
+ if(!response.ok)throw Error('PDF chưa sẵn sàng hoặc quyền truy cập đã thay đổi');
+ if(response.headers.get('content-type')?.split(';')[0]!=='application/pdf'||
+    response.headers.get('x-content-sha256')!==pdf.sha256)
+  throw Error('Thông tin PDF không trùng với hóa đơn gốc');
+ const bytes=await response.arrayBuffer();
+ if(bytes.byteLength<6||bytes.byteLength>10*1024*1024||
+   new TextDecoder().decode(bytes.slice(0,5))!=='%PDF-')throw Error('Tệp PDF không hợp lệ');
+ const computed=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)))
+  .map(x=>x.toString(16).padStart(2,'0')).join('');
+ if(computed!==pdf.sha256)throw Error('PDF đã thay đổi; từ chối hiển thị');
+ const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+ const link=document.createElement('a');
+ link.href=url;link.download='MinhSatori-'+String(invoice.invoiceNo)+'.pdf';
+ document.body.append(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+async function loadCustomerInvoiceDetail(id){
+ const detail=$('customerInvoiceDetail');
+ detail.replaceChildren(node('p','Đang xác minh hóa đơn…','muted'));
+ const invoice=await call('/api/v2/invoices?id='+encodeURIComponent(id),undefined,'GET');
+ if(invoice.id!==id)throw Error('INVOICE_IDENTITY_MISMATCH');
+ detail.replaceChildren();
+ detail.append(node('h3','Hóa đơn #'+String(invoice.invoiceNo)),
+  node('p',String(invoice.date||'')+' · '+String(invoice.customerName||'')),
+  node('p','Tổng tiền: '+money(invoice.totalVnd)),
+  node('p','Thanh toán: '+String(invoice.status||'Chưa đối soát')),
+  node('p',invoice.dueVnd===null?'Công nợ: chưa có số liệu được xác minh':
+   'Công nợ: '+money(invoice.dueVnd)));
+ if(invoice.pdf?.available===true&&invoice.pdf.downloadPath){
+  const download=node('button','⬇ PDF gốc','btn');
+  download.type='button';
+  download.onclick=()=>downloadVerifiedCustomerInvoice(invoice).catch(e=>toast(e.message));
+  detail.append(download);
+ }else{
+  detail.append(node('p','PDF gốc chưa có hoặc chưa được đối soát. Không phát sinh PDF giả.','muted'));
+ }
+}
+
 async function loadOrders(){
  const data=await call('/api/v2/orders',undefined,'GET');
  $('orderRows').replaceChildren();
@@ -1426,7 +1510,11 @@ async function loadOrders(){
  if(!(data.orders||[]).length)$('orderRows').append(node('p',
   'Chưa có đơn V2 được xác nhận. Hệ thống không tự hiển thị hóa đơn cũ theo số điện thoại.','muted'));
 }
-$('refreshOrders').onclick=()=>loadOrders().catch(e=>toast(e.message));
+$('refreshOrders').onclick=()=>{
+ loadOrders().catch(e=>toast(e.message));
+ loadCustomerInvoiceHistory().catch(()=>{$('customerInvoiceStatus').textContent='Chưa đọc được lịch sử hóa đơn đã xác minh.'});
+};
+$('accountInvoiceHistory').onclick=()=>view('orders');
 const originalInvoiceLogo=document.querySelector('.brand .satori-logo');
 if(originalInvoiceLogo)$('invoiceMasthead').prepend(originalInvoiceLogo.cloneNode(true));
 function currentInvoiceMonth(){
@@ -1735,6 +1823,26 @@ $('send').onclick=async()=>{
    rememberVerifiedCatalogueProduct(result,$('profile').value,destination.id);
    input.value='';updateComposerAction();
    await revealGeminiReply(reply,result.message||'Vui lòng cho biết sản phẩm và số lượng.',typingStartedAt);
+   // The in-app Gemini chat links to the same server PDF bytes as web and Android.
+   // It never generates a document from the AI response.
+   const ref=result.invoiceReference;
+   if(ref&&typeof ref.id==='string'&&/^[a-f0-9-]{36}$/i.test(ref.id)){
+    const open=node('button','🧾 Xem hóa đơn','btn');
+    open.type='button';
+    open.onclick=async()=>{
+     try{
+      const invoice=await call('/api/v2/invoices?id='+encodeURIComponent(ref.id),undefined,'GET');
+      if(invoice.id!==ref.id)throw Error('INVOICE_IDENTITY_MISMATCH');
+      if(invoice.pdf?.available===true)await downloadVerifiedCustomerInvoice(invoice);
+      else{view('orders');await loadCustomerInvoiceDetail(ref.id)}
+     }catch(e){toast(e.message)}
+    };
+    $('messages').append(open);
+   }else if(Array.isArray(result.invoiceReferences)){
+    const open=node('button','🧾 Lịch sử hóa đơn','btn');
+    open.type='button';open.onclick=()=>view('orders');
+    $('messages').append(open);
+   }
    return;
   }
   // Validate exact quantities, then update the ONE shared cart in one atomic PUT.
