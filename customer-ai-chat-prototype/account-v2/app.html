@@ -1823,6 +1823,26 @@ $('send').onclick=async()=>{
    rememberVerifiedCatalogueProduct(result,$('profile').value,destination.id);
    input.value='';updateComposerAction();
    await revealGeminiReply(reply,result.message||'Vui lòng cho biết sản phẩm và số lượng.',typingStartedAt);
+   // The in-app Gemini chat links to the same server PDF bytes as web and Android.
+   // It never generates a document from the AI response.
+   const ref=result.invoiceReference;
+   if(ref&&typeof ref.id==='string'&&/^[a-f0-9-]{36}$/i.test(ref.id)){
+    const open=node('button','🧾 Xem hóa đơn','btn');
+    open.type='button';
+    open.onclick=async()=>{
+     try{
+      const invoice=await call('/api/v2/invoices?id='+encodeURIComponent(ref.id),undefined,'GET');
+      if(invoice.id!==ref.id)throw Error('INVOICE_IDENTITY_MISMATCH');
+      if(invoice.pdf?.available===true)await downloadVerifiedCustomerInvoice(invoice);
+      else{view('orders');await loadCustomerInvoiceDetail(ref.id)}
+     }catch(e){toast(e.message)}
+    };
+    $('messages').append(open);
+   }else if(Array.isArray(result.invoiceReferences)){
+    const open=node('button','🧾 Lịch sử hóa đơn','btn');
+    open.type='button';open.onclick=()=>view('orders');
+    $('messages').append(open);
+   }
    return;
   }
   // Validate exact quantities, then update the ONE shared cart in one atomic PUT.
