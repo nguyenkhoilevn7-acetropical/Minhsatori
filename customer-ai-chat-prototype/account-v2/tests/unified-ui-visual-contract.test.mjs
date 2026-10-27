@@ -52,3 +52,21 @@ test('standalone visual preview is synthetic and cannot write real invoices',()=
  assert.doesNotMatch(demo,/XMLHttpRequest|sendBeacon|api\/v2\/confirm/i);
  assert.match(demo,/<\/body><\/html>/);
 });
+
+
+test('icon-first review tabs preserve existing screen IDs and accessible names',()=>{
+ const nav=demo.match(/<nav aria-label="Xem trước các khu vực">([\s\S]*?)<\/nav>/)?.[1];
+ assert.ok(nav, 'navigation must exist');
+ assert.equal((nav.match(/<button /g)||[]).length,8);
+ assert.equal((nav.match(/<svg /g)||[]).length,8);
+ for(const id of ['ledger','customer','invoices','debt','orders','admin','chat','review']){
+  assert.ok(nav.includes('data-view="'+id+'"'),'must retain '+id+' route');
+  assert.ok(nav.includes('aria-controls="'+id+'"'),'must keep accessible '+id+' panel');
+  assert.ok(demo.includes('id="'+id+'"'),'tab panel must remain '+id);
+ }
+ assert.match(nav, /<span>Kế toán<\/span>/);
+ assert.match(nav, /<span>Quản trị<\/span>/);
+ assert.match(demo, /nav button\.active\{background:linear-gradient/);
+ assert.match(demo, /\.metric:nth-child\(2\)/);
+ assert.match(demo, /\/\* END PREVIEW VÒNG 2 \*\//);
+});
