@@ -41,6 +41,19 @@ class CustomerCardContract(unittest.TestCase):
         self.assertIn('"THÔNG TIN KHÁCH HÀNG"', block)
         self.assertIn("R.drawable.ic_satori_users", block)
 
+    def test_accounting_ledger_filter_has_distinct_customer_details(self):
+        body = SRC.split("private fun showLedger(", 1)[1].split("private fun infoStrip(", 1)[0]
+        self.assertIn("filtered.take(150).forEach { inv ->", body)
+        self.assertIn("ledgerInvoiceCard(rows, inv)", body)
+        self.assertNotIn('section(rows, "HÓA ĐƠN #"', body)
+        card = SRC.split("private fun ledgerInvoiceCard(", 1)[1].split("private fun customerQuickCard(", 1)[0]
+        self.assertIn("customerInfoRow(card, R.drawable.ic_satori_phone", card)
+        self.assertIn("customerInfoRow(card, R.drawable.ic_satori_map_pin", card)
+        self.assertIn("R.drawable.ic_satori_users", card)
+        self.assertIn("invoice.customerHasPaid", card)
+        self.assertIn("invoice.satoriHasPaid", card)
+        self.assertIn('"SẢN PHẨM"', card)
+
     def test_vector_assets_exist_without_emoji_font_dependency(self):
         for name in ("ic_satori_phone.xml", "ic_satori_map_pin.xml", "ic_satori_users.xml"):
             data = (ICONS / name).read_text(encoding="utf-8")
