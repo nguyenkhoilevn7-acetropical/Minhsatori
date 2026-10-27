@@ -996,19 +996,39 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun actionTile(row: LinearLayout, title: String, subtitle: String,
-                           accent: Int = cyan, click: () -> Unit) {
+                           accent: Int = cyan, iconRes: Int = R.drawable.ic_satori_invoice,
+                           click: () -> Unit) {
+        // Icon-first quick actions, matching the reference pill/cards; navigation
+        // and permissions remain attached to the existing click callback.
         val tile = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(13), dp(14), dp(12), dp(14))
-            background = panelBackground()
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(112)
+            setPadding(dp(13), dp(13), dp(11), dp(13))
+            val tint = when (accent) {
+                Color.rgb(17, 133, 91) -> Color.rgb(228, 247, 237)
+                Color.rgb(181, 95, 6) -> Color.rgb(255, 242, 223)
+                Color.rgb(114, 76, 196) -> Color.rgb(239, 233, 255)
+                else -> Color.rgb(227, 240, 255)
+            }
+            background = panelBackground(tint, 17)
             isClickable = true
             isFocusable = true
             setOnClickListener { click() }
             contentDescription = title + ". " + subtitle
         }
-        label(tile, "◆", 15f, true, accent)
-        label(tile, title, 14f, true, white, 9)
-        label(tile, subtitle, 11f, false, muted, 6)
+        val pictogram = ImageView(this).apply {
+            setImageResource(iconRes)
+            setColorFilter(accent)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(5), dp(5), dp(5), dp(5))
+            contentDescription = null // tile describes the action once
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            background = panelBackground(Color.WHITE, 11)
+        }
+        tile.addView(pictogram, LinearLayout.LayoutParams(dp(34), dp(34)))
+        label(tile, title, 14f, true, ink, 7)
+        label(tile, subtitle, 11f, false, softInk, 5)
         row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
@@ -1084,12 +1104,12 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(0, dp(9), 0, 0)
         }
         actionTile(row1, "Hóa đơn", data.invoices.size.toString() + " hóa đơn",
-            Color.rgb(0, 122, 255)) {
+            Color.rgb(0, 122, 255), R.drawable.ic_satori_invoice) {
             activeTab = 1
             render()
         }
         actionTile(row1, "Khách hàng", "Hồ sơ & địa chỉ",
-            Color.rgb(17, 133, 91)) {
+            Color.rgb(17, 133, 91), R.drawable.ic_satori_users) {
             activeTab = 2
             render()
         }
@@ -1099,12 +1119,12 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(0, dp(10), 0, 0)
         }
         actionTile(row2, "Công nợ", "Theo dõi cần thu",
-            Color.rgb(181, 95, 6)) {
+            Color.rgb(181, 95, 6), R.drawable.ic_satori_debt) {
             activeTab = 3
             render()
         }
         actionTile(row2, "Lên đơn", if (canWrite) "Tạo hóa đơn mới" else "Cần kết nối API",
-            Color.rgb(114, 76, 196)) {
+            Color.rgb(114, 76, 196), R.drawable.ic_satori_plus) {
             activeTab = 4
             render()
         }
@@ -1115,11 +1135,12 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(10), 0, 0)
         }
-        actionTile(tools1, "Bảng giá Satori", data.products.size.toString() + " sản phẩm") {
+        actionTile(tools1, "Bảng giá Satori", data.products.size.toString() + " sản phẩm",
+            iconRes = R.drawable.ic_satori_invoice) {
             showCatalogue(data)
         }
         actionTile(tools1, "Sổ kế toán", "Tra cứu & đối chiếu",
-            Color.rgb(114, 76, 196)) {
+            Color.rgb(114, 76, 196), R.drawable.ic_satori_settings) {
             showLedger(data)
         }
         parent.addView(tools1)
@@ -1128,11 +1149,11 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(0, dp(10), 0, 0)
         }
         actionTile(tools2, "Trí nhớ AI", data.customerMemory.size.toString() + " hồ sơ",
-            Color.rgb(17, 133, 91)) {
+            Color.rgb(17, 133, 91), R.drawable.ic_satori_users) {
             showCustomerMemory(data)
         }
         actionTile(tools2, "Đối chiếu giá", "Kiểm tra trùng đơn",
-            Color.rgb(181, 95, 6)) {
+            Color.rgb(181, 95, 6), R.drawable.ic_satori_debt) {
             showPriceComparison(data)
         }
         parent.addView(tools2)
