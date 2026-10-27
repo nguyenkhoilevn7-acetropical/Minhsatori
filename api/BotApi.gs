@@ -661,7 +661,8 @@ function markPaid(s,all,p){
  * Previous facts are retained in an append-only audit array on the same order.
  */
 function changePaymentFlag(s,all,p,action){
- version(s,p);
+ need(['payments.markCustomerUnpaid','payments.markSatoriPaid',
+   'payments.markSatoriUnpaid'].indexOf(action)>=0,'INVALID_ACTION','Lệnh không hỗ trợ');
  need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0&&p.id!==undefined&&p.id!==null,
    'INVALID_ORDER','Cần ID và số hóa đơn chính xác');
  need((typeof p.id==='string'||Number.isSafeInteger(p.id))&&String(p.id).length>0,
@@ -695,6 +696,8 @@ function changePaymentFlag(s,all,p,action){
      'REQUEST_ID_CONFLICT','Mã thao tác đã được dùng cho thay đổi khác');
    return {modified:false,result:{order:visible(old),alreadyApplied:true}};
  }
+ // Only an exact historical requestId replay can bypass a stale revision.
+ version(s,p);
  var customerPaid=paid(old),satoriPaid=old.status==='Đã TT Satori'||!!old.satoriPaidAt;
  var target=action==='payments.markCustomerUnpaid'?'customer':'satori';
  var wanted=action!=='payments.markCustomerUnpaid'&&action!=='payments.markSatoriUnpaid';
@@ -704,6 +707,11 @@ function changePaymentFlag(s,all,p,action){
  var updated=Object.assign({},old,{updatedAt:Date.now()});
  if(target==='customer'){
    updated.customerPaidAt=null;
+   // The old receipt remains in the immutable audit record, not on the
+   // current unpaid invoice where it could be mistaken for valid proof.
+   updated.customerPaymentReceiptUrl=null;
+   updated.customerPaymentReceiptAt=null;
+   updated.customerPaymentNote=null;
    updated.status=satoriPaid?'Đã TT Satori':'Chưa thanh toán';
  }else if(wanted){
    updated.satoriPaidAt=at;
@@ -717,6 +725,9 @@ function changePaymentFlag(s,all,p,action){
    action:action,target:target,recordedAt:at,reason:p.reason.trim(),
    previousStatus:old.status,newStatus:updated.status,
    previousCustomerPaidAt:old.customerPaidAt||null,
+   previousCustomerPaymentReceiptUrl:old.customerPaymentReceiptUrl||null,
+   previousCustomerPaymentReceiptAt:old.customerPaymentReceiptAt||null,
+   previousCustomerPaymentNote:old.customerPaymentNote||null,
    previousSatoriPaidAt:old.satoriPaidAt||null,
    customerPaidAfter:target==='customer'?false:customerPaid,
    satoriPaidAfter:target==='satori'?wanted:satoriPaid,
