@@ -223,6 +223,56 @@
   html.satori-light-review #appHeader nav button{font-size:12px!important;padding:8px 10px!important}
  }
 }
+
+/* MONEY-MIND SATORI FLAT TEAL — V18.3 preview-only. No print or ledger changes. */
+@media screen{
+ html.satori-light-review{color-scheme:light}
+ html.satori-light-review body{background:#f1f4f5!important;color:#102b38!important}
+ html.satori-light-review #appHeader{
+   background:#fff!important;border-color:#e0e9e9!important;
+   border-radius:0 0 20px 20px!important;box-shadow:none!important
+ }
+ html.satori-light-review #appHeader h1{color:#102b38!important}
+ html.satori-light-review #appHeader nav{
+   background:#fff!important;border:1px solid #e0e9e9!important;
+   border-radius:18px!important;box-shadow:none!important;gap:7px!important
+ }
+ html.satori-light-review #appHeader nav button{
+   border-radius:13px!important;box-shadow:none!important;min-height:45px!important
+ }
+ html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]){
+   background:#edf7f5!important;color:#246c6a!important;border-color:#dfede9!important
+ }
+ html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"]{
+   background:#009c99!important;color:#fff!important;border-color:#009c99!important;
+   box-shadow:none!important
+ }
+ html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"] i{color:#fff!important}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ > .bg-slate-950,
+ html.satori-light-review .compact-panel{
+   background:#fff!important;color:#102b38!important;
+   border:1px solid #e0e8e8!important;border-radius:19px!important;box-shadow:none!important
+ }
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ :is(.bg-slate-900,.bg-slate-950):not(button):not(.no-print){
+   background:#f7fafa!important;border-color:#e3eaea!important;box-shadow:none!important
+ }
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ :is(input,textarea,select):not([type=checkbox]):not([type=radio]){
+   background:#fff!important;color:#102b38!important;border-color:#dde8e7!important;border-radius:14px!important
+ }
+ html.satori-light-review :is(#tab-sheet,#tab-archive) thead{
+   background:#e5f7f2!important;color:#087b7a!important
+ }
+ html.satori-light-review :is(#tab-sheet,#tab-archive) table{
+   background:#fff!important;color:#102b38!important;box-shadow:none!important
+ }
+ html.satori-light-review button:focus-visible{
+   outline:2px solid #009c99!important;outline-offset:2px!important
+ }
+}
+
 /* END MINH SATORI LEGACY REVIEW-ONLY UI */
     </style>
 <script>
