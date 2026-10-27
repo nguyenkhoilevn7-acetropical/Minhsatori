@@ -77,11 +77,31 @@ jobs:
             test -s android/ui-evidence/minhsatori-native-create.png
             test -s android/ui-evidence/minhsatori-native-debt.png
             test -s android/ui-evidence/minhsatori-native-profile.png
+            # Live resize in the SAME running Activity. Android simulates
+            # unfolded inner and folded outer screen viewport sizes.
+            # Approximate screen classes only; not Samsung device certification.
+            adb shell input tap 120 1700
+            adb shell wm size 1812x2176
+            adb shell wm density 420
+            sleep 3
+            adb shell screencap -p /sdcard/minhsatori-fold-open.png
+            adb pull /sdcard/minhsatori-fold-open.png android/ui-evidence/minhsatori-fold-open.png
+            adb shell wm size 904x2316
+            adb shell wm density 420
+            sleep 3
+            adb shell screencap -p /sdcard/minhsatori-fold-closed.png
+            adb pull /sdcard/minhsatori-fold-closed.png android/ui-evidence/minhsatori-fold-closed.png
+            adb shell wm size reset
+            adb shell wm density reset
+            test -s android/ui-evidence/minhsatori-fold-open.png
+            test -s android/ui-evidence/minhsatori-fold-closed.png
       - name: Upload visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: MinhSatori-Android-v0.3.2-Visual-Sandbox-Evidence
-          path: android/ui-evidence/minhsatori-native-*.png
+          path: |
+            android/ui-evidence/minhsatori-native-*.png
+            android/ui-evidence/minhsatori-fold-*.png
           if-no-files-found: warn
           retention-days: 7
