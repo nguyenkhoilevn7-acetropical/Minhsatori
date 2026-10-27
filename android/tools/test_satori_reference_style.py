@@ -20,8 +20,11 @@ class SatoriReferenceStyleContract(unittest.TestCase):
         self.assertIn("Color.rgb(227, 247, 238)",SRC)
         self.assertIn("Color.rgb(255, 246, 223)",SRC)
 
-    def test_gemini_hero_helper_uses_readable_dark_blue_on_pale_background(self):
-        self.assertIn('12f, false, Color.rgb(56, 89, 91), 7)', SRC)
+    def test_dashboard_text_contrast_and_owner_gemini_mode(self):
+        self.assertIn('background = panelBackground(teal, 19)', SRC)
+        self.assertIn('setTextColor(Color.WHITE)', SRC)
+        self.assertIn('setTextColor(Color.rgb(226, 255, 249))', SRC)
+        self.assertIn('putExtra("mode", "admin")', SRC)
         self.assertNotIn('12f, false, Color.rgb(202, 239, 249), 7)', SRC)
 
     def test_dashboard_icons_replace_abstract_diamond_without_changing_actions(self):
