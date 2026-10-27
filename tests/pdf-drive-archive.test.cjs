@@ -35,8 +35,12 @@ const versionKey=website.invoicePdfKey(invoice)+'\nSATORI_PDF_VIETQR_20261021';
 const pdf=Buffer.from('%PDF-1.4\n'+'.'.repeat(150)+'\n%%EOF');
 const digest=crypto.createHash('sha256').update(pdf).digest('hex');
 const stored=new Map();
-const folder={getName:()=> 'MinhSatori_PDF_Invoices', getFilesByName:n=>({hasNext:()=>stored.has(n),next:()=>stored.get(n)}),
+const folder={getName:()=> 'MinhSatori_PDF_Invoices', getFilesByName:n=>{
+  const remaining=stored.has(n)?[stored.get(n)]:[];
+  return {hasNext:()=>remaining.length>0,next:()=>remaining.shift()};
+},
 createFile:blob=>{const f={getId:()=>String(stored.size+1),getSize:()=>blob.bytes.length,
+getBlob:()=>({getBytes:()=>Array.from(blob.bytes)}),
 setDescription:s=>{f.description=s;}};stored.set(blob.name,f);return f;}};
 const signed=x=>x>127?x-256:x;
 const ctx={
