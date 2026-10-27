@@ -19,7 +19,7 @@ test('payment corrections expose only to write-enabled owner and sign each disti
    const b=JSON.parse(o.body);
    assert.equal(b.action,action);assert.deepEqual(b.payload,payload);
    assert.equal(b.signature,createHmac('sha256',env.SATORI_BOT_SECRET)
-    .update([b.keyId,b.timestamp,b.nonce,b.action,JSON.stringify(payload)].join('\\n'),'utf8').digest('hex'));
+    .update([b.keyId,b.timestamp,b.nonce,b.action,JSON.stringify(payload)].join('\n'),'utf8').digest('hex'));
    return Response.json({ok:true,revision:2,data:{auditRecorded:true}});
   });
  }
