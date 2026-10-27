@@ -149,7 +149,7 @@ function runIsolatedPaymentHttpSmokeTest() {
   }
   function verified(action,p,paidCustomer,paidSatori){
     var r=signed(action,p);
-    assert(r.ok===true && r.backupCreated===true,action+' signed HTTP write');
+    assert(r.ok===true && r.backupCreated===true,action+' signed HTTP write: '+JSON.stringify(r.ok?r:{error:r.error}));
     var list=signed('orders.list',{query:'70101'});
     assert(list.ok===true && list.revision===r.revision,
       action+' canonical HTTP readback');
