@@ -14,7 +14,11 @@ class V2AdminEntryContract(unittest.TestCase):
         self.assertIn('val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn", "Quản trị hệ thống")', SOURCE)
         self.assertIn('5 -> renderV2OwnerBackend(content, data)', SOURCE)
         self.assertIn('if (activeTab == 5) {\n            renderV2OwnerBackend(content, data)', SOURCE)
-        self.assertIn('activeTab = 5\n                render()', SOURCE)
+        # The owner page is reached through the persistent MoneyMind bottom
+        # navigation and via the unchanged advanced drawer.
+        self.assertIn('Triple(5, "Cá nhân", R.drawable.ic_satori_settings)', SOURCE)
+        self.assertIn('activeTab = index', SOURCE)
+        self.assertIn('render()', SOURCE)
         self.assertIn('private fun renderV2OwnerBackend(parent: LinearLayout, current: SatoriSnapshot?)', SOURCE)
 
     def test_no_admin_navigation_to_customer_site_or_embedded_browser(self):
