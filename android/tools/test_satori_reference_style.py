@@ -41,8 +41,10 @@ class SatoriReferenceStyleContract(unittest.TestCase):
     def test_money_mind_flat_teal_without_gradient(self):
         self.assertIn('private val cyan = Color.rgb(0, 156, 153)', SRC)
         self.assertIn('setColor(Color.rgb(0, 156, 153))', SRC)
-        self.assertIn('background = panelBackground(Color.WHITE, 18)', SRC)
-        self.assertIn('background = panelBackground(Color.rgb(230, 248, 243), 18)', SRC)
+        self.assertIn('background = panelBackground(if (activeTab == 0) teal else Color.WHITE, 18)', SRC)
+        self.assertIn('background = panelBackground(teal, 19)', SRC)
+        self.assertIn('val bottomDestinations = listOf(', SRC)
+        self.assertIn('Triple(4, "Lên đơn", R.drawable.ic_satori_plus)', SRC)
         self.assertNotIn('Color.rgb(66, 151, 255)', SRC)
 
     def test_invoice_card_shows_both_payment_statuses_without_new_write_paths(self):
