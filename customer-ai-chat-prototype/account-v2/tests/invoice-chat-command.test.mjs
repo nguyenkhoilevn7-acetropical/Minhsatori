@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 import {parseInvoiceCommand,invoiceChatReply} from '../invoice-chat-command.mjs';
 
 test('Gemini invoice intent is unambiguous and cannot rewrite a drink order',()=>{
@@ -42,4 +43,11 @@ test('historical list never leaks other accounts and does not promise PDF ready'
  assert.equal(result.invoiceReferences[0].id,binding);
  assert.equal(result.invoiceReferences[0].pdfAvailable,false);
  assert.deepEqual(result.suggestedItems,[]);
+});
+
+test('read-only invoice lookup does not require shipping but product orders still do',()=>{
+ const source=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
+ assert.match(source,/if\(!parseInvoiceCommand\(input\.message\)\)await assertSelectedDelivery\(pool,actor,input\)/);
+ assert.match(source,/const invoiceCommand=await invoiceChatReply\(pool,actor,input\.message\)/);
+ assert.match(source,/if\(invoiceCommand\)return/);
 });
