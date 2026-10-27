@@ -7,6 +7,7 @@ import {validGoogleClaims} from './google-claims.mjs';
 import {reconcileSandbox,sandboxHistory} from './sandbox-ledger.mjs';
 import {inferV2Order,reserveGeminiBudget} from './gemini-order.mjs';
 import {bindInvoice,invoiceDetail,invoiceIndex} from './invoice-history.mjs';
+import {readSharedSandboxPdf,sendSharedPdf,SHARED_SANDBOX_PDF_PATH} from './invoice-document.mjs';
 import {postgresConfig} from './postgres-config.mjs';
 import {isDeepStrictEqual} from 'node:util';
 import {setCtvMode,commissionReport,saveGrant,grantFor,commissionQuote,customerQuote,recordTestInvoice,listTestInvoices} from './commissions.mjs';
@@ -356,6 +357,22 @@ export async function handleAccountV2(req,res,pathname){
    error(process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1','TEST_ORDERS_DISABLED',503);
    const admin=pathname.includes('/admin/');if(admin)owner(actor);
    send(res,200,await sandboxHistory(pool,actor,{admin,id:new URL(req.url,'http://local').searchParams.get('id')}));return true;
+  }
+  if(pathname===SHARED_SANDBOX_PDF_PATH&&req.method==='GET'){
+   error(process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1',
+    'TEST_ORDERS_DISABLED',503);
+   const invoiceId=new URL(req.url,'http://local').searchParams.get('invoiceId');
+   error(isUuid(invoiceId),'INVOICE_ID_INVALID',400);
+   // This is the only binary download contract across website, Android and Gemini.
+   // Production remains fail-closed until a reviewed authenticated Drive reader exists.
+   try{
+    const document=await readSharedSandboxPdf(pool,actor,invoiceId);
+    sendSharedPdf(res,document);return true;
+   }catch(e){
+    if(e?.code==='CANONICAL_PDF_NOT_CONFIGURED')
+     throw new ApiError('CANONICAL_PDF_NOT_CONFIGURED',503);
+    throw e;
+   }
   }
   if(pathname==='/api/v2/admin/ctv-mode'&&req.method==='PATCH'){
    owner(actor);send(res,200,await setCtvMode(pool,actor,await json(req)));return true;
