@@ -1,0 +1,21 @@
+name: Invoice PDF Archive Integrity (synthetic only)
+on:
+  pull_request:
+    paths:
+      - 'api/InvoicePdfArchive.gs'
+      - 'tests/invoice-pdf-archive-version.test.cjs'
+      - '.github/workflows/pdf-archive-integrity-fake.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fake-pdf-archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test PDF version key and archived SHA without credentials
+        run: node --test tests/invoice-pdf-archive-version.test.cjs
