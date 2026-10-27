@@ -1313,7 +1313,7 @@ async function changeProfile(forceDuringWrite=false){
  const requestEpoch=++cartProfileLoadEpoch;
  profileLoading=true;
  try{
-  if(deliverySelectionProfileId!==requestedProfileId){
+  if(deliverySelectionProfileId!==$('profile').value){
    deliverySelectionProfileId=null;$('location').value='';
    clearPendingCatalogueProduct();
   }
