@@ -72,7 +72,10 @@ data class SatoriInvoice(
     val collaboratorId: String = "",
     val pairCustomerName: String = "",
     val pairCollaboratorName: String = "",
-    val pairDiscountPercent: Double? = null
+    val pairDiscountPercent: Double? = null,
+    val satoriPaidAt: String = "",
+    // Only audit identifiers, never payment proofs/secrets, are retained in memory.
+    val paymentAuditKeys: Set<String> = emptySet()
 ) {
     val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
     val isCustomerPairBill: Boolean get() = pairRole == "customer"
@@ -94,7 +97,10 @@ data class SatoriInvoice(
     // Editing/deleting only one half would corrupt a paired CTV delivery.
     val canEditOrDelete: Boolean get() = !isLinkedPairBill && !isExcluded && !customerHasPaid &&
         !status.equals("Đã TT Satori", ignoreCase = true)
-    val canMarkCustomerPaid: Boolean get() = !isExcluded && !customerHasPaid && total > 0L
+    val satoriHasPaid: Boolean get() =
+        status.equals("Đã TT Satori", ignoreCase = true) || satoriPaidAt.isNotBlank()
+    val canChangePayment: Boolean get() = !isExcluded && total > 0L && id.isNotBlank()
+    val canMarkCustomerPaid: Boolean get() = canChangePayment && !customerHasPaid
     val isOutstanding: Boolean get() = !isExcluded && !customerHasPaid && total > 0L
     // Keep source dates untouched, but never sort impossible dates as recent orders.
     // Malformed dates are preserved for manual review instead of being guessed.
@@ -235,6 +241,17 @@ object SatoriData {
                 lines = lines,
                 deliveryNote = string(x, "deliveryNote").take(1000),
                 customerPaidAt = string(x, "customerPaidAt"),
+                satoriPaidAt = string(x, "satoriPaidAt"),
+                paymentAuditKeys = x.optJSONArray("paymentAudit")?.let { audit ->
+                    (0 until audit.length()).mapNotNull { i ->
+                        audit.optJSONObject(i)?.let { entry ->
+                            val action = entry.optString("action")
+                            val requestId = entry.optString("requestId")
+                            if (action.startsWith("payments.") && requestId.isNotBlank())
+                                "$action:$requestId" else null
+                        }
+                    }.toSet()
+                } ?: emptySet(),
                 duplicateFrom = string(x, "duplicatedFromInvoiceNo"),
                 requestId = string(x, "apiRequestId"),
                 updateRequestId = string(x, "apiUpdateRequestId"),
