@@ -23,7 +23,8 @@ class SatoriReferenceStyleContract(unittest.TestCase):
     def test_dashboard_text_contrast_and_owner_gemini_mode(self):
         self.assertIn('background = panelBackground(teal, 19)', SRC)
         self.assertIn('setTextColor(Color.WHITE)', SRC)
-        self.assertIn('setTextColor(Color.rgb(226, 255, 249))', SRC)
+        self.assertIn('background = panelBackground(Color.WHITE, 14)', SRC)
+        self.assertIn('label(moneyCard, "Tổng công nợ cần thu"', SRC)
         self.assertIn('putExtra("mode", "admin")', SRC)
         self.assertNotIn('12f, false, Color.rgb(202, 239, 249), 7)', SRC)
 
