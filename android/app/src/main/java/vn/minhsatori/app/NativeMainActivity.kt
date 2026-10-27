@@ -57,16 +57,16 @@ class NativeMainActivity : AppCompatActivity() {
     private val teal = Color.rgb(0, 122, 255)
     private val dark = Color.rgb(28, 28, 30)
     private val muted = Color.rgb(110, 110, 115)
-    private val pale = Color.rgb(242, 242, 247)
+    private val pale = Color.rgb(235, 241, 248)
     private val gold = Color.rgb(175, 94, 0)
     private val white = Color.WHITE
     private var dashboardMode = false
     private val ink = Color.rgb(28, 28, 30)
     private val softInk = Color.rgb(110, 110, 115)
     private val cyan = Color.rgb(0, 122, 255)
-    private val night = Color.rgb(242, 242, 247)
+    private val night = Color.rgb(235, 241, 248)
     private val surface = Color.rgb(255, 255, 255)
-    private val indigo = Color.rgb(229, 239, 255)
+    private val indigo = Color.rgb(217, 233, 250)
     private var activeTab = 0
     private var accessToken: String? = null
     private var snapshot: SatoriSnapshot? = null
@@ -440,7 +440,7 @@ class NativeMainActivity : AppCompatActivity() {
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), Color.rgb(227, 229, 234))
+            setStroke(dp(1), Color.rgb(209, 222, 237))
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
@@ -472,7 +472,7 @@ class NativeMainActivity : AppCompatActivity() {
                     cornerRadius = dp(14).toFloat()
                 }
             } else panelBackground(if (danger) Color.rgb(255, 243, 243)
-                else Color.rgb(248, 249, 252), 14)
+                else Color.rgb(234, 243, 253), 14)
             setOnClickListener { click() }
         }
         parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
@@ -504,7 +504,11 @@ class NativeMainActivity : AppCompatActivity() {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(14), dp(12), dp(14))
-            background = panelBackground(surface)
+            background = panelBackground(when (accent) {
+                Color.rgb(16, 122, 78), Color.rgb(17, 133, 91) -> Color.rgb(229, 246, 236)
+                gold -> Color.rgb(255, 242, 222)
+                else -> Color.rgb(228, 241, 255)
+            })
         }
         label(box, title, 11.5f, false, muted)
         label(box, value, 18f, true, accent, 7)
@@ -1425,7 +1429,7 @@ class NativeMainActivity : AppCompatActivity() {
                 parent: android.view.ViewGroup): View =
                 style(super.getDropDownView(position, convertView, parent))
         }
-        background = panelBackground(Color.rgb(248, 249, 252), 10)
+        background = panelBackground(Color.rgb(234, 243, 253), 10)
     }
 
     // Match the website's read-only search, customer, date-range, month/year and
@@ -1693,7 +1697,7 @@ class NativeMainActivity : AppCompatActivity() {
             setTextColor(color)
             setPadding(dp(13), dp(8), dp(13), dp(8))
             minHeight = dp(37)
-            background = panelBackground(Color.rgb(248, 249, 252), 11)
+            background = panelBackground(Color.rgb(233, 243, 254), 11)
             isClickable = true
             isFocusable = true
             contentDescription = text
