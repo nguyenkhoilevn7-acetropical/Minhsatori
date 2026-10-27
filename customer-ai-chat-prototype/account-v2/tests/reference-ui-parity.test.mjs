@@ -59,7 +59,10 @@ test('invoice and ownership are still guarded, no new external image/script sour
  assert.match(admin,/issued-link-card/);
  assert.match(gemini,/production-gemini/);
  for(const html of [v2,admin,gemini]){
-  assert.doesNotMatch(html,/SATORI FULL-UI REVIEW[\s\S]*?<script[^>]+src=/,
-    'new theme must not embed a third-party dependency after CSS');
+  const start=html.lastIndexOf('/* SATORI FULL-UI REVIEW');
+  const end=html.indexOf('/* END SATORI FULL-UI REVIEW */',start);
+  assert.ok(start>=0&&end>start,'theme marker exists');
+  assert.doesNotMatch(html.slice(start,end),/<script|@import|url\(https?:/,
+    'visual-only style must not add network or script dependencies');
  }
 });
