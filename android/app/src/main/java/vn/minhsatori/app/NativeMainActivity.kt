@@ -1744,7 +1744,7 @@ class NativeMainActivity : AppCompatActivity() {
             LinearLayout.LayoutParams(0, dp(38), 1f))
         if (invoice.canEditOrDelete) {
             actions.addView(compactAction("Sửa", cyan) {
-                openInvoice(invoice)
+                requestInvoiceEdit(invoice)
             }, LinearLayout.LayoutParams(-2, dp(38)).apply { marginStart = dp(8) })
         }
         if (invoice.canEditOrDelete) {
@@ -1758,6 +1758,29 @@ class NativeMainActivity : AppCompatActivity() {
         parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(9)
         })
+    }
+
+    /** Explicit, owner-verified edit entry from both invoice list and detail. */
+    private fun requestInvoiceEdit(invoice: SatoriInvoice) {
+        if (!invoice.canEditOrDelete) {
+            Toast.makeText(this, "Chỉ sửa được hóa đơn chưa thanh toán và không thuộc cặp CTV.",
+                Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!canAction("orders.update")) {
+            AlertDialog.Builder(this)
+                .setTitle("Chưa được cấp quyền sửa hóa đơn")
+                .setMessage("Sửa đơn cần Google Owner và Mobile API cấp orders.update. " +
+                    "Chế độ đọc Google Drive không được ghi. " +
+                    "Hãy kết nối API chủ tài khoản rồi đồng bộ lại.")
+                .setNegativeButton("Đóng", null)
+                .setPositiveButton("Kiểm tra kết nối") { _, _ ->
+                    showConnectionSettings()
+                }.show()
+            return
+        }
+        invoiceDialog?.dismiss()
+        launchEditor(editing = invoice)
     }
 
     /** One guarded soft-delete from the invoice list, debt list and detail. */
@@ -2392,20 +2415,7 @@ class NativeMainActivity : AppCompatActivity() {
             // has not yet been deployed. Never bypass the server permission.
             if (invoice.canEditOrDelete)
                 button(content, "SỬA HÓA ĐƠN", iconRes = R.drawable.ic_satori_edit) {
-                    if (!canAction("orders.update")) {
-                        AlertDialog.Builder(this)
-                            .setTitle("Chưa được cấp quyền sửa hóa đơn")
-                            .setMessage("Sửa đơn cần Google Owner và Mobile API cấp " +
-                                "orders.update. Chế độ đọc Google Drive không được ghi. " +
-                                "Hãy kết nối API chủ tài khoản rồi đồng bộ lại.")
-                            .setNegativeButton("Đóng", null)
-                            .setPositiveButton("Kiểm tra kết nối") { _, _ ->
-                                showConnectionSettings()
-                            }.show()
-                    } else {
-                        invoiceDialog?.dismiss()
-                        launchEditor(editing = invoice)
-                    }
+                    requestInvoiceEdit(invoice)
                 }
             if (invoice.canChangePayment) {
                 // Show both independent owner payment controls even before the
