@@ -607,8 +607,12 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(night)
         }
+        val shellWidth = adaptiveShellWidth()
+        val shellInset = if (shellWidth > 0)
+            (resources.displayMetrics.widthPixels - shellWidth).coerceAtLeast(0) / 2
+            else 0
         root.addView(shell, FrameLayout.LayoutParams(
-            adaptiveShellWidth(), -1, Gravity.CENTER_HORIZONTAL))
+            shellWidth, -1, Gravity.CENTER_HORIZONTAL))
         setContentView(root)
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -970,7 +974,9 @@ class NativeMainActivity : AppCompatActivity() {
             visibility = View.GONE
             translationX = -drawerWidth.toFloat()
         }
-        root.addView(drawer, FrameLayout.LayoutParams(drawerWidth, -1, Gravity.START))
+        root.addView(drawer, FrameLayout.LayoutParams(drawerWidth, -1, Gravity.START).apply {
+            leftMargin = shellInset
+        })
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
