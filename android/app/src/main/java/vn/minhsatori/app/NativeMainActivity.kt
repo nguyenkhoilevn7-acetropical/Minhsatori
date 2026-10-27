@@ -739,13 +739,13 @@ class NativeMainActivity : AppCompatActivity() {
             label(hero, "GEMINI • TẠO HÓA ĐƠN THẬT", 20f, true, white)
             label(hero, "Chỉ tài khoản quản trị • Giá lấy từ Google Drive • Anh duyệt rồi mới ghi hóa đơn",
                 12f, false, Color.rgb(202, 239, 249), 7)
-            button(hero, "＋ TẠO HÓA ĐƠN THẬT VỚI GEMINI", true) {
+            button(hero, "TẠO HÓA ĐƠN THẬT VỚI GEMINI", true, R.drawable.ic_satori_plus) {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
             button(hero, "MỞ TRANG QUẢN TRỊ GEMINI") {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
-            button(hero, "⚙ QUẢN TRỊ HỆ THỐNG • MINH SATORI") {
+            button(hero, "QUẢN TRỊ HỆ THỐNG • MINH SATORI", iconRes = R.drawable.ic_satori_settings) {
                 activeTab = 5
                 render()
             }
@@ -885,25 +885,24 @@ class NativeMainActivity : AppCompatActivity() {
             setTextColor(ink)
         }
         titleRow.addView(drawerHeading, LinearLayout.LayoutParams(0, -2, 1f))
-        val closeButton = TextView(this).apply {
-            text = "✕"
-            textSize = 22f
-            gravity = Gravity.CENTER
-            setTextColor(softInk)
+        val closeButton = android.widget.ImageButton(this).apply {
+            setImageResource(R.drawable.ic_satori_close)
+            setColorFilter(Color.rgb(203, 48, 48))
+            background = panelBackground(Color.TRANSPARENT, 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(14), dp(14), dp(14), dp(14))
             contentDescription = "Đóng menu"
-            isClickable = true
-            isFocusable = true
         }
         titleRow.addView(closeButton, LinearLayout.LayoutParams(dp(48), dp(48)))
         drawer.addView(titleRow)
         label(drawer, "TÁC VỤ", 11f, true, softInk, 22)
         val destinations = listOf(
-            "▦" to "Tổng quan",
-            "▤" to "Hóa đơn",
-            "♙" to "Khách hàng",
-            "◴" to "Công nợ",
-            "＋" to "Lên đơn",
-            "⚙" to "Quản trị hệ thống"
+            R.drawable.ic_satori_dashboard to "Tổng quan",
+            R.drawable.ic_satori_invoice to "Hóa đơn",
+            R.drawable.ic_satori_users to "Khách hàng",
+            R.drawable.ic_satori_debt to "Công nợ",
+            R.drawable.ic_satori_plus to "Lên đơn",
+            R.drawable.ic_satori_settings to "Quản trị hệ thống"
         )
         var drawerOpened = false
         fun dismissDrawer(after: (() -> Unit)? = null) {
@@ -936,7 +935,13 @@ class NativeMainActivity : AppCompatActivity() {
         }
         destinations.forEachIndexed { index, item ->
             val destination = TextView(this).apply {
-                text = item.first + "    " + item.second
+                text = item.second
+                val glyph = androidx.core.content.ContextCompat.getDrawable(
+                    this@NativeMainActivity, item.first)?.mutate()
+                glyph?.setTint(if (activeTab == index) cyan else ink)
+                glyph?.setBounds(0, 0, dp(21), dp(21))
+                setCompoundDrawablesRelative(glyph, null, null, null)
+                compoundDrawablePadding = dp(13)
                 textSize = 16f
                 setTypeface(typeface, if (activeTab == index) Typeface.BOLD else Typeface.NORMAL)
                 setTextColor(if (activeTab == index) cyan else ink)
@@ -959,7 +964,13 @@ class NativeMainActivity : AppCompatActivity() {
             })
         }
         val syncMenu = TextView(this).apply {
-            text = "↻    Đồng bộ dữ liệu"
+            text = "Đồng bộ dữ liệu"
+            val glyph = androidx.core.content.ContextCompat.getDrawable(
+                this@NativeMainActivity, R.drawable.ic_satori_refresh)?.mutate()
+            glyph?.setTint(cyan)
+            glyph?.setBounds(0, 0, dp(21), dp(21))
+            setCompoundDrawablesRelative(glyph, null, null, null)
+            compoundDrawablePadding = dp(13)
             textSize = 15f
             setTextColor(cyan)
             gravity = Gravity.CENTER_VERTICAL
@@ -1025,19 +1036,19 @@ class NativeMainActivity : AppCompatActivity() {
             background = panelBackground(Color.WHITE, 17)
         }
         label(modules, "DỮ LIỆU QUẢN TRỊ HIỆN CÓ", 13f, true, ink)
-        button(modules, "▤  Hóa đơn & trạng thái thanh toán") {
+        button(modules, "Hóa đơn & trạng thái thanh toán", iconRes = R.drawable.ic_satori_invoice) {
             activeTab = 1
             render()
         }
-        button(modules, "♙  Khách hàng & hồ sơ hiện có") {
+        button(modules, "Khách hàng & hồ sơ hiện có", iconRes = R.drawable.ic_satori_users) {
             activeTab = 2
             render()
         }
-        button(modules, "◴  Công nợ & đối chiếu") {
+        button(modules, "Công nợ & đối chiếu", iconRes = R.drawable.ic_satori_debt) {
             activeTab = 3
             render()
         }
-        button(modules, "＋  Lên đơn với quyền API đã xác minh") {
+        button(modules, "Lên đơn với quyền API đã xác minh", iconRes = R.drawable.ic_satori_plus) {
             activeTab = 4
             render()
         }
