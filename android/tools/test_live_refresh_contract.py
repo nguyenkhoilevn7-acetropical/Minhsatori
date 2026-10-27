@@ -18,9 +18,9 @@ class LiveRefreshContractTest(unittest.TestCase):
 
     def test_refresh_is_always_in_header(self):
         # Compact iOS header keeps the same manual refresh action under an icon.
-        self.assertIn('text = "↻"', self.code)
+        self.assertIn('setImageResource(R.drawable.ic_satori_refresh)', self.code)
         self.assertIn('shell.addView(brand, 0,', self.code)
-        self.assertIn('contentDescription = "Refresh trang và đồng bộ hóa đơn ngay từ server"', self.code)
+        self.assertIn('contentDescription = "Đồng bộ hóa đơn từ server"', self.code)
         self.assertIn('setOnClickListener { refreshNow() }', self.code)
         self.assertLess(self.code.index('setOnClickListener { refreshNow() }'),
                         self.code.index('val data = snapshot'))

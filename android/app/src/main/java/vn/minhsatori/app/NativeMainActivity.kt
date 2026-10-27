@@ -444,7 +444,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
-                       click: () -> Unit) {
+                       iconRes: Int = 0, danger: Boolean = false, click: () -> Unit) {
         val b = Button(this).apply {
             this.text = text
             textSize = 12f
@@ -455,13 +455,24 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(9), 0, dp(9), 0)
             stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(if (main) white else cyan)
+            val accent = if (main) white else if (danger) Color.rgb(207, 46, 46) else cyan
+            setTextColor(accent)
+            if (iconRes != 0) {
+                val symbol = androidx.core.content.ContextCompat.getDrawable(
+                    this@NativeMainActivity, iconRes)?.mutate()
+                symbol?.setTint(accent)
+                symbol?.setBounds(0, 0, dp(17), dp(17))
+                setCompoundDrawablesRelative(symbol, null, null, null)
+                compoundDrawablePadding = dp(9)
+                gravity = Gravity.CENTER
+            }
             background = if (main) {
                 GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                     intArrayOf(Color.rgb(0, 122, 255), Color.rgb(66, 151, 255))).apply {
                     cornerRadius = dp(14).toFloat()
                 }
-            } else panelBackground(Color.rgb(248, 249, 252), 14)
+            } else panelBackground(if (danger) Color.rgb(255, 243, 243)
+                else Color.rgb(248, 249, 252), 14)
             setOnClickListener { click() }
         }
         parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
@@ -593,14 +604,13 @@ class NativeMainActivity : AppCompatActivity() {
                 cornerRadius = dp(18).toFloat()
             }
         }
-        val menuButton = TextView(this).apply {
-            text = "☰"
-            textSize = 25f
-            gravity = Gravity.CENTER
-            setTextColor(ink)
+        val menuButton = android.widget.ImageButton(this).apply {
+            setImageResource(R.drawable.ic_satori_menu)
+            setColorFilter(ink)
+            background = panelBackground(Color.TRANSPARENT, 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(10), dp(11), dp(10), dp(11))
             contentDescription = "Mở menu tác vụ"
-            isClickable = true
-            isFocusable = true
         }
         brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(45)))
         val brandLogo = ImageView(this).apply {
@@ -620,52 +630,52 @@ class NativeMainActivity : AppCompatActivity() {
         label(brandText, "HÓA ĐƠN  •  SỔ KẾ TOÁN", 9f,
             false, Color.rgb(79, 102, 132), 5)
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
-        val refreshButton = TextView(this).apply {
-            text = "↻"
-            textSize = 24f
-            gravity = Gravity.CENTER
-            setTextColor(cyan)
-            contentDescription = "Refresh trang và đồng bộ hóa đơn ngay từ server"
-            isClickable = true
-            isFocusable = true
+        val refreshButton = android.widget.ImageButton(this).apply {
+            setImageResource(R.drawable.ic_satori_refresh)
+            setColorFilter(cyan)
+            background = panelBackground(Color.TRANSPARENT, 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(8), dp(12), dp(8), dp(12))
+            contentDescription = "Đồng bộ hóa đơn từ server"
             setOnClickListener { refreshNow() }
         }
         brand.addView(refreshButton, LinearLayout.LayoutParams(dp(38), dp(46)))
-        val bellButton = TextView(this).apply {
-            text = if (getPreferences(MODE_PRIVATE).getBoolean(
-                    "satori_live_notifications", false)) "🔔" else "🔕"
-            textSize = 20f
-            gravity = Gravity.CENTER
-            setTextColor(ink)
-            contentDescription = "Bật hoặc tắt thông báo hóa đơn thật mới"
-            isClickable = true
-            isFocusable = true
+        val bellButton = android.widget.ImageButton(this).apply {
+            val enabled = getPreferences(MODE_PRIVATE).getBoolean(
+                "satori_live_notifications", false)
+            setImageResource(if (enabled) R.drawable.ic_satori_bell
+                else R.drawable.ic_satori_bell_off)
+            setColorFilter(if (enabled) cyan else softInk)
+            background = panelBackground(Color.TRANSPARENT, 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(7), dp(11), dp(7), dp(11))
+            contentDescription = if (enabled) "Tắt thông báo hóa đơn"
+                else "Bật thông báo hóa đơn"
             setOnClickListener {
                 val existing = getPreferences(MODE_PRIVATE).getBoolean(
                     "satori_live_notifications", false)
-                val enabled = !existing
+                val next = !existing
                 getPreferences(MODE_PRIVATE).edit().putBoolean(
-                    "satori_live_notifications", enabled).apply()
-                if (enabled && Build.VERSION.SDK_INT >= 33 &&
+                    "satori_live_notifications", next).apply()
+                if (next && Build.VERSION.SDK_INT >= 33 &&
                     checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
                         PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5201)
                 }
-                Toast.makeText(this@NativeMainActivity, if (enabled)
+                Toast.makeText(this@NativeMainActivity, if (next)
                     "Đã bật thông báo đơn thật khi dữ liệu đồng bộ được." else
                     "Đã tắt thông báo đơn mới.", Toast.LENGTH_SHORT).show()
                 render()
             }
         }
-        brand.addView(bellButton, LinearLayout.LayoutParams(dp(34), dp(46)))
-        val options = TextView(this).apply {
-            text = "⚙"
-            textSize = 23f
-            gravity = Gravity.CENTER
-            setTextColor(ink)
+        brand.addView(bellButton, LinearLayout.LayoutParams(dp(38), dp(46)))
+        val options = android.widget.ImageButton(this).apply {
+            setImageResource(R.drawable.ic_satori_settings)
+            setColorFilter(ink)
+            background = panelBackground(Color.TRANSPARENT, 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(10), dp(11), dp(10), dp(11))
             contentDescription = "Cài đặt kết nối"
-            isClickable = true
-            isFocusable = true
             setOnClickListener { showConnectionSettings() }
         }
         brand.addView(options, LinearLayout.LayoutParams(dp(42), dp(46)))
@@ -731,13 +741,13 @@ class NativeMainActivity : AppCompatActivity() {
             label(hero, "GEMINI • TẠO HÓA ĐƠN THẬT", 20f, true, white)
             label(hero, "Chỉ tài khoản quản trị • Giá lấy từ Google Drive • Anh duyệt rồi mới ghi hóa đơn",
                 12f, false, Color.rgb(202, 239, 249), 7)
-            button(hero, "＋ TẠO HÓA ĐƠN THẬT VỚI GEMINI", true) {
+            button(hero, "TẠO HÓA ĐƠN THẬT VỚI GEMINI", true, R.drawable.ic_satori_plus) {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
             button(hero, "MỞ TRANG QUẢN TRỊ GEMINI") {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
-            button(hero, "⚙ QUẢN TRỊ HỆ THỐNG • MINH SATORI") {
+            button(hero, "QUẢN TRỊ HỆ THỐNG • MINH SATORI", iconRes = R.drawable.ic_satori_settings) {
                 activeTab = 5
                 render()
             }
@@ -877,25 +887,24 @@ class NativeMainActivity : AppCompatActivity() {
             setTextColor(ink)
         }
         titleRow.addView(drawerHeading, LinearLayout.LayoutParams(0, -2, 1f))
-        val closeButton = TextView(this).apply {
-            text = "✕"
-            textSize = 22f
-            gravity = Gravity.CENTER
-            setTextColor(softInk)
+        val closeButton = android.widget.ImageButton(this).apply {
+            setImageResource(R.drawable.ic_satori_close)
+            setColorFilter(Color.rgb(203, 48, 48))
+            background = panelBackground(Color.TRANSPARENT, 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(14), dp(14), dp(14), dp(14))
             contentDescription = "Đóng menu"
-            isClickable = true
-            isFocusable = true
         }
         titleRow.addView(closeButton, LinearLayout.LayoutParams(dp(48), dp(48)))
         drawer.addView(titleRow)
         label(drawer, "TÁC VỤ", 11f, true, softInk, 22)
         val destinations = listOf(
-            "▦" to "Tổng quan",
-            "▤" to "Hóa đơn",
-            "♙" to "Khách hàng",
-            "◴" to "Công nợ",
-            "＋" to "Lên đơn",
-            "⚙" to "Quản trị hệ thống"
+            R.drawable.ic_satori_dashboard to "Tổng quan",
+            R.drawable.ic_satori_invoice to "Hóa đơn",
+            R.drawable.ic_satori_users to "Khách hàng",
+            R.drawable.ic_satori_debt to "Công nợ",
+            R.drawable.ic_satori_plus to "Lên đơn",
+            R.drawable.ic_satori_settings to "Quản trị hệ thống"
         )
         var drawerOpened = false
         fun dismissDrawer(after: (() -> Unit)? = null) {
@@ -928,7 +937,13 @@ class NativeMainActivity : AppCompatActivity() {
         }
         destinations.forEachIndexed { index, item ->
             val destination = TextView(this).apply {
-                text = item.first + "    " + item.second
+                text = item.second
+                val glyph = androidx.core.content.ContextCompat.getDrawable(
+                    this@NativeMainActivity, item.first)?.mutate()
+                glyph?.setTint(if (activeTab == index) cyan else ink)
+                glyph?.setBounds(0, 0, dp(21), dp(21))
+                setCompoundDrawablesRelative(glyph, null, null, null)
+                compoundDrawablePadding = dp(13)
                 textSize = 16f
                 setTypeface(typeface, if (activeTab == index) Typeface.BOLD else Typeface.NORMAL)
                 setTextColor(if (activeTab == index) cyan else ink)
@@ -951,7 +966,13 @@ class NativeMainActivity : AppCompatActivity() {
             })
         }
         val syncMenu = TextView(this).apply {
-            text = "↻    Đồng bộ dữ liệu"
+            text = "Đồng bộ dữ liệu"
+            val glyph = androidx.core.content.ContextCompat.getDrawable(
+                this@NativeMainActivity, R.drawable.ic_satori_refresh)?.mutate()
+            glyph?.setTint(cyan)
+            glyph?.setBounds(0, 0, dp(21), dp(21))
+            setCompoundDrawablesRelative(glyph, null, null, null)
+            compoundDrawablePadding = dp(13)
             textSize = 15f
             setTextColor(cyan)
             gravity = Gravity.CENTER_VERTICAL
@@ -1017,19 +1038,19 @@ class NativeMainActivity : AppCompatActivity() {
             background = panelBackground(Color.WHITE, 17)
         }
         label(modules, "DỮ LIỆU QUẢN TRỊ HIỆN CÓ", 13f, true, ink)
-        button(modules, "▤  Hóa đơn & trạng thái thanh toán") {
+        button(modules, "Hóa đơn & trạng thái thanh toán", iconRes = R.drawable.ic_satori_invoice) {
             activeTab = 1
             render()
         }
-        button(modules, "♙  Khách hàng & hồ sơ hiện có") {
+        button(modules, "Khách hàng & hồ sơ hiện có", iconRes = R.drawable.ic_satori_users) {
             activeTab = 2
             render()
         }
-        button(modules, "◴  Công nợ & đối chiếu") {
+        button(modules, "Công nợ & đối chiếu", iconRes = R.drawable.ic_satori_debt) {
             activeTab = 3
             render()
         }
-        button(modules, "＋  Lên đơn với quyền API đã xác minh") {
+        button(modules, "Lên đơn với quyền API đã xác minh", iconRes = R.drawable.ic_satori_plus) {
             activeTab = 4
             render()
         }
@@ -2007,6 +2028,61 @@ class NativeMainActivity : AppCompatActivity() {
         }.start()
     }
 
+    /** Owner-only financial correction. Never updates the UI optimistically. */
+    private fun confirmInvoicePayment(invoice: SatoriInvoice, action: String,
+                                      onSuccess: () -> Unit) {
+        val no = invoice.number.toIntOrNull()?.takeIf { it > 0 } ?: return
+        if (!invoice.canChangePayment || !canAction(action) || isLoading) return
+        val title = when (action) {
+            "payments.markCustomerPaid" -> "Xác nhận khách đã trả đủ"
+            "payments.markCustomerUnpaid" -> "Chuyển khách về chưa thanh toán"
+            "payments.markSatoriPaid" -> "Đã thanh toán cho Satori"
+            "payments.markSatoriUnpaid" -> "Hoàn tác thanh toán Satori"
+            else -> return
+        }
+        val isCorrection = action != "payments.markCustomerPaid"
+        val confirmation = "Hóa đơn #" + no + "\nKhách: " + invoice.customer +
+            "\nTổng: " + SatoriData.money(invoice.total) +
+            "\n\nTrạng thái KHÁCH và SATORI là hai khoản ghi nhận độc lập. " +
+            "Chỉ xác nhận sau khi đã đối chiếu thanh toán thật."
+        val reason = EditText(this).apply {
+            hint = "Lý do / chứng từ đối soát (bắt buộc)"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            setSingleLine(false)
+            minLines = 2
+            maxLines = 3
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(title).setMessage(confirmation)
+            .apply { if (isCorrection) setView(reason) }
+            .setNegativeButton("Hủy", null)
+            .setPositiveButton("XÁC NHẬN", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val note = reason.text.toString().trim()
+                if (isCorrection && (note.length < 3 || note.length > 300)) {
+                    reason.error = "Cần ghi lý do từ 3 đến 300 ký tự"
+                    return@setOnClickListener
+                }
+                val payload = JSONObject()
+                    .put("expectedRevision", snapshot?.revision ?: -1L)
+                    .put("invoiceNo", no)
+                    .put("id", invoice.id)
+                    .put("expectedName", invoice.customer)
+                    .put("expectedTotal", invoice.total)
+                    .put("confirmed", true)
+                if (isCorrection) payload.put("reason", note)
+                else payload.put("amount", invoice.total)
+                dialog.dismiss()
+                executeWrite(action, payload) { success, _ ->
+                    if (success) onSuccess()
+                }
+            }
+        }
+        dialog.show()
+    }
+
     private fun openInvoice(invoice: SatoriInvoice) {
         val wrapper = ScrollView(this).apply { setBackgroundColor(night) }
         val content = LinearLayout(this).apply {
@@ -2078,45 +2154,62 @@ class NativeMainActivity : AppCompatActivity() {
         }
         // The first invoice action must show the actual A4 PDF in this app.
         // Never implicitly download when the user only chooses View.
-        button(content, "👁 XEM HÓA ĐƠN PDF", true) {
+        button(content, "XEM HÓA ĐƠN PDF", true, R.drawable.ic_satori_eye) {
             NativeInvoicePdf.preview(this, invoice)
         }
         var invoiceDialog: AlertDialog? = null
-        // Legacy/partially restored rows may have a missing/non-numeric number.
-        // Continue read-only display, but never crash on toInt() or send a write.
+        // Payment facts are independent; the legacy single status cannot convey both.
+        label(content, "TRẠNG THÁI THANH TOÁN", 13f, true, cyan, 15)
+        label(content, "Khách hàng: " +
+            (if (invoice.customerHasPaid) "ĐÃ THANH TOÁN" else "CHƯA THANH TOÁN"),
+            13f, true, if (invoice.customerHasPaid) Color.rgb(15, 126, 83) else gold, 7)
+        label(content, "Đối soát Satori: " +
+            (if (invoice.satoriHasPaid) "ĐÃ THANH TOÁN SATORI" else "CHƯA THANH TOÁN SATORI"),
+            13f, true, if (invoice.satoriHasPaid) Color.rgb(15, 126, 83) else gold, 6)
+
         val validInvoiceNumber = invoice.number.toIntOrNull()?.takeIf { it > 0 }
         if (validInvoiceNumber == null) {
-            label(content, "⚠ Số hóa đơn cần kiểm tra. Đã khóa sửa, xóa và ghi thanh toán.",
+            label(content, "Số hóa đơn không hợp lệ. Đã khóa ghi trạng thái.",
                 12f, true, gold, 10)
-        }
-        if (validInvoiceNumber != null &&
-            (invoice.canEditOrDelete || invoice.canMarkCustomerPaid)) {
-            if (invoice.canEditOrDelete && canAction("orders.update")) button(content, "SỬA HÓA ĐƠN") {
-                invoiceDialog?.dismiss()
-                launchEditor(editing = invoice)
-            }
-            if (invoice.canMarkCustomerPaid && canAction("payments.markCustomerPaid")) button(content, "GHI NHẬN ĐÃ THANH TOÁN") {
-                AlertDialog.Builder(this)
-                    .setTitle("Xác nhận đã thực nhận tiền?")
-                    .setMessage("Hóa đơn #" + invoice.number + "\nKhách: " +
-                        invoice.customer + "\nĐã nhận đủ " + SatoriData.money(invoice.total) +
-                        "?\nChỉ đánh dấu khi tiền đã thực sự nhận.")
-                    .setNegativeButton("Chưa nhận", null)
-                    .setPositiveButton("XÁC NHẬN ĐỦ TIỀN") { _, _ ->
-                        val p = JSONObject()
-                            .put("expectedRevision", snapshot?.revision ?: -1)
-                            .put("invoiceNo", invoice.number.toInt())
-                            .put("id", invoice.id)
-                            .put("amount", invoice.total)
-                            .put("confirmed", true)
-                        executeWrite("payments.markCustomerPaid", p) { success, _ ->
-                            if (success) invoiceDialog?.dismiss()
+        } else {
+            if (invoice.canEditOrDelete && canAction("orders.update"))
+                button(content, "SỬA HÓA ĐƠN", iconRes = R.drawable.ic_satori_edit) {
+                    invoiceDialog?.dismiss()
+                    launchEditor(editing = invoice)
+                }
+            if (invoice.canChangePayment) {
+                val possibilities = listOf(
+                    Triple("payments.markCustomerPaid", "Khách đã thanh toán", R.drawable.ic_satori_check),
+                    Triple("payments.markCustomerUnpaid", "Khách chưa thanh toán", R.drawable.ic_satori_undo),
+                    Triple("payments.markSatoriPaid", "Đã thanh toán Satori", R.drawable.ic_satori_check),
+                    Triple("payments.markSatoriUnpaid", "Chưa thanh toán Satori", R.drawable.ic_satori_undo))
+                var enabled = false
+                possibilities.forEach { (action, title, icon) ->
+                    val wanted = when (action) {
+                        "payments.markCustomerPaid" -> !invoice.customerHasPaid
+                        "payments.markCustomerUnpaid" -> invoice.customerHasPaid
+                        "payments.markSatoriPaid" -> !invoice.satoriHasPaid
+                        else -> invoice.satoriHasPaid
+                    }
+                    if (wanted && canAction(action)) {
+                        enabled = true
+                        button(content, title, iconRes = icon) {
+                            confirmInvoicePayment(invoice, action) {
+                                invoiceDialog?.dismiss()
+                            }
                         }
-                    }.show()
+                    }
+                }
+                if (!enabled) label(content,
+                    "Chỉnh sửa thanh toán yêu cầu Google Owner và Mobile API đã cấp quyền. " +
+                        "Nếu còn thiếu lệnh, cần cập nhật API trước khi ghi.",
+                    11.5f, false, softInk, 8)
             }
-            if (invoice.canEditOrDelete) button(content, "🗑 XÓA ĐƠN • THÙNG RÁC 30 NGÀY") {
-                confirmSoftDelete(invoice) { invoiceDialog?.dismiss() }
-            }
+            if (invoice.canEditOrDelete)
+                button(content, "XÓA ĐƠN • THÙNG RÁC 30 NGÀY",
+                    iconRes = R.drawable.ic_satori_trash, danger = true) {
+                    confirmSoftDelete(invoice) { invoiceDialog?.dismiss() }
+                }
         }
         fun confirmInternalShare(action: () -> Unit) {
             if (!invoice.isInternalCollaboratorBill) { action(); return }
@@ -2128,7 +2221,7 @@ class NativeMainActivity : AppCompatActivity() {
                 .setPositiveButton("Đúng CTV, tiếp tục") { _, _ -> action() }
                 .show()
         }
-        button(content, "GỬI PDF QUA ZALO") {
+        button(content, "GỬI PDF QUA ZALO", iconRes = R.drawable.ic_satori_share) {
             confirmInternalShare {
             try { NativeInvoicePdf.shareZalo(this, invoice) }
             catch (error: Exception) {
@@ -2137,7 +2230,7 @@ class NativeMainActivity : AppCompatActivity() {
             }
             }
         }
-        button(content, "GỬI PDF QUA MESSENGER") {
+        button(content, "GỬI PDF QUA MESSENGER", iconRes = R.drawable.ic_satori_share) {
             confirmInternalShare {
             try { NativeInvoicePdf.shareMessenger(this, invoice) }
             catch (error: Exception) {

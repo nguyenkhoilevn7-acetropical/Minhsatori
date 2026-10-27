@@ -7,17 +7,19 @@ object MobileWriteOutcome {
         "INVALID_REQUEST", "REVISION_REQUIRED", "REVISION_CONFLICT",
         "INVALID_AMOUNT", "INVALID_ORDER", "INVALID_ITEM", "TOTAL_MISMATCH",
         "PROFILE_CHANGED", "PROFILE_MISMATCH", "PROFILE_CONFIRMATION_REQUIRED",
-        "PAID_ORDER_PROTECTED", "CONFIRMATION_REQUIRED", "ORDER_CHANGED",
+        "PAID_ORDER_PROTECTED", "CONFIRMATION_REQUIRED", "REASON_REQUIRED",
+        "REQUEST_ID_CONFLICT", "CTV_INTERNAL_NOT_RECEIVABLE", "ORDER_CHANGED",
         "REUSED_REQUEST_ID", "BACKUP_FAILED", "CONFIG_MISSING"
     )
 
     fun requiresReconciliation(error: Throwable): Boolean =
         error !is MobileApiError || error.apiCode !in rejectedBeforeCommit
 
-    // The server may answer alreadyPaid when ANOTHER phone paid the bill.
-    // Without exact request-ID proof that is not evidence our pending payment committed.
+    // A normal HTTP success or alreadyPaid/alreadySet reply may not identify our
+    // financial event after a timeout. Keep the encrypted journal until canonical
+    // readback proves this exact requestId and target state.
     fun acceptsServerSuccess(action: String, alreadyPaid: Boolean, exactProof: Boolean): Boolean =
-        action != "payments.markCustomerPaid" || !alreadyPaid || exactProof
+        !action.startsWith("payments.") || exactProof
 
     // A rejected retry (e.g. expired token) says nothing about whether an earlier
     // attempt committed. Keep that journal until there is authoritative proof.

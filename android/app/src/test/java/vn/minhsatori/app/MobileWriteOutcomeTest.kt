@@ -31,7 +31,11 @@ class MobileWriteOutcomeTest {
     @Test fun paymentPreviouslyRecordedByAnotherDeviceIsNotMySuccess() {
         assertFalse(MobileWriteOutcome.acceptsServerSuccess("payments.markCustomerPaid", true, false))
         assertTrue(MobileWriteOutcome.acceptsServerSuccess("payments.markCustomerPaid", true, true))
-        assertTrue(MobileWriteOutcome.acceptsServerSuccess("payments.markCustomerPaid", false, false))
+        assertFalse(MobileWriteOutcome.acceptsServerSuccess("payments.markCustomerPaid", false, false))
+        assertFalse(MobileWriteOutcome.acceptsServerSuccess("payments.markSatoriPaid", false, false))
+        assertFalse(MobileWriteOutcome.acceptsServerSuccess("payments.markSatoriUnpaid", false, false))
+        assertFalse(MobileWriteOutcome.acceptsServerSuccess("payments.markCustomerUnpaid", false, false))
+        assertTrue(MobileWriteOutcome.acceptsServerSuccess("payments.markSatoriPaid", false, true))
         assertTrue(MobileWriteOutcome.acceptsServerSuccess("orders.create", true, false))
     }
 

@@ -74,13 +74,35 @@ assert.equal(mobileWrites.length,1);
 assert.equal(mobileWrites[0].action,'orders.delete');
 assert.equal(request('orders.restore',{...payload,requestId:'restore-req-0001'}).ok,true);
 assert.equal(mobileWrites.length,2);
+const paymentActions=[
+ 'payments.markCustomerPaid','payments.markCustomerUnpaid',
+ 'payments.markSatoriPaid','payments.markSatoriUnpaid'];
+paymentActions.forEach(action=>assert.ok(snap.data.allowedActions.includes(action),
+ 'owner snapshot exposes '+action+' only through verified OAuth route'));
+const pay={id:'fixture-id',invoiceNo:8001,expectedName:'FAKE A',
+ expectedTotal:20000,expectedRevision:133,confirmed:true,amount:20000,
+ reason:'Fake owner payment correction',requestId:'fake-payment-req-0001'};
+for(const [index,action] of paymentActions.entries()){
+ const result=request(action,{...pay,requestId:'fake-payment-req-00'+(10+index)});
+ assert.equal(result.ok,true,action+' owner route accepted');
+ assert.equal(mobileWrites.at(-1).action,action);
+}
+assert.equal(mobileWrites.length,6);
+config.STATE_FILE_ID='sandbox-file';
+assert.equal(request('payments.markSatoriPaid',pay).error.code,
+ 'WRONG_LEDGER_SOURCE','payment write denied on noncanonical ledger');
+assert.equal(mobileWrites.length,6,'no write to wrong ledger');
+config.STATE_FILE_ID='14XWSPrxLnKXATwmuHeXGZnCvjDbalghV';
+assert.equal(request('payments.markSatoriPaid',{...pay,requestId:'x'}).error.code,
+ 'INVALID_REQUEST','short payment requestId denied');
+assert.equal(mobileWrites.length,6);
 oauthEmail='intruder@example.test';
 assert.equal(request('mobile.snapshot').error.code,'FORBIDDEN');
 oauthEmail=owner;oauthClient='9999999999-wrongclient.apps.googleusercontent.com';
 assert.equal(request('orders.delete',payload).error.code,'FORBIDDEN');
-assert.equal(mobileWrites.length,2,'no unauthorized writes');
+assert.equal(mobileWrites.length,6,'no unauthorized writes');
 oauthClient=clientId;
 assert.equal(request('orders.update',payload).error.code,'INVALID_ACTION',
  'dangerous and unsupported orders.update denied');
 assert.equal(request('orders.delete',payload,'short').error.code,'AUTH_FAILED');
-console.log('PASS fake production Mobile API: owner OAuth, client allowlist, revision, trash, delete/restore, forbidden calls');
+console.log('PASS fake production Mobile API: OAuth, ledger proof, four owner payment routes, delete/restore, forbidden calls');

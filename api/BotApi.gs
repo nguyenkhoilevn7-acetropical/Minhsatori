@@ -651,6 +651,9 @@ function markPaid(s,all,p){
    extra.customerPaymentNote=p.paymentNote;
  }
  var updated=Object.assign({},old,extra,{customerPaidAt:new Date().toISOString(),updatedAt:Date.now()});
+ // Preserve owner mobile's exact pending request for safe readback after disconnect.
+ if(typeof p.requestId==='string'&&/^[A-Za-z0-9_-]{8,100}$/.test(p.requestId))
+   updated.apiPaymentRequestId=p.requestId;
  if(updated.status!=='Đã TT Satori')updated.status='Đã thanh toán';
  all[all.indexOf(old)]=updated;return {modified:true,result:{order:visible(updated),alreadyPaid:false}};
 }
@@ -1102,7 +1105,9 @@ function handle(e){
 // owner Google OAuth access token, allowed signing client and request shape.
 // Reuse the SAME revision lock, prewrite backup and soft-delete/restore checks.
 function ownerMobileWrite(action,p,nonce){
- need(action==='orders.delete'||action==='orders.restore',
+ need(['orders.delete','orders.restore','payments.markCustomerPaid',
+  'payments.markCustomerUnpaid','payments.markSatoriPaid',
+  'payments.markSatoriUnpaid'].indexOf(action)>=0,
    'FORBIDDEN','Mobile owner action not supported');
  need(/^[A-Za-z0-9_-]{16,128}$/.test(String(nonce||'')),
    'INVALID_REQUEST','Invalid mobile nonce');
