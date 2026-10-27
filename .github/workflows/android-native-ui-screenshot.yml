@@ -51,15 +51,33 @@ jobs:
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -n vn.minhsatori.app/.NativeMainActivity
             sleep 5
-            adb shell screencap -p /sdcard/minhsatori-ui.png
             mkdir -p android/ui-evidence
-            adb pull /sdcard/minhsatori-ui.png android/ui-evidence/minhsatori-native-home.png
-            test -s android/ui-evidence/minhsatori-native-home.png
+            capture() {
+              target="$1"
+              adb shell screencap -p "/sdcard/${target}.png"
+              adb pull "/sdcard/${target}.png" "android/ui-evidence/${target}.png"
+              test -s "android/ui-evidence/${target}.png"
+            }
+            # Screenshot an actual clean emulator, without a login or fake
+            # ledger. Each tap is an existing NATIVE bottom-navigation route.
+            capture minhsatori-native-home
+            adb shell input tap 320 1700
+            sleep 1
+            capture minhsatori-native-invoices
+            adb shell input tap 540 1700
+            sleep 1
+            capture minhsatori-native-create
+            adb shell input tap 770 1700
+            sleep 1
+            capture minhsatori-native-debt
+            adb shell input tap 975 1700
+            sleep 1
+            capture minhsatori-native-profile
       - name: Upload visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: MinhSatori-Android-v0.3.2-Visual-Sandbox-Evidence
-          path: android/ui-evidence/minhsatori-native-home.png
+          path: android/ui-evidence/minhsatori-native-*.png
           if-no-files-found: warn
           retention-days: 7
