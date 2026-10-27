@@ -27,12 +27,12 @@ class IOSLightThemeTests(unittest.TestCase):
         self.assertIn('applicationId = "vn.minhsatori.app"', self.gradle)
 
     def test_ios_light_palette_is_not_dark_legacy(self):
-        self.assertIn("private val night = Color.rgb(235, 241, 248)", self.source)
+        self.assertIn("private val night = Color.rgb(241, 244, 245)", self.source)
         self.assertIn("private val surface = Color.rgb(255, 255, 255)", self.source)
-        self.assertIn("private val cyan = Color.rgb(0, 122, 255)", self.source)
-        self.assertIn("private val ink = Color.rgb(28, 28, 30)", self.source)
+        self.assertIn("private val cyan = Color.rgb(0, 156, 153)", self.source)
+        self.assertIn("private val ink = Color.rgb(16, 43, 56)", self.source)
         self.assertIn("white, dark -> ink", self.source)
-        self.assertIn("Color.rgb(209, 222, 237)", self.source)
+        self.assertIn("Color.rgb(225, 233, 233)", self.source)
 
     def test_existing_live_capabilities_still_present(self):
         for text in ("fun invoiceQuickCard(", "fun customerQuickCard(", 
