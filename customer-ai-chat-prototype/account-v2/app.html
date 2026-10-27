@@ -1208,14 +1208,39 @@ $('clearCart').onclick=async()=>{
   toast('Đã làm trống giỏ hàng V2');
  }catch(e){toast(e.message)}
 };
+// Drafts are local only. Pin the revision from the moment editing begins,
+// otherwise a background 10-second sync can silently accept a stale edit.
+let userAddressDraftDirty=false,userAddressDraftId=null;
+let userAddressDraftProfileId=null,userAddressDraftRevision=null;
+function clearUserAddressDraft(){
+ userAddressDraftDirty=false;userAddressDraftId=null;
+ userAddressDraftProfileId=null;userAddressDraftRevision=null;
+}
+function markUserAddressDraft(){
+ const profileId=$('profile').value,id=$('userEditAddress').value;
+ const source=me?.addresses?.find(a=>a.id===id&&a.profileId===profileId);
+ if(!source)return;
+ if(!userAddressDraftDirty||userAddressDraftId!==id||userAddressDraftProfileId!==profileId){
+  userAddressDraftId=id;userAddressDraftProfileId=profileId;
+  userAddressDraftRevision=source.revision;
+ }
+ userAddressDraftDirty=true;
+}
 function userAddressSelection(){
  const a=me?.addresses?.find(x=>x.id===$('userEditAddress').value&&x.profileId===$('profile').value);
  $('saveUserAddress').disabled=!a;
+ // Never replace unsaved text when a remote address revision is polled.
+ if(userAddressDraftDirty&&a?.id===userAddressDraftId&&
+    a?.profileId===userAddressDraftProfileId)return;
+ clearUserAddressDraft();
  for(const [id,value] of [['userEditLabel',a?.label||''],['userEditRecipient',a?.recipientName||''],
- ['userEditPhone',a?.recipientPhone||''],['userEditText',a?.address||'']])$(id).value=value;
+  ['userEditPhone',a?.recipientPhone||''],['userEditText',a?.address||'']])$(id).value=value;
  $('userEditActive').checked=!!a?.active;
 }
-$('userEditAddress').onchange=userAddressSelection;
+$('userEditAddress').onchange=()=>{clearUserAddressDraft();userAddressSelection()};
+for(const field of ['userEditLabel','userEditRecipient','userEditPhone','userEditText'])
+ $(field).addEventListener('input',markUserAddressDraft);
+$('userEditActive').addEventListener('change',markUserAddressDraft);
 function selectedDeliveryAddress(){
  const profileId=$('profile').value,addressId=$('location').value;
  if(!me||!profileId||deliverySelectionProfileId!==profileId||!addressId)return null;
@@ -1459,13 +1484,18 @@ $('saveUserAddress').onclick=async()=>{
   if(!old)throw Error('Chưa chọn điểm giao');
   if(!confirm('Xác nhận thay đổi địa chỉ V2? Hóa đơn trước đây vẫn giữ nguyên.'))return;
   await call('/api/v2/addresses',{profileId:old.profileId,addressId:old.id,
-   expectedRevision:old.revision,confirmed:true,label:$('userEditLabel').value,
+   expectedRevision:userAddressDraftDirty&&userAddressDraftId===old.id&&
+    userAddressDraftProfileId===old.profileId?userAddressDraftRevision:old.revision,
+   confirmed:true,label:$('userEditLabel').value,
    recipientName:$('userEditRecipient').value,recipientPhone:$('userEditPhone').value,
    address:$('userEditText').value,active:$('userEditActive').checked},'PATCH');
   me=await call('/api/v2/me',undefined,'GET');
-  renderAddresses();toast('Đã cập nhật địa chỉ giao hàng');
+  clearUserAddressDraft();renderAddresses();toast('Đã cập nhật địa chỉ giao hàng');
  }catch(e){
-  if(e.message==='ADDRESS_REVISION_CONFLICT'){me=await call('/api/v2/me',undefined,'GET');renderAddresses()}
+  if(e.message==='ADDRESS_REVISION_CONFLICT'){
+   me=await call('/api/v2/me',undefined,'GET');
+   clearUserAddressDraft();renderAddresses();
+  }
   toast(e.message==='ADDRESS_REVISION_CONFLICT'?'Dữ liệu vừa thay đổi ở thiết bị khác; đã tải bản mới.':e.message)
  }
 };
