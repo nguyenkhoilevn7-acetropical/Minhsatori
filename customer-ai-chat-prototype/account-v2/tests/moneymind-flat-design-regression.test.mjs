@@ -66,9 +66,9 @@ test('orders, customer/CTV permissions and Gemini links remain unchanged',()=>{
 test('MoneyMind bottom navigation cannot bypass existing authenticated view handlers',()=>{
   const v2=getCase('../app.html');
   const admin=getCase('../../admin.html');
+  const bottomButtons=[...v2.matchAll(/<button\b[^>]*class="mm-bottom-tab[^"]*"[^>]*>/g)].map(x=>x[0]);
   const routeCounts = Object.fromEntries(['chat','catalogue','cart','orders','account']
-      .map(route=>[route,(v2.match(new RegExp('class="mm-bottom-tab[^"]*"[^>]+','g'))||[])
-       .filter(tag=>tag.includes('data-view="'+route+'"')).length]));
+    .map(route=>[route,bottomButtons.filter(tag=>tag.includes('data-view="'+route+'"')).length]));
   for(const [route,count] of Object.entries(routeCounts))assert.equal(count,1,route+' bottom navigation');
   assert.match(v2,/document\.querySelectorAll\('\[data-view\]'\)\.forEach\(btn=>btn\.onclick=\(\)=>view\(btn\.dataset\.view\)\)/);
   assert.match(v2,/#app:has\(#gate:not\(\.hidden\)\) \.mm-bottom-nav\{display:none\}/);
