@@ -713,7 +713,7 @@ class NativeMainActivity : AppCompatActivity() {
         // Keep the hamburger and primary controls visible while long ledgers scroll.
         shell.addView(brand, 0, LinearLayout.LayoutParams(-1, -2))
 
-        val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn", "Quản trị hệ thống")
+        val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn", "Cá nhân")
         if (activeTab != 0) {
             label(content, pages[activeTab], 21f, true, ink, 11)
         }
@@ -1297,8 +1297,8 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(14), dp(15), dp(14), dp(15))
             background = panelBackground(Color.WHITE, 17)
         }
-        label(title, "QUẢN TRỊ MINH SATORI", 19f, true, ink)
-        label(title, "Backend của ứng dụng • không hiển thị trên website đặt hàng",
+        label(title, "CÁ NHÂN & QUẢN TRỊ", 19f, true, ink)
+        label(title, "Tài khoản quản trị Minh Satori • các tác vụ được phân quyền",
             12f, false, muted, 5)
         label(title, if (current == null) "Chưa liên kết dữ liệu" else
             "Đang xem sổ Satori • " + current.invoices.size + " hóa đơn • Revision " +
@@ -1362,6 +1362,62 @@ class NativeMainActivity : AppCompatActivity() {
         profileRow("Lên đơn với quyền API đã xác minh",
             R.drawable.ic_satori_plus, Color.rgb(139, 84, 201), 4)
         parent.addView(modules, LinearLayout.LayoutParams(-1, -2).apply { topMargin=dp(10) })
+
+        // Settings section follows MoneyMind's compact personal-page rows.
+        // Each callback is an existing authenticated workflow, never a new
+        // invoice, payment, or permission path.
+        label(parent, "CÀI ĐẶT & HỖ TRỢ", 12f, true, cyan, 17)
+        val settings = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(7), dp(10), dp(7))
+            background = panelBackground(Color.WHITE, 17)
+        }
+        fun settingRow(text: String, iconRes: Int, tint: Int, action: () -> Unit) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(52)
+                setPadding(dp(5), dp(4), dp(6), dp(4))
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Mở " + text
+                setOnClickListener { action() }
+            }
+            val icon = ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(tint)
+                background = panelBackground(Color.rgb(235, 248, 245), 11)
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            row.addView(icon, LinearLayout.LayoutParams(dp(37), dp(37)).apply {
+                marginEnd = dp(12)
+            })
+            label(row, text, 13f, true, ink)
+            val chevron = TextView(this).apply {
+                this.text = "›"
+                textSize = 22f
+                setTextColor(softInk)
+            }
+            row.addView(chevron, LinearLayout.LayoutParams(-2, -2).apply {
+                marginStart = dp(7)
+            })
+            settings.addView(row)
+        }
+        settingRow("Cài đặt kết nối", R.drawable.ic_satori_settings, cyan) {
+            showConnectionSettings()
+        }
+        settingRow("Đồng bộ dữ liệu", R.drawable.ic_satori_refresh,
+            Color.rgb(22, 126, 184)) { refreshNow() }
+        settingRow("Trợ lý Gemini", R.drawable.ic_satori_plus,
+            Color.rgb(130, 75, 198)) {
+            startActivity(Intent(this, AiCustomerPortalActivity::class.java)
+                .putExtra("mode", "admin"))
+        }
+        parent.addView(settings, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(8)
+        })
+
         val v2 = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(14), dp(14), dp(14))
