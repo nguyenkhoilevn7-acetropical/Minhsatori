@@ -11,6 +11,8 @@ import android.content.Intent
 import android.net.Uri
 import java.io.ByteArrayOutputStream
 import android.graphics.Color
+import android.animation.ValueAnimator
+import android.view.animation.DecelerateInterpolator
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -573,10 +575,14 @@ class NativeMainActivity : AppCompatActivity() {
             .setNegativeButton("Đóng", null).show()
     }
 
+    private fun motionEnabled(): Boolean =
+        Build.VERSION.SDK_INT < 26 || ValueAnimator.areAnimatorsEnabled()
+
     private fun render() {
         dashboardMode = true
         // New orders should not jump the owner to the top of a long invoice
         // list during an automatic refresh.
+        val tabChanged = previousRenderedTab >= 0 && previousRenderedTab != activeTab
         val oldScrollY = if (previousRenderedTab == activeTab)
             previousScrollView?.scrollY ?: 0 else 0
         previousRenderedTab = activeTab
@@ -905,6 +911,12 @@ class NativeMainActivity : AppCompatActivity() {
             }
             item.addView(glyph, LinearLayout.LayoutParams(
                 dp(if (index == 4) 45 else 33), dp(if (index == 4) 45 else 33)))
+            if (selected && tabChanged && motionEnabled()) {
+                glyph.scaleX = 0.88f
+                glyph.scaleY = 0.88f
+                glyph.animate().scaleX(1f).scaleY(1f).setDuration(180)
+                    .setInterpolator(DecelerateInterpolator()).start()
+            }
             val text = TextView(this).apply {
                 this.text = title
                 textSize = 9f
@@ -979,13 +991,22 @@ class NativeMainActivity : AppCompatActivity() {
             drawerOpened = false
             drawer.animate().cancel()
             scrim.animate().cancel()
-            drawer.animate().translationX(-drawerWidth.toFloat()).setDuration(220)
+            if (!motionEnabled()) {
+                drawer.translationX = -drawerWidth.toFloat()
+                drawer.visibility = View.GONE
+                scrim.alpha = 0f
+                scrim.visibility = View.GONE
+                after?.invoke()
+                return
+            }
+            drawer.animate().translationX(-drawerWidth.toFloat())
+                .setDuration(200).setInterpolator(DecelerateInterpolator())
                 .withEndAction {
                     drawer.visibility = View.GONE
                     scrim.visibility = View.GONE
                     after?.invoke()
                 }.start()
-            scrim.animate().alpha(0f).setDuration(200).start()
+            scrim.animate().alpha(0f).setDuration(185).start()
         }
         fun showDrawer() {
             if (drawerOpened) return
@@ -996,8 +1017,14 @@ class NativeMainActivity : AppCompatActivity() {
             scrim.visibility = View.VISIBLE
             drawer.translationX = -drawerWidth.toFloat()
             drawer.visibility = View.VISIBLE
-            drawer.animate().translationX(0f).setDuration(260).start()
-            scrim.animate().alpha(1f).setDuration(240).start()
+            if (!motionEnabled()) {
+                drawer.translationX = 0f
+                scrim.alpha = 1f
+                return
+            }
+            drawer.animate().translationX(0f).setDuration(245)
+                .setInterpolator(DecelerateInterpolator()).start()
+            scrim.animate().alpha(1f).setDuration(210).start()
         }
         destinations.forEachIndexed { index, item ->
             val destination = TextView(this).apply {
@@ -1052,6 +1079,14 @@ class NativeMainActivity : AppCompatActivity() {
         menuButton.setOnClickListener { showDrawer() }
         closeButton.setOnClickListener { dismissDrawer() }
         scrim.setOnClickListener { dismissDrawer() }
+        // Only animate a genuine tab change, never a background revision sync:
+        // no flicker when accounting data auto-refreshes.
+        if (tabChanged && motionEnabled()) {
+            scroll.alpha = 0.75f
+            scroll.translationY = dp(6).toFloat()
+            scroll.animate().alpha(1f).translationY(0f).setDuration(190)
+                .setInterpolator(DecelerateInterpolator()).start()
+        }
         dashboardMode = false
     }
 
