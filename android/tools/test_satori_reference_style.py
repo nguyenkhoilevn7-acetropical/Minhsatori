@@ -48,6 +48,19 @@ class SatoriReferenceStyleContract(unittest.TestCase):
         self.assertIn('Triple(4, "Lên đơn", R.drawable.ic_satori_plus)', SRC)
         self.assertNotIn('Color.rgb(66, 151, 255)', SRC)
 
+    def test_money_mind_personal_settings_and_offline_tabs(self):
+        self.assertIn('"Lên đơn", "Cá nhân")', SRC)
+        self.assertIn('label(title, "CÁ NHÂN & QUẢN TRỊ"', SRC)
+        for token in ('settingRow("Cài đặt kết nối"',
+                      'settingRow("Đồng bộ dữ liệu"',
+                      'settingRow("Trợ lý Gemini"',
+                      'private fun renderMoneyMindOfflineState(',
+                      'private fun motionEnabled(): Boolean',
+                      'ValueAnimator.areAnimatorsEnabled()'):
+            self.assertIn(token, SRC)
+        self.assertIn('if (tabChanged && motionEnabled())', SRC)
+        self.assertIn('if (activeTab != 0) renderMoneyMindOfflineState(content, activeTab)', SRC)
+
     def test_invoice_card_shows_both_payment_statuses_without_new_write_paths(self):
         card = SRC.split("private fun invoiceQuickCard(", 1)[1].split(
             "private fun requestInvoiceEdit(", 1)[0]
