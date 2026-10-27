@@ -730,33 +730,37 @@ class NativeMainActivity : AppCompatActivity() {
         if (connected && lastReadAt.isNotBlank())
             label(info, "Cập nhật " + lastReadAt, 10f, false, softInk, 3)
 
-        // MoneyMind reference: a compact colored dashboard hero, not a stack of
-        // giant CTA panels. The underlying owner-only Gemini entry is unchanged.
+        // Match MoneyMind's compact teal dashboard + inset white metric card.
+        // Values are sourced ONLY from the verified Satori snapshot.
         if (activeTab == 0) {
             val hero = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(17), dp(15), dp(17), dp(14))
+                setPadding(dp(12), dp(10), dp(12), dp(12))
                 background = panelBackground(teal, 19)
             }
-            label(hero, "Tổng quan kinh doanh", 12f, false, white).apply {
-                setTextColor(Color.rgb(223, 250, 245))
-            }
-            label(hero, if (data == null) "Chưa kết nối dữ liệu"
-                else SatoriData.money(data.outstandingAmount), 25f, true, white, 4).apply {
+            label(hero, "Tổng quan Minh Satori", 12f, true, white).apply {
                 setTextColor(Color.WHITE)
             }
-            label(hero, if (data == null) "Kết nối để xem số liệu Satori"
-                else "Cần thu từ khách  ·  " + data.outstandingCount + " hóa đơn",
-                11.5f, false, white, 5).apply {
-                setTextColor(Color.rgb(226, 255, 249))
+            val moneyCard = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(13), dp(12), dp(13), dp(11))
+                background = panelBackground(Color.WHITE, 14)
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Mở công nợ cần thu"
+                setOnClickListener { activeTab = 3; render() }
             }
-            button(hero, "✦  Tạo hóa đơn với Gemini", true,
-                R.drawable.ic_satori_plus) {
-                startActivity(Intent(this, AiCustomerPortalActivity::class.java)
-                    .putExtra("mode", "admin"))
-            }
-            content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
+            label(moneyCard, "Tổng công nợ cần thu", 11f, false, muted)
+            label(moneyCard, if (data == null) "—"
+                else SatoriData.money(data.outstandingAmount), 23f, true, ink, 4)
+            label(moneyCard, if (data == null) "Chưa đồng bộ dữ liệu"
+                else data.outstandingCount.toString() + " hóa đơn chưa thu · Xem chi tiết ›",
+                11f, false, Color.rgb(16, 132, 100), 4)
+            hero.addView(moneyCard, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(9)
+            })
+            content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(8)
             })
             renderMoneyMindShortcuts(content)
         }
