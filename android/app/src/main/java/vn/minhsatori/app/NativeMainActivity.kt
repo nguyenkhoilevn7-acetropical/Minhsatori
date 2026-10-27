@@ -602,14 +602,13 @@ class NativeMainActivity : AppCompatActivity() {
                 cornerRadius = dp(18).toFloat()
             }
         }
-        val menuButton = TextView(this).apply {
-            text = "☰"
-            textSize = 25f
-            gravity = Gravity.CENTER
-            setTextColor(ink)
+        val menuButton = android.widget.ImageButton(this).apply {
+            setImageResource(R.drawable.ic_satori_menu)
+            setColorFilter(ink)
+            background = panelBackground(Color.TRANSPARENT, 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(10), dp(11), dp(10), dp(11))
             contentDescription = "Mở menu tác vụ"
-            isClickable = true
-            isFocusable = true
         }
         brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(45)))
         val brandLogo = ImageView(this).apply {
@@ -629,52 +628,52 @@ class NativeMainActivity : AppCompatActivity() {
         label(brandText, "HÓA ĐƠN  •  SỔ KẾ TOÁN", 9f,
             false, Color.rgb(79, 102, 132), 5)
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
-        val refreshButton = TextView(this).apply {
-            text = "↻"
-            textSize = 24f
-            gravity = Gravity.CENTER
-            setTextColor(cyan)
-            contentDescription = "Refresh trang và đồng bộ hóa đơn ngay từ server"
-            isClickable = true
-            isFocusable = true
+        val refreshButton = android.widget.ImageButton(this).apply {
+            setImageResource(R.drawable.ic_satori_refresh)
+            setColorFilter(cyan)
+            background = panelBackground(Color.TRANSPARENT, 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(8), dp(12), dp(8), dp(12))
+            contentDescription = "Đồng bộ hóa đơn từ server"
             setOnClickListener { refreshNow() }
         }
         brand.addView(refreshButton, LinearLayout.LayoutParams(dp(38), dp(46)))
-        val bellButton = TextView(this).apply {
-            text = if (getPreferences(MODE_PRIVATE).getBoolean(
-                    "satori_live_notifications", false)) "🔔" else "🔕"
-            textSize = 20f
-            gravity = Gravity.CENTER
-            setTextColor(ink)
-            contentDescription = "Bật hoặc tắt thông báo hóa đơn thật mới"
-            isClickable = true
-            isFocusable = true
+        val bellButton = android.widget.ImageButton(this).apply {
+            val enabled = getPreferences(MODE_PRIVATE).getBoolean(
+                "satori_live_notifications", false)
+            setImageResource(if (enabled) R.drawable.ic_satori_bell
+                else R.drawable.ic_satori_bell_off)
+            setColorFilter(if (enabled) cyan else softInk)
+            background = panelBackground(Color.TRANSPARENT, 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(7), dp(11), dp(7), dp(11))
+            contentDescription = if (enabled) "Tắt thông báo hóa đơn"
+                else "Bật thông báo hóa đơn"
             setOnClickListener {
                 val existing = getPreferences(MODE_PRIVATE).getBoolean(
                     "satori_live_notifications", false)
-                val enabled = !existing
+                val next = !existing
                 getPreferences(MODE_PRIVATE).edit().putBoolean(
-                    "satori_live_notifications", enabled).apply()
-                if (enabled && Build.VERSION.SDK_INT >= 33 &&
+                    "satori_live_notifications", next).apply()
+                if (next && Build.VERSION.SDK_INT >= 33 &&
                     checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
                         PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5201)
                 }
-                Toast.makeText(this@NativeMainActivity, if (enabled)
+                Toast.makeText(this@NativeMainActivity, if (next)
                     "Đã bật thông báo đơn thật khi dữ liệu đồng bộ được." else
                     "Đã tắt thông báo đơn mới.", Toast.LENGTH_SHORT).show()
                 render()
             }
         }
-        brand.addView(bellButton, LinearLayout.LayoutParams(dp(34), dp(46)))
-        val options = TextView(this).apply {
-            text = "⚙"
-            textSize = 23f
-            gravity = Gravity.CENTER
-            setTextColor(ink)
+        brand.addView(bellButton, LinearLayout.LayoutParams(dp(38), dp(46)))
+        val options = android.widget.ImageButton(this).apply {
+            setImageResource(R.drawable.ic_satori_settings)
+            setColorFilter(ink)
+            background = panelBackground(Color.TRANSPARENT, 12)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(10), dp(11), dp(10), dp(11))
             contentDescription = "Cài đặt kết nối"
-            isClickable = true
-            isFocusable = true
             setOnClickListener { showConnectionSettings() }
         }
         brand.addView(options, LinearLayout.LayoutParams(dp(42), dp(46)))
