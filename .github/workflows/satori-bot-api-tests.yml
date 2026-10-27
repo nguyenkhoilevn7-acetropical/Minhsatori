@@ -7,6 +7,7 @@ on:
     paths:
       - "api/**"
       - "tests/satori-bot-api.test.js"
+      - "tests/android-owner-invoice-edit.test.cjs"
 permissions:
   contents: read
 jobs:
@@ -19,4 +20,4 @@ jobs:
         with:
           node-version: "22"
       - name: Offline HMAC, money, invoice, backup and delete tests
-        run: node tests/satori-bot-api.test.js && node tests/satori-issued-links-registry.test.js
+        run: node tests/satori-bot-api.test.js && node tests/satori-issued-links-registry.test.js && node tests/android-owner-invoice-edit.test.cjs
