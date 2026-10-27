@@ -793,6 +793,7 @@ class NativeMainActivity : AppCompatActivity() {
                 section(content, "Chưa đồng bộ hóa đơn",
                     "Kết nối tài khoản để xem dữ liệu thực tế.")
             }
+            if (activeTab != 0) renderMoneyMindOfflineState(content, activeTab)
             button(content, if (apiEndpoint == null) "Kết nối Minh Satori" else
                 if (accessToken == null) "Đăng nhập Google" else
                 "Đồng bộ Mobile API", true) {
@@ -1090,6 +1091,73 @@ class NativeMainActivity : AppCompatActivity() {
         dashboardMode = false
     }
 
+
+
+    /**
+     * MoneyMind-consistent offline pages. These are informative empty states,
+     * never synthetic invoices, amounts, customers or enabled write controls.
+     */
+    private fun renderMoneyMindOfflineState(parent: LinearLayout, tab: Int) {
+        when (tab) {
+            1 -> {
+                val search = EditText(this).apply {
+                    hint = "⌕  Tìm hóa đơn, khách hàng..."
+                    textSize = 13f
+                    isEnabled = false
+                    setSingleLine()
+                    setPadding(dp(15), dp(12), dp(15), dp(12))
+                    background = panelBackground(Color.WHITE, 13)
+                }
+                parent.addView(search, LinearLayout.LayoutParams(-1, dp(46)).apply {
+                    topMargin = dp(12)
+                })
+                label(parent, "Lịch sử hóa đơn", 15f, true, ink, 17)
+                section(parent, "Chưa thể xem hóa đơn",
+                    "Đăng nhập và đồng bộ để xem danh sách, tìm kiếm, chỉnh sửa hoặc đối soát.")
+            }
+            2 -> {
+                label(parent, "Hồ sơ khách hàng", 15f, true, ink, 15)
+                section(parent, "Chưa đồng bộ hồ sơ",
+                    "Tài khoản đã xác thực sẽ hiển thị khách hàng và các địa chỉ giao.")
+            }
+            3 -> {
+                val metric = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(15), dp(15), dp(15), dp(15))
+                    background = panelBackground(Color.rgb(227, 247, 243), 18)
+                }
+                label(metric, "Tổng công nợ cần thu", 12f, false, softInk)
+                label(metric, "—", 25f, true, ink, 7)
+                label(metric, "Chưa có dữ liệu đối soát", 11f, false,
+                    Color.rgb(22, 127, 103), 5)
+                parent.addView(metric, LinearLayout.LayoutParams(-1, -2).apply {
+                    topMargin = dp(12)
+                })
+                label(parent, "Công nợ theo khách hàng", 15f, true, ink, 15)
+                section(parent, "Chưa thể xem khoản cần thu",
+                    "Công nợ tính theo hóa đơn thật sau khi đồng bộ. Trạng thái khách trả và thanh toán Satori độc lập.")
+            }
+            4 -> {
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(16), dp(14), dp(16), dp(13))
+                    background = panelBackground(Color.WHITE, 17)
+                }
+                label(card, "Lên hóa đơn Minh Satori", 17f, true, ink)
+                label(card, "Sẵn sàng kết nối tài khoản để chọn khách hàng, điểm giao, sản phẩm và duyệt hóa đơn.", 12f, false, softInk, 8)
+                button(card, "Mở Gemini quản trị", false,
+                    R.drawable.ic_satori_plus) {
+                    startActivity(Intent(this, AiCustomerPortalActivity::class.java)
+                        .putExtra("mode", "admin"))
+                }
+                parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
+                    topMargin = dp(12)
+                })
+                section(parent, "Chưa được cấp quyền tạo đơn",
+                    "Chỉ tạo hóa đơn thật sau khi Mobile API xác minh quyền Admin và anh xác nhận.")
+            }
+        }
+    }
 
     /** Four colorful native shortcuts with original authorized callbacks. */
     private fun renderMoneyMindShortcuts(parent: LinearLayout) {
