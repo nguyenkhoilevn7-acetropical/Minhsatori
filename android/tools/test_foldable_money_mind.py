@@ -23,7 +23,8 @@ class FoldableMoneyMindContract(unittest.TestCase):
     def test_unfolded_canvas_is_capped_and_centered(self):
         self.assertIn('resources.configuration.screenWidthDp', NATIVE)
         self.assertIn('if (widthDp >= 600) dp(minOf(680, widthDp - 32)) else -1', NATIVE)
-        self.assertIn('adaptiveShellWidth(), -1, Gravity.CENTER_HORIZONTAL', NATIVE)
+        self.assertIn('shellWidth, -1, Gravity.CENTER_HORIZONTAL', NATIVE)
+        self.assertIn('leftMargin = shellInset', NATIVE)
         self.assertIn('resources.configuration.screenWidthDp - 36', NATIVE)
 
     def test_drawer_and_tabs_animate_only_when_allowed(self):
