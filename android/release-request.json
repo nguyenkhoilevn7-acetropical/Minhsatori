@@ -1,20 +1,21 @@
 {
-  "purpose": "android-0.4.8-ios-light-hamburger-navigation-samsung-owner-acceptance",
+  "purpose": "owner-payment-controls-signed-acceptance-build",
   "package": "vn.minhsatori.app",
-  "version": "0.4.8",
-  "versionCode": 25,
-  "branch": "release/android-v0.4.8-ios-ui-20261025",
-  "requestedOn": "2026-10-25",
+  "version": "0.4.12",
+  "versionCode": 29,
+  "branch": "release/android-v0.4.12-payment-controls-20261027",
+  "requestedOn": "2026-10-27",
   "sourcePRs": [
-    144,
-    149
+    187,
+    192
   ],
-  "scope": "Owner native Android UI only: iOS light palette, clear compact invoice/customer/debt cards, animated hamburger drawer replacing always-visible five tabs, pinned header. Preserve login, existing Gemini customer portal, PDF preview/sharing, offline outbox, secure soft-delete, source selection and live ledger sync. No changes to Apps Script, accounting ledger, HMAC, Render production or any invoice.",
+  "sourceCommit": "09adc1906a9fc3e546bfa5d13ce5f32c92708d04",
+  "scope": "Package merged owner-only independent customer/Satori payment controls and outline icons with existing stable signing key. No runtime feature changes, production deployment or invoice mutation.",
   "notes": [
-    "Only release if Gradle unit/build, emulator UI capture, offline store tests and signing verification PASS.",
-    "Use existing stable release keystore and verify against pinned GitHub SATORI_ANDROID_SIGNING_CERT_SHA256. Do not produce debug-signed APK for an existing installed production app.",
-    "Check package vn.minhsatori.app, versionName 0.4.8, versionCode 25, SHA-256 certificate and APK SHA-256; upload signed ZIP to owner's Google Drive releases folder, verify size/readback.",
-    "No production invoice create/update/delete for acceptance. Keep previous signed APK available to roll back.",
-    "2026-10-25: refresh regression updated for compact icon-only header while retaining refreshNow() owner action and accessibility label; retry signed release CI against latest head."
+    "Signed acceptance APK only; real isolated HTTP/Owner OAuth E2E and separate Apps Script deployment approval remain required.",
+    "Verify package, version, stable certificate, non-debuggable flag and APK SHA-256 using existing release verifier.",
+    "Do not rotate credentials or use real invoices for tests.",
+    "Version 0.4.12/code 29 supersedes 0.4.10/code 27 and reserves previously discussed 0.4.11/code 28.",
+    "Release contract checks compare the Gradle identity with this request and reject versionCode below 27, rather than freezing version 0.4.10."
   ]
 }
