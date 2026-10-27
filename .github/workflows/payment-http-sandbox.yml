@@ -1,0 +1,22 @@
+name: Standalone payment HTTP sandbox safety tests
+on:
+  pull_request:
+    paths:
+      - 'api/sandbox/PaymentHttpSandboxEnv.gs'
+      - 'api/BotApi.gs'
+      - 'tests/payment-http-sandbox.test.mjs'
+      - '.github/workflows/payment-http-sandbox.yml'
+permissions:
+  contents: read
+jobs:
+  synthetic-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/payment-http-sandbox.test.mjs
