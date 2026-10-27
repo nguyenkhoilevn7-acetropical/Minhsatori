@@ -444,7 +444,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
-                       iconRes: Int = 0, click: () -> Unit) {
+                       iconRes: Int = 0, danger: Boolean = false, click: () -> Unit) {
         val b = Button(this).apply {
             this.text = text
             textSize = 12f
@@ -455,11 +455,12 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(9), 0, dp(9), 0)
             stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(if (main) white else cyan)
+            val accent = if (main) white else if (danger) Color.rgb(207, 46, 46) else cyan
+            setTextColor(accent)
             if (iconRes != 0) {
                 val symbol = androidx.core.content.ContextCompat.getDrawable(
                     this@NativeMainActivity, iconRes)?.mutate()
-                symbol?.setTint(if (main) white else cyan)
+                symbol?.setTint(accent)
                 symbol?.setBounds(0, 0, dp(17), dp(17))
                 setCompoundDrawablesRelative(symbol, null, null, null)
                 compoundDrawablePadding = dp(9)
@@ -470,7 +471,8 @@ class NativeMainActivity : AppCompatActivity() {
                     intArrayOf(Color.rgb(0, 122, 255), Color.rgb(66, 151, 255))).apply {
                     cornerRadius = dp(14).toFloat()
                 }
-            } else panelBackground(Color.rgb(248, 249, 252), 14)
+            } else panelBackground(if (danger) Color.rgb(255, 243, 243)
+                else Color.rgb(248, 249, 252), 14)
             setOnClickListener { click() }
         }
         parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
@@ -2205,7 +2207,7 @@ class NativeMainActivity : AppCompatActivity() {
             }
             if (invoice.canEditOrDelete)
                 button(content, "XÓA ĐƠN • THÙNG RÁC 30 NGÀY",
-                    iconRes = R.drawable.ic_satori_trash) {
+                    iconRes = R.drawable.ic_satori_trash, danger = true) {
                     confirmSoftDelete(invoice) { invoiceDialog?.dismiss() }
                 }
         }
