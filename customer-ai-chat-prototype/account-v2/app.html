@@ -437,6 +437,8 @@ const views=['chat','catalogue','cart','addresses','orders','account'];
 const PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
 let crmRows={registered:[],leads:[]};
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
+// Ignore out-of-order profile reads; never show the previous buyer's cart.
+let cartProfileLoadEpoch=0,profileLoading=false,cartLoadedProfileId=null;
 // In-memory only. Never persist a customer conversation or guessed SKU.
 let pendingCatalogueProduct=null;
 let catalogueQuestionHasUnavailableProduct=false;
@@ -816,7 +818,7 @@ function updateComposerAction(){
  button.classList.toggle('is-send',isTyping);
  const label=isTyping?'Gửi tin nhắn':'Mở giỏ hàng';
  button.setAttribute('aria-label',label);button.title=label;
- button.disabled=busy||(isTyping&&!selectedDeliveryAddress());
+ button.disabled=busy||savingCart||profileLoading||(isTyping&&!selectedDeliveryAddress());
 }
 $('message').addEventListener('focus',updateComposerAction);
 $('message').addEventListener('blur',e=>{
@@ -995,10 +997,13 @@ async function saveCart(lines){
  if(!me)throw Error('Chưa đăng nhập vào tài khoản V2');
  if(lines.length&&!requireDeliverySelection())throw Error('Vui lòng chọn địa chỉ giao hàng');
  if(savingCart)throw Error('Đang cập nhật giỏ hàng');
+ if(profileLoading||cartLoadedProfileId!==$('profile').value)
+  throw Error('Đang chuyển hồ sơ khách hàng. Vui lòng kiểm tra lại giỏ trước khi thêm sản phẩm.');
  const profileId=$('profile').value;
  const addressId=selectedDeliveryAddress()?.id||null;
  const expectedRevision=cartRev;
  savingCart=true;
+ updateDeliveryGate();
  try{
   let result;
   try{
@@ -1009,7 +1014,7 @@ async function saveCart(lines){
    // A timed-out network request MAY have committed on the server. Read back
    // before reporting failure. Never blindly retry a potentially applied PUT.
    if(writeError.message==='CART_REVISION_CONFLICT'){
-    await changeProfile();
+    await changeProfile(true);
     throw Error('Giỏ đã thay đổi trên thiết bị khác. Em vừa tải lại; vui lòng kiểm tra trước khi gửi tiếp.');
    }
    let remote;
@@ -1028,6 +1033,8 @@ async function saveCart(lines){
    }
    // Desired server state is already present: accept it once, with no second PUT.
   }
+  if($('profile').value!==profileId||cartLoadedProfileId!==profileId)
+   throw Error('Hồ sơ khách hàng đã thay đổi. Vui lòng tải lại giỏ trước khi tiếp tục.');
   cart=result.lines;cartRev=result.revision;
   clearPendingCatalogueProduct();
   resetTestQuote();invalidateCartPricing();
@@ -1216,17 +1223,22 @@ function selectedDeliveryAddress(){
 }
 function updateDeliveryGate(){
  const ready=!!selectedDeliveryAddress();
- $('message').disabled=!ready||busy;
+ const writing=savingCart||profileLoading;
+ $('profile').disabled=writing||busy;
+ $('quickAgentProfile').disabled=writing||busy;
+ $('location').disabled=writing||busy;
+ $('headerDelivery').disabled=writing||busy;
+ $('message').disabled=!ready||busy||writing;
  updateComposerAction();
- for(const add of $('products').querySelectorAll('.product .btn'))add.disabled=!ready||savingCart||busy;
+ for(const add of $('products').querySelectorAll('.product .btn'))add.disabled=!ready||writing||busy;
  $('deliveryPrompt').hidden=ready;
  $('agentAddressMenu').classList.toggle('required',!ready);
  $('headerDelivery').classList.toggle('required',!ready);
  $('headerDelivery').setAttribute('aria-label',ready?'Điểm giao: '+selectedDeliveryAddress().label:'Chọn địa điểm giao hàng');
  syncDeliveryDialogGate();
- $('quote').disabled=!ready;
+ $('quote').disabled=!ready||writing||busy;
  const key=pricingContextKey();
- $('submitTestOrder').disabled=!ready||!cart.length||busy||savingCart||
+ $('submitTestOrder').disabled=!ready||!cart.length||busy||writing||
   !key||cartPricingKey!==key||!cartPricing||
   key===lastSubmittedCartKey||(!PREVIEW&&!realTestEnabled);
  return ready;
@@ -1288,14 +1300,48 @@ function renderAddresses(){
  updateDeliveryGate();
 }
 $('location').onchange=()=>{deliverySelectionProfileId=$('location').value?$('profile').value:null;resetTestQuote();invalidateCartPricing();renderAddresses();renderCart()};
-async function changeProfile(){
- try{
-  if(deliverySelectionProfileId!==$('profile').value){deliverySelectionProfileId=null;$('location').value='';clearPendingCatalogueProduct()}
-  resetTestQuote();invalidateCartPricing();updateDeliveryGate();
+async function changeProfile(forceDuringWrite=false){
+ const requestedProfileId=$('profile').value;
+ // A customer switching profiles while a cart PUT is unresolved must not
+ // replace another profile's visible cart or confirmation pricing.
+ if((savingCart||busy)&&forceDuringWrite!==true){
+  if(cartLoadedProfileId)$('profile').value=cartLoadedProfileId;
   $('quickAgentProfile').value=$('profile').value;
-  const r=await call('/api/v2/cart?profileId='+encodeURIComponent($('profile').value),undefined,'GET');
-  cart=r.lines;cartRev=r.revision;renderBadge();renderCart();renderAddresses();
- }catch(e){toast(e.message)}
+  toast('Đang xử lý giỏ hàng. Vui lòng thử đổi hồ sơ sau.');
+  return;
+ }
+ const requestEpoch=++cartProfileLoadEpoch;
+ profileLoading=true;
+ try{
+  if(deliverySelectionProfileId!==requestedProfileId){
+   deliverySelectionProfileId=null;$('location').value='';
+   clearPendingCatalogueProduct();
+  }
+  resetTestQuote();invalidateCartPricing();
+  $('quickAgentProfile').value=requestedProfileId;
+  updateDeliveryGate();
+  const r=await call('/api/v2/cart?profileId='+encodeURIComponent(requestedProfileId),undefined,'GET');
+  if(requestEpoch!==cartProfileLoadEpoch||$('profile').value!==requestedProfileId)return;
+  if(!Array.isArray(r.lines)||!Number.isSafeInteger(r.revision))
+   throw Error('CART_RESPONSE_INVALID');
+  cart=r.lines;cartRev=r.revision;cartLoadedProfileId=requestedProfileId;
+  renderBadge();renderCart();renderAddresses();
+ }catch(e){
+  if(requestEpoch===cartProfileLoadEpoch){
+   if(cartLoadedProfileId&&me?.profiles?.some(p=>p.id===cartLoadedProfileId)){
+    $('profile').value=cartLoadedProfileId;
+    $('quickAgentProfile').value=cartLoadedProfileId;
+   }
+   // Error is fail-closed: retain the last verified cart and require a valid address.
+   deliverySelectionProfileId=null;$('location').value='';
+   toast('Chưa tải được giỏ của hồ sơ mới. '+e.message);
+  }
+ }finally{
+  if(requestEpoch===cartProfileLoadEpoch){
+   profileLoading=false;
+   updateDeliveryGate();
+  }
+ }
 }
 $('profile').onchange=changeProfile;
 $('quickAgentProfile').onchange=async()=>{
@@ -1676,7 +1722,7 @@ window.addEventListener('online',()=>{
 // while visible. Never write data or discard unsaved form fields.
 let v2SyncInFlight=false;
 setInterval(async()=>{
- if(!me||savingCart||busy||v2SyncInFlight||document.visibilityState!=='visible')return;
+ if(!me||savingCart||busy||profileLoading||v2SyncInFlight||document.visibilityState!=='visible')return;
  v2SyncInFlight=true;
  const profileId=$('profile').value;
  try{
@@ -1685,7 +1731,9 @@ setInterval(async()=>{
    call('/api/v2/catalogue',undefined,'GET'),
    call('/api/v2/cart?profileId='+encodeURIComponent(profileId),undefined,'GET')
   ]);
-  if($('profile').value!==profileId)return;
+  // A write or profile switch may have begun while three GETs were in flight.
+  // Do not render an old snapshot over the active customer's unsaved operation.
+  if($('profile').value!==profileId||savingCart||busy||profileLoading)return;
   const oldAccount=me.account.accessStatus;
   const profilesChanged=JSON.stringify(me.profiles)!==JSON.stringify(remoteMe.profiles);
   const addressesChanged=JSON.stringify(me.addresses)!==JSON.stringify(remoteMe.addresses);
