@@ -10,7 +10,7 @@ WORKFLOW = (ROOT.parent / ".github/workflows/android-native-ui-screenshot.yml").
 
 class FoldableMoneyMindContract(unittest.TestCase):
     def test_resize_live_preserves_accounting_session_and_tabs(self):
-        self.assertIn('android:configChanges="screenSize|smallestScreenSize|orientation"', MANIFEST)
+        self.assertIn('android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout"', MANIFEST)
         self.assertIn('android:windowSoftInputMode="adjustResize"', MANIFEST)
         self.assertIn('override fun onConfigurationChanged(newConfig: Configuration)', NATIVE)
         method = NATIVE.split('override fun onConfigurationChanged(newConfig: Configuration)', 1)[1].split(
@@ -31,6 +31,18 @@ class FoldableMoneyMindContract(unittest.TestCase):
         self.assertIn('if (tabChanged && motionEnabled())', NATIVE)
         self.assertIn('.setInterpolator(DecelerateInterpolator())', NATIVE)
         self.assertIn('if (!motionEnabled()) {', NATIVE)
+
+    def test_webview_gemini_draft_survives_fold_and_keyboard(self):
+        portal = (ROOT / "app/src/main/java/vn/minhsatori/app/AiCustomerPortalActivity.kt").read_text(encoding="utf-8")
+        self.assertIn('android:name=".AiCustomerPortalActivity"', MANIFEST)
+        self.assertEqual(MANIFEST.count('android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout"'), 2)
+        self.assertEqual(MANIFEST.count('android:windowSoftInputMode="adjustResize"'), 2)
+        self.assertIn('override fun onConfigurationChanged(newConfig: Configuration)', portal)
+        method = portal.split('override fun onConfigurationChanged(newConfig: Configuration)', 1)[1].split('@Deprecated', 1)[0]
+        self.assertIn('super.onConfigurationChanged(newConfig)', method)
+        self.assertIn('view.requestLayout()', method)
+        self.assertNotIn('view.loadUrl(', method)
+        self.assertNotIn('view.destroy()', method)
 
     def test_emulator_captures_bar_phone_and_both_fold_states(self):
         for marker in ('minhsatori-native-home.png',
