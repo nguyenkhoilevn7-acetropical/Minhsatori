@@ -23,7 +23,7 @@ function need(ok,code,message){if(!ok)fail(code,message)}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o))
   .setMimeType(ContentService.MimeType.JSON)}
 var READ_ACTIONS=['mobile.snapshot','mobile.revision','mobile.trash'];
-var WRITE_ACTIONS=['orders.delete','orders.restore',
+var WRITE_ACTIONS=['orders.create','orders.update','orders.delete','orders.restore',
  'payments.markCustomerPaid','payments.markCustomerUnpaid',
  'payments.markSatoriPaid','payments.markSatoriUnpaid'];
 var ALLOWED=READ_ACTIONS.concat(WRITE_ACTIONS);

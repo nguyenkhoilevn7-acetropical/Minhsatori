@@ -1743,6 +1743,11 @@ class NativeMainActivity : AppCompatActivity() {
         actions.addView(compactAction("Xem chi tiết", cyan) { openInvoice(invoice) },
             LinearLayout.LayoutParams(0, dp(38), 1f))
         if (invoice.canEditOrDelete) {
+            actions.addView(compactAction("Sửa", cyan) {
+                requestInvoiceEdit(invoice)
+            }, LinearLayout.LayoutParams(-2, dp(38)).apply { marginStart = dp(8) })
+        }
+        if (invoice.canEditOrDelete) {
             actions.addView(compactAction("🗑 Xóa đơn",
                 if (canAction("orders.delete")) Color.rgb(215, 44, 43)
                 else Color.rgb(110, 110, 115)) {
@@ -1753,6 +1758,29 @@ class NativeMainActivity : AppCompatActivity() {
         parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(9)
         })
+    }
+
+    /** Explicit, owner-verified edit entry from both invoice list and detail. */
+    private fun requestInvoiceEdit(invoice: SatoriInvoice, afterAuthorized: (() -> Unit)? = null) {
+        if (!invoice.canEditOrDelete) {
+            Toast.makeText(this, "Chỉ sửa được hóa đơn chưa thanh toán và không thuộc cặp CTV.",
+                Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!canAction("orders.update")) {
+            AlertDialog.Builder(this)
+                .setTitle("Chưa được cấp quyền sửa hóa đơn")
+                .setMessage("Sửa đơn cần Google Owner và Mobile API cấp orders.update. " +
+                    "Chế độ đọc Google Drive không được ghi. " +
+                    "Hãy kết nối API chủ tài khoản rồi đồng bộ lại.")
+                .setNegativeButton("Đóng", null)
+                .setPositiveButton("Kiểm tra kết nối") { _, _ ->
+                    showConnectionSettings()
+                }.show()
+            return
+        }
+        afterAuthorized?.invoke()
+        launchEditor(editing = invoice)
     }
 
     /** One guarded soft-delete from the invoice list, debt list and detail. */
@@ -2383,38 +2411,58 @@ class NativeMainActivity : AppCompatActivity() {
             label(content, "Số hóa đơn không hợp lệ. Đã khóa ghi trạng thái.",
                 12f, true, gold, 10)
         } else {
-            if (invoice.canEditOrDelete && canAction("orders.update"))
+            // Keep the Edit affordance visible even when the owner Mobile API
+            // has not yet been deployed. Never bypass the server permission.
+            if (invoice.canEditOrDelete)
                 button(content, "SỬA HÓA ĐƠN", iconRes = R.drawable.ic_satori_edit) {
-                    invoiceDialog?.dismiss()
-                    launchEditor(editing = invoice)
+                    requestInvoiceEdit(invoice) { invoiceDialog?.dismiss() }
                 }
             if (invoice.canChangePayment) {
-                val possibilities = listOf(
-                    Triple("payments.markCustomerPaid", "Khách đã thanh toán", R.drawable.ic_satori_check),
-                    Triple("payments.markCustomerUnpaid", "Khách chưa thanh toán", R.drawable.ic_satori_undo),
-                    Triple("payments.markSatoriPaid", "Đã thanh toán Satori", R.drawable.ic_satori_check),
-                    Triple("payments.markSatoriUnpaid", "Chưa thanh toán Satori", R.drawable.ic_satori_undo))
-                var enabled = false
-                possibilities.forEach { (action, title, icon) ->
-                    val wanted = when (action) {
-                        "payments.markCustomerPaid" -> !invoice.customerHasPaid
-                        "payments.markCustomerUnpaid" -> invoice.customerHasPaid
-                        "payments.markSatoriPaid" -> !invoice.satoriHasPaid
-                        else -> invoice.satoriHasPaid
-                    }
-                    if (wanted && canAction(action)) {
-                        enabled = true
-                        button(content, title, iconRes = icon) {
+                // Show both independent owner payment controls even before the
+                // backend is connected. The click handler NEVER bypasses canAction.
+                label(content, "CẬP NHẬT THANH TOÁN", 12f, true, cyan, 14)
+                val paymentChoices = listOf(
+                    Triple(
+                        if (invoice.customerHasPaid) "payments.markCustomerUnpaid"
+                        else "payments.markCustomerPaid",
+                        if (invoice.customerHasPaid) "Khách: chuyển về CHƯA thanh toán"
+                        else "Khách: đánh dấu ĐÃ thanh toán",
+                        if (invoice.customerHasPaid) R.drawable.ic_satori_undo
+                        else R.drawable.ic_satori_check
+                    ),
+                    Triple(
+                        if (invoice.satoriHasPaid) "payments.markSatoriUnpaid"
+                        else "payments.markSatoriPaid",
+                        if (invoice.satoriHasPaid) "Satori: chuyển về CHƯA thanh toán"
+                        else "Satori: đánh dấu ĐÃ thanh toán",
+                        if (invoice.satoriHasPaid) R.drawable.ic_satori_undo
+                        else R.drawable.ic_satori_check
+                    )
+                )
+                paymentChoices.forEach { (action, title, icon) ->
+                    button(content, title, iconRes = icon) {
+                        if (!canAction(action)) {
+                            AlertDialog.Builder(this)
+                                .setTitle("Chưa kết nối quyền thanh toán")
+                                .setMessage("Chức năng này cần Google Owner và Mobile API " +
+                                    "được cấp quyền " + action + ". " +
+                                    "Đang đọc Google Drive hoặc thiếu API thì chỉ được xem. " +
+                                    "Không ghi nhận thanh toán khi chưa xác minh.")
+                                .setNegativeButton("Đóng", null)
+                                .setPositiveButton("Kiểm tra kết nối") { _, _ ->
+                                    showConnectionSettings()
+                                }.show()
+                        } else {
                             confirmInvoicePayment(invoice, action) {
                                 invoiceDialog?.dismiss()
                             }
                         }
                     }
                 }
-                if (!enabled) label(content,
-                    "Chỉnh sửa thanh toán yêu cầu Google Owner và Mobile API đã cấp quyền. " +
-                        "Nếu còn thiếu lệnh, cần cập nhật API trước khi ghi.",
-                    11.5f, false, softInk, 8)
+                if (paymentChoices.any { !canAction(it.first) })
+                    label(content, "Nút đã hiển thị để kiểm tra giao diện; " +
+                        "quyền ghi vẫn khóa đến khi Mobile API chủ tài khoản được xác minh.",
+                        11.5f, false, softInk, 8)
             }
             if (invoice.canEditOrDelete)
                 button(content, "XÓA ĐƠN • THÙNG RÁC 30 NGÀY",
