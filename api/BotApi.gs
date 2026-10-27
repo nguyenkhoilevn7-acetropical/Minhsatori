@@ -12,6 +12,9 @@ var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
  'orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','pricing.eligibility':'orders:ai:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
  'payments.markCustomerPaid':'payments:write',
+ 'payments.markCustomerUnpaid':'payments:write',
+ 'payments.markSatoriPaid':'payments:write',
+ 'payments.markSatoriUnpaid':'payments:write',
  'collaborators.pair.list':'collaborators:pair:read',
  'collaborators.pair.configure':'collaborators:pair:approve','collaborators.mark':'collaborators:pair:approve',
  'orders.create.pair':'collaborators:pair:write',
@@ -43,7 +46,7 @@ function state(){
 }
 function rows(s){var x=JSON.parse(s.values[ORDER_KEY]);need(Array.isArray(x),'INVALID_STATE','Dữ liệu hóa đơn hỏng');return x;}
 function version(s,p){need(Number.isInteger(p.expectedRevision),'REVISION_REQUIRED','Thiếu expectedRevision');need(s.revision===p.expectedRevision,'REVISION_CONFLICT','Dữ liệu vừa được cập nhật, hãy đọc lại');}
-function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCommissionAmount:o.pairCommissionAmount??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
+function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCommissionAmount:o.pairCommissionAmount??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,satoriPaidAt:o.satoriPaidAt||null,customerPaid:paid(o),satoriPaid:o.status==='Đã TT Satori'||!!o.satoriPaidAt,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
 function iso(date){
  var m=String(date||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
  var d=new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
@@ -652,6 +655,90 @@ function markPaid(s,all,p){
  all[all.indexOf(old)]=updated;return {modified:true,result:{order:visible(updated),alreadyPaid:false}};
 }
 /**
+ * Correct an invoice's two INDEPENDENT financial facts. This owner-approved
+ * HMAC action never transfers money; it records only a verified administrative
+ * declaration. No invoice can be selected by number or customer name alone.
+ * Previous facts are retained in an append-only audit array on the same order.
+ */
+function changePaymentFlag(s,all,p,action){
+ need(['payments.markCustomerUnpaid','payments.markSatoriPaid',
+   'payments.markSatoriUnpaid'].indexOf(action)>=0,'INVALID_ACTION','Lệnh không hỗ trợ');
+ need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0&&p.id!==undefined&&p.id!==null,
+   'INVALID_ORDER','Cần ID và số hóa đơn chính xác');
+ need((typeof p.id==='string'||Number.isSafeInteger(p.id))&&String(p.id).length>0,
+   'INVALID_ORDER','ID hóa đơn không hợp lệ');
+ need(typeof p.expectedName==='string'&&p.expectedName.trim().length>=2&&
+   p.expectedName.length<=150&&Number.isFinite(p.expectedTotal),
+   'CONFIRMATION_REQUIRED','Cần xác nhận tên khách và tổng hóa đơn');
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Chưa xác nhận thao tác thanh toán');
+ need(typeof p.reason==='string'&&p.reason.trim().length>=3&&p.reason.length<=300,
+   'REASON_REQUIRED','Ghi rõ căn cứ cập nhật thanh toán để lưu lịch sử');
+ need(typeof p.requestId==='string'&&/^[A-Za-z0-9_-]{8,100}$/.test(p.requestId),
+   'INVALID_REQUEST','Cần mã thao tác chống gửi trùng');
+ var matches=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo&&
+    String(o.id)===String(p.id)});
+ need(matches.length===1&&active(matches[0]),'INVALID_ORDER',
+   'Hóa đơn không duy nhất, không tồn tại hoặc đã hủy');
+ var old=matches[0];
+ need(norm(old.name)===norm(p.expectedName)&&money(old.total)===money(p.expectedTotal),
+   'ORDER_CHANGED','Tên khách hoặc tổng tiền đã thay đổi');
+ need(old.pairRole!=='collaborator','CTV_INTERNAL_NOT_RECEIVABLE',
+   'Bill CTV nội bộ chỉ để đối soát, không cập nhật thu tiền khách');
+ var audit=old.paymentAudit||[];
+ need(Array.isArray(audit)&&audit.length<250,'PAYMENT_AUDIT_FULL',
+   'Lịch sử thanh toán cần được lưu trữ trước khi ghi thêm');
+ // Idempotency: a requestId belongs to one action and one invoice forever.
+ var used=all.flatMap(function(o){return Array.isArray(o.paymentAudit)?o.paymentAudit:[]})
+  .find(function(e){return e&&e.requestId===p.requestId});
+ if(used){
+   need(used.action===action&&String(used.id)===String(p.id)&&
+     Number(used.invoiceNo)===p.invoiceNo&&used.reason===p.reason.trim(),
+     'REQUEST_ID_CONFLICT','Mã thao tác đã được dùng cho thay đổi khác');
+   return {modified:false,result:{order:visible(old),alreadyApplied:true}};
+ }
+ // Only an exact historical requestId replay can bypass a stale revision.
+ version(s,p);
+ var customerPaid=paid(old),satoriPaid=old.status==='Đã TT Satori'||!!old.satoriPaidAt;
+ var target=action==='payments.markCustomerUnpaid'?'customer':'satori';
+ var wanted=action!=='payments.markCustomerUnpaid'&&action!=='payments.markSatoriUnpaid';
+ if((target==='customer'?customerPaid:satoriPaid)===wanted)
+   return {modified:false,result:{order:visible(old),alreadySet:true}};
+ var at=new Date().toISOString();
+ var updated=Object.assign({},old,{updatedAt:Date.now()});
+ if(target==='customer'){
+   updated.customerPaidAt=null;
+   // The old receipt remains in the immutable audit record, not on the
+   // current unpaid invoice where it could be mistaken for valid proof.
+   updated.customerPaymentReceiptUrl=null;
+   updated.customerPaymentReceiptAt=null;
+   updated.customerPaymentNote=null;
+   updated.status=satoriPaid?'Đã TT Satori':'Chưa thanh toán';
+ }else if(wanted){
+   updated.satoriPaidAt=at;
+   updated.status='Đã TT Satori';
+ }else{
+   updated.satoriPaidAt=null;
+   updated.status=customerPaid?'Đã thanh toán':'Chưa thanh toán';
+ }
+ updated.paymentAudit=audit.concat([{
+   requestId:p.requestId,id:old.id,invoiceNo:old.invoiceNo,
+   action:action,target:target,recordedAt:at,reason:p.reason.trim(),
+   previousStatus:old.status,newStatus:updated.status,
+   previousCustomerPaidAt:old.customerPaidAt||null,
+   previousCustomerPaymentReceiptUrl:old.customerPaymentReceiptUrl||null,
+   previousCustomerPaymentReceiptAt:old.customerPaymentReceiptAt||null,
+   previousCustomerPaymentNote:old.customerPaymentNote||null,
+   previousSatoriPaidAt:old.satoriPaidAt||null,
+   customerPaidAfter:target==='customer'?false:customerPaid,
+   satoriPaidAfter:target==='satori'?wanted:satoriPaid,
+   source:'bot-api'
+ }]);
+ all[all.indexOf(old)]=updated;
+ return {modified:true,result:{order:visible(updated),alreadySet:false,
+   auditRecorded:true,customerPaid:target==='customer'?false:customerPaid,
+   satoriPaid:target==='satori'?wanted:satoriPaid}};
+}
+/**
  * Owner-authorised, bounded proof that a single customer+delivery destination
  * has a current, separately owner-approved pricing policy. A Gemini backend
  * must still authenticate the real person before using this response.
@@ -974,7 +1061,9 @@ function write(s,action,p){
   action==='orders.create.pair'?createPair(s,all,p):
   action==='pricing.approve'?approveAIPricing(s,all,p):
   (action==='orders.create'||action==='orders.create.ai')?create(s,all,p,action==='orders.create.ai'):
-  action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):markPaid(s,all,p);
+  action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):
+  action==='payments.markCustomerPaid'?markPaid(s,all,p):
+  changePaymentFlag(s,all,p,action);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
  need(!!fileId,'CONFIG_MISSING','Thiếu STATE_FILE_ID');
@@ -1000,7 +1089,9 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='links.register'||identity.action==='links.update'||identity.action==='links.secret.set'||identity.action==='collaborators.mark'||identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
+   var s=state(),isWrite=identity.action==='links.register'||identity.action==='links.update'||identity.action==='links.secret.set'||identity.action==='collaborators.mark'||identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid'||
+   identity.action==='payments.markCustomerUnpaid'||identity.action==='payments.markSatoriPaid'||
+   identity.action==='payments.markSatoriUnpaid';
    var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
