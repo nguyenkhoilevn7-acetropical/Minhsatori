@@ -52,27 +52,31 @@ jobs:
             adb shell am start -n vn.minhsatori.app/.NativeMainActivity
             sleep 5
             mkdir -p android/ui-evidence
-            capture() {
-              target="$1"
-              adb shell screencap -p "/sdcard/${target}.png"
-              adb pull "/sdcard/${target}.png" "android/ui-evidence/${target}.png"
-              test -s "android/ui-evidence/${target}.png"
-            }
-            # Screenshot an actual clean emulator, without a login or fake
-            # ledger. Each tap is an existing NATIVE bottom-navigation route.
-            capture minhsatori-native-home
+            # android-emulator-runner executes each line as a separate shell
+            # command, so no multiline shell function or variable scope.
+            adb shell screencap -p /sdcard/minhsatori-native-home.png
+            adb pull /sdcard/minhsatori-native-home.png android/ui-evidence/minhsatori-native-home.png
             adb shell input tap 320 1700
             sleep 1
-            capture minhsatori-native-invoices
+            adb shell screencap -p /sdcard/minhsatori-native-invoices.png
+            adb pull /sdcard/minhsatori-native-invoices.png android/ui-evidence/minhsatori-native-invoices.png
             adb shell input tap 540 1700
             sleep 1
-            capture minhsatori-native-create
+            adb shell screencap -p /sdcard/minhsatori-native-create.png
+            adb pull /sdcard/minhsatori-native-create.png android/ui-evidence/minhsatori-native-create.png
             adb shell input tap 770 1700
             sleep 1
-            capture minhsatori-native-debt
+            adb shell screencap -p /sdcard/minhsatori-native-debt.png
+            adb pull /sdcard/minhsatori-native-debt.png android/ui-evidence/minhsatori-native-debt.png
             adb shell input tap 975 1700
             sleep 1
-            capture minhsatori-native-profile
+            adb shell screencap -p /sdcard/minhsatori-native-profile.png
+            adb pull /sdcard/minhsatori-native-profile.png android/ui-evidence/minhsatori-native-profile.png
+            test -s android/ui-evidence/minhsatori-native-home.png
+            test -s android/ui-evidence/minhsatori-native-invoices.png
+            test -s android/ui-evidence/minhsatori-native-create.png
+            test -s android/ui-evidence/minhsatori-native-debt.png
+            test -s android/ui-evidence/minhsatori-native-profile.png
       - name: Upload visual evidence
         if: always()
         uses: actions/upload-artifact@v4
