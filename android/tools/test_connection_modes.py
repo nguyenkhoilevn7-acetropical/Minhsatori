@@ -47,12 +47,12 @@ class ConnectionModeTests(unittest.TestCase):
         self.assertNotIn("SATORI_OWNER_CHECKOUT_SECRET", SOURCE)
 
     def test_owner_only_gemini_buttons_do_not_open_blocked_customer_route(self):
-        # The MoneyMind home has one compact Gemini entry instead of the old
-        # oversized, three-button hero. It still MUST enter owner/admin mode.
-        home = SOURCE.split('// MoneyMind reference: a compact colored dashboard hero', 1)[1]
-        section = home.split('if (isLoading)', 1)[0]
-        self.assertIn('button(hero, "✦  Tạo hóa đơn với Gemini"', section)
-        self.assertIn('putExtra("mode", "admin")', section)
+        # The MoneyMind dashboard keeps the Gemini owner entry in a colorful
+        # quick-action tile. It MUST remain an admin-only route.
+        home = SOURCE.split('private fun renderMoneyMindShortcuts(', 1)[1]
+        section = home.split('private fun renderMoneyMindRecent(', 1)[0]
+        self.assertIn('Triple("Gemini", R.drawable.ic_satori_plus', section)
+        self.assertIn('AiCustomerPortalActivity::class.java).putExtra("mode", "admin")', section)
         self.assertNotIn('putExtra("mode", "customer")', section)
         self.assertNotIn('XEM TRẢI NGHIỆM ĐẶT HÀNG', section)
         portal = (Path(__file__).resolve().parent.parent /
