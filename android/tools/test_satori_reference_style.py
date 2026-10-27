@@ -42,6 +42,20 @@ class SatoriReferenceStyleContract(unittest.TestCase):
         self.assertIn('background = panelBackground(Color.rgb(230, 248, 243), 18)', SRC)
         self.assertNotIn('Color.rgb(66, 151, 255)', SRC)
 
+    def test_invoice_card_shows_both_payment_statuses_without_new_write_paths(self):
+        card = SRC.split("private fun invoiceQuickCard(", 1)[1].split(
+            "private fun requestInvoiceEdit(", 1)[0]
+        for token in (
+            "invoice.customerHasPaid", "invoice.satoriHasPaid",
+            "Khách đã thanh toán", "Khách chưa thanh toán",
+            "Đã thanh toán Satori", "Chưa thanh toán Satori",
+            "SatoriData.money(invoice.total)", "invoice.displayDate",
+            "requestInvoiceEdit(invoice)", "confirmSoftDelete(invoice)",
+            "openInvoice(invoice)",
+        ):
+            self.assertIn(token, card)
+        self.assertNotIn("confirmInvoicePayment(", card)
+
     def test_no_business_navigation_or_financial_actions_removed(self):
         for token in ('R.drawable.ic_satori_debt to "Công nợ"',
                       'R.drawable.ic_satori_plus to "Lên đơn"',
