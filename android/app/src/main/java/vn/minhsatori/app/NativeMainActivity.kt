@@ -54,19 +54,19 @@ import com.google.android.gms.common.api.Scope
  * is configured and tested against a sandbox. No raw token or invoice stored.
  */
 class NativeMainActivity : AppCompatActivity() {
-    private val teal = Color.rgb(0, 122, 255)
-    private val dark = Color.rgb(28, 28, 30)
-    private val muted = Color.rgb(110, 110, 115)
-    private val pale = Color.rgb(242, 242, 247)
+    private val teal = Color.rgb(0, 156, 153)
+    private val dark = Color.rgb(16, 43, 56)
+    private val muted = Color.rgb(102, 121, 130)
+    private val pale = Color.rgb(241, 244, 245)
     private val gold = Color.rgb(175, 94, 0)
     private val white = Color.WHITE
     private var dashboardMode = false
-    private val ink = Color.rgb(28, 28, 30)
-    private val softInk = Color.rgb(110, 110, 115)
-    private val cyan = Color.rgb(0, 122, 255)
-    private val night = Color.rgb(242, 242, 247)
+    private val ink = Color.rgb(16, 43, 56)
+    private val softInk = Color.rgb(102, 121, 130)
+    private val cyan = Color.rgb(0, 156, 153)
+    private val night = Color.rgb(241, 244, 245)
     private val surface = Color.rgb(255, 255, 255)
-    private val indigo = Color.rgb(229, 239, 255)
+    private val indigo = Color.rgb(226, 246, 243)
     private var activeTab = 0
     private var accessToken: String? = null
     private var snapshot: SatoriSnapshot? = null
@@ -440,7 +440,7 @@ class NativeMainActivity : AppCompatActivity() {
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), Color.rgb(227, 229, 234))
+            setStroke(dp(1), Color.rgb(225, 233, 233))
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
@@ -467,12 +467,13 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
             }
             background = if (main) {
-                GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                    intArrayOf(Color.rgb(0, 122, 255), Color.rgb(66, 151, 255))).apply {
+                GradientDrawable().apply {
+                    // MoneyMind flat design: solid teal, no gradients.
+                    setColor(Color.rgb(0, 156, 153))
                     cornerRadius = dp(14).toFloat()
                 }
             } else panelBackground(if (danger) Color.rgb(255, 243, 243)
-                else Color.rgb(248, 249, 252), 14)
+                else Color.rgb(233, 248, 245), 14)
             setOnClickListener { click() }
         }
         parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
@@ -504,7 +505,11 @@ class NativeMainActivity : AppCompatActivity() {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(14), dp(12), dp(14))
-            background = panelBackground(surface)
+            background = panelBackground(when (accent) {
+                Color.rgb(16, 122, 78), Color.rgb(17, 133, 91) -> Color.rgb(227, 247, 238)
+                gold -> Color.rgb(255, 246, 223)
+                else -> Color.rgb(226, 247, 244)
+            })
         }
         label(box, title, 11.5f, false, muted)
         label(box, value, 18f, true, accent, 7)
@@ -599,10 +604,7 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(7), dp(8), dp(7), dp(8))
-            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(Color.rgb(255, 255, 255), indigo, Color.rgb(232, 245, 255))).apply {
-                cornerRadius = dp(18).toFloat()
-            }
+            background = panelBackground(Color.WHITE, 18)
         }
         val menuButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_menu)
@@ -733,14 +735,11 @@ class NativeMainActivity : AppCompatActivity() {
             val hero = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(16), dp(14), dp(16), dp(16))
-                background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                    intArrayOf(Color.rgb(227, 239, 255), Color.rgb(232, 246, 255))).apply {
-                    cornerRadius = dp(18).toFloat()
-                }
+                background = panelBackground(Color.rgb(230, 248, 243), 18)
             }
             label(hero, "GEMINI • TẠO HÓA ĐƠN THẬT", 20f, true, white)
             label(hero, "Chỉ tài khoản quản trị • Giá lấy từ Google Drive • Anh duyệt rồi mới ghi hóa đơn",
-                12f, false, Color.rgb(202, 239, 249), 7)
+                12f, false, Color.rgb(56, 89, 91), 7)
             button(hero, "TẠO HÓA ĐƠN THẬT VỚI GEMINI", true, R.drawable.ic_satori_plus) {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
@@ -992,19 +991,39 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun actionTile(row: LinearLayout, title: String, subtitle: String,
-                           accent: Int = cyan, click: () -> Unit) {
+                           accent: Int = cyan, iconRes: Int = R.drawable.ic_satori_invoice,
+                           click: () -> Unit) {
+        // Icon-first quick actions, matching the reference pill/cards; navigation
+        // and permissions remain attached to the existing click callback.
         val tile = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(13), dp(14), dp(12), dp(14))
-            background = panelBackground()
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(112)
+            setPadding(dp(13), dp(13), dp(11), dp(13))
+            val tint = when (accent) {
+                Color.rgb(17, 133, 91) -> Color.rgb(225, 247, 236)
+                Color.rgb(181, 95, 6) -> Color.rgb(255, 244, 220)
+                Color.rgb(114, 76, 196) -> Color.rgb(242, 235, 255)
+                else -> Color.rgb(225, 247, 244)
+            }
+            background = panelBackground(tint, 17)
             isClickable = true
             isFocusable = true
             setOnClickListener { click() }
             contentDescription = title + ". " + subtitle
         }
-        label(tile, "◆", 15f, true, accent)
-        label(tile, title, 14f, true, white, 9)
-        label(tile, subtitle, 11f, false, muted, 6)
+        val pictogram = ImageView(this).apply {
+            setImageResource(iconRes)
+            setColorFilter(accent)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(5), dp(5), dp(5), dp(5))
+            contentDescription = null // tile describes the action once
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            background = panelBackground(Color.WHITE, 11)
+        }
+        tile.addView(pictogram, LinearLayout.LayoutParams(dp(34), dp(34)))
+        label(tile, title, 14f, true, ink, 7)
+        label(tile, subtitle, 11f, false, softInk, 5)
         row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
@@ -1080,12 +1099,12 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(0, dp(9), 0, 0)
         }
         actionTile(row1, "Hóa đơn", data.invoices.size.toString() + " hóa đơn",
-            Color.rgb(0, 122, 255)) {
+            Color.rgb(0, 156, 153), R.drawable.ic_satori_invoice) {
             activeTab = 1
             render()
         }
         actionTile(row1, "Khách hàng", "Hồ sơ & địa chỉ",
-            Color.rgb(17, 133, 91)) {
+            Color.rgb(17, 133, 91), R.drawable.ic_satori_users) {
             activeTab = 2
             render()
         }
@@ -1095,12 +1114,12 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(0, dp(10), 0, 0)
         }
         actionTile(row2, "Công nợ", "Theo dõi cần thu",
-            Color.rgb(181, 95, 6)) {
+            Color.rgb(181, 95, 6), R.drawable.ic_satori_debt) {
             activeTab = 3
             render()
         }
         actionTile(row2, "Lên đơn", if (canWrite) "Tạo hóa đơn mới" else "Cần kết nối API",
-            Color.rgb(114, 76, 196)) {
+            Color.rgb(114, 76, 196), R.drawable.ic_satori_plus) {
             activeTab = 4
             render()
         }
@@ -1111,11 +1130,12 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(10), 0, 0)
         }
-        actionTile(tools1, "Bảng giá Satori", data.products.size.toString() + " sản phẩm") {
+        actionTile(tools1, "Bảng giá Satori", data.products.size.toString() + " sản phẩm",
+            iconRes = R.drawable.ic_satori_invoice) {
             showCatalogue(data)
         }
         actionTile(tools1, "Sổ kế toán", "Tra cứu & đối chiếu",
-            Color.rgb(114, 76, 196)) {
+            Color.rgb(114, 76, 196), R.drawable.ic_satori_settings) {
             showLedger(data)
         }
         parent.addView(tools1)
@@ -1124,11 +1144,11 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(0, dp(10), 0, 0)
         }
         actionTile(tools2, "Trí nhớ AI", data.customerMemory.size.toString() + " hồ sơ",
-            Color.rgb(17, 133, 91)) {
+            Color.rgb(17, 133, 91), R.drawable.ic_satori_users) {
             showCustomerMemory(data)
         }
         actionTile(tools2, "Đối chiếu giá", "Kiểm tra trùng đơn",
-            Color.rgb(181, 95, 6)) {
+            Color.rgb(181, 95, 6), R.drawable.ic_satori_debt) {
             showPriceComparison(data)
         }
         parent.addView(tools2)
@@ -1425,7 +1445,7 @@ class NativeMainActivity : AppCompatActivity() {
                 parent: android.view.ViewGroup): View =
                 style(super.getDropDownView(position, convertView, parent))
         }
-        background = panelBackground(Color.rgb(248, 249, 252), 10)
+        background = panelBackground(Color.rgb(234, 243, 253), 10)
     }
 
     // Match the website's read-only search, customer, date-range, month/year and
@@ -1693,7 +1713,7 @@ class NativeMainActivity : AppCompatActivity() {
             setTextColor(color)
             setPadding(dp(13), dp(8), dp(13), dp(8))
             minHeight = dp(37)
-            background = panelBackground(Color.rgb(248, 249, 252), 11)
+            background = panelBackground(Color.rgb(233, 243, 254), 11)
             isClickable = true
             isFocusable = true
             contentDescription = text
@@ -1735,6 +1755,16 @@ class NativeMainActivity : AppCompatActivity() {
             Color.rgb(25, 104, 181))
         label(card, invoice.displayDate + "   •   " + invoice.status,
             11f, false, if (fromDebt) Color.rgb(181, 95, 6) else softInk, 8)
+        // These are distinct payment facts: show both on the invoice card,
+        // without deriving either from the legacy summary status.
+        label(card, if (invoice.customerHasPaid) "✓ Khách đã thanh toán"
+            else "● Khách chưa thanh toán", 12f, true,
+            if (invoice.customerHasPaid) Color.rgb(16, 122, 78)
+            else Color.rgb(171, 95, 18), 7)
+        label(card, if (invoice.satoriHasPaid) "✓ Đã thanh toán Satori"
+            else "○ Chưa thanh toán Satori", 11.5f, true,
+            if (invoice.satoriHasPaid) Color.rgb(16, 122, 78)
+            else softInk, 4)
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
