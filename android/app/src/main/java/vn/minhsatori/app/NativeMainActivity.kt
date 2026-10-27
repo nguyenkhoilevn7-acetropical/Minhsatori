@@ -8,6 +8,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import java.io.ByteArrayOutputStream
 import android.graphics.Color
@@ -578,6 +579,21 @@ class NativeMainActivity : AppCompatActivity() {
     private fun motionEnabled(): Boolean =
         Build.VERSION.SDK_INT < 26 || ValueAnimator.areAnimatorsEnabled()
 
+    private fun adaptiveShellWidth(): Int {
+        // One responsive, centered phone-width canvas. Folding/unfolding must
+        // neither stretch ledger cards into tablet-wide buttons nor clip the
+        // outer-screen compact layout. Width is remeasured on each resize.
+        val widthDp = resources.configuration.screenWidthDp
+        return if (widthDp >= 600) dp(minOf(680, widthDp - 32)) else -1
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // AndroidManifest handles screenSize changes to retain owner session,
+        // but that requires an explicit responsive rerender after folding.
+        if (dashboardMode) render()
+    }
+
     private fun render() {
         dashboardMode = true
         // New orders should not jump the owner to the top of a long invoice
@@ -591,7 +607,8 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(night)
         }
-        root.addView(shell, FrameLayout.LayoutParams(-1, -1))
+        root.addView(shell, FrameLayout.LayoutParams(
+            adaptiveShellWidth(), -1, Gravity.CENTER_HORIZONTAL))
         setContentView(root)
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -943,7 +960,8 @@ class NativeMainActivity : AppCompatActivity() {
             contentDescription = "Đóng menu tác vụ"
         }
         root.addView(scrim, FrameLayout.LayoutParams(-1, -1))
-        val drawerWidth = minOf(resources.displayMetrics.widthPixels - dp(52), dp(300))
+        val drawerWidth = minOf(
+            dp(300), dp((resources.configuration.screenWidthDp - 36).coerceAtLeast(225)))
         val drawer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(24), dp(18), dp(20))
