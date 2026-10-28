@@ -148,7 +148,7 @@ test('HMAC writer is always distinct from catalogue reader and completely disabl
  assert.match(router,/REAL_CHECKOUT_GATE_NOT_VERIFIED/);
  assert.match(router,/from '\.\/canonical-ledger-relay\.mjs'/);
  assert.match(router,/SATORI_ACCOUNT_V2_REAL_CHECKOUT_ENABLED/);
- assert.match(router,/SATORI_V2_CANONICAL_WRITES_ENABLED/);
+ assert.match(source,/SATORI_V2_CANONICAL_WRITES_ENABLED/);
  assert.match(router,/error\(realCheckoutConfigured\(\),'REAL_CHECKOUT_GATE_NOT_VERIFIED',503\)/);
  assert.match(router,/verifyLiveLockedQuote/);
  assert.match(router,/reserveCanonicalCheckout/);
