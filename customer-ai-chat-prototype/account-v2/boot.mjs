@@ -42,3 +42,26 @@ if(process.env.SATORI_ACCOUNT_V2_MIGRATION_APPROVED==='1'){
 await import('./standalone.mjs');
 // Async read-only catalogue coverage; never block service availability.
 import('./catalogue-readiness-log.mjs').then(({logCatalogueSnapshot})=>logCatalogueSnapshot()).catch(()=>{});
+
+/** Read-only metadata check for the additive canonical checkout journal.
+ * Does not expose DB URL or customer data, and never blocks the V2 service. */
+(async()=>{
+  let client;
+  try{
+    const {default:pg}=await import('pg');
+    client=new pg.Client({
+      connectionString:process.env.SATORI_ACCOUNT_V2_DATABASE_URL,
+      connectionTimeoutMillis:5000,
+      ssl:process.env.SATORI_ACCOUNT_V2_PG_SSL==='1'?{rejectUnauthorized:true}:undefined
+    });
+    await client.connect();
+    const q=await client.query(
+      "SELECT column_name FROM information_schema.columns "+
+      "WHERE table_schema=current_schema() AND table_name='satori_v2_order_requests' "+
+      "AND column_name=ANY($1::text[])",
+      [['canonical_intent','ledger_invoice_id','ledger_invoice_total','submit_started_at','last_reconciled_at']]);
+    console.info('SATORI_V2_CANONICAL_JOURNAL_SCHEMA_READY',q.rowCount===5);
+  }catch{
+    console.warn('SATORI_V2_CANONICAL_JOURNAL_SCHEMA_CHECK_UNAVAILABLE');
+  }finally{if(client)await client.end().catch(()=>{})}
+})();
