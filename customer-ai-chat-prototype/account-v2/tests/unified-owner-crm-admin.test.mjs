@@ -17,7 +17,7 @@ test('one owner-only backoffice shows catalogue, verified registrations and old 
  assert.match(backend,/satori_v2_customer_leads/);
  assert.match(backend,/satori_v2_registrations/);
 });
-test('registered customer's complete V2 profile and address records are owner scoped',()=>{
+test("registered customer's complete V2 profile and address records are owner scoped",()=>{
  for(const part of [
   '/api/v2/admin/profiles?accountId=',
   '/api/v2/admin/addresses?profileId=',
