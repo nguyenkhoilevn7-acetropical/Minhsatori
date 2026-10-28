@@ -19,7 +19,7 @@ import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
 import {acceptedSubjects} from './identity-rollout.mjs';
 import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
-import {canonicalInvoiceDocumentStatus} from './canonical-invoice-sync.mjs';
+import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead} from './customer-backend.mjs';
 
@@ -509,9 +509,11 @@ export async function handleAccountV2(req,res,pathname){
    // a locally generated PDF as the original website PDF or invent a Drive URL.
    // Once the signed Drive archive bridge is deployed, this can be replaced
    // only by exact ledger-id/invoice-version/file-SHA readback.
-   send(res,200,{ok:true,orders:data.rows.map(x=>({...x,verified:x.state==='COMMITTED'&&
-    Number.isSafeInteger(x.invoiceNo)&&x.invoiceNo>0,
-    pdf:canonicalInvoiceDocumentStatus(x)}))});return true;
+   send(res,200,{ok:true,orders:data.rows.map(x=>{
+    const receipt=canonicalReceiptForAccountOrder(x);
+    return {...x,verified:receipt!==null,receipt,
+     pdf:canonicalInvoiceDocumentStatus(x)};
+   })});return true;
   }
   if(pathname==='/api/v2/admin/catalogue/readiness'&&req.method==='GET'){
    // Owner-only, aggregate-only diagnostic. Never exposes HMAC credentials,
