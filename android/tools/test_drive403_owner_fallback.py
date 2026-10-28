@@ -69,8 +69,13 @@ class Drive403OwnerFallbackContract(unittest.TestCase):
         self.assertIn("remote.snapshot.invoices.all { it.isTest }", MAIN)
         self.assertIn("Không được thay thế dữ liệu Minh Satori thật.", MAIN)
 
-    def test_no_duplicate_stale_banner(self):
-        self.assertIn("if (stale && connected) label(info, statusMessage", MAIN)
+    def test_stale_warning_remains_visible_and_full_details_are_accessible(self):
+        # MoneyMind compact home shows a single-line stale status and opens
+        # the exact provider message on tap; do not suppress the warning.
+        self.assertIn('stale -> "●  Cảnh báo đồng bộ · Chạm xem"', MAIN)
+        self.assertIn('setOnClickListener {\n                AlertDialog.Builder(this@NativeMainActivity)', MAIN)
+        self.assertIn('.setMessage(statusMessage +', MAIN)
+        self.assertEqual(MAIN.count('stale -> "●  Cảnh báo đồng bộ · Chạm xem"'), 1)
 
 
 if __name__ == "__main__":

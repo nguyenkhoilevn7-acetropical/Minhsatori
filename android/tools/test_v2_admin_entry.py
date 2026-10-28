@@ -11,10 +11,19 @@ GRADLE = (ROOT / "app/build.gradle.kts").read_text(encoding="utf-8")
 class V2AdminEntryContract(unittest.TestCase):
     def test_owner_backoffice_is_a_native_tab(self):
         self.assertIn('R.drawable.ic_satori_settings to "Quản trị hệ thống"', SOURCE)
-        self.assertIn('val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn", "Quản trị hệ thống")', SOURCE)
+        # The last native tab was visually renamed "Cá nhân", while the
+        # secured V2 owner backend remains inside that same native destination.
+        self.assertIn('val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn", "Cá nhân")', SOURCE)
+        self.assertIn('settingRow("Cài đặt kết nối"', SOURCE)
+        self.assertIn('settingRow("Đồng bộ dữ liệu"', SOURCE)
+        self.assertIn('settingRow("Trợ lý Gemini"', SOURCE)
         self.assertIn('5 -> renderV2OwnerBackend(content, data)', SOURCE)
         self.assertIn('if (activeTab == 5) {\n            renderV2OwnerBackend(content, data)', SOURCE)
-        self.assertIn('activeTab = 5\n                render()', SOURCE)
+        # The owner page is reached through the persistent MoneyMind bottom
+        # navigation and via the unchanged advanced drawer.
+        self.assertIn('Triple(5, "Cá nhân", R.drawable.ic_satori_settings)', SOURCE)
+        self.assertIn('activeTab = index', SOURCE)
+        self.assertIn('render()', SOURCE)
         self.assertIn('private fun renderV2OwnerBackend(parent: LinearLayout, current: SatoriSnapshot?)', SOURCE)
 
     def test_no_admin_navigation_to_customer_site_or_embedded_browser(self):
