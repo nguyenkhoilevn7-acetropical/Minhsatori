@@ -56,7 +56,7 @@ test('delivery note survives the immutable V2 quote snapshot without bypassing r
  assert.throws(()=>assertCurrentQuote({...context,snapshot,
    catalogue:[{...catalogue[0],listPrice:110000}]}),{code:'QUOTE_CHANGED_REQUOTE_REQUIRED'});
  assert.throws(()=>assertCurrentQuote({...context,snapshot:{...snapshot,
-   deliveryRequest:{deliveryNote:'\\0',requestedDeliveryAt:null}}}),{code:'QUOTE_SNAPSHOT_INVALID'});
+   deliveryRequest:{deliveryNote:String.fromCharCode(0),requestedDeliveryAt:null}}}),{code:'QUOTE_SNAPSHOT_INVALID'});
 });
 test('V2 chat renders exactly one full 10+2+3 cart and not a separate receipt per message',()=>{
  const html=readFileSync(new URL('../app.html',import.meta.url),'utf8');
