@@ -6,6 +6,7 @@
  */
 import {isDeepStrictEqual} from 'node:util';
 import {calculateQuote,DomainError} from './domain.mjs';
+import {validatedV2QuoteDelivery} from './old-gemini-delivery-note.mjs';
 
 export function assertCurrentQuote({snapshot,accountId,profile,address,cart,catalogue,policies,catalogueRevision}){
  if(!snapshot||typeof snapshot!=='object'||Array.isArray(snapshot))
@@ -18,7 +19,14 @@ export function assertCurrentQuote({snapshot,accountId,profile,address,cart,cata
   if(e instanceof DomainError)throw new DomainError('QUOTE_CHANGED_REQUOTE_REQUIRED');
   throw e;
  }
- if(!isDeepStrictEqual(current,snapshot))
+ // A customer note may accompany the immutable price snapshot. Validate and
+ // exclude only this known non-price field before comparing every price/policy
+ // and delivery-address field byte-for-byte as before.
+ const {deliveryRequest,...financialSnapshot}=snapshot;
+ try{
+  if(deliveryRequest!==undefined)validatedV2QuoteDelivery(deliveryRequest);
+ }catch{throw new DomainError('QUOTE_SNAPSHOT_INVALID')}
+ if(!isDeepStrictEqual(current,financialSnapshot))
   throw new DomainError('QUOTE_CHANGED_REQUOTE_REQUIRED');
  return true;
 }
