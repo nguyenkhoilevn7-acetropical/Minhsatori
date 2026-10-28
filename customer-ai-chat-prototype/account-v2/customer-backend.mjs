@@ -165,6 +165,12 @@ export async function adminEditRegisteredCustomer(pool,owner,input){
   check(updated.rows.length===1,'CUSTOMER_DETAILS_REVISION_CONFLICT',409);
   await c.query('UPDATE satori_v2_accounts SET display_name=$2,revision=revision+1,'+
    'updated_at=now() WHERE id=$1',[input.accountId,profile.fullName]);
+  // Keep the primary live ordering profile aligned with the owner-edited contact.
+  // Older invoices and non-primary profiles retain their original snapshots.
+  await c.query('UPDATE satori_v2_profiles SET display_name=$2,phone=$3,'+
+   'revision=revision+1 WHERE id=(SELECT id FROM satori_v2_profiles '+
+   'WHERE account_id=$1 ORDER BY created_at LIMIT 1)',
+   [input.accountId,profile.fullName,profile.phone]);
   // Do not rewrite stored shipping addresses or historical quote snapshots.
   // Existing address edits remain explicit and revision-controlled.
   await audit(c,owner.id,'CUSTOMER_REGISTRATION_EDITED',input.accountId,
