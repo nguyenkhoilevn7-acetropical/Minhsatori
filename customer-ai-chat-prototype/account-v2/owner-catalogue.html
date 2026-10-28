@@ -510,7 +510,14 @@ function ownerIcon(name){
  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
  svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','ico');
  svg.setAttribute('aria-hidden','true');
- svg.innerHTML=ownerIconShapes[name]||ownerIconShapes.check;
+ const shapes=ownerIconShapes[name]||ownerIconShapes.check;
+ // Static SVG primitives only. No HTML injection or third-party icon resource.
+ for(const match of shapes.matchAll(/<(circle|rect|path) ([^>]+)\/>/g)){
+  const el=document.createElementNS('http://www.w3.org/2000/svg',match[1]);
+  for(const attr of match[2].matchAll(/([a-z-]+)="([^"]+)"/g))
+   el.setAttribute(attr[1],attr[2]);
+  svg.append(el);
+ }
  return svg;
 }
 function iconButton(label,name,cls){
