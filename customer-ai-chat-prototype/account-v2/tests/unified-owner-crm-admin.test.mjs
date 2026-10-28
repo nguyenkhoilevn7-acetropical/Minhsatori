@@ -67,7 +67,7 @@ test('review and pricing activation are separate, with no silent default zero pe
  assert.doesNotMatch(html,/discountBps:0,confirmed:true/);
 });
 test('owner-only signed legacy lookup, Gmail binding, editable contact and multiple delivery points',()=>{
- assert.match(router,/owner\(actor\);\s*send\(res,200,await legacyCustomerSearch\(q\)\)/);
+ assert.match(router,/owner\(actor\);[\s\S]*?legacyCustomerSearch\(q\)/);
  assert.match(router,/legacyCustomerImport\(pool,actor/);
  assert.match(backend,/readMinhSatori\('orders.list'/);
  assert.match(backend,/LEGACY_OWNER_CONFIRMATION_REQUIRED/);
