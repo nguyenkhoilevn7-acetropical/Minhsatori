@@ -1,18 +1,18 @@
 {
-  "purpose": "android-0.4.15-circular-logo-owner-production-install",
+  "purpose": "android-0.4.16-rounded-square-logo-Samsung-icon-production-install",
   "package": "vn.minhsatori.app",
-  "version": "0.4.15",
-  "versionCode": 32,
-  "branch": "release/android-v0.4.15-circular-logo-20261028",
+  "version": "0.4.16",
+  "versionCode": 33,
+  "branch": "release/android-v0.4.16-rounded-square-logo-20261028",
   "requestedOn": "2026-10-28",
   "sourcePRs": [
-    211
+    212
   ],
-  "scope": "Logo-only signed Android 0.4.15 build: circular 38dp mask for existing Satori image, stable package/signing certificate, no invoicing/payment/Drive/API or database logic changes. Baseline release v0.4.14.",
+  "scope": "Identity-only signed Android v0.4.16 release, square logo with 12dp rounded corners matching Samsung launcher icon, not a circular avatar. No business/ledger/OAuth/Drive/API code changes.",
   "notes": [
-    "Owner authorized production UI deployment on 2026-10-28; release is an upgrade for Samsung, not an unattended device install.",
-    "Run source-unit tests, Gradle debug/release tests, emulator screenshot and pinned certificate SHA-256 verification; never use debug keystore.",
-    "Keep v0.4.14 signed APK available. Do not alter Android OAuth secrets, Apps Script, live ledger, PostgreSQL, or payment state.",
-    "User must install new signed APK over existing vn.minhsatori.app; verify current package and data persistence on Samsung."
+    "Supersedes signed v0.4.15 circular-logo build; DO NOT distribute/install v0.4.15.",
+    "Use exact persistent release keystore + verified pinned certificate and correct package vn.minhsatori.app; versionCode 33 permits upgrade from 0.4.14 or 0.4.15.",
+    "Preserve previous signed APKs and user data. Do not change Apps Script, database, HMAC or payment state.",
+    "Install on Samsung only after signed APK validation and user-facing install approval."
   ]
 }
