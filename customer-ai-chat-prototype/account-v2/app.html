@@ -111,7 +111,7 @@ main>.view:not(.hidden){flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-be
 .address-round-icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:#f1f2f6;color:#007aff;font-size:23px;flex:none}
 .address-detail{padding:0 9px 12px 42px;color:#667280;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
 .brand{display:flex;align-items:center;gap:9px}.brand-copy{min-width:0}
-.satori-logo{display:block;width:36px;height:36px;flex:none;object-fit:contain;border-radius:9px;background:#fff}
+.satori-logo{display:block;width:36px;height:36px;flex:none;object-fit:cover;border-radius:11px;background:#fff}
 .nav svg,.inline-icon{width:18px;height:18px;vertical-align:-4px;flex:none;margin-right:5px}
 .product .product-thumb{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#ebf5ff;color:#007aff;flex:none}
 .product .product-thumb svg{width:23px;height:23px}
@@ -148,7 +148,7 @@ header .satori-logo{width:31px;height:31px}
 .delivery-dialog .saved-address .address-round-icon svg{width:21px;height:21px}
 .delivery-dialog .agent-address-choice{min-height:72px;border-bottom:1px solid #eceff3;border-radius:10px}
 .invoice-masthead{display:flex;align-items:center;gap:9px;min-width:0}
-.invoice-masthead .satori-logo{height:35px;width:35px;border-radius:10px}
+.invoice-masthead .satori-logo{height:35px;width:35px;border-radius:11px}
 .invoice-masthead h2{margin:0;font-size:16px}
 .invoice-month-tools{display:flex;align-items:center;gap:8px;margin:10px 0}
 .invoice-month-tools input{min-width:0;flex:1;min-height:42px;border:1px solid #dce5ee;border-radius:11px;padding:8px}
@@ -167,7 +167,7 @@ header .satori-logo{width:31px;height:31px}
 .drawer-brand h2{margin:0;font-size:19px}
 .drawer-brand .satori-logo{width:38px;height:38px;flex:none}
 .gate-logo{display:flex;justify-content:center;margin-bottom:15px}
-.gate-logo .satori-logo{width:64px;height:64px;border-radius:16px}
+.gate-logo .satori-logo{width:64px;height:64px;border-radius:20px}
 
 /* Compact cart detail: immutable buyer, selectable address, verified price summary. */
 .screen-actions{display:flex;align-items:center;justify-content:flex-end;min-height:32px}
@@ -191,7 +191,7 @@ header .satori-logo{width:31px;height:31px}
 .cart-price-note{margin:8px 0 0;color:#778492;font-size:11px;line-height:1.42}
 .test-invoice{margin-top:16px;padding:17px 13px;border:1px solid #d9e4ee;border-radius:17px;background:#fff;box-shadow:0 5px 20px #0f31500b}
 .test-invoice-brand{display:flex;align-items:center;gap:10px;border-bottom:1px solid #dce5ed;padding-bottom:12px}
-.test-invoice-brand .satori-logo{width:49px;height:49px;border-radius:13px}
+.test-invoice-brand .satori-logo{width:49px;height:49px;border-radius:15px}
 .test-invoice-brand strong{display:block;font-size:19px;color:#15395d}
 .test-invoice-brand span,.test-invoice-notice{font-size:11px;color:#657889}
 .test-invoice-title{margin:15px 0 10px;text-align:center;color:#15395d;font-weight:800;font-size:16px}
@@ -429,6 +429,60 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 @media(max-width:739px){#app{border-radius:0;border-left:0;border-right:0}}
 /* END MONEY-MIND FLAT DESIGN */
 
+
+/* MoneyMind layout hierarchy: fixed compact five-destination navigation,
+   without replacing the established V2 view(), checkout or authorization. */
+.mm-bottom-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;
+ gap:2px;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));background:#fff;
+ border-top:1px solid #e9eff0;box-shadow:0 -4px 18px #1229360b;flex:none;z-index:8}
+.mm-bottom-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+ min-width:0;min-height:54px;padding:1px 2px;border:0!important;border-radius:0!important;
+ background:transparent!important;color:#8e9fa9!important;font-size:10px;font-weight:600;box-shadow:none!important}
+.mm-bottom-tab svg{display:block;width:20px;height:20px}
+.mm-bottom-icon{height:24px;display:grid;place-items:center}
+.mm-bottom-tab.active{color:#009d9a!important;font-weight:800}
+.mm-bottom-center .mm-bottom-icon{height:40px;width:40px;margin-top:-12px;border-radius:50%;
+ background:#009c99;color:white;box-shadow:0 4px 12px #009d9a2b}
+.mm-bottom-center .mm-bottom-icon svg{width:23px;height:23px}
+.mm-bottom-tab:focus-visible{outline:2px solid #009c99!important;outline-offset:-2px}
+#app:has(#gate:not(.hidden)) .mm-bottom-nav{display:none}
+@media(min-width:740px){.mm-bottom-nav{border-radius:0 0 20px 20px}}
+/* The chat composer, catalogue, cart and invoice panels keep their own scroll;
+   bottom actions never overlay the last message or checkout button. */
+/* END MONEY-MIND STRUCTURAL NAV */
+
+/* Motion system — view transitions 190ms, action feedback 140ms,
+   drawer remains on transform-only 290ms, no layout thrashing. */
+@keyframes mm-view-enter{from{opacity:.68;transform:translate3d(0,7px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes mm-modal-enter{from{opacity:.6;transform:translate3d(0,8px,0) scale(.985)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+#chatView:not(.hidden),main>.view:not(.hidden){animation:mm-view-enter 190ms cubic-bezier(.22,.68,0,1) both}
+.mm-bottom-tab{transition:color 180ms ease}
+.mm-bottom-tab .mm-bottom-icon{transition:transform 160ms cubic-bezier(.2,.7,.2,1)}
+.mm-bottom-tab:active .mm-bottom-icon{transform:scale(.90)}
+.mm-bottom-tab.active:not(.mm-bottom-center) .mm-bottom-icon{transform:translateY(-2px)}
+.delivery-dialog[open],dialog[open]{animation:mm-modal-enter 185ms cubic-bezier(.22,.68,0,1) both}
+@media(prefers-reduced-motion:reduce){
+ #chatView:not(.hidden),main>.view:not(.hidden),.delivery-dialog[open],dialog[open]{animation:none!important}
+ .mm-bottom-tab,.mm-bottom-tab .mm-bottom-icon,.drawer,.scrim{transition:none!important}
+}
+/* END MONEY-MIND NATURAL MOTION */
+
+/* Responsive unfolded Fold/normal bar phones, also half-screen multitasking. */
+@media(min-width:740px) and (max-width:1200px){
+ #app{width:min(100%,700px);max-width:700px;margin-inline:auto}
+ .drawer{left:max(0px,calc((100vw - 700px)/2));max-width:min(310px,42vw)}
+}
+@media(max-width:380px){
+ .mm-bottom-nav{gap:0;padding-inline:1px}
+ .mm-bottom-tab{font-size:9px;letter-spacing:-.15px}
+ .mm-bottom-tab svg{width:19px;height:19px}
+ .reference-quick-actions{gap:4px;padding-inline:6px}
+ .reference-quick{min-width:0;font-size:10px;padding-inline:6px}
+}
+@media(max-height:460px) and (hover:none){
+ .mm-bottom-nav{display:none} /* Keyboard/short split-screen leaves chat composer clear */
+}
+/* END FOLD-READY V2 */
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
@@ -632,6 +686,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 </section>
 </div></section>
 </main>
+<nav class="mm-bottom-nav" aria-label="Điều hướng nhanh Minh Satori (bản xem trước)"><button type="button" data-view="chat" class="mm-bottom-tab " aria-label="Gemini"><span class="mm-bottom-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v12H8l-4 3V6Z"/><path d="m12 8 1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2Z"/></svg></span><span>Gemini</span></button><button type="button" data-view="catalogue" class="mm-bottom-tab " aria-label="Sản phẩm"><span class="mm-bottom-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="2"/><path d="M8 7v3c-2 1-3 3-3 5v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5c0-2-1-4-3-5V7M5 16h14"/></svg></span><span>Sản phẩm</span></button><button type="button" data-view="cart" class="mm-bottom-tab mm-bottom-center" aria-label="Lên đơn"><span class="mm-bottom-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h2l2 13h12l2-9H6M10 21h0m8 0h0"/><path d="M12 8v6m-3-3h6"/></svg></span><span>Lên đơn</span></button><button type="button" data-view="orders" class="mm-bottom-tab " aria-label="Hóa đơn"><span class="mm-bottom-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 9h6M9 13h6"/></svg></span><span>Hóa đơn</span></button><button type="button" data-view="account" class="mm-bottom-tab " aria-label="Cá nhân"><span class="mm-bottom-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-5 3-7 8-7s8 2 8 7"/></svg></span><span>Cá nhân</span></button></nav>
 </div><p id="toast" role="status" hidden></p>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>

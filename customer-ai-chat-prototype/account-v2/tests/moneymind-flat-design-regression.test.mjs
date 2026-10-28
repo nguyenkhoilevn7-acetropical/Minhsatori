@@ -21,12 +21,27 @@ function fnv32(source) {
 function getCase(filename) {
   return readFileSync(new URL(filename, import.meta.url),'utf8');
 }
-test('MoneyMind CSS-only restyling keeps business DOM and JS byte-identical',()=>{
+// Only the new, inert navigation nodes may differ from the original MoneyMind
+// CSS-only contract. Removing precisely those nodes must recover the original
+// HTML+JS checksum; this protects all pre-existing invoice/identity workflows.
+function stripNewNavigation(name,body){
+  if(name==='customer-v2'){
+    assert.match(body,/<nav class="mm-bottom-nav" aria-label="Điều hướng nhanh Minh Satori/);
+    return body.replace(/<nav class="mm-bottom-nav"[\s\S]*?<\/nav>\n/, '');
+  }
+  if(name==='admin'){
+    assert.match(body,/<nav class="mm-admin-bottom" aria-label="Thanh điều hướng Minh Satori/);
+    return body.replace(/<nav class="mm-admin-bottom"[\s\S]*?<\/nav>\n/, '');
+  }
+  return body;
+}
+test('MoneyMind structure keeps original business DOM and JS byte-identical after extracting inert navigation',()=>{
   for(const [name,path,checksum] of cases) {
     const html=getCase(path);
     const styleEnd=html.indexOf('</style>');
     assert.ok(styleEnd>=0,name+' style block');
-    assert.equal(fnv32(html.slice(styleEnd+8)),checksum,name+': no DOM, JS, API, calculation or invoice changes');
+    const originalBody=stripNewNavigation(name,html.slice(styleEnd+8));
+    assert.equal(fnv32(originalBody),checksum,name+': original DOM/JS must remain byte-identical');
     assert.match(html,/\/\* MONEY-MIND FLAT DESIGN/);
     assert.match(html,/#009c99/i,name+': teal palette');
     const start=html.indexOf('/* MONEY-MIND FLAT DESIGN');
@@ -46,4 +61,42 @@ test('orders, customer/CTV permissions and Gemini links remain unchanged',()=>{
   assert.match(v2,/data-view="orders"/);
   assert.match(v2,/id="referenceCartCount"/);
   assert.match(gemini,/id="quickCartNew"/);
+});
+
+test('MoneyMind bottom navigation cannot bypass existing authenticated view handlers',()=>{
+  const v2=getCase('../app.html');
+  const admin=getCase('../../admin.html');
+  const bottomButtons=[...v2.matchAll(/<button\b[^>]*class="mm-bottom-tab[^"]*"[^>]*>/g)].map(x=>x[0]);
+  const routeCounts = Object.fromEntries(['chat','catalogue','cart','orders','account']
+    .map(route=>[route,bottomButtons.filter(tag=>tag.includes('data-view="'+route+'"')).length]));
+  for(const [route,count] of Object.entries(routeCounts))assert.equal(count,1,route+' bottom navigation');
+  assert.match(v2,/document\.querySelectorAll\('\[data-view\]'\)\.forEach\(btn=>btn\.onclick=\(\)=>view\(btn\.dataset\.view\)\)/);
+  assert.match(v2,/#app:has\(#gate:not\(\.hidden\)\) \.mm-bottom-nav\{display:none\}/);
+  for(const route of ['live','customers','issued-links','ctv-ledger','settings']) {
+    assert.match(admin,new RegExp('class="mm-admin-tab[^"]*" data-admin-tab="'+route+'"'));
+  }
+  assert.match(admin,/document\.querySelectorAll\('\[data-admin-tab\]'\)/);
+  assert.match(admin,/#workspace\{padding-bottom:76px\}/);
+});
+
+test('Minh Satori brand logos match Samsung rounded-square corners without altering business markup',()=>{
+  const customer=getCase('../app.html'), admin=getCase('../../admin.html'), gemini=getCase('../../index.html');
+  const css=html=>html.slice(0,html.indexOf('</style>'));
+  const styleFor=(html,selector)=>css(html).split(selector+'{',2)[1]?.split('}',1)[0]||'';
+  const checks=[
+    [customer,'.satori-logo',11],
+    [customer,'.invoice-masthead .satori-logo',11],
+    [customer,'.gate-logo .satori-logo',20],
+    [customer,'.test-invoice-brand .satori-logo',15],
+    [admin,'.admin-brand img',14],
+    [gemini,'.brand-logo,.chat-satori-logo,.history-brand img',15],
+  ];
+  for(const [html,selector,radius] of checks) {
+    const segment=styleFor(html,selector);
+    assert.ok(segment.length>0,selector+' CSS must exist');
+    assert.ok(segment.includes('border-radius:'+radius+'px'),selector+' rounded-square corners');
+    assert.ok(!segment.includes('border-radius:50%'),selector+' must not be circular');
+  }
+  assert.match(admin,/src="\/assets\/logo-satori\.jpg"/);
+  assert.match(gemini,/class="brand-logo" src="\/assets\/logo-satori\.jpg"/);
 });
