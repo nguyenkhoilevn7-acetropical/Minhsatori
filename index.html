@@ -117,193 +117,166 @@
         .parse-status.needs-review {color:#fcd34d;}
         @media(max-width:640px) {#tab-input {gap:14px;} .compact-panel>summary {min-height:48px;}}
 
-/* MINH SATORI LEGACY ACCOUNTING — REVIEW-ONLY UI.
-   Activated by ?satoriUiPreview=1, never enabled by default.
-   Screen only: preserve all original forms, IDs, handlers, invoices/PDF, payment and Drive logic. */
-@media screen{
- html.satori-light-review{color-scheme:light}
- html.satori-light-review body{background:#f2f2f7!important;color:#1c1c1e!important}
- html.satori-light-review #appHeader{
-  background:#fff!important;border-color:#e1e7ee!important;
-  box-shadow:0 3px 15px #173b5411!important
- }
- html.satori-light-review #appHeader h1{color:#1c1c1e!important}
- html.satori-light-review #appHeader p,
- html.satori-light-review #appHeader .text-slate-400{color:#647287!important}
- html.satori-light-review #appHeader nav{
-  background:#f7faff!important;border-color:#dfe7f1!important;
-  box-shadow:none!important
- }
- html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]){
-  border-color:#dee9f5!important;border-radius:12px!important;
-  background:#fff!important;color:#205b94!important;
-  box-shadow:0 2px 8px #163c5910!important
- }
- html.satori-light-review #appHeader nav button#btn-tab-input{
-  border-radius:12px!important;color:#fff!important
- }
- html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
- > .bg-slate-950{
-  background:#fff!important;border-color:#e1e7ee!important;
-  border-radius:18px!important;color:#1c1c1e!important;
-  box-shadow:0 3px 16px #203b4c0d!important
- }
- html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
- :is(.bg-slate-900,.bg-slate-950):not(button):not(.no-print){
-  background:#f9fbff!important;border-color:#e0e7ef!important
- }
- html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
- :is(input,select,textarea):not([type=checkbox]):not([type=radio]){
-  color:#1c1c1e!important;background:#fff!important;border-color:#d5dfea!important;
-  border-radius:11px!important;font-size:max(14px,1em)
- }
- html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
- :is(input,select,textarea)::placeholder{color:#697b8f!important}
- html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
- :is(h2,h3,h4,.text-white):not(button){color:#1c1c1e!important}
- html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
- :is(.text-slate-100,.text-slate-200,.text-slate-300){color:#42576d!important}
- html.satori-light-review :is(#archiveCardsContainer,#sheetsTableBody,#archiveTableBody)
- > *{border-radius:14px}
- html.satori-light-review #tab-sheet table,
- html.satori-light-review #tab-archive table{background:#fff;color:#273b50}
- html.satori-light-review :is(#tab-sheet,#tab-archive) thead{
-  background:#eaf3ff;color:#166ab2
- }
- html.satori-light-review :is(#tab-sheet,#tab-archive) tbody tr{
-  border-bottom:1px solid #e3e9f1
- }
- html.satori-light-review .compact-panel{
-  background:#fff!important;border-color:#e0e6ee!important;border-radius:17px!important
- }
- html.satori-light-review .compact-panel>summary{color:#205d96!important}
- html.satori-light-review .compact-panel input,
- html.satori-light-review .compact-panel select{background:#fff!important;color:#1c1c1e!important}
- html.satori-light-review :is(#invoicePreview,#modalInvoiceContent),
- html.satori-light-review :is(#invoicePreview,#modalInvoiceContent) *{
-  box-shadow:none!important
- }
-}
-
-/* All six V18.3 tab buttons honor switchTab's actual active class,
-   rather than pinning 'Lên Đơn' as selected after navigating elsewhere. */
-@media screen{
- html.satori-light-review body{
-  background:linear-gradient(180deg,#e5f1ff,#eef4fa 280px)!important
- }
- html.satori-light-review #appHeader{
-  background:linear-gradient(110deg,#dfeeff,#fbfdff)!important;
-  border-color:#cadff4!important;box-shadow:0 5px 18px #104a8418!important
- }
- html.satori-light-review #appHeader nav{
-  display:flex!important;gap:7px!important;background:#eaf4ff!important;
-  border:1px solid #cedff1!important;border-radius:17px!important;
-  padding:7px!important;overflow-x:auto;scrollbar-width:none
- }
- html.satori-light-review #appHeader nav button{
-  min-height:43px!important;display:inline-flex;align-items:center;
-  justify-content:center;gap:7px;white-space:nowrap
- }
- html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"]{
-  background:linear-gradient(120deg,#086fe3,#0761c7)!important;
-  color:#fff!important;border:1px solid #0865cf!important;
-  box-shadow:0 4px 11px #0866d033!important;border-radius:13px!important
- }
- html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"] i{
-  color:#fff!important
- }
- html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]) i{
-  color:#0b64b9!important
- }
- html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
- .compact-panel,html.satori-light-review #tab-sheet table{
-  border-color:#cddff1!important;box-shadow:0 4px 15px #1b4d7411!important
- }
- @media(max-width:640px){
-  html.satori-light-review #appHeader nav button{font-size:12px!important;padding:8px 10px!important}
- }
-}
-
-/* MONEY-MIND SATORI FLAT TEAL — V18.3 preview-only. No print or ledger changes. */
-@media screen{
- html.satori-light-review{color-scheme:light}
- html.satori-light-review body{background:#f1f4f5!important;color:#102b38!important}
- html.satori-light-review #appHeader{
-   background:#fff!important;border-color:#e0e9e9!important;
-   border-radius:0 0 20px 20px!important;box-shadow:none!important
- }
- html.satori-light-review #appHeader h1{color:#102b38!important}
- html.satori-light-review #appHeader nav{
-   background:#fff!important;border:1px solid #e0e9e9!important;
-   border-radius:18px!important;box-shadow:none!important;gap:7px!important
- }
- html.satori-light-review #appHeader nav button{
-   border-radius:13px!important;box-shadow:none!important;min-height:45px!important
- }
- html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]){
-   background:#edf7f5!important;color:#246c6a!important;border-color:#dfede9!important
- }
- html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"]{
-   background:#009c99!important;color:#fff!important;border-color:#009c99!important;
-   box-shadow:none!important
- }
- html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"] i{color:#fff!important}
- html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
- > .bg-slate-950,
- html.satori-light-review .compact-panel{
-   background:#fff!important;color:#102b38!important;
-   border:1px solid #e0e8e8!important;border-radius:19px!important;box-shadow:none!important
- }
- html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
- :is(.bg-slate-900,.bg-slate-950):not(button):not(.no-print){
-   background:#f7fafa!important;border-color:#e3eaea!important;box-shadow:none!important
- }
- html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
- :is(input,textarea,select):not([type=checkbox]):not([type=radio]){
-   background:#fff!important;color:#102b38!important;border-color:#dde8e7!important;border-radius:14px!important
- }
- html.satori-light-review :is(#tab-sheet,#tab-archive) thead{
-   background:#e5f7f2!important;color:#087b7a!important
- }
- html.satori-light-review :is(#tab-sheet,#tab-archive) table{
-   background:#fff!important;color:#102b38!important;box-shadow:none!important
- }
- html.satori-light-review button:focus-visible{
-   outline:2px solid #009c99!important;outline-offset:2px!important
- }
-}
-
-/* END MINH SATORI LEGACY REVIEW-ONLY UI */
-    
-/* MoneyMind production — visual styles only; excludes print and invoice templates. */
+/* MINH SATORI • MONEY MIND UI V2 — one coherent screen-only design system.
+   The original V18.3 accounting logic, invoice print markup and PDF remain untouched. */
 @media screen {
- html.satori-light-review body{background:#f2f6f6!important;color:#15363b!important}
- html.satori-light-review #appHeader{background:linear-gradient(125deg,#076b77,#05938d)!important;border-color:transparent!important;border-radius:0 0 20px 20px!important;box-shadow:0 6px 24px #0c59621b!important}
- html.satori-light-review #appHeader :is(h1,p,.text-slate-400){color:#fff!important}
- html.satori-light-review #appHeader img{border-radius:11px!important;object-fit:contain!important;background:#fff!important;padding:2px!important}
- html.satori-light-review #appHeader nav{background:#ffffff23!important;border-color:#ffffff44!important}
- html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]){background:#fff!important;color:#096974!important}
- html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"]{background:#066e76!important;color:#fff!important;border-color:#a5ded8!important}
- html.satori-light-review :is(.compact-panel,#tab-input>div,#tab-sheet>div,#tab-archive>div){border-radius:18px!important}
- html.satori-light-review button,html.satori-light-review summary{transition:transform .18s ease,background-color .18s ease,border-color .18s ease,color .18s ease!important}
- html.satori-light-review button:active{transform:scale(.97)}
- #satori-legacy-dock{display:none}
- @media(max-width:900px){
-  html.satori-light-review #appHeader{padding:10px 12px!important}
-  html.satori-light-review #appHeader nav{display:none!important}
-  html.satori-light-review body{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))!important}
-  html.satori-light-review main{padding:12px 10px!important;max-width:720px}
-  #satori-legacy-dock{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;bottom:0;left:0;right:0;z-index:35;background:#fffffff7;border-top:1px solid #dce7e7;box-shadow:0 -5px 22px #164e601c;padding:7px 5px calc(7px + env(safe-area-inset-bottom,0px));backdrop-filter:blur(16px)}
-  #satori-legacy-dock :is(.dock-item,summary){display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;min-height:54px;background:transparent;border:0;border-radius:13px;color:#677c83;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap}
-  #satori-legacy-dock i{font-size:19px;line-height:22px}
-  #satori-legacy-dock .dock-item[aria-current="page"],#satori-legacy-dock details[open]>summary{background:#e1f4f0;color:#007c77}
-  #satori-legacy-dock details{position:relative}
-  #satori-legacy-dock .dock-menu{display:grid;gap:4px;position:absolute;bottom:calc(100% + 14px);right:0;width:204px;background:#fff;border:1px solid #d8e4e4;border-radius:16px;padding:8px;box-shadow:0 10px 32px #0c32364d}
-  #satori-legacy-dock .dock-menu button{background:#f2f8f7;color:#1a6265;font-size:13px;font-weight:650;text-align:left;padding:11px;border:0;border-radius:9px}
-  #satori-legacy-dock .dock-menu button i{font-size:14px;margin-right:7px}
-  html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue) :is(input,select,textarea):not([type=checkbox]):not([type=radio]){font-size:16px!important}
+ html.satori-light-review {color-scheme:light;--ms-bg:#f3f6f7;--ms-surface:#fff;--ms-ink:#16333f;--ms-muted:#637983;--ms-line:#dce9e8;--ms-teal:#008f88;--ms-soft:#eaf7f4;--ms-red:#d72535;}
+ html.satori-light-review body {background:var(--ms-bg)!important;color:var(--ms-ink)!important;font-family:Inter,system-ui,sans-serif;}
+ html.satori-light-review main {max-width:1250px!important;margin-inline:auto!important;}
+ html.satori-light-review :is(button,summary,a,input,textarea,select):focus-visible {outline:2px solid var(--ms-teal)!important;outline-offset:2px!important;}
+ html.satori-light-review :is(button,summary,.ms-invoice-card) {transition:background-color .2s ease,box-shadow .2s ease,border-color .2s ease,transform .2s ease;}
+ html.satori-light-review button:active{transform:scale(.98);}
+ /* Header: logo and identity left, unobtrusive owner actions right. */
+ html.satori-light-review #appHeader {background:#008f8c!important;color:#fff!important;border:0!important;border-radius:0 0 22px 22px!important;box-shadow:0 5px 20px rgba(12,75,80,.13)!important;}
+ html.satori-light-review #appHeader h1,html.satori-light-review #appHeader p {color:#fff!important;}
+ html.satori-light-review #appHeader h1 {font-size:17px!important;letter-spacing:.01em;}
+ html.satori-light-review #appHeader .text-slate-400 {color:#e1faf7!important;}
+ html.satori-light-review #appHeader img{border-radius:11px!important;background:#fff!important;object-fit:contain!important;padding:1px!important;}
+ html.satori-light-review #appHeader.header-scroll-hidden{transform:none!important;pointer-events:auto!important;}
+ html.satori-light-review #syncStatusBadge {background:rgba(232,255,245,.15)!important;border:1px solid rgba(255,255,255,.22)!important;color:#eafff8!important;}
+ html.satori-light-review #appHeader nav{background:rgba(255,255,255,.10)!important;border:1px solid rgba(255,255,255,.18)!important;box-shadow:none!important;}
+ html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]){background:rgba(255,255,255,.92)!important;color:#126d70!important;border-color:transparent!important;}
+ html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"]{background:#09636a!important;color:#fff!important;border-color:rgba(255,255,255,.32)!important;box-shadow:none!important;}
+ html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"] i{color:#fff!important;}
+ html.satori-light-review #appHeader :is(#btnTopTrash,#btnInstallApp,#btnBackupRestoreTop,#btnSyncDrive){background:#ffffff1d!important;color:white!important;border:1px solid #ffffff36!important;box-shadow:none!important;}
+ /* All real workspace panels share the same light token palette. */
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory,#tab-reconcile) > div[class*="bg-slate-9"],
+ html.satori-light-review #tab-input > div > div[class*="bg-slate-9"],
+ html.satori-light-review .compact-panel,
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory,#tab-reconcile) div[class*="bg-slate-9"]:not([id="invoicePreview"]):not([id="modalInvoiceContent"]),
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory,#tab-reconcile) section[class*="bg-slate-9"]{
+   background:#fff!important;color:var(--ms-ink)!important;border-color:var(--ms-line)!important;box-shadow:none!important;
  }
- @media(prefers-reduced-motion:reduce){html.satori-light-review button,html.satori-light-review summary{transition:none!important;animation:none!important}}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory,#tab-reconcile) :is(.text-white,.text-slate-100,.text-slate-200,.text-slate-300):not(button):not([class*="bg-gradient"]):not(#invoicePreview *):not(#modalInvoiceContent *) {color:var(--ms-ink)!important;}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory,#tab-reconcile) :is(.text-slate-400,.text-slate-500):not(button):not(#invoicePreview *):not(#modalInvoiceContent *){color:var(--ms-muted)!important;}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory,#tab-reconcile) :is(input,textarea,select):not([type=checkbox]):not([type=radio]) {background:#fff!important;color:var(--ms-ink)!important;border:1px solid #cddfdf!important;border-radius:12px!important;font-size:max(15px,1em)!important;min-height:43px;box-shadow:none!important;}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory,#tab-reconcile) :is(input,textarea)::placeholder{color:#7c8c98!important;opacity:1!important;}
+ html.satori-light-review .compact-panel{border:1px solid var(--ms-line)!important;border-radius:15px!important;overflow:hidden;background:#fff!important;}
+ html.satori-light-review .compact-panel>summary{color:#1d6670!important;min-height:43px!important;display:flex;align-items:center;font-weight:700;font-size:13px;padding:11px 14px!important;}
+ html.satori-light-review .compact-panel[open]>summary {background:#eff8f7!important;border-bottom:1px solid var(--ms-line)!important;}
+ html.satori-light-review .compact-panel-body{padding:12px!important;}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet) h2{font-size:16px!important;letter-spacing:-.01em!important;color:var(--ms-ink)!important;}
+ html.satori-light-review #tab-input > div[class*="grid"]{gap:13px!important;}
+ html.satori-light-review #tab-input > div[class*="grid"] > div {padding:15px!important;border:1px solid var(--ms-line)!important;border-radius:19px!important;background:#fff!important;}
+ html.satori-light-review #tab-input #orderForm{gap:9px!important;}
+ html.satori-light-review #tab-input #orderForm > div {margin-top:8px!important;}
+ html.satori-light-review #tab-input #orderForm label{font-size:12px!important;color:#536b75!important;font-weight:600;}
+ html.satori-light-review #tab-input textarea{resize:vertical;max-height:240px;}
+ html.satori-light-review #tab-input #zaloRawText{min-height:85px!important;max-height:180px;font-size:14px!important;}
+ html.satori-light-review #tab-input #invoicePreviewPanel{border:1px solid var(--ms-line)!important;background:#fff!important;border-radius:19px!important;}
+ /* Deliberately preserve invoicePreview and modalInvoiceContent: business-branded PDF content. */
+ html.satori-light-review #tab-archive #archiveCardsContainer{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))!important;gap:12px!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card{background:#fff!important;color:var(--ms-ink)!important;border:1px solid var(--ms-line)!important;border-radius:17px!important;box-shadow:0 3px 13px rgba(25,61,70,.05)!important;padding:14px!important;gap:10px!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card:hover{border-color:#a6cfcb!important;box-shadow:0 6px 16px rgba(25,61,70,.08)!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-bottom:1px solid var(--ms-line);padding-bottom:9px;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-title{color:#173d49!important;font-size:14px;font-weight:750;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-detail{font-size:12px;line-height:1.55;color:var(--ms-muted)!important;overflow-wrap:anywhere;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card :is(.text-slate-300,.text-slate-400,.text-slate-500,.text-white){color:var(--ms-muted)!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-money,
+ html.satori-light-review :is(#archiveFilterTotal,#statTotalRevenue,#statTotalProfit,#statPaid,#statUnpaid,#subStatRevenue,#subStatProfit,#subStatPaid,#subStatUnpaid){color:var(--ms-red)!important;font-weight:800!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-items{background:#f7fbfa!important;border:1px solid var(--ms-line)!important;border-radius:11px!important;padding:0!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-items summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#246b71!important;padding:10px 11px;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-items summary::-webkit-details-marker{display:none;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-items[open] summary{border-bottom:1px solid var(--ms-line)!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-items{border:1px solid var(--ms-line)!important;background:#f6faf9!important;border-radius:11px!important;padding:9px 11px!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-actions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-actions button{min-width:0!important;min-height:38px!important;font-size:10px!important;font-weight:700!important;padding:7px 3px!important;border-radius:10px!important;box-shadow:none!important;white-space:nowrap;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-actions button:nth-child(1){background:#e7f4ff!important;color:#176ab5!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-actions button:nth-child(2){background:#e6f6ee!important;color:#10834e!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-actions button:nth-child(3){background:#ecf5f9!important;color:#246679!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-actions button:nth-child(4){background:#fff1df!important;color:#a85b0e!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-actions button:nth-child(5){background:#fff0f0!important;color:#b03c41!important;}
+ /* Ledger remains a semantic table on desktop, a true stacked row-card on mobile. */
+ html.satori-light-review #tab-sheet table,html.satori-light-review #tab-archive table{background:#fff!important;color:var(--ms-ink)!important;}
+ html.satori-light-review :is(#tab-sheet,#tab-archive) thead{background:#e9f5f2!important;color:#116b71!important;}
+ html.satori-light-review :is(#tab-sheet,#tab-archive) tbody tr{border-bottom:1px solid var(--ms-line)!important;}
+ html.satori-light-review :is(#tab-sheet,#tab-archive) tbody td{color:#263e48!important;}
+ html.satori-light-review #sheetsTableBody td:nth-child(8),
+ html.satori-light-review #sheetsTableBody td:nth-child(10),
+ html.satori-light-review #sheetsTableBody td:nth-child(11),
+ html.satori-light-review #archiveTableBody td:nth-child(8){color:var(--ms-red)!important;font-weight:800!important;}
+ html.satori-light-review #excelSubSummary{background:#f2faf7!important;border-color:var(--ms-line)!important;color:var(--ms-ink)!important;}
+ html.satori-light-review #tab-sheet #excelViewingScope{background:#fff!important;color:#14736f!important;border:1px solid var(--ms-line)!important;}
+ html.satori-light-review :is(#tab-sheet,#tab-archive) table select {font-size:12px!important;}
+ html.satori-light-review #tab-sheet :is(#statTotalOrders,#statTotalRevenue,#statTotalProfit,#statPaid,#statUnpaid){font-size:clamp(13px,2vw,20px)!important;white-space:normal!important;overflow-wrap:anywhere;}
+ /* Sidebar is a true right-edge overlay, no false data sync claims. */
+ #satori-web-drawer-backdrop{display:none;position:fixed;inset:0;background:#072c3455;z-index:80;}
+ #satori-web-drawer{position:fixed;right:0;top:0;bottom:0;z-index:81;width:min(86vw,320px);background:#fff;color:#183843;box-shadow:-15px 0 35px rgba(0,35,44,.12);transform:translateX(105%);visibility:hidden;transition:transform .22s ease,visibility .22s;}
+ #satori-web-drawer[aria-hidden="false"]{transform:translateX(0);visibility:visible;}
+ #satori-web-drawer-backdrop[data-open="true"]{display:block;}
+ #satori-web-drawer button{width:100%;display:flex;align-items:center;gap:13px;padding:13px 14px;background:#f4faf8;color:#144852;border:0;border-radius:11px;text-align:left;font-weight:650;font-size:14px;}
+ #satori-web-drawer button i{width:18px;color:#078b84;}
+ #satori-web-drawer button:focus-visible{outline:2px solid #008f88;}
+ #satori-web-header-actions{display:none;}
+ /* A compact, honest source warning instead of the obstructive purple sticky banner. */
+ #satori-local-data-note{position:relative!important;top:auto!important;z-index:5!important;background:#e9f5f2!important;color:#335a60!important;text-align:left!important;padding:7px 14px!important;font-size:11px!important;border-bottom:1px solid #d7e9e6;}
+ #satori-local-data-note a{color:#086f7a!important;font-weight:750;}
+ #satori-local-data-note .satori-local-help{display:none;}
+ #satori-legacy-dock{display:none;}
+ @media (max-width:900px){
+   html.satori-light-review body{padding-bottom:calc(79px + env(safe-area-inset-bottom,0px))!important;}
+   html.satori-light-review #appHeader{padding:9px 12px!important;border-radius:0 0 17px 17px!important;}
+   html.satori-light-review #appHeader > div{display:flex!important;flex-direction:row!important;gap:6px!important;}
+   html.satori-light-review #appHeader > div > div:first-child {flex:1!important;min-width:0!important;}
+   html.satori-light-review #appHeader > div > div:first-child > div:first-child{min-width:0!important;}
+   html.satori-light-review #appHeader > div > div:first-child > div:first-child > div:last-child {min-width:0!important;}
+   html.satori-light-review #appHeader h1{font-size:15px!important;white-space:nowrap;}
+   html.satori-light-review #appHeader #syncStatusBadge{display:none!important;}
+   html.satori-light-review #appHeader p{font-size:10px!important;max-width:200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+   html.satori-light-review #appHeader nav{display:none!important;}
+   html.satori-light-review #appHeader > div > div:nth-child(2){display:none!important;}
+   html.satori-light-review #appHeader .satori-old-mobile-actions{display:none!important;}
+   #satori-web-header-actions{display:flex;align-items:center;gap:5px;}
+   #satori-web-header-actions button{display:grid;place-items:center;width:40px;height:42px;border-radius:11px;background:#ffffff20;border:1px solid #ffffff43;color:#fff;font-size:17px;flex-shrink:0;}
+   html.satori-light-review main{max-width:730px!important;padding:11px!important;}
+   html.satori-light-review #tab-input > div[class*="grid"]{grid-template-columns:1fr!important;gap:12px!important;}
+   html.satori-light-review #tab-input > div[class*="grid"] > div{padding:13px!important;}
+   html.satori-light-review #archiveCardsContainer{grid-template-columns:1fr!important;}
+   html.satori-light-review #archiveCardsContainer .ms-card-actions button{min-height:38px!important;}
+   #satori-legacy-dock{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;bottom:0;left:0;right:0;z-index:35;background:rgba(255,255,255,.97);border-top:1px solid var(--ms-line);box-shadow:0 -5px 17px rgba(0,47,54,.09);padding:6px 5px calc(7px + env(safe-area-inset-bottom,0px));backdrop-filter:blur(15px);}
+   #satori-legacy-dock :is(.dock-item,summary){display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;min-height:54px;background:transparent;border:0;border-radius:12px;color:#68828b;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
+   #satori-legacy-dock i{font-size:20px;line-height:23px;}
+   #satori-legacy-dock .dock-item[aria-current="page"],#satori-legacy-dock details[open]>summary{background:#dff3ee;color:#087c76;}
+   #satori-legacy-dock details{position:relative;}
+   #satori-legacy-dock .dock-menu{display:grid;gap:4px;position:absolute;bottom:calc(100% + 13px);right:0;width:205px;background:#fff;border:1px solid var(--ms-line);border-radius:14px;padding:8px;box-shadow:0 12px 33px rgba(0,37,48,.20);}
+   #satori-legacy-dock .dock-menu button{background:#eef8f6;color:#205e64;font-size:13px;font-weight:650;text-align:left;padding:12px;border:0;border-radius:9px;}
+   #satori-legacy-dock .dock-menu button i{font-size:14px;margin-right:7px;}
+ }
+ @media(max-width:760px){
+   html.satori-light-review #tab-sheet #sheetsTableBody{display:grid!important;gap:11px!important;background:transparent!important;}
+   html.satori-light-review #tab-sheet #sheetsTableBody tr{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 12px;padding:13px!important;background:#fff!important;border:1px solid var(--ms-line)!important;border-radius:15px!important;box-shadow:0 3px 12px rgba(0,40,50,.04);min-width:0;content-visibility:auto;contain-intrinsic-size:auto 300px;}
+   html.satori-light-review #tab-sheet #sheetsTableBody td{display:block!important;min-width:0!important;max-width:100%!important;padding:5px 0!important;white-space:normal!important;overflow-wrap:anywhere;text-align:left!important;font-size:12px!important;}
+   html.satori-light-review #tab-sheet #sheetsTableBody td::before{display:block;content:"";font-size:10px!important;font-weight:650;color:#73858e!important;letter-spacing:.02em;margin-bottom:3px;}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(1)::before{content:"Ngày";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(2)::before{content:"Số hóa đơn";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(3)::before{content:"Khách hàng";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(4)::before{content:"Điện thoại";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(5)::before{content:"Địa chỉ giao";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(6)::before{content:"Sản phẩm";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(7)::before{content:"Số lượng";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(8)::before{content:"Đơn giá";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(9)::before{content:"VAT";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(10)::before{content:"Tổng tiền";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(11)::before{content:"Lợi nhuận";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(12)::before{content:"Thanh toán";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(13)::before{content:"Thao tác";}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(3),
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(5),
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(6),
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(12),
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(13),
+   html.satori-light-review #tab-sheet #sheetsTableBody td[colspan]{grid-column:1/-1;}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(3){font-weight:750!important;font-size:14px!important;}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(12) select{width:auto!important;min-width:150px!important;}
+   html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(13)>div{display:flex!important;flex-wrap:wrap;justify-content:flex-start!important;}
+   html.satori-light-review #tab-sheet table,html.satori-light-review #tab-sheet table thead{display:block!important;}
+   html.satori-light-review #tab-sheet table thead{display:none!important;}
+   html.satori-light-review #tab-sheet div:has(>table:has(#sheetsTableBody)){max-height:none!important;overflow:visible!important;border:0!important;background:transparent!important;}
+   html.satori-light-review #tab-sheet #excelSubSummary{gap:8px!important;}
+ }
+ @media(prefers-reduced-motion:reduce){
+   html.satori-light-review :is(button,summary,.ms-invoice-card),#satori-web-drawer{transition:none!important;animation:none!important;scroll-behavior:auto!important;}
+ }
 }
 
 </style>
@@ -331,22 +304,28 @@ document.documentElement.classList.add('satori-light-review');
 </nav>
 
 
-    <!-- Active Update Notification Banner -->
-    <div class="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-blue-500/40 px-3 py-2 text-center text-xs text-blue-200 flex flex-col sm:flex-row items-center justify-between gap-2 no-print shadow">
-        <div class="flex items-center gap-2 mx-auto">
-            <span class="bg-emerald-500 text-slate-950 font-bold px-2 py-0.5 rounded text-[10px] tracking-wide uppercase">BẢN V16.7 PRO - ĐỐI CHIẾU ĐƠN NHẬP SATORI</span>
-            <span>Đối chiếu Excel Satori • Tên khách, SĐT, địa chỉ, từng loại nước và số lượng • Chiết khấu nhập cố định 45%.</span>
-        </div>
-        <div class="flex items-center gap-2">
-            <button onclick="openGoogleSyncModal()" class="bg-indigo-700 hover:bg-indigo-600 text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-indigo-400 transition flex items-center gap-1 shadow whitespace-nowrap">
-                <i class="fa-solid fa-cloud-arrow-up"></i> Cấu Hình Google Sheets
-            </button>
-            <button onclick="resetCatalogueToDefault()" class="bg-blue-700 hover:bg-blue-600 text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-blue-400 transition flex items-center gap-1 shadow whitespace-nowrap" title="Bấm để tải lại giá gốc nếu bạn thấy giá chưa đổi">
-                <i class="fa-solid fa-arrows-rotate"></i> Làm Mới Bảng Giá
-            </button>
-        </div>
-    </div>
-
+    <!-- Accessible advanced actions, sliding from the RIGHT (not business logic). -->
+    <div id="satori-web-drawer-backdrop" class="no-print" onclick="satoriToggleWebDrawer(false)" aria-hidden="true"></div>
+    <aside id="satori-web-drawer" class="no-print" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Menu tác vụ Minh Satori">
+      <div style="padding:19px 16px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <strong style="font-size:17px">Minh Satori · Tác vụ</strong>
+        <button type="button" style="width:auto;padding:8px" onclick="satoriToggleWebDrawer(false)" aria-label="Đóng menu"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding:0 13px 19px;display:grid;gap:7px;overflow-y:auto;max-height:calc(100dvh - 77px)">
+        <button type="button" onclick="satoriToggleWebDrawer(false);switchTab('input')"><i class="fa-solid fa-plus"></i>Lên đơn mới</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);switchTab('archive')"><i class="fa-solid fa-file-invoice"></i>Hóa đơn</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);switchTab('sheet')"><i class="fa-solid fa-dollar-sign"></i>Công nợ, sổ kế toán</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);switchTab('catalogue')"><i class="fa-solid fa-tags"></i>Bảng giá sản phẩm</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);switchTab('reconcile')"><i class="fa-solid fa-scale-balanced"></i>Đối chiếu Satori</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);switchTab('aimemory')"><i class="fa-solid fa-brain"></i>Trí nhớ AI</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);syncLiveFromGoogleDrive()"><i class="fa-solid fa-rotate"></i>Đồng bộ Drive</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);openGoogleSyncModal()"><i class="fa-solid fa-gear"></i>Cấu hình đồng bộ</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);openBackupRestoreModal()"><i class="fa-solid fa-database"></i>Sao lưu / khôi phục</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);openTrashBinModal()"><i class="fa-solid fa-trash-can"></i>Thùng rác 30 ngày</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);triggerPwaInstall()"><i class="fa-brands fa-android"></i>Cài ứng dụng PWA</button>
+        <button type="button" onclick="satoriToggleWebDrawer(false);resetCatalogueToDefault()"><i class="fa-solid fa-rotate-left"></i>Tải lại bảng giá mặc định</button>
+      </div>
+    </aside>
     <!-- Top Navigation Header -->
     <header id="appHeader" class="bg-slate-950/95 border-b border-slate-800 sticky top-0 z-40 px-3 sm:px-6 py-3 shadow-xl backdrop-blur-md no-print">
         <div class="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-3">
@@ -377,21 +356,11 @@ document.documentElement.classList.add('satori-light-review');
                     </div>
                 </div>
 
-                <!-- Android Install Shortcut (Mobile) -->
-                <div class="lg:hidden flex items-center gap-2">
-                    <button onclick="openTrashBinModal()" class="bg-amber-950/80 text-amber-400 border border-amber-500/50 p-2 rounded-xl text-xs transition relative shadow" title="Thùng Rác (30 Ngày)">
-                        <i class="fa-solid fa-trash-can"></i>
-                        <span id="trashCountBadgeTopMobile" class="absolute -top-1 -right-1 bg-amber-500 text-slate-950 px-1 rounded-full text-[9px] font-black">0</span>
-                    </button>
-                    <button onclick="triggerPwaInstall()" class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold p-2 rounded-xl flex items-center shadow transition" title="Cài App">
-                        <i class="fa-brands fa-android text-sm"></i>
-                    </button>
-                    <button onclick="openBackupRestoreModal()" class="bg-indigo-950/80 text-indigo-300 border border-indigo-500/50 p-2 rounded-xl text-xs transition" title="Sao Lưu & Restore Dữ Liệu">
-                        <i class="fa-solid fa-database text-sm"></i>
-                    </button>
-                    <button onclick="syncLiveFromGoogleDrive()" class="bg-slate-800 text-cyan-400 border border-cyan-500/30 p-2 rounded-xl text-xs transition" title="Tải Từ Drive">
-                        <i class="fa-solid fa-arrows-rotate" id="syncIconMobile"></i>
-                    </button>
+                <!-- Owner header: clean logo at left, compact sync/settings/menu at right. -->
+                <div id="satori-web-header-actions" class="no-print">
+                  <button type="button" onclick="syncLiveFromGoogleDrive()" aria-label="Đồng bộ dữ liệu Google Drive" title="Đồng bộ Drive"><i class="fa-solid fa-rotate" id="syncIconMobile" aria-hidden="true"></i></button>
+                  <button type="button" onclick="openGoogleSyncModal()" aria-label="Cài đặt đồng bộ" title="Cài đặt"><i class="fa-solid fa-gear" aria-hidden="true"></i></button>
+                  <button type="button" id="satori-web-menu-trigger" aria-controls="satori-web-drawer" aria-expanded="false" aria-label="Mở menu tác vụ" onclick="satoriToggleWebDrawer(true)"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
                 </div>
             </div>
 
@@ -4481,36 +4450,36 @@ document.documentElement.classList.add('satori-light-review');
             } else {
                 filtered.forEach(o => {
                     const card = document.createElement('div');
-                    card.className = "bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 shadow-lg space-y-3 transition flex flex-col justify-between";
+                    card.className = "ms-invoice-card flex flex-col justify-between";
 
                     const statusBadge = `<span class="bg-slate-950 border border-slate-700 text-[10px] px-2 py-0.5 rounded-full ${SatoriAccountingCore.statusClass(o)}">${aiEscape(o.status||'Chưa thanh toán')}${o.status==='Không Tính'?' (0đ DT)':''}</span>${o.status==='Đã TT Satori'?'<small class="block text-slate-300">'+(SatoriAccountingCore.paid(o)?'Khách đã TT':'Khách chưa TT')+'</small>':''}`;
                     const pairBadge=o.pairRole==='customer'||o.pairRole==='collaborator'?
                         `<span class="bg-blue-950 text-blue-200 border border-blue-800 text-[10px] px-2 py-0.5 rounded-full">${o.pairRole==='customer'?'Bill khách':'Bill CTV nội bộ'} · CK ${Number(o.pairDiscountPercent||0).toLocaleString('vi-VN')}% · liên kết #${aiEscape(String(o.pairInvoiceNo||''))}</span>`:'';
                     const profitValArchive = getOrderProfit(o);
-                    const profitBadgeArchive = `<span class="bg-purple-950/80 text-purple-300 border border-purple-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold" title="Lợi nhuận nội bộ">Lời: ${profitValArchive >= 0 ? "+" : ""}${profitValArchive.toLocaleString('vi-VN')} đ</span>`;
+                    const profitBadgeArchive = `<span class="ms-money bg-rose-50 border border-rose-100 text-[10px] px-2 py-0.5 rounded-full font-bold" title="Lợi nhuận nội bộ">Lời: ${profitValArchive >= 0 ? "+" : ""}${profitValArchive.toLocaleString('vi-VN')} đ</span>`;
 
                     let itemsHtml = '';
                     if (o.items && Array.isArray(o.items) && o.items.length > 0) {
                         itemsHtml = o.items.map(it => `
                             <div class="flex justify-between text-[11px] text-slate-300 py-0.5 border-b border-slate-800/50">
                                 <span class="truncate max-w-[170px]" title="${it.product}">📦 ${it.qty}x ${it.product}</span>
-                                <span class="font-mono text-slate-400">${(it.qty * it.unitPrice || 0).toLocaleString('vi-VN')}đ</span>
+                                <span class="ms-money font-mono">${(it.qty * it.unitPrice || 0).toLocaleString('vi-VN')}đ</span>
                             </div>
                         `).join('');
                     } else {
                         itemsHtml = `
                             <div class="flex justify-between text-[11px] text-slate-300 py-0.5">
                                 <span class="truncate max-w-[170px]" title="${o.product}">📦 ${o.qty}x ${o.product}</span>
-                                <span class="font-mono text-slate-400">${(o.total || 0).toLocaleString('vi-VN')}đ</span>
+                                <span class="ms-money font-mono">${(o.total || 0).toLocaleString('vi-VN')}đ</span>
                             </div>
                         `;
                     }
 
                     card.innerHTML = `
                         <div class="space-y-2">
-                            <div class="flex justify-between items-start border-b border-slate-800 pb-2">
+                            <div class="ms-card-head">
                                 <div>
-                                    <span class="font-bold text-amber-400 text-sm tracking-wide">HÓA ĐƠN #${o.invoiceNo}</span>
+                                    <span class="ms-card-title">HÓA ĐƠN #${o.invoiceNo}</span>
                                     <span class="text-[11px] text-slate-400 block font-mono"><i class="fa-regular fa-calendar text-[10px]"></i> ${o.date}</span>
                                 </div>
                                 <div class="flex flex-col items-end gap-1">
@@ -4521,35 +4490,37 @@ document.documentElement.classList.add('satori-light-review');
                             </div>
 
                             <div class="space-y-1 text-xs">
-                                <div class="font-semibold text-white flex items-center gap-1.5 truncate" title="${o.name}">
+                                <div class="ms-card-detail font-semibold flex items-center gap-1.5" title="${o.name}">
                                     <i class="fa-solid fa-user text-blue-400 text-[11px]"></i>
                                     <span>${o.name}</span>
                                 </div>
                                 ${o.phone ? `
-                                    <div class="text-slate-400 text-[11px] flex items-center gap-1.5">
+                                    <div class="ms-card-detail flex items-center gap-1.5">
                                         <i class="fa-solid fa-phone text-emerald-400 text-[10px]"></i>
                                         <span>${o.phone}</span>
                                     </div>
                                 ` : ''}
-                                <div class="text-slate-400 text-[11px] flex items-start gap-1.5">
+                                <div class="ms-card-detail flex items-start gap-1.5">
                                     <i class="fa-solid fa-location-dot text-rose-400 text-[10px] mt-0.5"></i>
                                     <span class="line-clamp-2" title="${o.location}">${o.location || 'Chưa có địa chỉ'}</span>
                                 </div>
                             </div>
 
-                            <div class="bg-slate-950/70 rounded-xl p-2.5 border border-slate-800/80 space-y-1">
-                                <span class="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">Mặt hàng xuất:</span>
+                            <details class="ms-card-items">
+                                <summary><i class="fa-solid fa-box-open" aria-hidden="true"></i> Xem mặt hàng</summary>
+                                <div class="ms-card-detail space-y-1" style="padding:9px 11px">
                                 ${itemsHtml}
-                            </div>
+                                </div>
+                            </details>
                         </div>
 
                         <div class="pt-2 border-t border-slate-800 space-y-2">
                             <div class="flex justify-between items-center">
                                 <span class="text-xs text-slate-400">Tổng thanh toán:</span>
-                                <span class="font-bold text-emerald-400 text-sm font-mono">${(o.total || 0).toLocaleString('vi-VN')} đ</span>
+                                <span class="ms-money font-bold text-sm font-mono">${(o.total || 0).toLocaleString('vi-VN')} đ</span>
                             </div>
 
-                            <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-1">
+                            <div class="ms-card-actions">
                                 <button onclick="viewInvoiceDetailModal(${o.id})" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 shadow" title="Xem bản in chi tiết">
                                     <i class="fa-solid fa-eye"></i> Xem
                                 </button>
@@ -9043,7 +9014,8 @@ window.SatoriRecon = (() => {
         const note = document.createElement('div');
         note.setAttribute('role', 'status');
         note.className = 'no-print';
-        note.style.cssText = 'position:sticky;top:0;z-index:100000;padding:12px;background:#312e81;color:white;text-align:center;font:13px sans-serif';
+        note.id = 'satori-local-data-note';
+        note.style.cssText = 'position:relative;padding:7px 14px;background:#e9f5f2;color:#335a60;text-align:left;font:11px Inter,sans-serif';
         note.appendChild(document.createTextNode('Bản này lưu riêng trên thiết bị. Để dùng cùng dữ liệu trên mọi máy, hãy mở bản Google Drive: '));
         const link = document.createElement('a');
         link.href = 'https://script.google.com/macros/s/AKfycbwJjiajW-gbCwCISrGjvLy5L5ETdmfAGV1zHpUWoeszRUXNgQ6vGHOs3DVABSAcEtV1/exec?authuser=nguyenkhoilevn7%40gmail.com';
@@ -9053,7 +9025,8 @@ window.SatoriRecon = (() => {
         note.appendChild(link);
         const help=document.createElement('div');
         help.textContent='Dùng tài khoản nguyenkhoilevn7@gmail.com. Nếu Google báo không mở được, thử tab ẩn danh và chỉ đăng nhập tài khoản này.';
-        help.style.cssText='font-size:12px;margin-top:6px';
+        help.className = 'satori-local-help';
+        help.style.cssText='font-size:11px;margin-top:4px';
         note.appendChild(help);
         document.body.prepend(note);
     };
@@ -9101,6 +9074,26 @@ window.SatoriRecon = (() => {
  paint();};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else ready();
 })();
+</script>
+<script id="satori-web-right-drawer-script">
+/* UI-only: safe responsive right drawer, ESC and overlay close, no API calls. */
+function satoriToggleWebDrawer(open) {
+  const panel = document.getElementById('satori-web-drawer');
+  const overlay = document.getElementById('satori-web-drawer-backdrop');
+  const trigger = document.getElementById('satori-web-menu-trigger');
+  if (!panel || !overlay) return;
+  panel.setAttribute('aria-hidden', String(!open));
+  overlay.dataset.open = String(open);
+  trigger?.setAttribute('aria-expanded', String(open));
+  if(open) {
+    panel.querySelector('button')?.focus({preventScroll:true});
+  } else trigger?.focus({preventScroll:true});
+}
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape' && document.getElementById('satori-web-drawer')?.getAttribute('aria-hidden')==='false'){
+    satoriToggleWebDrawer(false);
+  }
+});
 </script>
 </body>
 </html>
