@@ -269,6 +269,221 @@ header .satori-logo{width:31px;height:31px}
 #toast{position:fixed;bottom:83px;left:50%;transform:translateX(-50%);max-width:92vw;padding:12px 15px;background:#1f344c;color:white;border-radius:12px;z-index:30;box-shadow:0 5px 22px #0a2b4b33}
 @media(min-width:700px){#app{border-left:1px solid var(--edge);border-right:1px solid var(--edge)}}
 @media(prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
+
+/* MINH SATORI UNIFIED LIGHT UI — visual-only Android 0.4.13 parity.
+   Kept additive: existing IDs, handlers, API calls, cart/payment logic and
+   authenticated account permissions are deliberately untouched. */
+:root{
+ --bg:#f2f2f7;--card:#fff;--ink:#1c1c1e;--sub:#637083;
+ --edge:#e0e5ed;--blue:#007aff;--blueSoft:#eaf3ff;
+ --mint:#eaf9f1;--radius:17px
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif}
+header{box-shadow:0 2px 10px #24456c0b}
+.hamburger,.header-icon,.round{border:1px solid #dfe6ee;background:#fff;box-shadow:0 2px 7px #1a3c5a0a}
+.nav{border:1px solid transparent;transition:background-color .15s,border-color .15s}
+.nav.active{background:var(--blueSoft);color:#086ed6;border-color:#d5e8fb}
+.panel,.cart-panel,.delivery-panel,.chat-order-receipt,.chat-help{
+ border-color:#e0e6ee;border-radius:17px;box-shadow:0 3px 14px #1a38550a
+}
+.agent-address-choice{border:1px solid #e8eef5;border-radius:13px;margin:5px 0;background:#fff}
+.agent-address-choice[aria-pressed="true"]{border-color:#b4d8fa;background:#eaf3ff}
+.agent-address-choice .address-title{font-size:16px;font-weight:750;color:#1c1c1e}
+.agent-address-choice .address-phone{
+ display:block;color:#14794f;font-size:14px;font-weight:650;
+ background:#eaf9f1;border-radius:9px;padding:5px 8px;margin-top:5px
+}
+.agent-address-choice .address-subtitle{
+ display:block;color:#186daf;font-size:14px;
+ background:#ecf5ff;border-radius:9px;padding:6px 8px;margin-top:5px
+}
+.saved-address>summary strong{font-size:15px;color:#1c1c1e;white-space:normal}
+.address-detail{color:#4d6279;font-size:13.5px;line-height:1.5}
+.invoice-ledger-row{
+ background:#fff;border:1px solid #e0e6ee;border-radius:16px;
+ box-shadow:0 3px 12px #16304b0a;padding:13px;margin:9px 0
+}
+.invoice-ledger-row .invoice-name{color:#1c1c1e;font-size:15px;font-weight:750}
+.invoice-ledger-row .invoice-detail{color:#526578;font-size:13px;line-height:1.5}
+.invoice-ledger-amount{color:#007aff;font-variant-numeric:tabular-nums;font-weight:750}
+.invoice-masthead{border-color:#dfebf9}
+button:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,.agent-address-choice:focus-visible{
+ outline:2px solid #007aff;outline-offset:2px
+}
+@media(max-width:440px){
+ .invoice-ledger-row{padding:11px}
+ .agent-address-choice .address-title{font-size:15px}
+ .agent-address-choice .address-subtitle{font-size:14px}
+}
+@media print{.invoice-ledger-row{box-shadow:none}}
+/* END MINH SATORI UNIFIED LIGHT UI */
+
+
+/* SATORI FULL-UI REVIEW: shared Android palette; no account/auth/checkout changes. */
+:root{--bg:#eaf0f7;--card:#fff;--ink:#20364b;--sub:#5e7287;
+ --edge:#cfddeb;--blue:#086fdf;--blueSoft:#e2effd;--mint:#e1f5e9;
+ --iosOutgoing:#0875e6;--iosIncoming:#edf2f7}
+html,body{background:var(--bg)}
+#app{background:#f7fbff;border-left:1px solid #d4e3f0;border-right:1px solid #d4e3f0}
+header{background:linear-gradient(115deg,#dcecffea,#f6fafff2);border-color:#cbddef;box-shadow:0 4px 16px #163f6b13}
+.drawer{background:linear-gradient(180deg,#e9f3ff,#f8fbff 220px);border-right:1px solid #c4d9ed}
+.drawer .nav{background:#f4f9ff;color:#295178;border:1px solid #dbe8f3;display:flex;align-items:center;gap:12px;min-height:45px}
+.drawer .nav svg,.drawer .nav .inline-icon{width:20px;height:20px;flex-shrink:0}
+.drawer .nav.active{background:#e0efff;color:#075fb7;border-color:#aed3f7}
+#messages{background:linear-gradient(180deg,#eef5fd,#f9fbff 180px);padding-bottom:18px}
+.intro,.chat-help{background:#f3f9ff;border-color:#cedeed}
+.ai-avatar{background:linear-gradient(145deg,#0877df,#2d9fc6)}
+.bubble.ai{background:#e4edf6;border:1px solid #d3e0ed;color:#24374c;box-shadow:0 2px 9px #17384d0b}
+.bubble.me{background:#0875e6;border:1px solid #0869cf;color:#fff;box-shadow:0 3px 8px #0d68b426}
+.chat-order-receipt,.cart-panel,.delivery-panel,.panel,.chat-help{background:#fff;border:1px solid #cfdeeb;box-shadow:0 5px 18px #1c496b12;border-radius:17px}
+.agent-address-choice{background:#f9fcff;border-color:#d9e6f3}
+.agent-address-choice .address-phone{background:#e1f6e9;color:#137447}
+.agent-address-choice .address-subtitle{background:#e6f1ff;color:#1766ab}
+.invoice-ledger-row{background:linear-gradient(135deg,#fff,#f8fbff);border-color:#d1dfec}
+.invoice-ledger-row .invoice-name{color:#1c3856}
+.invoice-ledger-amount{color:#0872d8}
+#gate{background:linear-gradient(180deg,#eaf3fd,#fff 240px)}
+:where(.chat-help,.delivery-panel,.cart-panel,.panel) :is(button,input,select,textarea):focus-visible{outline:2px solid #086fdf;outline-offset:2px}
+@media (max-width:640px){header{backdrop-filter:none}.drawer .nav{min-height:44px}}
+
+/* REFERENCE LAYOUT: compact icon-led 3+2 tabs, invoice/chat/card continuity. */
+.reference-quick-actions{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;padding:10px 12px 12px;background:#f9fbff;border-bottom:1px solid #d4e3f3;flex:none}
+.reference-quick{grid-column:span 2;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:43px;padding:8px 5px;border-radius:14px;border:1px solid #cbdff9;background:#f3f7fd;color:#0661b9;font-size:12.5px;font-weight:750;line-height:1.2;text-align:center}
+.reference-quick:nth-child(n+4){grid-column:span 3}
+.reference-quick svg{width:17px;height:17px;flex:none;stroke:currentColor}
+.reference-quick.active,.reference-quick:focus-visible{background:#0769df;color:#fff;border-color:#0867d6}
+.reference-quick:focus-visible{outline:2px solid #082d65;outline-offset:2px}
+#chatView>.intro{padding:9px 13px;background:#fff}
+#chatView .intro h1{font-size:17px;color:#153c66}
+#chatView .intro p{font-size:11px}
+#chatView .ai-avatar{width:36px;height:36px;border-radius:12px}
+#chatView #messages{background:#fafcff;padding:12px;gap:10px}
+#chatView .chat-order-receipt{width:100%;max-width:100%;border-radius:19px;background:#fff;border:1px solid #c9dff5;box-shadow:0 9px 24px #113d6915;padding:15px}
+#chatView .chat-order-head{font-size:15px;color:#153d66;margin-bottom:9px}
+#chatView .chat-order-line{font-size:13px;padding:9px 0}
+#chatView .chat-order-total{color:#0870dd;font-size:16px}
+.reference-chat-footer{display:flex;align-items:stretch;gap:9px;padding:9px 12px 11px;background:#f8fbff;border-top:1px solid #d9e7f5;flex:none}
+.reference-callout{display:flex;align-items:center;flex:1;min-width:0;padding:10px 13px;border-radius:17px;background:#076cdd;color:#fff;font-size:12px;font-weight:650;line-height:1.4;box-shadow:0 5px 12px #0d67cd24}
+.reference-cart-shortcut{position:relative;display:grid;place-items:center;flex:0 0 52px;border:0;border-radius:16px;background:linear-gradient(140deg,#0872e7,#367efa);color:#fff;box-shadow:0 4px 12px #1470db29}
+.reference-cart-shortcut svg{width:25px;height:25px}
+.reference-cart-badge{position:absolute;top:-7px;right:-7px;background:#ec414c;color:#fff;min-width:20px;height:20px;padding:0 4px;border-radius:50px;display:grid;place-items:center;font-size:11px;font-weight:800;border:2px solid white}
+.reference-cart-badge[hidden]{display:none}
+#chatView .composer{background:#fff;border-color:#d8e7f4;padding:9px 12px;padding-bottom:max(9px,env(safe-area-inset-bottom))}
+#chatView .composer textarea{background:#fff;border:1px solid #cbd9e8;border-radius:16px;min-height:44px;color:#183a5c;font-size:15px}
+#chatView .composer-action{border-radius:15px;height:44px;width:46px;background:#076dde}
+#chatView .bubble.me{background:#0875e6;color:#fff}
+#chatView .bubble.ai{background:#e8eef6;color:#1f3550}
+@media(max-width:385px){.reference-quick{font-size:11px;min-height:41px;padding:7px 3px;gap:3px}.reference-quick svg{width:15px;height:15px}.reference-callout{font-size:11px}.reference-cart-shortcut{flex-basis:48px}}
+@media(max-height:690px){.reference-quick-actions{padding:7px 10px;gap:5px}.reference-quick{min-height:37px}.reference-chat-footer{padding:6px 10px}.reference-callout{padding:7px 10px}}
+
+/* END SATORI FULL-UI REVIEW */
+
+
+/* MONEY-MIND FLAT DESIGN — SATORI PRESENTATION ONLY. No scripting, price or receipt changes. */
+:root{color-scheme:light;--bg:#f1f4f5;--card:#fff;--ink:#102b38;--sub:#667a82;--edge:#e0e8e9;
+ --blue:#009d9c;--blueSoft:#e2f6f3;--mint:#e3f6ee;--chatBlue:#058e8d;--chatGreen:#117e61;
+ --iosOutgoing:#009c99;--iosIncoming:#eef2f3;--iosIncomingInk:#142d3c}
+html,body{background:#f1f4f5;color:#102b38}
+#app{background:#fff;border:1px solid #e4e9e9;box-shadow:none}
+header{background:#fff;border-bottom:1px solid #e4eaea;box-shadow:none;backdrop-filter:none}
+.brand strong,.intro h1,.chat-order-head{color:#102b38}
+.hamburger,.round,.header-icon{background:#eff7f7;border:1px solid #deeded;color:#008f8d;border-radius:13px}
+.hamburger span{background:#0b6d6e}
+.drawer{background:#fff;border-color:#e1e9e9;box-shadow:none}
+.drawer .nav{background:#f3f7f7;border:1px solid #e1eaea;color:#36545d;border-radius:14px}
+.drawer .nav.active{background:#009c99!important;color:#fff!important;border-color:#009c99!important}
+.drawer .nav svg{stroke:currentColor}
+#chatView>.intro,.intro,.chat-help{background:#fff;border-color:#e4ebec;box-shadow:none}
+.ai-avatar{background:#009c99!important;border-radius:14px}
+#messages,#chatView #messages{background:#f8faf9}
+.bubble.me,#chatView .bubble.me{background:#009c99;border:0;color:#fff;box-shadow:none}
+.bubble.ai,#chatView .bubble.ai{background:#edf2f3;border:0;color:#183440;box-shadow:none}
+.chat-order-receipt,#chatView .chat-order-receipt,
+.cart-panel,.delivery-panel,.panel,.chat-help{background:#fff!important;border:1px solid #e1eaea!important;border-radius:19px!important;box-shadow:none!important}
+.chat-order-head{color:#007d80!important}
+.chat-order-total,#chatView .chat-order-total,.invoice-ledger-amount{color:#008e90!important}
+.chat-order-line,.invoice-ledger-row{border-color:#e5eeee}
+.invoice-ledger-row{background:#fff;border:1px solid #e0e9e9;box-shadow:none}
+.agent-address-choice{background:#fff;border-color:#e3ebea}
+.agent-address-choice .address-phone{background:#e3f6ee;color:#087b54}
+.agent-address-choice .address-subtitle{background:#eaf6f8;color:#127786}
+.reference-quick-actions{background:#fff;border-bottom:1px solid #e1e9e9;padding:11px 12px;gap:8px}
+.reference-quick{background:#f0f6f5;color:#1c666a;border:1px solid #dfeae8;border-radius:14px;min-height:45px;box-shadow:none;font-weight:750}
+.reference-quick:first-child,.reference-quick.active{background:#009c99!important;color:#fff!important;border-color:#009c99!important}
+.reference-quick:focus-visible{outline:2px solid #006e70}
+.reference-chat-footer{background:#fff;border-color:#e3eaeb}
+.reference-callout{background:#009b98;color:#fff;border-radius:15px;box-shadow:none}
+.reference-cart-shortcut{background:#009b98;border-radius:15px;box-shadow:none}
+.reference-cart-badge{background:#ffbf2b;color:#443000;border-color:#fff}
+#chatView .composer,.composer{background:#fff;border-color:#e2eaea;box-shadow:none}
+#chatView .composer textarea,.composer textarea{background:#f4f7f7;color:#172e3b;border:1px solid #dfe7e8;border-radius:15px}
+#chatView .composer-action,.send,.pick button,.checkout-submit{background:#009c99!important;color:#fff!important;box-shadow:none}
+#chatView .composer-action{border-radius:14px}
+.pick{background:#eef2f3;color:#183440}
+.chat-actions,.cart-chat-link,.agent-selector{background:#fff;border-color:#e4ecec}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline-color:#009c99!important}
+.screen-close,.delivery-dialog-close,.cart-clear{color:#d94d56}
+#gate{background:#fff}
+@media(min-width:740px){#app{border-radius:24px;overflow:hidden;margin-top:10px;height:calc(100dvh - 20px)}}
+@media(max-width:739px){#app{border-radius:0;border-left:0;border-right:0}}
+/* END MONEY-MIND FLAT DESIGN */
+
+
+/* MoneyMind layout hierarchy: fixed compact five-destination navigation,
+   without replacing the established V2 view(), checkout or authorization. */
+.mm-bottom-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;
+ gap:2px;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));background:#fff;
+ border-top:1px solid #e9eff0;box-shadow:0 -4px 18px #1229360b;flex:none;z-index:8}
+.mm-bottom-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+ min-width:0;min-height:54px;padding:1px 2px;border:0!important;border-radius:0!important;
+ background:transparent!important;color:#8e9fa9!important;font-size:10px;font-weight:600;box-shadow:none!important}
+.mm-bottom-tab svg{display:block;width:20px;height:20px}
+.mm-bottom-icon{height:24px;display:grid;place-items:center}
+.mm-bottom-tab.active{color:#009d9a!important;font-weight:800}
+.mm-bottom-center .mm-bottom-icon{height:40px;width:40px;margin-top:-12px;border-radius:50%;
+ background:#009c99;color:white;box-shadow:0 4px 12px #009d9a2b}
+.mm-bottom-center .mm-bottom-icon svg{width:23px;height:23px}
+.mm-bottom-tab:focus-visible{outline:2px solid #009c99!important;outline-offset:-2px}
+#app:has(#gate:not(.hidden)) .mm-bottom-nav{display:none}
+@media(min-width:740px){.mm-bottom-nav{border-radius:0 0 20px 20px}}
+/* The chat composer, catalogue, cart and invoice panels keep their own scroll;
+   bottom actions never overlay the last message or checkout button. */
+/* END MONEY-MIND STRUCTURAL NAV */
+
+/* Motion system — view transitions 190ms, action feedback 140ms,
+   drawer remains on transform-only 290ms, no layout thrashing. */
+@keyframes mm-view-enter{from{opacity:.68;transform:translate3d(0,7px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes mm-modal-enter{from{opacity:.6;transform:translate3d(0,8px,0) scale(.985)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+#chatView:not(.hidden),main>.view:not(.hidden){animation:mm-view-enter 190ms cubic-bezier(.22,.68,0,1) both}
+.mm-bottom-tab{transition:color 180ms ease}
+.mm-bottom-tab .mm-bottom-icon{transition:transform 160ms cubic-bezier(.2,.7,.2,1)}
+.mm-bottom-tab:active .mm-bottom-icon{transform:scale(.90)}
+.mm-bottom-tab.active:not(.mm-bottom-center) .mm-bottom-icon{transform:translateY(-2px)}
+.delivery-dialog[open],dialog[open]{animation:mm-modal-enter 185ms cubic-bezier(.22,.68,0,1) both}
+@media(prefers-reduced-motion:reduce){
+ #chatView:not(.hidden),main>.view:not(.hidden),.delivery-dialog[open],dialog[open]{animation:none!important}
+ .mm-bottom-tab,.mm-bottom-tab .mm-bottom-icon,.drawer,.scrim{transition:none!important}
+}
+/* END MONEY-MIND NATURAL MOTION */
+
+/* Responsive unfolded Fold/normal bar phones, also half-screen multitasking. */
+@media(min-width:740px) and (max-width:1200px){
+ #app{width:min(100%,700px);max-width:700px;margin-inline:auto}
+ .drawer{left:max(0px,calc((100vw - 700px)/2));max-width:min(310px,42vw)}
+}
+@media(max-width:380px){
+ .mm-bottom-nav{gap:0;padding-inline:1px}
+ .mm-bottom-tab{font-size:9px;letter-spacing:-.15px}
+ .mm-bottom-tab svg{width:19px;height:19px}
+ .reference-quick-actions{gap:4px;padding-inline:6px}
+ .reference-quick{min-width:0;font-size:10px;padding-inline:6px}
+}
+@media(max-height:460px) and (hover:none){
+ .mm-bottom-nav{display:none} /* Keyboard/short split-screen leaves chat composer clear */
+}
+/* END FOLD-READY V2 */
+
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
@@ -459,6 +674,7 @@ header .satori-logo{width:31px;height:31px}
 </section>
 </div></section>
 </main>
+<nav class="mm-bottom-nav" aria-label="Điều hướng Minh Satori"><button type="button" data-view="chat" class="mm-bottom-tab " aria-label="Gemini"><span class="mm-bottom-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v12H8l-4 3V6Z"/><path d="m12 8 1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2Z"/></svg></span><span>Gemini</span></button><button type="button" data-view="catalogue" class="mm-bottom-tab " aria-label="Sản phẩm"><span class="mm-bottom-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="2"/><path d="M8 7v3c-2 1-3 3-3 5v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5c0-2-1-4-3-5V7M5 16h14"/></svg></span><span>Sản phẩm</span></button><button type="button" data-view="cart" class="mm-bottom-tab mm-bottom-center" aria-label="Lên đơn"><span class="mm-bottom-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h2l2 13h12l2-9H6M10 21h0m8 0h0"/><path d="M12 8v6m-3-3h6"/></svg></span><span>Lên đơn</span></button><button type="button" data-view="orders" class="mm-bottom-tab " aria-label="Hóa đơn"><span class="mm-bottom-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 9h6M9 13h6"/></svg></span><span>Hóa đơn</span></button><button type="button" data-view="account" class="mm-bottom-tab " aria-label="Cá nhân"><span class="mm-bottom-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-5 3-7 8-7s8 2 8 7"/></svg></span><span>Cá nhân</span></button></nav>
 </div><p id="toast" role="status" hidden></p>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
