@@ -484,6 +484,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 }
 /* END FOLD-READY V2 */
 
+.chat-order-note{margin:10px 0 2px;padding:10px 12px;border-radius:10px;background:#eef7f7;color:#174b50;font-size:15px;line-height:1.5;overflow-wrap:anywhere}
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
@@ -556,6 +557,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <div class="delivery-record">
 <div class="delivery-row"><span class="delivery-label">Người nhận</span><strong id="cartRecipientName">Chưa chọn điểm giao</strong><span id="cartRecipientPhone" class="delivery-secondary"></span></div>
 <div class="delivery-row"><span class="delivery-label">Địa chỉ giao</span><strong id="cartAddressLabel">Chưa chọn điểm giao</strong><span id="cartAddressText" class="delivery-secondary"></span></div>
+<div id="cartDeliveryNote" class="delivery-row" hidden aria-live="polite"><span class="delivery-label">Lưu ý giao hàng</span><strong id="cartDeliveryNoteText"></strong></div>
 </div>
 <button id="quote" type="button" hidden aria-hidden="true" tabindex="-1"></button>
 <div id="quoteResult" hidden></div>
@@ -689,6 +691,28 @@ let cartProfileLoadEpoch=0,profileLoading=false,cartLoadedProfileId=null;
 // In-memory only. Never persist a customer conversation or guessed SKU.
 let pendingCatalogueProduct=null;
 let catalogueQuestionHasUnavailableProduct=false;
+// Ephemeral, profile/address-scoped customer delivery instruction.
+// A validated copy is persisted with the isolated V2 quote, not in the legacy ledger.
+let pendingDeliveryRequest=null;
+function activeDeliveryRequest(){
+ const address=selectedDeliveryAddress();
+ if(!address||pendingDeliveryRequest?.profileId!==$('profile').value||
+    pendingDeliveryRequest?.addressId!==address.id)return null;
+ return pendingDeliveryRequest.value;
+}
+function rememberDeliveryRequest(value){
+ if(!value)return false;
+ const address=selectedDeliveryAddress();
+ if(!address||typeof value.deliveryNote!=='string'||!value.deliveryNote.trim()||
+    value.deliveryNote.length>300||
+    !(value.requestedDeliveryAt===null||typeof value.requestedDeliveryAt==='string'))
+  throw Error('DELIVERY_NOTE_INVALID');
+ pendingDeliveryRequest={profileId:$('profile').value,addressId:address.id,
+  value:{deliveryNote:value.deliveryNote,requestedDeliveryAt:value.requestedDeliveryAt}};
+ resetTestQuote();
+ renderCartBuyer();
+ return true;
+}
 let lastQuote=null,lastTestRequestId=null,realTestEnabled=false,lastSubmittedCartKey='';
 let deliverySelectionProfileId=null;
 let cartPricing=null,cartPricingKey='',cartPricingErrorKey='',cartPricingLoadingKey='',cartPricingEpoch=0;
@@ -1337,6 +1361,9 @@ function renderCartBuyer(){
  $('cartAddressLabel').textContent=delivery?.label||'Vui lòng chọn địa chỉ';
  $('cartAddressText').textContent=delivery?.address||'Chọn điểm giao để xem báo giá.';
  $('cartChangeAddress').disabled=!profile||savingCart||busy;
+ const note=activeDeliveryRequest();
+ $('cartDeliveryNote').hidden=!note;
+ $('cartDeliveryNoteText').textContent=note?.deliveryNote||'';
 }
 function priceSummaryRow(parent,label,value,kind=''){
  const row=node('div',undefined,'cart-price-row'+(kind?' '+kind:''));
@@ -1575,7 +1602,12 @@ function renderAddresses(){
  if(!active.length)choices.append(node('p','Chưa có địa chỉ giao đang hoạt động.','muted'));
  updateDeliveryGate();
 }
-$('location').onchange=()=>{deliverySelectionProfileId=$('location').value?$('profile').value:null;resetTestQuote();invalidateCartPricing();renderAddresses();renderCart()};
+$('location').onchange=()=>{
+ deliverySelectionProfileId=$('location').value?$('profile').value:null;
+ pendingDeliveryRequest=null;
+ $('messages').querySelectorAll('.chat-order-receipt').forEach(card=>card.remove());
+ resetTestQuote();invalidateCartPricing();renderAddresses();renderCart();
+};
 async function changeProfile(forceDuringWrite=false){
  const requestedProfileId=$('profile').value;
  // A customer switching profiles while a cart PUT is unresolved must not
@@ -1592,6 +1624,8 @@ async function changeProfile(forceDuringWrite=false){
   if(deliverySelectionProfileId!==$('profile').value){
    deliverySelectionProfileId=null;$('location').value='';
    clearPendingCatalogueProduct();
+   pendingDeliveryRequest=null;
+   $('messages').querySelectorAll('.chat-order-receipt').forEach(card=>card.remove());
   }
   resetTestQuote();invalidateCartPricing();
   $('quickAgentProfile').value=requestedProfileId;
@@ -1778,6 +1812,8 @@ function renderTestInvoice(quote,result){
   node('div','Người nhận: '+String(quote.delivery?.recipientName||'—')),
   node('div','Điện thoại: '+String(quote.delivery?.recipientPhone||'—')),
   node('div','Địa chỉ: '+String(quote.delivery?.address||'—')));
+ if(quote.deliveryRequest?.deliveryNote)
+  detail.append(node('div','Lưu ý: '+quote.deliveryRequest.deliveryNote));
  wrap.append(detail);
  const table=node('table',undefined,'test-invoice-table');
  const head=node('thead'),headRow=node('tr');
@@ -1832,7 +1868,8 @@ $('submitTestOrder').onclick=async()=>{
  $('submitTestOrder').disabled=true;
  $('testOrderResult').textContent='Đang kiểm tra giá và lưu đơn thử…';
  try{
-  const q=await call('/api/v2/quote',{profileId:$('profile').value,addressId:selectedDeliveryAddress().id});
+  const q=await call('/api/v2/quote',{profileId:$('profile').value,
+   addressId:selectedDeliveryAddress().id,deliveryRequest:activeDeliveryRequest()});
   // Never submit silently after an admin price/policy change.
   if(q.totalVnd!==priceShown.totalVnd||q.goodsVnd!==priceShown.goodsVnd||
    q.shippingVnd!==priceShown.shippingVnd||q.vatVnd!==priceShown.vatVnd||
@@ -1858,34 +1895,53 @@ $('submitTestOrder').onclick=async()=>{
  }finally{updateDeliveryGate()}
 };
 async function addChatOrderReceipt(selection){
+ if(!Array.isArray(selection))throw Error('CART_SUMMARY_INVALID');
+ // A chat conversation has exactly ONE current draft receipt, not a new bill
+ // per product message. Render ALL verified cart lines after every change.
+ const fullCart=cart.map(line=>({code:line.code,qty:line.qty}));
+ const revision=cartRev,profileId=$('profile').value,address=selectedDeliveryAddress();
+ if(!fullCart.length){
+  $('messages').querySelectorAll('.chat-order-receipt').forEach(card=>card.remove());
+  return;
+ }
  const card=node('div',undefined,'chat-order-receipt');
- card.setAttribute('aria-label','Sản phẩm vừa thêm vào giỏ hàng');
+ card.setAttribute('aria-label','Giỏ hàng tổng hợp hiện tại — chưa tạo hóa đơn');
  const head=node('div',undefined,'chat-order-head');
- head.append(node('span','✓'),node('strong','ĐƠN HÀNG'));card.append(head);
+ head.append(node('span','✓'),node('strong','GIỎ HÀNG · 1 ĐƠN TẠM'));card.append(head);
  let priced=null;
  try{
-  const address=selectedDeliveryAddress();
   if(address){
-   const params=new URLSearchParams({profileId:$('profile').value,addressId:address.id});
+   const params=new URLSearchParams({profileId,addressId:address.id});
    const info=await call('/api/v2/cart-pricing?'+params.toString(),undefined,'GET');
-   if(info.cartRevision===cartRev&&pricingContextKey())priced=info;
+   if(info.cartRevision===revision&&pricingContextKey())priced=info;
   }
- }catch{} // No invented totals when server pricing is unavailable.
- for(const line of selection){
+ }catch{} // Never fabricate totals if server-side discount validation fails.
+ // A later message or profile switch invalidates this asynchronous summary.
+ if(cartRev!==revision||$('profile').value!==profileId||
+    selectedDeliveryAddress()?.id!==address?.id)return;
+ for(const line of fullCart){
   const product=products.find(p=>p.code===line.code);
   const row=node('div',undefined,'chat-order-line');
-  row.append(node('span',line.qty+' ×','receipt-qty'),node('span',product?.name||line.code,'receipt-product'));
-  const item=priced?.items?.find(i=>i.code===line.code);
+  row.append(node('span',line.qty+' ×','receipt-qty'),
+   node('span',product?.name||line.code,'receipt-product'));
+  const item=priced?.items?.find(i=>i.code===line.code&&i.qty===line.qty);
   if(item&&Number.isSafeInteger(item.unitPrice)&&item.unitPrice>=0)
    row.append(node('span',money(item.unitPrice*line.qty),'receipt-price'));
   card.append(row);
  }
+ const request=activeDeliveryRequest();
+ if(request?.deliveryNote){
+  const note=node('div','Lưu ý giao hàng: '+request.deliveryNote,'chat-order-note');
+  card.append(note);
+ }
  const bottom=node('div',undefined,'chat-order-bottom');
- bottom.append(node('span',priced?'Giỏ: '+money(priced.totalVnd):'🛒 '+count()+' sản phẩm','chat-order-total'));
+ bottom.append(node('span',priced?'Tổng giỏ: '+money(priced.totalVnd):
+  '🛒 '+fullCart.reduce((sum,x)=>sum+x.qty,0)+' sản phẩm · đang kiểm tra giá','chat-order-total'));
  const open=node('button',undefined,'chat-order-open');open.type='button';
  open.setAttribute('aria-label','Mở giỏ hàng');
  open.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M2 3h2l2.3 12.5a2 2 0 0 0 2 1.6H20a2 2 0 0 0 2-1.6L23 7H5"/></svg>';
  open.onclick=()=>view('cart');bottom.append(open);card.append(bottom);
+ $('messages').querySelectorAll('.chat-order-receipt').forEach(previous=>previous.remove());
  $('messages').append(card);$('messages').scrollTop=$('messages').scrollHeight;
 }
 $('send').onclick=async()=>{
@@ -1949,6 +2005,13 @@ $('send').onclick=async()=>{
    const result=await call('/api/v2/interpret',{message,profileId:$('profile').value,addressId:destination.id});
   if(!Array.isArray(result.suggestedItems)||!result.suggestedItems.length){
    rememberVerifiedCatalogueProduct(result,$('profile').value,destination.id);
+   if(result.source==='v2-delivery-note'&&result.deliveryRequest){
+    rememberDeliveryRequest(result.deliveryRequest);
+    input.value='';updateComposerAction();
+    await revealGeminiReply(reply,result.message,typingStartedAt);
+    await addChatOrderReceipt(cart).catch(()=>toast('Lưu ý đã nhận; chưa hiển thị lại được giỏ.'));
+    return;
+   }
    input.value='';updateComposerAction();
    await revealGeminiReply(reply,result.message||'Vui lòng cho biết sản phẩm và số lượng.',typingStartedAt);
    return;
@@ -1971,8 +2034,9 @@ $('send').onclick=async()=>{
    merged=result.proposedCart.map(x=>({code:x.code,qty:x.qty}));
   }
   await saveCart(merged);
+  if(result.deliveryRequest)rememberDeliveryRequest(result.deliveryRequest);
   input.value='';updateComposerAction();
-  await revealGeminiReply(reply,'✓ Đã thêm vào giỏ',typingStartedAt);
+  await revealGeminiReply(reply,'✓ Đã cập nhật giỏ hàng chung',typingStartedAt);
   await addChatOrderReceipt(selection).catch(()=>toast('Giỏ đã cập nhật; chưa hiển thị được phiếu tóm tắt.'));
  }catch(e){
   // Preserve the failed message for a safe manual retry; never clear the composer on error.
