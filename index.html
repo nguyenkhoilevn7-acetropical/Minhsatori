@@ -173,6 +173,10 @@
  html.satori-light-review #archiveCardsContainer .ms-invoice-card :is(.text-slate-300,.text-slate-400,.text-slate-500,.text-white){color:var(--ms-muted)!important;}
  html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-money,
  html.satori-light-review :is(#archiveFilterTotal,#statTotalRevenue,#statTotalProfit,#statPaid,#statUnpaid,#subStatRevenue,#subStatProfit,#subStatPaid,#subStatUnpaid){color:var(--ms-red)!important;font-weight:800!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-items{background:#f7fbfa!important;border:1px solid var(--ms-line)!important;border-radius:11px!important;padding:0!important;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-items summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#246b71!important;padding:10px 11px;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-items summary::-webkit-details-marker{display:none;}
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-items[open] summary{border-bottom:1px solid var(--ms-line)!important;}
  html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-items{border:1px solid var(--ms-line)!important;background:#f6faf9!important;border-radius:11px!important;padding:9px 11px!important;}
  html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-actions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px!important;}
  html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-actions button{min-width:0!important;min-height:38px!important;font-size:10px!important;font-weight:700!important;padding:7px 3px!important;border-radius:10px!important;box-shadow:none!important;white-space:nowrap;}
@@ -4445,36 +4449,36 @@ document.documentElement.classList.add('satori-light-review');
             } else {
                 filtered.forEach(o => {
                     const card = document.createElement('div');
-                    card.className = "bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 shadow-lg space-y-3 transition flex flex-col justify-between";
+                    card.className = "ms-invoice-card flex flex-col justify-between";
 
                     const statusBadge = `<span class="bg-slate-950 border border-slate-700 text-[10px] px-2 py-0.5 rounded-full ${SatoriAccountingCore.statusClass(o)}">${aiEscape(o.status||'Chưa thanh toán')}${o.status==='Không Tính'?' (0đ DT)':''}</span>${o.status==='Đã TT Satori'?'<small class="block text-slate-300">'+(SatoriAccountingCore.paid(o)?'Khách đã TT':'Khách chưa TT')+'</small>':''}`;
                     const pairBadge=o.pairRole==='customer'||o.pairRole==='collaborator'?
                         `<span class="bg-blue-950 text-blue-200 border border-blue-800 text-[10px] px-2 py-0.5 rounded-full">${o.pairRole==='customer'?'Bill khách':'Bill CTV nội bộ'} · CK ${Number(o.pairDiscountPercent||0).toLocaleString('vi-VN')}% · liên kết #${aiEscape(String(o.pairInvoiceNo||''))}</span>`:'';
                     const profitValArchive = getOrderProfit(o);
-                    const profitBadgeArchive = `<span class="bg-purple-950/80 text-purple-300 border border-purple-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold" title="Lợi nhuận nội bộ">Lời: ${profitValArchive >= 0 ? "+" : ""}${profitValArchive.toLocaleString('vi-VN')} đ</span>`;
+                    const profitBadgeArchive = `<span class="ms-money bg-rose-50 border border-rose-100 text-[10px] px-2 py-0.5 rounded-full font-bold" title="Lợi nhuận nội bộ">Lời: ${profitValArchive >= 0 ? "+" : ""}${profitValArchive.toLocaleString('vi-VN')} đ</span>`;
 
                     let itemsHtml = '';
                     if (o.items && Array.isArray(o.items) && o.items.length > 0) {
                         itemsHtml = o.items.map(it => `
                             <div class="flex justify-between text-[11px] text-slate-300 py-0.5 border-b border-slate-800/50">
                                 <span class="truncate max-w-[170px]" title="${it.product}">📦 ${it.qty}x ${it.product}</span>
-                                <span class="font-mono text-slate-400">${(it.qty * it.unitPrice || 0).toLocaleString('vi-VN')}đ</span>
+                                <span class="ms-money font-mono">${(it.qty * it.unitPrice || 0).toLocaleString('vi-VN')}đ</span>
                             </div>
                         `).join('');
                     } else {
                         itemsHtml = `
                             <div class="flex justify-between text-[11px] text-slate-300 py-0.5">
                                 <span class="truncate max-w-[170px]" title="${o.product}">📦 ${o.qty}x ${o.product}</span>
-                                <span class="font-mono text-slate-400">${(o.total || 0).toLocaleString('vi-VN')}đ</span>
+                                <span class="ms-money font-mono">${(o.total || 0).toLocaleString('vi-VN')}đ</span>
                             </div>
                         `;
                     }
 
                     card.innerHTML = `
                         <div class="space-y-2">
-                            <div class="flex justify-between items-start border-b border-slate-800 pb-2">
+                            <div class="ms-card-head">
                                 <div>
-                                    <span class="font-bold text-amber-400 text-sm tracking-wide">HÓA ĐƠN #${o.invoiceNo}</span>
+                                    <span class="ms-card-title">HÓA ĐƠN #${o.invoiceNo}</span>
                                     <span class="text-[11px] text-slate-400 block font-mono"><i class="fa-regular fa-calendar text-[10px]"></i> ${o.date}</span>
                                 </div>
                                 <div class="flex flex-col items-end gap-1">
@@ -4485,35 +4489,37 @@ document.documentElement.classList.add('satori-light-review');
                             </div>
 
                             <div class="space-y-1 text-xs">
-                                <div class="font-semibold text-white flex items-center gap-1.5 truncate" title="${o.name}">
+                                <div class="ms-card-detail font-semibold flex items-center gap-1.5" title="${o.name}">
                                     <i class="fa-solid fa-user text-blue-400 text-[11px]"></i>
                                     <span>${o.name}</span>
                                 </div>
                                 ${o.phone ? `
-                                    <div class="text-slate-400 text-[11px] flex items-center gap-1.5">
+                                    <div class="ms-card-detail flex items-center gap-1.5">
                                         <i class="fa-solid fa-phone text-emerald-400 text-[10px]"></i>
                                         <span>${o.phone}</span>
                                     </div>
                                 ` : ''}
-                                <div class="text-slate-400 text-[11px] flex items-start gap-1.5">
+                                <div class="ms-card-detail flex items-start gap-1.5">
                                     <i class="fa-solid fa-location-dot text-rose-400 text-[10px] mt-0.5"></i>
                                     <span class="line-clamp-2" title="${o.location}">${o.location || 'Chưa có địa chỉ'}</span>
                                 </div>
                             </div>
 
-                            <div class="bg-slate-950/70 rounded-xl p-2.5 border border-slate-800/80 space-y-1">
-                                <span class="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">Mặt hàng xuất:</span>
+                            <details class="ms-card-items">
+                                <summary><i class="fa-solid fa-box-open" aria-hidden="true"></i> Xem mặt hàng</summary>
+                                <div class="ms-card-detail space-y-1" style="padding:9px 11px">
                                 ${itemsHtml}
-                            </div>
+                                </div>
+                            </details>
                         </div>
 
                         <div class="pt-2 border-t border-slate-800 space-y-2">
                             <div class="flex justify-between items-center">
                                 <span class="text-xs text-slate-400">Tổng thanh toán:</span>
-                                <span class="font-bold text-emerald-400 text-sm font-mono">${(o.total || 0).toLocaleString('vi-VN')} đ</span>
+                                <span class="ms-money font-bold text-sm font-mono">${(o.total || 0).toLocaleString('vi-VN')} đ</span>
                             </div>
 
-                            <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-1">
+                            <div class="ms-card-actions">
                                 <button onclick="viewInvoiceDetailModal(${o.id})" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold py-1.5 px-1.5 rounded-lg transition flex items-center justify-center gap-1 shadow" title="Xem bản in chi tiết">
                                     <i class="fa-solid fa-eye"></i> Xem
                                 </button>
