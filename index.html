@@ -610,6 +610,145 @@
   html.satori-light-review #acct-panel {padding:12px!important;}
 }
 
+
+/* Minh Satori readable typography v1 — screen only; invoice print rules untouched. */
+@media screen {
+  html.satori-light-review {
+    -webkit-text-size-adjust:100%;
+    text-size-adjust:100%;
+  }
+  html.satori-light-review body {
+    font-size:16px;
+    line-height:1.55;
+  }
+
+  /* Smaller Tailwind utility labels on the operational screens. */
+  html.satori-light-review :is(
+    #tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-reconcile,#tab-aimemory
+  ) .text-xs {
+    font-size:14px!important;
+    line-height:1.5!important;
+  }
+  html.satori-light-review :is(
+    #tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-reconcile,#tab-aimemory
+  ) .text-sm {
+    font-size:16px!important;
+    line-height:1.55!important;
+  }
+  html.satori-light-review #appHeader :is(.text-xs,.text-sm) {
+    font-size:14px!important;
+  }
+  html.satori-light-review #satori-legacy-dock .dock-item span {
+    font-size:13px!important;
+    line-height:1.35!important;
+  }
+
+  /* Collaborator / receivables: readable summary, card labels and values. */
+  html.satori-light-review #acct-panel {
+    font-size:16px!important;
+    line-height:1.6!important;
+  }
+  html.satori-light-review #acct-panel h2 {font-size:21px!important;line-height:1.35!important;}
+  html.satori-light-review #acct-panel h3,
+  html.satori-light-review #acct-panel details > summary {
+    font-size:19px!important;line-height:1.45!important;
+  }
+  html.satori-light-review #acct-panel :is(p,small,label,.acct-note) {
+    font-size:15px!important;
+    line-height:1.6!important;
+  }
+  html.satori-light-review #acct-panel .acct-figure small {
+    font-size:15px!important;
+    font-weight:750!important;
+  }
+  html.satori-light-review #acct-panel .acct-figure p {
+    font-size:22px!important;
+    line-height:1.4!important;
+    overflow-wrap:anywhere;
+  }
+  html.satori-light-review #acct-panel .acct-figure .acct-money {
+    font-size:clamp(20px,2.6vw,26px)!important;
+  }
+  html.satori-light-review #acct-panel .rc-table {
+    font-size:16px!important;
+  }
+  html.satori-light-review #acct-panel .rc-table th {
+    font-size:15px!important;
+    line-height:1.5!important;
+  }
+  html.satori-light-review #acct-panel .rc-table td {
+    font-size:16px!important;
+    line-height:1.6!important;
+  }
+  html.satori-light-review #acct-panel .rc-table small {
+    font-size:14px!important;
+    line-height:1.5!important;
+  }
+  html.satori-light-review #acct-panel .rc-table td::before {
+    font-size:14px!important;
+    line-height:1.45!important;
+    margin-bottom:5px!important;
+  }
+  html.satori-light-review #acct-panel :is(input,select,textarea,button,.rc-button) {
+    font-size:16px!important;
+    line-height:1.4!important;
+    min-height:44px;
+  }
+  html.satori-light-review #acct-panel :is(.acct-money,.acct-money *) {
+    font-size:inherit;
+    color:#b91c35!important;
+    font-weight:850!important;
+  }
+
+  /* Archive: order identifiers, details, amounts and filter fields. */
+  html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-title {
+    font-size:18px!important;
+  }
+  html.satori-light-review #archiveCardsContainer .ms-invoice-card .ms-card-detail {
+    font-size:15px!important;
+    line-height:1.6!important;
+  }
+  html.satori-light-review #archiveCardsContainer .ms-invoice-card :is(button,summary) {
+    font-size:15px!important;
+    min-height:44px!important;
+  }
+  html.satori-light-review #tab-archive input {
+    font-size:16px!important;
+  }
+  html.satori-light-review #tab-archive .ms-money {
+    font-size:18px!important;
+    color:#b91c35!important;
+  }
+
+  /* On-screen invoice readability only, never alter downloaded/printed PDFs. */
+  html.satori-light-review :is(#invoicePreview,#modalInvoiceContent) table {
+    font-size:14px!important;
+    line-height:1.5!important;
+  }
+  html.satori-light-review :is(#invoicePreview,#modalInvoiceContent) :is(label,small) {
+    font-size:14px!important;
+    line-height:1.5!important;
+  }
+  html.satori-light-review :is(#invoicePreview,#modalInvoiceContent) :is(td,th) {
+    padding-block:8px!important;
+  }
+}
+@media screen and (max-width:560px) {
+  html.satori-light-review #acct-panel {
+    padding:14px!important;
+  }
+  html.satori-light-review #acct-panel .acct-figure .acct-money {
+    font-size:20px!important;
+  }
+  html.satori-light-review #acct-panel .rc-table td {
+    overflow-wrap:anywhere!important;
+  }
+  html.satori-light-review #acct-panel :is(#acct-partners,#acct-pairs,#acct-orders)
+  .rc-table tbody tr {
+    gap:10px 14px!important;
+  }
+}
+
 </style>
 <script>
 /* Production MoneyMind visual skin. Invoice/payment/Drive business logic is unchanged. */
