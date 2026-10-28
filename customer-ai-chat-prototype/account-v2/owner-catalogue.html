@@ -111,7 +111,16 @@ a.owner-link{color:var(--blue)}
   <p>Lưu ý: để trống địa chỉ/sản phẩm là chính sách mặc định toàn hồ sơ. Chính sách mới sẽ thay thế phiên bản hiệu lực cùng phạm vi; hóa đơn đã phát hành không bị sửa giá.</p>
  </form>
 </section>
-<section class="card" id="legacyConsole" hidden><h2>Khách hàng cũ</h2></section>
+<section class="card" id="legacyConsole" hidden aria-label="Tra cứu khách hàng cũ">
+<h2>🔎 Khách hàng cũ từ sổ Minh Satori</h2>
+<p>Tìm tên hoặc số điện thoại từ hóa đơn thật, kiểm tra mức chiết khấu trước đây và chọn hồ sơ chính xác.</p>
+<form id="legacySearchForm" class="crm-controls">
+<label>🔍 Tên hoặc số điện thoại<input id="legacyQuery" type="search" minlength="2" maxlength="90" required placeholder="Nhập tên khách hoặc SĐT"></label>
+<button type="submit">Tìm trong sổ</button></form>
+<p id="legacyStatus" role="status" aria-live="polite">Chưa tìm kiếm.</p>
+<div id="legacyResults"></div>
+<div id="legacyEditPanel"></div>
+</section>
 <section class="card" id="denied" hidden>
  <h2>Chưa thể mở quản trị</h2>
  <p id="deniedText">Vui lòng đăng nhập tài khoản Admin trong ứng dụng V2.</p>
@@ -389,6 +398,7 @@ byId('crmPolicyForm').addEventListener('submit',async e=>{
 });
 async function initCrm(){
  byId('crmConsole').hidden=false;
+ byId('legacyConsole').hidden=false;
  try{
   const data=await api('/api/v2/catalogue');
   if(Array.isArray(data.items))knownProducts=data.items.filter(x=>/^TP-[0-9]{5}$/.test(x.code));
