@@ -58,6 +58,7 @@ h2>.ico,h3>.ico{width:21px;height:21px;vertical-align:-4px;color:var(--blue);mar
 a.owner-link{color:var(--blue)}
 @media(max-width:540px){.field-grid,.legacy-address{grid-template-columns:1fr}main{padding:15px 12px}.card{padding:16px}}
 
+button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important;background:#fff1f3!important}
 </style></head>
 <body>
 <main>
@@ -504,7 +505,8 @@ const ownerIconShapes={
  plus:'<path d="M12 5v14M5 12h14"/>',
  receipt:'<path d="M4 3h16v18l-4-2-4 2-4-2-4 2V3Z"/><path d="M8 8h8M8 12h8"/>',
  shield:'<path d="M12 2 4 6v5c0 5.2 3.6 9.4 8 11 4.4-1.6 8-5.8 8-11V6Z"/><path d="m9 12 2 2 4-4"/>',
- refresh:'<path d="M20 8a8 8 0 0 0-14-3L4 7M4 3v4h4M4 16a8 8 0 0 0 14 3l2-2m0 4v-4h-4"/>'
+ refresh:'<path d="M20 8a8 8 0 0 0-14-3L4 7M4 3v4h4M4 16a8 8 0 0 0 14 3l2-2m0 4v-4h-4"/>',
+ x:'<path d="M18 6 6 18M6 6l12 12"/>'
 };
 function ownerIcon(name){
  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -592,7 +594,7 @@ function legacyDeliveryRow(root,item){
   if(key==='recipientPhone')input.inputMode='tel';
   field.append(input);wrap.append(field);
  }
- const remove=iconButton('Xóa địa chỉ','plus','secondary');
+ const remove=iconButton('Xóa địa chỉ','x','secondary danger');
  remove.onclick=()=>{if(root.children.length<=1)return legacyNotice('Phải có ít nhất một địa chỉ.',true);wrap.remove()};
  wrap.append(remove);root.append(wrap);
 }
@@ -780,6 +782,15 @@ function ownerContactEditor(rec){
  };
  details.append(form);return details;
 }
+
+
+/* Small consistent icons also on existing backoffice actions. */
+for(const [id,iconName] of [
+ ['refresh','refresh'],['sync','refresh'],['crmRefresh','refresh'],
+ ['crmPolicySubmit','percent']]){
+ const b=byId(id);if(b)b.prepend(ownerIcon(iconName));
+}
+byId('legacySearchForm').querySelector('button')?.prepend(ownerIcon('search'));
 
 </script>
 </body></html>
