@@ -24,6 +24,20 @@ assert.equal(call('system.status').data.orders,0);
 const input={expectedRevision:1,requestId:'create-00001',confirmedNewCustomer:true,order:{name:'Test Customer',location:'123 Đường thử nghiệm',phone:'0901234567',items:[{product:'Satori 500 ml',qty:2,unitPrice:10000}],total:20000}};
 assert.equal(call('orders.create',input).data.order.invoiceNo,1);
 assert.equal(backs,1);assert.equal(data.revision,2);
+const beforeExactRead={revision:data.revision,backs,writes};
+const exact=call('orders.findByRequestId',{requestId:'create-00001'});
+assert.equal(exact.ok,true);
+assert.equal(exact.data.found,true);
+assert.equal(exact.data.state,'COMMITTED');
+assert.equal(exact.data.order.id,JSON.parse(data.values.satori_orders_v15)[0].id);
+assert.equal(exact.data.order.invoiceNo,1);
+assert.equal(exact.data.order.total,20000);
+assert.equal(call('orders.findByRequestId',{requestId:'create-unknown-00001'}).data.state,'NOT_FOUND');
+assert.equal(call('orders.findByRequestId',{requestId:'bad id'}).error.code,'INVALID_REQUEST');
+assert.equal(data.revision,beforeExactRead.revision);
+assert.equal(backs,beforeExactRead.backs);
+assert.equal(writes,beforeExactRead.writes,'exact requestId recovery must be strictly read-only');
+
 assert.equal(call('orders.create',input).data.duplicate,true);
 // Formatting-only phone changes must not create a duplicate invoice, while changed content must fail.
 assert.equal(call('orders.create',{
@@ -66,6 +80,14 @@ assert.equal(JSON.parse(data.values.satori_orders_v15).length,1);
 assert.equal(call('orders.delete',remove).data.duplicate,true);
 assert.equal(backs,4);
 assert.equal(call('orders.create',second).error.code,'REUSED_REQUEST_ID');
+const deletedRead=call('orders.findByRequestId',{requestId:'create-00004'});
+assert.equal(deletedRead.ok,true);
+assert.equal(deletedRead.data.found,true);
+assert.equal(deletedRead.data.state,'DELETED');
+assert.equal(deletedRead.data.order.invoiceNo,2);
+assert.equal(backs,4,'lookup in trash must not create a Drive backup');
+assert.equal(writes,4,'lookup in trash must not recreate a deleted invoice');
+
 assert.equal(call('orders.create',{expectedRevision:5,requestId:'create-00005',
  order:{name:'Unknown',location:'ABC',items:[{product:'Satori 500 ml',qty:1,unitPrice:10000}]}}).error.code,'PROFILE_CONFIRMATION_REQUIRED');
 assert.equal(backs,4);
