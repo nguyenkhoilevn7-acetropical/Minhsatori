@@ -418,6 +418,40 @@ class NativeMainActivity : AppCompatActivity() {
     private fun background(color: Int, radius: Int = 13): GradientDrawable =
         GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
 
+    // Visual-only currency treatment: preserve numeric values and payment status colors.
+    private val moneyAmountPattern = Regex("""(?<![\p{L}\d])[-+]?(?:\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,]\d{1,2})?\s*(?:đ|₫)(?!\p{L})""", RegexOption.IGNORE_CASE)
+    private val invoiceMoneyRed = Color.rgb(220, 38, 38)
+
+    private fun highlightMoney(value: CharSequence): CharSequence {
+        val content = value.toString()
+        if (!content.contains('đ', ignoreCase = true) && !content.contains('₫')) return value
+        val matches = moneyAmountPattern.findAll(content).toList()
+        if (matches.isEmpty()) return value
+        val highlighted = android.text.SpannableStringBuilder(value)
+        for (match in matches) {
+            highlighted.setSpan(
+                android.text.style.ForegroundColorSpan(invoiceMoneyRed),
+                match.range.first, match.range.last + 1,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+        return highlighted
+    }
+
+    private fun highlightMoneyInView(view: View) {
+        when (view) {
+            is EditText -> Unit // Don't change editable fields.
+            is TextView -> {
+                val current = view.text
+                val highlighted = highlightMoney(current)
+                if (highlighted !== current) view.text = highlighted
+            }
+            is android.view.ViewGroup -> {
+                for (index in 0 until view.childCount) highlightMoneyInView(view.getChildAt(index))
+            }
+        }
+    }
+
     private fun label(parent: LinearLayout, content: String, size: Float = 14f,
                       isBold: Boolean = false, color: Int = dark, marginTop: Int = 0): TextView {
         // iOS light grouped palette: labels stay readable across all native screens.
@@ -429,7 +463,7 @@ class NativeMainActivity : AppCompatActivity() {
             else -> color
         }
         val view = TextView(this).apply {
-            text = content
+            text = highlightMoney(content)
             textSize = size
             setTextColor(actualColor)
             if (isBold) setTypeface(typeface, Typeface.BOLD)
@@ -772,7 +806,6 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(10), dp(11), dp(10), dp(11))
             contentDescription = "Mở menu tác vụ"
         }
-        brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(45)))
         val brandLogo = ImageView(this).apply {
             setImageResource(R.drawable.satori_invoice_logo)
             // Circular avatar mask: keep original logo asset, crop only its
@@ -846,6 +879,8 @@ class NativeMainActivity : AppCompatActivity() {
             setOnClickListener { showConnectionSettings() }
         }
         brand.addView(options, LinearLayout.LayoutParams(dp(42), dp(46)))
+        // Hamburger is the last header action, immediately right of Settings.
+        brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(45)))
         // Keep the hamburger and primary controls visible while long ledgers scroll.
         shell.addView(brand, 0, LinearLayout.LayoutParams(-1, -2))
 
@@ -1104,10 +1139,10 @@ class NativeMainActivity : AppCompatActivity() {
             setBackgroundColor(white)
             elevation = dp(14).toFloat()
             visibility = View.GONE
-            translationX = -drawerWidth.toFloat()
+            translationX = drawerWidth.toFloat()
         }
-        root.addView(drawer, FrameLayout.LayoutParams(drawerWidth, -1, Gravity.START).apply {
-            leftMargin = shellInset
+        root.addView(drawer, FrameLayout.LayoutParams(drawerWidth, -1, Gravity.END).apply {
+            rightMargin = shellInset
         })
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1149,14 +1184,14 @@ class NativeMainActivity : AppCompatActivity() {
             drawer.animate().cancel()
             scrim.animate().cancel()
             if (!motionEnabled()) {
-                drawer.translationX = -drawerWidth.toFloat()
+                drawer.translationX = drawerWidth.toFloat()
                 drawer.visibility = View.GONE
                 scrim.alpha = 0f
                 scrim.visibility = View.GONE
                 after?.invoke()
                 return
             }
-            drawer.animate().translationX(-drawerWidth.toFloat())
+            drawer.animate().translationX(drawerWidth.toFloat())
                 .setDuration(200).setInterpolator(DecelerateInterpolator())
                 .withEndAction {
                     drawer.visibility = View.GONE
@@ -1172,7 +1207,7 @@ class NativeMainActivity : AppCompatActivity() {
             scrim.animate().cancel()
             scrim.alpha = 0f
             scrim.visibility = View.VISIBLE
-            drawer.translationX = -drawerWidth.toFloat()
+            drawer.translationX = drawerWidth.toFloat()
             drawer.visibility = View.VISIBLE
             if (!motionEnabled()) {
                 drawer.translationX = 0f
@@ -1236,6 +1271,10 @@ class NativeMainActivity : AppCompatActivity() {
         menuButton.setOnClickListener { showDrawer() }
         closeButton.setOnClickListener { dismissDrawer() }
         scrim.setOnClickListener { dismissDrawer() }
+        // Apply red to amounts in the invoice, debt and home cards (including
+        // direct TextViews built by the protected invoiceQuickCard method).
+        if (activeTab == 0 || activeTab == 1 || activeTab == 3)
+            highlightMoneyInView(content)
         // Only animate a genuine tab change, never a background revision sync:
         // no flicker when accounting data auto-refreshes.
         if (tabChanged && motionEnabled()) {
