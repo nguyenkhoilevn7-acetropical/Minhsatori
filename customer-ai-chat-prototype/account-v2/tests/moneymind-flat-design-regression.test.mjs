@@ -78,3 +78,22 @@ test('MoneyMind bottom navigation cannot bypass existing authenticated view hand
   assert.match(admin,/document\.querySelectorAll\('\[data-admin-tab\]'\)/);
   assert.match(admin,/#workspace\{padding-bottom:76px\}/);
 });
+
+test('Minh Satori identity avatars are circular without changing invoice/chat business markup',()=>{
+  const customer=getCase('../app.html');
+  const admin=getCase('../../admin.html');
+  const gemini=getCase('../../index.html');
+  const css=(html)=>html.slice(0,html.indexOf('</style>'));
+  assert.match(css(customer),/\.satori-logo\{[^}]*object-fit:cover;border-radius:50%/);
+  for(const selector of ['.invoice-masthead .satori-logo',
+                         '.gate-logo .satori-logo',
+                         '.test-invoice-brand .satori-logo']){
+    assert.ok(css(customer).includes(selector),selector);
+    const segment=css(customer).split(selector+'{',2)[1]?.split('}',1)[0];
+    assert.match(segment,/border-radius:50%/,selector);
+  }
+  assert.match(css(admin),/\.admin-brand img\{[^}]*object-fit:cover;[^}]*border-radius:50%/);
+  assert.match(css(gemini),/\.brand-logo,\.chat-satori-logo,\.history-brand img\{[^}]*border-radius:50%/);
+  assert.match(admin,/src="\/assets\/logo-satori\.jpg"/);
+  assert.match(gemini,/class="brand-logo" src="\/assets\/logo-satori\.jpg"/);
+});
