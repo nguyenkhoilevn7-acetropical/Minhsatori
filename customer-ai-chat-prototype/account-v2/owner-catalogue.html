@@ -425,5 +425,78 @@ async function initCrm(){
    :'Vui lòng đăng nhập Google bằng tài khoản Admin V2.';
  }
 })();
+
+/* Consistent compact line icons; no third-party runtime or icon fonts. */
+const ownerIconShapes={
+ search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+ users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+ check:'<path d="m5 12 4 4L19 6"/>',
+ percent:'<circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M4 20 20 4"/>',
+ pin:'<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+ mail:'<rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/>',
+ edit:'<path d="M12 20h9M16 4l4 4-12 12-4 1 1-4L17 3a2 2 0 0 1 3 3"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ receipt:'<path d="M4 3h16v18l-4-2-4 2-4-2-4 2V3Z"/><path d="M8 8h8M8 12h8"/>',
+ shield:'<path d="M12 2 4 6v5c0 5.2 3.6 9.4 8 11 4.4-1.6 8-5.8 8-11V6Z"/><path d="m9 12 2 2 4-4"/>',
+ refresh:'<path d="M20 8a8 8 0 0 0-14-3L4 7M4 3v4h4M4 16a8 8 0 0 0 14 3l2-2m0 4v-4h-4"/>'
+};
+function ownerIcon(name){
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+ svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','ico');
+ svg.setAttribute('aria-hidden','true');
+ svg.innerHTML=ownerIconShapes[name]||ownerIconShapes.check;
+ return svg;
+}
+function iconButton(label,name,cls){
+ const b=make('button',null,cls||'secondary');b.type='button';
+ b.append(ownerIcon(name),document.createTextNode(label));return b;
+}
+let legacyData=null,legacySelected=new Set();
+function legacyNotice(message,error=false){
+ const el=byId('legacyStatus');el.textContent=message;el.dataset.kind=error?'error':'success';
+}
+byId('legacySearchForm').addEventListener('submit',async ev=>{
+ ev.preventDefault();
+ const query=byId('legacyQuery').value.trim();
+ if(query.length<2)return;
+ legacyData=null;legacySelected.clear();
+ byId('legacyResults').replaceChildren();
+ byId('legacyEditPanel').replaceChildren();
+ legacyNotice('Đang đối chiếu với sổ hóa đơn đã ký…');
+ try{
+  const data=await api('/api/v2/admin/legacy/search?query='+encodeURIComponent(query));
+  if(!Array.isArray(data.orders))throw Error('LEGACY_SEARCH_INVALID');
+  legacyData={...data,query};
+  drawLegacyResults();
+  legacyNotice('Tìm được '+data.orders.length+' hóa đơn. Chọn đúng hóa đơn của khách để mở hồ sơ.'+
+   (data.truncated?' Kết quả bị giới hạn; tìm theo số điện thoại cụ thể.':''));
+ }catch(e){legacyNotice('Không tìm được hồ sơ: '+e.message,true)}
+});
+function drawLegacyResults(){
+ const root=byId('legacyResults');root.replaceChildren();
+ if(!legacyData?.orders?.length){root.append(make('p','Không có hóa đơn nào khớp tên hoặc SĐT.'));return}
+ for(const o of legacyData.orders){
+  const card=make('div',null,'crm-entry');
+  const label=make('label',null);
+  const cb=document.createElement('input');cb.type='checkbox';
+  cb.checked=legacySelected.has(o.invoiceNo);
+  cb.addEventListener('change',()=>{
+   if(cb.checked){if(legacySelected.size>=30){cb.checked=false;return legacyNotice('Tối đa 30 hóa đơn mỗi lần nhập.',true)}
+    legacySelected.add(o.invoiceNo)}else legacySelected.delete(o.invoiceNo);
+   prepareLegacyForm();
+  });
+  label.append(cb,document.createTextNode('  #'+o.invoiceNo+' · '+o.name+' · '+o.phone));
+  card.append(label);
+  card.append(make('small',o.date+' · '+o.status+' · '+Number(o.total).toLocaleString('vi-VN')+'đ'));
+  card.append(make('p','📍 '+o.address));
+  for(const item of o.items){
+   card.append(make('small',item.product+' · '+item.qty+' '+item.unit+
+    ' · '+item.unitPrice.toLocaleString('vi-VN')+'đ'+
+    (item.estimatedDiscountPercent==null?'':' · CK lịch sử ước tính '+item.estimatedDiscountPercent+'%')));
+  }
+  root.append(card);
+ }
+}
+
 </script>
 </body></html>
