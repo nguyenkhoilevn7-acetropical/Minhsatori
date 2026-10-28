@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import pg from 'pg';
 import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatus,
- adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer} from '../customer-backend.mjs';
+ adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer,
+ adminApproveRegistration} from '../customer-backend.mjs';
 
 const url=process.env.SATORI_V2_CI_DATABASE_URL||'';
 assert.ok(url.includes('127.0.0.1')&&url.endsWith('/satori_v2_ci'),
@@ -45,8 +46,17 @@ try{
  await assert.rejects(()=>adminLinkLead(pool,owner,{leadId:lead.lead.id,
   accountId:customer.id,expectedRevision:lead.lead.revision,confirmed:true}),
   /LEAD_REVISION_CONFLICT|LEAD_ALREADY_LINKED/);
+ await assert.rejects(()=>adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
+  expectedRevision:1,status:'ACTIVE',confirmed:true,discountBps:2500}),
+  /CUSTOMER_APPROVAL_REQUIRED_BEFORE_PRICING/);
+ const approved=await adminApproveRegistration(pool,owner,{accountId:customer.id,
+  expectedRevision:1,confirmed:true});
+ assert.equal(approved.revision,2);
+ assert.equal(approved.accessStatus,'PENDING','Review must not grant ordering before price');
+ await assert.rejects(()=>adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
+  expectedRevision:2,status:'ACTIVE',confirmed:true}),/DISCOUNT_INPUT_REQUIRED_AFTER_APPROVAL/);
  const activated=await adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
-  expectedRevision:1,status:'ACTIVE',confirmed:true,discountBps:2500});
+  expectedRevision:2,status:'ACTIVE',confirmed:true,discountBps:2500});
  assert.equal(activated.customer.accessStatus,'ACTIVE');
  assert.ok(activated.profileId);
  const addr=await one('SELECT count(*)::int AS count FROM satori_v2_addresses WHERE profile_id=$1',
@@ -57,14 +67,14 @@ try{
   'WHERE profile_id=$1 AND enabled=true ORDER BY version DESC LIMIT 1',[activated.profileId]);
  assert.equal(policy.discount,2500);
  const edited=await adminEditRegisteredCustomer(pool,owner,{
-  accountId:customer.id,expectedRevision:1,confirmed:true,
+  accountId:customer.id,expectedRevision:2,confirmed:true,
   ...form,fullName:'Fake Agency Updated',address:'Edited Registration Address'});
- assert.equal(edited.revision,2);
+ assert.equal(edited.revision,3);
  await assert.rejects(()=>adminEditRegisteredCustomer(pool,owner,{
   accountId:customer.id,expectedRevision:1,confirmed:true,...form}),
   /CUSTOMER_DETAILS_REVISION_CONFLICT/);
  await assert.rejects(()=>adminEditRegisteredCustomer(pool,owner,{
-  accountId:customer.id,expectedRevision:2,confirmed:true,
+  accountId:customer.id,expectedRevision:3,confirmed:true,
   ...form,email:'different@example.invalid'}),/VERIFIED_EMAIL_IMMUTABLE/);
  const list=await adminCustomerList(pool);
  const readback=list.registered.find(x=>x.id===customer.id);
@@ -84,18 +94,18 @@ try{
  await pool.query('INSERT INTO satori_v2_sessions(token_hash,csrf_hash,account_id,expires_at) '+
   "VALUES($1,$2,$3,now()+interval '1 day')",['a'.repeat(64),'b'.repeat(64),customer.id]);
  const blocked=await adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
-  expectedRevision:3,status:'SUSPENDED',confirmed:true});
+  expectedRevision:4,status:'SUSPENDED',confirmed:true});
  assert.equal(blocked.customer.accessStatus,'SUSPENDED');
  const sessions=await one('SELECT count(*)::int AS count FROM satori_v2_sessions WHERE account_id=$1',
   [customer.id]);assert.equal(sessions.count,0,'Suspension kills all sessions');
  const removed=await adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
-  expectedRevision:4,status:'REMOVED',confirmed:true});
+  expectedRevision:5,status:'REMOVED',confirmed:true});
  assert.equal(removed.customer.accessStatus,'REMOVED');
  const allPolicies=await one('SELECT count(*)::int AS count FROM satori_v2_policies '+
   'WHERE profile_id=$1 AND enabled=true',[activated.profileId]);
  assert.equal(allPolicies.count,0,'Soft-removed client has no active discounted policy');
  const afterRemoval=await adminCustomerList(pool);
- assert.equal(afterRemoval.registered.find(x=>x.id===customer.id)?.discountBps,0,
+ assert.equal(afterRemoval.registered.find(x=>x.id===customer.id)?.discountBps,null,
   'Removed customer must not display an obsolete approved discount');
  const extra=await adminCreateLead(pool,owner.id,{...form,email:'',confirmed:true,discountBps:4500});
  const archived=await adminPatchLead(pool,owner.id,{
