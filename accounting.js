@@ -170,7 +170,25 @@ function mount(){
  $('acct-add-partner').onclick=()=>partnerForm();$('acct-export').onclick=()=>exportWorkbook(false);$('acct-search').oninput=renderOrderList;
  const form=document.createElement('div');form.className='my-3 p-3 border border-cyan-700 rounded-xl';form.innerHTML='<label class="block text-sm font-bold">Cộng tác viên của đơn<select id="acct-form-partner" class="rc-input"></select></label><button type="button" id="acct-apply-price" class="text-xs text-cyan-300 underline mt-2">Áp dụng giá mua CTV vào đơn này</button><p class="text-xs text-slate-400">Gắn CTV không tự đổi giá bán cho khách. Nút trên chỉ dùng khi lập bill giá CTV.</p>';$('paymentStatus')?.parentElement?.appendChild(form);$('acct-apply-price').onclick=applyPartnerPrice;formSelect();$('busName')?.addEventListener('change',()=>suggestPartner({customer:$('busName').value}));
 }
-function render(){mount();if(!$('acct-panel'))return;const m=model(),primary=m.rows.filter(r=>r.eligible),due=primary.reduce((s,r)=>s+r.due,0);$('acct-summary').innerHTML=[['Cộng tác viên',m.partners.length],['Cặp hóa đơn',m.pairs.length],['Lời CTV phải trả',money(due)],['Nhóm cần kiểm tra',m.review.length]].map(([a,b])=>`<div class="p-3 rounded-xl bg-slate-900"><small>${a}</small><p class="font-bold text-lg">${b}</p></div>`).join('');
+function render(){
+ mount();if(!$('acct-panel'))return;
+ const m=model(),primary=m.rows.filter(r=>r.eligible),due=primary.reduce((s,r)=>s+r.due,0);
+ const valid=m.rows.filter(r=>C.active(r.order)&&!r.secondary);
+ const amounts=valid.map(ledgerInvoiceFigures);
+ const totalSales=amounts.reduce((sum,f)=>sum+(f.bill??0),0);
+ const totalReceivable=amounts.reduce((sum,f)=>sum+(f.customerDue??0),0);
+ const grossEstimated=amounts.reduce((sum,f)=>sum+(f.grossEstimate??0),0);
+ const unknownAmounts=amounts.filter(f=>f.bill===null).length;
+ $('acct-summary').innerHTML=[
+  ['Tổng bill hợp lệ',money(totalSales)],
+  ['Còn thu khách',money(totalReceivable)],
+  ['Lãi gộp ước tính',money(grossEstimated)],
+  ['Lời CTV còn trả',money(due)],
+  ['Cộng tác viên',m.partners.length],
+  ['Cặp hóa đơn',m.pairs.length],
+  ['Nhóm cần kiểm tra',m.review.length]
+ ].map(([label,value])=>`<div class="acct-figure p-3 rounded-xl border"><small>${label}</small><p class="font-bold text-lg ${typeof value==='string'&&value.endsWith(' đ')?'acct-money':''}">${value}</p></div>`).join('')+
+ (unknownAmounts?'<p class="col-span-full acct-warning">Có '+unknownAmounts+' hóa đơn hợp lệ thiếu tổng tiền, cần đối chiếu.</p>':'');
  $('acct-partners').innerHTML='<table class="rc-table"><thead><tr><th>CTV / Liên hệ</th><th>CK mua</th><th>Số đơn</th><th>Tiền lời</th><th>Đã trả</th><th>Còn trả</th><th></th></tr></thead><tbody>'+m.partners.map(p=>`<tr><td>${esc(p.name)}<br><small>${esc(p.phone)} · ${esc(p.bank)}</small></td><td>${p.discountPercent}%</td><td>${p.count}</td><td>${money(p.profit)}</td><td>${money(p.settled)}</td><td class="text-amber-300">${money(p.due)}</td><td><button data-edit-partner="${esc(p.id)}" class="text-cyan-300 underline">Sửa</button></td></tr>`).join('')+'</tbody></table>';
  $('acct-partners').querySelectorAll('[data-edit-partner]').forEach(b=>b.onclick=()=>partnerForm(b.dataset.editPartner));
  $('acct-pairs').innerHTML=m.pairs.length?'<table class="rc-table"><thead><tr><th>Người nhận</th><th>Bill cao</th><th>Bill thấp</th><th>Chênh lệch / lời</th><th>CTV</th></tr></thead><tbody>'+m.pairs.map(p=>`<tr><td>${esc(p.high.name)}<br><small>${esc(p.high.location)}</small></td><td>#${esc(p.high.invoiceNo)} · ${money(C.total(p.high))}</td><td>#${esc(p.low.invoiceNo)} · ${money(C.total(p.low))}</td><td class="text-emerald-300">${money(p.profit)}</td><td>${esc(registry().find(x=>x.id===p.collaboratorId)?.name||'Chưa gắn CTV')}</td></tr>`).join('')+'</tbody></table>':'<p class="text-slate-400">Chưa có cặp hóa đơn đủ rõ để tự tính chênh lệch.</p>';
@@ -259,7 +277,7 @@ function renderOrderList(){
     '<td>'+gross+'</td>'+
     '<td><select data-partner-order="'+esc(C.key(o))+
     '" class="rc-input" aria-label="Cộng tác viên hóa đơn '+esc(o.invoiceNo)+'">'+
-    partnerOptions(o.collaboratorId)+'</select></td>'+
+    partnerOptions(r.partnerId)+'</select></td>'+
     '<td title="'+esc(r.basis)+'">'+ctv+'</td>'+
     '<td><button data-receipt-order="'+esc(C.key(o))+
     '" class="text-cyan-300 underline">Upload / xem ('+(o.paymentReceipts?.length||0)+
