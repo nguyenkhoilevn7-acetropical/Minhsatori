@@ -475,11 +475,40 @@
   html.satori-light-review #acct-panel #acct-pairs td:nth-child(2),
   html.satori-light-review #acct-panel #acct-pairs td:nth-child(3),
   html.satori-light-review #acct-panel #acct-pairs td:nth-child(4),
-  html.satori-light-review #acct-panel #acct-orders td:nth-child(4) {
+  html.satori-light-review #acct-panel #acct-orders td:nth-child(2),
+  html.satori-light-review #acct-panel #acct-orders td:nth-child(4),
+  html.satori-light-review #acct-panel #acct-orders td:nth-child(5),
+  html.satori-light-review #acct-panel #acct-orders td:nth-child(7) {
     color:#b91c35!important;font-weight:800!important;
   }
-  html.satori-light-review #acct-panel #acct-orders td:nth-child(2) {
+  html.satori-light-review #acct-panel #acct-orders td:nth-child(3){
     color:#995510!important;font-weight:750!important;
+  }
+  html.satori-light-review #acct-panel :is(.acct-money,.acct-money *){
+    color:#b91c35!important;font-weight:850!important;
+  }
+  html.satori-light-review #acct-panel .acct-figure{
+    background:#eff8f6!important;color:#153743!important;border-color:#cde0dc!important;
+    border-radius:14px!important;min-width:0!important;
+  }
+  html.satori-light-review #acct-panel .acct-figure small{
+    color:#425c66!important;font-size:12px!important;font-weight:750!important;
+  }
+  html.satori-light-review #acct-panel .acct-figure .acct-money{
+    font-size:clamp(15px,2.3vw,21px)!important;overflow-wrap:anywhere!important;
+    letter-spacing:-.01em;
+  }
+  html.satori-light-review #acct-panel :is(.acct-warning,.acct-warning *){
+    color:#995510!important;font-weight:700!important;
+  }
+  html.satori-light-review #acct-panel :is(.acct-note,.acct-note *){
+    color:#536b76!important;font-size:12px!important;
+  }
+  html.satori-light-review #acct-panel #acct-orders td:nth-child(1) strong{
+    color:#163946!important;font-size:14px!important;font-weight:850!important;
+  }
+  html.satori-light-review #acct-panel #acct-orders :is(button,select){
+    min-height:40px!important;
   }
   html.satori-light-review #acct-panel #acct-review [class*="text-amber"] {
     color:#995510!important;font-weight:700!important;
@@ -487,7 +516,7 @@
   html.satori-light-review #acct-panel #acct-orders [class*="text-amber"] {
     color:#985310!important;font-weight:750!important;
   }
-  html.satori-light-review #acct-panel #acct-orders td:nth-child(4) b,
+  html.satori-light-review #acct-panel #acct-orders td:nth-child(7) b,
   html.satori-light-review #acct-panel #acct-partners td:nth-child(6) {
     color:#b91c35!important;font-weight:850!important;
   }
@@ -544,10 +573,24 @@
   #acct-panel #acct-pairs .rc-table td:nth-child(4)::before {content:"Chênh lệch / tiền lời";}
   #acct-panel #acct-pairs .rc-table td:nth-child(5)::before {content:"Cộng tác viên";}
   #acct-panel #acct-orders .rc-table td:nth-child(1)::before {content:"Hóa đơn / người nhận";}
-  #acct-panel #acct-orders .rc-table td:nth-child(2)::before {content:"Thanh toán";}
-  #acct-panel #acct-orders .rc-table td:nth-child(3)::before {content:"Cộng tác viên";}
-  #acct-panel #acct-orders .rc-table td:nth-child(4)::before {content:"Tiền lời / còn trả";}
-  #acct-panel #acct-orders .rc-table td:nth-child(5)::before {content:"Chứng từ / ghi trả";}
+  #acct-panel #acct-orders .rc-table td:nth-child(2)::before {content:"TỔNG TIỀN BILL";}
+  #acct-panel #acct-orders .rc-table td:nth-child(3)::before {content:"Thanh toán khách / Satori";}
+  #acct-panel #acct-orders .rc-table td:nth-child(4)::before {content:"CÒN THU KHÁCH";}
+  #acct-panel #acct-orders .rc-table td:nth-child(5)::before {content:"LÃI GỘP ƯỚC TÍNH";}
+  #acct-panel #acct-orders .rc-table td:nth-child(6)::before {content:"Cộng tác viên";}
+  #acct-panel #acct-orders .rc-table td:nth-child(7)::before {content:"Lời CTV / còn trả CTV";}
+  #acct-panel #acct-orders .rc-table td:nth-child(8)::before {content:"Chứng từ / ghi trả";}
+  #acct-panel #acct-orders .rc-table td:nth-child(3),
+  #acct-panel #acct-orders .rc-table td:nth-child(6),
+  #acct-panel #acct-orders .rc-table td:nth-child(8) {
+    grid-column:1/-1!important;
+  }
+  #acct-panel #acct-orders .rc-table td:nth-child(2),
+  #acct-panel #acct-orders .rc-table td:nth-child(4),
+  #acct-panel #acct-orders .rc-table td:nth-child(5),
+  #acct-panel #acct-orders .rc-table td:nth-child(7){
+    font-variant-numeric:tabular-nums;
+  }
   #acct-panel :is(#acct-partners,#acct-pairs,#acct-orders) .rc-table td:first-child {
     grid-column:1/-1!important;font-weight:750!important;
   }
