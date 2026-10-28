@@ -25,6 +25,7 @@ import {extractDeliveryIntent} from './delivery-intent.mjs';
 import {createSandboxBackup,verifySandboxBackup} from './sandbox-backup.mjs';
 import {makeDriveBackupWorker,decryptArchive} from './drive-backup.mjs';
 import {readMinhSatori,readOnlyReady} from './satori-readonly.mjs';
+import {runSerializedStartupReadiness} from './startup-readiness-serial.mjs';
 import {ownerLiveLookup} from './owner-live-lookup.mjs';
 import {ownerPairAction,probeOwnerPairRead,ownerPairConfigReadiness} from './owner-collaborator-pairs.mjs';
 import {createOwnerRealInvoice} from './owner-live-invoice.mjs';
@@ -2005,14 +2006,6 @@ async function verifyOwnerReadOnlyAtBoot(){
 }
 server.listen(PORT,HOST,()=>{
  driveWorker.start();
- if(readOnlyReady())void verifyOwnerReadOnlyAtBoot();
- // A real non-mutating HMAC probe, using already-configured owner read key.
- // Reports FORBIDDEN if Apps Script has not granted the CTV read scope.
- if(readOnlyReady())void probeOwnerPairRead().then(x=>
-  console.info('SATORI_CTV_POLICY_READ_PROBE',x.reason,
-   x.ready?'revision='+x.revision:'not_ready',
-   x.ready?'active_policies='+x.activePolicies:'no_policy_read'));
-
  // Only boolean readiness / fixed codes. NEVER log HMAC values or key IDs.
  const ctvCredentials=ownerPairConfigReadiness(),ctvLink=ctvSingleLink.readiness();
  console.info('SATORI_CTV_CONFIGURATION_READINESS',
@@ -2023,26 +2016,45 @@ server.listen(PORT,HOST,()=>{
   'orderCredentials='+ctvCredentials.orderCredentials.reason,
   'link='+String(ctvLink.reason||'CONFIGURED'));
  const pilot=ownerInvoice.readiness();
- if(OWNER_ONLY_PILOT&&pilot.enabled===true){
-  void ownerInvoice.probeWriter().then(proof=>{
-   console.info('SATORI_OWNER_HMAC_LIVE_PROBE',
-    'PASS', 'revision='+proof.revision,
-    'invoices='+proof.invoiceCount,
-    'products='+proof.catalogueProducts);
-  }).catch(e=>{
-   // Do not expose signed responses, clients, credentials or customer records.
-   const safe=new Set(['FORBIDDEN','AUTH_FAILED','CATALOGUE_NOT_PERSISTED',
-    'OWNER_BOT_UPSTREAM_REJECTED','OWNER_BOT_UNCERTAIN',
-    'OWNER_BOT_RESPONSE_INVALID','OWNER_WRITER_READ_SCHEMA_INVALID']);
-   console.warn('SATORI_OWNER_HMAC_LIVE_PROBE','NOT_READY',
-    safe.has(e?.code)?e.code:'OTHER');
-  });
- }
  console.info('SATORI_OWNER_PILOT_STATUS',
   'enabled='+Number(OWNER_ONLY_PILOT),
   'configured='+Number(pilot.enabled===true),
   'reason='+(pilot.reason||'CONFIGURED'));
  console.info('SATORI_OWNER_LIVE_READONLY_CONFIGURED',Number(readOnlyReady()));
+
+ // Readiness calls intentionally run one after another, not in parallel.
+ // A Google Apps Script endpoint may hold a shared script lock even for
+ // separate read-scoped HMAC clients. These probes never issue a valid write.
+ void runSerializedStartupReadiness([
+  {name:'owner-readonly',enabled:readOnlyReady(),
+   run:verifyOwnerReadOnlyAtBoot,
+   onError:()=>console.warn('SATORI_OWNER_LIVE_READONLY_NOT_VERIFIED','OTHER')},
+  {name:'ctv-policy-read',enabled:readOnlyReady(),
+   run:async()=>{
+    const x=await probeOwnerPairRead();
+    console.info('SATORI_CTV_POLICY_READ_PROBE',x.reason,
+     x.ready?'revision='+x.revision:'not_ready',
+     x.ready?'active_policies='+x.activePolicies:'no_policy_read');
+   },
+   onError:()=>console.warn('SATORI_CTV_POLICY_READ_PROBE','NOT_VERIFIED')},
+  {name:'owner-writer-readonly',enabled:OWNER_ONLY_PILOT&&pilot.enabled===true,
+   run:async()=>{
+    try{
+     const proof=await ownerInvoice.probeWriter();
+     console.info('SATORI_OWNER_HMAC_LIVE_PROBE','PASS',
+      'revision='+proof.revision,'invoices='+proof.invoiceCount,
+      'products='+proof.catalogueProducts);
+    }catch(e){
+     // Preserve only fixed diagnostic codes; never expose HMAC or response data.
+     const safe=new Set(['FORBIDDEN','AUTH_FAILED','CATALOGUE_NOT_PERSISTED',
+      'OWNER_BOT_UPSTREAM_REJECTED','OWNER_BOT_UNCERTAIN',
+      'OWNER_BOT_RESPONSE_INVALID','OWNER_WRITER_READ_SCHEMA_INVALID']);
+     console.warn('SATORI_OWNER_HMAC_LIVE_PROBE','NOT_READY',
+      safe.has(e?.code)?e.code:'OTHER');
+    }
+   }}
+ ]);
+
  console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched');
  // One test with fake words only, no customer data, no stored orders, no API key printed.
  // This is intentionally an actual Gemini API call, and consumes at most one Free Tier request per deployment.

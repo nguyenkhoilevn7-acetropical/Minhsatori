@@ -4,6 +4,9 @@ on:
     paths:
       - 'customer-ai-chat-prototype/tests/owner-startup-probes-fake.test.mjs'
       - 'customer-ai-chat-prototype/owner-live-invoice.mjs'
+      - 'customer-ai-chat-prototype/server.mjs'
+      - 'customer-ai-chat-prototype/startup-readiness-serial.mjs'
+      - 'customer-ai-chat-prototype/tests/startup-readiness-serial.test.mjs'
       - 'customer-ai-chat-prototype/satori-readonly.mjs'
       - '.github/workflows/gemini-owner-startup-probes-fake.yml'
   workflow_dispatch:
@@ -20,4 +23,6 @@ jobs:
           node-version: '22'
       - run: node --check customer-ai-chat-prototype/tests/owner-startup-probes-fake.test.mjs
       - run: node customer-ai-chat-prototype/tests/owner-startup-probes-fake.test.mjs
+      - run: node --check customer-ai-chat-prototype/server.mjs
+      - run: node customer-ai-chat-prototype/tests/startup-readiness-serial.test.mjs
       - run: echo 'SYNTHETIC ONLY. No credentials, no production network, no invoice writes.'
