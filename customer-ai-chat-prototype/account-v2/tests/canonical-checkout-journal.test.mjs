@@ -155,10 +155,14 @@ test('reservation requires explicit in-transaction authoritative verifier',async
  assert.equal(result.state,'PENDING_INTEGRATION');
 });
 
-test('pilot migration is staged but checkout HTTP route still safely disabled',()=>{
+test('live checkout remains behind two explicit server-side gates and migrations',()=>{
  const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
  const migrator=readFileSync(new URL('../migrate.mjs',import.meta.url),'utf8');
  assert.match(router,/REAL_CHECKOUT_GATE_NOT_VERIFIED/);
  assert.match(migrator,/20261028_canonical_checkout_journal\.sql/);
- assert.doesNotMatch(router,/from '\.\/canonical-checkout-journal\.mjs'/);
+ assert.match(router,/from '\.\/canonical-checkout-journal\.mjs'/);
+ assert.match(router,/SATORI_ACCOUNT_V2_REAL_CHECKOUT_ENABLED/);
+ assert.match(router,/realCheckoutConfigured\(\)/);
+ assert.match(router,/reserveCanonicalCheckout\(pool/);
+ assert.match(router,/\/api\/v2\/orders\/reconcile/);
 });
