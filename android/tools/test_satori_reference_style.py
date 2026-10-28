@@ -20,12 +20,12 @@ class SatoriReferenceStyleContract(unittest.TestCase):
         self.assertIn("Color.rgb(227, 247, 238)",SRC)
         self.assertIn("Color.rgb(255, 246, 223)",SRC)
 
-    def test_original_logo_uses_circular_mask_without_replacing_asset(self):
+    def test_original_logo_uses_rounded_square_mask_without_replacing_asset(self):
         brand = SRC.split("val brandLogo = ImageView(this).apply {", 1)[1].split(
             "brand.addView(brandLogo, LinearLayout.LayoutParams(dp(38), dp(38)))", 1)[0]
         self.assertIn("setImageResource(R.drawable.satori_invoice_logo)", brand)
         self.assertIn("scaleType = ImageView.ScaleType.CENTER_CROP", brand)
-        self.assertIn("background = background(Color.WHITE, 19)", brand)
+        self.assertIn("background = background(Color.WHITE, 12)", brand)
         self.assertIn("clipToOutline = true", brand)
         self.assertNotIn("ImageDecoder", brand)
 
