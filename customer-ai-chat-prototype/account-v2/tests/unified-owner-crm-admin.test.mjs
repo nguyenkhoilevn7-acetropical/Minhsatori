@@ -55,3 +55,29 @@ test('all inline owner admin JavaScript parses, even on a mobile browser',()=>{
  assert.ok(script,'owner inline application exists');
  assert.doesNotThrow(()=>new vm.Script(script,{filename:'owner-catalogue.html'}));
 });
+
+test('review and pricing activation are separate, with no silent default zero percent',()=>{
+ assert.match(router,/\/api\/v2\/admin\/customers\/approve/);
+ assert.match(backend,/export async function adminApproveRegistration/);
+ assert.match(backend,/CUSTOMER_APPROVAL_REQUIRED_BEFORE_PRICING/);
+ assert.match(backend,/DISCOUNT_INPUT_REQUIRED_AFTER_APPROVAL/);
+ assert.match(html,/\/api\/v2\/admin\/customers\/approve/);
+ assert.match(html,/approvedForPricing/);
+ assert.match(html,/Lưu chiết khấu & kích hoạt/);
+ assert.doesNotMatch(html,/discountBps:0,confirmed:true/);
+});
+test('owner-only signed legacy lookup, Gmail binding, editable contact and multiple delivery points',()=>{
+ assert.match(router,/owner\(actor\);\s*send\(res,200,await legacyCustomerSearch\(q\)\)/);
+ assert.match(router,/legacyCustomerImport\(pool,actor/);
+ assert.match(backend,/readMinhSatori\('orders.list'/);
+ assert.match(backend,/LEGACY_OWNER_CONFIRMATION_REQUIRED/);
+ assert.match(backend,/LEGACY_VERIFIED_GMAIL_MISMATCH/);
+ assert.match(backend,/account.id!==owner.id/);
+ assert.match(backend,/LEGACY_CRM_STAGED/);
+ assert.match(backend,/LEGACY_CRM_ACTIVATED/);
+ assert.match(html,/id="legacyQuery"/);
+ assert.match(html,/legacyDeliveryRow/);
+ assert.match(html,/ownerAddressEditor/);
+ assert.match(html,/ownerContactEditor/);
+ assert.match(html,/ownerIconShapes/);
+});
