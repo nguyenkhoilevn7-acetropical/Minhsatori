@@ -19,6 +19,7 @@ import {validateCanonicalCatalogue} from './canonical-catalogue.mjs';
 import {acceptedSubjects} from './identity-rollout.mjs';
 import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
+import {canonicalInvoiceDocumentStatus} from './canonical-invoice-sync.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead} from './customer-backend.mjs';
 
@@ -504,8 +505,13 @@ export async function handleAccountV2(req,res,pathname){
     'FROM satori_v2_order_requests r JOIN satori_v2_quotes q ON q.id=r.quote_id '+
     'WHERE r.account_id=$1 AND q.account_id=$1 '+
     'ORDER BY q.created_at DESC LIMIT 50',[actor.id,'COMMITTED']);
+   // These rows remain scoped to the authenticated V2 account. Never present
+   // a locally generated PDF as the original website PDF or invent a Drive URL.
+   // Once the signed Drive archive bridge is deployed, this can be replaced
+   // only by exact ledger-id/invoice-version/file-SHA readback.
    send(res,200,{ok:true,orders:data.rows.map(x=>({...x,verified:x.state==='COMMITTED'&&
-    Number.isSafeInteger(x.invoiceNo)&&x.invoiceNo>0}))});return true;
+    Number.isSafeInteger(x.invoiceNo)&&x.invoiceNo>0,
+    pdf:canonicalInvoiceDocumentStatus(x)}))});return true;
   }
   if(pathname==='/api/v2/admin/catalogue/readiness'&&req.method==='GET'){
    // Owner-only, aggregate-only diagnostic. Never exposes HMAC credentials,
