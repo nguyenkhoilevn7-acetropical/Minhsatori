@@ -146,6 +146,11 @@ test('HMAC writer is always distinct from catalogue reader and completely disabl
  assert.doesNotMatch(source,/console\.log|localStorage|orders\.create\.ai|process\.env/);
  const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
  assert.match(router,/REAL_CHECKOUT_GATE_NOT_VERIFIED/);
- assert.doesNotMatch(router,/from '\.\/canonical-ledger-relay\.mjs'/,
-  'source is intentionally unwired until V2 durable request journal and approvals');
+ assert.match(router,/from '\.\/canonical-ledger-relay\.mjs'/);
+ assert.match(router,/SATORI_ACCOUNT_V2_REAL_CHECKOUT_ENABLED/);
+ assert.match(router,/SATORI_V2_CANONICAL_WRITES_ENABLED/);
+ assert.match(router,/error\(realCheckoutConfigured\(\),'REAL_CHECKOUT_GATE_NOT_VERIFIED',503\)/);
+ assert.match(router,/verifyLiveLockedQuote/);
+ assert.match(router,/reserveCanonicalCheckout/);
+ assert.match(router,/reconcileCanonicalCheckout/);
 });
