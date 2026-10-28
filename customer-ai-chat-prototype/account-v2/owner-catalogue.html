@@ -4,7 +4,7 @@
 <style>
 :root{color-scheme:light;--bg:#f6f8fc;--ink:#162b45;--sub:#526782;--line:#dce5ee;--blue:#0879ed;--pale:#e7f2ff}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
-main{width:min(720px,100%);padding:24px 18px 40px;margin:auto}
+main{width:min(990px,100%);padding:24px 18px 40px;margin:auto}
 header{display:flex;align-items:center;gap:12px;margin-bottom:24px}header a{color:var(--blue);text-decoration:none;font-weight:650}
 header h1{font-size:22px;margin:0}.eyebrow{color:var(--sub);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .card{border:1px solid var(--line);border-radius:21px;background:#fff;padding:22px;margin:14px 0;box-shadow:0 7px 24px #1b4d8b0b}
@@ -34,6 +34,30 @@ details{margin-top:13px;color:var(--sub);font-size:14px}
 details summary{cursor:pointer}
 [hidden]{display:none!important}
 @media(max-width:440px){main{padding:20px 13px 30px}.card{padding:18px}}
+
+/* Owner CRM: uniform line icons, readable contact rows, Samsung Fold responsive. */
+.crm-entry{background:#fff;box-shadow:0 1px 2px #162b4511}
+.crm-entry button{display:inline-flex;align-items:center;gap:7px}
+.ico{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;
+ stroke-linecap:round;stroke-linejoin:round;flex:none}
+h2>.ico,h3>.ico{width:21px;height:21px;vertical-align:-4px;color:var(--blue);margin-right:7px}
+.crm-tag{font-weight:650}
+.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.field-grid label,.legacy-address label{display:flex;flex-direction:column;gap:5px;font-size:14px;
+ font-weight:650;color:var(--sub)}
+.field-grid input,.field-grid select,.field-grid textarea,.legacy-address input{
+ width:100%;min-height:43px;padding:10px 12px;background:#fff;color:var(--ink);
+ border:1px solid #cddae7;border-radius:11px;font:inherit}
+.full{grid-column:1/-1}
+.legacy-address{border:1px solid var(--line);border-radius:13px;background:#f9fcff;
+ padding:12px;margin:10px 0;display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.legacy-address .secondary{grid-column:1/-1;justify-self:start}
+#legacyResults .crm-entry{margin:10px 0}
+#legacyResults label{cursor:pointer}
+.crm-divider{margin:18px 0;border:0;border-top:1px solid var(--line)}
+a.owner-link{color:var(--blue)}
+@media(max-width:540px){.field-grid,.legacy-address{grid-template-columns:1fr}main{padding:15px 12px}.card{padding:16px}}
+
 </style></head>
 <body>
 <main>
@@ -44,7 +68,7 @@ details summary{cursor:pointer}
  <p id="authState" role="status">Đang kiểm tra quyền truy cập…</p>
 </section>
 <section class="card" id="console" hidden>
- <h2>Danh mục đã xác minh</h2>
+ <h2>📦 Danh mục đã xác minh</h2>
  <p>Dữ liệu trên PostgreSQL V2, tách biệt với sổ hóa đơn và các link đại lý cũ.</p>
  <div class="metrics">
    <div class="metric"><small>Sản phẩm đang hoạt động</small><strong id="count">—</strong></div>
@@ -64,8 +88,8 @@ details summary{cursor:pointer}
 </section>
 
 <section class="card" id="crmConsole" hidden aria-label="Quản trị khách hàng V2">
- <h2>Khách hàng, đại lý và cộng tác viên</h2>
- <p>Tài khoản Google đã xác thực và hồ sơ khách cũ đều quản lý tại V2. Không lưu hoặc hiển thị mật khẩu Google. Giá Gemini lấy từ cùng chính sách V2.</p>
+ <h2>👥 Khách hàng, đại lý và cộng tác viên</h2>
+ <p>Gmail đã xác minh → duyệt hồ sơ → <strong>Admin nhập mức chiết khấu</strong> → kích hoạt. Không tự cấp mặc định 0%. Hồ sơ cũ được nhập sau khi đối chiếu chứng từ.</p>
  <div class="crm-controls">
   <label>Tìm khách hàng<input id="crmFilter" type="search" maxlength="90" placeholder="Tên, email hoặc số điện thoại"></label>
   <button id="crmRefresh" class="secondary" type="button">↻ Tải danh sách</button>
@@ -158,7 +182,7 @@ function crmStatus(text,kind='info'){
  byId('crmStatus').textContent=text;byId('crmStatus').dataset.kind=kind;
 }
 const typeLabel=t=>({retail:'Khách hàng',agency:'Đại lý',collaborator:'CTV'})[t]||'Khách hàng';
-const pct=bps=>Number.isSafeInteger(Number(bps))
+const pct=bps=>bps!=null&&Number.isSafeInteger(Number(bps))
  ?(Number(bps)/100).toLocaleString('vi-VN',{maximumFractionDigits:2})+'%':'—';
 function appendLine(parent,text,cls=''){
  parent.append(make('p',text,cls));
@@ -179,18 +203,49 @@ function drawCustomers(){
   const item=make('div',null,'crm-entry');
   item.append(make('strong',x.fullName||x.name||'Chưa có tên'));
   item.append(make('small',(x.email||'—')+' · '+(x.phone||'Chưa có điện thoại')));
-  item.append(make('span',(typeLabel(x.requestedType))+' · '+(x.accessStatus||'PENDING')+' · CK: '+pct(x.discountBps),'crm-tag'));
+  item.append(make('span',(typeLabel(x.requestedType))+' · '+
+   (x.accessStatus==='PENDING'?(x.approvedForPricing?'Đã duyệt · chờ nhập CK':'Chờ duyệt'):(x.accessStatus||'PENDING'))+
+   ' · CK: '+pct(x.discountBps),'crm-tag'));
   if(x.companyName)appendLine(item,'Công ty: '+x.companyName);
   if(x.address)appendLine(item,'Địa chỉ đăng ký: '+x.address);
   const b=make('button','Xem hồ sơ & chiết khấu');
   b.type='button';b.className='secondary';
   b.onclick=()=>selectAccount(x);
   item.append(b);
-  if(x.accessStatus==='PENDING'&&x.registrationRevision){
+  if(x.accessStatus==='PENDING'&&x.registrationRevision&&!x.approvedForPricing){
    const approve=make('button','Duyệt đăng ký');
    approve.type='button';
    approve.onclick=()=>approveCustomer(x);
    item.append(approve);
+  }
+  if(x.accessStatus==='PENDING'&&x.approvedForPricing){
+   const form=document.createElement('form');
+   form.className='crm-controls';
+   const label=make('label','💯 Nhập chiết khấu (%) để kích hoạt');
+   const input=document.createElement('input');
+   input.type='number';input.min='0';input.max='100';input.step='0.01';
+   input.required=true;input.placeholder='Ví dụ: 20 hoặc 0';
+   label.append(input);form.append(label);
+   const act=make('button','✓ Lưu chiết khấu & kích hoạt');
+   act.type='submit';form.append(act);
+   form.onsubmit=async ev=>{
+    ev.preventDefault();
+    if(input.value.trim()==='')return;
+    const n=Number(input.value),bps=Math.round(n*100);
+    if(!Number.isFinite(n)||n<0||n>100||
+     Math.abs(n*100-bps)>0.00001)return crmStatus('Chiết khấu không hợp lệ','error');
+    if(!confirm('Kích hoạt tài khoản đã duyệt '+(x.fullName||x.email)+
+     ' với chiết khấu '+n+'%?'))return;
+    act.disabled=true;
+    try{
+     await api('/api/v2/admin/customers','PATCH',{
+      accountId:x.id,status:'ACTIVE',expectedRevision:x.revision,
+      discountBps:bps,confirmed:true});
+     crmStatus('Đã lưu '+n+'% và kích hoạt Gmail cho khách.','success');
+     await loadCustomers();
+    }catch(e){crmStatus('Không kích hoạt được: '+e.message,'error');act.disabled=false;}
+   };
+   item.append(form);
   }
   dest.append(item);
  }
@@ -224,17 +279,17 @@ async function loadCustomers(){
  finally{byId('crmRefresh').disabled=false}
 }
 async function approveCustomer(x){
- if(!isOwner||x.accessStatus!=='PENDING')return;
- if(!confirm('Duyệt tài khoản '+(x.fullName||x.email)+' trở thành '+typeLabel(x.requestedType)+'? Chiết khấu mặc định 0%, cấp riêng sau.'))return;
+ if(!isOwner||x.accessStatus!=='PENDING'||x.approvedForPricing)return;
+ if(!confirm('Duyệt hồ sơ đăng ký '+(x.fullName||x.email)+
+  '? Khách CHƯA được đặt hàng cho tới khi anh nhập chiết khấu.'))return;
  try{
-  await api('/api/v2/admin/customers','PATCH',{
-   accountId:x.id,status:'ACTIVE',expectedRevision:x.revision,
-   discountBps:0,confirmed:true
-  });
-  crmStatus('Đã duyệt đăng ký; có thể chọn hồ sơ để cấp giá.','success');
+  await api('/api/v2/admin/customers/approve','POST',{
+   accountId:x.id,expectedRevision:x.revision,confirmed:true});
+  crmStatus('Đã duyệt. Bước tiếp theo: nhập mức chiết khấu và kích hoạt.','success');
   await loadCustomers();
  }catch(e){crmStatus('Không duyệt được hồ sơ: '+e.message,'error')}
 }
+
 async function loadProfilesFor(accountId,epoch){
  const data=await api('/api/v2/admin/profiles?accountId='+encodeURIComponent(accountId));
  if(!Array.isArray(data.profiles))throw Error('PROFILES_INVALID');
@@ -278,7 +333,7 @@ async function loadProfileDetails(profileId,epoch){
    appendLine(entry,'Địa chỉ: '+(a.addresses.find(x=>x.id===row.addressId)?.label|| (row.addressId?'Địa chỉ đã lưu':'Tất cả điểm giao')));
    dest.append(entry);
   }
-  if(!p.policies.length)dest.append(make('p','Chưa có chiết khấu riêng. Giá niêm yết được áp dụng.'));
+  if(!p.policies.length)dest.append(make('p','Chưa có chính sách giá riêng. Khách mới chưa kích hoạt không thể đặt hàng.'));
   const addressSelect=byId('crmAddress');addressSelect.replaceChildren();
   const all=make('option','Tất cả địa chỉ');all.value='';addressSelect.append(all);
   for(const row of a.addresses.filter(x=>x.active)){
