@@ -51,6 +51,27 @@ test('unexpected existing record, bad revision, malformed id and network error f
  assert.deepEqual(fail,{status:'FAIL_SIGNED_LOOKUP'});
  assert.doesNotMatch(JSON.stringify(fail),/sensitive|connection|details/);
 });
+test('fixed auth/action categories do not leak signed request data',async()=>{
+ const cases=[
+  ['READ_ONLY_SIGNED_INVALID_ACTION','FAIL_INVALID_ACTION'],
+  ['READ_ONLY_SIGNED_FORBIDDEN','FAIL_FORBIDDEN'],
+  ['READ_ONLY_SIGNED_AUTH_FAILED','FAIL_AUTH'],
+  ['READ_ONLY_NON_JSON_RESPONSE','FAIL_NON_JSON'],
+  ['READ_ONLY_UPSTREAM_HTTP_503','FAIL_HTTP'],
+  ['READ_ONLY_UPSTREAM_ERROR','FAIL_UPSTREAM_ERROR']
+ ];
+ for(const [upstream,status] of cases){
+  const r=await probeCanonicalReadback({readOnlyReady:()=>true,
+   randomId:()=>requestId,
+   readMinhSatori:async()=>{throw Error(upstream)}
+  });
+  assert.deepEqual(r,{status});
+  assert.equal(JSON.stringify(r).includes(requestId),false);
+ }
+ const transport=fs.readFileSync(new URL('../../satori-readonly.mjs',import.meta.url),'utf8');
+ assert.match(transport,/if\(action==='orders.findByRequestId'&&allowed\.has\(code\)\)/);
+ assert.doesNotMatch(transport,/console\.log\(.*(?:secret|signature|requestId)/);
+});
 test('read-only action whitelist permits exact IDs but not wildcard/private search or writes',()=>{
  const transport=fs.readFileSync(new URL('../../satori-readonly.mjs',import.meta.url),'utf8');
  const server=fs.readFileSync(new URL('../standalone.mjs',import.meta.url),'utf8');
