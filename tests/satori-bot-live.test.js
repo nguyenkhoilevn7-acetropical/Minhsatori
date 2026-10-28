@@ -77,3 +77,13 @@ test('blocks writes if cloud not synced or an existing invoice is being edited',
  r.setEdit(55);assert.throws(()=>r.api.applyToForm(d,true),/Đang sửa hóa đơn cũ/);
  assert.equal(r.calls.saved,0);
 });
+
+
+test('mobile launcher cannot obscure an entire invoice/debt action row',()=>{
+ assert.match(src,/@media\(max-width:900px\)\{#satori-bot-launch\{/);
+ assert.match(src,/width:46px;min-width:46px;height:46px;min-height:46px/);
+ assert.match(src,/bottom:calc\(88px \+ env\(safe-area-inset-bottom,0px\)\)/);
+ assert.match(src,/#satori-bot-launch::before\{content:"🤖"/);
+ assert.match(src,/launcher.onclick=open/);
+ assert.match(src,/if\(!root.__SATORI_DRIVE_APP__\)return/);
+});
