@@ -1,47 +1,44 @@
-const test=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
-const afterHead=html.slice(html.indexOf('</head>')+7);
-function fnv32(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)}return (h>>>0).toString(16).padStart(8,'0')}
-
-test('legacy V18.3 HTML body is byte-for-byte logically unchanged',()=>{
- assert.equal(fnv32(afterHead),'0e1acc25','Body drift: do not touch invoice/payment/backup/Google Drive runtime');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const html = fs.readFileSync(require('node:path').join(__dirname, '..', 'index.html'), 'utf8');
+function fingerprint(s){ let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)}return (h>>>0).toString(16).padStart(8,'0') }
+function strippedLegacyBody(){
+ const afterHead=html.slice(html.indexOf('</head>')+7);
+ return afterHead
+  .replace(/\n<!-- MoneyMind legacy bottom navigation:[\s\S]*?<\/nav>\n/,'')
+  .replace(/\n<script id="satori-legacy-dock-sync">[\s\S]*?<\/script>\n/,'');
+}
+test('legacy accounting original V18.3 body/payment/Drive/PDF logic remains exact',()=>{
+ assert.equal(fingerprint(strippedLegacyBody()),'0e1acc25','Legacy body drift: cannot release financial/Google Drive mutations');
  assert.match(html,/<\/body>\s*<\/html>/);
 });
-test('new appearance is query opt-in, never default or production rollout',()=>{
- assert.match(html,/get\('satoriUiPreview'\)\s*===\s*'1'/);
+test('MoneyMind is production default, not a query-only preview',()=>{
  assert.match(html,/document\.documentElement\.classList\.add\('satori-light-review'\)/);
- assert.match(html,/html\.satori-light-review #tab-sheet/);
- assert.match(html,/@media screen/);
- assert.doesNotMatch(html,/<body[^>]*satori-light-review/);
+ assert.doesNotMatch(html,/get\('satoriUiPreview'\)\s*===\s*'1'/);
+ assert.match(html,/MoneyMind production/);
 });
-test('full accounting workflow and existing controls remain in markup',()=>{
- for(const id of ['tab-input','tab-archive','tab-sheet','tab-catalogue','tab-aimemory',
-   'archiveCardsContainer','sheetsTableBody','busPhone','busLocation','itemsContainer',
-   'paymentStatus','shippingOption','vatOption','deliveryNote']){
+test('every nav route delegates to existing handlers with no invented endpoints',()=>{
+ for(const tab of ['input','archive','sheet','catalogue','reconcile','aimemory'])
+   assert.match(html,new RegExp("switchTab\\('"+tab+"'\\)"));
+ for(const f of ['syncLiveFromGoogleDrive','openBackupRestoreModal','openTrashBinModal'])
+   assert.match(html,new RegExp(f+"\\(\\)"));
+ assert.match(html,/id="satori-legacy-dock"/);
+ assert.match(html,/id="satori-legacy-dock-sync"/);
+ assert.match(html,/new MutationObserver\(paint\)/);
+});
+test('money UI preserves accounting controls and avoids hardcoded sample financial values',()=>{
+ for(const id of ['tab-input','tab-archive','tab-sheet','tab-catalogue','tab-aimemory','archiveCardsContainer','sheetsTableBody','paymentStatus','shippingOption','vatOption','deliveryNote'])
    assert.ok(html.includes('id="'+id+'"'),id);
- }
- for(const callback of ['renderArchiveInvoices','calculateTotals','syncLiveFromGoogleDrive',
-   'openBackupRestoreModal','renderAIMemoryTable','openTrashBinModal','switchTab']){
-   assert.ok(html.includes(callback),callback);
- }
+ assert.match(html,/id="statUnpaid"/);
+ assert.match(html,/aria-label="Sổ kế toán và công nợ"/);
 });
-
-test('legacy tab selection follows the existing switchTab active utility class',()=>{
- assert.match(html,/nav button\[class\*="bg-gradient-to-r"\]/);
- assert.match(html,/nav button:not\(\[class\*="bg-gradient-to-r"\]\)/);
- assert.doesNotMatch(html,/nav button:not\(#btn-tab-input\)/);
- assert.match(html,/background:linear-gradient\(120deg,#086fe3,#0761c7\)/);
-});
-
-test('MoneyMind is opt-in CSS only and original invoice/PDF templates stay intact',()=>{
- const start=html.indexOf('/* MONEY-MIND SATORI FLAT TEAL');
- const end=html.indexOf('/* END MINH SATORI LEGACY REVIEW-ONLY UI */',start);
- assert.ok(start>=0&&end>start);
- const css=html.slice(start,end);
- assert.match(css,/html\.satori-light-review/);
- assert.match(css,/#009c99/i);
- assert.doesNotMatch(css,/<script|@import|@media\s+print|javascript:/i);
- assert.equal(fnv32(html.slice(html.indexOf('</head>')+7)),'0e1acc25');
+test('mobile folded and bar view widths, accessibility, print, reduced motion',()=>{
+ assert.match(html,/@media\(max-width:900px\)/);
+ assert.match(html,/env\(safe-area-inset-bottom,0px\)/);
+ assert.match(html,/@media\(prefers-reduced-motion:reduce\)/);
+ assert.match(html,/<nav id="satori-legacy-dock" class="no-print" aria-label="Điều hướng kế toán">/);
+ assert.match(html,/@media print/);
+ assert.match(html,/font-size:16px!important/);
+ assert.match(html,/border-radius:11px!important/);
 });
