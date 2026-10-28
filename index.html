@@ -132,6 +132,7 @@
  html.satori-light-review #appHeader h1 {font-size:17px!important;letter-spacing:.01em;}
  html.satori-light-review #appHeader .text-slate-400 {color:#e1faf7!important;}
  html.satori-light-review #appHeader img{border-radius:11px!important;background:#fff!important;object-fit:contain!important;padding:1px!important;}
+ html.satori-light-review #appHeader.header-scroll-hidden{transform:none!important;pointer-events:auto!important;}
  html.satori-light-review #syncStatusBadge {background:rgba(232,255,245,.15)!important;border:1px solid rgba(255,255,255,.22)!important;color:#eafff8!important;}
  html.satori-light-review #appHeader nav{background:rgba(255,255,255,.10)!important;border:1px solid rgba(255,255,255,.18)!important;box-shadow:none!important;}
  html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]){background:rgba(255,255,255,.92)!important;color:#126d70!important;border-color:transparent!important;}
@@ -243,7 +244,7 @@
  }
  @media(max-width:760px){
    html.satori-light-review #tab-sheet #sheetsTableBody{display:grid!important;gap:11px!important;background:transparent!important;}
-   html.satori-light-review #tab-sheet #sheetsTableBody tr{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 12px;padding:13px!important;background:#fff!important;border:1px solid var(--ms-line)!important;border-radius:15px!important;box-shadow:0 3px 12px rgba(0,40,50,.04);min-width:0;}
+   html.satori-light-review #tab-sheet #sheetsTableBody tr{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 12px;padding:13px!important;background:#fff!important;border:1px solid var(--ms-line)!important;border-radius:15px!important;box-shadow:0 3px 12px rgba(0,40,50,.04);min-width:0;content-visibility:auto;contain-intrinsic-size:auto 300px;}
    html.satori-light-review #tab-sheet #sheetsTableBody td{display:block!important;min-width:0!important;max-width:100%!important;padding:5px 0!important;white-space:normal!important;overflow-wrap:anywhere;text-align:left!important;font-size:12px!important;}
    html.satori-light-review #tab-sheet #sheetsTableBody td::before{display:block;content:"";font-size:10px!important;font-weight:650;color:#73858e!important;letter-spacing:.02em;margin-bottom:3px;}
    html.satori-light-review #tab-sheet #sheetsTableBody td:nth-child(1)::before{content:"Ngày";}
