@@ -393,9 +393,12 @@ async function loadProfileDetails(profileId,epoch){
    const entry=make('div',null,'crm-entry');
    entry.append(make('strong',(row.label||'Địa chỉ')+(row.active?'':' · Ngừng sử dụng')));
    appendLine(entry,(row.recipientName||'—')+' · '+(row.recipientPhone||'—'));
-   appendLine(entry,row.address||'—');dest.append(entry);
+   appendLine(entry,row.address||'—');
+   entry.append(ownerAddressEditor(profileId,row,epoch));
+   dest.append(entry);
   }
   if(!a.addresses.length)dest.append(make('p','Chưa có địa chỉ.'));
+  dest.append(ownerAddressEditor(profileId,null,epoch));
   dest.append(make('h3','Lịch sử chính sách ('+p.policies.length+')'));
   for(const row of p.policies){
    const entry=make('div',null,'crm-entry');
@@ -411,6 +414,8 @@ async function loadProfileDetails(profileId,epoch){
    const o=make('option',row.label+' · '+row.recipientName);
    o.value=row.id;addressSelect.append(o);
   }
+  const rec=customerRecord.registered.find(x=>x.id===selectedAccountId);
+  if(rec?.registrationRevision)dest.append(ownerContactEditor(rec));
  }catch(e){if(epoch===customerEpoch)dest.textContent='Không tải được hồ sơ: '+e.message}
 }
 async function selectAccount(customer){
@@ -693,6 +698,80 @@ async function submitLegacyImport(event,button){
   legacyNotice('Không nhập được: '+e.message+
    '. Chưa cập nhật hóa đơn gốc.',true);
  }finally{button.disabled=false}
+}
+
+
+/* Account-scoped profile and delivery editors reuse existing versioned owner APIs. */
+function ownerFormInput(group,label,key,value,required=true){
+ const outer=make('label',label),inp=document.createElement('input');
+ inp.name=key;inp.value=String(value??'');inp.required=required;inp.maxLength=key==='address'?400:120;
+ if(key==='email')inp.type='email';
+ if(key==='recipientPhone'||key==='phone')inp.inputMode='tel';
+ outer.append(inp);group.append(outer);return inp;
+}
+function ownerAddressEditor(profileId,row,epoch){
+ const details=make('details');details.append(make('summary',row?'✎ Sửa / ngừng sử dụng điểm giao':'＋ Thêm điểm giao mới'));
+ const form=make('form',null,'field-grid');
+ for(const [label,key,value] of [
+  ['🏠 Tên điểm giao','label',row?.label||'Nhà'],
+  ['👤 Người nhận','recipientName',row?.recipientName||''],
+  ['☎️ Điện thoại nhận','recipientPhone',row?.recipientPhone||''],
+  ['📍 Địa chỉ','address',row?.address||'']
+ ])ownerFormInput(form,label,key,value);
+ let active;
+ if(row){
+  const label=make('label','Địa chỉ đang hoạt động');
+  active=document.createElement('input');active.type='checkbox';active.checked=row.active;
+  label.append(active);form.append(label);
+ }
+ const save=iconButton(row?'Lưu thay đổi địa chỉ':'Thêm điểm giao','pin');
+ save.type='submit';form.append(save);
+ form.onsubmit=async ev=>{
+  ev.preventDefault();
+  const data=Object.fromEntries(new FormData(form).entries());
+  const payload={...data,profileId};
+  if(row){payload.addressId=row.id;payload.expectedRevision=row.revision;
+   payload.active=active.checked;payload.confirmed=true;}
+  if(!confirm((row?'Cập nhật địa chỉ?':'Thêm điểm giao mới?')+
+   ' Hóa đơn đã phát hành sẽ giữ nguyên.'))return;
+  save.disabled=true;
+  try{
+   await api('/api/v2/admin/addresses',row?'PATCH':'POST',payload);
+   crmStatus('✓ Đã lưu điểm giao nhận.','success');
+   if(epoch===customerEpoch)await loadProfileDetails(profileId,epoch);
+  }catch(e){crmStatus('Không lưu được địa chỉ: '+e.message,'error');save.disabled=false;}
+ };
+ details.append(form);return details;
+}
+function ownerContactEditor(rec){
+ const details=make('details');
+ details.append(make('summary','✎ Chỉnh thông tin khách hàng đang lưu'));
+ const form=make('form',null,'field-grid');
+ for(const [label,key,value] of [
+  ['👤 Tên khách','fullName',rec.fullName||rec.name],
+  ['☎️ Số điện thoại','phone',rec.phone],
+  ['🏠 Địa chỉ chính','address',rec.address],
+  ['🏢 Công ty / cửa hàng','companyName',rec.companyName],
+  ['Mã số thuế','taxCode',rec.taxCode],
+  ['Ghi chú','note',rec.note]
+ ])ownerFormInput(form,label,key,value,!['companyName','taxCode','note'].includes(key));
+ const email=make('p','📧 Gmail đã xác minh: '+rec.email+
+  ' (không sửa trực tiếp; Gmail mới phải được chính Google xác minh).');
+ email.className='full';form.append(email);
+ const save=iconButton('Lưu thông tin khách','edit');save.type='submit';form.append(save);
+ form.onsubmit=async ev=>{
+  ev.preventDefault();
+  if(!confirm('Cập nhật thông tin khách? Hóa đơn lịch sử giữ nguyên.'))return;
+  save.disabled=true;
+  try{
+   await api('/api/v2/admin/customers/details','PATCH',{
+    ...Object.fromEntries(new FormData(form).entries()),
+    email:rec.email,requestedType:rec.requestedType||'retail',
+    accountId:rec.id,expectedRevision:rec.registrationRevision,confirmed:true});
+   await loadCustomers();crmStatus('✓ Đã cập nhật hồ sơ.','success');
+  }catch(e){crmStatus('Không sửa được: '+e.message,'error');save.disabled=false;}
+ };
+ details.append(form);return details;
 }
 
 </script>
