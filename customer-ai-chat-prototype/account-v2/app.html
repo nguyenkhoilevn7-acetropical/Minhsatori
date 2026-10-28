@@ -1814,7 +1814,7 @@ async function refresh(){
  $('gate').classList.add('hidden');
  $('accountDetails').replaceChildren(node('strong',me.account.name),
   node('p',me.account.email,'muted'),
-  node('p',pending?'Trạng thái: Đang chờ Admin duyệt':'Trạng thái: Đã kích hoạt','muted'));
+  node('p',pending?(me.account.approvedForPricing?'Trạng thái: Đã duyệt · Chờ Admin nhập chiết khấu':'Trạng thái: Đang chờ Admin duyệt'):'Trạng thái: Đã kích hoạt','muted'));
  $('registrationBox').hidden=!pending;
  if(pending){
   $('customerRegistration').elements.email.value=me.account.email;
@@ -1825,7 +1825,7 @@ async function refresh(){
      const field=$('customerRegistration').elements.namedItem(key);
      if(field&&typeof value==='string'&&key!=='email')field.value=value;
     }
-    $('registrationStatus').textContent='Hồ sơ đã được gửi. Chờ Admin duyệt để đặt hàng.';
+    $('registrationStatus').textContent=data.registration.reviewedAt?'Hồ sơ đã được duyệt. Đang chờ Admin nhập chiết khấu và kích hoạt đặt hàng.':'Hồ sơ đã được gửi. Chờ Admin duyệt để đặt hàng.';
    }
   }catch(e){toast(e.message)}
   view('account');return;
