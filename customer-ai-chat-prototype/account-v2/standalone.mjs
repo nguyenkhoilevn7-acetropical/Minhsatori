@@ -5,6 +5,8 @@
  */
 import http from 'node:http';
 import {handleAccountV2} from './router.mjs';
+import {readMinhSatori,readOnlyReady} from '../satori-readonly.mjs';
+import {probeCanonicalReadback} from './exact-readback-probe.mjs';
 const host='0.0.0.0';
 const port=Number(process.env.PORT||10000);
 const server=http.createServer(async(req,res)=>{
@@ -30,4 +32,10 @@ const server=http.createServer(async(req,res)=>{
 });
 server.headersTimeout=10000;
 server.requestTimeout=15000;
-server.listen(port,host,()=>console.info('SATORI_ACCOUNT_V2_STANDALONE_LISTENING',port));
+server.listen(port,host,()=>{
+ console.info('SATORI_ACCOUNT_V2_STANDALONE_LISTENING',port);
+ // Passive diagnostic only: one signed read with a cryptographically random
+ // requestId. Does not expose customer data, trigger an invoice write or fail boot.
+ void probeCanonicalReadback({readOnlyReady,readMinhSatori,
+  report:s=>console.info('SATORI_V2_HMAC_EXACT_REQUESTID_PROBE',JSON.stringify(s))});
+});
