@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'accounting.js'
+      - 'tests/accounting-invoice-figures.test.cjs'
       - 'tests/unified-light-preview.test.cjs'
       - '.github/workflows/legacy-moneymind-production.yml'
   push:
@@ -26,4 +28,4 @@ jobs:
         with:
           node-version: '22'
       - name: Prevent financial DOM or script drift
-        run: node --test tests/unified-light-preview.test.cjs
+        run: node --test tests/unified-light-preview.test.cjs tests/accounting-invoice-figures.test.cjs

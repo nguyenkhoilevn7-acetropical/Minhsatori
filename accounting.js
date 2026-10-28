@@ -170,14 +170,126 @@ function mount(){
  $('acct-add-partner').onclick=()=>partnerForm();$('acct-export').onclick=()=>exportWorkbook(false);$('acct-search').oninput=renderOrderList;
  const form=document.createElement('div');form.className='my-3 p-3 border border-cyan-700 rounded-xl';form.innerHTML='<label class="block text-sm font-bold">Cộng tác viên của đơn<select id="acct-form-partner" class="rc-input"></select></label><button type="button" id="acct-apply-price" class="text-xs text-cyan-300 underline mt-2">Áp dụng giá mua CTV vào đơn này</button><p class="text-xs text-slate-400">Gắn CTV không tự đổi giá bán cho khách. Nút trên chỉ dùng khi lập bill giá CTV.</p>';$('paymentStatus')?.parentElement?.appendChild(form);$('acct-apply-price').onclick=applyPartnerPrice;formSelect();$('busName')?.addEventListener('change',()=>suggestPartner({customer:$('busName').value}));
 }
-function render(){mount();if(!$('acct-panel'))return;const m=model(),primary=m.rows.filter(r=>r.eligible),due=primary.reduce((s,r)=>s+r.due,0);$('acct-summary').innerHTML=[['Cộng tác viên',m.partners.length],['Cặp hóa đơn',m.pairs.length],['Lời CTV phải trả',money(due)],['Nhóm cần kiểm tra',m.review.length]].map(([a,b])=>`<div class="p-3 rounded-xl bg-slate-900"><small>${a}</small><p class="font-bold text-lg">${b}</p></div>`).join('');
+function render(){
+ mount();if(!$('acct-panel'))return;
+ const m=model(),primary=m.rows.filter(r=>r.eligible),due=primary.reduce((s,r)=>s+r.due,0);
+ const valid=m.rows.filter(r=>C.active(r.order)&&!r.secondary);
+ const amounts=valid.map(ledgerInvoiceFigures);
+ const totalSales=amounts.reduce((sum,f)=>sum+(f.bill??0),0);
+ const totalReceivable=amounts.reduce((sum,f)=>sum+(f.customerDue??0),0);
+ const grossEstimated=amounts.reduce((sum,f)=>sum+(f.grossEstimate??0),0);
+ const unknownAmounts=amounts.filter(f=>f.bill===null).length;
+ $('acct-summary').innerHTML=[
+  ['Tổng bill hợp lệ',money(totalSales)],
+  ['Còn thu khách',money(totalReceivable)],
+  ['Lãi gộp ước tính',money(grossEstimated)],
+  ['Lời CTV còn trả',money(due)],
+  ['Cộng tác viên',m.partners.length],
+  ['Cặp hóa đơn',m.pairs.length],
+  ['Nhóm cần kiểm tra',m.review.length]
+ ].map(([label,value])=>`<div class="acct-figure p-3 rounded-xl border"><small>${label}</small><p class="font-bold text-lg ${typeof value==='string'&&value.endsWith(' đ')?'acct-money':''}">${value}</p></div>`).join('')+
+ (unknownAmounts?'<p class="col-span-full acct-warning">Có '+unknownAmounts+' hóa đơn hợp lệ thiếu tổng tiền, cần đối chiếu.</p>':'');
  $('acct-partners').innerHTML='<table class="rc-table"><thead><tr><th>CTV / Liên hệ</th><th>CK mua</th><th>Số đơn</th><th>Tiền lời</th><th>Đã trả</th><th>Còn trả</th><th></th></tr></thead><tbody>'+m.partners.map(p=>`<tr><td>${esc(p.name)}<br><small>${esc(p.phone)} · ${esc(p.bank)}</small></td><td>${p.discountPercent}%</td><td>${p.count}</td><td>${money(p.profit)}</td><td>${money(p.settled)}</td><td class="text-amber-300">${money(p.due)}</td><td><button data-edit-partner="${esc(p.id)}" class="text-cyan-300 underline">Sửa</button></td></tr>`).join('')+'</tbody></table>';
  $('acct-partners').querySelectorAll('[data-edit-partner]').forEach(b=>b.onclick=()=>partnerForm(b.dataset.editPartner));
  $('acct-pairs').innerHTML=m.pairs.length?'<table class="rc-table"><thead><tr><th>Người nhận</th><th>Bill cao</th><th>Bill thấp</th><th>Chênh lệch / lời</th><th>CTV</th></tr></thead><tbody>'+m.pairs.map(p=>`<tr><td>${esc(p.high.name)}<br><small>${esc(p.high.location)}</small></td><td>#${esc(p.high.invoiceNo)} · ${money(C.total(p.high))}</td><td>#${esc(p.low.invoiceNo)} · ${money(C.total(p.low))}</td><td class="text-emerald-300">${money(p.profit)}</td><td>${esc(registry().find(x=>x.id===p.collaboratorId)?.name||'Chưa gắn CTV')}</td></tr>`).join('')+'</tbody></table>':'<p class="text-slate-400">Chưa có cặp hóa đơn đủ rõ để tự tính chênh lệch.</p>';
  $('acct-review').innerHTML=m.review.map(g=>`<p class="p-2 border-b border-slate-700">${esc(g.orders.map(o=>'#'+o.invoiceNo+' '+o.name).join(' · '))}<br><span class="text-amber-300">${esc(g.reason)}</span></p>`).join('')||'<p>Không có nhóm cần kiểm tra.</p>';renderOrderList();
 }
-function renderOrderList(){if(!$('acct-orders'))return;const q=C.norm($('acct-search')?.value),rows=model().rows.filter(r=>!q||C.norm([r.order.invoiceNo,r.order.name,r.order.location,r.order.phone].join(' ')).includes(q)).sort((a,b)=>Number(b.order.invoiceNo)-Number(a.order.invoiceNo));$('acct-orders').innerHTML='<table class="rc-table"><thead><tr><th>Hóa đơn / Người nhận</th><th>Thanh toán</th><th>Cộng tác viên</th><th>Lời / Còn trả</th><th>Chứng từ / Ghi trả</th></tr></thead><tbody>'+rows.map(r=>`<tr><td>#${esc(r.order.invoiceNo)} · ${esc(r.order.name)}<br><small>${esc(r.order.location)}</small>${r.secondary?'<p class="text-cyan-300">Bill thấp đối chiếu; không cộng lặp DT</p>':''}${r.review?'<p class="text-amber-300">Cần kiểm tra nhóm trùng</p>':''}</td><td><span class="${C.statusClass({status:r.customerPaid?'Đã thanh toán':'Chưa thanh toán'})}">${r.customerPaid?'Khách đã TT':'Khách chưa TT'}</span><br><span class="${C.statusClass({status:r.satoriPaid?'Đã TT Satori':'Chưa thanh toán'})}">${r.satoriPaid?'Đã TT Satori':'Chưa ghi TT Satori'}</span></td><td><select data-partner-order="${esc(C.key(r.order))}" class="rc-input">${partnerOptions(r.order.collaboratorId)}</select></td><td title="${esc(r.basis)}">${money(r.profit)}<br><b class="text-amber-300">Còn: ${money(r.due)}</b>${r.profit<0?'<p class="text-rose-300">Giá bán thấp hơn giá mua CTV</p>':''}</td><td><button data-receipt-order="${esc(C.key(r.order))}" class="text-cyan-300 underline">Upload / xem (${r.order.paymentReceipts?.length||0})</button><br><button data-settle-order="${esc(C.key(r.order))}" class="text-emerald-300 underline">Ghi đã trả CTV</button></td></tr>`).join('')+'</tbody></table>';
- $('acct-orders').querySelectorAll('[data-partner-order]').forEach(b=>b.onchange=()=>assign(b.dataset.partnerOrder,b.value));$('acct-orders').querySelectorAll('[data-receipt-order]').forEach(b=>b.onclick=()=>receiptForm(b.dataset.receiptOrder));$('acct-orders').querySelectorAll('[data-settle-order]').forEach(b=>b.onclick=()=>settlement(b.dataset.settleOrder));}
+/* Read-only invoice figures. Customer receivable, gross profit and CTV
+   commission are THREE different concepts and must never share a zero label. */
+function invoiceBillAmount(o){
+ if(o.total!==undefined && o.total!==null && String(o.total).trim()!==''){
+  const n=Number(o.total);
+  return Number.isFinite(n)&&n>=0?n:null;
+ }
+ const lines=o.items?.length?o.items:[o];
+ if(!lines.some(i=>Number(i.qty)>0 && i.unitPrice!==undefined && i.unitPrice!==null
+     && Number.isFinite(Number(i.unitPrice))))return null;
+ const n=C.total(o);
+ return Number.isFinite(n)&&n>=0?n:null;
+}
+function ledgerInvoiceFigures(r){
+ const o=r.order,bill=invoiceBillAmount(o);
+ const included=C.active(o)&&!r.secondary;
+ const customerDue=!included?null:bill===null?null:(r.customerPaid?0:bill);
+ const lines=o.items?.length?o.items:[o];
+ const hasCost=lines.length>0&&lines.every(i=>Number(i.qty)>0
+   &&i.listPrice!==undefined&&i.listPrice!==null&&Number.isFinite(Number(i.listPrice))
+   &&i.unitPrice!==undefined&&i.unitPrice!==null&&Number.isFinite(Number(i.unitPrice)));
+ const grossEstimate=included&&hasCost?getOrderProfit(o):null;
+ const ctvBasis=!included?'excluded':r.review?'review':!r.partnerId?'unassigned':!r.partner?'missing':r.eligible?'ready':'review';
+ return {bill,customerDue,grossEstimate,included,ctvBasis};
+}
+function renderOrderList(){
+ if(!$('acct-orders'))return;
+ const q=C.norm($('acct-search')?.value);
+ const all=model().rows;
+ const rows=all.filter(r=>!q||C.norm([r.order.invoiceNo,r.order.name,
+  r.order.location,r.order.phone].join(' ')).includes(q))
+  .sort((a,b)=>Number(b.order.invoiceNo)-Number(a.order.invoiceNo));
+ const visible=rows.map(r=>({...r,figures:ledgerInvoiceFigures(r)}));
+ const sum=key=>visible.reduce((total,r)=>total+(r.figures.included&&r.figures[key]!==null?r.figures[key]:0),0);
+ let aggregate=$('acct-order-totals');
+ if(!aggregate){
+  aggregate=document.createElement('div');
+  aggregate.id='acct-order-totals';
+  aggregate.className='grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3';
+  $('acct-orders').before(aggregate);
+ }
+ const unknown=visible.filter(r=>r.figures.included&&r.figures.bill===null).length;
+ aggregate.innerHTML=[
+  ['Tổng bill đang tìm',money(sum('bill'))],
+  ['Còn thu khách',money(sum('customerDue'))],
+  ['Lãi gộp ước tính',money(sum('grossEstimate'))]
+ ].map(([label,value])=>'<div class="acct-figure p-3 rounded-xl border"><small>'+label+
+  '</small><strong class="block text-base font-bold acct-money">'+value+'</strong></div>').join('')+
+  (unknown?'<p class="col-span-full text-sm acct-warning">Có '+unknown+
+  ' hóa đơn chưa đủ dữ liệu tổng tiền, cần kiểm tra trước khi đối soát.</p>':'');
+ $('acct-orders').innerHTML='<table class="rc-table"><thead><tr>'+
+  '<th>Hóa đơn / Người nhận</th><th>Tổng bill</th><th>Thanh toán khách / Satori</th>'+
+  '<th>Còn thu khách</th><th>Lãi gộp ước tính</th><th>Cộng tác viên</th>'+
+  '<th>Lời CTV / Còn trả CTV</th><th>Chứng từ / Ghi trả</th></tr></thead><tbody>'+
+  visible.map(r=>{
+   const o=r.order,f=r.figures,excluded=!f.included;
+   const bill=f.bill===null?'<span class="acct-warning">Chưa đủ dữ liệu</span>':'<b class="acct-money acct-bill">'+money(f.bill)+'</b>';
+   const customerDue=excluded?'<span class="acct-note">Không tính vào công nợ khách</span>':
+    f.customerDue===null?'<span class="acct-warning">Cần kiểm tra</span>':
+    '<b class="acct-money acct-customer-due">'+money(f.customerDue)+'</b>';
+   const gross=excluded?'<span class="acct-note">Không hạch toán</span>':
+    f.grossEstimate===null?'<span class="acct-warning">Chưa đủ giá vốn</span>':
+    '<b class="acct-money acct-gross-estimate">'+money(f.grossEstimate)+'</b>'+
+    '<small class="block acct-note">Ước tính theo giá vốn</small>';
+   const ctv=f.ctvBasis==='ready'?
+    '<div><small>Lời CTV</small><b class="block acct-money acct-ctv-profit">'+money(r.profit)+
+    '</b><small>Còn trả CTV</small><b class="block acct-money acct-ctv-due">'+money(r.due)+'</b></div>':
+    f.ctvBasis==='unassigned'?'<span class="acct-note">Chưa gắn CTV · không phải 0đ tiền bill</span>':
+    f.ctvBasis==='excluded'?'<span class="acct-note">Bill đối chiếu / không tính</span>':
+    '<span class="acct-warning">Chưa xác định lời CTV · cần đối chiếu</span>';
+   return '<tr><td><strong>#'+esc(o.invoiceNo)+' · '+esc(o.name)+'</strong>'+
+    '<br><small>'+esc(o.location)+'</small>'+
+    (r.secondary?'<p class="acct-note">Bill thấp đối chiếu; không cộng lặp doanh thu</p>':'')+
+    (r.review?'<p class="acct-warning">Cần kiểm tra nhóm trùng</p>':'')+'</td>'+
+    '<td>'+bill+'</td>'+
+    '<td><span class="'+C.statusClass({status:r.customerPaid?'Đã thanh toán':'Chưa thanh toán'})+
+    '">'+(r.customerPaid?'Khách đã TT':'Khách chưa TT')+'</span><br>'+
+    '<span class="'+C.statusClass({status:r.satoriPaid?'Đã TT Satori':'Chưa thanh toán'})+
+    '">'+(r.satoriPaid?'Đã TT Satori':'Chưa ghi TT Satori')+'</span></td>'+
+    '<td>'+customerDue+'</td>'+
+    '<td>'+gross+'</td>'+
+    '<td><select data-partner-order="'+esc(C.key(o))+
+    '" class="rc-input" aria-label="Cộng tác viên hóa đơn '+esc(o.invoiceNo)+'">'+
+    partnerOptions(r.partnerId)+'</select></td>'+
+    '<td title="'+esc(r.basis)+'">'+ctv+'</td>'+
+    '<td><button data-receipt-order="'+esc(C.key(o))+
+    '" class="text-cyan-300 underline">Upload / xem ('+(o.paymentReceipts?.length||0)+
+    ')</button><br>'+(f.ctvBasis==='ready'?
+    '<button data-settle-order="'+esc(C.key(o))+
+    '" class="text-emerald-300 underline">Ghi đã trả CTV</button>':
+    '<small class="acct-note">Chỉ ghi trả khi đã xác minh CTV</small>')+'</td></tr>';
+  }).join('')+'</tbody></table>';
+ $('acct-orders').querySelectorAll('[data-partner-order]').forEach(b=>b.onchange=()=>assign(b.dataset.partnerOrder,b.value));
+ $('acct-orders').querySelectorAll('[data-receipt-order]').forEach(b=>b.onclick=()=>receiptForm(b.dataset.receiptOrder));
+ $('acct-orders').querySelectorAll('[data-settle-order]').forEach(b=>b.onclick=()=>settlement(b.dataset.settleOrder));
+}
 function filteredOrders(){return orders.filter(o=>{const q=$('searchInput')?.value||'',st=$('filterStatus')?.value||'all',customer=$('excelFilterCustomer')?.value||'all',name=C.norm($('excelFilterCustomerName')?.value);return (!q||matchOrderUniversal(o,q))&&(st==='all'||o.status===st)&&(customer==='all'||String(o.name||'').toLowerCase()===customer.toLowerCase())&&C.customerMatches(o,name)&&isOrderInDateRange(o.date,$('excelFilterFromDate')?.value||'',$('excelFilterToDate')?.value||'');});}
 async function exportWorkbook(filtered=true,reconciliation=null){try{if(reconciliation&&reconciliation.snapshot!==JSON.stringify(orders))throw Error('Dữ liệu đã thay đổi. Đối chiếu lại trước khi xuất báo cáo.');await SatoriWorkbook.download({reconciliation,orders:filtered?filteredOrders():orders,allOrders:orders,partners:registry(),catalogue,memory:getAIMemory(),scope:filtered?'Theo bộ lọc sổ kế toán':'Toàn bộ dữ liệu'});}catch(e){error(e);}}
 const previousRender=renderTable;renderTable=function(){previousRender();render();renderBulkBar();const m=model(),primary=m.rows.filter(r=>C.active(r.order)&&!r.secondary);for(const [id,value] of [['statTotalProfit',primary.reduce((s,r)=>s+getOrderProfit(r.order)-r.profit,0)],['statTotalRevenue',primary.reduce((s,r)=>s+C.total(r.order),0)],['statPaid',primary.filter(r=>r.customerPaid).reduce((s,r)=>s+C.total(r.order),0)],['statUnpaid',primary.filter(r=>!r.customerPaid).reduce((s,r)=>s+C.total(r.order),0)]])if($(id))$(id).textContent=money(value);};
