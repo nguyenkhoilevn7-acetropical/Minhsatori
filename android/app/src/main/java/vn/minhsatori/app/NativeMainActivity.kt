@@ -57,19 +57,19 @@ import com.google.android.gms.common.api.Scope
  * is configured and tested against a sandbox. No raw token or invoice stored.
  */
 class NativeMainActivity : AppCompatActivity() {
-    private val teal = Color.rgb(0, 122, 255)
-    private val dark = Color.rgb(28, 28, 30)
-    private val muted = Color.rgb(110, 110, 115)
-    private val pale = Color.rgb(242, 242, 247)
+    private val teal = Color.rgb(0, 156, 153)
+    private val dark = Color.rgb(16, 43, 56)
+    private val muted = Color.rgb(102, 121, 130)
+    private val pale = Color.rgb(241, 244, 245)
     private val gold = Color.rgb(175, 94, 0)
     private val white = Color.WHITE
     private var dashboardMode = false
-    private val ink = Color.rgb(28, 28, 30)
-    private val softInk = Color.rgb(110, 110, 115)
-    private val cyan = Color.rgb(0, 122, 255)
-    private val night = Color.rgb(242, 242, 247)
+    private val ink = Color.rgb(16, 43, 56)
+    private val softInk = Color.rgb(102, 121, 130)
+    private val cyan = Color.rgb(0, 156, 153)
+    private val night = Color.rgb(241, 244, 245)
     private val surface = Color.rgb(255, 255, 255)
-    private val indigo = Color.rgb(229, 239, 255)
+    private val indigo = Color.rgb(226, 246, 243)
     private var activeTab = 0
     private var showAdvancedOverview = false
     private var accessToken: String? = null
