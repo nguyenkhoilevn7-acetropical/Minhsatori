@@ -194,6 +194,13 @@ button:disabled{opacity:.55}
 <p class="hint">Để duyệt hết lịch sử, chọn từng tháng. Nếu trong một tháng nhiều hơn 100 bill, phải thu hẹp bằng tên hoặc số bill; kết quả không được coi là đầy đủ khi có cảnh báo.</p>
 <p><button id="liveFindCustomers" type="button" class="secondary">Tra điểm giao của khách theo tên/SĐT</button></p>
 <p id="liveStatus" class="hint" role="status" aria-live="polite">Chưa đọc dữ liệu thật.</p>
+<div class="card" aria-label="Theo dõi hóa đơn thật, chỉ đọc" style="background:#e7f7f4;border-color:#c7e7e1">
+ <strong>🔔 Theo dõi hóa đơn thật • chỉ đọc</strong>
+ <p class="hint">Theo dõi khi anh mở tab này. Lần tải đầu không phát chuông; hóa đơn mới sau đó mới được thông báo. Không tự thay đổi thanh toán.</p>
+ <button type="button" id="productionFeedRefresh" class="secondary">↻ Kiểm tra hóa đơn mới</button>
+ <p id="productionFeedStatus" class="hint" role="status" aria-live="polite">Chưa bắt đầu theo dõi.</p>
+ <div id="productionFeedRows" aria-label="Hóa đơn thật mới phát hiện"></div>
+</div>
 <div id="liveRows" aria-label="Kết quả hóa đơn hoặc khách hàng thật"></div>
 <details class="location-manager" id="screenPanel">
  <summary>👥 Khách quen &amp; chiết khấu • Chờ anh duyệt</summary>
@@ -1165,6 +1172,7 @@ function showAdminTab(name){
   const active=b.dataset.adminTab===name;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
  }
  if(name==='orders')refreshOrderInbox();
+ if(name==='live'&&secret)void pollRealOrderFeed();
  if(name==='settings')refreshVersionStatus();
  if(name==='ctv-ledger'&&secret&&!ctvCatalogueLoaded)void loadCtvLive();
  if(name==='issued-links'&&secret)void loadIssuedRecords(true);
@@ -1729,6 +1737,60 @@ let showAllOrderCards=false,mostRecentOrderList=[];
 let bellEnabled=false,orderAudio=null;
 const BASE_TITLE=document.title;
 const formatOrderTime=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}):'Không rõ giờ'};
+
+// Owner real-order feed: read-only HMAC-protected canonical source, separate
+// from the TEST-only /api/admin/new-orders route. No invoice writes or storage.
+let liveOrderBaseline=null, liveOrderFeedMonth='', liveOrderFeedBusy=false;
+async function pollRealOrderFeed(force=false){
+ if(!secret||$('workspace').hidden||liveOrderFeedBusy)return;
+ if(!force && document.querySelector('[data-tab-panel="live"][hidden]'))return;
+ const now=new Date();
+ const month=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+ if(liveOrderFeedMonth!==month){liveOrderFeedMonth=month;liveOrderBaseline=null}
+ liveOrderFeedBusy=true;
+ const btn=$('productionFeedRefresh');
+ btn.disabled=true;
+ try{
+  // Always restrict to one month and fail closed if the result is truncated;
+  // comparing partial pages can fabricate or miss "new" orders.
+  const data=await request('/api/admin/live-search?kind=invoices&month='+encodeURIComponent(month));
+  if(!data||!Array.isArray(data.invoices)||data.truncated){
+   $('productionFeedStatus').textContent='Cần thu hẹp dữ liệu tháng này; danh sách không đầy đủ nên đã tạm dừng cảnh báo.';
+   return;
+  }
+  const rows=data.invoices.filter(x=>Number.isSafeInteger(Number(x.invoiceNo))&&Number(x.invoiceNo)>0);
+  const current=new Set(rows.map(x=>String(x.invoiceNo)));
+  const additions=liveOrderBaseline===null?[]:rows.filter(x=>!liveOrderBaseline.has(String(x.invoiceNo)));
+  liveOrderBaseline=current;
+  $('productionFeedStatus').textContent='Sổ thật • revision '+data.revision+
+    ' • '+rows.length+' hóa đơn tháng '+month+(additions.length?' • '+additions.length+' hóa đơn mới':' • đã cập nhật');
+  if(additions.length){
+   const holder=$('productionFeedRows');
+   holder.replaceChildren();
+   for(const item of additions.slice(0,8)){
+    const line=document.createElement('p');
+    line.className='hint';
+    line.textContent='#'+item.invoiceNo+' • '+String(item.name||'Khách hàng')+
+      ' • '+money(Number(item.total||0))+'đ';
+    holder.append(line);
+   }
+   ringForNewOrder();
+   try{
+    if(bellEnabled&&typeof Notification!=='undefined'&&Notification.permission==='granted'){
+     new Notification('Minh Satori • '+additions.length+' hóa đơn thật mới',
+      {body:'#'+additions[0].invoiceNo+' • Mở quản trị để đối chiếu.',tag:'satori-real-owner-'+String(additions[0].invoiceNo)});
+    }
+   }catch{}
+  }
+ }catch(e){$('productionFeedStatus').textContent='Không đọc được sổ thật: '+e.message}
+ finally{liveOrderFeedBusy=false;btn.disabled=false}
+}
+$('productionFeedRefresh').onclick=()=>void pollRealOrderFeed(true);
+setInterval(()=>{
+ if(secret&&!$('workspace').hidden&&document.querySelector('[data-tab-panel="live"]:not([hidden])'))
+  void pollRealOrderFeed();
+},20000);
+
 function ringForNewOrder(){
  if(!bellEnabled)return;
  try{
