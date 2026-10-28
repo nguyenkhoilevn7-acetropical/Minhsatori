@@ -39,7 +39,7 @@ export async function probeCanonicalReadback({readOnlyReady,readMinhSatori,repor
   ]);
   if(known.has(e?.message))return emit(known.get(e.message));
   if(e?.name==='AbortError')return emit('FAIL_TIMEOUT');
-  if(/^READ_ONLY_UPSTREAM_HTTP_[345]\\d{2}$/.test(e?.message||''))
+  if(/^READ_ONLY_UPSTREAM_HTTP_[345]\d{2}$/.test(e?.message||''))
    return emit('FAIL_HTTP');
   return emit('FAIL_SIGNED_LOOKUP');
  }
