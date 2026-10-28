@@ -744,7 +744,7 @@ export async function handleAccountV2(req,res,pathname){
    }
    const committed=receipt.state==='COMMITTED';
    send(res,committed?200:receipt.state==='REJECTED'?409:202,{
-    ok:committed,submitted:committed,state:receipt.state,
+    ok:receipt.state!=='REJECTED',submitted:committed,state:receipt.state,
     requestId:input.requestId,
     ...(committed?{invoiceNo:receipt.invoiceNo}:{}),
     message:committed?'Đơn hàng đã ghi và đối soát với sổ Minh Satori.':
