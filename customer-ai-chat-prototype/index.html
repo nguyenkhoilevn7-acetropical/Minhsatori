@@ -848,6 +848,109 @@ body.production-gemini{--ios-blue:#0a6ce0;--ios-bg:#f5f6f8;--ios-ink:#172334;--i
  .production-gemini #productionGeminiApp .real-checkout-progress{animation:none}
 }
 
+/* SATORI FULL-UI REVIEW: Gemini original engine, transport, message IDs and order workflows intact */
+:root{color-scheme:light;--bg:#eaf0f7;--panel:#fff;--panel2:#eef5fd;--text:#20364b;
+ --muted:#5e7287;--line:#d0dfea;--blue:#0875e6;--green:#147c53;--yellow:#c18b34}
+body{background:linear-gradient(180deg,#e3f0ff,#ecf2f8 340px);color:var(--text)}
+.app{color:var(--text)}
+.top{background:linear-gradient(112deg,#d9ecff,#f1f8ff);border:1px solid #cbdfee;border-radius:17px;padding:12px}
+.logo{background:linear-gradient(135deg,#0877dc,#188dc2);box-shadow:0 3px 12px #1b69ad27}
+.brand p,.helper,.chat-head p,.footnote{color:#59738b}
+.card,.panel{background:linear-gradient(145deg,#fff,#f8fbff);border-color:#cfdfee;box-shadow:0 5px 18px #143e6312}
+.field label{color:#2c4c69}
+.field input,.field select,.value{background:#f5faff;color:#20364b;border-color:#d2e0ee}
+.btn,.chip{background:#e4f1ff;color:#185ca0;border-color:#c5deef}
+.btn.primary{background:linear-gradient(120deg,#0875e6,#1690d9);color:#fff}
+.chat-head{background:linear-gradient(110deg,#e7f3ff,#f9fcff);border-color:#d0e2f2}
+.bot{background:linear-gradient(130deg,#0876de,#15a4be);color:#fff}
+.messages{background:linear-gradient(180deg,#eef6ff,#fcfdff 200px)}
+.bubble.assistant{background:#e5eef7;color:#20364b;border:1px solid #d1dfea}
+.bubble.user{background:#0875e6;color:#fff;border:1px solid #0766c5}
+.bubble.note{background:#fff2dd;color:#946018;border-color:#efd5a9}
+.quote{background:linear-gradient(150deg,#fff,#eaf5ff);border-color:#c9dced;color:#20364b}
+.quote h3{color:#0b63b2}.quote .line span:first-child{color:#536d86}
+.quote .total{color:#147c53}.quote .small{color:#61788c}
+.composer{background:#eef5fd;border-color:#d1e1ee}
+.composer textarea{background:#fff;color:#1e354b;border-color:#bad4e9}
+.composer textarea:focus{border-color:#0875e6;outline:2px solid #b4d7fa}
+.production-gemini #productionGeminiApp .bubble.assistant{background:#e5eef7;color:#20364b}
+.production-gemini #productionGeminiApp .bubble.user{background:#0875e6;color:#fff}
+.production-gemini #productionGeminiApp .quick-cart,
+.production-gemini #productionGeminiApp .real-submitted-card{border-color:#cddfea;box-shadow:0 5px 17px #143e6315}
+@media print{body{background:#fff}.paper{background:#fff;color:#172232} .quote{box-shadow:none}}
+
+/* Reference 3+2 icon-led actions for the existing Gemini shell; no model changes. */
+.chat-head{flex-wrap:wrap}
+.chat-head>.catalog-launch-bar,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar{
+ display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;
+ width:100%;max-width:100%;flex-basis:100%;order:3;margin:8px 0 0;
+ background:#f8fbff;padding:8px;border:1px solid #d7e6f7;border-radius:18px
+}
+.chat-head>.catalog-launch-bar>button,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button{
+ grid-column:span 2;min-width:0;min-height:42px;border:1px solid #cbdef6;
+ background:#f2f7fd;color:#0963b8;border-radius:14px;font-size:12px;
+ font-weight:750;white-space:normal;line-height:1.2;padding:8px 4px
+}
+.chat-head>.catalog-launch-bar>button:nth-child(n+4),
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button:nth-child(n+4){grid-column:span 3}
+.chat-head>.catalog-launch-bar>button:first-child,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button:first-child{
+ background:#086de2;color:#fff;border-color:#086de2
+}
+.chat-head>.catalog-launch-bar>button[hidden],
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button[hidden]{display:none}
+#messages .quote,.production-gemini #productionGeminiApp .real-submitted-card{
+ border-radius:19px;border:1px solid #c9ddf3;background:#fff;
+ box-shadow:0 8px 22px #143d6614
+}
+#sendForm{background:#fff;border:1px solid #d4e3f1;border-radius:18px;padding:8px}
+#sendForm textarea{background:#fff;border:1px solid #cddbea;border-radius:15px}
+#sendForm>.btn.primary{background:#086ee3;border-radius:14px;font-weight:750}
+@media(max-width:400px){
+ .chat-head>.catalog-launch-bar>button,
+ .production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button{font-size:11px;padding:7px 2px}
+}
+
+/* END SATORI FULL-UI REVIEW */
+
+
+/* MONEY-MIND FLAT DESIGN — classic Gemini, no changes to parsing/transport */
+:root{color-scheme:light;--bg:#f1f4f5;--panel:#fff;--panel2:#eff7f6;--text:#102b38;--muted:#667a83;--line:#e2e9e9;--blue:#009c99;--green:#0c9568;--yellow:#d79819}
+body{background:#f1f4f5;color:#102b38}
+.app{color:#102b38}
+.top,.chat-head{background:#fff!important;border:1px solid #e1e9e9;box-shadow:none;border-radius:19px}
+.logo,.bot{background:#009c99;box-shadow:none}
+.card,.panel,.quote,.catalog-sheet,.history-sheet{background:#fff!important;border:1px solid #e2e9e9!important;border-radius:19px;box-shadow:none!important}
+.field input,.field select,.value{background:#f5f9f9;color:#17313d;border-color:#e1eaea;border-radius:13px}
+.btn,.chip{background:#e9f7f5;color:#087d7b;border-color:#d7eae6;border-radius:12px;box-shadow:none}
+.btn.primary{background:#009c99!important;color:#fff!important;border-color:#009c99!important;box-shadow:none}
+.messages{background:#f9fbfb}
+.bubble.assistant,.production-gemini #productionGeminiApp .bubble.assistant{background:#eef3f3!important;color:#18333e!important;border:0!important;box-shadow:none!important}
+.bubble.user,.production-gemini #productionGeminiApp .bubble.user{background:#009c99!important;color:#fff!important;border:0!important;box-shadow:none!important}
+.quote h3,.quote .total{color:#008b89}
+.composer{background:#fff;border:1px solid #e2e9e9;box-shadow:none}
+.composer textarea{background:#f5f9f9;color:#1c3543;border-color:#e0eaea}
+.chat-head>.catalog-launch-bar,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar{background:#fff;border:1px solid #e2eaea;border-radius:18px;box-shadow:none}
+.chat-head>.catalog-launch-bar>button,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button{background:#edf7f5!important;color:#176967!important;border:1px solid #dcebe8!important;border-radius:14px;box-shadow:none!important;min-height:45px}
+.chat-head>.catalog-launch-bar>button:first-child,
+.production-gemini #productionGeminiApp .chat-head>.catalog-launch-bar>button:first-child{background:#009c99!important;color:#fff!important;border-color:#009c99!important}
+.production-gemini #productionGeminiApp .quick-cart,
+.production-gemini #productionGeminiApp .real-submitted-card,
+.server-mode .quick-cart{background:#fff;border:1px solid #e2e9e9;box-shadow:none;border-radius:18px}
+#sendForm{background:#fff;border:1px solid #e1e9e9}
+#sendForm textarea{background:#f5f9f9;border-color:#e1e9e9}
+#sendForm>.btn.primary{background:#009c99!important}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #009c99}
+/* Invoice print/PDF CSS is deliberately unchanged by MoneyMind theme. */
+/* END MONEY-MIND FLAT DESIGN */
+
+
+/* Rounded-square SATORI identity, not circle */
+.brand-logo,.chat-satori-logo,.history-brand img{object-fit:cover;border-radius:15px}
 </style>
 </head>
 <body>
