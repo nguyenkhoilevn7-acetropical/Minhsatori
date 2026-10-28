@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 const html=fs.readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
 const router=fs.readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
 const backend=fs.readFileSync(new URL('../customer-backend.mjs',import.meta.url),'utf8');
@@ -47,4 +48,10 @@ test('registration is Google-authenticated, owner-approved, no passwords collect
  assert.doesNotMatch(html,/<input[^>]+type=["']password["']/);
  assert.doesNotMatch(html,/SATORI_BOT_SECRET|orders\.create|PDF_RENDER_SECRET/);
  assert.match(router,/REAL_CHECKOUT_GATE_NOT_VERIFIED/);
+});
+
+test('all inline owner admin JavaScript parses, even on a mobile browser',()=>{
+ const script=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+ assert.ok(script,'owner inline application exists');
+ assert.doesNotThrow(()=>new vm.Script(script,{filename:'owner-catalogue.html'}));
 });
