@@ -209,6 +209,9 @@ function drawCustomers(){
 async function loadCustomers(){
  if(!isOwner)return;
  const generation=++customerEpoch;
+ selectedAccountId=null;selectedProfileId=null;
+ byId('crmPolicyForm').hidden=true;
+ byId('crmDetails').textContent='Chọn một khách hàng đã đăng ký để xem.';
  byId('crmRefresh').disabled=true;crmStatus('Đang tải hồ sơ xác thực…');
  try{
   const data=await api('/api/v2/admin/customers');
