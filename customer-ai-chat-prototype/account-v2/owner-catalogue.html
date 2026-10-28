@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#f6f8fc"><title>Quản trị danh mục · Minh Satori V2</title>
+<meta name="theme-color" content="#f6f8fc"><title>Quản trị Minh Satori V2</title>
 <style>
 :root{color-scheme:light;--bg:#f6f8fc;--ink:#162b45;--sub:#526782;--line:#dce5ee;--blue:#0879ed;--pale:#e7f2ff}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -18,13 +18,26 @@ button:disabled{cursor:not-allowed;opacity:.45}button.secondary{background:var(-
 #notice{padding:12px;border-radius:12px;background:#f1f6fc;color:var(--ink);overflow-wrap:anywhere}#notice[data-kind="error"]{background:#fff3e8;color:#86510c}
 #notice[data-kind="success"]{background:#e7f8ed;color:#166637}
 .badge{font-size:13px;padding:4px 9px;border-radius:20px;background:var(--pale);color:#145c9d;display:inline-block}
-details{margin-top:13px;color:var(--sub);font-size:14px}details summary{cursor:pointer}
+details{margin-top:13px;color:var(--sub);font-size:14px}
+.crm-controls{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:14px 0}
+.crm-controls label{display:grid;gap:5px;flex:1;min-width:125px;font-size:14px;color:var(--sub)}
+.crm-controls input,.crm-controls select{width:100%;min-height:44px;padding:10px 12px;font:inherit;color:var(--ink);background:white;border:1px solid var(--line);border-radius:11px}
+.crm-entry{border:1px solid var(--line);border-radius:14px;padding:12px;margin:9px 0;display:grid;gap:5px}
+.crm-entry strong{font-size:16px}.crm-entry small{font-size:13px;color:var(--sub)}
+.crm-entry p{font-size:14px;margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+.crm-entry button{justify-self:start;margin-top:3px}
+.crm-tag{display:inline-block;border-radius:9px;background:#edf5fc;color:#174b77;padding:4px 8px;font-size:12px}
+#crmStatus[data-kind="error"]{color:#a02528}
+#crmStatus[data-kind="success"]{color:#166637}
+#crmCustomers{max-height:530px;overflow:auto}
+#crmDetails{margin-top:12px}
+details summary{cursor:pointer}
 [hidden]{display:none!important}
 @media(max-width:440px){main{padding:20px 13px 30px}.card{padding:18px}}
 </style></head>
 <body>
 <main>
-<header><a href="/app-v2" aria-label="Quay về ứng dụng đặt hàng">‹ Ứng dụng</a><span aria-hidden="true">/</span><div><div class="eyebrow">Backoffice · V2 độc lập</div><h1>Đồng bộ danh mục</h1></div></header>
+<header><a href="/app-v2" aria-label="Quay về ứng dụng đặt hàng">‹ Ứng dụng</a><span aria-hidden="true">/</span><div><div class="eyebrow">Backoffice · V2 độc lập</div><h1>Quản trị Minh Satori V2</h1></div></header>
 <section class="card" aria-label="Quyền truy cập">
  <span class="badge">Chỉ quản trị viên</span>
  <p>Dùng phiên Google Admin hiện tại. Không cần nhập lại API key, HMAC secret hoặc mật khẩu.</p>
@@ -48,6 +61,31 @@ details{margin-top:13px;color:var(--sub);font-size:14px}details summary{cursor:p
  <details><summary>Điều kiện đồng bộ an toàn</summary>
   <p>Backend cần bộ quyền đọc HMAC <code>catalogue:read</code> và danh mục chính thức đã được lưu trên Drive. Nút đồng bộ yêu cầu xác nhận của Admin, kiểm tra revision và xác minh dữ liệu sau khi ghi vào PostgreSQL V2. Không chuyển hóa đơn, công nợ hoặc hồ sơ khách hàng.</p>
  </details>
+</section>
+
+<section class="card" id="crmConsole" hidden aria-label="Quản trị khách hàng V2">
+ <h2>Khách hàng, đại lý và cộng tác viên</h2>
+ <p>Tài khoản Google đã xác thực và hồ sơ khách cũ đều quản lý tại V2. Không lưu hoặc hiển thị mật khẩu Google. Giá Gemini lấy từ cùng chính sách V2.</p>
+ <div class="crm-controls">
+  <label>Tìm khách hàng<input id="crmFilter" type="search" maxlength="90" placeholder="Tên, email hoặc số điện thoại"></label>
+  <button id="crmRefresh" class="secondary" type="button">↻ Tải danh sách</button>
+ </div>
+ <p id="crmStatus" role="status" aria-live="polite">Chưa tải danh sách.</p>
+ <div id="crmCustomers" aria-label="Danh sách khách hàng"></div>
+ <h2 style="margin-top:22px">Hồ sơ và địa chỉ giao hàng</h2>
+ <div id="crmDetails" aria-live="polite">Chọn một khách hàng đã đăng ký để xem.</div>
+ <form id="crmPolicyForm" hidden>
+  <h2 style="margin-top:20px">Cấp chiết khấu được duyệt</h2>
+  <p>Giá được hệ thống V2 tính theo hồ sơ / địa chỉ / sản phẩm. CTV dùng một hóa đơn khách hàng; không tự tạo bill nội bộ.</p>
+  <div class="crm-controls">
+   <label>Hồ sơ<select id="crmProfile" required></select></label>
+   <label>Chiết khấu (%)<input id="crmDiscount" type="number" min="0" max="100" step="0.01" required></label>
+   <label>Áp dụng địa chỉ<select id="crmAddress"></select></label>
+   <label>Áp dụng sản phẩm<select id="crmSku"></select></label>
+  </div>
+  <div class="actions"><button id="crmPolicySubmit" type="submit">Duyệt chính sách giá</button></div>
+  <p>Lưu ý: để trống địa chỉ/sản phẩm là chính sách mặc định toàn hồ sơ. Chính sách mới sẽ thay thế phiên bản hiệu lực cùng phạm vi; hóa đơn đã phát hành không bị sửa giá.</p>
+ </form>
 </section>
 <section class="card" id="denied" hidden>
  <h2>Chưa thể mở quản trị</h2>
@@ -107,12 +145,212 @@ byId('sync').addEventListener('click',async()=>{
   busy=false;await reload();state(message,kind);
  }
 });
+
+const customerRecord={registered:[],leads:[]};
+let selectedAccountId=null,selectedProfileId=null,customerEpoch=0,knownProducts=[];
+const make=(tag,value,cls)=>{
+ const item=document.createElement(tag);
+ if(cls)item.className=cls;
+ if(value!=null)item.textContent=String(value);
+ return item;
+};
+function crmStatus(text,kind='info'){
+ byId('crmStatus').textContent=text;byId('crmStatus').dataset.kind=kind;
+}
+const typeLabel=t=>({retail:'Khách hàng',agency:'Đại lý',collaborator:'CTV'})[t]||'Khách hàng';
+const pct=bps=>Number.isSafeInteger(Number(bps))
+ ?(Number(bps)/100).toLocaleString('vi-VN',{maximumFractionDigits:2})+'%':'—';
+function appendLine(parent,text,cls=''){
+ parent.append(make('p',text,cls));
+}
+function drawCustomers(){
+ if(!isOwner)return;
+ const term=byId('crmFilter').value.trim().toLocaleLowerCase('vi-VN');
+ const dest=byId('crmCustomers');dest.replaceChildren();
+ const current=customerRecord.registered.filter(x=>
+  [x.fullName,x.name,x.email,x.phone,x.companyName]
+   .some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(term)));
+ const old=customerRecord.leads.filter(x=>
+  [x.fullName,x.email,x.phone,x.companyName]
+   .some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(term)));
+ const group=make('h3','Đã đăng ký Google · '+current.length);dest.append(group);
+ if(!current.length)dest.append(make('p','Không có hồ sơ đăng ký khớp tìm kiếm.'));
+ for(const x of current){
+  const item=make('div',null,'crm-entry');
+  item.append(make('strong',x.fullName||x.name||'Chưa có tên'));
+  item.append(make('small',(x.email||'—')+' · '+(x.phone||'Chưa có điện thoại')));
+  item.append(make('span',(typeLabel(x.requestedType))+' · '+(x.accessStatus||'PENDING')+' · CK: '+pct(x.discountBps),'crm-tag'));
+  if(x.companyName)appendLine(item,'Công ty: '+x.companyName);
+  if(x.address)appendLine(item,'Địa chỉ đăng ký: '+x.address);
+  const b=make('button','Xem hồ sơ & chiết khấu');
+  b.type='button';b.className='secondary';
+  b.onclick=()=>selectAccount(x);
+  item.append(b);
+  if(x.accessStatus==='PENDING'&&x.registrationRevision){
+   const approve=make('button','Duyệt đăng ký');
+   approve.type='button';
+   approve.onclick=()=>approveCustomer(x);
+   item.append(approve);
+  }
+  dest.append(item);
+ }
+ dest.append(make('h3','Khách cũ chưa liên kết tài khoản · '+old.length));
+ if(!old.length)dest.append(make('p','Không có hồ sơ cũ khớp tìm kiếm.'));
+ for(const x of old){
+  const item=make('div',null,'crm-entry');
+  item.append(make('strong',x.fullName||'Khách cũ'));
+  item.append(make('small',(x.email||'Chưa xác minh email')+' · '+(x.phone||'—')));
+  item.append(make('span',typeLabel(x.requestedType)+' · Chiết khấu dự kiến '+pct(x.discountBps),'crm-tag'));
+  if(x.address)appendLine(item,'Địa chỉ: '+x.address);
+  appendLine(item,x.linkedAccountId?'Đã liên kết với tài khoản đã xác minh.':'Chưa liên kết Google. Không tự cấp giá thực tế.');
+  dest.append(item);
+ }
+}
+async function loadCustomers(){
+ if(!isOwner)return;
+ const generation=++customerEpoch;
+ selectedAccountId=null;selectedProfileId=null;
+ byId('crmPolicyForm').hidden=true;
+ byId('crmDetails').textContent='Chọn một khách hàng đã đăng ký để xem.';
+ byId('crmRefresh').disabled=true;crmStatus('Đang tải hồ sơ xác thực…');
+ try{
+  const data=await api('/api/v2/admin/customers');
+  if(generation!==customerEpoch)return;
+  if(!Array.isArray(data.registered)||!Array.isArray(data.leads))throw Error('CUSTOMER_DATA_INVALID');
+  customerRecord.registered=data.registered;
+  customerRecord.leads=data.leads;
+  drawCustomers();crmStatus('Đã tải '+data.registered.length+' tài khoản và '+data.leads.length+' khách cũ.','success');
+ }catch(e){if(generation===customerEpoch)crmStatus('Không đọc được danh sách: '+e.message,'error')}
+ finally{byId('crmRefresh').disabled=false}
+}
+async function approveCustomer(x){
+ if(!isOwner||x.accessStatus!=='PENDING')return;
+ if(!confirm('Duyệt tài khoản '+(x.fullName||x.email)+' trở thành '+typeLabel(x.requestedType)+'? Chiết khấu mặc định 0%, cấp riêng sau.'))return;
+ try{
+  await api('/api/v2/admin/customers','PATCH',{
+   accountId:x.id,status:'ACTIVE',expectedRevision:x.revision,
+   discountBps:0,confirmed:true
+  });
+  crmStatus('Đã duyệt đăng ký; có thể chọn hồ sơ để cấp giá.','success');
+  await loadCustomers();
+ }catch(e){crmStatus('Không duyệt được hồ sơ: '+e.message,'error')}
+}
+async function loadProfilesFor(accountId,epoch){
+ const data=await api('/api/v2/admin/profiles?accountId='+encodeURIComponent(accountId));
+ if(!Array.isArray(data.profiles))throw Error('PROFILES_INVALID');
+ if(epoch!==customerEpoch||selectedAccountId!==accountId)return;
+ const select=byId('crmProfile');select.replaceChildren();
+ for(const x of data.profiles){
+  const option=make('option',x.name+' · '+typeLabel(x.type));
+  option.value=x.id;select.append(option);
+ }
+ byId('crmPolicyForm').hidden=!data.profiles.length;
+ selectedProfileId=data.profiles[0]?.id||null;
+ if(selectedProfileId)await loadProfileDetails(selectedProfileId,epoch);
+ else byId('crmDetails').textContent='Tài khoản chưa được quản trị duyệt để tạo hồ sơ.';
+}
+async function loadProfileDetails(profileId,epoch){
+ if(!isOwner||!selectedAccountId||!profileId)return;
+ selectedProfileId=profileId;
+ const dest=byId('crmDetails');
+ dest.textContent='Đang tải địa chỉ và chính sách…';
+ try{
+  const [a,p]=await Promise.all([
+   api('/api/v2/admin/addresses?profileId='+encodeURIComponent(profileId)),
+   api('/api/v2/admin/policies?profileId='+encodeURIComponent(profileId))
+  ]);
+  if(epoch!==customerEpoch||selectedProfileId!==profileId)return;
+  if(!Array.isArray(a.addresses)||!Array.isArray(p.policies))throw Error('PROFILE_DETAILS_INVALID');
+  dest.replaceChildren();
+  dest.append(make('h3','Tất cả địa chỉ ('+a.addresses.length+')'));
+  for(const row of a.addresses){
+   const entry=make('div',null,'crm-entry');
+   entry.append(make('strong',(row.label||'Địa chỉ')+(row.active?'':' · Ngừng sử dụng')));
+   appendLine(entry,(row.recipientName||'—')+' · '+(row.recipientPhone||'—'));
+   appendLine(entry,row.address||'—');dest.append(entry);
+  }
+  if(!a.addresses.length)dest.append(make('p','Chưa có địa chỉ.'));
+  dest.append(make('h3','Lịch sử chính sách ('+p.policies.length+')'));
+  for(const row of p.policies){
+   const entry=make('div',null,'crm-entry');
+   entry.append(make('strong',pct(row.discountBps)+' · '+(row.enabled?'Đang áp dụng':'Ngưng')));
+   appendLine(entry,'Phiên bản '+row.version+' · '+(row.productCode||'Toàn bộ sản phẩm'));
+   appendLine(entry,'Địa chỉ: '+(a.addresses.find(x=>x.id===row.addressId)?.label|| (row.addressId?'Địa chỉ đã lưu':'Tất cả điểm giao')));
+   dest.append(entry);
+  }
+  if(!p.policies.length)dest.append(make('p','Chưa có chiết khấu riêng. Giá niêm yết được áp dụng.'));
+  const addressSelect=byId('crmAddress');addressSelect.replaceChildren();
+  const all=make('option','Tất cả địa chỉ');all.value='';addressSelect.append(all);
+  for(const row of a.addresses.filter(x=>x.active)){
+   const o=make('option',row.label+' · '+row.recipientName);
+   o.value=row.id;addressSelect.append(o);
+  }
+ }catch(e){if(epoch===customerEpoch)dest.textContent='Không tải được hồ sơ: '+e.message}
+}
+async function selectAccount(customer){
+ if(!isOwner||!customer?.id)return;
+ selectedAccountId=customer.id;selectedProfileId=null;
+ const epoch=++customerEpoch;
+ byId('crmPolicyForm').hidden=true;
+ byId('crmDetails').textContent='Đang đọc hồ sơ '+(customer.fullName||customer.name||'')+'…';
+ await loadProfilesFor(customer.id,epoch).catch(e=>{
+  if(epoch===customerEpoch)byId('crmDetails').textContent='Không tải được hồ sơ: '+e.message;
+ });
+}
+byId('crmFilter').addEventListener('input',drawCustomers);
+byId('crmRefresh').addEventListener('click',loadCustomers);
+byId('crmProfile').addEventListener('change',()=>{
+ const id=byId('crmProfile').value;
+ const epoch=customerEpoch;
+ if(id)void loadProfileDetails(id,epoch);
+});
+byId('crmPolicyForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ if(!isOwner||!selectedAccountId||!selectedProfileId)return;
+ const value=Number(byId('crmDiscount').value),bps=Math.round(value*100);
+ if(!Number.isFinite(value)||!Number.isSafeInteger(bps)||value<0||value>100||
+    Math.abs(value*100-bps)>1e-7){
+  return crmStatus('Chiết khấu không hợp lệ. Tối đa hai số lẻ.','error');
+ }
+ const profileId=selectedProfileId,addressId=byId('crmAddress').value||null;
+ const productCode=byId('crmSku').value||null;
+ const target=customerRecord.registered.find(x=>x.id===selectedAccountId);
+ const msg='Xác nhận chiết khấu '+value.toLocaleString('vi-VN')+'% cho '+
+  (target?.fullName||target?.email||'khách hàng')+
+  (addressId?' tại địa chỉ đã chọn':' tại mọi địa chỉ')+
+  (productCode?' cho mã '+productCode:' cho mọi sản phẩm')+'?';
+ if(!confirm(msg))return;
+ const btn=byId('crmPolicySubmit');btn.disabled=true;
+ try{
+  await api('/api/v2/admin/policies','POST',{
+   confirmed:true,profileId,addressId,productCode,
+   invoiceMode:'single',discountBps:bps
+  });
+  crmStatus('Đã lưu chính sách giá có phiên bản mới. Gemini và Web V2 sử dụng cùng công thức giá.','success');
+  await loadProfileDetails(profileId,customerEpoch);
+ }catch(e){crmStatus('Không thể cấp chính sách: '+e.message,'error')}
+ finally{btn.disabled=false}
+});
+async function initCrm(){
+ byId('crmConsole').hidden=false;
+ try{
+  const data=await api('/api/v2/catalogue');
+  if(Array.isArray(data.items))knownProducts=data.items.filter(x=>/^TP-[0-9]{5}$/.test(x.code));
+  const sel=byId('crmSku');sel.replaceChildren();
+  const all=make('option','Tất cả sản phẩm');all.value='';sel.append(all);
+  for(const p of knownProducts){
+   const option=make('option',p.name+' · '+p.code);option.value=p.code;sel.append(option);
+  }
+ }catch(e){crmStatus('Không đọc được danh mục; chỉ có thể cấp giá chung.','error')}
+ await loadCustomers();
+}
+
 (async()=>{
  try{
   const me=await api('/api/v2/me');
   if(!me?.account?.isAdmin)throw Error('ADMIN_REQUIRED');
   isOwner=true;byId('authState').textContent='Đã xác thực quyền Admin.';
-  byId('console').hidden=false;await reload();
+  byId('console').hidden=false;await reload();await initCrm();
  }catch(e){
   byId('authState').textContent='Không có phiên Admin hợp lệ.';
   byId('denied').hidden=false;
