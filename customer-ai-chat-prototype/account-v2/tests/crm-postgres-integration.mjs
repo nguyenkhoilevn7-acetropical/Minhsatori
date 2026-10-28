@@ -1,9 +1,11 @@
 /* Dedicated PostgreSQL 16 CI account lifecycle. Synthetic users only. */
 import assert from 'node:assert/strict';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHmac} from 'node:crypto';
 import pg from 'pg';
 import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatus,
- adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer} from '../customer-backend.mjs';
+ adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer,
+ adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
+ legacyCustomerActivateLead} from '../customer-backend.mjs';
 
 const url=process.env.SATORI_V2_CI_DATABASE_URL||'';
 assert.ok(url.includes('127.0.0.1')&&url.endsWith('/satori_v2_ci'),
@@ -45,8 +47,17 @@ try{
  await assert.rejects(()=>adminLinkLead(pool,owner,{leadId:lead.lead.id,
   accountId:customer.id,expectedRevision:lead.lead.revision,confirmed:true}),
   /LEAD_REVISION_CONFLICT|LEAD_ALREADY_LINKED/);
+ await assert.rejects(()=>adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
+  expectedRevision:1,status:'ACTIVE',confirmed:true,discountBps:2500}),
+  /CUSTOMER_APPROVAL_REQUIRED_BEFORE_PRICING/);
+ const approved=await adminApproveRegistration(pool,owner,{accountId:customer.id,
+  expectedRevision:1,confirmed:true});
+ assert.equal(approved.revision,2);
+ assert.equal(approved.accessStatus,'PENDING','Review must not grant ordering before price');
+ await assert.rejects(()=>adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
+  expectedRevision:2,status:'ACTIVE',confirmed:true}),/DISCOUNT_INPUT_REQUIRED_AFTER_APPROVAL/);
  const activated=await adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
-  expectedRevision:1,status:'ACTIVE',confirmed:true,discountBps:2500});
+  expectedRevision:2,status:'ACTIVE',confirmed:true,discountBps:2500});
  assert.equal(activated.customer.accessStatus,'ACTIVE');
  assert.ok(activated.profileId);
  const addr=await one('SELECT count(*)::int AS count FROM satori_v2_addresses WHERE profile_id=$1',
@@ -57,14 +68,14 @@ try{
   'WHERE profile_id=$1 AND enabled=true ORDER BY version DESC LIMIT 1',[activated.profileId]);
  assert.equal(policy.discount,2500);
  const edited=await adminEditRegisteredCustomer(pool,owner,{
-  accountId:customer.id,expectedRevision:1,confirmed:true,
+  accountId:customer.id,expectedRevision:2,confirmed:true,
   ...form,fullName:'Fake Agency Updated',address:'Edited Registration Address'});
- assert.equal(edited.revision,2);
+ assert.equal(edited.revision,3);
  await assert.rejects(()=>adminEditRegisteredCustomer(pool,owner,{
   accountId:customer.id,expectedRevision:1,confirmed:true,...form}),
   /CUSTOMER_DETAILS_REVISION_CONFLICT/);
  await assert.rejects(()=>adminEditRegisteredCustomer(pool,owner,{
-  accountId:customer.id,expectedRevision:2,confirmed:true,
+  accountId:customer.id,expectedRevision:3,confirmed:true,
   ...form,email:'different@example.invalid'}),/VERIFIED_EMAIL_IMMUTABLE/);
  const list=await adminCustomerList(pool);
  const readback=list.registered.find(x=>x.id===customer.id);
@@ -84,18 +95,18 @@ try{
  await pool.query('INSERT INTO satori_v2_sessions(token_hash,csrf_hash,account_id,expires_at) '+
   "VALUES($1,$2,$3,now()+interval '1 day')",['a'.repeat(64),'b'.repeat(64),customer.id]);
  const blocked=await adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
-  expectedRevision:3,status:'SUSPENDED',confirmed:true});
+  expectedRevision:4,status:'SUSPENDED',confirmed:true});
  assert.equal(blocked.customer.accessStatus,'SUSPENDED');
  const sessions=await one('SELECT count(*)::int AS count FROM satori_v2_sessions WHERE account_id=$1',
   [customer.id]);assert.equal(sessions.count,0,'Suspension kills all sessions');
  const removed=await adminChangeCustomerStatus(pool,owner,{accountId:customer.id,
-  expectedRevision:4,status:'REMOVED',confirmed:true});
+  expectedRevision:5,status:'REMOVED',confirmed:true});
  assert.equal(removed.customer.accessStatus,'REMOVED');
  const allPolicies=await one('SELECT count(*)::int AS count FROM satori_v2_policies '+
   'WHERE profile_id=$1 AND enabled=true',[activated.profileId]);
  assert.equal(allPolicies.count,0,'Soft-removed client has no active discounted policy');
  const afterRemoval=await adminCustomerList(pool);
- assert.equal(afterRemoval.registered.find(x=>x.id===customer.id)?.discountBps,0,
+ assert.equal(afterRemoval.registered.find(x=>x.id===customer.id)?.discountBps,null,
   'Removed customer must not display an obsolete approved discount');
  const extra=await adminCreateLead(pool,owner.id,{...form,email:'',confirmed:true,discountBps:4500});
  const archived=await adminPatchLead(pool,owner.id,{
@@ -104,5 +115,75 @@ try{
  await assert.rejects(()=>adminPatchLead(pool,owner.id,{
   leadId:extra.lead.id,expectedRevision:extra.lead.revision,active:false,confirmed:true}),
   /LEAD_REVISION_CONFLICT/);
+ // Synthetic signed legacy ledger: the fetch stub never contacts Apps Script.
+ const prevFetch=globalThis.fetch;
+ const prevVars=Object.fromEntries(['SATORI_READ_ENDPOINT','SATORI_READ_KEY_ID','SATORI_READ_HMAC_SECRET']
+  .map(k=>[k,process.env[k]]));
+ const fakeEndpoint='https://script.google.com/macros/s/fake-legacy-crm-ci-only/exec';
+ const fakeKey='ci_read_key',fakeSecret='z'.repeat(40);
+ let invoices=[
+  {id:900001,invoiceNo:900001,date:'01/10/2026',name:'Old Test Buyer',
+   phone:'0911000000',location:'10 Synthetic A',status:'Chưa thanh toán',total:160000,
+   items:[{code:'TP-00001',product:'Satori 350ml',unit:'Thùng',qty:2,
+    unitPrice:80000,listPrice:100000}]},
+  {id:900002,invoiceNo:900002,date:'02/10/2026',name:'Old Test Buyer',
+   phone:'0911000000',location:'20 Synthetic B',status:'Đã thanh toán',total:80000,
+   items:[{code:'TP-00001',product:'Satori 350ml',unit:'Thùng',qty:1,
+    unitPrice:80000,listPrice:100000}]}
+ ];
+ try{
+  Object.assign(process.env,{SATORI_READ_ENDPOINT:fakeEndpoint,
+   SATORI_READ_KEY_ID:fakeKey,SATORI_READ_HMAC_SECRET:fakeSecret});
+  globalThis.fetch=async(url,options)=>{
+   assert.equal(url,fakeEndpoint);
+   const b=JSON.parse(options.body);
+   assert.equal(b.action,'orders.list');
+   const msg=[b.keyId,b.timestamp,b.nonce,b.action,JSON.stringify(b.payload)].join('\n');
+   assert.equal(b.signature,createHmac('sha256',fakeSecret).update(msg).digest('hex'));
+   return new Response(JSON.stringify({ok:true,action:b.action,revision:42,
+    data:{revision:42,totalMatches:invoices.length,orders:invoices}}),{status:200});
+  };
+  const matches=await legacyCustomerSearch('Old Test');
+  assert.equal(matches.orders.length,2);
+  assert.equal(matches.orders[0].items[0].estimatedDiscountPercent,20);
+  const oldAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+   "VALUES($1,'legacy-buyer@example.invalid','PENDING') RETURNING id,revision",
+   ['ci-legacy-'+randomUUID()]);
+  const shipping=[
+   {label:'Nhà',recipientName:'Old Test Buyer',recipientPhone:'0911000000',address:'10 Synthetic A'},
+   {label:'Văn phòng',recipientName:'Old Test Buyer',recipientPhone:'0911000000',address:'20 Synthetic B'}
+  ];
+  const input={query:'Old Test',sourceRevision:42,invoiceNos:[900001,900002],
+   fullName:'Old Test Buyer',phone:'0911000000',email:'legacy-buyer@example.invalid',
+   address:'10 Synthetic A',requestedType:'agency',discountBps:2000,addresses:shipping,
+   expectedAccountRevision:oldAccount.revision,confirmed:true,identityConfirmed:true};
+  const bound=await legacyCustomerImport(pool,owner,input);
+  assert.equal(bound.state,'ACTIVE');assert.equal(bound.addressesAdded,2);
+  const oldProfile=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[bound.profileId]);
+  assert.equal(oldProfile.type,'agency');
+  const policy=await one('SELECT discount_bps FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',
+   [bound.profileId]);assert.equal(policy.discount_bps,2000);
+  await assert.rejects(()=>legacyCustomerImport(pool,owner,input),/LEGACY_INVOICE_ALREADY_IMPORTED/);
+  invoices=invoices.map(x=>({...x,id:x.id+2,invoiceNo:x.invoiceNo+2}));
+  const pending=await legacyCustomerImport(pool,owner,{
+   ...input,invoiceNos:[900003,900004],email:'waiting-legacy@example.invalid',
+   expectedAccountRevision:null});
+  assert.equal(pending.state,'WAITING_FOR_GMAIL');assert.equal(pending.addressesStaged,2);
+  const newGoogle=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+   "VALUES($1,'waiting-legacy@example.invalid','PENDING') RETURNING id,revision",
+   ['ci-waiting-'+randomUUID()]);
+  const lead=await one('SELECT revision FROM satori_v2_customer_leads WHERE id=$1',[pending.leadId]);
+  const linked=await legacyCustomerActivateLead(pool,owner,{leadId:pending.leadId,
+   expectedRevision:lead.revision,expectedAccountRevision:newGoogle.revision,
+   confirmed:true,identityConfirmed:true});
+  assert.equal(linked.state,'ACTIVE');assert.equal(linked.addressesAdded,2);
+  const linkedAccount=await one('SELECT access_status FROM satori_v2_accounts WHERE id=$1',[newGoogle.id]);
+  assert.equal(linkedAccount.access_status,'ACTIVE');
+ }finally{
+  globalThis.fetch=prevFetch;
+  for(const [k,v] of Object.entries(prevVars))if(v===undefined)delete process.env[k];
+  else process.env[k]=v;
+ }
+
  console.log('PASS separate PostgreSQL customer signup/full fields, manual legacy link, Admin approval/discount, CAS suspension and removal, session invalidation, soft archive, no passwords');
 }finally{await pool.end()}

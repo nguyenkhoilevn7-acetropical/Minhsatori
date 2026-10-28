@@ -47,3 +47,5 @@ export const publicCustomerFields=Object.freeze([
  'id','email','name','fullName','phone','address','companyName','taxCode',
  'note','requestedType','accessStatus','revision','createdAt','updatedAt'
 ]);
+
+// Account approval and pricing confirmation are separate owner actions.

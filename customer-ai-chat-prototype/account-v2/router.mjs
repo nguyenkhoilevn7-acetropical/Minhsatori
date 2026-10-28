@@ -24,7 +24,9 @@ import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
- adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead} from './customer-backend.mjs';
+ adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead,
+ adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
+ legacyCustomerActivateLead} from './customer-backend.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -126,7 +128,9 @@ async function auth(req,pool){
  const raw=cookies(req).satori_v2_session;
  error(typeof raw==='string'&&/^[a-f0-9]{64}$/.test(raw),'LOGIN_REQUIRED',401);
  const r=await pool.query(
-  'SELECT a.id,a.google_sub,a.email,a.display_name,a.access_status,s.csrf_hash FROM satori_v2_sessions s '+
+  'SELECT a.id,a.google_sub,a.email,a.display_name,a.access_status,s.csrf_hash, '+
+  'EXISTS(SELECT 1 FROM satori_v2_registrations reg WHERE reg.account_id=a.id '+
+  'AND reg.reviewed_at IS NOT NULL) AS "approvedForPricing" FROM satori_v2_sessions s '+
   'JOIN satori_v2_accounts a ON a.id=s.account_id WHERE s.token_hash=$1 AND s.expires_at>now()',
   [sha(raw)]);
  error(r.rows.length===1,'SESSION_EXPIRED',401);
@@ -151,7 +155,8 @@ async function profileFor(pool,actor,profileId){
  return r.rows[0];
 }
 function publicUser(actor){return {id:actor.id,email:actor.email,name:actor.display_name,
- accessStatus:actor.access_status,isAdmin:actor.google_sub===config().ownerGoogleSub}}
+ accessStatus:actor.access_status,isAdmin:actor.google_sub===config().ownerGoogleSub,
+ approvedForPricing:actor.approvedForPricing===true}}
 async function login(req,res,pool){
  enforceOrigin(req);
  const input=await json(req);
@@ -422,6 +427,23 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/register'&&req.method==='POST'){
    send(res,200,await registrationSave(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/customers/approve'&&req.method==='POST'){
+   owner(actor);
+   send(res,200,await adminApproveRegistration(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/legacy/search'&&req.method==='GET'){
+   owner(actor);
+   const q=new URL(req.url,'http://local').searchParams.get('query');
+   send(res,200,await legacyCustomerSearch(q));return true;
+  }
+  if(pathname==='/api/v2/admin/legacy/import'&&req.method==='POST'){
+   owner(actor);
+   send(res,200,await legacyCustomerImport(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/legacy/activate'&&req.method==='POST'){
+   owner(actor);
+   send(res,200,await legacyCustomerActivateLead(pool,actor,await json(req)));return true;
   }
   if(pathname==='/api/v2/admin/customers'&&req.method==='GET'){
    owner(actor);send(res,200,await adminCustomerList(pool));return true;
