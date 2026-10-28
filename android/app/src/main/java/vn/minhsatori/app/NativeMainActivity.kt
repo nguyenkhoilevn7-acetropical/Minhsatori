@@ -616,10 +616,10 @@ class NativeMainActivity : AppCompatActivity() {
         val brandLogo = ImageView(this).apply {
             setImageResource(R.drawable.satori_invoice_logo)
             scaleType = ImageView.ScaleType.CENTER_CROP
-            background = background(Color.WHITE, 19)
+            background = background(Color.WHITE, 12)
             setPadding(0, 0, 0, 0)
             clipToOutline = true
-            contentDescription = "Logo Minh Satori hình tròn"
+            contentDescription = "Logo Minh Satori vuông bo góc"
         }
         brand.addView(brandLogo, LinearLayout.LayoutParams(dp(38), dp(38)))
         val brandText = LinearLayout(this).apply {
