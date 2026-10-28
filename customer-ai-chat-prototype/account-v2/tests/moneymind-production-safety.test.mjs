@@ -19,9 +19,9 @@ test('MoneyMind visual shell keeps its reviewed V2 Gemini-only business delta',(
  // Pixel styling/markup outside the inline script remain byte-identical.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const fnvPart=x=>fnv32(x);
- assert.equal(fnvPart(v2.match(/<style>[\\s\\S]*?<\\/style>/)?.[0]||''),'e12664a3');
- assert.equal(fnvPart(v2.replace(/<script>[\\s\\S]*?<\\/script>/,'<script/>')),'ba3234a5');
- assert.match(v2,/result\\.baseCartRevision!==cartRev/);
+ assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'e12664a3');
+ assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'ba3234a5');
+ assert.match(v2,/result\.baseCartRevision!==cartRev/);
  for(const [file,expected,nav] of files){
   const html=fs.readFileSync(path.join(root,file),'utf8');
   assert.equal(fnv32(businessOnly(html)),expected,file+' existing business source unexpectedly changed');
