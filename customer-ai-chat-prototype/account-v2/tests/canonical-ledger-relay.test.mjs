@@ -84,8 +84,12 @@ test('10+2+3 V2 quote maps exact validated pricing, note and recipient; no AI pr
  assert.equal(intent.order.deliveryNote,quote.deliveryRequest.deliveryNote);
  assert.equal(intent.confirmedNewCustomer,true);
  assert.equal(intent.customerRef,undefined);
+ const ctv=prepareLedgerIntent({quote:{...quote,invoiceMode:'pair',
+  internalReference:{totalVnd:810000}},requestId,expectedRevision:176});
+ assert.equal(ctv.order.total,quote.totalVnd);
+ assert.equal(ctv.order.items.length,3);
+ assert.equal(ctv.order.internalReference,undefined);
  for(const invalid of [
-  {...quote,invoiceMode:'pair'},
   {...quote,totalVnd:1000000},
   {...quote,items:[{...quote.items[0],lineTotal:1}]},
   {...quote,items:[{...quote.items[0],unitPrice:130000}]},
@@ -142,6 +146,11 @@ test('HMAC writer is always distinct from catalogue reader and completely disabl
  assert.doesNotMatch(source,/console\.log|localStorage|orders\.create\.ai|process\.env/);
  const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
  assert.match(router,/REAL_CHECKOUT_GATE_NOT_VERIFIED/);
- assert.doesNotMatch(router,/from '\.\/canonical-ledger-relay\.mjs'/,
-  'source is intentionally unwired until V2 durable request journal and approvals');
+ assert.match(router,/from '\.\/canonical-ledger-relay\.mjs'/);
+ assert.match(router,/SATORI_ACCOUNT_V2_REAL_CHECKOUT_ENABLED/);
+ assert.match(source,/SATORI_V2_CANONICAL_WRITES_ENABLED/);
+ assert.match(router,/error\(realCheckoutConfigured\(\),'REAL_CHECKOUT_GATE_NOT_VERIFIED',503\)/);
+ assert.match(router,/verifyLiveLockedQuote/);
+ assert.match(router,/reserveCanonicalCheckout/);
+ assert.match(router,/reconcileCanonicalCheckout/);
 });

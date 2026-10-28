@@ -744,7 +744,7 @@ function rememberDeliveryRequest(value){
  renderCartBuyer();
  return true;
 }
-let lastQuote=null,lastTestRequestId=null,realTestEnabled=false,lastSubmittedCartKey='';
+let lastQuote=null,lastTestRequestId=null,realTestEnabled=false,realCheckoutEnabled=false,lastSubmittedCartKey='';
 let deliverySelectionProfileId=null;
 let cartPricing=null,cartPricingKey='',cartPricingErrorKey='',cartPricingLoadingKey='',cartPricingEpoch=0;
 const money=n=>new Intl.NumberFormat('vi-VN').format(n||0)+'đ';
@@ -1570,7 +1570,7 @@ function updateDeliveryGate(){
  const key=pricingContextKey();
  $('submitTestOrder').disabled=!ready||!cart.length||busy||writing||
   !key||cartPricingKey!==key||!cartPricing||
-  key===lastSubmittedCartKey||(!PREVIEW&&!realTestEnabled);
+  key===lastSubmittedCartKey||(!PREVIEW&&!realTestEnabled&&!realCheckoutEnabled);
  return ready;
 }
 function requireDeliverySelection(){
@@ -1735,6 +1735,26 @@ async function loadOrders(){
    o.state==='UNCERTAIN'?'Đang kiểm tra giao dịch':'Chưa phát hành hóa đơn';
   const id=verified?'#'+o.invoiceNo:'Yêu cầu '+String(o.requestId).slice(0,8);
   info.append(node('strong',id),node('small',status+' · '+money(Number(o.totalVnd)||0)));
+  const details=node('details',undefined,'order-details');
+  const title=node('summary','Xem sản phẩm đã đặt');
+  details.append(title);
+  for(const line of Array.isArray(o.items)?o.items:[]){
+   details.append(node('div',String(line.name||line.code||'Sản phẩm')+
+    ' × '+String(line.qty||0)+' · '+money(Number(line.lineTotal)||0),'muted'));
+  }
+  if(o.delivery?.address)details.append(node('small',
+   'Giao: '+o.delivery.address,'muted'));
+  if(o.deliveryRequest?.deliveryNote)details.append(node('small',
+   'Ghi chú: '+o.deliveryRequest.deliveryNote,'muted'));
+  if(Array.isArray(o.items)&&o.items.length)info.append(details);
+  if(['UNCERTAIN','RELAY_PENDING'].includes(o.state)&&realCheckoutEnabled){
+   const check=node('button','Đối soát','btn');check.type='button';
+   check.onclick=async()=>{try{
+    await call('/api/v2/orders/reconcile',{requestId:o.requestId});
+    await loadOrders();
+   }catch(e){toast(e.message)}};
+   info.append(check);
+  }
   if(verified&&o.receipt){
    const open=node('button','Xem receipt','btn');
    open.type='button';open.setAttribute('aria-label','Xem biên nhận hóa đơn #'+o.receipt.invoiceNo+' trong Gemini');
@@ -1866,18 +1886,18 @@ $('addressForm').onsubmit=async ev=>{
 // Show a polished, clearly NON-FISCAL order confirmation with the same
 // Satori logo used by the app. Official invoices/PDF remain source-of-truth
 // documents produced by the original signed ledger, never by V2 preview.
-function renderTestInvoice(quote,result){
+function renderTestInvoice(quote,result,live=false){
  const wrap=$('testInvoicePreview');wrap.replaceChildren();
  const brand=node('div',undefined,'test-invoice-brand');
  const logo=document.querySelector('.brand .satori-logo');
  if(logo)brand.append(logo.cloneNode(true));
  const brandText=node('div');
  brandText.append(node('strong','MINH SATORI'),
-  node('span','Xác nhận đơn hàng · giao diện mẫu'));
+  node('span',live?'Xác nhận đơn đã ghi sổ Minh Satori':'Xác nhận đơn hàng · giao diện mẫu'));
  brand.append(brandText);
- wrap.append(brand,node('h3','PHIẾU XÁC NHẬN ĐƠN THỬ','test-invoice-title'));
+ wrap.append(brand,node('h3',live?'ĐƠN HÀNG ĐÃ XÁC NHẬN':'PHIẾU XÁC NHẬN ĐƠN THỬ','test-invoice-title'));
  const detail=node('div',undefined,'test-invoice-details');
- detail.append(node('div','Mã đơn thử: '+String(result.orderId).slice(0,8)),
+ detail.append(node('div',live?'Hóa đơn số: #'+result.invoiceNo:'Mã đơn thử: '+String(result.orderId).slice(0,8)),
   node('div','Ngày: '+new Intl.DateTimeFormat('vi-VN',{dateStyle:'short',timeStyle:'short'}).format(new Date())),
   node('div','Người nhận: '+String(quote.delivery?.recipientName||'—')),
   node('div','Điện thoại: '+String(quote.delivery?.recipientPhone||'—')),
@@ -1913,7 +1933,7 @@ function renderTestInvoice(quote,result){
   totals.append(row);
  }
  wrap.append(totals,node('p',
-  'ĐƠN THỬ · KHÔNG PHẢI HÓA ĐƠN CHÍNH THỨC · KHÔNG PHÁT SINH THANH TOÁN. Hóa đơn PDF thật chỉ được xuất từ sổ Minh Satori sau khi hệ thống xác nhận phát hành.',
+  live?'Đã ghi và đối soát với sổ Minh Satori. Gemini lưu lịch sử đặt hàng; PDF chính thức được xử lý ở website và ứng dụng quản trị.':'ĐƠN THỬ · KHÔNG PHẢI HÓA ĐƠN CHÍNH THỨC · KHÔNG PHÁT SINH THANH TOÁN. Hóa đơn PDF thật chỉ được xuất từ sổ Minh Satori sau khi hệ thống xác nhận phát hành.',
   'test-invoice-notice'));
  wrap.hidden=false;
 }
@@ -1923,9 +1943,10 @@ $('submitTestOrder').onclick=async()=>{
  document.activeElement?.blur?.();
  if(busy||savingCart||!cart.length)return;
  if(!requireDeliverySelection())return;
- if(!PREVIEW&&!realTestEnabled){
+ if(!PREVIEW&&!realTestEnabled&&!realCheckoutEnabled){
   toast('Đặt hàng thật chưa được kích hoạt.');return;
  }
+ const live=!PREVIEW&&realCheckoutEnabled;
  const key=pricingContextKey();
  if(!key||key===lastSubmittedCartKey){
   toast('Giỏ hàng này đã gửi hoặc không còn hợp lệ.');return;
@@ -1933,13 +1954,15 @@ $('submitTestOrder').onclick=async()=>{
  if(cartPricingKey!==key||!cartPricing){
   toast('Đang kiểm tra giá và chiết khấu.');renderCart();return;
  }
- if(!confirm('Xác nhận Submit order THỬ? Không giao hàng, không thanh toán và không tạo hóa đơn thật.'))return;
+ if(!confirm(live?'Xác nhận gửi đơn hàng THẬT về Minh Satori? Đơn sẽ được ghi sổ và chuyển đến quản trị.':
+  'Xác nhận Submit order THỬ? Không giao hàng, không thanh toán và không tạo hóa đơn thật.'))return;
  const priceShown=cartPricing;
  $('submitTestOrder').disabled=true;
- $('testOrderResult').textContent='Đang kiểm tra giá và lưu đơn thử…';
+ $('testOrderResult').textContent=live?'Đang kiểm tra giá và gửi đơn về sổ Minh Satori…':'Đang kiểm tra giá và lưu đơn thử…';
  try{
-  const q=await call('/api/v2/quote',{profileId:$('profile').value,
-   addressId:selectedDeliveryAddress().id,deliveryRequest:activeDeliveryRequest()});
+  const q=lastQuote&&lastTestRequestId&&new Date(lastQuote.expiresAt).getTime()>Date.now()?
+   lastQuote:await call('/api/v2/quote',{profileId:$('profile').value,
+    addressId:selectedDeliveryAddress().id,deliveryRequest:activeDeliveryRequest()});
   // Never submit silently after an admin price/policy change.
   if(q.totalVnd!==priceShown.totalVnd||q.goodsVnd!==priceShown.goodsVnd||
    q.shippingVnd!==priceShown.shippingVnd||q.vatVnd!==priceShown.vatVnd||
@@ -1950,18 +1973,29 @@ $('submitTestOrder').onclick=async()=>{
   }
   lastQuote=q;
   if(!lastTestRequestId)lastTestRequestId=crypto.randomUUID();
-  const result=await call('/api/v2/test-orders',{quoteId:q.quoteId,
-   requestId:lastTestRequestId,confirmedTest:true});
+  const result=live?
+   await call('/api/v2/confirm',{quoteId:q.quoteId,
+    requestId:lastTestRequestId,confirmed:true}):
+   await call('/api/v2/test-orders',{quoteId:q.quoteId,
+    requestId:lastTestRequestId,confirmedTest:true});
+  if(live&&result.state!=='COMMITTED'){
+   $('testOrderResult').textContent='⚠ Chưa xác minh được hóa đơn. KHÔNG đặt lại đơn mới. Mã yêu cầu: '+
+    lastTestRequestId+'. Hãy vào Lịch sử để kiểm tra hoặc liên hệ quản trị.';
+   await loadOrders();
+   return;
+  }
   lastSubmittedCartKey=key;
-  renderTestInvoice(q,result);
-  $('testOrderResult').textContent='✓ Đã nhận ĐƠN THỬ '+String(result.orderId).slice(0,8)+
+  renderTestInvoice(q,result,live);
+  $('testOrderResult').textContent=live?
+   '✓ Đã gửi đơn thành công · Hóa đơn #'+result.invoiceNo+' · Đã đồng bộ sổ Minh Satori.':
+   '✓ Đã nhận ĐƠN THỬ '+String(result.orderId).slice(0,8)+
    ' · Không tạo hóa đơn thật hay phát sinh thanh toán.';
   lastQuote=null;
   await loadOrders();
-  toast('Đã gửi đơn thử; chưa tạo hóa đơn thật.');
+  toast(live?'Đơn hàng đã xác nhận trên sổ Minh Satori.':'Đã gửi đơn thử; chưa tạo hóa đơn thật.');
  }catch(e){
-  $('testOrderResult').textContent='Chưa lưu được đơn thử: '+e.message+
-   '. Có thể thử lại cùng yêu cầu; hệ thống kiểm tra chống trùng.';
+  $('testOrderResult').textContent=(live?'Chưa xác minh đơn thật: ':'Chưa lưu được đơn thử: ')+e.message+
+   '. Không tạo yêu cầu mới khi chưa đối soát; hệ thống giữ nguyên mã chống trùng.';
  }finally{updateDeliveryGate()}
 };
 async function addChatOrderReceipt(selection){
@@ -2598,6 +2632,7 @@ async function boot(){
   }
   const status=await call('/api/v2/status',undefined,'GET');
   pilot=!!status.enabled;realTestEnabled=status.testOrdersEnabled===true;
+  realCheckoutEnabled=status.realInvoicesEnabled===true;
   $('chatProviderStatus').textContent=status.geminiConfigured?'Gemini đã cấu hình · Minh Satori':'Gemini chưa cấu hình trên V2';
   if(!pilot){$('loginStatus').textContent='Pilot tài khoản chưa được cấu hình trên server. Hóa đơn và link hiện tại không đổi.';return}
   $('loginStatus').textContent=status.signupEnabled?

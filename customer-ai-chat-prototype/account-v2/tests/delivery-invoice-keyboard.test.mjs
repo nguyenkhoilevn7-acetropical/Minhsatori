@@ -36,8 +36,10 @@ test('chat send blurs the text area without auto-raising mobile keyboard',()=>{
 
 test('branded test confirmation cannot be confused with official issued invoice',()=>{
  assert.match(cart,/id="testInvoicePreview"[^>]+hidden/);
- assert.match(script,/function renderTestInvoice\(quote,result\)/);
- assert.match(script,/renderTestInvoice\(q,result\)/);
+ assert.match(script,/function renderTestInvoice\(quote,result,live=false\)/);
+ assert.match(script,/renderTestInvoice\(q,result,live\)/);
+ assert.match(script,/live\?'ĐƠN HÀNG ĐÃ XÁC NHẬN'/);
+ assert.match(script,/if\(live&&result\.state!=='COMMITTED'\)/);
  assert.match(script,/logo\.cloneNode\(true\)/);
  assert.match(script,/PHIẾU XÁC NHẬN ĐƠN THỬ/);
  assert.match(script,/KHÔNG PHẢI HÓA ĐƠN CHÍNH THỨC/);

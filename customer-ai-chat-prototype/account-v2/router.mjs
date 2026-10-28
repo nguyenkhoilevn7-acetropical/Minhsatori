@@ -20,6 +20,9 @@ import {acceptedSubjects} from './identity-rollout.mjs';
 import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
+import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
+import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
+ reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead} from './customer-backend.mjs';
 
@@ -27,7 +30,11 @@ const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
 const random=(size=32)=>crypto.randomBytes(size).toString('hex');
 const MAX_JSON=24_000;
-const STATUS={ok:true,version:'v2',legacyLinksUntouched:true,realInvoicesEnabled:false};
+const STATUS={ok:true,version:'v2',legacyLinksUntouched:true};
+function realCheckoutConfigured(){
+ if(process.env.SATORI_ACCOUNT_V2_REAL_CHECKOUT_ENABLED!=='1'||!readOnlyReady())return false;
+ try{ledgerRelayConfig(process.env);return true}catch{return false}
+}
 let poolPromise=null,googlePromise=null;
 class ApiError extends Error{
  constructor(code,status=400){super(code);this.code=code;this.status=status}
@@ -324,6 +331,48 @@ export async function interpret(pool,input){
  }
  return fallback;
 }
+
+/**
+ * Same transaction-scoped validation as /test-orders; no client-supplied
+ * price, policy, profile, recipient or ledger reference can authorize a write.
+ */
+async function verifyLiveLockedQuote(client,actor,q){
+ error(new Date(q.expires_at).getTime()>Date.now(),'QUOTE_EXPIRED',409);
+ await client.query('SELECT pg_advisory_xact_lock_shared($1,$2)',[20261025,2]);
+ const account=await client.query(
+  'SELECT access_status FROM satori_v2_accounts WHERE id=$1 FOR SHARE',[actor.id]);
+ error(account.rows[0]?.access_status==='ACTIVE','ACCOUNT_ACCESS_DISABLED',403);
+ const profile=await client.query(
+  'SELECT id,account_id AS "accountId",type FROM satori_v2_profiles '+
+  'WHERE id=$1 AND account_id=$2 FOR SHARE',[q.profile_id,actor.id]);
+ error(profile.rows.length===1,'QUOTE_PROFILE_STALE',409);
+ const addr=await client.query(
+  'SELECT id,profile_id AS "profileId",active,label,recipient_name AS "recipientName",'+
+  'recipient_phone AS "recipientPhone",address FROM satori_v2_addresses '+
+  'WHERE id=$1 AND profile_id=$2 FOR SHARE',[q.address_id,q.profile_id]);
+ error(addr.rows.length===1&&addr.rows[0].active===true,'QUOTE_ADDRESS_STALE',409);
+ const cart=await client.query(
+  'SELECT lines,revision FROM satori_v2_carts '+
+  'WHERE account_id=$1 AND profile_id=$2 FOR UPDATE',[actor.id,q.profile_id]);
+ error(cart.rows.length===1&&cart.rows[0].revision===q.cart_revision,
+  'QUOTE_CART_STALE',409);
+ const cat=await client.query(
+  'SELECT code,name,unit,list_price AS "listPrice",revision,active '+
+  'FROM satori_v2_catalogue WHERE active=true ORDER BY code');
+ error(cat.rows.length>0&&cat.rows.every(p=>p.revision===q.catalogue_revision),
+  'QUOTE_CATALOGUE_STALE',409);
+ const policies=await client.query(
+  'SELECT id,profile_id AS "profileId",address_id AS "addressId",'+
+  'product_code AS "productCode",discount_bps AS "discountBps",'+
+  'collaborator_bps AS "collaboratorBps",invoice_mode AS "invoiceMode",'+
+  'enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
+  'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[q.profile_id]);
+ assertCurrentQuote({snapshot:q.payload,accountId:actor.id,
+  profile:profile.rows[0],address:addr.rows[0],cart:cart.rows[0].lines,
+  catalogue:cat.rows.map(p=>({...p,listPrice:Number(p.listPrice)})),
+  policies:policies.rows,catalogueRevision:q.catalogue_revision});
+}
+
 export async function handleAccountV2(req,res,pathname){
  const page=pathname==='/app-v2'||pathname==='/app-v2/';
  const ownerPage=pathname==='/owner-v2'||pathname==='/owner-v2/';
@@ -342,11 +391,11 @@ export async function handleAccountV2(req,res,pathname){
    const result=configured?await storageReadiness():
     {connected:false,schemaReady:false,tableCount:0};
    send(res,200,{ok:true,service:'minh-satori-account-v2',
-    configured,...result,realInvoicesEnabled:false});
+    configured,...result,realInvoicesEnabled:realCheckoutConfigured()&&result.schemaReady===true});
    return true;
   }
   if(pathname==='/api/v2/status'&&req.method==='GET'){
-   send(res,200,{...STATUS,enabled:ready(),pilotOnly:!acceptedSubjects().customerRolloutReady,
+   send(res,200,{...STATUS,realInvoicesEnabled:ready()&&realCheckoutConfigured(),enabled:ready(),pilotOnly:!acceptedSubjects().customerRolloutReady,
     customerRolloutEnabled:ready()&&(signupOpen()||acceptedSubjects().customerRolloutReady),
     signupEnabled:ready()&&signupOpen(),
     testOrdersEnabled:ready()&&process.env.SATORI_ACCOUNT_V2_TEST_ORDERS_ENABLED==='1',
@@ -501,7 +550,9 @@ export async function handleAccountV2(req,res,pathname){
     'SELECT r.id,r.request_id AS "requestId",r.state, '+
     'CASE WHEN r.state=$2 THEN r.ledger_invoice_no ELSE NULL END AS "invoiceNo", '+
     'q.created_at AS "orderedAt",q.payload->>\'invoiceMode\' AS "invoiceMode", '+
-    'q.payload->>\'totalVnd\' AS "totalVnd",q.payload->>\'currency\' AS currency '+
+    'q.payload->>\'totalVnd\' AS "totalVnd",q.payload->>\'currency\' AS currency, '+
+    'q.payload->\'items\' AS items,q.payload->\'delivery\' AS delivery, '+
+    'q.payload->\'deliveryRequest\' AS "deliveryRequest" '+
     'FROM satori_v2_order_requests r JOIN satori_v2_quotes q ON q.id=r.quote_id '+
     'WHERE r.account_id=$1 AND q.account_id=$1 '+
     'ORDER BY q.created_at DESC LIMIT 50',[actor.id,'COMMITTED']);
@@ -662,9 +713,53 @@ export async function handleAccountV2(req,res,pathname){
    finally{client.release()}
   }
   if(pathname==='/api/v2/confirm'&&req.method==='POST'){
-   // Do not accept a pseudo-order that never reached the Satori ledger.
-   send(res,503,{ok:false,error:'REAL_CHECKOUT_GATE_NOT_VERIFIED',
-    message:'Hệ thống mới đang kiểm thử. Chưa gửi đơn thật; giỏ hàng vẫn được lưu.'});return true;
+   // Separate release gate and server-side writer key. Neither browser nor
+   // Gemini may select a client secret, a price, or an old customer invoice.
+   error(realCheckoutConfigured(),'REAL_CHECKOUT_GATE_NOT_VERIFIED',503);
+   const input=await json(req);
+   error(isUuid(input.quoteId)&&isUuid(input.requestId),'CHECKOUT_ID_INVALID');
+   error(input.confirmed===true,'CHECKOUT_CONFIRMATION_REQUIRED',403);
+   // The revision is obtained from the signed CANONICAL ledger, not a browser.
+   // On an ambiguous write we reconcile by this exact requestId only.
+   const status=await readMinhSatori('system.status',{});
+   error(Number.isSafeInteger(status.revision)&&status.revision>=1,
+    'CANONICAL_LEDGER_UNAVAILABLE',503);
+   let receipt;
+   try{
+    const reserved=await reserveCanonicalCheckout(pool,{
+     accountId:actor.id,quoteId:input.quoteId,requestId:input.requestId,
+     expectedRevision:status.revision
+    },(client,q)=>verifyLiveLockedQuote(client,actor,q));
+    const key={accountId:actor.id,requestId:input.requestId};
+    if(reserved.state==='COMMITTED'||reserved.state==='REJECTED')receipt=reserved;
+    else if(reserved.state==='UNCERTAIN'||reserved.state==='RELAY_PENDING')
+     receipt=await reconcileCanonicalCheckout(pool,key,{env:process.env,fetcher:fetch});
+    else receipt=await dispatchCanonicalCheckout(pool,key,{env:process.env,fetcher:fetch});
+   }catch(e){
+    if(typeof e.code==='string'&&e.code.startsWith('CHECKOUT_'))
+     throw new ApiError(e.code,409);
+    if(typeof e.code==='string'&&e.code.startsWith('LEDGER_'))
+     throw new ApiError('CANONICAL_LEDGER_UNAVAILABLE',503);
+    throw e;
+   }
+   const committed=receipt.state==='COMMITTED';
+   send(res,committed?200:receipt.state==='REJECTED'?409:202,{
+    ok:receipt.state!=='REJECTED',submitted:committed,state:receipt.state,
+    requestId:input.requestId,
+    ...(committed?{invoiceNo:receipt.invoiceNo}:{}),
+    message:committed?'Đơn hàng đã ghi và đối soát với sổ Minh Satori.':
+     receipt.state==='REJECTED'?'Đơn bị từ chối; vui lòng kiểm tra lại báo giá.':
+     'Chưa xác minh được hóa đơn. Không gửi đơn mới; hãy đối soát cùng mã yêu cầu.'
+   });return true;
+  }
+  if(pathname==='/api/v2/orders/reconcile'&&req.method==='POST'){
+   error(realCheckoutConfigured(),'REAL_CHECKOUT_GATE_NOT_VERIFIED',503);
+   const input=await json(req);
+   error(isUuid(input.requestId),'CHECKOUT_ID_INVALID');
+   const result=await reconcileCanonicalCheckout(pool,{
+    accountId:actor.id,requestId:input.requestId
+   },{env:process.env,fetcher:fetch});
+   send(res,200,{ok:true,...result});return true;
   }
   if(pathname==='/api/v2/admin/profiles'&&req.method==='POST'){
    owner(actor);const input=await json(req);

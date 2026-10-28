@@ -35,7 +35,8 @@ const sameIdentity=(a,b)=>{
 export function prepareLedgerIntent({requestId,expectedRevision,quote,customerRef=null}){
  need(rid(requestId),'LEDGER_REQUEST_ID_INVALID');
  need(Number.isSafeInteger(expectedRevision)&&expectedRevision>=1,'LEDGER_REVISION_REQUIRED');
- need(quote?.currency==='VND'&&quote.invoiceMode==='single'&&
+ // A CTV policy still yields ONE customer invoice. Internal margin stays in V2.
+ need(quote?.currency==='VND'&&['single','pair'].includes(quote.invoiceMode)&&
   typeof quote.profileId==='string'&&typeof quote.addressId==='string'&&
   quote.delivery?.addressId===quote.addressId,'LEDGER_QUOTE_NOT_VERIFIED');
  need(Array.isArray(quote.items)&&quote.items.length>0&&quote.items.length<=40,
@@ -107,7 +108,7 @@ export function createV2CanonicalRelay({env={},fetcher,now=()=>Date.now(),
   let response,raw,body;
   try{
    response=await fetcher(endpoint,{method:'POST',redirect:'follow',
-    headers:{'content-type':'application/json'},
+    headers:{'content-type':'application/json'},signal:AbortSignal.timeout(10000),
     body:JSON.stringify({keyId,timestamp,nonce,action,payload,signature})});
    if(!response?.ok)FAIL('LEDGER_NETWORK_OR_TIMEOUT');
    raw=await response.text();

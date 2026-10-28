@@ -31,10 +31,12 @@ test('cart shows icon-only trash and a single Submit order control',()=>{
  assert.match(cart,/id="confirm"[^>]*hidden disabled/);
  assert.match(cart,/id="submitTestOrder"[^>]*>Submit order<\/button>/);
  assert.doesNotMatch(cart,/Kiểm tra báo giá<\/button>/);
- assert.match(script,/const q=await call\('\/api\/v2\/quote'/);
+ assert.match(script,/await call\('\/api\/v2\/quote'/);
+ assert.match(script,/await call\('\/api\/v2\/confirm'/);
+ assert.match(script,/if\(live&&result\.state!=='COMMITTED'\)/);
  assert.match(script,/requestId:lastTestRequestId,confirmedTest:true/);
  assert.match(script,/q\.totalVnd!==priceShown\.totalVnd/);
- assert.match(script,/if\(!PREVIEW&&!realTestEnabled\)/);
+ assert.match(script,/if\(!PREVIEW&&!realTestEnabled&&!realCheckoutEnabled\)/);
  assert.match(script,/lastSubmittedCartKey=key/);
 });
 test('owner CRM stays out of customer web even when an admin signs in',()=>{
