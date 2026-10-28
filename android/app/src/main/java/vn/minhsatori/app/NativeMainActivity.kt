@@ -772,7 +772,6 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(10), dp(11), dp(10), dp(11))
             contentDescription = "Mở menu tác vụ"
         }
-        brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(45)))
         val brandLogo = ImageView(this).apply {
             setImageResource(R.drawable.satori_invoice_logo)
             // Circular avatar mask: keep original logo asset, crop only its
@@ -846,6 +845,8 @@ class NativeMainActivity : AppCompatActivity() {
             setOnClickListener { showConnectionSettings() }
         }
         brand.addView(options, LinearLayout.LayoutParams(dp(42), dp(46)))
+        // Hamburger is the last header action, immediately right of Settings.
+        brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(45)))
         // Keep the hamburger and primary controls visible while long ledgers scroll.
         shell.addView(brand, 0, LinearLayout.LayoutParams(-1, -2))
 
@@ -1104,10 +1105,10 @@ class NativeMainActivity : AppCompatActivity() {
             setBackgroundColor(white)
             elevation = dp(14).toFloat()
             visibility = View.GONE
-            translationX = -drawerWidth.toFloat()
+            translationX = drawerWidth.toFloat()
         }
-        root.addView(drawer, FrameLayout.LayoutParams(drawerWidth, -1, Gravity.START).apply {
-            leftMargin = shellInset
+        root.addView(drawer, FrameLayout.LayoutParams(drawerWidth, -1, Gravity.END).apply {
+            rightMargin = shellInset
         })
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1149,14 +1150,14 @@ class NativeMainActivity : AppCompatActivity() {
             drawer.animate().cancel()
             scrim.animate().cancel()
             if (!motionEnabled()) {
-                drawer.translationX = -drawerWidth.toFloat()
+                drawer.translationX = drawerWidth.toFloat()
                 drawer.visibility = View.GONE
                 scrim.alpha = 0f
                 scrim.visibility = View.GONE
                 after?.invoke()
                 return
             }
-            drawer.animate().translationX(-drawerWidth.toFloat())
+            drawer.animate().translationX(drawerWidth.toFloat())
                 .setDuration(200).setInterpolator(DecelerateInterpolator())
                 .withEndAction {
                     drawer.visibility = View.GONE
@@ -1172,7 +1173,7 @@ class NativeMainActivity : AppCompatActivity() {
             scrim.animate().cancel()
             scrim.alpha = 0f
             scrim.visibility = View.VISIBLE
-            drawer.translationX = -drawerWidth.toFloat()
+            drawer.translationX = drawerWidth.toFloat()
             drawer.visibility = View.VISIBLE
             if (!motionEnabled()) {
                 drawer.translationX = 0f
