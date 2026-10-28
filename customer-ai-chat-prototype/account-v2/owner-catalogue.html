@@ -268,6 +268,67 @@ function drawCustomers(){
   item.append(make('span',typeLabel(x.requestedType)+' · Chiết khấu dự kiến '+pct(x.discountBps),'crm-tag'));
   if(x.address)appendLine(item,'Địa chỉ: '+x.address);
   appendLine(item,x.linkedAccountId?'Đã liên kết với tài khoản đã xác minh.':'Chưa liên kết Google. Không tự cấp giá thực tế.');
+  if(x.active&&!x.linkedAccountId){
+   const editor=make('details');
+   editor.append(make('summary','✎ Sửa hồ sơ chờ, địa chỉ chính và Gmail'));
+   const form=make('form',null,'field-grid');
+   for(const [label,key,value] of [
+    ['Tên khách','fullName',x.fullName],['Số điện thoại','phone',x.phone],
+    ['Địa chỉ chính','address',x.address],['Gmail kích hoạt','email',x.email],
+    ['Tên công ty','companyName',x.companyName],['Mã số thuế','taxCode',x.taxCode],
+    ['Ghi chú','note',x.note]]){
+    const outer=make('label',label);const field=document.createElement('input');
+    field.name=key;field.value=value||'';
+    if(key==='email')field.type='email';
+    if(['fullName','phone','address'].includes(key))field.required=true;
+    outer.append(field);form.append(outer);
+   }
+   const role=make('label','Vai trò');
+   const sel=document.createElement('select');sel.name='requestedType';
+   for(const [v,t] of [['retail','Khách lẻ'],['agency','Đại lý'],['collaborator','CTV']]){
+    const opt=make('option',t);opt.value=v;opt.selected=x.requestedType===v;sel.append(opt);
+   }
+   role.append(sel);form.append(role);
+   const rate=make('label','Chiết khấu (%)');
+   const percentage=document.createElement('input');percentage.type='number';
+   percentage.min='0';percentage.max='100';percentage.step='0.01';percentage.required=true;
+   percentage.name='discountPercent';percentage.value=String((x.discountBps||0)/100);
+   rate.append(percentage);form.append(rate);
+   const save=iconButton('Lưu chỉnh sửa','edit');save.type='submit';form.append(save);
+   form.onsubmit=async ev=>{
+    ev.preventDefault();
+    const data=Object.fromEntries(new FormData(form).entries());
+    const percent=Number(data.discountPercent);
+    data.discountBps=Math.round(percent*100);delete data.discountPercent;
+    if(!Number.isFinite(percent)||percent<0||percent>100)return;
+    if(!confirm('Lưu chỉnh sửa hồ sơ chờ? Không thay đổi hóa đơn gốc.'))return;
+    try{
+     await api('/api/v2/admin/customer-leads','PATCH',{
+      ...data,leadId:x.id,expectedRevision:x.revision,active:true,confirmed:true});
+     await loadCustomers();crmStatus('Đã cập nhật hồ sơ khách cũ.','success');
+    }catch(e){crmStatus('Không lưu được: '+e.message,'error')}
+   };
+   editor.append(form);item.append(editor);
+  }
+  if(x.active&&!x.linkedAccountId&&x.legacyStaged){
+   const b=iconButton('Kích hoạt Gmail đã xác minh','mail');
+   b.onclick=async()=>{
+    const match=customerRecord.registered.find(c=>
+     x.email&&c.email?.toLowerCase()===x.email.toLowerCase());
+    if(!match)return crmStatus('Gmail chưa đăng nhập. Hãy bảo khách đăng nhập /app-v2 trước.','error');
+    if(!confirm('Xác nhận Gmail '+x.email+' đúng là chủ hồ sơ '+x.fullName+
+      '? Kích hoạt với CK '+pct(x.discountBps)+' và các địa chỉ đã lưu?'))return;
+    b.disabled=true;
+    try{
+     const data=await api('/api/v2/admin/legacy/activate','POST',{
+      leadId:x.id,expectedRevision:x.revision,expectedAccountRevision:match.revision,
+      confirmed:true,identityConfirmed:true});
+     await loadCustomers();
+     crmStatus('✓ Đã liên kết Gmail và nhập '+data.addressesAdded+' địa chỉ mới.','success');
+    }catch(e){crmStatus('Không kích hoạt được: '+e.message,'error');b.disabled=false}
+   };
+   item.append(b);
+  }
   dest.append(item);
  }
 }
