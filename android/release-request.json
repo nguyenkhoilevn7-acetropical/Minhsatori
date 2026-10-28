@@ -1,14 +1,15 @@
 {
-  "purpose": "android-0.4.18-right-hamburger-right-drawer-and-red-money-ui-release",
+  "purpose": "android-0.4.19-total-sales-kpi-red-invoices-owner-production",
   "package": "vn.minhsatori.app",
-  "version": "0.4.18",
-  "versionCode": 35,
-  "branch": "release/android-v0.4.18-right-drawer-20261028",
+  "version": "0.4.19",
+  "versionCode": 36,
+  "branch": "release/android-v0.4.19-sales-kpi-red-invoices-20261028",
   "requestedOn": "2026-10-28",
   "sourcePRs": [
-    218
+    218,
+    220
   ],
-  "scope": "UI-only: Logo left, hamburger immediately after settings at far right, advanced menu drawer slides in/out from right, invoice and receivable VND amounts red #DC2626. Original money and payment values, seven protected financial methods, signed package, Drive/API, PDF and session retained.",
+  "scope": "Fix Android Home to show Total Sales and Debt side by side/stacked adaptively. Invoice tab also shows real total sales. All invoice amounts red #DC2626 after filter changes. Exclude test, internal CTV, cancelled and Không Tính from total sales. Preserve all accounting writes, API/Drive/PDF/auth, right-edge drawer, pinned signer and vn.minhsatori.app package.",
   "notes": [
     "Owner explicitly requests production Android layout. Build signed RELEASE APK using existing stable release keystore and verify certificate SHA-256 against pinned repository variable. NEVER distribute debug build.",
     "Keep installed package vn.minhsatori.app and existing user session/data; increment versionCode 33→34 for non-destructive in-place update.",
@@ -19,6 +20,8 @@
     "2026-10-28: corrected MoneyMind light-border UI palette and retained seven financial-method integrity hashes. Re-run signed release.",
     "2026-10-28: Owner explicitly reaffirmed production request for existing Android app; trigger pinned-cert signed APK workflow; Android must still be installed and verified on physical Samsung before calling device rollout complete.",
     "Explicit owner requests 2026-10-28: position hamburger beside Settings, drawer from right; all invoice/debt amounts red. Signed APK using pinned certificate; do not auto-install or modify finance production.",
-    "Source static tests and Gradle build must PASS; require visual owner acceptance on Samsung Z Fold before considering device rollout complete."
+    "Source static tests and Gradle build must PASS; require visual owner acceptance on Samsung Z Fold before considering device rollout complete.",
+    "Owner clarified these changes are ANDROID, not GitHub Pages website. Validate both normal phone and Z Fold widths.",
+    "Never fake sales revenue when disconnected; retain — and current account session."
   ]
 }
