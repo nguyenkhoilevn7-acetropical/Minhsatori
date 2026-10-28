@@ -337,6 +337,15 @@
   html.satori-light-review :is(#invoicePreview,#modalInvoiceContent) img {
     opacity:1!important;
   }
+  /* Compact legal-entity badges: light foreground/background pairing. */
+  html.satori-light-review :is(#invoicePreview,#modalInvoiceContent) :is(
+    [class*="bg-blue-900"],[class*="bg-emerald-9"],
+    [class*="bg-amber-9"],[class*="bg-purple-9"]
+  ){
+    background:#e5f3f1!important;color:#124651!important;
+    border:1px solid #bfd9d5!important;
+  }
+
   /* Numbers remain red even if generated invoice rows carry old cyan/white utility classes. */
   html.satori-light-review #invoicePreview :is(
     #sumGoods,#sumShipping,#sumVat,#sumTotal
@@ -472,6 +481,7 @@
 }
 /* The desktop site switch on a phone can produce a wide viewport while its
    real accounting panel is narrow. Use the panel's own width, not viewport. */
+@media screen {
 @container accounting (max-width:1080px) {
   #acct-panel :is(#acct-partners,#acct-pairs,#acct-orders) {
     overflow:visible!important;max-height:none!important;
@@ -519,6 +529,7 @@
   #acct-panel #acct-partners .rc-table td:last-child {
     grid-column:1/-1!important;
   }
+}
 }
 @media screen and (max-width:560px){
   html.satori-light-review :is(#invoicePreview,#modalInvoiceContent){
