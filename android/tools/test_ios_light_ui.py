@@ -27,12 +27,12 @@ class IOSLightThemeTests(unittest.TestCase):
         self.assertIn('applicationId = "vn.minhsatori.app"', self.gradle)
 
     def test_ios_light_palette_is_not_dark_legacy(self):
-        self.assertIn("private val night = Color.rgb(242, 242, 247)", self.source)
+        self.assertIn("private val night = Color.rgb(241, 244, 245)", self.source)
         self.assertIn("private val surface = Color.rgb(255, 255, 255)", self.source)
-        self.assertIn("private val cyan = Color.rgb(0, 122, 255)", self.source)
-        self.assertIn("private val ink = Color.rgb(28, 28, 30)", self.source)
+        self.assertIn("private val cyan = Color.rgb(0, 156, 153)", self.source)
+        self.assertIn("private val ink = Color.rgb(16, 43, 56)", self.source)
         self.assertIn("white, dark -> ink", self.source)
-        self.assertIn("Color.rgb(227, 229, 234)", self.source)
+        self.assertIn("Color.rgb(225, 233, 233)", self.source)
 
     def test_existing_live_capabilities_still_present(self):
         for text in ("fun invoiceQuickCard(", "fun customerQuickCard(", 
@@ -49,7 +49,11 @@ class IOSLightThemeTests(unittest.TestCase):
         self.assertIn('activeTab = index', self.source)
         self.assertIn('5 -> renderV2OwnerBackend(content, data)', self.source)
         self.assertNotIn('openV2Admin()', self.source)
-        self.assertIn('drawer.animate().translationX(0f).setDuration(260)', self.source)
+        self.assertIn('drawer.animate().translationX(0f).setDuration(245)', self.source)
+        self.assertIn('setInterpolator(DecelerateInterpolator())', self.source)
+        self.assertIn('if (!motionEnabled()) {', self.source)
+        self.assertIn('if (tabChanged && motionEnabled())', self.source)
+        self.assertIn('ValueAnimator.areAnimatorsEnabled()', self.source)
         self.assertIn('scrim.setOnClickListener { dismissDrawer() }', self.source)
         self.assertNotIn('shell.addView(tabs)', self.source)
 

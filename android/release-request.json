@@ -1,23 +1,21 @@
 {
-  "purpose": "android-0.4.14-owner-invoice-edit-independent-payment-buttons-samsung-ui-acceptance",
+  "purpose": "android-0.4.17-moneymind-native-owner-production-upgrade",
   "package": "vn.minhsatori.app",
-  "version": "0.4.14",
-  "versionCode": 31,
-  "branch": "release/android-v0.4.14-owner-edit-payment-20261027",
-  "requestedOn": "2026-10-27",
+  "version": "0.4.17",
+  "versionCode": 34,
+  "branch": "release/android-v0.4.17-moneymind-owner-ui-20261028",
+  "requestedOn": "2026-10-28",
   "sourcePRs": [
-    187,
-    192,
-    195,
-    200
+    215
   ],
-  "sourceCommit": "6e7d8152e1875d42fccc81b78c3319792f2a0e48",
-  "scope": "Android owner-only invoice edit and payment UI acceptance. Make edit visible on eligible unpaid standalone invoices; present independent customer payment/Satori settlement actions with accurate current statuses and explicit owner Mobile API permission diagnostics. Code includes guarded backend orders.create/orders.update proposal on draft feature branch; no GAS, DB or ledger production deployment.",
+  "scope": "MoneyMind-inspired native owner visual layout; fixed five-icon bottom navigation, 4 colored actions, compact teal inset KPI, invoices/receivables/profile cards, animated drawer/tabs and Fold/keyboard lifecycle. All seven reviewed financial and security methods byte-identical to signed v0.4.16; no server/API/payment database changes.",
   "notes": [
-    "Use exact existing persistent signing keystore from GitHub Secrets, verify public certificate and SHA-256; increment stable package vn.minhsatori.app from signed v0.4.13 code 30 to v0.4.14 code 31; never uninstall.",
-    "Signed release APK is UI acceptance ONLY until Apps Script source/properties are independently backed up and owner-authorized Google OAuth/sandbox HTTP readback is verified. Do not assume edit/payment writes work on currently deployed backend.",
-    "Do not deploy production Apps Script, change state file ID, create/edit paid or linked CTV invoices, or perform real money status changes in acceptance testing.",
-    "Keep signed 0.4.13 for recovery. No production API, live V18.3 ledger, V2 customer service or PostgreSQL changes.",
-    "Requires Python UI contract tests, Android debug and release tests, signed assembleRelease/cert verification, emulator screenshots, owner Samsung UAT before production approval."
+    "Owner explicitly requests production Android layout. Build signed RELEASE APK using existing stable release keystore and verify certificate SHA-256 against pinned repository variable. NEVER distribute debug build.",
+    "Keep installed package vn.minhsatori.app and existing user session/data; increment versionCode 33→34 for non-destructive in-place update.",
+    "Capture emulator UI for standard phone and Fold inner/outer dimensions. Respect reduced motion; preserve unsent Gemini chat draft across folding.",
+    "Do not claim real payment/edit functions have been end-to-end tested in authenticated production; use fake data only for CI, require Samsung installation and business acceptance.",
+    "Keep previous signed 0.4.16 APK for rollback; do not uninstall existing application, change Apps Script, invoices, Drive IDs, PostgreSQL or HMAC secrets.",
+    "2026-10-28: source visual tests updated for MoneyMind; signed release requested after owner approved production. Pinned signer still mandatory.",
+    "2026-10-28: corrected MoneyMind light-border UI palette and retained seven financial-method integrity hashes. Re-run signed release."
   ]
 }
