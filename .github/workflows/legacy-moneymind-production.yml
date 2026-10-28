@@ -1,0 +1,29 @@
+name: Legacy Accounting MoneyMind UI Safety
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'tests/unified-light-preview.test.cjs'
+      - '.github/workflows/legacy-moneymind-production.yml'
+  push:
+    branches:
+      - 'release/moneymind-legacy-accounting-ui-20261028'
+      - main
+    paths:
+      - 'index.html'
+      - 'tests/unified-light-preview.test.cjs'
+      - '.github/workflows/legacy-moneymind-production.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  legacy-money-mind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prevent financial DOM or script drift
+        run: node --test tests/unified-light-preview.test.cjs
