@@ -5,7 +5,7 @@
  * No writes, no bulk customer export and never to the browser/Gemini.
  */
 import crypto from 'node:crypto';
-const permitted=new Set(['system.status','catalogue.list','orders.list','customers.search']);
+const permitted=new Set(['system.status','catalogue.list','orders.list','customers.search','orders.findByRequestId']);
 export function readOnlyReady(){
  return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(String(process.env.SATORI_READ_ENDPOINT||'').trim()) &&
  /^[A-Za-z0-9_-]{3,64}$/.test(String(process.env.SATORI_READ_KEY_ID||'')) &&
@@ -22,6 +22,13 @@ export async function readMinhSatori(action,payload={}){
   const query=String(payload.query||'').trim();
   if(phone.length<7 && query.length<2)throw Error('CUSTOMER_QUERY_REQUIRED');
  }
+ // Exactly one opaque idempotency key. No personal-data search or wildcard.
+ if(action==='orders.findByRequestId'){
+  const keys=Object.keys(payload);
+  if(keys.length!==1||keys[0]!=='requestId'||
+   typeof payload.requestId!=='string'||!/^[A-Za-z0-9_-]{8,100}$/.test(payload.requestId))
+   throw Error('EXACT_REQUEST_ID_REQUIRED');
+ }
  if(action==='orders.list'&&!String(payload.query||'').trim()){
   // A signed owner request may browse a single calendar month only, not
   // extract the full production ledger in one request.
@@ -32,7 +39,7 @@ export async function readMinhSatori(action,payload={}){
    throw Error('BULK_ORDER_EXPORT_DENIED');
  }
  const safePayload={...payload};
- if(action!=='system.status'&&action!=='catalogue.list')
+ if(action!=='system.status'&&action!=='catalogue.list'&&action!=='orders.findByRequestId')
   safePayload.limit=Math.min(action==='orders.list'?100:20,Math.max(1,Number(payload.limit)||10));
  const keyId=String(process.env.SATORI_READ_KEY_ID),secret=String(process.env.SATORI_READ_HMAC_SECRET);
  const timestamp=Date.now(),nonce=crypto.randomBytes(18).toString('hex');
