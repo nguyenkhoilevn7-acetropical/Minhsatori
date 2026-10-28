@@ -56,6 +56,12 @@ main>.view:not(.hidden){flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-be
 @keyframes gemini-typing-dot{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-3px);opacity:1}}
 @media(prefers-reduced-motion:reduce){.typing-dots i{animation:none;opacity:.75}}
 
+.chat-canonical-receipt{align-self:flex-start;width:min(96%,420px);padding:13px 15px;background:#f7fafc;border:1px solid #b6ccda;border-radius:16px;color:#16324b;box-shadow:0 2px 8px #0b1c3010}
+.chat-canonical-receipt strong{color:#144f8d}.chat-canonical-receipt .receipt-line{display:flex;justify-content:space-between;gap:12px;margin-top:8px;flex-wrap:wrap}
+.chat-canonical-receipt .receipt-warning{font-size:12px;color:#54687c;margin-top:12px;line-height:1.5}
+.chat-canonical-receipt .receipt-amount{font-weight:800;font-variant-numeric:tabular-nums;color:#bf283b}
+.chat-canonical-receipt .receipt-masthead{display:flex;align-items:center;gap:8px;font-weight:800}
+.chat-canonical-receipt .receipt-masthead img{width:30px;height:30px;object-fit:contain}
 .chat-order-receipt{align-self:flex-start;max-width:min(95%,420px);width:max-content;padding:11px 13px;background:#f7f8fa;border:1px solid #e5e8ee;border-radius:16px;color:#1c1c1e;box-shadow:0 2px 8px #0b1c3010}
 .chat-order-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:750;color:#007aff;margin-bottom:6px}
 .chat-order-line{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #e6e9ef;font-size:13px}
@@ -1685,6 +1691,39 @@ $('quickAgentProfile').onchange=async()=>{
  await changeProfile();
  if(!selectedDeliveryAddress())openDeliveryDialog();
 };
+// V1-style receipt presentation, sourced strictly from a COMMITTED,
+ // account-scoped V2 ledger journal. PDF is unavailable until Drive file/hash
+ // readback succeeds; never fabricate a receipt from a draft or test order.
+function showCommittedReceipt(order){
+ const receipt=order?.receipt;
+ if(order?.verified!==true||order.state!=='COMMITTED'||!receipt||
+    !Number.isSafeInteger(receipt.invoiceNo)||receipt.invoiceNo<1||
+    !Number.isSafeInteger(receipt.totalVnd)||receipt.totalVnd<0||
+    receipt.currency!=='VND')return false;
+ const card=node('div',undefined,'chat-canonical-receipt');
+ card.setAttribute('role','group');
+ card.setAttribute('aria-label','Biên nhận từ sổ Minh Satori đã xác minh');
+ card.dataset.requestId=String(receipt.requestId||'');
+ const head=node('div',undefined,'receipt-masthead');
+ const logo=document.querySelector('.brand .satori-logo');
+ if(logo)head.append(logo.cloneNode(true));
+ head.append(node('strong','MINH SATORI · HÓA ĐƠN #'+receipt.invoiceNo));
+ card.append(head);
+ const amount=node('div',undefined,'receipt-line');
+ amount.append(node('span','Tổng hóa đơn'),
+  node('span',money(receipt.totalVnd),'receipt-amount'));
+ card.append(amount);
+ const pdf=receipt.pdf;
+ const note=pdf?.status==='AWAITING_VERIFIED_DRIVE_PDF'&&pdf.shareable===false?
+  'PDF gốc đang chờ xác minh phiên bản và file trên Google Drive. Chưa có link tải chính thức.':
+  'Chưa xác nhận được PDF gốc trên Google Drive. Vui lòng xem sổ kế toán trước khi sử dụng.';
+ card.append(node('p',note,'receipt-warning'));
+ const same=$('messages').querySelectorAll('.chat-canonical-receipt');
+ for(const previous of same)if(previous.dataset.requestId===card.dataset.requestId)previous.remove();
+ $('messages').append(card);view('chat');
+ $('messages').scrollTop=$('messages').scrollHeight;
+ return true;
+}
 async function loadOrders(){
  const data=await call('/api/v2/orders',undefined,'GET');
  $('orderRows').replaceChildren();
@@ -1696,6 +1735,12 @@ async function loadOrders(){
    o.state==='UNCERTAIN'?'Đang kiểm tra giao dịch':'Chưa phát hành hóa đơn';
   const id=verified?'#'+o.invoiceNo:'Yêu cầu '+String(o.requestId).slice(0,8);
   info.append(node('strong',id),node('small',status+' · '+money(Number(o.totalVnd)||0)));
+  if(verified&&o.receipt){
+   const open=node('button','Xem receipt','btn');
+   open.type='button';open.setAttribute('aria-label','Xem biên nhận hóa đơn #'+o.receipt.invoiceNo+' trong Gemini');
+   open.onclick=()=>showCommittedReceipt(o);
+   info.append(open);
+  }
   row.append(info);$('orderRows').append(row);
  }
  if(!(data.orders||[]).length)$('orderRows').append(node('p',
