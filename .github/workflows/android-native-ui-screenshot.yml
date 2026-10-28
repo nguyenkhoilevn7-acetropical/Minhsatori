@@ -51,15 +51,57 @@ jobs:
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -n vn.minhsatori.app/.NativeMainActivity
             sleep 5
-            adb shell screencap -p /sdcard/minhsatori-ui.png
             mkdir -p android/ui-evidence
-            adb pull /sdcard/minhsatori-ui.png android/ui-evidence/minhsatori-native-home.png
+            # android-emulator-runner executes each line as a separate shell
+            # command, so no multiline shell function or variable scope.
+            adb shell screencap -p /sdcard/minhsatori-native-home.png
+            adb pull /sdcard/minhsatori-native-home.png android/ui-evidence/minhsatori-native-home.png
+            adb shell input tap 320 1700
+            sleep 1
+            adb shell screencap -p /sdcard/minhsatori-native-invoices.png
+            adb pull /sdcard/minhsatori-native-invoices.png android/ui-evidence/minhsatori-native-invoices.png
+            adb shell input tap 540 1700
+            sleep 1
+            adb shell screencap -p /sdcard/minhsatori-native-create.png
+            adb pull /sdcard/minhsatori-native-create.png android/ui-evidence/minhsatori-native-create.png
+            adb shell input tap 770 1700
+            sleep 1
+            adb shell screencap -p /sdcard/minhsatori-native-debt.png
+            adb pull /sdcard/minhsatori-native-debt.png android/ui-evidence/minhsatori-native-debt.png
+            adb shell input tap 975 1700
+            sleep 1
+            adb shell screencap -p /sdcard/minhsatori-native-profile.png
+            adb pull /sdcard/minhsatori-native-profile.png android/ui-evidence/minhsatori-native-profile.png
             test -s android/ui-evidence/minhsatori-native-home.png
+            test -s android/ui-evidence/minhsatori-native-invoices.png
+            test -s android/ui-evidence/minhsatori-native-create.png
+            test -s android/ui-evidence/minhsatori-native-debt.png
+            test -s android/ui-evidence/minhsatori-native-profile.png
+            # Live resize in the SAME running Activity. Android simulates
+            # unfolded inner and folded outer screen viewport sizes.
+            # Approximate screen classes only; not Samsung device certification.
+            adb shell input tap 120 1700
+            adb shell wm size 1812x2176
+            adb shell wm density 420
+            sleep 3
+            adb shell screencap -p /sdcard/minhsatori-fold-open.png
+            adb pull /sdcard/minhsatori-fold-open.png android/ui-evidence/minhsatori-fold-open.png
+            adb shell wm size 904x2316
+            adb shell wm density 420
+            sleep 3
+            adb shell screencap -p /sdcard/minhsatori-fold-closed.png
+            adb pull /sdcard/minhsatori-fold-closed.png android/ui-evidence/minhsatori-fold-closed.png
+            adb shell wm size reset
+            adb shell wm density reset
+            test -s android/ui-evidence/minhsatori-fold-open.png
+            test -s android/ui-evidence/minhsatori-fold-closed.png
       - name: Upload visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: MinhSatori-Android-v0.3.2-Visual-Sandbox-Evidence
-          path: android/ui-evidence/minhsatori-native-home.png
+          path: |
+            android/ui-evidence/minhsatori-native-*.png
+            android/ui-evidence/minhsatori-fold-*.png
           if-no-files-found: warn
           retention-days: 7

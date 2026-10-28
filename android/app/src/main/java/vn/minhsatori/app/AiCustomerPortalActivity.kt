@@ -3,6 +3,7 @@ package vn.minhsatori.app
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
@@ -166,6 +167,14 @@ class AiCustomerPortalActivity : AppCompatActivity() {
         val initialUrl = if (ownerMode) AiSandboxContract.BASE_URL + "/admin"
             else customerUrl ?: AiSandboxContract.BASE_URL + "/c/" + AiSandboxContract.PUBLIC_FIXTURE
         view.loadUrl(initialUrl)
+    }
+
+    // Folding / unfolding changes window size without destroying WebView.
+    // Preserve unsent Gemini text, cart state, cookies and pending navigation;
+    // CSS dynamic viewport/layout reflows naturally without reloading a URL.
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (::view.isInitialized) view.requestLayout()
     }
 
     @Deprecated("Deprecated in Java")

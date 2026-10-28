@@ -20,8 +20,21 @@ class SatoriReferenceStyleContract(unittest.TestCase):
         self.assertIn("Color.rgb(227, 247, 238)",SRC)
         self.assertIn("Color.rgb(255, 246, 223)",SRC)
 
-    def test_gemini_hero_helper_uses_readable_dark_blue_on_pale_background(self):
-        self.assertIn('12f, false, Color.rgb(56, 89, 91), 7)', SRC)
+    def test_original_logo_uses_rounded_square_mask_without_replacing_asset(self):
+        brand = SRC.split("val brandLogo = ImageView(this).apply {", 1)[1].split(
+            "brand.addView(brandLogo, LinearLayout.LayoutParams(dp(38), dp(38)))", 1)[0]
+        self.assertIn("setImageResource(R.drawable.satori_invoice_logo)", brand)
+        self.assertIn("scaleType = ImageView.ScaleType.CENTER_CROP", brand)
+        self.assertIn("background = background(Color.WHITE, 12)", brand)
+        self.assertIn("clipToOutline = true", brand)
+        self.assertNotIn("ImageDecoder", brand)
+
+    def test_dashboard_text_contrast_and_owner_gemini_mode(self):
+        self.assertIn('background = panelBackground(teal, 19)', SRC)
+        self.assertIn('setTextColor(Color.WHITE)', SRC)
+        self.assertIn('background = panelBackground(Color.WHITE, 14)', SRC)
+        self.assertIn('label(moneyCard, "Tổng công nợ cần thu"', SRC)
+        self.assertIn('putExtra("mode", "admin")', SRC)
         self.assertNotIn('12f, false, Color.rgb(202, 239, 249), 7)', SRC)
 
     def test_dashboard_icons_replace_abstract_diamond_without_changing_actions(self):
@@ -38,9 +51,24 @@ class SatoriReferenceStyleContract(unittest.TestCase):
     def test_money_mind_flat_teal_without_gradient(self):
         self.assertIn('private val cyan = Color.rgb(0, 156, 153)', SRC)
         self.assertIn('setColor(Color.rgb(0, 156, 153))', SRC)
-        self.assertIn('background = panelBackground(Color.WHITE, 18)', SRC)
-        self.assertIn('background = panelBackground(Color.rgb(230, 248, 243), 18)', SRC)
+        self.assertIn('background = panelBackground(if (activeTab == 0) teal else Color.WHITE, 18)', SRC)
+        self.assertIn('background = panelBackground(teal, 19)', SRC)
+        self.assertIn('val bottomDestinations = listOf(', SRC)
+        self.assertIn('Triple(4, "Lên đơn", R.drawable.ic_satori_plus)', SRC)
         self.assertNotIn('Color.rgb(66, 151, 255)', SRC)
+
+    def test_money_mind_personal_settings_and_offline_tabs(self):
+        self.assertIn('"Lên đơn", "Cá nhân")', SRC)
+        self.assertIn('label(title, "CÁ NHÂN & QUẢN TRỊ"', SRC)
+        for token in ('settingRow("Cài đặt kết nối"',
+                      'settingRow("Đồng bộ dữ liệu"',
+                      'settingRow("Trợ lý Gemini"',
+                      'private fun renderMoneyMindOfflineState(',
+                      'private fun motionEnabled(): Boolean',
+                      'ValueAnimator.areAnimatorsEnabled()'):
+            self.assertIn(token, SRC)
+        self.assertIn('if (tabChanged && motionEnabled())', SRC)
+        self.assertIn('if (activeTab != 0) renderMoneyMindOfflineState(content, activeTab)', SRC)
 
     def test_invoice_card_shows_both_payment_statuses_without_new_write_paths(self):
         card = SRC.split("private fun invoiceQuickCard(", 1)[1].split(
