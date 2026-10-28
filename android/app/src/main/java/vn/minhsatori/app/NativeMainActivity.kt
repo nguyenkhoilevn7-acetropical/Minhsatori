@@ -645,11 +645,13 @@ class NativeMainActivity : AppCompatActivity() {
         brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(45)))
         val brandLogo = ImageView(this).apply {
             setImageResource(R.drawable.satori_invoice_logo)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            background = background(Color.WHITE, 10)
-            setPadding(dp(4), dp(4), dp(4), dp(4))
+            // Circular avatar mask: keep original logo asset, crop only its
+            // square corners. 38dp diameter / 19dp rounded background.
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = background(Color.WHITE, 19)
+            setPadding(0, 0, 0, 0)
             clipToOutline = true
-            contentDescription = "Logo Minh Satori"
+            contentDescription = "Logo Minh Satori hình tròn"
         }
         brand.addView(brandLogo, LinearLayout.LayoutParams(dp(38), dp(38)))
         val brandText = LinearLayout(this).apply {
