@@ -68,8 +68,10 @@ export async function adminCustomerList(pool){
   pool.query('SELECT id,full_name AS "fullName",email,phone,address,'+
    'company_name AS "companyName",tax_code AS "taxCode",note,'+
    'requested_type AS "requestedType",discount_bps AS "discountBps",'+
-   'linked_account_id AS "linkedAccountId",active,revision,created_at AS "createdAt" '+
-   'FROM satori_v2_customer_leads ORDER BY created_at DESC LIMIT 250')
+   'linked_account_id AS "linkedAccountId",active,revision,created_at AS "createdAt",'+
+   "EXISTS(SELECT 1 FROM satori_v2_audit e WHERE e.resource_id=l.id::text "+
+   "AND e.event_type='LEGACY_CRM_STAGED') AS \"legacyStaged\" "+
+   'FROM satori_v2_customer_leads l ORDER BY created_at DESC LIMIT 250')
  ]);
  // Explicit projections are intentional: there is NO password column.
  return {ok:true,registered:registered.rows,leads:leads.rows};
@@ -342,8 +344,8 @@ async function findVerifiedGmail(c,email){
  return found.rows[0]||null;
 }
 async function activateLegacyAccount(c,owner,account,data,addresses,invoiceNos,sourceRevision,expectedRevision){
- check(account&&account.access_status!=='REMOVED'&&account.access_status!=='SUSPENDED',
-  'LEGACY_ACCOUNT_UNAVAILABLE',409);
+ check(account&&account.id!==owner.id&&account.access_status!=='REMOVED'&&
+  account.access_status!=='SUSPENDED','LEGACY_ACCOUNT_UNAVAILABLE',409);
  check(account.email.toLowerCase()===data.email.toLowerCase(),
   'LEGACY_VERIFIED_GMAIL_MISMATCH',403);
  check(account.revision===expectedRevision,'LEGACY_ACCOUNT_REVISION_CONFLICT',409);
@@ -451,6 +453,9 @@ export async function legacyCustomerActivateLead(pool,owner,input){
    note:lead.note,requestedType:lead.requested_type,discountBps:lead.discount_bps};
   check(Array.isArray(details.addresses),'LEGACY_STAGED_ADDRESSES_MISSING',409);
   const addresses=details.addresses.map(a=>validateAddress(a));
+  // If owner corrected the staged contact, the primary destination follows those edits.
+  if(addresses.length)addresses[0]=validateAddress({...addresses[0],
+   recipientName:lead.full_name,recipientPhone:lead.phone,address:lead.address});
   const result=await activateLegacyAccount(c,owner,account,data,addresses,
    details.invoiceNos,details.sourceRevision,input.expectedAccountRevision);
   await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
