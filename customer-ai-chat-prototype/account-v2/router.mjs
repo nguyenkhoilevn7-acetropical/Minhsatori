@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
 import {interpretLegacyOrder} from './legacy-interpret.mjs';
+import {proposeV2GeminiCart} from './original-gemini-cart-adapter.mjs';
 import {geminiConfigured} from '../free-parser.mjs';
 import {answerGeminiProductQuestion,productQuestionEligible} from './gemini-product-assistant.mjs';
 import {recognisedCatalogueQuestion,verifiedAvailabilityAnswer,missingV2CatalogueMessage} from './catalogue-dialogue.mjs';
@@ -517,7 +518,25 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/interpret'&&req.method==='POST'){
    const input=await json(req);
    await assertSelectedDelivery(pool,actor,input);
-   const result=await interpret(pool,input);send(res,200,{ok:true,...result});return true;
+   const result=await interpret(pool,input);
+   if(!Array.isArray(result.suggestedItems)||!result.suggestedItems.length){
+    send(res,200,{ok:true,...result});return true;
+   }
+   // Reuse old Gemini's add/set/replace semantics. All state stays in the
+   // authenticated V2 cart, never in a legacy link or browser-only draft.
+   // The browser still performs an explicit, revision-checked /api/v2/cart PUT.
+   const [cartRow,productRows]=await Promise.all([
+    pool.query('SELECT lines,revision FROM satori_v2_carts WHERE account_id=$1 AND profile_id=$2',
+     [actor.id,input.profileId]),
+    pool.query('SELECT code FROM satori_v2_catalogue WHERE active=true')
+   ]);
+   error(cartRow.rows.length<=1,'CART_SOURCE_AMBIGUOUS',503);
+   const existing=cartRow.rows[0];
+   const current=existing?.lines||[];
+   const activeCodes=new Set(productRows.rows.map(x=>x.code));
+   const proposedCart=proposeV2GeminiCart(input.message,current,result.suggestedItems,activeCodes);
+   send(res,200,{ok:true,...result,proposedCart,
+    baseCartRevision:Number(existing?.revision||0)});return true;
   }
   if(pathname==='/api/v2/cart-pricing'&&req.method==='GET'){
    // Authenticated, account-owned, active delivery; no invoice/quote INSERT.
