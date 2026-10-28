@@ -11,6 +11,18 @@ import {describeCanonicalReadEnv} from './read-transport-diagnostic.mjs';
 // Logs only a boolean, never the signed ledger endpoint/key/secret.
 console.info('SATORI_V2_CANONICAL_READ_READY',readOnlyReady());
 console.info('SATORI_V2_CANONICAL_READ_FLAGS',JSON.stringify(describeCanonicalReadEnv(process.env)));
+// Private, non-secret production diagnostic. Never print endpoints, keys or credentials.
+import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
+let writerStatus='READY';
+if(process.env.SATORI_ACCOUNT_V2_REAL_CHECKOUT_ENABLED!=='1'){
+ writerStatus='REAL_CHECKOUT_GATE_OFF';
+}else{
+ try{ledgerRelayConfig(process.env)}
+ catch(e){writerStatus=['LEDGER_RELAY_DISABLED','LEDGER_RELAY_NOT_CONFIGURED',
+  'LEDGER_WRITER_MUST_BE_SEPARATE'].includes(e?.code)?e.code:'WRITER_NOT_READY'}
+}
+console.info('SATORI_V2_CANONICAL_WRITER_STATUS',writerStatus);
+
 import {describeGeminiRuntime} from './gemini-env-diagnostic.mjs';
 // Private Render log: boolean-only checks, never API key contents.
 console.info('SATORI_V2_GEMINI_RUNTIME_FLAGS',JSON.stringify(describeGeminiRuntime(process.env)));
