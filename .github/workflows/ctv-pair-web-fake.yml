@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'accounting.js'
+      - 'tests/accounting-invoice-figures.test.cjs'
       - 'accounting-core.js'
       - 'tests/collaborator-pair-web.test.cjs'
       - '.github/workflows/ctv-pair-web-fake.yml'
@@ -22,3 +24,5 @@ jobs:
         run: node tests/collaborator-pair-web.test.cjs
       - name: Verify fake CTV ledger pair accounting
         run: node tests/collaborator-twin-invoice.test.js
+      - name: Verify invoice totals and profit UI (FAKE only)
+        run: node --test tests/accounting-invoice-figures.test.cjs
