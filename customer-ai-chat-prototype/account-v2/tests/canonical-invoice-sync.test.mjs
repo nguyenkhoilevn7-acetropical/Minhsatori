@@ -43,7 +43,7 @@ test('cannot substitute another invoice, file version, a public link or a locall
 });
 test('V2 order read remains account-scoped and never claims PDFs are ready early',()=>{
  const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
- const android=readFileSync(new URL('../../../../android/app/src/main/java/vn/minhsatori/app/NativeInvoicePdf.kt',import.meta.url),'utf8');
+
  assert.match(router,/WHERE r.account_id=\$1 AND q.account_id=\$1/);
  assert.match(router,/canonicalInvoiceDocumentStatus\(x\)/);
  assert.match(router,/REAL_CHECKOUT_GATE_NOT_VERIFIED/);
