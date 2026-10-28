@@ -17,8 +17,9 @@ test('Gemini uses original protected server-side keys, not a separate frontend S
  assert.match(router,/import \{geminiConfigured\} from '\.\.\/free-parser\.mjs'/);
  assert.match(router,/import \{answerGeminiProductQuestion,productQuestionEligible\}/);
  assert.match(router,/geminiConfigured:geminiConfigured\(\)/);
- assert.match(router,/await interpretLegacyOrder\(input\.message\)/);
- assert.match(router,/await answerGeminiProductQuestion\(input\.message,r\.rows\)/);
+ assert.match(router,/parseV2DeliveryMessage\(input\.message\)/);
+ assert.match(router,/await interpretLegacyOrder\(orderMessage\)/);
+ assert.match(router,/await answerGeminiProductQuestion\(orderMessage,r\.rows\)/);
  assert.doesNotMatch(html,/GEMINI_API_KEY|x-goog-api-key|generativelanguage\.googleapis\.com/);
 });
 test('only public, sanitized product questions can reach optional Gemini advice',async()=>{
