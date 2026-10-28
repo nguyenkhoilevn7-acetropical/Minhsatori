@@ -79,21 +79,24 @@ test('MoneyMind bottom navigation cannot bypass existing authenticated view hand
   assert.match(admin,/#workspace\{padding-bottom:76px\}/);
 });
 
-test('Minh Satori identity avatars are circular without changing invoice/chat business markup',()=>{
-  const customer=getCase('../app.html');
-  const admin=getCase('../../admin.html');
-  const gemini=getCase('../../index.html');
-  const css=(html)=>html.slice(0,html.indexOf('</style>'));
-  assert.match(css(customer),/\.satori-logo\{[^}]*object-fit:cover;border-radius:50%/);
-  for(const selector of ['.invoice-masthead .satori-logo',
-                         '.gate-logo .satori-logo',
-                         '.test-invoice-brand .satori-logo']){
-    assert.ok(css(customer).includes(selector),selector);
-    const segment=css(customer).split(selector+'{',2)[1]?.split('}',1)[0];
-    assert.match(segment,/border-radius:50%/,selector);
+test('Minh Satori brand logos match Samsung rounded-square corners without altering business markup',()=>{
+  const customer=getCase('../app.html'), admin=getCase('../../admin.html'), gemini=getCase('../../index.html');
+  const css=html=>html.slice(0,html.indexOf('</style>'));
+  const styleFor=(html,selector)=>css(html).split(selector+'{',2)[1]?.split('}',1)[0]||'';
+  const checks=[
+    [customer,'.satori-logo',11],
+    [customer,'.invoice-masthead .satori-logo',11],
+    [customer,'.gate-logo .satori-logo',20],
+    [customer,'.test-invoice-brand .satori-logo',15],
+    [admin,'.admin-brand img',14],
+    [gemini,'.brand-logo,.chat-satori-logo,.history-brand img',15],
+  ];
+  for(const [html,selector,radius] of checks) {
+    const segment=styleFor(html,selector);
+    assert.ok(segment.length>0,selector+' CSS must exist');
+    assert.ok(segment.includes('border-radius:'+radius+'px'),selector+' rounded-square corners');
+    assert.ok(!segment.includes('border-radius:50%'),selector+' must not be circular');
   }
-  assert.match(css(admin),/\.admin-brand img\{[^}]*object-fit:cover;[^}]*border-radius:50%/);
-  assert.match(css(gemini),/\.brand-logo,\.chat-satori-logo,\.history-brand img\{[^}]*border-radius:50%/);
   assert.match(admin,/src="\/assets\/logo-satori\.jpg"/);
   assert.match(gemini,/class="brand-logo" src="\/assets\/logo-satori\.jpg"/);
 });
