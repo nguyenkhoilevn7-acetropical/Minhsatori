@@ -7,7 +7,7 @@
 var SatoriBotApi=(function(){
 'use strict';
 var ORDER_KEY='satori_orders_v15', PRICE_APPROVAL_KEY='satori_ai_pricing_approvals_v1';
-var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
+var SCOPES={'system.status':'orders:read','orders.list':'orders:read','orders.findByRequestId':'orders:read',
  'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write',
  'orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','pricing.eligibility':'orders:ai:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
@@ -1037,6 +1037,28 @@ function read(s,action,p){
   var candidates=bin.filter(function(t){return t.order&&Number.isFinite(t.deletedAt)&&t.deletedAt<=now&&now-t.deletedAt<30*86400000&&(!t.expiresAt||t.expiresAt>now)});
   if(q)candidates=candidates.filter(function(t){var o=t.order;return [o.invoiceNo,o.name,o.phone,o.location].some(function(v){return norm(v).includes(q)})});
   return {revision:s.revision,totalMatches:candidates.length,invoices:candidates.slice(0,Math.min(100,Math.max(1,Number(p.limit)||30))).map(function(t){return {order:visible(t.order),deletedAt:t.deletedAt,expiresAt:t.expiresAt||t.deletedAt+30*86400000}})};
+ }
+ if(action==='orders.findByRequestId'){
+  // Recovery after a lost HTTP response: a stable idempotency key MUST be
+  // checked against BOTH the live ledger and 30-day soft-delete archive.
+  // This is HMAC-authenticated orders:read, and never writes or mutates state.
+  var req=String(p&&p.requestId||'');
+  need(/^[a-zA-Z0-9_-]{8,100}$/.test(req),'INVALID_REQUEST','Mã yêu cầu không hợp lệ');
+  var archive=JSON.parse(s.values.satori_trash_bin_v15||'[]');
+  need(Array.isArray(archive),'INVALID_STATE','Dữ liệu thùng rác không hợp lệ');
+  var candidates=all.filter(function(o){return o&&o.apiRequestId===req})
+    .map(function(o){return {order:o,deleted:false}});
+  archive.forEach(function(t){
+   if(t&&t.order&&t.order.apiRequestId===req)candidates.push({order:t.order,deleted:true});
+  });
+  need(candidates.length<=1,'REQUEST_ID_AMBIGUOUS','Mã yêu cầu trùng trong sổ');
+  if(!candidates.length)return {revision:s.revision,found:false,state:'NOT_FOUND'};
+  var matched=candidates[0];
+  // CTV pair orders use a different two-invoice reconciliation contract.
+  need(!matched.order.pairGroupId,'PAIR_REQUIRES_EXACT_PAIR_READBACK','Không thể đối soát bill đôi như bill đơn');
+  return {revision:s.revision,found:true,
+   state:matched.deleted?'DELETED':'COMMITTED',
+   order:visible(matched.order)};
  }
  if(action==='system.status')return {revision:s.revision,updatedAt:s.updatedAt,orders:all.length};
  if(action==='customers.search')return {revision:s.revision,profiles:searchProfiles(all,p)};
