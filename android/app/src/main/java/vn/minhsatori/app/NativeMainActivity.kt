@@ -444,7 +444,7 @@ class NativeMainActivity : AppCompatActivity() {
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), Color.rgb(227, 229, 234))
+            setStroke(dp(1), Color.rgb(225, 233, 233))
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
