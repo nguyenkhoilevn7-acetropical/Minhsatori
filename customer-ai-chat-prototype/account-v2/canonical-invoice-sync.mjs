@@ -44,3 +44,20 @@ export function assertSharedPdfMetadataForAllClients(committed,archive){
   gemini:ref.document,website:ref.document,android:ref.document
  });
 }
+
+/**
+ * Reuse V1's ledger-backed receipt identity, never its ephemeral demo PDF.
+ * These fields come only from an account-scoped V2 journal row committed after
+ * exact signed Bot API readback. No file link may be created from invoice number.
+ */
+export function canonicalReceiptForAccountOrder(order){
+ if(!order||order.state!=='COMMITTED'||!isInvoiceNo(Number(order.invoiceNo))||
+   !id(order.requestId)||order.currency!=='VND')return null;
+ const amount=Number(order.totalVnd);
+ if(!Number.isSafeInteger(amount)||amount<0||amount>100_000_000_000)return null;
+ return Object.freeze({
+  invoiceNo:Number(order.invoiceNo),requestId:order.requestId,
+  currency:'VND',totalVnd:amount,
+  pdf:canonicalInvoiceDocumentStatus(order)
+ });
+}
