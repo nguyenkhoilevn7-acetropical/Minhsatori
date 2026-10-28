@@ -1605,7 +1605,7 @@ function renderAddresses(){
 $('location').onchange=()=>{
  deliverySelectionProfileId=$('location').value?$('profile').value:null;
  pendingDeliveryRequest=null;
- $('messages').querySelectorAll('.chat-order-receipt').forEach(card=>card.remove());
+ $('messages')?.querySelectorAll?.('.chat-order-receipt')?.forEach(card=>card.remove());
  resetTestQuote();invalidateCartPricing();renderAddresses();renderCart();
 };
 async function changeProfile(forceDuringWrite=false){
@@ -1625,7 +1625,7 @@ async function changeProfile(forceDuringWrite=false){
    deliverySelectionProfileId=null;$('location').value='';
    clearPendingCatalogueProduct();
    pendingDeliveryRequest=null;
-   $('messages').querySelectorAll('.chat-order-receipt').forEach(card=>card.remove());
+   $('messages')?.querySelectorAll?.('.chat-order-receipt')?.forEach(card=>card.remove());
   }
   resetTestQuote();invalidateCartPricing();
   $('quickAgentProfile').value=requestedProfileId;
@@ -1901,7 +1901,7 @@ async function addChatOrderReceipt(selection){
  const fullCart=cart.map(line=>({code:line.code,qty:line.qty}));
  const revision=cartRev,profileId=$('profile').value,address=selectedDeliveryAddress();
  if(!fullCart.length){
-  $('messages').querySelectorAll('.chat-order-receipt').forEach(card=>card.remove());
+  $('messages')?.querySelectorAll?.('.chat-order-receipt')?.forEach(card=>card.remove());
   return;
  }
  const card=node('div',undefined,'chat-order-receipt');
