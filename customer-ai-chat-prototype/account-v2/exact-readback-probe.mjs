@@ -22,8 +22,25 @@ export async function probeCanonicalReadback({readOnlyReady,readMinhSatori,repor
   if(result?.data?.found!==false||result.data.state!=='NOT_FOUND'||
    result.data.order!=null)return emit('FAIL_UNEXPECTED_RECORD');
   return emit('PASS',revision);
- }catch{
-  // No raw exception text: upstream errors may contain request metadata.
+ }catch(e){
+  // Only known transport/auth categories; never log arbitrary upstream text,
+  // raw errors, request IDs, secret keys or customer information.
+  const known=new Map([
+   ['READ_ONLY_SIGNED_INVALID_ACTION','FAIL_INVALID_ACTION'],
+   ['READ_ONLY_SIGNED_FORBIDDEN','FAIL_FORBIDDEN'],
+   ['READ_ONLY_SIGNED_AUTH_FAILED','FAIL_AUTH'],
+   ['READ_ONLY_SIGNED_INVALID_REQUEST','FAIL_INVALID_REQUEST'],
+   ['READ_ONLY_SIGNED_INVALID_STATE','FAIL_LEDGER_STATE'],
+   ['READ_ONLY_SIGNED_EXPIRED','FAIL_TIMESTAMP'],
+   ['READ_ONLY_SIGNED_REPLAYED','FAIL_REPLAY'],
+   ['READ_ONLY_SIGNED_ERROR','FAIL_UPSTREAM_ERROR'],
+   ['READ_ONLY_UPSTREAM_ERROR','FAIL_UPSTREAM_ERROR'],
+   ['READ_ONLY_NON_JSON_RESPONSE','FAIL_NON_JSON']
+  ]);
+  if(known.has(e?.message))return emit(known.get(e.message));
+  if(e?.name==='AbortError')return emit('FAIL_TIMEOUT');
+  if(/^READ_ONLY_UPSTREAM_HTTP_[345]\\d{2}$/.test(e?.message||''))
+   return emit('FAIL_HTTP');
   return emit('FAIL_SIGNED_LOOKUP');
  }
 }
