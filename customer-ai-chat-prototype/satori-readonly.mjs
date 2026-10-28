@@ -53,8 +53,19 @@ export async function readMinhSatori(action,payload={}){
   });
   if(!result.ok)throw Error('READ_ONLY_UPSTREAM_HTTP_'+result.status);
   const text=await result.text();if(text.length>200_000)throw Error('READ_ONLY_RESPONSE_TOO_LARGE');
-  const parsed=JSON.parse(text);
-  if(!parsed.ok||parsed.action!==action)throw Error('READ_ONLY_UPSTREAM_ERROR');
+  let parsed;
+  try{parsed=JSON.parse(text)}
+  catch{throw Error('READ_ONLY_NON_JSON_RESPONSE')}
+  if(!parsed?.ok||parsed.action!==action){
+   // Only this diagnosis may expose a fixed, low-cardinality code.
+   // Never report upstream text, request ID, signatures or customer data.
+   const allowed=new Set(['INVALID_ACTION','FORBIDDEN','AUTH_FAILED',
+    'INVALID_REQUEST','INVALID_STATE','EXPIRED','REPLAYED','ERROR']);
+   const code=parsed?.error?.code;
+   if(action==='orders.findByRequestId'&&allowed.has(code))
+    throw Error('READ_ONLY_SIGNED_'+code);
+   throw Error('READ_ONLY_UPSTREAM_ERROR');
+  }
   return {revision:parsed.revision,data:parsed.data};
  }finally{clearTimeout(timer)}
 }
