@@ -584,5 +584,55 @@ function prepareLegacyForm(){
  root.append(form);
 }
 
+
+async function submitLegacyImport(event,button){
+ event.preventDefault();
+ if(!legacyData||!legacySelected.size)return legacyNotice('Chưa chọn hóa đơn.',true);
+ const value=byId('legacyDiscount').value.trim(),amount=Number(value);
+ const discountBps=Math.round(amount*100);
+ if(!value||!Number.isFinite(amount)||amount<0||amount>100||
+  Math.abs(amount*100-discountBps)>0.00001)
+  return legacyNotice('Anh cần nhập mức chiết khấu chính xác, kể cả 0%.',true);
+ const email=byId('legacyEmail').value.trim().toLowerCase();
+ const matching=customerRecord.registered.filter(x=>
+  email&&x.email?.toLowerCase()===email);
+ if(matching.length>1)return legacyNotice('Gmail trùng nhiều tài khoản, cần đối chiếu.',true);
+ if(matching[0]?.name&&matching[0].isAdmin)
+  return legacyNotice('Không được liên kết hồ sơ khách với Gmail Admin.',true);
+ const addresses=legacyReadAddresses(byId('legacyAddressRows'));
+ if(!addresses.length)return legacyNotice('Cần ít nhất một điểm giao.',true);
+ const payload={
+  query:legacyData.query,sourceRevision:legacyData.revision,
+  invoiceNos:[...legacySelected],fullName:byId('legacyName').value.trim(),
+  phone:byId('legacyPhone').value.trim(),email,
+  requestedType:byId('legacyType').value,discountBps,
+  companyName:byId('legacyCompany').value.trim(),
+  taxCode:byId('legacyTax').value.trim(),note:byId('legacyNote').value.trim(),
+  address:addresses[0].address,addresses,confirmed:true,identityConfirmed:true,
+  expectedAccountRevision:matching[0]?.revision??null
+ };
+ const summary='Anh xác nhận các hóa đơn #'+payload.invoiceNos.join(', #')+
+  ' thuộc ĐÚNG khách '+payload.fullName+'? Thiết lập chiết khấu '+amount+
+  '% và '+addresses.length+' điểm giao.'+
+  (email?' Gmail: '+email:' Chưa có Gmail, lưu hồ sơ chờ.');
+ if(!confirm(summary))return;
+ button.disabled=true;legacyNotice('Đang xác minh nguồn và lưu hồ sơ V2…');
+ try{
+  const result=await api('/api/v2/admin/legacy/import','POST',payload);
+  if(result.state==='ACTIVE'){
+   legacyNotice('✓ Gmail đã xác thực. Đã kích hoạt khách, lưu CK '+amount+
+    '% và '+result.addressesAdded+' địa chỉ mới.');
+  }else{
+   legacyNotice('✓ Đã lưu hồ sơ và '+result.addressesStaged+
+    ' địa chỉ chờ Gmail đăng nhập. Không tự kích hoạt tài khoản.');
+  }
+  legacySelected.clear();byId('legacyEditPanel').replaceChildren();
+  await loadCustomers();
+ }catch(e){
+  legacyNotice('Không nhập được: '+e.message+
+   '. Chưa cập nhật hóa đơn gốc.',true);
+ }finally{button.disabled=false}
+}
+
 </script>
 </body></html>
