@@ -498,5 +498,91 @@ function drawLegacyResults(){
  }
 }
 
+
+function legacyField(parent,title,id,kind='text',value='',required=false){
+ const label=make('label',title);const control=document.createElement('input');
+ control.id=id;control.type=kind;control.value=String(value??'');
+ if(kind==='email')control.maxLength=254;
+ if(required)control.required=true;
+ label.append(control);parent.append(label);return control;
+}
+function legacyDeliveryRow(root,item){
+ const wrap=make('div',null,'legacy-address');
+ for(const [label,key,val] of [
+  ['🏠 Tên địa điểm','label',item.label||'Nhà'],
+  ['👤 Người nhận','recipientName',item.recipientName||''],
+  ['☎️ Số điện thoại','recipientPhone',item.recipientPhone||''],
+  ['📍 Địa chỉ giao hàng','address',item.address||'']]){
+  const field=make('label',label),input=document.createElement('input');
+  input.value=val;input.required=true;input.maxLength=key==='address'?400:120;
+  input.dataset.field=key;
+  if(key==='recipientPhone')input.inputMode='tel';
+  field.append(input);wrap.append(field);
+ }
+ const remove=iconButton('Xóa địa chỉ','plus','secondary');
+ remove.onclick=()=>{if(root.children.length<=1)return legacyNotice('Phải có ít nhất một địa chỉ.',true);wrap.remove()};
+ wrap.append(remove);root.append(wrap);
+}
+function legacyReadAddresses(root){
+ return [...root.children].map(w=>{
+  const result={};
+  for(const input of w.querySelectorAll('input[data-field]'))result[input.dataset.field]=input.value.trim();
+  return result;
+ });
+}
+function prepareLegacyForm(){
+ const root=byId('legacyEditPanel');root.replaceChildren();
+ const chosen=legacyData?.orders.filter(x=>legacySelected.has(x.invoiceNo))||[];
+ if(!chosen.length)return;
+ const example=chosen[0];
+ const form=document.createElement('form');form.id='legacyImportForm';
+ form.append(make('hr',null,'crm-divider'),make('h3','✎ Hồ sơ khách & Gmail kích hoạt'));
+ form.append(make('p','Anh chỉnh được mọi thông tin. Mức chiết khấu từ hóa đơn cũ chỉ để tham khảo.'));
+ const fields=make('div',null,'field-grid');
+ legacyField(fields,'👤 Tên khách hàng','legacyName','text',example.name,true);
+ legacyField(fields,'☎️ Số điện thoại','legacyPhone','tel',example.phone,true);
+ legacyField(fields,'📧 Gmail sẽ kích hoạt','legacyEmail','email','');
+ const roleLabel=make('label','Loại khách');
+ const role=document.createElement('select');role.id='legacyType';
+ for(const [v,t] of [['retail','Khách lẻ'],['agency','Đại lý'],['collaborator','CTV']]){
+  const opt=make('option',t);opt.value=v;role.append(opt);
+ }
+ roleLabel.append(role);fields.append(roleLabel);
+ const discount=legacyField(fields,'💯 Chiết khấu hiện hành (%)','legacyDiscount','number','',true);
+ discount.min='0';discount.max='100';discount.step='0.01';
+ discount.placeholder='Anh tự nhập (kể cả 0%)';
+ legacyField(fields,'Công ty / cửa hàng','legacyCompany');
+ legacyField(fields,'Mã số thuế','legacyTax');
+ const note=legacyField(fields,'Ghi chú','legacyNote');note.parentNode.classList.add('full');
+ fields.querySelector('#legacyName').maxLength=120;
+ fields.querySelector('#legacyPhone').maxLength=24;
+ fields.querySelector('#legacyCompany').maxLength=160;
+ fields.querySelector('#legacyTax').maxLength=35;
+ note.maxLength=350;
+ form.append(fields,make('h3','📍 Điểm giao nhận'));
+ form.append(make('p','Hệ thống đã lấy các địa chỉ trong hóa đơn anh chọn. Có thể sửa hoặc thêm mới.'));
+ const addresses=make('div');addresses.id='legacyAddressRows';form.append(addresses);
+ const seen=new Set();
+ for(const o of chosen){
+  const key=(o.phone+'|'+o.address).toLowerCase();
+  if(!o.address||seen.has(key))continue;
+  seen.add(key);legacyDeliveryRow(addresses,{
+   label:'Địa chỉ '+seen.size,recipientName:o.name,recipientPhone:o.phone,address:o.address});
+ }
+ if(!addresses.children.length)legacyDeliveryRow(addresses,{
+  label:'Nhà',recipientName:example.name,recipientPhone:example.phone,address:''});
+ const add=iconButton('Thêm điểm giao mới','plus','secondary');
+ add.onclick=()=>{if(addresses.children.length>=30)return legacyNotice('Tối đa 30 địa chỉ.',true);
+  legacyDeliveryRow(addresses,{label:'Địa chỉ mới',recipientName:byId('legacyName').value,
+   recipientPhone:byId('legacyPhone').value,address:''})};
+ form.append(add);
+ const act=iconButton('Lưu hồ sơ / Kích hoạt Gmail','shield');
+ act.type='submit';act.className='';form.append(make('div',null,'actions'));
+ form.lastChild.append(act);
+ form.append(make('p','Nếu Gmail chưa từng đăng nhập, hồ sơ cùng mọi điểm giao sẽ được lưu chờ. Khách cần đăng nhập Gmail đó một lần, sau đó anh bấm Kích hoạt trong danh sách khách cũ.'));
+ form.onsubmit=ev=>submitLegacyImport(ev,act);
+ root.append(form);
+}
+
 </script>
 </body></html>
