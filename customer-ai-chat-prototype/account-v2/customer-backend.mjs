@@ -46,7 +46,7 @@ export async function registrationRead(pool,actor){
  const r=await pool.query(
   'SELECT account_id AS "accountId",full_name AS "fullName",phone,address,'+
   'company_name AS "companyName",tax_code AS "taxCode",note,'+
-  'requested_type AS "requestedType",revision,submitted_at AS "submittedAt" '+
+  'requested_type AS "requestedType",revision,submitted_at AS "submittedAt",reviewed_at AS "reviewedAt" '+
   'FROM satori_v2_registrations WHERE account_id=$1',[actor.id]);
  return {ok:true,accessStatus:actor.access_status,registration:r.rows[0]||null};
 }
@@ -56,11 +56,11 @@ export async function adminCustomerList(pool){
    'a.revision,a.created_at AS "createdAt",r.full_name AS "fullName",'+
    'r.phone,r.address,r.company_name AS "companyName",r.tax_code AS "taxCode",'+
    'r.note,r.requested_type AS "requestedType",r.revision AS "registrationRevision",'+
-   'r.submitted_at AS "submittedAt",'+
-   'COALESCE((SELECT p.discount_bps FROM satori_v2_profiles prof '+
+   'r.submitted_at AS "submittedAt",r.reviewed_at IS NOT NULL AS "approvedForPricing",'+
+   '(SELECT p.discount_bps FROM satori_v2_profiles prof '+
    'JOIN satori_v2_policies p ON p.profile_id=prof.id '+
    'WHERE prof.account_id=a.id AND p.enabled=true AND p.address_id IS NULL '+
-   'AND p.product_code IS NULL ORDER BY prof.created_at ASC,p.version DESC LIMIT 1),0) AS "discountBps" '+
+   'AND p.product_code IS NULL ORDER BY prof.created_at ASC,p.version DESC LIMIT 1) AS "discountBps" '+
    'FROM satori_v2_accounts a LEFT JOIN satori_v2_registrations r ON r.account_id=a.id '+
    'ORDER BY a.created_at DESC LIMIT 250'),
   pool.query('SELECT id,full_name AS "fullName",email,phone,address,'+
@@ -181,9 +181,11 @@ export async function adminChangeCustomerStatus(pool,owner,input){
    'REMOVED_REQUIRES_NEW_APPROVAL',409);
   let profileId=null;
   if(change.status==='ACTIVE'){
-   const reg=await c.query('SELECT full_name,phone,address,requested_type FROM satori_v2_registrations '+
+   check(change.discountBps!==undefined,'DISCOUNT_INPUT_REQUIRED_AFTER_APPROVAL',409);
+   const reg=await c.query('SELECT full_name,phone,address,requested_type,reviewed_at FROM satori_v2_registrations '+
     'WHERE account_id=$1',[input.accountId]);
    check(reg.rows.length===1,'CUSTOMER_REGISTRATION_INCOMPLETE',409);
+   check(reg.rows[0].reviewed_at!==null,'CUSTOMER_APPROVAL_REQUIRED_BEFORE_PRICING',409);
    const data=reg.rows[0];
    const existing=await c.query('SELECT id,type FROM satori_v2_profiles WHERE account_id=$1 '+
     'ORDER BY created_at LIMIT 1 FOR UPDATE',[input.accountId]);
@@ -255,5 +257,29 @@ export async function adminLinkLead(pool,owner,input){
   await audit(c,owner.id,'CUSTOMER_LEAD_MANUALLY_LINKED',input.leadId,
    {linkedAccountId:input.accountId,discountBps:l.discount_bps});
   return {ok:true,lead:link.rows[0],linkedAccountId:input.accountId};
+ });
+}
+
+/** Review identity/profile first; do NOT grant ordering or imply a 0% policy. */
+export async function adminApproveRegistration(pool,owner,input){
+ check(input?.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
+ check(isUuid(input.accountId)&&isRev(input.expectedRevision),'CUSTOMER_REVISION_REQUIRED');
+ check(input.accountId!==owner.id,'OWNER_CANNOT_BE_MODIFIED',403);
+ return tx(pool,async c=>{
+  const a=await c.query('SELECT id,access_status,revision FROM satori_v2_accounts '+
+   'WHERE id=$1 FOR UPDATE',[input.accountId]);
+  check(a.rowCount===1,'CUSTOMER_NOT_FOUND',404);
+  check(a.rows[0].access_status==='PENDING','CUSTOMER_NOT_PENDING',409);
+  check(a.rows[0].revision===input.expectedRevision,'CUSTOMER_REVISION_CONFLICT',409);
+  const r=await c.query('UPDATE satori_v2_registrations SET reviewed_at=now(),'+
+   'reviewed_by=$2,revision=revision+1,updated_at=now() '+
+   'WHERE account_id=$1 RETURNING account_id',[input.accountId,owner.id]);
+  check(r.rowCount===1,'CUSTOMER_REGISTRATION_INCOMPLETE',409);
+  const updated=await c.query('UPDATE satori_v2_accounts SET revision=revision+1,'+
+   'updated_at=now() WHERE id=$1 RETURNING revision',[input.accountId]);
+  await audit(c,owner.id,'CUSTOMER_IDENTITY_APPROVED',input.accountId,
+   {orderingEnabled:false,discountConfigured:false});
+  return {ok:true,accessStatus:'PENDING',approvedForPricing:true,
+   revision:updated.rows[0].revision};
  });
 }
