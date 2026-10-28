@@ -133,6 +133,128 @@ button:disabled{opacity:.55}
 .issued-toolbar{display:grid;grid-template-columns:minmax(0,1fr) 145px auto;gap:8px;align-items:end}
 .issued-toolbar input,.issued-toolbar select{width:100%;min-width:0;min-height:44px}
 @media(max-width:620px){.issued-toolbar{grid-template-columns:1fr 1fr}.issued-toolbar label:first-child{grid-column:1/-1}.issued-toolbar>button{grid-column:1/-1}}
+
+/* MINH SATORI UNIFIED LIGHT UI — admin appearance only, preserve all actions. */
+:root{--satori-ink:#1c1c1e;--satori-blue:#007aff;--satori-green:#13784e;
+ --satori-line:#dfe6ee;--satori-phone:#eaf9f1;--satori-address:#ecf5ff}
+body{background:#f2f2f7;color:var(--satori-ink)}
+.card,.directory-card,.issued-link-card,.ctv-person{
+ border-color:var(--satori-line);border-radius:17px;background:#fff;
+ box-shadow:0 3px 15px #193a560b
+}
+.admin-tabs{background:#f2f2f7ef}
+.admin-tab.active{color:var(--satori-blue);border-color:#d6e8fb}
+.directory-card-title strong{font-size:16px;line-height:1.4;color:var(--satori-ink)}
+.directory-card-title small{font-size:12.5px;line-height:1.55;color:#617083}
+.directory-avatar{background:#eaf3ff;color:var(--satori-blue);border:1px solid #dceaff}
+.directory-pill{background:#eaf3ff;color:#176dab}
+.directory-places{border-top-color:#e3eaf2}
+.directory-places summary{color:#0879d3;font-size:13.5px}
+.directory-places li{background:#f8faff;border:1px solid #e7eef5;border-radius:10px;
+ padding:10px 11px;margin:7px 0;overflow-wrap:anywhere}
+.directory-places li small{font-size:13px;color:#51667d}
+.directory-stat{background:#f3f8ff;border-color:#deebf9}
+.directory-stat strong{color:#0879d3}
+#newOrders .customer{background:#fff;border-color:var(--satori-line);border-radius:14px}
+button:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,.admin-tab:focus-visible{
+ outline:2px solid #007aff;outline-offset:2px
+}
+@media(max-width:640px){
+ .directory-card-title strong{font-size:15.5px}
+ .directory-places li small{font-size:12.5px}
+}
+/* END MINH SATORI UNIFIED LIGHT UI */
+
+
+/* SATORI FULL-UI REVIEW: owner admin visual parity only */
+:root{--satori-ink:#20364b;--satori-blue:#086fdf;--satori-green:#137447;--satori-line:#d1dfed}
+body{background:linear-gradient(180deg,#e5f1ff,#eff3f8 300px);color:var(--satori-ink)}
+header{background:linear-gradient(110deg,#d9ecff,#f2f8ff);border:1px solid #cddfec;border-radius:16px;padding:12px 14px}
+.admin-tabs{background:#dcebf9f5;border:1px solid #c9ddf1;border-radius:15px;padding:7px;margin:10px 0;box-shadow:0 3px 12px #23476e14}
+.admin-tab{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:#edf6ff;color:#2e5279;border:1px solid #d5e5f3}
+.admin-tab svg{width:19px;height:19px;flex:none}
+.admin-tab.active{background:linear-gradient(130deg,#0877df,#1265c2);color:#fff;border-color:#1265c2;box-shadow:0 3px 10px #086abf33}
+.card,.directory-card,.issued-link-card,.ctv-person{background:linear-gradient(150deg,#fff,#f8fbff);border-color:#cfdfed;box-shadow:0 4px 17px #264a6f12}
+.directory-avatar,.directory-pill{background:#dfeeff;color:#145fbd}
+.directory-places li{background:#f1f8ff;border-color:#d7e5f3}
+.directory-stat{background:#e5f1ff;border-color:#c7dbef}
+.directory-stat strong{color:#086fdf}
+button.secondary{background:#e8f2ff;color:#1d609f;border-color:#c6ddef}
+button.danger{background:#fff0f0;color:#a52e39;border-color:#edc9cf}
+#newOrders .customer{background:#f6fbff}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #086fdf;outline-offset:2px}
+/* END SATORI FULL-UI REVIEW */
+
+
+/* MONEY-MIND FLAT DESIGN — visual only; owner CRUD and authorization untouched */
+:root{color-scheme:light;background:#f1f4f5;color:#102b38;--satori-ink:#102b38;--satori-blue:#009c99;--satori-green:#0f976c;--satori-line:#e0e8e8}
+body{background:#f1f4f5;color:#102b38}
+header{background:#fff;border:1px solid #e3ebeb;border-radius:18px;box-shadow:none}
+h1,h2,.admin-brand strong{color:#113344}
+.card,.directory-card,.issued-link-card,.ctv-person,.new-location-item,.ctv-add-box,.location-manager,.issued-link-card details,
+.ctv-live-receiver,.test-order-bar,.directory-stat{background:#fff!important;border:1px solid #e2e9e9!important;border-radius:18px!important;box-shadow:none!important}
+.admin-tabs{background:#fff;border:1px solid #e1eaea;border-radius:17px;box-shadow:none;gap:6px;padding:7px}
+.admin-tab{background:#f3f7f7;color:#44616a;border:1px solid #e2ebeb;border-radius:13px;box-shadow:none;min-height:45px}
+.admin-tab.active{background:#009c99!important;border-color:#009c99!important;color:#fff!important;box-shadow:none!important}
+button:not(.admin-tab):not(.danger):not(.secondary){background:#009c99;color:#fff;border-radius:13px;box-shadow:none}
+button.secondary,.suggestions button{background:#eaf7f5;color:#007b7a;border:1px solid #d1eae5}
+button.danger{background:#fff0f0;color:#c54049;border:1px solid #f4d7d9}
+.production-tag{background:#e6f7ef;color:#127d55;border-color:#d2eddf}
+.directory-avatar,.directory-pill{background:#e3f6f3;color:#087e7c}
+.directory-stat strong,.directory-card-title strong{color:#0c7574}
+.directory-places li,.issued-link-url{background:#f6faf9;border-color:#e3eaea}
+input,select,textarea{background:#f7fafa!important;border:1px solid #dfe7e7!important;border-radius:13px;color:#172f3d}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid #009c99;outline-offset:2px}
+#newOrders .customer{background:#fff;border-color:#e2e9e9}
+@media(max-width:640px){body{padding:10px}.admin-tabs{gap:5px}.admin-tab{padding:8px 9px}}
+/* END MONEY-MIND FLAT DESIGN */
+
+
+/* MoneyMind structural bottom rail; existing showAdminTab is single state owner. */
+.mm-admin-bottom{display:flex;position:fixed;z-index:24;bottom:0;left:50%;transform:translateX(-50%);
+ width:min(100%,760px);align-items:center;justify-content:space-around;padding:7px 4px calc(7px + env(safe-area-inset-bottom,0px));
+ background:#fff;border-top:1px solid #e9efef;box-shadow:0 -4px 16px #102b3814;border-radius:15px 15px 0 0}
+.mm-admin-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;
+ gap:4px;min-height:51px;padding:2px!important;border:0!important;background:transparent!important;
+ color:#8d9da5!important;border-radius:0!important;font-size:9px!important;font-weight:600!important}
+.mm-admin-tab.active{color:#009c99!important;font-weight:850!important}
+.mm-admin-tab svg{width:21px;height:21px;flex:none}
+.mm-admin-center svg{width:38px;height:38px;margin-top:-14px;padding:9px;background:#009c99;color:#fff;border-radius:50%}
+#workspace{padding-bottom:76px}
+@media(min-width:860px){.mm-admin-bottom{width:620px}}
+/* END MONEY-MIND ADMIN BOTTOM BAR */
+
+/* MoneyMind panel and tab motion. The fixed bar itself never moves. */
+@keyframes mm-admin-enter{from{opacity:.70;transform:translate3d(0,7px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+[data-tab-panel]:not([hidden]){animation:mm-admin-enter 190ms cubic-bezier(.22,.68,0,1) both}
+.mm-admin-tab{transition:color 170ms ease}
+.mm-admin-tab svg{transition:transform 160ms cubic-bezier(.22,.68,0,1)}
+.mm-admin-tab:active svg{transform:scale(.90)}
+.mm-admin-tab.active:not(.mm-admin-center) svg{transform:translateY(-2px)}
+@media(prefers-reduced-motion:reduce){
+ [data-tab-panel]:not([hidden]){animation:none!important}
+ .mm-admin-tab,.mm-admin-tab svg{transition:none!important}
+}
+/* END MONEY-MIND ADMIN MOTION */
+
+/* Responsive fold inner display, conventional mobile and multi-window resize. */
+@media(min-width:600px) and (max-width:1200px){
+ main{width:min(100%,820px);max-width:820px;margin-inline:auto}
+ .mm-admin-bottom{width:min(100%,720px)}
+}
+@media(max-width:380px){
+ body{padding-inline:7px}
+ .mm-admin-bottom{gap:0;padding-inline:0}
+ .mm-admin-tab{font-size:8.5px!important;padding-inline:0!important;letter-spacing:-.15px}
+ .mm-admin-tab svg{width:20px;height:20px}
+}
+@media(max-height:460px) and (hover:none){
+ .mm-admin-bottom{display:none}
+ #workspace{padding-bottom:16px}
+}
+/* END FOLD-READY ADMIN */
+
 </style></head><body><main>
 <header class="admin-branded-header"><span class="production-tag">● PRODUCTION</span><span class="admin-brand"><img src="/assets/logo-satori.jpg" alt="Logo chính thức Satori" width="46" height="46"><strong>MINH SATORI <small id="adminModeTag">• Đang kiểm tra</small></strong></span></header>
 <h1>Quản lý Minh Satori</h1>
@@ -151,6 +273,7 @@ button:disabled{opacity:.55}
  <button type="button" class="admin-tab" data-admin-tab="changes" aria-pressed="false" style="display:none">🧪 Yêu cầu thử</button>
  <button type="button" class="admin-tab" data-admin-tab="settings" aria-pressed="false">⚙️ Cài đặt</button>
 </nav>
+<nav class="mm-admin-bottom" aria-label="Thanh điều hướng Minh Satori"><button type="button" class="mm-admin-tab " data-admin-tab="live" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 9h6M9 13h6"/></svg><span>Hóa đơn</span></button><button type="button" class="mm-admin-tab " data-admin-tab="customers" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M17 5a3 3 0 0 1 0 6m1 3a5 5 0 0 1 3 5"/></svg><span>Khách hàng</span></button><button type="button" class="mm-admin-tab mm-admin-center" data-admin-tab="issued-links" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 15a4 4 0 0 0 6 0l4-4a4 4 0 0 0-6-6l-2 2M15 9a4 4 0 0 0-6 0l-4 4a4 4 0 0 0 6 6l2-2"/></svg><span>Cấp link</span></button><button type="button" class="mm-admin-tab " data-admin-tab="ctv-ledger" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20v-8h4v8M10 20V4h4v16M16 20v-12h4v12M2 20h20"/></svg><span>Bảng CTV</span></button><button type="button" class="mm-admin-tab " data-admin-tab="settings" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-5 3-7 8-7s8 2 8 7"/></svg><span>Cá nhân</span></button></nav>
 <section class="card" id="orderPanel" data-tab-panel="orders" aria-labelledby="ordersHeading">
 <h2 id="ordersHeading">🔔 Đơn hàng mới <span id="newOrderCount">0</span></h2>
 <p class="hint">Chỉ thông báo đơn TEST đã xác nhận • Tự cập nhật khoảng 10 giây/lần khi Admin mở.</p>
