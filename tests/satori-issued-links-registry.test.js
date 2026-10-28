@@ -160,5 +160,7 @@ test('encrypted PIN vault is immutable after owner-only backfill (fake ledger)',
  assert.equal(repeated.result.duplicate,true);
  assert.throws(()=>linkSecretSet(after,{...request,accessCodeVault:changed,expectedRevision:202}),
   {code:'LINK_VAULT_IMMUTABLE'});
- assert.match(source,/'links\.secret\.set':'orders:write'/);
+ assert.match(source,/'links\.secret\.set':'links:secret:write'/);
+ assert.doesNotMatch(source,/'links\.secret\.set':'orders:write'/,
+  'link vault writes must not inherit invoice write permission');
 });

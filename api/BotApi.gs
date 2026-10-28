@@ -18,7 +18,7 @@ var SCOPES={'system.status':'orders:read','orders.list':'orders:read','orders.fi
  'collaborators.pair.list':'collaborators:pair:read',
  'collaborators.pair.configure':'collaborators:pair:approve','collaborators.mark':'collaborators:pair:approve',
  'orders.create.pair':'collaborators:pair:write',
- 'links.register':'orders:write','links.update':'orders:write','links.secret.set':'orders:write','links.list':'orders:write'};
+ 'links.register':'orders:write','links.update':'orders:write','links.secret.set':'links:secret:write','links.list':'orders:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
