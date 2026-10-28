@@ -116,9 +116,220 @@
         .parse-status {font-size:12px;color:#6ee7b7;padding:8px 0;}
         .parse-status.needs-review {color:#fcd34d;}
         @media(max-width:640px) {#tab-input {gap:14px;} .compact-panel>summary {min-height:48px;}}
-    </style>
+
+/* MINH SATORI LEGACY ACCOUNTING — REVIEW-ONLY UI.
+   Activated by ?satoriUiPreview=1, never enabled by default.
+   Screen only: preserve all original forms, IDs, handlers, invoices/PDF, payment and Drive logic. */
+@media screen{
+ html.satori-light-review{color-scheme:light}
+ html.satori-light-review body{background:#f2f2f7!important;color:#1c1c1e!important}
+ html.satori-light-review #appHeader{
+  background:#fff!important;border-color:#e1e7ee!important;
+  box-shadow:0 3px 15px #173b5411!important
+ }
+ html.satori-light-review #appHeader h1{color:#1c1c1e!important}
+ html.satori-light-review #appHeader p,
+ html.satori-light-review #appHeader .text-slate-400{color:#647287!important}
+ html.satori-light-review #appHeader nav{
+  background:#f7faff!important;border-color:#dfe7f1!important;
+  box-shadow:none!important
+ }
+ html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]){
+  border-color:#dee9f5!important;border-radius:12px!important;
+  background:#fff!important;color:#205b94!important;
+  box-shadow:0 2px 8px #163c5910!important
+ }
+ html.satori-light-review #appHeader nav button#btn-tab-input{
+  border-radius:12px!important;color:#fff!important
+ }
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ > .bg-slate-950{
+  background:#fff!important;border-color:#e1e7ee!important;
+  border-radius:18px!important;color:#1c1c1e!important;
+  box-shadow:0 3px 16px #203b4c0d!important
+ }
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ :is(.bg-slate-900,.bg-slate-950):not(button):not(.no-print){
+  background:#f9fbff!important;border-color:#e0e7ef!important
+ }
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ :is(input,select,textarea):not([type=checkbox]):not([type=radio]){
+  color:#1c1c1e!important;background:#fff!important;border-color:#d5dfea!important;
+  border-radius:11px!important;font-size:max(14px,1em)
+ }
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ :is(input,select,textarea)::placeholder{color:#697b8f!important}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ :is(h2,h3,h4,.text-white):not(button){color:#1c1c1e!important}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ :is(.text-slate-100,.text-slate-200,.text-slate-300){color:#42576d!important}
+ html.satori-light-review :is(#archiveCardsContainer,#sheetsTableBody,#archiveTableBody)
+ > *{border-radius:14px}
+ html.satori-light-review #tab-sheet table,
+ html.satori-light-review #tab-archive table{background:#fff;color:#273b50}
+ html.satori-light-review :is(#tab-sheet,#tab-archive) thead{
+  background:#eaf3ff;color:#166ab2
+ }
+ html.satori-light-review :is(#tab-sheet,#tab-archive) tbody tr{
+  border-bottom:1px solid #e3e9f1
+ }
+ html.satori-light-review .compact-panel{
+  background:#fff!important;border-color:#e0e6ee!important;border-radius:17px!important
+ }
+ html.satori-light-review .compact-panel>summary{color:#205d96!important}
+ html.satori-light-review .compact-panel input,
+ html.satori-light-review .compact-panel select{background:#fff!important;color:#1c1c1e!important}
+ html.satori-light-review :is(#invoicePreview,#modalInvoiceContent),
+ html.satori-light-review :is(#invoicePreview,#modalInvoiceContent) *{
+  box-shadow:none!important
+ }
+}
+
+/* All six V18.3 tab buttons honor switchTab's actual active class,
+   rather than pinning 'Lên Đơn' as selected after navigating elsewhere. */
+@media screen{
+ html.satori-light-review body{
+  background:linear-gradient(180deg,#e5f1ff,#eef4fa 280px)!important
+ }
+ html.satori-light-review #appHeader{
+  background:linear-gradient(110deg,#dfeeff,#fbfdff)!important;
+  border-color:#cadff4!important;box-shadow:0 5px 18px #104a8418!important
+ }
+ html.satori-light-review #appHeader nav{
+  display:flex!important;gap:7px!important;background:#eaf4ff!important;
+  border:1px solid #cedff1!important;border-radius:17px!important;
+  padding:7px!important;overflow-x:auto;scrollbar-width:none
+ }
+ html.satori-light-review #appHeader nav button{
+  min-height:43px!important;display:inline-flex;align-items:center;
+  justify-content:center;gap:7px;white-space:nowrap
+ }
+ html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"]{
+  background:linear-gradient(120deg,#086fe3,#0761c7)!important;
+  color:#fff!important;border:1px solid #0865cf!important;
+  box-shadow:0 4px 11px #0866d033!important;border-radius:13px!important
+ }
+ html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"] i{
+  color:#fff!important
+ }
+ html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]) i{
+  color:#0b64b9!important
+ }
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ .compact-panel,html.satori-light-review #tab-sheet table{
+  border-color:#cddff1!important;box-shadow:0 4px 15px #1b4d7411!important
+ }
+ @media(max-width:640px){
+  html.satori-light-review #appHeader nav button{font-size:12px!important;padding:8px 10px!important}
+ }
+}
+
+/* MONEY-MIND SATORI FLAT TEAL — V18.3 preview-only. No print or ledger changes. */
+@media screen{
+ html.satori-light-review{color-scheme:light}
+ html.satori-light-review body{background:#f1f4f5!important;color:#102b38!important}
+ html.satori-light-review #appHeader{
+   background:#fff!important;border-color:#e0e9e9!important;
+   border-radius:0 0 20px 20px!important;box-shadow:none!important
+ }
+ html.satori-light-review #appHeader h1{color:#102b38!important}
+ html.satori-light-review #appHeader nav{
+   background:#fff!important;border:1px solid #e0e9e9!important;
+   border-radius:18px!important;box-shadow:none!important;gap:7px!important
+ }
+ html.satori-light-review #appHeader nav button{
+   border-radius:13px!important;box-shadow:none!important;min-height:45px!important
+ }
+ html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]){
+   background:#edf7f5!important;color:#246c6a!important;border-color:#dfede9!important
+ }
+ html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"]{
+   background:#009c99!important;color:#fff!important;border-color:#009c99!important;
+   box-shadow:none!important
+ }
+ html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"] i{color:#fff!important}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ > .bg-slate-950,
+ html.satori-light-review .compact-panel{
+   background:#fff!important;color:#102b38!important;
+   border:1px solid #e0e8e8!important;border-radius:19px!important;box-shadow:none!important
+ }
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ :is(.bg-slate-900,.bg-slate-950):not(button):not(.no-print){
+   background:#f7fafa!important;border-color:#e3eaea!important;box-shadow:none!important
+ }
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory)
+ :is(input,textarea,select):not([type=checkbox]):not([type=radio]){
+   background:#fff!important;color:#102b38!important;border-color:#dde8e7!important;border-radius:14px!important
+ }
+ html.satori-light-review :is(#tab-sheet,#tab-archive) thead{
+   background:#e5f7f2!important;color:#087b7a!important
+ }
+ html.satori-light-review :is(#tab-sheet,#tab-archive) table{
+   background:#fff!important;color:#102b38!important;box-shadow:none!important
+ }
+ html.satori-light-review button:focus-visible{
+   outline:2px solid #009c99!important;outline-offset:2px!important
+ }
+}
+
+/* END MINH SATORI LEGACY REVIEW-ONLY UI */
+    
+/* MoneyMind production — visual styles only; excludes print and invoice templates. */
+@media screen {
+ html.satori-light-review body{background:#f2f6f6!important;color:#15363b!important}
+ html.satori-light-review #appHeader{background:linear-gradient(125deg,#076b77,#05938d)!important;border-color:transparent!important;border-radius:0 0 20px 20px!important;box-shadow:0 6px 24px #0c59621b!important}
+ html.satori-light-review #appHeader :is(h1,p,.text-slate-400){color:#fff!important}
+ html.satori-light-review #appHeader img{border-radius:11px!important;object-fit:contain!important;background:#fff!important;padding:2px!important}
+ html.satori-light-review #appHeader nav{background:#ffffff23!important;border-color:#ffffff44!important}
+ html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]){background:#fff!important;color:#096974!important}
+ html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"]{background:#066e76!important;color:#fff!important;border-color:#a5ded8!important}
+ html.satori-light-review :is(.compact-panel,#tab-input>div,#tab-sheet>div,#tab-archive>div){border-radius:18px!important}
+ html.satori-light-review button,html.satori-light-review summary{transition:transform .18s ease,background-color .18s ease,border-color .18s ease,color .18s ease!important}
+ html.satori-light-review button:active{transform:scale(.97)}
+ #satori-legacy-dock{display:none}
+ @media(max-width:900px){
+  html.satori-light-review #appHeader{padding:10px 12px!important}
+  html.satori-light-review #appHeader nav{display:none!important}
+  html.satori-light-review body{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))!important}
+  html.satori-light-review main{padding:12px 10px!important;max-width:720px}
+  #satori-legacy-dock{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;bottom:0;left:0;right:0;z-index:35;background:#fffffff7;border-top:1px solid #dce7e7;box-shadow:0 -5px 22px #164e601c;padding:7px 5px calc(7px + env(safe-area-inset-bottom,0px));backdrop-filter:blur(16px)}
+  #satori-legacy-dock :is(.dock-item,summary){display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;min-height:54px;background:transparent;border:0;border-radius:13px;color:#677c83;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap}
+  #satori-legacy-dock i{font-size:19px;line-height:22px}
+  #satori-legacy-dock .dock-item[aria-current="page"],#satori-legacy-dock details[open]>summary{background:#e1f4f0;color:#007c77}
+  #satori-legacy-dock details{position:relative}
+  #satori-legacy-dock .dock-menu{display:grid;gap:4px;position:absolute;bottom:calc(100% + 14px);right:0;width:204px;background:#fff;border:1px solid #d8e4e4;border-radius:16px;padding:8px;box-shadow:0 10px 32px #0c32364d}
+  #satori-legacy-dock .dock-menu button{background:#f2f8f7;color:#1a6265;font-size:13px;font-weight:650;text-align:left;padding:11px;border:0;border-radius:9px}
+  #satori-legacy-dock .dock-menu button i{font-size:14px;margin-right:7px}
+  html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue) :is(input,select,textarea):not([type=checkbox]):not([type=radio]){font-size:16px!important}
+ }
+ @media(prefers-reduced-motion:reduce){html.satori-light-review button,html.satori-light-review summary{transition:none!important;animation:none!important}}
+}
+
+</style>
+<script>
+/* Production MoneyMind visual skin. Invoice/payment/Drive business logic is unchanged. */
+document.documentElement.classList.add('satori-light-review');
+</script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+<!-- MoneyMind legacy bottom navigation: reuse existing switchTab and owner actions. -->
+<nav id="satori-legacy-dock" class="no-print" aria-label="Điều hướng kế toán">
+ <button class="dock-item" type="button" data-route="input" onclick="switchTab('input')" aria-label="Lên đơn"><i class="fa-solid fa-file-circle-plus" aria-hidden="true"></i><span>Lên đơn</span></button>
+ <button class="dock-item" type="button" data-route="archive" onclick="switchTab('archive')" aria-label="Hóa đơn"><i class="fa-solid fa-file-invoice" aria-hidden="true"></i><span>Hóa đơn</span></button>
+ <button class="dock-item" type="button" data-route="sheet" onclick="switchTab('sheet')" aria-label="Sổ kế toán và công nợ"><i class="fa-solid fa-dollar-sign" aria-hidden="true"></i><span>Công nợ</span></button>
+ <button class="dock-item" type="button" data-route="catalogue" onclick="switchTab('catalogue')" aria-label="Bảng giá"><i class="fa-solid fa-tags" aria-hidden="true"></i><span>Bảng giá</span></button>
+ <details><summary aria-label="Tác vụ khác"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i><span>Khác</span></summary>
+  <div class="dock-menu">
+   <button type="button" onclick="switchTab('reconcile');this.closest('details').open=false"><i class="fa-solid fa-scale-balanced"></i>Đối chiếu Satori</button>
+   <button type="button" onclick="switchTab('aimemory');this.closest('details').open=false"><i class="fa-solid fa-brain"></i>Trí nhớ AI</button>
+   <button type="button" onclick="syncLiveFromGoogleDrive();this.closest('details').open=false"><i class="fa-solid fa-rotate"></i>Đồng bộ Drive</button>
+   <button type="button" onclick="openBackupRestoreModal();this.closest('details').open=false"><i class="fa-solid fa-database"></i>Sao lưu & Restore</button>
+   <button type="button" onclick="openTrashBinModal();this.closest('details').open=false"><i class="fa-solid fa-trash-can"></i>Thùng rác</button>
+  </div>
+ </details>
+</nav>
+
 
     <!-- Active Update Notification Banner -->
     <div class="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-blue-500/40 px-3 py-2 text-center text-xs text-blue-200 flex flex-col sm:flex-row items-center justify-between gap-2 no-print shadow">
@@ -8875,6 +9086,22 @@ window.SatoriRecon = (() => {
 })();
 </script>
     <script src="satori-bot-live.js?v=20261019" defer></script>
+
+<script id="satori-legacy-dock-sync">
+/* Read original switchTab state; never monkeypatch financial or navigation functions. */
+(() => {
+ const ready=()=>{const dock=document.getElementById('satori-legacy-dock');if(!dock)return;
+ const tabs=['input','archive','sheet','catalogue','reconcile','aimemory'];
+ const paint=()=>{const active=tabs.find(t=>document.getElementById('btn-tab-'+t)?.classList.contains('bg-gradient-to-r'))||'input';
+  dock.querySelectorAll('[data-route]').forEach(el=>el.dataset.route===active?el.setAttribute('aria-current','page'):el.removeAttribute('aria-current'));
+ };
+ const watch=new MutationObserver(paint);
+ tabs.forEach(t=>{const el=document.getElementById('btn-tab-'+t);if(el)watch.observe(el,{attributes:true,attributeFilter:['class']});});
+ document.addEventListener('click',e=>{const d=dock.querySelector('details');if(d?.open&&!d.contains(e.target))d.open=false;});
+ paint();};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else ready();
+})();
+</script>
 </body>
 </html>
 
