@@ -84,8 +84,12 @@ test('10+2+3 V2 quote maps exact validated pricing, note and recipient; no AI pr
  assert.equal(intent.order.deliveryNote,quote.deliveryRequest.deliveryNote);
  assert.equal(intent.confirmedNewCustomer,true);
  assert.equal(intent.customerRef,undefined);
+ const ctv=prepareLedgerIntent({quote:{...quote,invoiceMode:'pair',
+  internalReference:{totalVnd:810000}},requestId,expectedRevision:176});
+ assert.equal(ctv.order.total,quote.totalVnd);
+ assert.equal(ctv.order.items.length,3);
+ assert.equal(ctv.order.internalReference,undefined);
  for(const invalid of [
-  {...quote,invoiceMode:'pair'},
   {...quote,totalVnd:1000000},
   {...quote,items:[{...quote.items[0],lineTotal:1}]},
   {...quote,items:[{...quote.items[0],unitPrice:130000}]},
