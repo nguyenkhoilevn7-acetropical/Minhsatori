@@ -232,6 +232,7 @@
     if(document.getElementById('satori-bot-launch'))return;
     var css=document.createElement('style');css.textContent=
     '#satori-bot-launch{position:fixed;right:14px;bottom:70px;z-index:99950;border:1px solid #7df7dc;background:#07675d;color:white;border-radius:20px;padding:12px 17px;box-shadow:0 9px 24px #0008;font:bold 14px system-ui;cursor:pointer}'+
+    '@media(max-width:900px){#satori-bot-launch{right:10px;bottom:calc(88px + env(safe-area-inset-bottom,0px));width:46px;min-width:46px;height:46px;min-height:46px;padding:0;border-radius:14px;font-size:0;line-height:0;box-shadow:0 5px 14px #0005}#satori-bot-launch::before{content:"🤖";font-size:22px;line-height:1;display:block}}'+
     '#satori-bot-dialog[hidden],#satori-bot-preview[hidden]{display:none!important}#satori-bot-dialog{position:fixed;inset:0;z-index:100007;background:#020d17e8;overflow:auto;padding:12px;display:flex;justify-content:center;align-items:flex-start}'+
     '#satori-bot-dialog .sb-card{width:min(100%,680px);margin:5vh auto 10px;background:#101e2f;color:#ecf8ff;border:1px solid #426779;border-radius:18px;padding:22px;font:14px/1.5 system-ui;box-shadow:0 16px 50px #0008}'+
     '#satori-bot-dialog h2{font-size:21px;margin:0}#satori-bot-dialog label{display:block;font-weight:700;color:#c6d9e7;margin:8px 0 5px}'+
