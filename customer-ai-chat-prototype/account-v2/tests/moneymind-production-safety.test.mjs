@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const files=[
- ['account-v2/app.html','0864c5e0','mm-bottom-nav'],
+ ['account-v2/app.html','3d1e2bb2','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const fnv32=s=>{let h=0x811c9dc5;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),0x01000193);return (h>>>0).toString(16).padStart(8,'0')};
@@ -13,7 +13,15 @@ function businessOnly(html){
  return html.replace(/<style>[\s\S]*?<\/style>/,'<style/>')
   .replace(/<nav class="mm-(?:bottom-nav|admin-bottom)"[\s\S]*?<\/nav>\n/,'');
 }
-test('MoneyMind production must keep existing business HTML and all scripts byte identical',()=>{
+test('MoneyMind visual shell keeps its reviewed V2 Gemini-only business delta',()=>{
+ // The previous V2 baseline business hash was 0864c5e0. This deliberate
+ // change is limited to V2 chat applying original Gemini cart operations.
+ // Pixel styling/markup outside the inline script remain byte-identical.
+ const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
+ const fnvPart=x=>fnv32(x);
+ assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'e12664a3');
+ assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'ba3234a5');
+ assert.match(v2,/result\.baseCartRevision!==cartRev/);
  for(const [file,expected,nav] of files){
   const html=fs.readFileSync(path.join(root,file),'utf8');
   assert.equal(fnv32(businessOnly(html)),expected,file+' existing business source unexpectedly changed');

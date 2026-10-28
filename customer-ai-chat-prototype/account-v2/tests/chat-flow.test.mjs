@@ -80,7 +80,9 @@ test('in-chat inputs, status, compact controls and retry guard are present',()=>
  assert.match(html,/class="action-send"/);
  assert.match(html,/class="satori-logo"/);
  assert.match(html,/async function addChatOrderReceipt\(selection\)/);
- assert.match(html,/const merged=mergeCartItems\(cart,selection\)/);
+ assert.match(html,/merged=mergeCartItems\(cart,selection\)/);
+ assert.match(html,/result\.proposedCart\.map\(x=>\(\{code:x\.code,qty:x\.qty\}\)\)/);
+ assert.match(html,/result\.baseCartRevision!==cartRev/);
  assert.match(html,/await saveCart\(merged\)/);
  assert.match(html,/await addChatOrderReceipt\(selection\)/);
  assert.match(html,/class="chat-order-receipt"|'chat-order-receipt'/);

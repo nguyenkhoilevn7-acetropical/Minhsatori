@@ -1956,7 +1956,20 @@ $('send').onclick=async()=>{
   // Validate exact quantities, then update the ONE shared cart in one atomic PUT.
   // No redundant numeric input or second add-to-cart button.
   const selection=result.suggestedItems.map(x=>({code:x.code,qty:x.qty}));
-  const merged=mergeCartItems(cart,selection);
+  let merged;
+  if(PREVIEW){
+   // The synthetic, offline UI preview keeps its existing demo behavior.
+   merged=mergeCartItems(cart,selection);
+  }else{
+   // The server reused the original Gemini add/set/replace intent against
+   // the exact authenticated V2 cart. Refuse a stale or missing suggestion.
+   if(!Number.isSafeInteger(result.baseCartRevision)||
+      result.baseCartRevision!==cartRev||!Array.isArray(result.proposedCart)){
+    await changeProfile(true);
+    throw Error('Giỏ đã thay đổi hoặc kết quả Gemini chưa được xác minh. Vui lòng kiểm tra giỏ trước khi gửi lại.');
+   }
+   merged=result.proposedCart.map(x=>({code:x.code,qty:x.qty}));
+  }
   await saveCart(merged);
   input.value='';updateComposerAction();
   await revealGeminiReply(reply,'✓ Đã thêm vào giỏ',typingStartedAt);
