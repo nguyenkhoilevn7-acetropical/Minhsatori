@@ -337,6 +337,29 @@
   html.satori-light-review :is(#invoicePreview,#modalInvoiceContent) img {
     opacity:1!important;
   }
+  /* Numbers remain red even if generated invoice rows carry old cyan/white utility classes. */
+  html.satori-light-review #invoicePreview :is(
+    #sumGoods,#sumShipping,#sumVat,#sumTotal
+  ),
+  html.satori-light-review #invoicePreview #invoiceItemsTable td:nth-child(5),
+  html.satori-light-review #invoicePreview #invoiceItemsTable td:nth-child(6),
+  html.satori-light-review #invoicePreview #invoiceItemsTable td:nth-child(7),
+  html.satori-light-review #invoicePreview #invoiceItemsTable td:nth-child(8) {
+    color:#b91c35!important;font-weight:800!important;
+  }
+  html.satori-light-review #invoicePreview #previewInvoiceNoTop {
+    color:#874400!important;font-weight:850!important;
+  }
+  html.satori-light-review #invoicePreview #invoiceItemsTable :is(td,span) {
+    opacity:1!important;
+  }
+  html.satori-light-review #tab-input .compact-panel>summary {
+    background:#ecf8f5!important;color:#164952!important;font-size:14px!important;
+  }
+  html.satori-light-review #tab-input #invoicePreviewPanel>summary {
+    background:#e4f4ef!important;color:#145d5c!important;
+  }
+
   html.satori-light-review :is(#invoicePreview,#modalInvoiceContent) :is(p,span,small,div) {
     overflow-wrap:anywhere;
   }
