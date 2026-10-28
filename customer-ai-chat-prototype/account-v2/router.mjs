@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
 import {interpretLegacyOrder} from './legacy-interpret.mjs';
+import {parseV2DeliveryMessage,validatedV2QuoteDelivery} from './old-gemini-delivery-note.mjs';
 import {proposeV2GeminiCart} from './original-gemini-cart-adapter.mjs';
 import {geminiConfigured} from '../free-parser.mjs';
 import {answerGeminiProductQuestion,productQuestionEligible} from './gemini-product-assistant.mjs';
@@ -251,10 +252,14 @@ function customerPricing(data){
 }
 async function quote(pool,actor,input){
  const {priced,cartRevision,catalogueRevision}=await pricedCart(pool,actor,input);
+ const deliveryRequest=validatedV2QuoteDelivery(input.deliveryRequest);
+ // Persist the customer-requested instruction INSIDE this V2 quote snapshot,
+ // never in a client-only invoice or the old Apps Script ledger.
+ const payload=deliveryRequest?{...priced,deliveryRequest}:priced;
  const r=await pool.query('INSERT INTO satori_v2_quotes(account_id,profile_id,address_id,payload,cart_revision,catalogue_revision,expires_at) '+
   'VALUES($1,$2,$3,$4,$5,$6,now()+interval \'10 minutes\') RETURNING id,expires_at',
-  [actor.id,priced.profileId,priced.addressId,JSON.stringify(priced),cartRevision,catalogueRevision]);
- return {quoteId:r.rows[0].id,expiresAt:r.rows[0].expires_at,...priced,
+  [actor.id,priced.profileId,priced.addressId,JSON.stringify(payload),cartRevision,catalogueRevision]);
+ return {quoteId:r.rows[0].id,expiresAt:r.rows[0].expires_at,...payload,
   note:'Báo giá kiểm thử. Chưa tạo hóa đơn thật hoặc ghi công nợ.'};
 }
 /**
@@ -274,9 +279,18 @@ export async function assertSelectedDelivery(pool,actor,input){
 }
 export async function interpret(pool,input){
  error(typeof input.message==='string'&&input.message.trim().length>=2&&input.message.length<=500,'MESSAGE_INVALID');
+ const note= parseV2DeliveryMessage(input.message);
+ if(note.clarification)return {needsClarification:true,source:'v2-delivery-note-clarification',
+  message:note.clarification,geminiConfigured:geminiConfigured()};
+ if(!note.orderText&&note.deliveryRequest){
+  return {needsClarification:false,source:'v2-delivery-note',provider:'satori-rules',
+   geminiConfigured:geminiConfigured(),deliveryRequest:note.deliveryRequest,
+   message:'Đã ghi nhận lưu ý giao hàng vào giỏ V2. Đây là yêu cầu của khách; thời gian giao cần cửa hàng xác nhận.'};
+ }
+ const orderMessage=note.orderText||input.message;
  // Answer strict product-existence questions from CURRENT active V2 catalogue,
  // not the order parser and not from a model's invented commercial facts.
- const question=recognisedCatalogueQuestion(input.message);
+ const question=recognisedCatalogueQuestion(orderMessage);
  if(question){
   const r=await pool.query('SELECT code,name,unit FROM satori_v2_catalogue WHERE active=true');
   const verified=r.rows.some(product=>product.code===question.code);
@@ -289,8 +303,8 @@ export async function interpret(pool,input){
  }
  // Reuse the original Vietnamese parser. Every proposed SKU must subsequently
  // exist in the active V2 catalogue; never auto-create or substitute products.
- const result=await interpretLegacyOrder(input.message);
- const fallback={...result,provider:/gemini/.test(result?.source||'')?'gemini':'satori-rules',
+ const result=await interpretLegacyOrder(orderMessage);
+ const fallback={...result,...(note.deliveryRequest?{deliveryRequest:note.deliveryRequest}:{}),provider:/gemini/.test(result?.source||'')?'gemini':'satori-rules',
   geminiConfigured:geminiConfigured()};
  if(Array.isArray(result?.suggestedItems)&&result.suggestedItems.length){
   const r=await pool.query('SELECT code,name,unit FROM satori_v2_catalogue WHERE active=true');
@@ -302,10 +316,10 @@ export async function interpret(pool,input){
  }
  // Existing model assistant handles non-order public questions, scoped to
  // verified ACTIVE products and a sanitized message. Fallback stays safe.
- if(geminiConfigured()&&productQuestionEligible(input.message)){
+ if(geminiConfigured()&&productQuestionEligible(orderMessage)){
   const r=await pool.query('SELECT code,name,unit,active FROM satori_v2_catalogue WHERE active=true');
-  const help=await answerGeminiProductQuestion(input.message,r.rows);
-  if(help)return {...help,geminiConfigured:true};
+  const help=await answerGeminiProductQuestion(orderMessage,r.rows);
+  if(help)return {...help,geminiConfigured:true,...(note.deliveryRequest?{deliveryRequest:note.deliveryRequest}:{})};
  }
  return fallback;
 }
