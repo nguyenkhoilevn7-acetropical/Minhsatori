@@ -16,6 +16,7 @@
     "Do not claim real payment/edit functions have been end-to-end tested in authenticated production; use fake data only for CI, require Samsung installation and business acceptance.",
     "Keep previous signed 0.4.16 APK for rollback; do not uninstall existing application, change Apps Script, invoices, Drive IDs, PostgreSQL or HMAC secrets.",
     "2026-10-28: source visual tests updated for MoneyMind; signed release requested after owner approved production. Pinned signer still mandatory.",
-    "2026-10-28: corrected MoneyMind light-border UI palette and retained seven financial-method integrity hashes. Re-run signed release."
+    "2026-10-28: corrected MoneyMind light-border UI palette and retained seven financial-method integrity hashes. Re-run signed release.",
+    "2026-10-28: Owner explicitly reaffirmed production request for existing Android app; trigger pinned-cert signed APK workflow; Android must still be installed and verified on physical Samsung before calling device rollout complete."
   ]
 }
