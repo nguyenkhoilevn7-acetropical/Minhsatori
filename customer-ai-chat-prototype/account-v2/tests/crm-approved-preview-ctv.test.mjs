@@ -79,3 +79,15 @@ test('same-name visual grouping preserves independent phone and account records'
  assert.equal(groups[0].rows[1].phone,'0768152072');
  assert.equal(groups[1].rows[0].id,'3');
 });
+
+test('role and lifecycle actions never inherit full-row grid span',()=>{
+ // Regression: screenshot after 0.4.24 showed vertically stacked role buttons,
+ // one narrow Save followed by full-width Pause and Revoke.
+ assert.doesNotMatch(owner,/\.crm-role-editor button\{grid-column:1\/-1;justify-self:start\}/);
+ assert.match(owner,/\.crm-role-editor>form>button\[type="submit"\]\{grid-column:1\/-1;justify-self:start\}/);
+ assert.match(owner,/#legacyConsole \.crm-role-editor \.crm-role-options>button\{grid-column:auto!important;justify-self:stretch!important;grid-row:auto!important;\}/);
+ assert.match(owner,/#legacyConsole \.crm-role-editor \.crm-card-footer>button\{grid-column:auto!important;grid-row:auto!important;justify-self:stretch!important;\}/);
+ assert.match(ownerScript,/footer\.append\(save\)/);
+ assert.match(ownerScript,/footer\.append\(pause,revoke\)/);
+ assert.match(ownerScript,/roleRow\.append\(make\('strong','Vai trò'\),crmRoleChoices\(role\)\)/);
+});
