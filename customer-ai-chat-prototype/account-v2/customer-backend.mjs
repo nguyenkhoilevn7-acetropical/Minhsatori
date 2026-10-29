@@ -467,7 +467,21 @@ export async function legacyCustomerSearch(query){
      Math.round((1-unitPrice/listPrice)*10000)/100:null};
   })
  }));
- return {ok:true,source:'canonical-signed-ledger',revision,orders,
+ const byAddress=new Map();
+ for(const row of orders){
+  const key=normalizedDeliveryAddress(row.address);
+  if(!key)continue;
+  if(!byAddress.has(key))byAddress.set(key,[]);
+  byAddress.get(key).push(row);
+ }
+ const addressGroups=groupHistoricalAddresses(orders).map(latest=>{
+  const members=byAddress.get(latest.normalizedAddress)||[];
+  return {key:latest.normalizedAddress,address:latest.address,
+   phone:latest.phoneCandidate||'',name:latest.name,
+   date:latest.date,createdAt:latest.createdAt,timestamp:latest.timestamp,
+   invoiceCount:members.length,refs:members.map(x=>({invoiceNo:x.invoiceNo,sourceId:x.id}))};
+ });
+ return {ok:true,source:'canonical-signed-ledger',revision,orders,addressGroups,
   totalMatches:Number(signed?.data?.totalMatches)||orders.length,
   truncated:Number(signed?.data?.totalMatches)>orders.length};
 }
