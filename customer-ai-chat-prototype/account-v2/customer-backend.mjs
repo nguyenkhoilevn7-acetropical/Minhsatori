@@ -5,6 +5,7 @@
 import {validateCustomerProfile,validateCustomerStatus,validateOwnerRolePricing} from './customer-management.mjs';
 import {readMinhSatori} from '../satori-readonly.mjs';
 import {validateAddress} from './domain.mjs';
+import {groupHistoricalAddresses,normalizedDeliveryAddress} from './legacy-address-dedupe.mjs';
 export class CrmError extends Error{
  constructor(code,status=400){super(code);this.code=code;this.status=status}
 }
@@ -453,6 +454,9 @@ export async function legacyCustomerSearch(query){
   name:sourceText(o.name,120),phone:sourceText(o.phone,80),
   phoneCandidate:legacyPhoneCandidate(o.phone),
   address:sourceText(o.location,400),date:sourceText(o.date,30),
+  createdAt:typeof o.createdAt==='string'?sourceText(o.createdAt,48):null,
+  timestamp:Number.isFinite(Number(o.timestamp))&&Number(o.timestamp)>946684800?
+   Number(o.timestamp):null,
   status:sourceText(o.status,50),total:Number(o.total)||0,
   vatAmount:Number(o.vatAmount)||0,shippingAmount:Number(o.shippingAmount)||0,
   items:(Array.isArray(o.items)?o.items:[]).slice(0,40).map(i=>{
@@ -809,8 +813,8 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
  const found=new Map(signed.orders.map(x=>[x.invoiceNo+'|'+x.id,x]));
  const rows=refs.map(x=>found.get(x.invoiceNo+'|'+x.sourceId));
  check(rows.every(Boolean),'LEGACY_BIND_SOURCE_REF_NOT_FOUND',409);
- const cleanName=s=>String(s||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('vi-VN');
- check(new Set(rows.map(x=>cleanName(x.name))).size===1,'LEGACY_BIND_MIXED_NAMES',409);
+ // Never determine record identity or deduplicate destinations by customer name.
+ // Only owner-confirmed source invoice IDs can establish the account binding.
  const role=input.requestedType;
  check(['retail','agency','collaborator'].includes(role),'CUSTOMER_ROLE_INVALID');
  check(Number.isSafeInteger(input.discountBps)&&input.discountBps>=0&&input.discountBps<=10000,
@@ -819,25 +823,27 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
   input.collaboratorBps>=input.discountBps&&input.collaboratorBps<=10000,
   'CTV_RATE_MUST_BE_AT_LEAST_CUSTOMER_RATE');
  check(role==='collaborator'||input.collaboratorBps==null,'CTV_ROLE_REQUIRED');
- const phone=legacyPhoneCandidate(input.contactPhone)||rows.map(r=>r.phoneCandidate).find(Boolean)||'';
- const primary=rows.find(x=>x.address?.trim()&&x.address.trim().length>=5);
- check(primary&&phone,'LEGACY_BIND_MISSING_CONTACT',409);
+ const grouped=groupHistoricalAddresses(rows);
+ check(grouped.length>0,'LEGACY_BIND_NO_VALID_ADDRESS',409);
+ const recent=grouped[0]; // Most recently created among all distinct source locations.
+ // Name is a display field supplied by Admin; it never decides account/invoice ownership.
+ const displayName=String(input.profileName||'').trim()||recent.name;
+ const phone=legacyPhoneCandidate(input.contactPhone)||recent.phoneCandidate||
+  grouped.map(r=>r.phoneCandidate).find(Boolean)||'';
+ check(phone,'LEGACY_BIND_MISSING_CONTACT',409);
  const data=checked(()=>validateCustomerProfile({
-  fullName:rows[0].name,email:input.email,phone,address:primary.address,
+  fullName:displayName,email:input.email,phone,address:recent.address,
   requestedType:role,discountBps:input.discountBps,
   collaboratorBps:role==='collaborator'?input.collaboratorBps:null
  },{admin:true}));
- const addresses=[],seen=new Set();
- for(const row of rows){
-  if(!row.address||row.address.trim().length<5)continue;
-  const recipientPhone=row.phoneCandidate||phone;
+ const addresses=[];
+ for(const row of grouped){
   let address;
   try{address=validateAddress({
-   label:'Địa chỉ lịch sử',recipientName:data.fullName,recipientPhone,
-   address:row.address
+   label:'Địa chỉ lịch sử',recipientName:row.name||data.fullName,
+   recipientPhone:row.phoneCandidate||phone,address:row.address
   })}catch{continue}
-  const key=(address.recipientPhone+'|'+address.address).normalize('NFKC').toLowerCase();
-  if(!seen.has(key)){seen.add(key);addresses.push(address)}
+  addresses.push(address);
  }
  check(addresses.length>0,'LEGACY_BIND_NO_VALID_ADDRESS',409);
  return tx(pool,async c=>{
@@ -916,7 +922,7 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
    await c.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
     "VALUES($1,'owner','LEGACY_INVOICE_ACCOUNT_BOUND',$2,$3)",
     [target.id,ref.sourceId,JSON.stringify({invoiceNo:ref.invoiceNo,sourceId:ref.sourceId,
-     query:rows[0].name,sourceName:invoice.name,sourceRevision:signed.revision,
+     query:input.query,sourceName:invoice.name,sourceRevision:signed.revision,
      profileId,readOnly:true})]);
    newlyBound++;
   }
