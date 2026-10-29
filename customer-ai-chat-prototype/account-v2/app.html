@@ -610,6 +610,43 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 #ctvCustomerDiscountField{background:#eaf7f5;border-radius:13px;padding:12px}
 #ctvClientStatus{font-size:14px}
 @media(max-width:420px){.ctv-client-entry form{display:grid;grid-template-columns:1fr auto}}
+
+/* Approved CTV new/existing client bottom sheet. One working editor, moved into dialog. */
+.ctv-customer-dialog{position:fixed;inset:auto 0 0 0;margin:auto auto 0;
+ width:min(760px,100vw);max-width:100vw;max-height:94dvh;overflow-y:auto;
+ background:#fff;color:#1a3141;border:0;border-radius:24px 24px 0 0;
+ padding:16px 18px max(16px,env(safe-area-inset-bottom));box-shadow:0 -12px 65px #112b3650}
+.ctv-customer-dialog::backdrop{background:rgba(16,36,55,.57)}
+.ctv-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ctv-sheet-head h2{font-size:22px;margin:0;color:#162e3e}
+.ctv-sheet-head p{margin:5px 0;color:#6b7e88;font-size:14px}
+.ctv-sheet-close{width:42px;height:42px;border-radius:50%;border:0;background:#f0f3f6;color:#213746;font-size:25px}
+.ctv-sheet-rates{background:#f0faf8;color:#0d635b;border-radius:13px;padding:12px;
+ margin:12px 0;font-weight:750;line-height:1.5}
+.ctv-sheet-contents{display:grid;gap:12px}
+.ctv-sheet-contents #ctvClientPanel{margin:0;padding:0;border:none;box-shadow:none}
+.ctv-sheet-contents #ctvClientPanel>h2,.ctv-sheet-contents #ctvClientPanel>p.muted{display:none}
+.ctv-sheet-contents #ctvClientRates{display:none}
+.ctv-sheet-contents .ctv-client-tabs{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:0}
+.ctv-sheet-contents .ctv-client-tabs button{border-radius:12px;min-height:48px;background:#fff;color:#244757}
+.ctv-sheet-contents .ctv-client-tabs button[aria-pressed="true"]{background:#009c99;color:#fff}
+.ctv-sheet-contents #addressForm{padding:12px;border:1px solid #dae8e8;border-radius:15px;box-shadow:none;margin:0}
+.ctv-sheet-contents #addressFormTitle{font-size:17px}
+.ctv-sheet-contents #addressForm .field{margin:10px 0}
+.ctv-sheet-contents #addressForm .field input{min-height:45px;font-size:16px}
+.ctv-sheet-contents #addressForm #saveNewAddress{display:none}
+.ctv-sheet-contents #ctvCustomerDiscountField{border:0;background:#e9f8f5;margin:12px 0}
+.ctv-sheet-contents .ctv-client-entry{display:grid;gap:8px}
+.ctv-sheet-contents .ctv-client-entry.is-selected{border:2px solid #009c99;background:#f0faf8}
+.ctv-client-select{width:100%;background:#e9f8f5;color:#087b73;border:1px solid #a6d8d1;border-radius:11px;min-height:42px}
+.ctv-sheet-actions{display:grid;grid-template-columns:1fr 1.6fr;gap:10px;margin-top:12px}
+.ctv-sheet-actions button{min-height:48px;border-radius:12px;font-size:14px;font-weight:750}
+.ctv-sheet-actions .primary{color:white;background:#009c99}
+.ctv-sheet-actions .secondary{color:#1d3b46;background:#fff;border:1px solid #cfdadf}
+.ctv-sheet-contents .ctv-extra-note{margin:8px 0;padding:0}
+.ctv-sheet-contents .ctv-extra-note input{min-height:46px;width:100%}
+@media(min-width:761px){.ctv-customer-dialog{margin:auto;inset:0;max-height:90dvh;border-radius:24px}}
+@media(max-width:420px){.ctv-customer-dialog{padding:12px 12px max(12px,env(safe-area-inset-bottom))}.ctv-sheet-head h2{font-size:19px}}
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
@@ -639,6 +676,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <details id="agentAddressMenu" class="agent-address-menu" open><summary title="Chọn điểm giao hàng" aria-label="Chọn địa chỉ giao hàng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Điểm giao đã lưu</span></summary>
 <div class="agent-address-popover"><div id="agentAddressChoices" aria-label="Danh sách địa chỉ giao hàng"></div><button id="agentAddressManage" class="agent-address-manage" type="button">+ Thêm hoặc chỉnh sửa địa chỉ</button></div></details>
 <span id="agentAddressHint" class="sr-only" role="status">Chưa chọn địa chỉ</span>
+</dialog>
+<dialog id="ctvCustomerDialog" class="ctv-customer-dialog" aria-labelledby="ctvSheetTitle">
+<div class="ctv-sheet-head"><div><h2 id="ctvSheetTitle">👥 Thêm khách nhận hàng</h2>
+<p>Tạo hoặc chọn khách hàng để đặt hàng · Dành cho CTV</p></div>
+<button class="ctv-sheet-close" id="ctvSheetClose" type="button" aria-label="Đóng">×</button></div>
+<div id="ctvSheetRates" class="ctv-sheet-rates" role="status">Đang tải chiết khấu CTV…</div>
+<div id="ctvSheetContents" class="ctv-sheet-contents"></div>
+<div class="ctv-sheet-actions"><button type="button" id="ctvSheetCancel" class="secondary">Hủy</button>
+<button type="button" id="ctvSheetSave" class="primary">Lưu khách &amp; tiếp tục đặt hàng</button></div>
 </dialog>
 <main>
 <div id="previewBanner" class="hidden" role="status" style="background:#fff1d9;color:#7a4a0a;border-bottom:1px solid #f1d5a9;padding:9px 14px;text-align:center;font-size:12px;font-weight:700">BẢN XEM THỬ GIAO DIỆN · DỮ LIỆU GIẢ · GEMINI CHƯA KÍCH HOẠT · KHÔNG TẠO HÓA ĐƠN</div>
@@ -713,11 +759,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <div id="ctvClientList" hidden></div>
 <p id="ctvClientStatus" role="status" class="muted"></p>
 </section>
-<form id="addressForm" class="panel"><h2 id="addressFormTitle">Thêm địa chỉ</h2>
+<form id="addressForm" class="panel"><h2 id="addressFormTitle">Thông tin khách nhận hàng</h2>
 <div class="field"><label>Nhãn</label><input name="label" required maxlength="70" placeholder="Nhà / Công ty"></div>
-<div class="field"><label>Người nhận</label><input name="recipientName" required maxlength="120"></div>
+<div class="field"><label>Tên khách hàng</label><input name="recipientName" required maxlength="120"></div>
 <div class="field"><label>Số điện thoại</label><input name="recipientPhone" required inputmode="tel"></div>
-<div class="field"><label>Địa chỉ đầy đủ</label><input name="address" required maxlength="400"></div>
+<div class="field"><label>Địa chỉ giao hàng</label><input name="address" required maxlength="400"></div>
+<div id="ctvDeliveryNoteField" class="field ctv-extra-note" hidden><label>Ghi chú giao hàng (tùy chọn)</label><input id="ctvDeliveryNote" maxlength="300" placeholder="Ví dụ: Giao giờ hành chính"></div>
 <div id="ctvCustomerDiscountField" class="field" hidden>
 <label>Chiết khấu cho khách này (%)</label>
 <input id="ctvCustomerDiscount" name="customerDiscountPercent" type="number" inputmode="decimal" min="0" max="100" step="0.01">
@@ -873,6 +920,16 @@ function renderCtvSavedClients(data){
     toast('Đã lưu chiết khấu riêng, không thay đổi hóa đơn cũ.');
    }catch(e){toast(e.message);save.disabled=false}
   };
+  if($('ctvCustomerDialog').open){
+   const choose=node('button','Chọn khách này · tiếp tục đặt hàng','ctv-client-select');
+   choose.type='button';choose.setAttribute('aria-pressed',String(selectedCtvClientAddressId===customer.id));
+   choose.onclick=()=>{
+    selectedCtvClientAddressId=customer.id;
+    for(const el of root.querySelectorAll('.ctv-client-entry'))el.classList.remove('is-selected');
+    row.classList.add('is-selected');
+   };
+   row.append(choose);
+  }
   row.append(form);root.append(row);
  }
 }
@@ -880,6 +937,7 @@ async function refreshCtvClients(){
  const profile=currentCtvProfile(),epoch=++ctvClientEpoch;
  $('ctvClientPanel').hidden=!profile;
  $('ctvCustomerDiscountField').hidden=!profile;
+ $('ctvDeliveryNoteField').hidden=!profile;
  $('ctvCustomerDiscount').required=!!profile;
  $('addressFormTitle').textContent=profile?'Thêm khách nhận hàng mới':'Thêm địa chỉ';
  if(!profile){ctvClientData=null;$('addressForm').hidden=false;
@@ -2250,7 +2308,16 @@ $('addressForm').onsubmit=async ev=>{
   }
   ev.target.reset();me=await call('/api/v2/me',undefined,'GET');
   renderAddresses();resetTestQuote();invalidateCartPricing();
-  if(ctv){ctvCustomerTab='old';await refreshCtvClients()}
+  if(ctv){
+   const newest=me.addresses.filter(a=>a.profileId===ctv.id&&a.active&&
+    a.recipientPhone===fields.recipientPhone&&a.address===fields.address).at(-1);
+   if(newest){deliverySelectionProfileId=ctv.id;$('location').value=newest.id;
+    const deliveryNote=$('ctvDeliveryNote').value.trim();
+    if(deliveryNote)rememberDeliveryRequest({deliveryNote,requestedDeliveryAt:null});}
+   $('ctvDeliveryNote').value='';
+   ctvCustomerTab='old';await refreshCtvClients();
+   closeCtvSheet();view('chat');
+  }
   toast(ctv?'Đã lưu khách riêng và CK của khách.':'Đã lưu địa chỉ');
  }catch(e){toast(e.message)}finally{save.disabled=false}
 };
@@ -2553,7 +2620,50 @@ window.addEventListener('online',()=>{
  }
 });
 
- $('agentAddressManage').onclick=()=>{closeDeliveryDialog(true);view('addresses');void refreshCtvClients()};
+ 
+/* The CTV bottom sheet owns the existing customer editor while open.
+   It does not duplicate the backend writer, forms or price authority. */
+let selectedCtvClientAddressId=null;
+const ctvFormHome=$('addressForm').parentElement,ctvPanelHome=$('ctvClientPanel').parentElement;
+function closeCtvSheet(){
+ if($('ctvCustomerDialog').open)$('ctvCustomerDialog').close();
+ ctvPanelHome.append($('ctvClientPanel'));ctvFormHome.append($('addressForm'));
+ if(!selectedDeliveryAddress())openDeliveryDialog();
+}
+async function openCtvSheet(){
+ const ctv=currentCtvProfile();
+ if(!ctv)return view('addresses');
+ if($('deliveryDialog').open)closeDeliveryDialog(true);
+ $('ctvSheetContents').append($('ctvClientPanel'),$('addressForm'));
+ $('ctvDeliveryNoteField').hidden=false;
+ selectedCtvClientAddressId=null;
+ ctvCustomerTab='new';
+ $('ctvSheetRates').textContent='CTV: '+ctv.name+' · Đang xác minh chiết khấu…';
+ await refreshCtvClients();
+ if(!$('ctvCustomerDialog').open)$('ctvCustomerDialog').showModal();
+ const data=ctvClientData;
+ if(data&&data.profileId===ctv.id){
+  $('ctvSheetRates').textContent='CTV: '+ctv.name+' · CK CTV: '+
+   (data.collaboratorBps/100).toLocaleString('vi-VN')+'% · CK khách mặc định: '+
+   (data.defaultCustomerBps/100).toLocaleString('vi-VN')+'%';
+ }
+ activateCtvClientTab('new');
+}
+$('ctvSheetClose').onclick=closeCtvSheet;
+$('ctvSheetCancel').onclick=closeCtvSheet;
+$('ctvCustomerDialog').addEventListener('cancel',event=>{event.preventDefault();closeCtvSheet()});
+$('ctvSheetSave').onclick=()=>{
+ if(ctvCustomerTab==='new')return $('addressForm').requestSubmit();
+ const address=me?.addresses?.find(a=>a.id===selectedCtvClientAddressId&&a.profileId===$('profile').value&&a.active);
+ if(!address)return toast('Chọn một khách đã lưu để tiếp tục đặt hàng.');
+ deliverySelectionProfileId=$('profile').value;$('location').value=address.id;
+ pendingDeliveryRequest=null;
+ resetTestQuote();invalidateCartPricing();renderAddresses();
+ closeCtvSheet();view('chat');
+};
+
+$('agentAddressManage').onclick=()=>{const ctv=currentCtvProfile();
+ if(ctv)void openCtvSheet();else{closeDeliveryDialog(true);view('addresses');void refreshCtvClients()}};
 $('ctvExistingTab').onclick=()=>activateCtvClientTab('old');
 $('ctvNewTab').onclick=()=>activateCtvClientTab('new');
 
