@@ -418,6 +418,43 @@ body{font-size:14px;line-height:1.42}
  #legacyConsole .crm-card-footer .crm-btn-primary{grid-column:auto}
  #legacyConsole .crm-card-footer button{font-size:10.5px!important}
 }
+
+/* Android owner #9091: enforce horizontal actions and percentage controls. */
+#legacyConsole .crm-role-choice-row{display:grid!important;grid-template-columns:76px minmax(0,1fr)!important;gap:5px!important;align-items:center}
+#legacyConsole .crm-role-options{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:5px!important;min-width:0;width:100%}
+#legacyConsole .crm-role-options button{display:inline-flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;white-space:nowrap!important;min-width:0!important;width:100%!important;font-size:11px!important;padding:5px 2px!important}
+#legacyConsole .crm-role-options button .ico{width:14px!important;height:14px!important;margin:0!important}
+#legacyConsole .crm-card-footer{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) minmax(0,1.45fr)!important;gap:5px!important;width:100%}
+#legacyConsole .crm-card-footer .crm-btn-primary{grid-column:auto!important}
+#legacyConsole .crm-card-footer button{display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:3px!important;flex-direction:row!important;white-space:nowrap!important;min-width:0!important;width:100%!important;font-size:clamp(9px,2.5vw,12px)!important;padding:5px 2px!important}
+#legacyConsole .crm-card-footer button .ico{width:13px!important;height:13px!important;margin:0!important}
+#legacyConsole .crm-rate-row{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(105px,135px)!important;align-items:center!important;gap:6px!important}
+#legacyConsole .crm-rate-row .crm-percent-control{display:flex;align-items:stretch;min-width:0;border:1px solid #cfdcdd;border-radius:9px;overflow:hidden;background:#fff}
+#legacyConsole .crm-rate-row .crm-percent-control input{width:100%!important;flex:1 1 0!important;min-width:0!important;border:0!important;border-radius:0!important;text-align:right!important}
+#legacyConsole .crm-rate-row .crm-percent-suffix{display:grid;place-items:center;padding:0 9px;flex:none;background:#f0f3f6;color:#233d48!important;font-size:12px!important}
+#legacyConsole .crm-ctv-client-row{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(130px,175px) 24px!important;align-items:center!important;gap:5px!important;min-width:0}
+#legacyConsole .crm-ctv-client-row .crm-client-rate{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;gap:3px!important;width:100%;min-width:0}
+#legacyConsole .crm-client-rate input{min-width:0!important;width:42px!important;flex:1 1 42px!important;text-align:right!important;padding:5px 3px!important}
+#legacyConsole .crm-client-rate>span{flex:0 0 auto!important;font-size:11px!important;white-space:nowrap!important}
+#legacyConsole .crm-client-rate .crm-client-save{display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:2px!important;white-space:nowrap!important;min-width:0!important;flex:0 0 auto!important;width:auto!important;min-height:35px!important;font-size:10px!important;padding:4px!important}
+#legacyConsole .crm-client-rate .crm-client-save .ico{width:11px!important;height:11px!important;margin:0!important}
+#legacyConsole .crm-duplicate-group{margin:8px 0!important;border:1px solid #c9e8e3;border-radius:15px;overflow:hidden;background:#f7fcfb}
+#legacyConsole .crm-duplicate-summary{display:flex;align-items:center;justify-content:space-between;gap:7px;padding:11px 12px!important;list-style:none;color:#17343e!important}
+#legacyConsole .crm-duplicate-summary strong{font-size:14px!important;color:#17343e}
+#legacyConsole .crm-duplicate-summary small{font-size:11px!important;color:#54747e}
+#legacyConsole .crm-duplicate-summary::-webkit-details-marker{display:none}
+#legacyConsole .crm-duplicate-picker{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-top:1px solid #daeae7}
+#legacyConsole .crm-duplicate-picker button{min-height:34px!important;padding:5px 9px!important;font-size:11px!important;background:#fff!important;color:#28525c!important;border:1px solid #d5e5e3!important}
+#legacyConsole .crm-duplicate-picker button[aria-pressed="true"]{border-color:#009c99!important;color:#007a73!important;background:#ddf5f0!important}
+#legacyConsole .crm-duplicate-selected{padding:0 8px 8px}
+#legacyConsole .crm-duplicate-selected>.crm-customer-card{margin:0!important}
+@media(max-width:430px){
+ #legacyConsole .crm-role-choice-row{grid-template-columns:1fr!important}
+ #legacyConsole .crm-role-options{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+ #legacyConsole .crm-card-footer{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) minmax(0,1.45fr)!important}
+ #legacyConsole .crm-ctv-client-row{grid-template-columns:minmax(0,1fr) minmax(122px,145px) 20px!important}
+ #legacyConsole .crm-client-rate .crm-client-save{font-size:9px!important}
+}
 </style></head>
 <body>
 <main>
@@ -875,7 +912,8 @@ function rolePricingEditor(account,body,item,{old=false}={}){
   const field=document.createElement('input');field.type='number';field.required=true;
   field.min='0';field.max='100';field.step='0.01';
   field.value=Number.isSafeInteger(value)?String(value/100):'';
-  row.append(title,field);form.append(row);return {row,title,field};
+  const control=make('div',null,'crm-percent-control');control.append(field,make('span','%','crm-percent-suffix'));
+  row.append(title,control);form.append(row);return {row,title,field};
  }
  const customer=rateField('Chiết khấu khách hàng (%)',account.discountBps);
  const ctv=rateField('Chiết khấu CTV (%)',account.collaboratorBps);
@@ -1150,12 +1188,14 @@ function drawCustomers(){
    percentage.type='number';percentage.min='0';percentage.max='100';percentage.step='0.01';
    percentage.required=true;percentage.name='discountPercent';
    percentage.value=String((x.discountBps||0)/100);
-   rate.append(percentage);form.append(rate);
-   const ctvLabel=make('label','Chiết khấu CTV (%)');
+   const percentageControl=make('div',null,'crm-percent-control');percentageControl.append(percentage,make('span','%','crm-percent-suffix'));
+   rate.append(percentageControl);form.append(rate);
+   const ctvLabel=make('label','Chiết khấu CTV (%)');ctvLabel.className='crm-rate-row full';
    const ctvRate=document.createElement('input');ctvRate.type='number';ctvRate.min='0';
    ctvRate.max='100';ctvRate.step='0.01';ctvRate.name='ctvPercent';
    ctvRate.value=x.collaboratorBps==null?'':String(x.collaboratorBps/100);
-   ctvLabel.append(ctvRate);form.append(ctvLabel);
+   const ctvControl=make('div',null,'crm-percent-control');ctvControl.append(ctvRate,make('span','%','crm-percent-suffix'));
+   ctvLabel.append(ctvControl);form.append(ctvLabel);
    const updateRole=()=>{ctvLabel.hidden=sel.value!=='collaborator';ctvRate.required=sel.value==='collaborator'};
    sel.addEventListener('change',updateRole);updateRole();
    const save=iconButton('Lưu chỉnh sửa','edit');save.type='submit';form.append(save);
