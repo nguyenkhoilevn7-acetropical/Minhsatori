@@ -922,20 +922,7 @@ async function renderOwnerCtvClientCards(account,wrap){
   }
   if(!a.addresses.length)list.append(make('p','Chưa có khách riêng được lưu.','crm-client-banner'));
   wrap.append(list);
-  // One address directory from signed invoices, not a second invoice import.
-  const directory=make('details',null,'crm-ledger-discovery');
-  directory.append(make('summary','Địa chỉ mới từ hóa đơn · kiểm tra & thêm'));
-  const mount=make('div');directory.append(mount);
-  directory.addEventListener('toggle',()=>{
-   if(directory.open&&!directory.dataset.loaded){
-    directory.dataset.loaded='1';
-    void renderLegacyRecipientDirectory(mount,account.fullName||account.name||'',account);
-   }
-  });
-  wrap.append(directory);
-  // The owner has already selected the CTV card; show its deduplicated recipients now.
-  directory.open=true;directory.dataset.loaded='1';
-  void renderLegacyRecipientDirectory(mount,account.fullName||account.name||'',account);
+  // Address additions are handled in the account's own client editor.
  }catch(e){if(wrap.isConnected)wrap.replaceChildren(make('p','Không tải được khách riêng CTV: '+e.message))}
 }
 
@@ -1990,7 +1977,6 @@ for(const [id,iconName] of [
  ['crmPolicySubmit','percent']]){
  const b=byId(id);if(b)b.prepend(ownerIcon(iconName));
 }
-byId('legacySearchForm').querySelector('button')?.prepend(ownerIcon('search'));
 
 </script>
 </body></html>
