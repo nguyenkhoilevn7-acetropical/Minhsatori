@@ -865,14 +865,14 @@ async function renderOwnerCtvClientCards(account,wrap){
   wrap.replaceChildren();
   const head=make('div',null,'crm-ctv-heading');
   head.append(make('h3','♧ Khách riêng của '+(isCtv?'CTV':'Đại lý')+' ('+a.addresses.length+')'));wrap.append(head);
-  if(!Number.isSafeInteger(cap)||cap<0||cap>10000){
-   wrap.append(make('p','Chưa có mức CK '+(isCtv?'CTV':'Đại lý')+' được duyệt. Không thể cấp CK cho khách riêng.','crm-client-banner'));
-   return;
-  }
+  const pricingApproved=Number.isSafeInteger(cap)&&cap>=0&&cap<=10000;
+  if(!pricingApproved)wrap.append(make('p','Chưa có CK '+(isCtv?'CTV':'Đại lý')+' được duyệt. Vẫn xem được địa chỉ; chỉ khóa tạo khách và lưu CK.','crm-client-banner'));
   const refresh=()=>renderOwnerCtvClientCards(account,wrap);
-  const add=ownerCtvNewClient(profile.id,cap,main.discountBps,customerEpoch,refresh,isCtv);
-  add.classList.add('crm-client-add');
-  head.append(add);
+  if(pricingApproved){
+   const add=ownerCtvNewClient(profile.id,cap,main?.discountBps??0,customerEpoch,refresh,isCtv);
+   add.classList.add('crm-client-add');
+   head.append(add);
+  }
   const list=make('div',null,'crm-ctv-list');
   const addressGroups=crmUniqueSavedAddressGroups(a.addresses);
   head.querySelector('h3').textContent='♧ Khách riêng của '+(isCtv?'CTV':'Đại lý')+' ('+addressGroups.length+' địa chỉ)';
@@ -880,7 +880,7 @@ async function renderOwnerCtvClientCards(account,wrap){
    let row=members.find(x=>x.active)||members[0];
    const card=make('div',null,'crm-ctv-client-row'),info=make('div',null,'crm-client-data');
    const form=make('form',null,'crm-client-rate'),input=document.createElement('input');
-   input.type='number';input.step='0.01';input.min='0';input.max=String(cap/100);input.required=true;
+   input.type='number';input.step='0.01';input.min='0';input.max=String(pricingApproved?cap/100:100);input.required=true;
    const save=iconButton('Lưu CK','check','secondary');save.type='submit';
    form.append(input,make('span','%'),save);
    const editorSlot=make('div');
@@ -903,10 +903,10 @@ async function renderOwnerCtvClientCards(account,wrap){
     }
     if(!row.active)info.append(make('small','Đang tạm dừng'));
     const personal=last(policies.filter(x=>x.addressId===row.id));
-    const bps=personal?.discountBps??main.discountBps;
+    const bps=personal?.discountBps??main?.discountBps;
     input.value=Number.isSafeInteger(bps)?String(bps/100):'';
     input.setAttribute('aria-label','CK khách '+(row.recipientName||row.label));
-    input.disabled=!row.active;save.disabled=!row.active;
+    input.disabled=!row.active||!pricingApproved;save.disabled=!row.active||!pricingApproved;
     const editor=ownerAddressEditor(profile.id,row,customerEpoch,refresh);
     editor.classList.add('crm-client-options');
     editor.querySelector('summary').textContent='⋯';
@@ -915,6 +915,7 @@ async function renderOwnerCtvClientCards(account,wrap){
    };
    form.onsubmit=async event=>{
     event.preventDefault();
+    if(!pricingApproved)return crmStatus('Chưa có mức CK được duyệt để lưu khách riêng.','error');
     const n=Number(input.value),v=Math.round(n*100);
     if(!input.value.trim()||!Number.isFinite(n)||v<0||v>cap||Math.abs(n*100-v)>0.00001)
      return crmStatus('CK khách không hợp lệ hoặc vượt CK CTV.','error');
