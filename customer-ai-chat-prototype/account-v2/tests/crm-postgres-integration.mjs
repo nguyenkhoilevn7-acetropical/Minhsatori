@@ -314,6 +314,59 @@ try{
  assert.equal(replay.state,'PENDING','already active user cannot reapply CK policy');
  const policyCount=await one('SELECT count(*)::int AS count FROM satori_v2_policies WHERE profile_id=$1',
   [autoResult.profileId]);assert.equal(policyCount.count,1);
+
+ // Existing case from owner CRM: pending Google account already has CK from
+ // manual lead link. Matching owner-approved CK must not block auto activation.
+ const preEmail='already-linked@example.invalid',preSub='ci-prelinked-'+randomUUID();
+ const preLead=await adminCreateLead(pool,owner.id,{...form,email:preEmail,
+  discountBps:2000,confirmed:true});
+ const preAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id,email,access_status",[preSub,preEmail]);
+ await registrationSave(pool,preAccount,{...form,email:preEmail});
+ const preLink=await adminLinkLead(pool,owner,{leadId:preLead.lead.id,
+  accountId:preAccount.id,expectedRevision:preLead.lead.revision,confirmed:true});
+ assert.equal(preLink.linkedAccountId,preAccount.id);
+ const preActivated=await loginClaim(preAccount,preSub,preEmail);
+ assert.equal(preActivated.state,'ACTIVE','owner-prelinked pending customer should self-activate');
+ const prePolicy=await one('SELECT count(*)::int AS count FROM satori_v2_policies WHERE profile_id=$1 '+
+  'AND enabled=true AND discount_bps=2000',[preActivated.profileId]);
+ assert.equal(prePolicy.count,1,'do not leave duplicate active CK policies');
+ const preType=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[preActivated.profileId]);
+ assert.equal(preType.type,'agency');
+ // A pre-existing owner-approved customer CK=20% may be upgraded to the
+ // explicitly approved CTV 35% cap, without replacing the 20% customer rate.
+ const preCtvEmail='ctv-existing-rate@example.invalid',preCtvSub='ci-prectv-'+randomUUID();
+ await adminCreateLead(pool,owner.id,{fullName:'CTV Historical Approved',
+  phone:'0900011111',address:'10 CTV Sample Lane',email:preCtvEmail,
+  requestedType:'collaborator',discountBps:2000,collaboratorBps:3500,confirmed:true});
+ const preCtvAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id",[preCtvSub,preCtvEmail]);
+ const preCtvProfile=await one('INSERT INTO satori_v2_profiles(account_id,type,display_name) '+
+  "VALUES($1,'retail','Waiting CTV') RETURNING id",[preCtvAccount.id]);
+ await pool.query('INSERT INTO satori_v2_policies '+
+  '(profile_id,discount_bps,collaborator_bps,invoice_mode,version,approved_by) '+
+  "VALUES($1,2000,NULL,'single',1,$2)",[preCtvProfile.id,owner.google_sub]);
+ const preCtvActivated=await loginClaim(preCtvAccount,preCtvSub,preCtvEmail);
+ assert.equal(preCtvActivated.state,'ACTIVE');
+ const preCtvPolicy=await one('SELECT discount_bps,collaborator_bps FROM satori_v2_policies '+
+  'WHERE profile_id=$1 AND enabled=true',[preCtvProfile.id]);
+ assert.equal(preCtvPolicy.discount_bps,2000);
+ assert.equal(preCtvPolicy.collaborator_bps,3500);
+ // Wrong CK must never be silently replaced using an old Gmail record.
+ const conflictEmail='conflict-rate@example.invalid',conflictSub='ci-conflict-'+randomUUID();
+ await adminCreateLead(pool,owner.id,{...form,email:conflictEmail,discountBps:2000,confirmed:true});
+ const conflictAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id",[conflictSub,conflictEmail]);
+ const conflictProfile=await one('INSERT INTO satori_v2_profiles(account_id,type,display_name) '+
+  "VALUES($1,'retail','Conflict') RETURNING id",[conflictAccount.id]);
+ await pool.query('INSERT INTO satori_v2_policies '+
+  '(profile_id,discount_bps,invoice_mode,version,approved_by) '+
+  "VALUES($1,4000,'single',1,$2)",[conflictProfile.id,owner.google_sub]);
+ const conflict=await loginClaim(conflictAccount,conflictSub,conflictEmail);
+ assert.equal(conflict.state,'PENDING');
+ const conflictRate=await one('SELECT discount_bps FROM satori_v2_policies WHERE profile_id=$1 '+
+  'AND enabled=true',[conflictProfile.id]);assert.equal(conflictRate.discount_bps,4000);
+
  // Duplicate old records with the SAME Gmail: fail closed instead of assigning one partner.
  const duplicateEmail='ambiguous@example.invalid';
  await adminCreateLead(pool,owner.id,{...form,email:duplicateEmail,discountBps:2000,confirmed:true});
