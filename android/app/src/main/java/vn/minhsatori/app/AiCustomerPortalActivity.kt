@@ -435,8 +435,8 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                 if (index > 0) marginStart = dp(7)
             })
         }
-        quickLink("Khách mới", R.drawable.ic_satori_users, "new", 0)
-        quickLink("Khách cũ", R.drawable.ic_satori_map_pin, "old", 1)
+        quickLink("Khách mới", R.drawable.ic_satori_user_plus, "new", 0)
+        quickLink("Khách cũ", R.drawable.ic_satori_users, "old", 1)
         quickLink("Danh mục", R.drawable.ic_satori_invoice, "catalogue", 2)
         selectNativeTab(0)
         navigation.addView(quickLinks)
