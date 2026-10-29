@@ -526,6 +526,38 @@ try{
  assert.equal(missing.state,'PENDING');
  assert.equal(missing.reason,'NO_UNIQUE_LEGACY_LEAD');
 
+ // Multiple approved delivery points with one verified Gmail are one account.
+ // Both OAuth reconciliation and manual linking use the same validation path.
+ for(const mode of ['automatic','manual']){
+  const email=mode+'-six-points@example.invalid',sub='ci-six-'+randomUUID();
+  const saved=[];
+  for(let i=0;i<6;i++){
+   const r=await adminCreateLead(pool,owner.id,{
+    ...form,email,fullName:'Synthetic CTV',phone:'090000010'+i,
+    address:i<2?'42 Synthetic Road':'Point '+i+' Synthetic Road',
+    requestedType:'collaborator',discountBps:2000,collaboratorBps:3500,confirmed:true
+   });saved.push(r.lead);
+   await pool.query("UPDATE satori_v2_customer_leads SET created_at=now()+($2 * interval '1 second') WHERE id=$1",
+    [r.lead.id,i]);
+  }
+  const account=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+   "VALUES($1,$2,'PENDING') RETURNING id,revision,email",[sub,email]);
+  const result=mode==='automatic'?await loginClaim(account,sub,email):
+   await ownerActivateSavedGmail(pool,owner,{confirmed:true,identityConfirmed:true,
+    leadId:saved[0].id,expectedLeadRevision:saved[0].revision,
+    accountId:account.id,expectedAccountRevision:account.revision});
+  assert.equal(result.state,'ACTIVE');
+  const points=await pool.query('SELECT address,recipient_phone FROM satori_v2_addresses WHERE profile_id=$1 AND active=true',[result.profileId]);
+  assert.equal(points.rowCount,5,'same normalized address is unique despite different phone');
+  assert.equal(points.rows.find(x=>x.address==='42 Synthetic Road').recipient_phone,'0900000101');
+  const links=await one('SELECT count(*)::int AS n FROM satori_v2_customer_leads WHERE linked_account_id=$1',[account.id]);
+  assert.equal(links.n,6,'preserve and link every approved source lead');
+  const rate=await one('SELECT discount_bps,collaborator_bps FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[result.profileId]);
+  assert.equal(rate.discount_bps,2000);assert.equal(rate.collaborator_bps,3500);
+  const profiles=await one('SELECT count(*)::int AS n FROM satori_v2_profiles WHERE account_id=$1',[account.id]);
+  assert.equal(profiles.n,1);
+ }
+
  // Duplicate old records with the SAME Gmail: fail closed instead of assigning one partner.
  const duplicateEmail='ambiguous@example.invalid';
  await adminCreateLead(pool,owner.id,{...form,email:duplicateEmail,discountBps:2000,confirmed:true});
