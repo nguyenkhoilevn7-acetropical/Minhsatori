@@ -1166,9 +1166,11 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
    // The shared address sync merges latest signed source delivery details.
   }
   const addressSync=await syncBoundLegacyAddresses(c,profileId,addresses);
+  // ACTIVE-account owner reconciliation may have linked these same leads.
+  // Never increment their revisions twice in the same transaction.
   for(const entry of leads.rows)if(!entry.linked_account_id)
    await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,revision=revision+1 '+
-    'WHERE id=$1',[entry.id,target.id]);
+    'WHERE id=$1 AND linked_account_id IS NULL',[entry.id,target.id]);
   for(const ref of refs){
    const already=await c.query('SELECT 1 FROM satori_v2_audit WHERE '+
     "event_type='LEGACY_INVOICE_ACCOUNT_BOUND' AND account_id=$1 "+
