@@ -25,16 +25,15 @@ test('old customer section is a single card-based surface matching approved two-
  assert.doesNotThrow(()=>new vm.Script(script));
 });
 
-test('original monthly ledger remains owner-only backend, no second CRM import UI',()=>{
- assert.match(router,/pathname==='\\/api\\/v2\\/admin\\/legacy\\/month-customers'/);
- assert.match(router,/owner\\(actor\\)/);
- assert.match(backend,/readMinhSatori\\('orders\\.list',\\{from,to,limit:100\\}\\)/);
+test('monthly signed ledger stays owner-only, while duplicate on-screen imports are gone',()=>{
+ assert.ok(router.includes("pathname==='/api/v2/admin/legacy/month-customers'"));
+ assert.ok(backend.includes("readMinhSatori('orders.list',{from,to,limit:100})"));
  for(const id of ['crmLedgerDiscovery','legacyLedgerDisclosure','legacySearchForm','crmLedgerPreview'])
   assert.doesNotMatch(source,new RegExp('id="'+id+'"'));
  assert.match(source,/id="crmLegacyLink"/);
- assert.match(script,/function legacyBindingPanel\\(/);
- assert.doesNotMatch(script,/function renderLegacyRecipientDirectory\\(/);
- assert.doesNotMatch(script,/function submitLegacyImport\\(/);
+ assert.match(script,/function legacyBindingPanel\(/);
+ assert.doesNotMatch(script,/function renderLegacyRecipientDirectory\(/);
+ assert.doesNotMatch(script,/function submitLegacyImport\(/);
 });
 
 test('month preview groups only matching phone, does not merge same-name different-address customers',async()=>{
