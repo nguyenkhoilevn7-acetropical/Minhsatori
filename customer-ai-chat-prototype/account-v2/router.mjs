@@ -200,14 +200,18 @@ async function adminPolicy(pool,actor,input){
  error(Number.isInteger(input.discountBps)&&input.discountBps>=0&&input.discountBps<=10000,'DISCOUNT_INVALID');
  const mode=input.invoiceMode||'single';
  error(['single','pair'].includes(mode),'INVOICE_MODE_INVALID');
- error(mode!=='pair'||Number.isInteger(input.collaboratorBps)&&input.collaboratorBps>=0&&input.collaboratorBps<=10000,
-  'COLLABORATOR_DISCOUNT_INVALID');
+ error(mode!=='pair','ONE_INVOICE_REQUIRED',400);
+ // The two approved CTV rates are metadata in ONE single invoice policy.
+ // The customer-facing discount is always lower than or equal to CTV rate.
+ error(input.collaboratorBps==null||(Number.isSafeInteger(input.collaboratorBps)&&
+  input.collaboratorBps>=input.discountBps&&input.collaboratorBps<=10000),
+  'CTV_RATE_MUST_BE_AT_LEAST_CUSTOMER_RATE');
  const client=await pool.connect();
  try{
   await client.query('BEGIN');
   const profile=await client.query('SELECT id,type FROM satori_v2_profiles WHERE id=$1 FOR UPDATE',[input.profileId]);
   error(profile.rows.length===1,'PROFILE_NOT_FOUND',404);
-  error(mode!=='pair'||profile.rows[0].type==='collaborator','PAIR_NOT_AUTHORIZED');
+  error(input.collaboratorBps==null||profile.rows[0].type==='collaborator','CTV_ROLE_REQUIRED');
   if(input.addressId){
    const addr=await client.query('SELECT id FROM satori_v2_addresses WHERE id=$1 AND profile_id=$2',
     [input.addressId,input.profileId]);
@@ -226,11 +230,12 @@ async function adminPolicy(pool,actor,input){
    '(profile_id,address_id,product_code,discount_bps,collaborator_bps,invoice_mode,version,approved_by) '+
    'VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,version',
    [input.profileId,input.addressId||null,input.productCode||null,input.discountBps,
-    mode==='pair'?input.collaboratorBps:null,mode,version.rows[0].version,actor.google_sub]);
+    input.collaboratorBps??null,'single',version.rows[0].version,actor.google_sub]);
   await client.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
    'VALUES($1,$2,$3,$4,$5)',[actor.id,'owner','POLICY_APPROVED',policy.rows[0].id,
     JSON.stringify({profileId:input.profileId,addressId:input.addressId||null,productCode:input.productCode||null,
-     discountBps:input.discountBps,collaboratorBps:mode==='pair'?input.collaboratorBps:null,mode})]);
+     discountBps:input.discountBps,collaboratorBps:input.collaboratorBps??null,mode:'single',
+     profitMarginBps:input.collaboratorBps==null?null:input.collaboratorBps-input.discountBps})]);
   await client.query('COMMIT');
   return policy.rows[0];
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}finally{client.release()}
