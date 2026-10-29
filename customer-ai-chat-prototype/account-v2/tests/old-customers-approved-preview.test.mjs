@@ -12,7 +12,7 @@ const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
 test('old customer section is a single card-based surface matching approved two-tier CTV preview',()=>{
  assert.ok(source.includes('id="legacyConsole"'));
  assert.ok(source.includes('id="crmLedgerPreview"'));
- assert.match(source,/class="crm-card-footer"/);
+ assert.match(script,/make\('div',null,'crm-card-footer'\)/);
  assert.match(script,/function rolePricingEditor\(account,body,item,\{old=false\}=\{\}\)/);
  assert.match(script,/crmRoleChoices\(role\)/);
  assert.match(script,/Chiết khấu CTV \(%\)/);
