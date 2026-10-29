@@ -875,7 +875,8 @@ async function refreshCtvClients(){
  $('ctvCustomerDiscountField').hidden=!profile;
  $('ctvCustomerDiscount').required=!!profile;
  $('addressFormTitle').textContent=profile?'Thêm khách nhận hàng mới':'Thêm địa chỉ';
- if(!profile){ctvClientData=null;$('addressForm').hidden=false;return}
+ if(!profile){ctvClientData=null;$('addressForm').hidden=false;
+  $('saveNewAddress').disabled=false;return}
  $('ctvClientStatus').textContent='Đang tải chiết khấu CTV…';
  try{
   const data=await call('/api/v2/ctv/clients?profileId='+encodeURIComponent(profile.id),undefined,'GET');
