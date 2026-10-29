@@ -26,7 +26,7 @@ import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
  adminApproveRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyCustomerImport,
- legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
+ legacyCustomerActivateLead,ownerActivateSavedGmail,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
  adminReconcileVerifiedLegacyPending,ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,
  adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
 
@@ -519,6 +519,10 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/admin/legacy/import'&&req.method==='POST'){
    owner(actor);
    send(res,200,await legacyCustomerImport(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/legacy/activate-saved'&&req.method==='POST'){
+   owner(actor);send(res,200,await ownerActivateSavedGmail(pool,actor,await json(req)));
+   return true;
   }
   if(pathname==='/api/v2/admin/legacy/bind-history'&&req.method==='POST'){
    owner(actor);send(res,200,await ownerBindLegacyInvoices(pool,actor,await json(req)));return true;

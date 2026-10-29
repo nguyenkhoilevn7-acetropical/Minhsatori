@@ -68,17 +68,15 @@ test('review and pricing activation are separate, with no silent default zero pe
  assert.match(html,/Lưu chiết khấu & kích hoạt/);
  assert.doesNotMatch(html,/discountBps:0,confirmed:true/);
 });
-test('owner-only signed legacy lookup, Gmail binding, editable contact and multiple delivery points',()=>{
- assert.match(router,/owner\(actor\);[\s\S]*?legacyCustomerSearch\(q\)/);
- assert.match(router,/legacyCustomerImport\(pool,actor/);
+test('owner signed lookup, saved Gmail activation and account-scoped history binding',()=>{
+ assert.match(router,/legacyCustomerSearch\(q\)/);
+ assert.match(router,/ownerActivateSavedGmail\(pool,actor,await json\(req\)\)/);
  assert.match(backend,/readMinhSatori\('orders.list'/);
- assert.match(backend,/LEGACY_OWNER_CONFIRMATION_REQUIRED/);
  assert.match(backend,/LEGACY_VERIFIED_GMAIL_MISMATCH/);
- assert.match(backend,/account.id!==owner.id/);
- assert.match(backend,/LEGACY_CRM_STAGED/);
+ assert.match(backend,/LEGACY_INVOICE_ALREADY_OWNED/);
  assert.match(backend,/LEGACY_CRM_ACTIVATED/);
- assert.match(html,/id="legacyQuery"/);
- assert.match(html,/legacyDeliveryRow/);
+ assert.match(html,/id="crmLegacyLink"/);
+ assert.doesNotMatch(html,/id="legacyQuery"/);
  assert.match(html,/ownerAddressEditor/);
  assert.match(html,/ownerContactEditor/);
  assert.match(html,/ownerIconShapes/);

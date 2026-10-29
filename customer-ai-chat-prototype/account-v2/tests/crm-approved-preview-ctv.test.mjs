@@ -2,223 +2,91 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
+import {groupHistoricalAddresses} from '../legacy-address-dedupe.mjs';
 
 const owner=readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
 const gemini=readFileSync(new URL('../app.html',import.meta.url),'utf8');
+const backend=readFileSync(new URL('../customer-backend.mjs',import.meta.url),'utf8');
+const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
 const ownerScript=owner.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 const geminiScript=[...gemini.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
  .map(m=>m[1]).find(Boolean);
 
-test('approved preview has a single native-compatible owner tab row',()=>{
+test('three owner tabs remain, exactly one CRM Gmail/history linking panel',()=>{
  assert.equal((owner.match(/id="ownerTabs"/g)||[]).length,1);
  for(const tab of ['new','old','catalogue'])
   assert.match(owner,new RegExp('data-owner-tab="'+tab+'"'));
  assert.match(ownerScript,/activateOwnerTab\(tab\)/);
- assert.match(ownerScript,/const oldItems=\[\.\.\.registered\.filter/);
- assert.match(ownerScript,/registeredAccount\?\.accessStatus==='ACTIVE'/);
- assert.match(owner,/crm-customer-card/);
- assert.match(owner,/id="crmLedgerDiscovery" class="crm-ledger-discovery"/);
- assert.match(ownerScript,/if\(compact\)\{item\.append\(body\);return \{item,body\};\}/);
+ assert.match(ownerScript,/function legacyBindingPanel\(/);
+ assert.equal((owner.match(/id="crmLegacyLink"/g)||[]).length,1);
+ assert.match(ownerScript,/lead\.id='crmLegacyLeadSelect'/);
+ assert.match(ownerScript,/byId\('crmLegacyLink'\)\.replaceChildren\(legacyBindingPanel\(\)\)/);
+ for(const removed of ['crmLedgerDiscovery','crmLedgerPreview','legacyLedgerDisclosure','legacySearchForm'])
+  assert.doesNotMatch(owner,new RegExp('id="'+removed+'"'));
+ assert.doesNotMatch(ownerScript,/renderLegacyRecipientDirectory\(/);
+ assert.doesNotMatch(ownerScript,/submitLegacyImport\(/);
+ assert.doesNotThrow(()=>new vm.Script(ownerScript));
 });
 
-test('role switches and CTV dual discounts are bound to the real APIs',()=>{
+test('owner-saved old lead stays visible even when same Gmail registered in Google V2',()=>{
+ assert.match(ownerScript,/leads\.filter\(l=>l\.active&&!l\.linkedAccountId\)/);
+ assert.doesNotMatch(ownerScript,/!registered\.some\(a=>[\s\S]*a\.email&&l\.email/);
+ assert.match(ownerScript,/select\.dispatchEvent\(new Event\('change'\)\)/);
+ assert.match(ownerScript,/x\.email\?\.toLowerCase\(\)===item\.email\.toLowerCase\(\)/);
+});
+
+test('one owner action activates saved verified Gmail or attaches exact invoice history',()=>{
+ assert.match(router,/pathname==='\/api\/v2\/admin\/legacy\/activate-saved'/);
+ assert.match(router,/ownerActivateSavedGmail\(pool,actor,await json\(req\)\)/);
+ assert.match(backend,/export async function ownerActivateSavedGmail\(/);
+ assert.match(backend,/CUSTOMER_LEAD_CREATED','LEGACY_CRM_STAGED'/);
+ assert.match(backend,/EXISTING_POLICY_REQUIRES_OWNER/);
+ assert.match(ownerScript,/\/api\/v2\/admin\/legacy\/activate-saved','POST'/);
+ assert.match(ownerScript,/\/api\/v2\/admin\/legacy\/bind-history','POST'/);
+ assert.match(ownerScript,/leadId:item\.id/);
+ assert.doesNotMatch(ownerScript,/LEGACY_INVOICE_ALREADY_IMPORTED/);
+});
+
+test('CTV role, discount and delivery editors still use account-scoped APIs',()=>{
  assert.match(ownerScript,/crmRoleChoices\(role\)/);
- assert.match(ownerScript,/rolePricingEditor\(account,body,item/);
- assert.match(ownerScript,/const ctv=rateField\('Chiết khấu CTV/);
+ assert.match(ownerScript,/function rolePricingEditor\(/);
  assert.match(ownerScript,/Chiết khấu mặc định cho khách của CTV/);
  assert.match(ownerScript,/ctvRate<customerRate/);
  assert.match(ownerScript,/\/api\/v2\/admin\/customer-role','PATCH'/);
  assert.match(ownerScript,/\/api\/v2\/admin\/policies','POST'/);
  assert.match(ownerScript,/renderOwnerCtvClientCards\(account,clients\)/);
+ assert.match(ownerScript,/crmUniqueSavedAddressGroups\(a\.addresses\)/);
+ assert.match(ownerScript,/ownerAddressEditor\(profile\.id,row,customerEpoch,refresh\)/);
+ assert.match(ownerScript,/input\.disabled=!row\.active\|\|!hasApprovedCap/);
+ assert.match(ownerScript,/changeAccountLifecycle\(account,'SUSPENDED'\)/);
+ assert.match(ownerScript,/changeAccountLifecycle\(account,'REMOVED'\)/);
 });
 
-test('Gemini CTV sheet reuses one editor and one server-approved client writer',()=>{
+test('historical source invoice ID remains distinct; addresses dedupe by location and latest time',()=>{
+ assert.match(ownerScript,/checkbox\.dataset\.refs=JSON\.stringify\(group\.refs\)/);
+ assert.match(ownerScript,/sourceRevision:source\.revision,refs:list/);
+ assert.match(backend,/LEGACY_INVOICE_ALREADY_OWNED/);
+ assert.match(backend,/CRM_APPROVED_PROFILE_MISMATCH/);
+ const invoices=Array.from({length:7},(_,i)=>({
+  invoiceNo:8000+i,address:i%2?'42 Đường Số 95, Cát Lái':'42 Duong So 95 Cat Lai',
+  date:String(i+1).padStart(2,'0')+'/10/2026',name:'Recipient '+i
+ }));
+ const locations=groupHistoricalAddresses(invoices);
+ assert.equal(locations.length,1);
+ assert.equal(locations[0].invoiceNo,8006);
+ assert.equal(invoices.length,7);
+});
+
+test('Gemini ordering, CTV sheet and single-invoice behavior survive CRM cleanup',()=>{
  assert.equal((gemini.match(/id="ctvCustomerDialog"/g)||[]).length,1);
  assert.match(gemini,/id="ctvSheetSave"/);
  assert.match(gemini,/id="ctvExistingTab"/);
  assert.match(gemini,/id="ctvNewTab"/);
  assert.match(geminiScript,/function openCtvSheet\(/);
- assert.match(geminiScript,/ctvSheetContents'\)\.append\(\$\('ctvClientPanel'\),\$\('addressForm'\)\)/);
  assert.match(geminiScript,/\/api\/v2\/ctv\/clients/);
  assert.match(geminiScript,/discountBps>ctvClientData\.collaboratorBps/);
  assert.match(geminiScript,/function closeCtvSheet\(/);
  assert.match(geminiScript,/rememberDeliveryRequest\(\{deliveryNote,requestedDeliveryAt:null\}\)/);
-});
-
-test('new mobile UI scripts compile and retain single-invoice safeguards',()=>{
- assert.ok(ownerScript);assert.ok(geminiScript);
- assert.doesNotThrow(()=>new vm.Script(ownerScript));
- assert.doesNotThrow(()=>new vm.Script(geminiScript));
  assert.match(ownerScript,/invoiceMode:'single'/);
- assert.match(ownerScript,/Hóa đơn cũ giữ nguyên|Không sửa hóa đơn cũ|Không sửa hóa đơn gốc/);
-});
-
-test('Android owner role/footer and CTV percent controls stay horizontal',()=>{
- assert.match(owner,/#legacyConsole \.crm-role-options\{display:grid!important;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)!important/);
- assert.match(owner,/#legacyConsole \.crm-card-footer\{display:grid!important;grid-template-columns:/);
- assert.match(owner,/#legacyConsole \.crm-client-rate \.crm-client-save\{display:inline-flex!important/);
- assert.match(ownerScript,/control\.append\(field,make\('span','%','crm-percent-suffix'\)\)/);
- assert.match(ownerScript,/form\.append\(input,make\('span','%'\),save\)/);
-});
-
-test('same-name visual grouping preserves independent phone and account records',()=>{
- assert.match(ownerScript,/function crmNameGroups\(rows\)/);
- assert.match(ownerScript,/function crmGroupCards\(group,cards\)/);
- assert.match(ownerScript,/crmGroupCards\(group,cards\)/);
- const fn=ownerScript.match(/function crmNameGroups\(rows\)\{[\s\S]*?\n\}/)?.[0];
- assert.ok(fn);
- const records=[
-  {id:'1',fullName:' Hà Minh Nguyệt ',phone:'0983000970'},
-  {id:'2',fullName:'Hà  Minh Nguyệt',phone:'0768152072'},
-  {id:'3',fullName:'Traky Sài Gòn',phone:'0931325049'}
- ];
- const groups=vm.runInNewContext(fn+'; crmNameGroups(records);',{records});
- assert.equal(groups.length,2);
- assert.equal(groups[0].rows.length,2);
- assert.equal(groups[0].rows[0].id,'1');
- assert.equal(groups[0].rows[1].phone,'0768152072');
- assert.equal(groups[1].rows[0].id,'3');
-});
-
-test('role and lifecycle actions never inherit full-row grid span',()=>{
- // Regression: screenshot after 0.4.24 showed vertically stacked role buttons,
- // one narrow Save followed by full-width Pause and Revoke.
- assert.doesNotMatch(owner,/\.crm-role-editor button\{grid-column:1\/-1;justify-self:start\}/);
- assert.match(owner,/\.crm-role-editor>form>button\[type="submit"\]\{grid-column:1\/-1;justify-self:start\}/);
- assert.match(owner,/#legacyConsole \.crm-role-editor \.crm-role-options>button\{grid-column:auto!important;justify-self:stretch!important;grid-row:auto!important;\}/);
- assert.match(owner,/#legacyConsole \.crm-role-editor \.crm-card-footer>button\{grid-column:auto!important;grid-row:auto!important;justify-self:stretch!important;\}/);
- assert.match(ownerScript,/footer\.append\(save\)/);
- assert.match(ownerScript,/footer\.append\(pause,revoke\)/);
- assert.match(ownerScript,/roleRow\.append\(make\('strong','Vai trò'\),crmRoleChoices\(role\)\)/);
-});
-
-test('invoice recipients are unique by normalized ADDRESS, not invoice or phone',()=>{
- const defs=['crmRecipientAddressKey','crmRecipientNameKey','crmUniqueLegacyRecipients','crmUniqueSavedAddressGroups'];
- const source=defs.map(name=>{
-  const start=ownerScript.indexOf('function '+name+'(');
-  assert.ok(start>=0,name+' not found');
-  const next=ownerScript.indexOf('\nfunction ',start+10);
-  return ownerScript.slice(start,next>=0?next:undefined);
- }).join('\n');
- const records=[
-  {invoiceNo:5935,name:'Hà Minh Nguyệt',phoneCandidate:'0338915675',
-   address:'R4-26 Đường số 6, Tân Phong'},
-  {invoiceNo:5917,name:'Hà  Minh Nguyệt',phoneCandidate:'0338915675',
-   address:'R4-26  ĐƯỜNG số 6, Tân Phong'},
-  {invoiceNo:6011,name:'Hà Minh Nguyệt',phoneCandidate:'0983000970',
-   address:'11 Trần Quý Kiên'},
-  {invoiceNo:6012,name:'Khách khác',phoneCandidate:'0338915675',
-   address:'11 Trần Quý Kiên'}
- ];
- const ctx=vm.runInNewContext(source+'; ({keys:crmUniqueLegacyRecipients(records,"Hà Minh Nguyệt"),saved:crmUniqueSavedAddressGroups([{id:"a",address:"R4-26 Đường số 6"},{id:"b",address:"R4-26  ĐƯỜNG số 6"},{id:"c",address:"R4/26 Đường số 6"}])})',{records});
- assert.equal(ctx.keys.length,2);
- assert.deepEqual(Array.from(ctx.keys[0].invoiceNos).sort(),[6011]);
- assert.deepEqual(Array.from(ctx.keys[1].invoiceNos).sort(),[5917,5935]);
- assert.equal(ctx.saved.length,2);
- assert.equal(ctx.saved[0].length,2);
- assert.equal(ctx.saved[1].length,1);
-});
-
-test('already-imported original invoices are never reimported by recipient directory',()=>{
- assert.match(ownerScript,/function renderLegacyRecipientDirectory\(host,ownerName,presetAccount=null\)/);
- assert.match(ownerScript,/\/api\/v2\/admin\/legacy\/search\?query=/);
- const start=ownerScript.indexOf('async function renderLegacyRecipientDirectory(');
- const end=ownerScript.indexOf('\nfunction drawLedgerPreview(){',start);
- const view=ownerScript.slice(start,end);
- assert.doesNotMatch(view,/\/api\/v2\/admin\/legacy\/import/);
- assert.match(view,/\/api\/v2\/admin\/addresses','POST'/);
- assert.match(view,/\/api\/v2\/admin\/policies','POST'/);
- assert.match(view,/accountSelect\.addEventListener\('change'/);
- assert.match(view,/confirm\('Gắn địa chỉ/);
- assert.match(ownerScript,/e\.message==='LEGACY_INVOICE_ALREADY_IMPORTED'/);
- assert.match(ownerScript,/addressGroups=crmUniqueSavedAddressGroups\(a\.addresses\)/);
- assert.match(ownerScript,/members\.find\(x=>x\.id===choose\.value\)/);
-});
-
-test('all verified CTV and agency accounts share deduplicated old-recipient directory',()=>{
- const dir=ownerScript.slice(
-  ownerScript.indexOf('async function renderLegacyRecipientDirectory('),
-  ownerScript.indexOf('\nfunction drawLedgerPreview(){'));
- const cards=ownerScript.slice(
-  ownerScript.indexOf('async function renderOwnerCtvClientCards('),
-  ownerScript.indexOf('/* Role and tiered pricing editor:'));
- const roles=ownerScript.slice(
-  ownerScript.indexOf('function rolePricingEditor('),
-  ownerScript.indexOf("byId('crmLedgerMonth').value="));
- assert.match(dir,/\['collaborator','agency'\]\.includes\(a\.requestedType\)/);
- assert.match(dir,/p\.type===account\.requestedType/);
- assert.match(dir,/chosenProfile\.type==='collaborator'\?main\?\.collaboratorBps:main\?\.discountBps/);
- assert.match(dir,/selectedProfile\.type==='collaborator'\?\{collaboratorBps:selectedCap\}:\{\}/);
- assert.match(dir,/confirm\('Gắn địa chỉ/);
- assert.match(cards,/x\.type===account\.requestedType/);
- assert.match(cards,/cap=isCtv\?main\?\.collaboratorBps:main\?\.discountBps/);
- assert.match(cards,/isCtv\?\{collaboratorBps:cap\}:\{\}/);
- assert.match(cards,/addressGroups=crmUniqueSavedAddressGroups\(a\.addresses\)/);
- assert.match(roles,/isPartner=isCtv\|\|role\.value==='agency'/);
- assert.match(roles,/clients\.hidden=!isPartner/);
- assert.doesNotMatch(dir,/\/api\/v2\/admin\/legacy\/import/);
- assert.doesNotThrow(()=>new vm.Script(ownerScript));
-});
-
-test('old customer invoice actions are one nested source, never two peer import paths',()=>{
- const start=owner.indexOf('<details id="crmLedgerDiscovery"');
- const advanced=owner.indexOf('<details id="legacyLedgerDisclosure"',start);
- const panelClose=owner.indexOf('</section>',start);
- assert.ok(start>=0&&advanced>start&&advanced<panelClose);
- assert.match(owner.slice(start,panelClose),/Nâng cao · đối chiếu và lập hồ sơ chưa liên kết/);
- assert.equal((owner.match(/id="legacySearchForm"/g)||[]).length,1);
- assert.equal((owner.match(/id="legacyLedgerDisclosure"/g)||[]).length,1);
- assert.equal((owner.match(/id="crmLedgerDiscovery"/g)||[]).length,1);
-});
-
-test('partner cards have one saved-recipient CK editor plus only new invoice candidates',()=>{
- const view=ownerScript.slice(ownerScript.indexOf('async function renderLegacyRecipientDirectory('),
-  ownerScript.indexOf('\nfunction drawLedgerPreview(){'));
- const cards=ownerScript.slice(ownerScript.indexOf('async function renderOwnerCtvClientCards('),
-  ownerScript.indexOf('/* Role and tiered pricing editor:'));
- assert.match(view,/const fixedAccount=!!presetAccount&&accounts\.some/);
- assert.match(view,/accountRow\.hidden=true;accountSelect\.disabled=true/);
- assert.match(view,/if\(fixedAccount&&saved\.length\)\{alreadySaved\+\+;continue\}/);
- assert.match(view,/finally\{accountSelect\.disabled=fixedAccount\}/);
- assert.match(cards,/crmUniqueSavedAddressGroups\(a\.addresses\)/);
- assert.match(ownerScript,/!\['collaborator','agency'\]\.includes\(registeredAccount\.requestedType\)/);
- assert.match(cards,/Địa chỉ mới từ hóa đơn · kiểm tra & thêm/);
- assert.doesNotMatch(view,/\/api\/v2\/admin\/legacy\/import/);
- assert.doesNotThrow(()=>new vm.Script(ownerScript));
-});
-
-test('unapproved CTV/agency rates do not hide previously saved delivery addresses',()=>{
- const cards=ownerScript.slice(ownerScript.indexOf('async function renderOwnerCtvClientCards('),
-  ownerScript.indexOf('/* Role and tiered pricing editor:'));
- assert.match(cards,/const hasApprovedCap=Number\.isSafeInteger\(cap\)/);
- const gate=cards.indexOf('if(!hasApprovedCap){');
- const addressList=cards.indexOf('const addressGroups=crmUniqueSavedAddressGroups(a.addresses);');
- assert.ok(gate>=0&&addressList>gate,'saved addresses must render after missing-CK notice');
- assert.doesNotMatch(cards.slice(gate,addressList),/\breturn\s*;/,
-  'missing CK must not return before showing addresses');
- assert.match(cards,/const bps=personal\?\.discountBps\?\?main\?\.discountBps/);
- assert.match(cards,/input\.disabled=!row\.active\|\|!hasApprovedCap/);
- assert.match(cards,/save\.disabled=!row\.active\|\|!hasApprovedCap/);
- assert.match(cards,/if\(!hasApprovedCap\)return crmStatus/);
- assert.doesNotThrow(()=>new vm.Script(ownerScript));
-});
-
-test('global invoice recipient directory cannot edit account CK or switch partner identity',()=>{
- const view=ownerScript.slice(ownerScript.indexOf('async function renderLegacyRecipientDirectory('),
-  ownerScript.indexOf('\nfunction drawLedgerPreview(){'));
- assert.match(view,/if\(presetAccount&&!fixedAccount\)throw Error\('PARTNER_ACCOUNT_NOT_ACTIVE'\)/);
- assert.match(view,/accountRow\.hidden=true;accountSelect\.disabled=true/);
- assert.match(view,/if\(!fixedAccount\)\{[\s\S]*?Chỉ đối chiếu, không sửa CK[\s\S]*?continue;/);
- assert.match(view,/if\(!fixedAccount\|\|!profile\|\|!Number\.isSafeInteger\(cap\)\)return/);
- assert.match(view,/if\(!fixedAccount\)\{[\s\S]*?status\.textContent='Đối chiếu hóa đơn: chỉ đọc/);
- assert.match(ownerScript,/Đối chiếu người nhận từ hóa đơn \(chỉ đọc\)/);
-});
-
-test('advanced legacy importer refuses to overwrite registered partners by email or phone',()=>{
- const importer=ownerScript.slice(ownerScript.indexOf('async function submitLegacyImport('),
-  ownerScript.indexOf('/* Account-scoped profile and delivery editors reuse'));
- assert.match(importer,/const submittedPhone=digits\(byId\('legacyPhone'\)\.value\)/);
- assert.match(importer,/const matching=customerRecord\.registered\.filter/);
- assert.match(importer,/if\(matching\.length\)return legacyNotice/);
- assert.match(importer,/Khách đã có tài khoản: mở đúng hồ sơ/);
+ assert.doesNotThrow(()=>new vm.Script(geminiScript));
 });

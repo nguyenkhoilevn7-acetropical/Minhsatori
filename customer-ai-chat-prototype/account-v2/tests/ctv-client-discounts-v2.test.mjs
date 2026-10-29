@@ -25,9 +25,9 @@ test('legacy CTV policy is durably staged and activated with both rates, no seco
  assert.match(backend,/CTV_USE_LEGACY_ACTIVATION/);
  assert.match(backend,/data.requestedType==='collaborator'\?data.collaboratorBps:null/);
  assert.match(backend,/applyGeneralDiscount\(c,profileId,owner.google_sub,data.discountBps/);
- assert.match(owner,/id='legacyCtvDiscount'|id="legacyCtvDiscount"|legacyCtvDiscount/);
+ assert.match(owner,/const capRow=make\('label','CK CTV/);
  assert.match(owner,/Chiết khấu CTV \(%\)/);
- assert.match(owner,/data\.collaboratorBps=cbps/);
+ assert.match(owner,/const cap=document.createElement\('input'\)/);
 });
 test('CTV per-client endpoint refuses cross-account, non-CTV, bad rate, stale writes and owner policy overrides',()=>{
  for(const x of [
@@ -68,8 +68,8 @@ test('single icon tab-row in owner and only one independent legacy editor',()=>{
  assert.equal((nav.match(/data-owner-tab=/g)||[]).length,3);
  assert.equal((nav.match(/<svg /g)||[]).length,3);
  assert.match(owner,/id="crmOldFilter"/);
- assert.match(owner,/id="legacyType"|role\.id='legacyType'/);
- assert.match(owner,/legacyCtvDiscount/);
- assert.match(owner,/ctvRate\.required=sel\.value==='collaborator'/);
+ assert.match(owner,/function legacyBindingPanel\(/);
+ assert.doesNotMatch(owner,/id="legacyCtvDiscount"/);
+ assert.match(owner,/role\.onchange=syncRole/);
  assert.doesNotThrow(()=>new vm.Script(owner.match(/<script>([\s\S]*?)<\/script>/)?.[1]||''));
 });
