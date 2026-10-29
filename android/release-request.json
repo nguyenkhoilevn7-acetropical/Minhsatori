@@ -17,6 +17,7 @@
     "Version 0.4.20 code 37 is an in-place upgrade over 0.4.19 code 36. Do not uninstall the app or clear its existing invoice data.",
     "Maintain all existing production invoice, payment, PDF, CTV and reconciliation logic; no changes to Apps Script or database schema.",
     "Run CI unit tests and compile signed APK, then test sign-in and owner operations with live Samsung/Z Fold before declaring device rollout accepted.",
-    "No Google tokens, real passwords, or customer records in test logs/artifacts; no live invoice creation as part of acceptance."
+    "No Google tokens, real passwords, or customer records in test logs/artifacts; no live invoice creation as part of acceptance.",
+    "2026-10-29: Android unit tests and debug APK compiled PASS in PR #240. Trigger signed v0.4.20 release on pinned official certificate; physical Samsung owner OAuth/device acceptance remains separate."
   ]
 }
