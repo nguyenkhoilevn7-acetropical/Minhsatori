@@ -634,7 +634,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .ctv-sheet-contents #addressFormTitle{font-size:17px}
 .ctv-sheet-contents #addressForm .field{margin:10px 0}
 .ctv-sheet-contents #addressForm .field input{min-height:45px;font-size:16px}
-.ctv-sheet-contents #addressForm #saveNewAddress{display:none}
+.ctv-sheet-contents #addressForm #saveNewAddress,.ctv-sheet-contents #addressForm .field:has(input[name="label"]){display:none}
 .ctv-sheet-contents #ctvCustomerDiscountField{border:0;background:#e9f8f5;margin:12px 0}
 .ctv-sheet-contents .ctv-client-entry{display:grid;gap:8px}
 .ctv-sheet-contents .ctv-client-entry.is-selected{border:2px solid #009c99;background:#f0faf8}
@@ -920,7 +920,7 @@ function renderCtvSavedClients(data){
     toast('Đã lưu chiết khấu riêng, không thay đổi hóa đơn cũ.');
    }catch(e){toast(e.message);save.disabled=false}
   };
-  if($('ctvCustomerDialog').open){
+  if($('ctvClientPanel').parentElement?.id==='ctvSheetContents'){
    const choose=node('button','Chọn khách này · tiếp tục đặt hàng','ctv-client-select');
    choose.type='button';choose.setAttribute('aria-pressed',String(selectedCtvClientAddressId===customer.id));
    choose.onclick=()=>{
@@ -2290,6 +2290,7 @@ $('addressForm').onsubmit=async ev=>{
  ev.preventDefault();const form=new FormData(ev.target);
  const fields=Object.fromEntries(form.entries());
  delete fields.customerDiscountPercent;
+ if(currentCtvProfile())fields.label=fields.recipientName;
  const ctv=currentCtvProfile(),save=$('saveNewAddress');
  try{
   if(ctv){
@@ -2628,6 +2629,7 @@ const ctvFormHome=$('addressForm').parentElement,ctvPanelHome=$('ctvClientPanel'
 function closeCtvSheet(){
  if($('ctvCustomerDialog').open)$('ctvCustomerDialog').close();
  ctvPanelHome.append($('ctvClientPanel'));ctvFormHome.append($('addressForm'));
+ $('addressForm').querySelector('input[name="label"]').required=true;
  if(!selectedDeliveryAddress())openDeliveryDialog();
 }
 async function openCtvSheet(){
@@ -2635,6 +2637,7 @@ async function openCtvSheet(){
  if(!ctv)return view('addresses');
  if($('deliveryDialog').open)closeDeliveryDialog(true);
  $('ctvSheetContents').append($('ctvClientPanel'),$('addressForm'));
+ $('addressForm').querySelector('input[name="label"]').required=false;
  $('ctvDeliveryNoteField').hidden=false;
  selectedCtvClientAddressId=null;
  ctvCustomerTab='new';
