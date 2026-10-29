@@ -359,6 +359,8 @@ function activateOwnerTab(tab){
   byId(id).hidden=name!==tab;
  for(const el of document.querySelectorAll('[data-owner-tab]'))
   el.setAttribute('aria-selected',String(el.dataset.ownerTab===tab));
+ // Selecting Khách cũ itself reveals the stored customer list; no second tap.
+ byId('legacyLeadDisclosure').open=tab==='old';
 }
 document.querySelectorAll('[data-owner-tab]').forEach(btn=>
  btn.addEventListener('click',()=>activateOwnerTab(btn.dataset.ownerTab)));
