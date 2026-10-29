@@ -940,6 +940,9 @@ async function renderOwnerCtvClientCards(account,wrap){
    }
   });
   wrap.append(directory);
+  // The owner has already selected the CTV card; show its deduplicated recipients now.
+  directory.open=true;directory.dataset.loaded='1';
+  void renderLegacyRecipientDirectory(mount,account.fullName||account.name||'',account);
  }catch(e){if(wrap.isConnected)wrap.replaceChildren(make('p','Không tải được khách riêng CTV: '+e.message))}
 }
 
@@ -1308,7 +1311,9 @@ function drawLedgerPreview(){
     void renderLegacyRecipientDirectory(mount,group.name);
    }
   });
-  body.append(directory);card.append(head,body);root.append(card);
+  body.append(directory);card.append(head,body);
+  card.addEventListener('toggle',()=>{if(card.open)directory.open=true});
+  root.append(card);
  }
 }
 function drawCustomers(){
@@ -1445,6 +1450,7 @@ function drawCustomers(){
     }
    });
    body.append(lookup);
+   item.addEventListener('toggle',()=>{if(item.open)lookup.open=true});
   }
   body.append(actions);
   if(registeredAccount){
