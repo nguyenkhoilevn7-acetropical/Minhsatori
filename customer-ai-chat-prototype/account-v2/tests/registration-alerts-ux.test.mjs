@@ -30,15 +30,14 @@ test('website has badge, notification bell and opt-in sound, without duplicate i
  assert.match(script,/window\.setInterval/);
  assert.doesNotThrow(()=>new vm.Script(script));
 });
-test('bulk select checks all matching legacy invoices, retains manual subset and validates phones',()=>{
- assert.match(html,/id="legacySelectAll"/);
- assert.match(script,/legacySelected=new Set\(legacyData\.orders\.map\(x=>x\.invoiceNo\)\)/);
- assert.match(script,/legacySelected\.clear\(\)/);
- assert.match(script,/example\.phoneCandidate\|\|''/);
- assert.match(script,/o\.phoneCandidate\|\|''/);
- assert.match(script,/phoneOk\(a\.recipientPhone\)/);
+test('one account-bound invoice selector uses exact source refs and never reimports',()=>{
+ assert.doesNotMatch(html,/id="legacySelectAll"/);
+ assert.match(html,/id="crmLegacyLink"/);
+ assert.match(script,/checkbox\.dataset\.refs=JSON\.stringify\(group\.refs\)/);
+ assert.match(script,/sourceRevision:source\.revision,refs:list/);
  assert.match(backend,/legacyPhoneCandidate\(o\.phone\)/);
 });
+
 test('CTV fields use separate client and partner rates and show margin',()=>{
  assert.match(html,/id="crmCtvRate"/);
  assert.match(html,/id="crmCtvProfit"/);
