@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID,createHmac} from 'node:crypto';
 import pg from 'pg';
+import {ctvClientWrite,ctvClientList} from '../router.mjs';
 import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatus,
  adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer,
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
@@ -184,6 +185,45 @@ try{
   for(const [k,v] of Object.entries(prevVars))if(v===undefined)delete process.env[k];
   else process.env[k]=v;
  }
+
+
+ // Synthetic CTV: one owner-approved global cap, customer-specific policies
+ // on two distinct saved delivery addresses and account-scoped CAS updates.
+ const ctvSub='ci-ctv-'+randomUUID();
+ const ctv=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) VALUES($1,$2,'PENDING') RETURNING id,revision",[ctvSub,'ctv-ci@example.invalid']);
+ const ctvForm={fullName:'CTV Synthetic',phone:'0900000123',address:'123 Synthetic CTV Street',
+  email:'ctv-ci@example.invalid',requestedType:'collaborator'};
+ await registrationSave(pool,{...ctv,access_status:'PENDING'},ctvForm);
+ await adminApproveRegistration(pool,owner,{accountId:ctv.id,expectedRevision:1,confirmed:true});
+ const activeCtv=await adminChangeCustomerStatus(pool,owner,{accountId:ctv.id,
+  expectedRevision:2,status:'ACTIVE',discountBps:2000,collaboratorBps:3500,confirmed:true});
+ const ctvActor={id:ctv.id,google_sub:ctvSub,access_status:'ACTIVE'};
+ const clientOne=await ctvClientWrite(pool,ctvActor,{profileId:activeCtv.profileId,
+  label:'Khách Lan Anh',recipientName:'Lan Anh',recipientPhone:'0903000000',
+  address:'10 Synthetic Client Street',discountBps:1800,confirmed:true},true);
+ const first=await ctvClientList(pool,ctvActor,activeCtv.profileId);
+ const saved=first.clients.find(x=>x.id===clientOne.addressId);
+ assert.equal(saved.discountBps,1800);assert.equal(first.collaboratorBps,3500);
+ assert.equal(saved.policyVersion,1);assert.equal(saved.ownerLocked,false);
+ await assert.rejects(()=>ctvClientWrite(pool,ctvActor,{
+  profileId:activeCtv.profileId,addressId:clientOne.addressId,
+  expectedPolicyVersion:1,discountBps:3501,confirmed:true},false),/CTV_CUSTOMER_RATE_OUT_OF_RANGE/);
+ const changed=await ctvClientWrite(pool,ctvActor,{
+  profileId:activeCtv.profileId,addressId:clientOne.addressId,
+  expectedPolicyVersion:1,discountBps:2100,confirmed:true},false);
+ assert.equal(changed.policyVersion,2);
+ await assert.rejects(()=>ctvClientWrite(pool,ctvActor,{
+  profileId:activeCtv.profileId,addressId:clientOne.addressId,
+  expectedPolicyVersion:1,discountBps:2100,confirmed:true},false),/CTV_CLIENT_REVISION_CONFLICT/);
+ await assert.rejects(()=>ctvClientList(pool,{id:owner.id,google_sub:owner.google_sub},activeCtv.profileId),/PROFILE_FORBIDDEN/);
+ const actual=await one("SELECT discount_bps,collaborator_bps,invoice_mode FROM satori_v2_policies WHERE profile_id=$1 AND address_id=$2 AND enabled=true",[activeCtv.profileId,clientOne.addressId]);
+ assert.equal(actual.discount_bps,2100);assert.equal(actual.collaborator_bps,3500);assert.equal(actual.invoice_mode,'single');
+ // Staged old CTV must keep both owner-set discounts independently.
+ const leadCtv=await adminCreateLead(pool,owner.id,{fullName:'CTV Legacy Synthetic',
+  phone:'0900000222',address:'22 Synthetic Legacy Street',
+  requestedType:'collaborator',discountBps:2000,collaboratorBps:3500,confirmed:true});
+ const pendingCtv=await one('SELECT discount_bps,collaborator_bps FROM satori_v2_customer_leads WHERE id=$1',[leadCtv.lead.id]);
+ assert.equal(pendingCtv.discount_bps,2000);assert.equal(pendingCtv.collaborator_bps,3500);
 
  console.log('PASS separate PostgreSQL customer signup/full fields, manual legacy link, Admin approval/discount, CAS suspension and removal, session invalidation, soft archive, no passwords');
 }finally{await pool.end()}
