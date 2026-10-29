@@ -30,7 +30,12 @@ test('monthly original ledger preview is owner-only, month-bounded and never ass
  assert.match(router,/owner\(actor\)/);
  assert.match(backend,/readMinhSatori\('orders\.list',\{from,to,limit:100\}\)/);
  assert.match(script,/Chưa xác minh tài khoản và CK V2/);
- assert.match(script,/legacySearchForm'\)\.requestSubmit\(\)/);
+ // Already imported invoices belong in the read-only recipient directory;
+ // never force a second import and trigger LEGACY_INVOICE_ALREADY_IMPORTED.
+ assert.match(script,/renderLegacyRecipientDirectory\(mount,group\.name\)/);
+ const preview=script.slice(script.indexOf('function drawLedgerPreview(){'),
+  script.indexOf('\nfunction drawCustomers(){'));
+ assert.doesNotMatch(preview,/legacySearchForm'\)\.requestSubmit\(\)/);
  assert.doesNotMatch(backend,/export async function legacyMonthlyCustomerPreview[\s\S]*?DELETE FROM satori_v2_invoices/);
 });
 

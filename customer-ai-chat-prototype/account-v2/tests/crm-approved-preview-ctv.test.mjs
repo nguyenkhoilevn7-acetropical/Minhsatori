@@ -91,3 +91,46 @@ test('role and lifecycle actions never inherit full-row grid span',()=>{
  assert.match(ownerScript,/footer\.append\(pause,revoke\)/);
  assert.match(ownerScript,/roleRow\.append\(make\('strong','Vai trò'\),crmRoleChoices\(role\)\)/);
 });
+
+test('invoice recipients are unique by normalized ADDRESS, not invoice or phone',()=>{
+ const defs=['crmRecipientAddressKey','crmRecipientNameKey','crmUniqueLegacyRecipients','crmUniqueSavedAddressGroups'];
+ const source=defs.map(name=>{
+  const start=ownerScript.indexOf('function '+name+'(');
+  assert.ok(start>=0,name+' not found');
+  const next=ownerScript.indexOf('\nfunction ',start+10);
+  return ownerScript.slice(start,next>=0?next:undefined);
+ }).join('\n');
+ const records=[
+  {invoiceNo:5935,name:'Hà Minh Nguyệt',phoneCandidate:'0338915675',
+   address:'R4-26 Đường số 6, Tân Phong'},
+  {invoiceNo:5917,name:'Hà  Minh Nguyệt',phoneCandidate:'0338915675',
+   address:'R4-26  ĐƯỜNG số 6, Tân Phong'},
+  {invoiceNo:6011,name:'Hà Minh Nguyệt',phoneCandidate:'0983000970',
+   address:'11 Trần Quý Kiên'},
+  {invoiceNo:6012,name:'Khách khác',phoneCandidate:'0338915675',
+   address:'11 Trần Quý Kiên'}
+ ];
+ const ctx=vm.runInNewContext(source+'; ({keys:crmUniqueLegacyRecipients(records,"Hà Minh Nguyệt"),saved:crmUniqueSavedAddressGroups([{id:"a",address:"R4-26 Đường số 6"},{id:"b",address:"R4-26  ĐƯỜNG số 6"},{id:"c",address:"R4/26 Đường số 6"}])})',{records});
+ assert.equal(ctx.keys.length,2);
+ assert.deepEqual(Array.from(ctx.keys[0].invoiceNos).sort(),[6011]);
+ assert.deepEqual(Array.from(ctx.keys[1].invoiceNos).sort(),[5917,5935]);
+ assert.equal(ctx.saved.length,2);
+ assert.equal(ctx.saved[0].length,2);
+ assert.equal(ctx.saved[1].length,1);
+});
+
+test('already-imported original invoices are never reimported by recipient directory',()=>{
+ assert.match(ownerScript,/function renderLegacyRecipientDirectory\(host,ownerName,presetAccount=null\)/);
+ assert.match(ownerScript,/\/api\/v2\/admin\/legacy\/search\?query=/);
+ const start=ownerScript.indexOf('async function renderLegacyRecipientDirectory(');
+ const end=ownerScript.indexOf('\nfunction drawLedgerPreview(){',start);
+ const view=ownerScript.slice(start,end);
+ assert.doesNotMatch(view,/\/api\/v2\/admin\/legacy\/import/);
+ assert.match(view,/\/api\/v2\/admin\/addresses','POST'/);
+ assert.match(view,/\/api\/v2\/admin\/policies','POST'/);
+ assert.match(view,/accountSelect\.addEventListener\('change'/);
+ assert.match(view,/confirm\('Gắn địa chỉ/);
+ assert.match(ownerScript,/e\.message==='LEGACY_INVOICE_ALREADY_IMPORTED'/);
+ assert.match(ownerScript,/addressGroups=crmUniqueSavedAddressGroups\(a\.addresses\)/);
+ assert.match(ownerScript,/members\.find\(x=>x\.id===choose\.value\)/);
+});
