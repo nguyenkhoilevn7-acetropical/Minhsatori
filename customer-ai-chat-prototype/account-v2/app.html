@@ -555,6 +555,38 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
  .catalogue-qty input{height:38px}
 }
 
+
+/* Gemini entry screen type ramp: only body 16px and title 20px.
+   Restrict to onboarding and the mandatory address chooser; preserve cart,
+   order receipts, monetary hierarchy and icon glyph sizing. */
+:root{--entry-body-size:16px;--entry-title-size:20px}
+.intro h1,#gate h1{font-size:var(--entry-title-size)}
+.intro p,#gate p,.chat-help,.chat-help>summary,
+.chat-help-content p,.chat-help-content li,.chat-help-content .chat-help-note{
+ font-size:var(--entry-body-size);line-height:1.5
+}
+.delivery-dialog{font-size:var(--entry-body-size);line-height:1.5}
+.delivery-dialog h2{font-size:var(--entry-title-size);line-height:1.3}
+.delivery-dialog .delivery-dialog-brand,
+.delivery-dialog p,.delivery-dialog .delivery-profile-label,
+.delivery-dialog .delivery-profile-select,
+.delivery-dialog .agent-address-menu>summary,
+.delivery-dialog .agent-address-choice .address-title,
+.delivery-dialog .agent-address-choice .address-subtitle,
+.delivery-dialog .agent-address-choice .address-phone,
+.delivery-dialog .saved-address>summary strong,
+.delivery-dialog .address-detail,
+.delivery-dialog .agent-address-manage,
+.delivery-dialog button:not(.delivery-dialog-close),
+.delivery-dialog label,.delivery-dialog input,.delivery-dialog select,
+.delivery-dialog .saved-address .address-phone{
+ font-size:var(--entry-body-size);line-height:1.5
+}
+.delivery-dialog .agent-address-choice .address-title{font-weight:700}
+.delivery-dialog .agent-address-choice .address-subtitle,
+.delivery-dialog .agent-address-choice .address-phone{font-weight:500;color:#3f5462}
+.delivery-dialog .delivery-profile-label{color:#4b5d6a}
+.delivery-dialog .delivery-dialog-brand{font-weight:750}
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
