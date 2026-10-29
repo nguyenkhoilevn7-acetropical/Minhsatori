@@ -27,7 +27,8 @@ import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreate
  adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
  adminApproveRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyCustomerImport,
  legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
- adminReconcileVerifiedLegacyPending,adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
+ adminReconcileVerifiedLegacyPending,ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,
+ adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -519,6 +520,9 @@ export async function handleAccountV2(req,res,pathname){
    owner(actor);
    send(res,200,await legacyCustomerImport(pool,actor,await json(req)));return true;
   }
+  if(pathname==='/api/v2/admin/legacy/bind-history'&&req.method==='POST'){
+   owner(actor);send(res,200,await ownerBindLegacyInvoices(pool,actor,await json(req)));return true;
+  }
   if(pathname==='/api/v2/admin/legacy/activate'&&req.method==='POST'){
    owner(actor);
    send(res,200,await legacyCustomerActivateLead(pool,actor,await json(req)));return true;
@@ -682,6 +686,9 @@ export async function handleAccountV2(req,res,pathname){
    }
    const result=await readMinhSatori('orders.list',{...window,limit:100});
    send(res,200,{ok:true,configured:true,...safeLegacyInvoiceIndex(result)});return true;
+  }
+  if(pathname==='/api/v2/legacy/history'&&req.method==='GET'){
+   send(res,200,await linkedLegacyInvoiceHistory(pool,actor));return true;
   }
   if(pathname==='/api/v2/orders'&&req.method==='GET'){
    // No broad legacy-ledger search. Only independently authored V2 orders
