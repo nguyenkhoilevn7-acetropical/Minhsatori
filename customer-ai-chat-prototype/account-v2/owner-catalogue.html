@@ -1141,7 +1141,8 @@ function legacyBindingPanel(){
  const leadBox=make('label','1. Hồ sơ Khách cũ');
  const lead=document.createElement('select');lead.id='crmLegacyLeadSelect';
  const blank=make('option','Chọn hồ sơ đã lưu (hoặc tìm trực tiếp hóa đơn)');blank.value='';lead.append(blank);
- for(const x of customerRecord.leads.filter(x=>x.active&&!x.linkedAccountId)){
+ for(const x of customerRecord.leads.filter(x=>x.active&&(!x.linkedAccountId||
+  customerRecord.registered.find(a=>a.id===x.linkedAccountId)?.accessStatus==='PENDING'))){
   const option=make('option',(x.fullName||'Hồ sơ')+' · '+(x.email||'Chưa gắn Gmail'));
   option.value=x.id;lead.append(option);
  }
@@ -1341,7 +1342,8 @@ function drawCustomers(){
  const registered=customerRecord.registered;
  const leads=customerRecord.leads;
  const oldItems=[...registered.filter(a=>a.accessStatus==='ACTIVE'),
-  ...leads.filter(l=>l.active&&!l.linkedAccountId)];
+  ...leads.filter(l=>!l.linkedAccountId||
+   registered.find(a=>a.id===l.linkedAccountId)?.accessStatus!=='ACTIVE')];
  byId('crmCountOld').textContent=String(oldItems.length);
  const groups=[
   {label:'Chờ duyệt',state:'pending',items:registered.filter(x=>x.accessStatus==='PENDING'&&!x.approvedForPricing)},
@@ -1463,9 +1465,9 @@ function drawCustomers(){
    Number(b.requestedType==='agency')-Number(a.requestedType==='agency')||
    Number(b.accessStatus==='ACTIVE')-Number(a.accessStatus==='ACTIVE'));
  if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ CRM đã lưu. Danh sách địa chỉ lịch sử từ sổ gốc nằm ngay bên dưới.','crm-stage-hint'));
- for(const group of crmNameGroups(matches)){
-  const cards=[];
-  for(const x of group.rows){
+ // Do not hide independent CRM profiles behind a name-based duplicate picker.
+ // Only shipping destinations are deduplicated, by normalized location.
+ for(const x of matches){
   // A verified Google account is authoritative for the linked lead's live role
   // and policy. Never show stale lead rates as if they still govern Gemini.
   const registeredAccount=customerRecord.registered.find(a=>a.id===(x.linkedAccountId||x.id))||null;
@@ -1474,7 +1476,7 @@ function drawCustomers(){
   const actions=make('div',null,'crm-card-actions');
   if(!registeredAccount)body.append(make('p','Hồ sơ chờ liên kết Gmail; vai trò và CK đã lưu chỉ là hồ sơ dự kiến.','crm-client-banner'));
   // A single account-bound operation replaces multiple old ledger lookups.
-  if(x.active&&!x.linkedAccountId){
+  if(x.active&&(!x.linkedAccountId||registeredAccount?.accessStatus==='PENDING')){
    const link=iconButton('Liên kết Gmail & lịch sử','mail','secondary');
    link.onclick=()=>{
     const panel=byId('crmLegacyLink').querySelector('details');
@@ -1557,14 +1559,12 @@ function drawCustomers(){
    body.append(controls);
   }else if(!registeredAccount)actions.append(leadLifecycleControls(x));
 
-  cards.push(item);
+  oldDest.append(item);
   // Preview defaults to the first verified CTV expanded, not all accounts.
   if(autoExpandCtv&&registeredAccount?.accessStatus==='ACTIVE'&&
      registeredAccount.requestedType==='collaborator'&&!oldTerm){
    item.open=true;autoExpandCtv=false;
   }
-  }
-  oldDest.append(crmGroupCards(group,cards));
  }
 }
 /* Owner-only customer lifecycle. Keep receipts and history for accounting. */
