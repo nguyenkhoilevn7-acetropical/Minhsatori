@@ -1181,6 +1181,10 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
     rateBox.input.min='0';rateBox.input.max=String((cap??10000)/100);rateBox.input.step='0.01';
     const save=iconButton(existing?'Lưu CK':'Lưu khách & CK','check');
     save.type='submit';save.disabled=!profile||!Number.isSafeInteger(cap)||!existing&&!entry.phones.length;
+    if(saved.length>1){
+     card.append(make('small','Địa chỉ đã có nhiều hồ sơ: hãy chọn đúng người trong mục Khách riêng CTV để chỉnh CK.','crm-recipient-notice'));
+     save.disabled=true;
+    }
     // A phone absent from the signed invoice must be provided explicitly.
     if(!entry.phones.length&&!existing)save.disabled=!profile||!Number.isSafeInteger(cap);
     form.append(recipient.box,phone.box,rateBox.box,save);
@@ -1200,7 +1204,11 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
      try{
       // Read again immediately before create, to avoid duplicate on repeated clicks.
       const fresh=await api('/api/v2/admin/addresses?profileId='+encodeURIComponent(profile.id));
-      let target=fresh.addresses.find(a=>crmRecipientAddressKey(a.address)===entry.key);
+      const candidates=fresh.addresses.filter(a=>crmRecipientAddressKey(a.address)===entry.key);
+      if(candidates.length>1)throw Error('ADDRESS_HAS_MULTIPLE_SAVED_RECIPIENTS');
+      let target=candidates[0]||null;
+      if(target&&String(target.recipientPhone||'').replace(/[ ().-]/g,'')!==number)
+       throw Error('ADDRESS_SAVED_WITH_DIFFERENT_PHONE');
       if(!target){
        const added=await api('/api/v2/admin/addresses','POST',{profileId:profile.id,
         label:'Từ hóa đơn · '+entry.invoiceNos[0],
