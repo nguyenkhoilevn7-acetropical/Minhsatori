@@ -516,6 +516,46 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   background:#f0f5f4;
   color:#176367;
 }
+
+/* Delivery contact hierarchy: address and phone use identical weight and size. */
+.agent-address-choice .address-subtitle,
+.agent-address-choice .address-phone{
+ display:block;color:#435b66;font-size:15px;line-height:1.5;font-weight:500;
+ letter-spacing:0;overflow-wrap:anywhere;
+}
+/* Set a quantity before adding to the shared cart. No duplicate add buttons. */
+.product{align-items:center;min-width:0}
+.product .product-info{min-width:0;overflow-wrap:anywhere}
+.catalogue-product-actions{display:flex;flex-direction:column;align-items:stretch;
+ gap:7px;flex:0 0 auto;width:132px}
+.catalogue-qty{display:grid;grid-template-columns:37px minmax(0,1fr) 37px;
+ align-items:center;gap:4px;max-width:100%}
+.catalogue-qty button{min-width:37px;min-height:39px;border:0;border-radius:11px;
+ color:var(--blue);background:var(--blueSoft);font-weight:800;font-size:20px;
+ touch-action:manipulation;user-select:none}
+.catalogue-qty input{width:100%;min-width:0;height:39px;border:1px solid var(--edge);
+ border-radius:11px;background:white;color:var(--ink);font-size:16px;
+ text-align:center;font-variant-numeric:tabular-nums;padding:4px 0}
+.catalogue-product-actions>.product-add{min-height:39px;padding:8px 9px;
+ font-size:13px;border-radius:11px}
+.catalogue-qty button:active{transform:scale(.96)}
+.catalogue-qty input:focus-visible{outline:2px solid #80c5fc}
+#cartView{overflow-anchor:none}
+#cartLines .cart-line{overflow-anchor:none}
+#cartLines .num button{touch-action:manipulation;user-select:none}
+#cartLines .num input{font-size:16px;font-variant-numeric:tabular-nums;
+ -moz-appearance:textfield;appearance:textfield}
+#cartLines .num input::-webkit-inner-spin-button,
+#cartLines .num input::-webkit-outer-spin-button{appearance:none;margin:0}
+@media(max-width:440px){
+ .product{gap:8px}
+ .product .product-thumb{width:34px;height:34px}
+ .catalogue-product-actions{width:118px;gap:5px}
+ .catalogue-qty{grid-template-columns:34px minmax(0,1fr) 34px;gap:3px}
+ .catalogue-qty button{min-width:34px;min-height:38px}
+ .catalogue-qty input{height:38px}
+}
+
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
@@ -717,6 +757,8 @@ const views=['chat','catalogue','cart','addresses','orders','account'];
 const PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
 let crmRows={registered:[],leads:[]};
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
+// Catalogue numbers are drafts: only '+ Thêm' writes the shared cart.
+const catalogueQtyDraft=new Map();
 // Ignore out-of-order profile reads; never show the previous buyer's cart.
 let cartProfileLoadEpoch=0,profileLoading=false,cartLoadedProfileId=null;
 // In-memory only. Never persist a customer conversation or guessed SKU.
@@ -1352,9 +1394,20 @@ function foldProductSearch(text){
   .replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase().trim();
 }
 $('catalogueSearch').oninput=renderProducts;
+function catalogueQuantity(code){
+ const qty=catalogueQtyDraft.get(code);
+ return Number.isSafeInteger(qty)&&qty>=1&&qty<=500?qty:1;
+}
+function readCatalogueQuantity(input){
+ const raw=String(input.value).trim();
+ if(!/^[1-9]\d{0,2}$/.test(raw)||Number(raw)>500)throw Error('Số lượng phải từ 1 đến 500.');
+ return Number(raw);
+}
 function renderProducts(){
  $('catalogueNotice').hidden=products.length>0;
- $('products').replaceChildren();
+ const list=$('products');
+ const position=$('catalogueView').scrollTop;
+ list.replaceChildren();
  const needle=foldProductSearch($('catalogueSearch').value);
  const shown=products.filter(p=>!needle||foldProductSearch(
   [p.code,p.name,p.unit].join(' ')).includes(needle));
@@ -1363,12 +1416,51 @@ function renderProducts(){
   const thumbnail=node('span',undefined,'product-thumb');
   thumbnail.innerHTML="<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"2.5\" width=\"6\" height=\"3\" rx=\"1\"/><path d=\"M9 5.5v3C7 9.5 6 11 6 13v6.5A2.5 2.5 0 0 0 8.5 22h7a2.5 2.5 0 0 0 2.5-2.5V13c0-2-1-3.5-3-4.5v-3\"/><path d=\"M6 15.5h12\"/></svg>";
   info.append(node('strong',p.name),node('small',p.unit+' • '+money(p.listPrice)));
-  const button=node('button','+ Thêm','btn');button.disabled=!selectedDeliveryAddress()||savingCart||busy;
-  button.onclick=async()=>{if(savingCart||busy)return;button.disabled=true;try{await saveCart(mergeCartItems(cart,[{code:p.code,qty:1}]));toast('Đã thêm vào giỏ chung')}catch(e){toast(e.message)}finally{button.disabled=!selectedDeliveryAddress()||savingCart||busy}};
-  row.append(thumbnail,info,button);$('products').append(row);
+  const actions=node('div',undefined,'catalogue-product-actions');
+  const controls=node('div',undefined,'catalogue-qty');
+  controls.setAttribute('role','group');
+  controls.setAttribute('aria-label','Chọn số lượng '+p.name);
+  const minus=node('button','−'),input=document.createElement('input'),plus=node('button','+');
+  for(const control of [minus,plus])control.type='button';
+  minus.setAttribute('aria-label','Giảm số lượng '+p.name);
+  plus.setAttribute('aria-label','Tăng số lượng '+p.name);
+  input.type='text';input.inputMode='numeric';input.pattern='[0-9]*';
+  input.maxLength=3;input.autocomplete='off';input.value=String(catalogueQuantity(p.code));
+  input.setAttribute('aria-label','Số lượng muốn thêm '+p.name);
+  const assign=qty=>{
+   if(!Number.isSafeInteger(qty)||qty<1||qty>500){
+    toast('Số lượng phải từ 1 đến 500.');input.value=String(catalogueQuantity(p.code));return;
+   }
+   catalogueQtyDraft.set(p.code,qty);input.value=String(qty);
+  };
+  minus.onclick=()=>assign(Math.max(1,catalogueQuantity(p.code)-1));
+  plus.onclick=()=>assign(Math.min(500,catalogueQuantity(p.code)+1));
+  input.onchange=()=>{try{assign(readCatalogueQuantity(input))}
+   catch(e){input.value=String(catalogueQuantity(p.code));toast(e.message)}};
+  controls.append(minus,input,plus);
+  const button=node('button','+ Thêm','btn product-add');
+  button.type='button';
+  button.disabled=!selectedDeliveryAddress()||savingCart||busy;
+  button.setAttribute('aria-label','Thêm số lượng đã chọn của '+p.name+' vào giỏ');
+  button.onclick=async()=>{
+   if(savingCart||busy)return;
+   let qty;
+   try{qty=readCatalogueQuantity(input);catalogueQtyDraft.set(p.code,qty)}
+   catch(e){input.value=String(catalogueQuantity(p.code));toast(e.message);return}
+   button.disabled=true;
+   try{
+    await saveCart(mergeCartItems(cart,[{code:p.code,qty}]));
+    catalogueQtyDraft.set(p.code,1);input.value='1';
+    toast('Đã thêm '+qty+' '+p.unit+' '+p.name+' vào giỏ');
+   }catch(e){toast(e.message)}
+   finally{button.disabled=!selectedDeliveryAddress()||savingCart||busy}
+  };
+  actions.append(controls,button);
+  row.append(thumbnail,info,actions);list.append(row);
  }
- if(!products.length)$('products').append(node('p','Danh mục chính thức chưa được đồng bộ.','notice'));
- else if(!shown.length)$('products').append(node('p','Không tìm thấy sản phẩm phù hợp.','muted'));
+ if(!products.length)list.append(node('p','Danh mục chính thức chưa được đồng bộ.','notice'));
+ else if(!shown.length)list.append(node('p','Không tìm thấy sản phẩm phù hợp.','muted'));
+ if(!$('catalogueView').classList.contains('hidden'))$('catalogueView').scrollTop=position;
 }
 /**
  * Prices in this screen are read-only canonical V2 policy calculations. Only the
