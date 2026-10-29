@@ -617,6 +617,9 @@ try{
    discountBps:2000,collaboratorBps:3500,confirmed:true
   });
   activeLeadIds.push(lead.lead);
+  // Explicitly encode chronological source creation timestamps in CI.
+  await pool.query("UPDATE satori_v2_customer_leads SET created_at=now()+($2 * interval '1 second') WHERE id=$1",
+   [lead.lead.id,i]);
  }
  const activeGoogle='ci-already-active-'+randomUUID();
  const existingAccount=await one(
