@@ -1286,7 +1286,7 @@ function drawLedgerPreview(){
   for(const person of group.rows)for(const address of person.addresses||[]){
    const key=crmRecipientAddressKey(address);if(key&&!unique.has(key))unique.set(key,address);
   }
-  body.append(make('p',unique.size+' địa chỉ không trùng trong tháng. '+
+  body.append(make('p','Chưa xác minh tài khoản và CK V2. '+unique.size+' địa chỉ không trùng trong tháng. '+
    'Có thể mở tất cả kết quả theo tên từ sổ gốc, rồi chọn CTV đã xác minh để cấp CK. '+
    'Không nhập lại hóa đơn đã được ghi nhận.','crm-readonly-note'));
   for(const address of unique.values()){
