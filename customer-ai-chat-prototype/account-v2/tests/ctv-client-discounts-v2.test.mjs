@@ -25,7 +25,7 @@ test('legacy CTV policy is durably staged and activated with both rates, no seco
  assert.match(backend,/CTV_USE_LEGACY_ACTIVATION/);
  assert.match(backend,/data.requestedType==='collaborator'\?data.collaboratorBps:null/);
  assert.match(backend,/applyGeneralDiscount\(c,profileId,owner.google_sub,data.discountBps/);
- assert.match(owner,/const cap=field\('CK CTV/);
+ assert.match(owner,/const capRow=make\('label','CK CTV/);
  assert.match(owner,/Chiết khấu CTV \(%\)/);
  assert.match(owner,/collaboratorBps=collaboratorBps/);
 });
