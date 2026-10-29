@@ -51,7 +51,7 @@ test('implementation binds invoices by exact ID but writes address once per loca
  assert.match(backend,/normalizedDeliveryAddress\(row\.address\)/);
  assert.doesNotMatch(backend.slice(backend.indexOf('export async function ownerBindLegacyInvoices('),
   backend.indexOf('export async function linkedLegacyInvoiceHistory(')),/LEGACY_BIND_MIXED_NAMES/);
- assert.match(owner,/d\.addressGroups/);
- assert.match(owner,/invoiceRefs=JSON\.stringify\(group\.refs\)/);
+ assert.match(owner,/result\.addressGroups/);
+ assert.match(owner,/checkbox\.dataset\.refs=JSON\.stringify\(group\.refs\)/);
  assert.match(client,/historical\.addresses\|\|\[\]/);
 });
