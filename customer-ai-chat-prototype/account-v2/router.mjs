@@ -26,8 +26,8 @@ import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
  adminApproveRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyCustomerImport,
- legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,
- adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
+ legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
+ adminReconcileVerifiedLegacyPending,adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -485,10 +485,16 @@ export async function handleAccountV2(req,res,pathname){
   const isRegistrationRoute=(pathname==='/api/v2/register'&&
    (req.method==='GET'||req.method==='POST'))||
    (pathname==='/api/v2/me'&&req.method==='GET')||
-   (pathname==='/api/v2/logout'&&req.method==='POST');
+   (pathname==='/api/v2/logout'&&req.method==='POST')||
+   (pathname==='/api/v2/legacy/reconcile'&&req.method==='POST');
   // Customers without owner approval can only complete their registration.
   error(isOwner||actor.access_status==='ACTIVE'||isRegistrationRoute,
    'CUSTOMER_PENDING_ADMIN_APPROVAL',403);
+  if(pathname==='/api/v2/legacy/reconcile'&&req.method==='POST'){
+   // The account email and immutable Google sub come solely from its verified session.
+   const out=await reconcileVerifiedLegacySession(pool,actor,config().ownerGoogleSub);
+   send(res,200,{ok:true,...out});return true;
+  }
   if(pathname==='/api/v2/register'&&req.method==='GET'){
    send(res,200,await registrationRead(pool,actor));return true;
   }
@@ -516,6 +522,24 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/admin/legacy/activate'&&req.method==='POST'){
    owner(actor);
    send(res,200,await legacyCustomerActivateLead(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/legacy/reconcile-pending'&&req.method==='POST'){
+   owner(actor);
+   const input=await json(req);
+   error(input?.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
+   send(res,200,await adminReconcileVerifiedLegacyPending(pool,actor,config().ownerGoogleSub));
+   return true;
+  }
+  if(pathname==='/api/v2/admin/legacy/check'&&req.method==='GET'){
+   owner(actor);
+   const id=new URL(req.url,'http://local').searchParams.get('accountId');
+   error(isUuid(id),'CUSTOMER_ID_INVALID');
+   const found=await pool.query('SELECT id,google_sub,email,access_status '+
+    'FROM satori_v2_accounts WHERE id=$1',[id]);
+   error(found.rowCount===1,'CUSTOMER_NOT_FOUND',404);
+   const out=await reconcileVerifiedLegacySession(pool,found.rows[0],
+    config().ownerGoogleSub,{dryRun:true});
+   send(res,200,{ok:true,...out});return true;
   }
   if(pathname==='/api/v2/admin/ctv/profit'&&req.method==='GET'){
    owner(actor);
