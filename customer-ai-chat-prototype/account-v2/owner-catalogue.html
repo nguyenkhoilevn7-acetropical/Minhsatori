@@ -221,6 +221,7 @@ header.owner-header{display:flex;align-items:center;gap:12px;padding:4px 0 12px;
  .crm-card-identity strong{font-size:16px}
  .crm-filter-row button{font-size:12px;padding:7px 10px}
 }
+.ctv-customer-policy{border-top:1px solid #dcebe7;padding-top:10px}.ctv-customer-policy button{background:#e1f5f0;color:#087c73}
 </style></head>
 <body>
 <main>
@@ -885,12 +886,53 @@ async function loadProfileDetails(profileId,epoch){
   if(epoch!==customerEpoch||selectedProfileId!==profileId)return;
   if(!Array.isArray(a.addresses)||!Array.isArray(p.policies))throw Error('PROFILE_DETAILS_INVALID');
   dest.replaceChildren();
-  dest.append(make('h3','Tất cả địa chỉ ('+a.addresses.length+')'));
+  const isCtv=byId('crmProfile').selectedOptions[0]?.dataset.type==='collaborator';
+  const activePolicies=p.policies.filter(x=>x.enabled&&x.productCode==null);
+  const mainPolicy=activePolicies.filter(x=>!x.addressId).sort((x,y)=>y.version-x.version)[0];
+  const ctvCap=isCtv?mainPolicy?.collaboratorBps:null;
+  dest.append(make('h3',(isCtv?'Khách riêng của CTV':'Tất cả địa chỉ')+' ('+a.addresses.length+')'));
+  if(isCtv)dest.append(make('p',ctvCap==null?
+   'Chưa có CK CTV do Admin duyệt. Không được cấp CK khách riêng.':
+   'CK CTV: '+pct(ctvCap)+' · CK khách mặc định: '+pct(mainPolicy.discountBps)+
+   '. Mỗi khách có thể đặt CK riêng, không vượt CK CTV. Một hóa đơn duy nhất.'));
   for(const row of a.addresses){
    const entry=make('div',null,'crm-entry');
    entry.append(make('strong',(row.label||'Địa chỉ')+(row.active?'':' · Ngừng sử dụng')));
    appendLine(entry,(row.recipientName||'—')+' · '+(row.recipientPhone||'—'));
    appendLine(entry,row.address||'—');
+   if(isCtv){
+    const perClient=activePolicies.filter(x=>x.addressId===row.id)
+     .sort((x,y)=>y.version-x.version)[0];
+    const currentBps=perClient?.discountBps??mainPolicy?.discountBps;
+    appendLine(entry,'CK khách: '+pct(currentBps)+
+     (perClient?' · Riêng khách':' · Mặc định')+
+     ' · CK CTV: '+pct(ctvCap));
+    if(row.active&&Number.isSafeInteger(ctvCap)){
+     const form=make('form',null,'crm-controls ctv-customer-policy');
+     const label=make('label','Chiết khấu riêng khách (%)');
+     const input=document.createElement('input');input.type='number';
+     input.min='0';input.max=String(ctvCap/100);input.step='0.01';input.required=true;
+     input.value=currentBps==null?'':String(currentBps/100);
+     label.append(input);form.append(label);
+     const save=iconButton('Lưu CK khách','percent');save.type='submit';form.append(save);
+     form.onsubmit=async ev=>{
+      ev.preventDefault();
+      const n=Number(input.value),bps=Math.round(n*100);
+      if(input.value.trim()===''||!Number.isFinite(n)||bps<0||bps>ctvCap||
+         Math.abs(n*100-bps)>0.00001)return crmStatus('CK khách không hợp lệ hoặc vượt CK CTV.','error');
+      if(!confirm('Lưu CK '+n+'% cho khách '+(row.recipientName||row.label)+'? Không sửa hóa đơn cũ.'))return;
+      save.disabled=true;
+      try{
+       await api('/api/v2/admin/policies','POST',{confirmed:true,profileId,
+        addressId:row.id,productCode:null,invoiceMode:'single',
+        discountBps:bps,collaboratorBps:ctvCap});
+       await loadProfileDetails(profileId,epoch);
+       crmStatus('Đã cập nhật CK riêng khách.','success');
+      }catch(e){crmStatus('Không lưu được CK khách: '+e.message,'error');save.disabled=false}
+     };
+     entry.append(form);
+    }
+   }
    entry.append(ownerAddressEditor(profileId,row,epoch));
    dest.append(entry);
   }
