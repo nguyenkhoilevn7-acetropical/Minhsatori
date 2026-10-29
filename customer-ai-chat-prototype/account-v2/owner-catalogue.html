@@ -1219,7 +1219,7 @@ function prepareLegacyForm(){
  discount.placeholder='Anh tự nhập (kể cả 0%)';
  const ctv=legacyField(fields,'CK CTV (%) nếu vai trò CTV','legacyCtvDiscount','number');
  ctv.min='0';ctv.max='100';ctv.step='0.01';
- const roleSelect=byId('legacyRole');
+ const roleSelect=role;
  if(roleSelect){
   const sync=()=>{ctv.parentNode.hidden=roleSelect.value!=='collaborator';ctv.required=roleSelect.value==='collaborator'};
   roleSelect.addEventListener('change',sync);sync();
@@ -1267,6 +1267,13 @@ async function submitLegacyImport(event,button){
  if(!value||!Number.isFinite(amount)||amount<0||amount>100||
   Math.abs(amount*100-discountBps)>0.00001)
   return legacyNotice('Anh cần nhập mức chiết khấu chính xác, kể cả 0%.',true);
+ const role=byId('legacyType').value;
+ const rawCtv=byId('legacyCtvDiscount').value.trim();
+ const ctvValue=Number(rawCtv),collaboratorBps=Math.round(ctvValue*100);
+ if(role==='collaborator'&&(!rawCtv||!Number.isFinite(ctvValue)||
+  collaboratorBps<discountBps||collaboratorBps>10000||
+  Math.abs(ctvValue*100-collaboratorBps)>0.00001))
+  return legacyNotice('CK CTV phải ≥ CK mặc định khách và ≤ 100%.',true);
  const email=byId('legacyEmail').value.trim().toLowerCase();
  const matching=customerRecord.registered.filter(x=>
   email&&x.email?.toLowerCase()===email);
@@ -1282,7 +1289,8 @@ async function submitLegacyImport(event,button){
   query:legacyData.query,sourceRevision:legacyData.revision,
   invoiceNos:[...legacySelected],fullName:byId('legacyName').value.trim(),
   phone:byId('legacyPhone').value.trim(),email,
-  requestedType:byId('legacyType').value,discountBps,
+  requestedType:role,discountBps,
+  ...(role==='collaborator'?{collaboratorBps}:{}),
   companyName:byId('legacyCompany').value.trim(),
   taxCode:byId('legacyTax').value.trim(),note:byId('legacyNote').value.trim(),
   address:addresses[0].address,addresses,confirmed:true,identityConfirmed:true,
@@ -1291,6 +1299,7 @@ async function submitLegacyImport(event,button){
  const summary='Anh xác nhận các hóa đơn #'+payload.invoiceNos.join(', #')+
   ' thuộc ĐÚNG khách '+payload.fullName+'? Thiết lập chiết khấu '+amount+
   '% và '+addresses.length+' điểm giao.'+
+  (role==='collaborator'?' CK CTV '+ctvValue+'%.':'')+
   (email?' Gmail: '+email:' Chưa có Gmail, lưu hồ sơ chờ.');
  if(!confirm(summary))return;
  button.disabled=true;legacyNotice('Đang xác minh nguồn và lưu hồ sơ V2…');
