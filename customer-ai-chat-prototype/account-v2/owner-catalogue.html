@@ -98,6 +98,12 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
  .crm-alerts #crmSoundToggle{width:100%}
  .crm-select-tools{justify-content:flex-start}}
 
+.crm-ctv-summary{padding:15px;border:1px solid #cde8dd;border-radius:15px;
+ background:#f4fcf8;margin-top:15px;display:grid;gap:8px}
+.crm-ctv-summary>strong{font-size:16px;color:#0b6453}
+.crm-ctv-report-row{background:#fff;padding:10px;border:1px solid #e0ebe6;border-radius:10px}
+.crm-ctv-report-row strong{font-size:14px}
+
 </style></head>
 <body>
 <main>
@@ -575,6 +581,29 @@ async function loadProfileDetails(profileId,epoch){
   }
   const rec=customerRecord.registered.find(x=>x.id===selectedAccountId);
   if(rec?.registrationRevision)dest.append(ownerContactEditor(rec));
+  if(byId('crmProfile').selectedOptions[0]?.dataset.type==='collaborator'){
+   const box=make('div',null,'crm-ctv-summary');
+   box.append(make('h3','🤝 Lợi nhuận CTV từ hóa đơn chính thức'));
+   box.append(make('p','Đang đối chiếu các đơn V2 đã ghi thành công…'));
+   dest.append(box);
+   try{
+    const report=await api('/api/v2/admin/ctv/profit?profileId='+encodeURIComponent(profileId));
+    if(epoch!==customerEpoch||selectedProfileId!==profileId)return;
+    const cash=value=>Number(value||0).toLocaleString('vi-VN')+'đ';
+    box.replaceChildren(make('h3','🤝 Báo cáo CTV • một hóa đơn/đơn hàng'));
+    box.append(make('strong','Doanh thu bán khách: '+cash(report.salesVnd)));
+    box.append(make('strong','Lợi nhuận CTV: '+cash(report.marginVnd)));
+    box.append(make('small',report.count+' đơn V2 đã xác nhận; '+
+     report.unpricedCount+' đơn lịch sử chưa có hai mức CK.'));
+    for(const item of report.entries.slice(0,40)){
+     const row=make('div',null,'crm-ctv-report-row');
+     row.append(make('strong','#'+(item.invoiceNo||'—')+' · '+item.customer));
+     appendLine(row,'Tổng bán: '+cash(item.saleVnd)+
+      ' · Lời CTV: '+(item.marginVnd==null?'Chưa cấu hình':cash(item.marginVnd)));
+     box.append(row);
+    }
+   }catch(e){box.replaceChildren(make('p','Chưa tải được báo cáo CTV: '+e.message))}
+  }
  }catch(e){if(epoch===customerEpoch)dest.textContent='Không tải được hồ sơ: '+e.message}
 }
 async function selectAccount(customer){
