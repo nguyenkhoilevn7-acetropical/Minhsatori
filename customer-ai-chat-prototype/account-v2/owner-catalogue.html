@@ -603,12 +603,23 @@ function crmFilterButton(label,value,count,selected,kind){
  return b;
 }
 
+
+function crmRoleChoices(select){
+ const bar=make('div',null,'crm-role-options full');
+ bar.setAttribute('role','group');bar.setAttribute('aria-label','Chọn vai trò');
+ for(const [role,label,icon] of [['retail','Khách hàng','users'],['agency','Đại lý','shield'],['collaborator','CTV','users']]){
+  const b=iconButton(label,icon,'secondary');b.type='button';b.dataset.role=role;
+  b.onclick=()=>{select.value=role;select.dispatchEvent(new Event('change',{bubbles:true}))};
+  bar.append(b);
+ }
+ const paint=()=>bar.querySelectorAll('button').forEach(b=>
+  b.setAttribute('aria-pressed',String(b.dataset.role===select.value)));
+ select.addEventListener('change',paint);paint();return bar;
+}
 /* Role and tiered pricing editor: rendered only inside an expanded customer card. */
-function rolePricingEditor(account){
- const holder=make('details',null,'crm-role-editor');
- const summary=make('summary');
- summary.append(ownerIcon('shield'),document.createTextNode('Vai trò & chiết khấu đang áp dụng'));
- holder.append(summary);
+function rolePricingEditor(account,body,item){
+ const holder=make('section',null,'crm-role-editor');
+ holder.append(make('h3','Vai trò & chiết khấu'));
  const form=make('form',null,'field-grid');
  const roleLabel=make('label','Vai trò tài khoản');
  const role=document.createElement('select');role.required=true;
@@ -617,14 +628,15 @@ function rolePricingEditor(account){
   const option=make('option',label);option.value=value;
   option.selected=account.requestedType===value;role.append(option);
  }
- roleLabel.append(role);form.append(roleLabel);
- const customerLabel=make('label','CK khách mặc định (%)');
+ roleLabel.append(role);roleLabel.hidden=true;
+ form.append(roleLabel,make('strong','Vai trò','crm-role-options-label'),crmRoleChoices(role));
+ const customerLabel=make('label','Chiết khấu mặc định cho khách (%)');
  const customer=document.createElement('input');customer.type='number';
  customer.min='0';customer.max='100';customer.step='0.01';customer.required=true;
  customer.value=Number.isSafeInteger(account.discountBps)
   ?String(account.discountBps/100):'';
  customerLabel.append(customer);form.append(customerLabel);
- const ctvLabel=make('label','CK CTV được duyệt (%)');
+ const ctvLabel=make('label','Chiết khấu CTV (%)');
  const ctv=document.createElement('input');ctv.type='number';
  ctv.min='0';ctv.max='100';ctv.step='0.01';
  ctv.value=Number.isSafeInteger(account.collaboratorBps)
@@ -642,6 +654,18 @@ function rolePricingEditor(account){
  form.append(explanation);
  const save=iconButton('Lưu vai trò và chiết khấu','check');save.type='submit';
  form.append(save);holder.append(form);
+ const manage=make('div',null,'crm-ctv-clients');
+ const openClients=iconButton('👥 Khách riêng của CTV · xem và chỉnh CK từng khách','users','secondary');
+ openClients.type='button';
+ openClients.onclick=()=>{
+  openCustomerInspector(account,body,item);
+  const target=byId('crmDetails');
+  if(target)target.scrollIntoView({behavior:'smooth',block:'nearest'});
+ };
+ manage.append(make('p','Chiết khấu riêng của từng khách cũ / khách mới được lưu theo địa chỉ giao hàng trên backend V2.'),openClients);
+ holder.append(manage);
+ const syncClientPanel=()=>{manage.hidden=role.value!=='collaborator';};
+ role.addEventListener('change',syncClientPanel);syncClientPanel();
  form.onsubmit=async event=>{
   event.preventDefault();
   const getRate=(field)=>{
@@ -719,7 +743,7 @@ function drawCustomers(){
    actions.append(manage);
    body.append(actions);
    if(x.accessStatus==='ACTIVE'&&x.id!==ownerAccountId)
-    body.append(rolePricingEditor(x));
+    body.append(rolePricingEditor(x,body,item));
    if(x.accessStatus==='PENDING'&&x.registrationRevision&&!x.approvedForPricing){
     const approve=iconButton('Duyệt đăng ký','check');
     approve.onclick=()=>approveCustomer(x);actions.append(approve);
@@ -796,11 +820,11 @@ function drawCustomers(){
   body.append(info,actions);
   if(registeredAccount){
     if(registeredAccount?.accessStatus==='ACTIVE'&&registeredAccount.id!==ownerAccountId)
-    body.append(rolePricingEditor(registeredAccount));
+    body.append(rolePricingEditor(registeredAccount,body,item));
    else body.append(make('p','Hồ sơ đã liên kết: quản lý quyền qua tài khoản Google đang hoạt động.','crm-role-hint'));
   }
   if(x.active&&!registeredAccount){
-   const editor=make('details');editor.append(make('summary','✎ Sửa thông tin khách cũ'));
+   const editor=make('section',null,'crm-role-editor');editor.append(make('h3','Hồ sơ khách cũ · vai trò và chiết khấu'));
    const form=make('form',null,'field-grid');
    for(const [label,key,value] of [
     ['Tên khách','fullName',x.fullName],['Số điện thoại','phone',x.phone],
