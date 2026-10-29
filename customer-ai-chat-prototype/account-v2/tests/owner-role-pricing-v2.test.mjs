@@ -11,7 +11,7 @@ const good={confirmed:true,expectedRevision:3,requestedType:'collaborator',
  discountBps:2000,collaboratorBps:3500};
 
 test('Admin can assign retail, agency or CTV without accepting invalid tiered discounts',()=>{
- assert.deepEqual(validateOwnerRolePricing(good),good);
+ assert.deepEqual(validateOwnerRolePricing(good),{requestedType:good.requestedType,expectedRevision:good.expectedRevision,discountBps:good.discountBps,collaboratorBps:good.collaboratorBps});
  for(const role of ['retail','agency']){
   const result=validateOwnerRolePricing({...good,requestedType:role,collaboratorBps:null});
   assert.equal(result.requestedType,role);
