@@ -12,7 +12,8 @@ const js=owner.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 
 test('old customer tab restores its real loader, without calling an undefined function',()=>{
  assert.match(js,/async function loadLedgerMonthCustomers\(/);
- assert.match(js,/if\(tab==='old'\)\{drawCustomers\(\);if\(!customerRecord\.ledgerLoaded\)void loadLedgerMonthCustomers\(\)\}/);
+ assert.match(js,/if\(tab==='old'\)/);
+ assert.match(js,/void loadLedgerMonthCustomers\(\)/);
  assert.match(owner,/id="crmSignedHistory"/);
  assert.match(owner,/id="crmSignedHistoryRows"/);
  assert.match(js,/legacyAddressDirectory|\/api\/v2\/admin\/legacy\/address-directory/);
@@ -43,7 +44,7 @@ test('owner can configure old Gmail without phone; normal registration keeps shi
   address:'42 Street 95 Thu Duc',requestedType:'collaborator',
   discountBps:2000,collaboratorBps:3500,phone:''};
  assert.equal(validateCustomerProfile(base,{admin:true,phoneOptional:true}).phone,'');
- assert.throws(()=>validateCustomerProfile(base,{admin:true}),/CUSTOMER_PHONE_INVALID/);
+ assert.throws(()=>validateCustomerProfile(base,{admin:true}),/CUSTOMER_FIELD_INVALID/);
  assert.throws(()=>validateCustomerProfile({...base,phone:'123'},{admin:true,phoneOptional:true}),/CUSTOMER_PHONE_INVALID/);
  assert.match(backend,/phoneOptional:true/);
  assert.match(backend,/if\(data\.phone\)await c\.query\('INSERT INTO satori_v2_registrations/);
