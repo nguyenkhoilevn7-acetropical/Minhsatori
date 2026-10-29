@@ -229,7 +229,7 @@ header.owner-header{display:flex;align-items:center;gap:12px;padding:4px 0 12px;
 .crm-role-editor[open]>summary{border-bottom:1px solid #dcece7;background:#eaf7f5}
 .crm-role-editor>form{padding:13px;align-items:end}
 .crm-role-hint{font-size:14px;color:#43636c;margin:0;line-height:1.5}
-.crm-role-editor button{grid-column:1/-1;justify-self:start}
+.crm-role-editor>form>button[type="submit"]{grid-column:1/-1;justify-self:start}
 @media(max-width:480px){.crm-role-editor>form{grid-template-columns:1fr}.owner-tabs button{font-size:13px}}
 
 /* Preview V2: compact cards and in-card CRM pricing, no redundant nested controls. */
@@ -423,10 +423,13 @@ body{font-size:14px;line-height:1.42}
 #legacyConsole .crm-role-choice-row{display:grid!important;grid-template-columns:76px minmax(0,1fr)!important;gap:5px!important;align-items:center}
 #legacyConsole .crm-role-options{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:5px!important;min-width:0;width:100%}
 #legacyConsole .crm-role-options button{display:inline-flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;white-space:nowrap!important;min-width:0!important;width:100%!important;font-size:11px!important;padding:5px 2px!important}
+/* Button cells must NEVER inherit the obsolete form-button full-row span. */
+#legacyConsole .crm-role-editor .crm-role-options>button{grid-column:auto!important;justify-self:stretch!important;grid-row:auto!important;}
 #legacyConsole .crm-role-options button .ico{width:14px!important;height:14px!important;margin:0!important}
 #legacyConsole .crm-card-footer{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) minmax(0,1.45fr)!important;gap:5px!important;width:100%}
 #legacyConsole .crm-card-footer .crm-btn-primary{grid-column:auto!important}
 #legacyConsole .crm-card-footer button{display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:3px!important;flex-direction:row!important;white-space:nowrap!important;min-width:0!important;width:100%!important;font-size:clamp(9px,2.5vw,12px)!important;padding:5px 2px!important}
+#legacyConsole .crm-role-editor .crm-card-footer>button{grid-column:auto!important;grid-row:auto!important;justify-self:stretch!important;}
 #legacyConsole .crm-card-footer button .ico{width:13px!important;height:13px!important;margin:0!important}
 #legacyConsole .crm-rate-row{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(105px,135px)!important;align-items:center!important;gap:6px!important}
 #legacyConsole .crm-rate-row .crm-percent-control{display:flex;align-items:stretch;min-width:0;border:1px solid #cfdcdd;border-radius:9px;overflow:hidden;background:#fff}
