@@ -21,6 +21,7 @@ on:
       - 'release/android-v0.4.17-moneymind-owner-ui-20261028'
       - 'release/android-v0.4.18-right-drawer-20261028'
       - 'release/android-v0.4.19-sales-kpi-red-invoices-20261028'
+      - 'release/android-v0.4.20-native-v2-crm-20261029'
       - 'release/android-v0.4.13-customer-info-20261027'
       - 'release/android-v0.4.14-owner-edit-payment-20261027'
     paths:
