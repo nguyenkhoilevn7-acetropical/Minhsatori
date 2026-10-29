@@ -21,6 +21,9 @@ class RegistrationNotificationTests(unittest.TestCase):
         self.assertIn("onDestroy()",OWNER)
         self.assertIn("POST_NOTIFICATIONS",OWNER)
         self.assertIn("pendingV2=V2RegistrationAlerts.pendingCount(this)",NATIVE)
+        self.assertIn("v2AlertHandler.post(v2AlertTick)",NATIVE)
+        self.assertIn("v2SignupBadge=TextView(this).apply",NATIVE)
+        self.assertIn("v2AlertExecutor.shutdownNow()",NATIVE)
 
     def test_notification_channel_has_sound_and_background_scheduler(self):
         self.assertIn('"/api/v2/admin/notifications"',SERVICE)
