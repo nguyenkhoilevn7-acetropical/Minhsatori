@@ -27,7 +27,7 @@ test('legacy CTV policy is durably staged and activated with both rates, no seco
  assert.match(backend,/applyGeneralDiscount\(c,profileId,owner.google_sub,data.discountBps/);
  assert.match(owner,/const capRow=make\('label','CK CTV/);
  assert.match(owner,/Chiết khấu CTV \(%\)/);
- assert.match(owner,/collaboratorBps=collaboratorBps/);
+ assert.match(owner,/const cap=document.createElement\('input'\)/);
 });
 test('CTV per-client endpoint refuses cross-account, non-CTV, bad rate, stale writes and owner policy overrides',()=>{
  for(const x of [
