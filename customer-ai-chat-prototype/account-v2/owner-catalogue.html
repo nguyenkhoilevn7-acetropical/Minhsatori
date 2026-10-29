@@ -872,22 +872,45 @@ async function renderOwnerCtvClientCards(account,wrap){
   add.classList.add('crm-client-add');
   head.append(add);
   const list=make('div',null,'crm-ctv-list');
-  for(const row of a.addresses){
-   const personal=last(policies.filter(x=>x.addressId===row.id)),bps=personal?.discountBps??main.discountBps;
+  const addressGroups=crmUniqueSavedAddressGroups(a.addresses);
+  head.querySelector('h3').textContent='♧ Khách riêng của CTV ('+addressGroups.length+' địa chỉ)';
+  for(const members of addressGroups){
+   let row=members.find(x=>x.active)||members[0];
    const card=make('div',null,'crm-ctv-client-row'),info=make('div',null,'crm-client-data');
-   info.append(make('strong',row.recipientName||row.label||'Khách'));
-   const phone=make('small');phone.append(ownerIcon('phone'),document.createTextNode(' '+(row.recipientPhone||'—')));
-   const address=make('small');address.append(ownerIcon('pin'),document.createTextNode(' '+(row.address||'—')));
-   info.append(phone,address);
-   if(!row.active)info.append(make('small','Đang tạm dừng'));
-   card.append(info);
    const form=make('form',null,'crm-client-rate'),input=document.createElement('input');
    input.type='number';input.step='0.01';input.min='0';input.max=String(cap/100);input.required=true;
-   input.setAttribute('aria-label','CK khách '+(row.recipientName||row.label));
-   input.value=Number.isSafeInteger(bps)?String(bps/100):'';
-   input.disabled=!row.active;
-   const save=iconButton('Lưu CK','check','secondary');save.type='submit';save.disabled=!row.active;
-   form.append(input,make('span','%'),save);card.append(form);
+   const save=iconButton('Lưu CK','check','secondary');save.type='submit';
+   form.append(input,make('span','%'),save);
+   const editorSlot=make('div');
+   const refreshCurrent=()=>{
+    info.replaceChildren();
+    info.append(make('strong',row.recipientName||row.label||'Khách'));
+    const phone=make('small');phone.append(ownerIcon('phone'),document.createTextNode(' '+(row.recipientPhone||'—')));
+    const address=make('small');address.append(ownerIcon('pin'),document.createTextNode(' '+(row.address||'—')));
+    info.append(phone,address);
+    if(members.length>1){
+     const choose=document.createElement('select');
+     choose.setAttribute('aria-label','Chọn hồ sơ nhận hàng tại địa chỉ trùng');
+     for(const member of members){
+      const opt=make('option',(member.recipientName||'Khách')+' · '+(member.recipientPhone||'Chưa có SĐT'));
+      opt.value=member.id;choose.append(opt);
+     }
+     choose.value=row.id;
+     choose.onchange=()=>{row=members.find(x=>x.id===choose.value)||row;refreshCurrent()};
+     info.append(make('small',members.length+' hồ sơ có cùng địa chỉ; chọn đúng người để chỉnh CK.'),choose);
+    }
+    if(!row.active)info.append(make('small','Đang tạm dừng'));
+    const personal=last(policies.filter(x=>x.addressId===row.id));
+    const bps=personal?.discountBps??main.discountBps;
+    input.value=Number.isSafeInteger(bps)?String(bps/100):'';
+    input.setAttribute('aria-label','CK khách '+(row.recipientName||row.label));
+    input.disabled=!row.active;save.disabled=!row.active;
+    const editor=ownerAddressEditor(profile.id,row,customerEpoch,refresh);
+    editor.classList.add('crm-client-options');
+    editor.querySelector('summary').textContent='⋯';
+    editor.querySelector('summary').setAttribute('aria-label','Sửa khách '+row.recipientName);
+    editorSlot.replaceChildren(editor);
+   };
    form.onsubmit=async event=>{
     event.preventDefault();
     const n=Number(input.value),v=Math.round(n*100);
@@ -902,11 +925,7 @@ async function renderOwnerCtvClientCards(account,wrap){
      await refresh();crmStatus('Đã lưu CK riêng của khách.','success');
     }catch(e){crmStatus('Không lưu được: '+e.message,'error');save.disabled=false}
    };
-   const editor=ownerAddressEditor(profile.id,row,customerEpoch,refresh);
-   editor.classList.add('crm-client-options');
-   editor.querySelector('summary').textContent='⋯';
-   editor.querySelector('summary').setAttribute('aria-label','Sửa khách '+row.recipientName);
-   card.append(editor);list.append(card);
+   card.append(info,form,editorSlot);list.append(card);refreshCurrent();
   }
   if(!a.addresses.length)list.append(make('p','Chưa có khách riêng được lưu.','crm-client-banner'));
   wrap.append(list);
@@ -1079,6 +1098,16 @@ function crmRecipientAddressKey(value){
 }
 function crmRecipientNameKey(value){
  return String(value||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('vi-VN');
+}
+function crmUniqueSavedAddressGroups(addresses){
+ const groups=new Map();
+ for(const row of addresses||[]){
+  // Blank address is not evidence of a duplicate; keep original record IDs.
+  const key=crmRecipientAddressKey(row.address)||'id:'+row.id;
+  if(!groups.has(key))groups.set(key,[]);
+  groups.get(key).push(row);
+ }
+ return [...groups.values()];
 }
 function crmUniqueLegacyRecipients(orders,ownerName){
  const selected=crmRecipientNameKey(ownerName),groups=new Map();
