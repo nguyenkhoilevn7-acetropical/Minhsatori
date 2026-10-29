@@ -1418,6 +1418,20 @@ function drawCustomers(){
   const {item,body}=buildCustomerCard(cardRecord,{registered:!!registeredAccount,compact:true});
   const actions=make('div',null,'crm-card-actions');
   if(!registeredAccount)body.append(make('p','Hồ sơ chờ liên kết Gmail; vai trò và CK đã lưu chỉ là hồ sơ dự kiến.','crm-client-banner'));
+  // Use the same read-only invoice address directory even for staged leads.
+  if(!registeredAccount||registeredAccount.accessStatus!=='ACTIVE'||
+     registeredAccount.requestedType!=='collaborator'){
+   const lookup=make('details',null,'crm-ledger-discovery');
+   lookup.append(make('summary','Địa chỉ người nhận từ hóa đơn (gộp trùng)'));
+   const mount=make('div');lookup.append(mount);
+   lookup.addEventListener('toggle',()=>{
+    if(lookup.open&&!lookup.dataset.loaded){
+     lookup.dataset.loaded='1';
+     void renderLegacyRecipientDirectory(mount,x.fullName||x.name||'');
+    }
+   });
+   body.append(lookup);
+  }
   body.append(actions);
   if(registeredAccount){
     if(registeredAccount?.accessStatus==='ACTIVE'&&registeredAccount.id!==ownerAccountId)
@@ -2136,8 +2150,9 @@ async function submitLegacyImport(event,button){
   legacySelected.clear();byId('legacyEditPanel').replaceChildren();
   await loadCustomers();
  }catch(e){
-  legacyNotice('Không nhập được: '+e.message+
-   '. Chưa cập nhật hóa đơn gốc.',true);
+  legacyNotice(e.message==='LEGACY_INVOICE_ALREADY_IMPORTED'?
+   'Hóa đơn này đã nhập trước đó. Không nhập lại; vào Khách cũ → Địa chỉ người nhận từ hóa đơn để gộp địa chỉ và chỉnh CK từng khách.':
+   'Không nhập được: '+e.message+'. Chưa cập nhật hóa đơn gốc.',true);
  }finally{button.disabled=false}
 }
 
