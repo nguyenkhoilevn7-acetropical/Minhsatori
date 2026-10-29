@@ -380,7 +380,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         val quickLinks = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(2), dp(12), dp(8))
+            setPadding(dp(12), dp(1), dp(12), dp(5))
         }
         val navChips = arrayListOf<LinearLayout>()
         fun selectNativeTab(index: Int) {
@@ -401,9 +401,9 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             val chip = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
-                setPadding(dp(8), dp(10), dp(8), dp(10))
+                setPadding(dp(6), dp(7), dp(6), dp(7))
                 background = pill(Color.WHITE, 13)
-                minimumHeight = dp(46)
+                minimumHeight = dp(41)
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Mở mục " + title
@@ -421,10 +421,10 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                 setImageResource(drawable)
                 setColorFilter(Color.rgb(0, 156, 153))
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LinearLayout.LayoutParams(dp(20), dp(20)).apply { marginEnd = dp(7) })
+            }, LinearLayout.LayoutParams(dp(18), dp(18)).apply { marginEnd = dp(5) })
             chip.addView(TextView(this).apply {
                 text = title
-                textSize = 13f
+                textSize = 12f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(Color.rgb(16, 43, 56))
             })
@@ -596,10 +596,10 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             }
             html,body { background:#f1f4f5!important;color:#102b38!important; }
             body { font-family:Roboto,system-ui,-apple-system,"Segoe UI",sans-serif!important;
-                font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%; }
+                font-size:13.5px;line-height:1.42;-webkit-text-size-adjust:100%; }
             main { display:flex!important;flex-direction:column;gap:0;
                 max-width:990px!important;width:100%!important;
-                padding:0 12px max(30px,env(safe-area-inset-bottom))!important;margin:0 auto!important; }
+                padding:0 10px max(24px,env(safe-area-inset-bottom))!important;margin:0 auto!important; }
             main>header, #ownerTabs { display:none!important; }
             /* Native owns the only navigation row on Android. */
             .crm-panel-head { gap:12px!important; }
@@ -616,12 +616,12 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             #console { order:3; }
             #denied { order:4; }
             .card { background:#fff!important;border:1px solid #e1e9e9!important;
-                border-radius:17px!important;padding:16px!important;margin:8px 0!important;
+                border-radius:16px!important;padding:12px!important;margin:6px 0!important;
                 box-shadow:0 1px 3px #102b3808!important; }
             .card>h2 { font-weight:750;font-size:18px!important;color:#102b38!important;
                 line-height:1.3;margin:0 0 9px!important; }
             h3 {font-size:16px!important;color:#102b38!important;line-height:1.4}
-            p,small,details,summary {color:#667982}
+            p,small,details,summary {color:#667982;font-size:inherit}
             strong,b {color:#102b38}
             .metrics {gap:9px!important;margin:12px 0!important;}
             .metric {background:#f7faf9!important;border-color:#e1e9e9!important;
@@ -631,23 +631,23 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             .crm-entry:not(.crm-customer-card) {background:#fff!important;border:1px solid #e1e9e9!important;
                 border-radius:14px!important;margin:8px 0!important;
                 padding:14px!important;box-shadow:none!important;}
-            .crm-entry:not(.crm-customer-card) strong {color:#102b38!important;font-size:15px!important;}
-            .crm-entry:not(.crm-customer-card) p,.crm-entry:not(.crm-customer-card) small {font-size:13px!important;line-height:1.5!important;
+            .crm-entry:not(.crm-customer-card) strong {color:#102b38!important;font-size:13.5px!important;}
+            .crm-entry:not(.crm-customer-card) p,.crm-entry:not(.crm-customer-card) small {font-size:12px!important;line-height:1.42!important;
                 color:#667982!important;}
             .crm-tag,.badge {background:#e2f6f3!important;color:#086b69!important;
                 border-radius:9px!important;font-weight:700!important;}
             #crmCustomers {max-height:none!important;overflow:visible!important;}
             .crm-controls {gap:10px!important;margin:14px 0!important;}
             .crm-controls label,.field-grid label,.legacy-address label {
-                font-size:14px!important;font-weight:650!important;color:#526d72!important;
+                font-size:12.5px!important;font-weight:650!important;color:#526d72!important;
             }
             input,select,textarea,.crm-controls input,.crm-controls select,
             .field-grid input,.field-grid select,.field-grid textarea,
             .legacy-address input {
                 background:#fff!important;color:#102b38!important;
                 border:1px solid #cfdcdd!important;
-                border-radius:12px!important;min-height:47px!important;
-                font-size:16px!important;padding:10px 12px!important;
+                border-radius:10px!important;min-height:39px!important;
+                font-size:14px!important;padding:7px 9px!important;
             }
             input:focus,select:focus,textarea:focus {
                 outline:2px solid #009c9955!important;outline-offset:0;
@@ -655,10 +655,10 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             }
             input[type="checkbox"] {min-height:22px!important;width:22px!important;
                 accent-color:#009c99;}
-            button {min-height:42px!important;border-radius:12px!important;
+            button {min-height:38px!important;border-radius:10px!important;
                 background:#009c99!important;color:#fff!important;
-                border:0!important;padding:10px 14px!important;
-                font-size:14px!important;font-weight:700!important;box-shadow:none!important;}
+                border:0!important;padding:8px 10px!important;
+                font-size:12.5px!important;font-weight:700!important;box-shadow:none!important;}
             button.secondary {background:#e2f6f3!important;color:#086b69!important;}
             button.danger {background:#fff1f3!important;color:#b11c35!important;}
             button:disabled {opacity:.46!important;}
@@ -673,9 +673,29 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             details:not(.crm-customer-card)>summary {padding:8px 0!important;color:#086b69!important;
                 font-weight:650!important;}
             .field-grid {gap:12px!important;}
+
+            /* Screenshot-approved owner old cards stay below the single native header.
+               Only web customer roles/rates, never financial logic, are styled here. */
+            #legacyConsole .crm-panel-title h2 {font-size:19px!important;}
+            #legacyConsole .crm-panel-title p {font-size:12px!important;}
+            #legacyConsole .crm-card-summary {padding:10px!important;min-height:68px!important;}
+            #legacyConsole .crm-avatar {width:40px!important;height:40px!important;font-size:16px!important;}
+            #legacyConsole .crm-card-identity strong {font-size:15px!important;}
+            #legacyConsole .crm-card-contact {font-size:12px!important;}
+            #legacyConsole .crm-card-metadata small {font-size:11.5px!important;}
+            #legacyConsole .crm-tag {font-size:11px!important;padding:3px 7px!important;}
+            #legacyConsole .crm-card-expanded {padding:10px!important;}
+            #legacyConsole .crm-role-options button {font-size:12px!important;min-height:38px!important;padding:6px!important;}
+            #legacyConsole .crm-rate-row span {font-size:12px!important;}
+            #legacyConsole .crm-rate-row input {font-size:13px!important;min-height:37px!important;}
+            #legacyConsole .crm-ctv-client-row {padding:7px!important;}
+            #legacyConsole .crm-client-data strong {font-size:13px!important;}
+            #legacyConsole .crm-client-data small {font-size:11px!important;}
+            #legacyConsole .crm-card-footer button {min-height:40px!important;font-size:11.5px!important;}
+            #legacyConsole #crmLedgerDiscovery>summary {font-size:13px!important;}
             @media(max-width:560px) {
-                main {padding-left:12px!important;padding-right:12px!important;}
-                .card {padding:15px!important;}
+                main {padding-left:10px!important;padding-right:10px!important;}
+                .card {padding:11px!important;}
                 .field-grid,.legacy-address {grid-template-columns:1fr!important;}
                 .crm-controls>label {min-width:100%!important;}
                 .metric strong {font-size:19px!important;}
