@@ -41,7 +41,7 @@ class OwnerCrmVisualParity(unittest.TestCase):
         self.assertIn("@media(min-width:700px)", PORTAL)
         self.assertIn("min-height:47px!important", PORTAL)
         self.assertIn('android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout"', MANIFEST)
-        self.assertIn('fillViewport = true', PORTAL)
+        self.assertIn('isFillViewport = true', PORTAL)
 
     def test_theme_is_only_applied_after_verified_owner_auth(self):
         self.assertIn('verifyOwnerSession(cookies)', PORTAL)
