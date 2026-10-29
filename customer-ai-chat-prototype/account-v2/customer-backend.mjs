@@ -114,7 +114,7 @@ export async function adminPatchLead(pool,ownerId,input){
    'address=COALESCE($7,address),company_name=COALESCE($8,company_name),'+
    'tax_code=COALESCE($9,tax_code),note=COALESCE($10,note),'+
    'requested_type=COALESCE($11,requested_type),discount_bps=COALESCE($12,discount_bps),'+
-   'collaborator_bps=$13,'+
+   'collaborator_bps=CASE WHEN $3 THEN $13 ELSE collaborator_bps END,'+
    'revision=revision+1,updated_at=now() '+
    'WHERE id=$1 AND revision=$2 RETURNING id,revision,active',
    [input.leadId,input.expectedRevision,input.active,
@@ -275,9 +275,8 @@ export async function adminLinkLead(pool,owner,input){
   const profile=await c.query('SELECT id FROM satori_v2_profiles WHERE account_id=$1 ORDER BY created_at LIMIT 1',
    [input.accountId]);
   // Old-customer discounts are imported as V2-only policy once Owner approved the identity.
-  if(l.requested_type==='collaborator')
-   check(Number.isSafeInteger(l.collaborator_bps)&&l.collaborator_bps>=l.discount_bps,
-    'CTV_RATE_REQUIRED_BEFORE_LINK',409);
+  // CTV activation must set the verified profile role and both rates atomically.
+  check(l.requested_type!=='collaborator','CTV_USE_LEGACY_ACTIVATION',409);
   if(profile.rows.length&&l.discount_bps>=0)
    await applyGeneralDiscount(c,profile.rows[0].id,owner.google_sub,l.discount_bps,
     l.requested_type==='collaborator'?l.collaborator_bps:null);
