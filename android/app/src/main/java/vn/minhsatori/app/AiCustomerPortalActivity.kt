@@ -217,6 +217,14 @@ class V2OwnerCrmActivity : AppCompatActivity() {
     private lateinit var authButton: TextView
     private lateinit var status: TextView
     private lateinit var refreshButton: TextView
+    private lateinit var registrationBadge: TextView
+    private val alertHandler=android.os.Handler(android.os.Looper.getMainLooper())
+    private val alertTicker=object:Runnable{
+        override fun run(){
+            if(ready&&!isFinishing&&!isDestroyed)refreshOwnerRegistrationAlerts()
+            alertHandler.postDelayed(this,25_000L)
+        }
+    }
     private var webClientId: String? = null
     private var ready = false
 
@@ -321,6 +329,42 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             contentDescription = "Làm mới quản lý khách hàng"
             visibility = View.GONE
         }
+        // Native notification bell and unread badge are part of the APP chrome,
+        // not a second, unrelated website header.
+        val bellFrame=android.widget.FrameLayout(this).apply{
+            isClickable=true;isFocusable=true
+            contentDescription="Đăng ký khách hàng mới"
+            setOnClickListener {
+                if(ready){
+                    refreshOwnerRegistrationAlerts()
+                    web.evaluateJavascript(
+                        "(function(){var x=document.getElementById('crmCustomers');"+
+                          "if(x)x.scrollIntoView({behavior:'smooth',block:'start'});})()",
+                        null)
+                }
+            }
+        }
+        bellFrame.addView(android.widget.ImageView(this).apply{
+            setImageResource(R.drawable.ic_satori_bell)
+            setColorFilter(Color.rgb(0,156,153))
+            background=pill(Color.rgb(226,246,243),12)
+            setPadding(dp(10),dp(10),dp(10),dp(10))
+        },android.widget.FrameLayout.LayoutParams(dp(43),dp(43)))
+        registrationBadge=TextView(this).apply{
+            gravity=Gravity.CENTER
+            textSize=11f
+            setTypeface(typeface,Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            setPadding(dp(4),0,dp(4),0)
+            background=pill(Color.rgb(189,31,57),13)
+            minWidth=dp(22);minHeight=dp(22)
+            visibility=View.GONE
+        }
+        bellFrame.addView(registrationBadge,android.widget.FrameLayout.LayoutParams(
+            -2,dp(22),Gravity.TOP or Gravity.END))
+        bar.addView(bellFrame,LinearLayout.LayoutParams(dp(48),dp(43)).apply{
+            marginEnd=dp(8)
+        })
         bar.addView(refreshButton)
         root.addView(bar, LinearLayout.LayoutParams(-1, -2).apply {
             bottomMargin = dp(8)
@@ -814,11 +858,54 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             mgr.flush()
         }
         ready = true
+        V2RegistrationAlerts.schedule(this)
+        if(android.os.Build.VERSION.SDK_INT>=33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=
+             android.content.pm.PackageManager.PERMISSION_GRANTED){
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),52029)
+        }
+        updateRegistrationBadge(V2RegistrationAlerts.pendingCount(this))
+        refreshOwnerRegistrationAlerts()
         authPanel.visibility = View.GONE
         web.visibility = View.VISIBLE
         refreshButton.visibility = View.VISIBLE
         web.alpha = 0f
         web.loadUrl(ORIGIN + "/owner-v2")
+    }
+
+
+    private fun updateRegistrationBadge(count:Int){
+        if(!::registrationBadge.isInitialized)return
+        registrationBadge.visibility=if(count>0)View.VISIBLE else View.GONE
+        registrationBadge.text=if(count>99)"99+" else count.toString()
+        registrationBadge.contentDescription="$count khách mới đang chờ duyệt"
+    }
+
+    private fun refreshOwnerRegistrationAlerts(){
+        if(!ready)return
+        val cookie=V2RegistrationAlerts.cookie()
+        try{
+            worker.execute{
+                try{
+                    val feed=V2RegistrationAlerts.fetch(cookie)?:return@execute
+                    val count=V2RegistrationAlerts.process(applicationContext,feed)
+                    runOnUiThread {
+                        if(!isFinishing&&!isDestroyed)updateRegistrationBadge(count)
+                    }
+                }catch(_:Exception){/* Network or expired Admin session. */}
+            }
+        }catch(_:java.util.concurrent.RejectedExecutionException){}
+    }
+
+    override fun onResume(){
+        super.onResume()
+        alertHandler.removeCallbacks(alertTicker)
+        alertHandler.post(alertTicker)
+    }
+
+    override fun onPause(){
+        alertHandler.removeCallbacks(alertTicker)
+        super.onPause()
     }
 
     @Deprecated("Deprecated in Java")
@@ -828,6 +915,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        alertHandler.removeCallbacks(alertTicker)
         worker.shutdownNow()
         if (::web.isInitialized) {
             web.stopLoading()
