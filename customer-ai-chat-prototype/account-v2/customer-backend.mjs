@@ -2,7 +2,7 @@
  * Standalone V2 CRM data access. No old /real, /ctv, Apps Script,
  * customer invoice tables, cleartext passwords or client-side Admin authority.
  */
-import {validateCustomerProfile,validateCustomerStatus} from './customer-management.mjs';
+import {validateCustomerProfile,validateCustomerStatus,validateOwnerRolePricing} from './customer-management.mjs';
 import {readMinhSatori} from '../satori-readonly.mjs';
 import {validateAddress} from './domain.mjs';
 export class CrmError extends Error{
@@ -64,7 +64,11 @@ export async function adminCustomerList(pool){
    '(SELECT p.discount_bps FROM satori_v2_profiles prof '+
    'JOIN satori_v2_policies p ON p.profile_id=prof.id '+
    'WHERE prof.account_id=a.id AND p.enabled=true AND p.address_id IS NULL '+
-   'AND p.product_code IS NULL ORDER BY prof.created_at ASC,p.version DESC LIMIT 1) AS "discountBps" '+
+   'AND p.product_code IS NULL ORDER BY prof.created_at ASC,p.version DESC LIMIT 1) AS "discountBps",'+
+   '(SELECT p.collaborator_bps FROM satori_v2_profiles prof '+
+   'JOIN satori_v2_policies p ON p.profile_id=prof.id '+
+   'WHERE prof.account_id=a.id AND p.enabled=true AND p.address_id IS NULL '+
+   'AND p.product_code IS NULL ORDER BY prof.created_at ASC,p.version DESC LIMIT 1) AS "collaboratorBps" '+
    'FROM satori_v2_accounts a LEFT JOIN satori_v2_registrations r ON r.account_id=a.id '+
    'ORDER BY a.created_at DESC LIMIT 250'),
   pool.query('SELECT id,full_name AS "fullName",email,phone,address,'+
@@ -181,6 +185,70 @@ export async function adminEditRegisteredCustomer(pool,owner,input){
   await audit(c,owner.id,'CUSTOMER_REGISTRATION_EDITED',input.accountId,
    {registrationRevision:updated.rows[0].revision});
   return {ok:true,revision:updated.rows[0].revision};
+ });
+}
+/**
+ * A single owner action changes BOTH the verified account's primary role and
+ * its approved live price. Older orders, quotes and ledger entries are intact.
+ * Existing address/product overrides retain their customer discount, and
+ * receive a NEW policy version with the new role's commission reference.
+ */
+export async function adminAssignCustomerRole(pool,owner,input){
+ check(isUuid(input?.accountId),'CUSTOMER_ID_INVALID');
+ check(input.accountId!==owner.id,'OWNER_CANNOT_BE_MODIFIED',403);
+ const price=checked(()=>validateOwnerRolePricing(input));
+ return tx(pool,async c=>{
+  const accounts=await c.query('SELECT id,access_status,revision FROM satori_v2_accounts '+
+   'WHERE id=$1 FOR UPDATE',[input.accountId]);
+  check(accounts.rowCount===1,'CUSTOMER_NOT_FOUND',404);
+  const account=accounts.rows[0];
+  check(account.access_status==='ACTIVE','CUSTOMER_MUST_BE_ACTIVE_FOR_ROLE_CHANGE',409);
+  check(account.revision===price.expectedRevision,'CUSTOMER_REVISION_CONFLICT',409);
+  const registrations=await c.query('SELECT revision,requested_type FROM satori_v2_registrations '+
+   'WHERE account_id=$1 FOR UPDATE',[input.accountId]);
+  check(registrations.rowCount===1,'CUSTOMER_REGISTRATION_INCOMPLETE',409);
+  const profiles=await c.query('SELECT id,type FROM satori_v2_profiles WHERE account_id=$1 '+
+   'ORDER BY created_at LIMIT 1 FOR UPDATE',[input.accountId]);
+  check(profiles.rowCount===1,'CUSTOMER_PROFILE_REQUIRED',409);
+  const profile=profiles.rows[0];
+  // Lock the same profile first as adminPolicy and CTV pricing writers.
+  const scoped=await c.query('SELECT id,address_id,product_code,discount_bps,version,approved_by '+
+   'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true '+
+   'AND (address_id IS NOT NULL OR product_code IS NOT NULL) '+
+   'ORDER BY id FOR UPDATE',[profile.id]);
+  if(price.requestedType==='collaborator')
+   check(scoped.rows.every(p=>p.discount_bps<=price.collaboratorBps),
+    'CTV_CLIENT_DISCOUNT_EXCEEDS_NEW_RATE',409);
+  for(const policy of scoped.rows){
+   // Preserve the exact address/SKU scope and customer-facing discount.
+   const values=[profile.id,policy.address_id,policy.product_code];
+   const version=await c.query('SELECT COALESCE(MAX(version),0)+1 AS version FROM satori_v2_policies '+
+    'WHERE profile_id=$1 AND address_id IS NOT DISTINCT FROM $2 '+
+    'AND product_code IS NOT DISTINCT FROM $3',values);
+   await c.query('UPDATE satori_v2_policies SET enabled=false,revision=revision+1 '+
+    'WHERE profile_id=$1 AND address_id IS NOT DISTINCT FROM $2 '+
+    'AND product_code IS NOT DISTINCT FROM $3 AND enabled=true',values);
+   await c.query('INSERT INTO satori_v2_policies '+
+    '(profile_id,address_id,product_code,discount_bps,collaborator_bps,invoice_mode,version,approved_by) '+
+    "VALUES($1,$2,$3,$4,$5,'single',$6,$7)",
+    [profile.id,policy.address_id,policy.product_code,policy.discount_bps,
+     price.collaboratorBps,version.rows[0].version,policy.approved_by||owner.google_sub]);
+  }
+  // A new default policy always wins over old active defaults.
+  await applyGeneralDiscount(c,profile.id,owner.google_sub,price.discountBps,price.collaboratorBps);
+  await c.query('UPDATE satori_v2_profiles SET type=$2,revision=revision+1 '+
+   'WHERE id=$1',[profile.id,price.requestedType]);
+  await c.query('UPDATE satori_v2_registrations SET requested_type=$2,revision=revision+1,'+
+   'updated_at=now() WHERE account_id=$1',[input.accountId,price.requestedType]);
+  const updated=await c.query('UPDATE satori_v2_accounts SET revision=revision+1,'+
+   'updated_at=now() WHERE id=$1 RETURNING revision',[input.accountId]);
+  await audit(c,owner.id,'CUSTOMER_ROLE_PRICE_CHANGED',input.accountId,{
+   oldRole:profile.type,newRole:price.requestedType,
+   customerDiscountBps:price.discountBps,collaboratorBps:price.collaboratorBps,
+   scopedPoliciesPreserved:scoped.rows.length,oneInvoice:true});
+  return {ok:true,accountId:input.accountId,requestedType:price.requestedType,
+   discountBps:price.discountBps,collaboratorBps:price.collaboratorBps,
+   revision:updated.rows[0].revision};
  });
 }
 export async function adminChangeCustomerStatus(pool,owner,input){
