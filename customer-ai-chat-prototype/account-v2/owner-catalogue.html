@@ -778,7 +778,7 @@ async function renderOwnerCtvClientCards(account,wrap){
 function rolePricingEditor(account,body,item,{old=false}={}){
  const holder=make('section',null,'crm-role-editor');
  const form=make('form',null,'field-grid');
- form.id='crm-role-'+account.id;
+ form.id='crm-role-'+(old?'old-':'new-')+account.id;
  const role=document.createElement('select');role.required=true;
  for(const [v,label] of [['retail','Khách hàng'],['agency','Đại lý'],['collaborator','CTV']]){
   const option=make('option',label);option.value=v;option.selected=account.requestedType===v;role.append(option);
