@@ -508,6 +508,9 @@ export async function legacyAddressDirectory({months=12}={}){
 export async function legacyCustomerSearch(query){
  const q=sourceText(query,90);
  check(q.length>=2&&!/[*%_]/.test(q),'LEGACY_SEARCH_REQUIRED');
+ return readLegacySearch(q);
+}
+async function readLegacySearch(q){
  const signed=await readMinhSatori('orders.list',{query:q,limit:100});
  const raw=Array.isArray(signed?.data?.orders)?signed.data.orders:[];
  const revision=Number(signed?.revision??signed?.data?.revision);
@@ -548,6 +551,34 @@ export async function legacyCustomerSearch(query){
  return {ok:true,source:'canonical-signed-ledger',revision,orders,addressGroups,
   totalMatches:Number(signed?.data?.totalMatches)||orders.length,
   truncated:Number(signed?.data?.totalMatches)>orders.length};
+}
+/** Resolve immutable composite references, never mutable search text or bill number alone. */
+export async function resolveLegacyInvoiceRefs(refs,sourceRevision){
+ check(Array.isArray(refs)&&refs.length>0&&refs.length<=30,'LEGACY_BIND_REFS_REQUIRED');
+ const unique=new Set();
+ for(const r of refs){
+  check(Number.isSafeInteger(r?.invoiceNo)&&r.invoiceNo>0&&
+   typeof r.sourceId==='string'&&r.sourceId.length>0&&r.sourceId.length<=80,
+   'LEGACY_BIND_REF_INVALID');
+  const key=JSON.stringify([r.invoiceNo,r.sourceId]);
+  check(!unique.has(key),'LEGACY_BIND_DUPLICATE',409);unique.add(key);
+ }
+ const byNumber=new Map();
+ let revision=sourceRevision;
+ for(const n of new Set(refs.map(r=>r.invoiceNo))){
+  const signed=await readLegacySearch(String(n));
+  if(revision===undefined)revision=signed.revision;
+  check(signed.revision===revision,'LEGACY_SOURCE_REVISION_CHANGED',409);
+  check(!signed.truncated,'LEGACY_BIND_RESULT_TRUNCATED',409);
+  byNumber.set(n,signed.orders.filter(o=>o.invoiceNo===n));
+ }
+ const orders=refs.map(ref=>{
+  const matches=byNumber.get(ref.invoiceNo).filter(o=>o.id===ref.sourceId);
+  check(matches.length>0,'LEGACY_BIND_SOURCE_REF_NOT_FOUND',409);
+  check(matches.length===1,'LEGACY_BIND_SOURCE_REF_AMBIGUOUS',409);
+  return matches[0];
+ });
+ return {revision,orders};
 }
 function checkedLegacyDetails(input){
  check(input?.confirmed===true&&input?.identityConfirmed===true,
@@ -1009,12 +1040,11 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
   check(!keys.has(key),'LEGACY_BIND_DUPLICATE',409);
   keys.add(key);
  }
- const signed=await legacyCustomerSearch(input.query);
- check(signed.revision===input.sourceRevision,'LEGACY_SOURCE_REVISION_CHANGED',409);
- check(!signed.truncated,'LEGACY_BIND_RESULT_TRUNCATED',409);
+ check(Number.isSafeInteger(input.sourceRevision)&&input.sourceRevision>=1,
+  'LEGACY_SOURCE_UNVERIFIED',409);
+ const signed=await resolveLegacyInvoiceRefs(refs,input.sourceRevision);
  const found=new Map(signed.orders.map(x=>[x.invoiceNo+'|'+x.id,x]));
- const rows=refs.map(x=>found.get(x.invoiceNo+'|'+x.sourceId));
- check(rows.every(Boolean),'LEGACY_BIND_SOURCE_REF_NOT_FOUND',409);
+ const rows=signed.orders;
  // Never determine record identity or deduplicate destinations by customer name.
  // Only owner-confirmed source invoice IDs can establish the account binding.
  const role=input.requestedType;
@@ -1171,11 +1201,25 @@ export async function linkedLegacyInvoiceHistory(pool,actor){
     const key=order.invoiceNo+'|'+order.id;
     if(refs.has(key))resolved.set(key,{
      source:'legacy',invoiceNo:order.invoiceNo,sourceId:order.id,
-     date:order.date,name:order.name,address:order.address,status:order.status,
+     date:order.date,createdAt:order.createdAt,timestamp:order.timestamp,
+     name:order.name,address:order.address,status:order.status,
      totalVnd:order.total,items:order.items,readOnly:true
     });
    }
   }catch{ /* never substitute unverified totals or broaden visibility */ }
+ }
+ // A stored search term is only an optimization, never invoice identity.
+ for(const ref of [...refs.values()].filter(d=>!resolved.has(d.invoiceNo+'|'+d.sourceId)).slice(0,30)){
+  try{
+   const result=await resolveLegacyInvoiceRefs([ref]);
+   const order=result.orders[0];
+   resolved.set(ref.invoiceNo+'|'+ref.sourceId,{
+    source:'legacy',invoiceNo:order.invoiceNo,sourceId:order.id,
+    date:order.date,createdAt:order.createdAt,timestamp:order.timestamp,
+    name:order.name,address:order.address,status:order.status,
+    totalVnd:order.total,items:order.items,readOnly:true
+   });
+  }catch{ /* missing, ambiguous or unavailable source stays unavailable */ }
  }
  const orders=[...resolved.values()].sort((a,b)=>b.invoiceNo-a.invoiceNo);
  const addresses=groupHistoricalAddresses(orders);

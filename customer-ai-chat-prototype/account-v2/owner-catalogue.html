@@ -1184,7 +1184,7 @@ function legacyBindingPanel(){
  wrap.append(status,selected);
  const finish=iconButton('Xác nhận liên kết & kích hoạt','shield');finish.disabled=true;
  wrap.append(finish);panel.append(wrap);
- let source=null;
+ let source=null,sourceQuery='';
  const currentLead=()=>customerRecord.leads.find(x=>x.id===lead.value)||null;
  const refs=()=>[...selected.querySelectorAll('input[type=checkbox]:checked')]
   .flatMap(x=>JSON.parse(x.dataset.refs||'[]'))
@@ -1199,6 +1199,7 @@ function legacyBindingPanel(){
  role.onchange=syncRole;
  lead.onchange=()=>{
   const item=currentLead();
+  source=null;selected.replaceChildren();
   if(!item){update();return}
   query.value=item.fullName||'';
   const matches=customerRecord.registered.filter(x=>
@@ -1241,9 +1242,10 @@ function legacyBindingPanel(){
   if(query.value.trim().length<2)return status.textContent='Nhập ít nhất hai ký tự.';
   find.disabled=true;status.textContent='Đang đọc hóa đơn gốc có chữ ký…';
   try{
-   const result=await api('/api/v2/admin/legacy/search?query='+encodeURIComponent(query.value.trim()));
+   const searchedQuery=query.value.trim();
+   const result=await api('/api/v2/admin/legacy/search?query='+encodeURIComponent(searchedQuery));
    if(result.truncated)throw Error('Danh sách bị giới hạn. Vui lòng thu hẹp theo địa chỉ hoặc SĐT.');
-   source=result;
+   source=result;sourceQuery=searchedQuery;
    for(const group of (result.addressGroups||[]).slice(0,30)){
     const row=make('label',null,'crm-client-data'),checkbox=document.createElement('input');
     checkbox.type='checkbox';checkbox.dataset.refs=JSON.stringify(group.refs);
@@ -1310,7 +1312,7 @@ function legacyBindingPanel(){
    const result=list.length
     ?await api('/api/v2/admin/legacy/bind-history','POST',{
       confirmed:true,identityConfirmed:true,accountId:target.id,
-      expectedAccountRevision:target.revision,email:target.email,query:query.value.trim(),
+      expectedAccountRevision:target.revision,email:target.email,query:sourceQuery,
       sourceRevision:source.revision,refs:list,contactPhone:phone.value,
       profileName:name.value.trim(),requestedType:role.value,discountBps,
       ...(item?{leadId:item.id,expectedLeadRevision:item.revision}:{}),
