@@ -26,7 +26,8 @@ import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
  adminApproveRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyCustomerImport,
- legacyCustomerActivateLead,adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
+ legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,
+ adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -180,6 +181,13 @@ async function login(req,res,pool){
   error(isOwner||!['REMOVED','SUSPENDED'].includes(account.rows[0].access_status),
    'ACCOUNT_ACCESS_DISABLED',403);
   const id=account.rows[0].id;
+  // Verified Google email + unique, previously Admin-approved old CRM lead only.
+  // Reuses the login transaction; no name/phone auto-claims and no invoice import.
+  const legacy=(!isOwner&&account.rows[0].access_status==='PENDING')
+   ?await autoActivateVerifiedLegacyGmail(conn,{
+    accountId:id,googleSub:payload.sub,email:payload.email,
+    ownerGoogleSub:config().ownerGoogleSub
+   }):{state:'PENDING'};
   const exists=await conn.query('SELECT id FROM satori_v2_profiles WHERE account_id=$1 LIMIT 1',[id]);
   if(!exists.rows.length)await conn.query('INSERT INTO satori_v2_profiles(account_id,type,display_name) VALUES($1,$2,$3)',
    [id,'retail',payload.name||'Khách hàng']);
@@ -187,7 +195,8 @@ async function login(req,res,pool){
   await conn.query('INSERT INTO satori_v2_sessions(token_hash,csrf_hash,account_id,expires_at) VALUES($1,$2,$3,now()+interval \'7 days\')',
    [sha(token),sha(csrf),id]);
   await conn.query('COMMIT');
-  send(res,200,{ok:true,accountId:id,pilot:true},{'set-cookie':secureCookies(token,csrf)});
+  send(res,200,{ok:true,accountId:id,pilot:true,
+   legacyAutoActivated:legacy.state==='ACTIVE'},{'set-cookie':secureCookies(token,csrf)});
  }catch(e){await conn.query('ROLLBACK').catch(()=>{});throw e}finally{conn.release()}
 }
 function owner(actor){error(actor.google_sub===config().ownerGoogleSub,'ADMIN_REQUIRED',403)}
