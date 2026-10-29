@@ -44,12 +44,12 @@ CREATE TABLE IF NOT EXISTS satori_v2_customer_leads(
  updated_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE satori_v2_customer_leads ADD COLUMN IF NOT EXISTS collaborator_bps integer NULL;
-DO $ BEGIN
+DO $ctv_check$ BEGIN
  IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='v2_lead_ctv_bps_range') THEN
   ALTER TABLE satori_v2_customer_leads ADD CONSTRAINT v2_lead_ctv_bps_range
    CHECK (collaborator_bps IS NULL OR collaborator_bps BETWEEN 0 AND 10000);
  END IF;
-END $;
+END $ctv_check$;
 CREATE INDEX IF NOT EXISTS satori_v2_customer_leads_active_idx
  ON satori_v2_customer_leads(active,created_at DESC);
 CREATE INDEX IF NOT EXISTS satori_v2_account_access_idx
