@@ -524,6 +524,9 @@ body{font-size:14px;line-height:1.42}
   <span id="crmBellText">Đang kiểm tra đăng ký mới…</span>
   <button id="crmSoundToggle" class="secondary" type="button" aria-pressed="false">Bật tiếng chuông</button>
  </div>
+ <div class="crm-actions">
+  <button id="crmAutoLinkPending" class="secondary" type="button">↻ Đối chiếu Gmail khách cũ</button>
+ </div>
  <div id="crmStageFilters" class="crm-filter-row" role="group" aria-label="Lọc khách hàng mới"></div>
  <p id="crmStatus" role="status" aria-live="polite">Chưa tải danh sách.</p>
  <div id="crmCustomers" aria-label="Danh sách khách hàng"></div>
@@ -1398,6 +1401,30 @@ function drawCustomers(){
    const manage=iconButton('Quản lý hồ sơ & chiết khấu','edit');
    manage.onclick=()=>openCustomerInspector(x,body,item);
    actions.append(manage);
+   if(x.accessStatus==='PENDING'){
+    const inspect=iconButton('Kiểm tra Gmail khách cũ','search','secondary');
+    const reason=make('p','', 'crm-readonly-note');reason.hidden=true;
+    inspect.onclick=async()=>{
+     inspect.disabled=true;reason.hidden=false;reason.textContent='Đang đối chiếu Gmail…';
+     try{
+      const r=await api('/api/v2/admin/legacy/check?accountId='+encodeURIComponent(x.id));
+      const messages={
+       READY:'Hồ sơ khách cũ đã được xác minh, có thể tự kích hoạt khi đăng nhập hoặc đồng bộ.',
+       NO_UNIQUE_LEGACY_LEAD:'Chưa có đúng một hồ sơ Khách cũ đang hoạt động với Gmail này. Kiểm tra Gmail trong tab Khách cũ.',
+       NO_OWNER_APPROVAL:'Hồ sơ Khách cũ chưa được Admin lưu/duyệt tại V2.',
+       LEGACY_CONTACT_INVALID:'Hồ sơ khách cũ thiếu tên, điện thoại hoặc địa chỉ hợp lệ.',
+       LEGACY_POLICY_INVALID:'Vai trò hoặc chiết khấu trong hồ sơ khách cũ chưa đầy đủ.',
+       EXISTING_POLICY_REQUIRES_OWNER:'CK đã lưu cho tài khoản Google không khớp hồ sơ Khách cũ. Không tự ghi đè.',
+       EMAIL_USED_BY_OTHER_ACCOUNT:'Gmail đang xuất hiện ở nhiều tài khoản Google V2.',
+       LEAD_LINKED_TO_ANOTHER_ACCOUNT:'Hồ sơ khách cũ đã liên kết tài khoản khác.',
+       OWNER_NOT_INITIALIZED:'Chưa nhận diện được tài khoản Admin đã tạo hồ sơ.'
+      };
+      reason.textContent=messages[r.reason||r.state]||('Chưa đủ điều kiện tự duyệt: '+(r.reason||r.state));
+     }catch(e){reason.textContent='Không kiểm tra được: '+e.message}
+     finally{inspect.disabled=false}
+    };
+    actions.append(inspect);body.append(reason);
+   }
    body.append(actions);
    if(x.accessStatus==='ACTIVE'&&x.id!==ownerAccountId)
     body.append(rolePricingEditor(x,body,item));
@@ -1853,6 +1880,20 @@ byId('crmOldFilter').addEventListener('input',()=>{
 });
 byId('crmOldSearch').addEventListener('click',()=>byId('crmOldFilter').focus());
 byId('crmRefresh').addEventListener('click',loadCustomers);
+byId('crmAutoLinkPending').addEventListener('click',async()=>{
+ const button=byId('crmAutoLinkPending');
+ if(!isOwner||!confirm('Đối chiếu Gmail Google đã xác minh với hồ sơ khách cũ được Admin duyệt? '+
+  'Chỉ tự kích hoạt khi trùng duy nhất và CK hợp lệ; không sửa hóa đơn.'))return;
+ button.disabled=true;crmStatus('Đang đối chiếu các tài khoản Google V2 chờ duyệt…');
+ try{
+  const r=await api('/api/v2/admin/legacy/reconcile-pending','POST',{confirmed:true});
+  await loadCustomers();
+  crmStatus('Đã kiểm tra '+r.checked+' tài khoản, tự kích hoạt '+r.activated+
+   ', chưa đủ điều kiện '+r.unchanged+'. Mở hồ sơ và bấm “Kiểm tra Gmail khách cũ” để xem lý do.',
+   r.unchanged?'info':'success');
+ }catch(e){crmStatus('Không đồng bộ được: '+e.message,'error')}
+ finally{button.disabled=false}
+});
 
 function updateOwnerCtvFields(){
  const select=byId('crmProfile'),option=select.selectedOptions[0];

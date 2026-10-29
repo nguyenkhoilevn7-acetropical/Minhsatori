@@ -2219,7 +2219,17 @@ async function loadOriginalInvoices(){
 $('loadOriginalInvoices').onclick=loadOriginalInvoices;
 
 async function refresh(){
- const mine=await call('/api/v2/me',undefined,'GET');
+ let mine=await call('/api/v2/me',undefined,'GET');
+ let legacyReason='';
+ // Existing Google sessions may predate the owner-approved Gmail auto-link deploy.
+ // Attempt once on account refresh; never send a user-supplied identity or discount.
+ if(!PREVIEW&&!mine.account.isAdmin&&mine.account.accessStatus==='PENDING'){
+  try{
+   const result=await call('/api/v2/legacy/reconcile',{},'POST');
+   if(result.state==='ACTIVE')mine=await call('/api/v2/me',undefined,'GET');
+   else legacyReason=result.reason||'';
+  }catch(e){legacyReason=e.message||'RECONCILIATION_UNAVAILABLE'}
+ }
  me=mine;
  const pending=!me.account.isAdmin&&me.account.accessStatus==='PENDING';
  $('gate').classList.add('hidden');
@@ -2236,7 +2246,12 @@ async function refresh(){
      const field=$('customerRegistration').elements.namedItem(key);
      if(field&&typeof value==='string'&&key!=='email')field.value=value;
     }
-    $('registrationStatus').textContent='Hồ sơ đã được gửi. Chờ Admin duyệt để đặt hàng.';
+    $('registrationStatus').textContent='Hồ sơ đã được gửi. '+
+     (legacyReason==='NO_UNIQUE_LEGACY_LEAD'?
+      'Gmail chưa khớp duy nhất với hồ sơ khách cũ. Admin cần kiểm tra thông tin.':
+      legacyReason==='EXISTING_POLICY_REQUIRES_OWNER'?
+      'Chính sách chiết khấu hiện tại khác hồ sơ khách cũ. Admin cần đối chiếu trước khi kích hoạt.':
+      'Đang chờ xác minh với hồ sơ đã được Admin lưu.');
    }
   }catch(e){toast(e.message)}
   view('account');return;
