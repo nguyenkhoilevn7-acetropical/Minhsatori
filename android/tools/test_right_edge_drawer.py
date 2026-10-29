@@ -13,12 +13,14 @@ class RightEdgeDrawerContract(unittest.TestCase):
             "brand.addView(brandLogo",
             "brand.addView(brandText",
             "brand.addView(refreshButton",
-            "brand.addView(bellButton",
+            "brand.addView(bellContainer",
             "brand.addView(options",
             "brand.addView(menuButton",
         ]
         indices = [header.index(item) for item in items]
         self.assertEqual(indices, sorted(indices), "Hamburger must be last, directly beside settings")
+        self.assertIn("bellContainer.addView(bellButton", header)
+        self.assertIn("v2SignupBadge=TextView(this).apply", header)
         self.assertEqual(header.count("brand.addView(menuButton"), 1)
         self.assertIn('contentDescription = "Mở menu tác vụ"', header)
         self.assertIn('setImageResource(R.drawable.satori_invoice_logo)', header)
