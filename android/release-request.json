@@ -25,6 +25,7 @@
     "2026-10-29: PR #241 harmonized owner CRM with production native app palette (#009C99 teal, #102B38 ink, #F1F4F5 background), full-width phone/Fold responsive cards, vector icon navigation, readable 47px fields. Android source tests and debug APK compile PASS. Request renewed pinned certificate signed release; supersedes earlier unthemed 0.4.20 artifact.",
     "2026-10-29: owner approved completing all tasks then exporting signed APK. PR #251 integrated native signup alert workflow into existing 0.4.20 CRM release. Backend Render owner CRM + Gemini V2 commit aa578fd is LIVE; UI remains server-hosted and refreshes in secure in-app WebView.",
     "Notification delivery is 25-second polling while signed in foreground, best-effort periodic OS scheduling in background; not instant FCM push while app is terminated. Validate with signed APK on Samsung/Z Fold and Google owner login before full device acceptance.",
-    "Bump Android identity to 0.4.21 versionCode 38. This commit triggers manual-gated signed release workflow and validates the pinned certificate; never distribute an unsigned/debug APK."
+    "Bump Android identity to 0.4.21 versionCode 38. This commit triggers manual-gated signed release workflow and validates the pinned certificate; never distribute an unsigned/debug APK.",
+    "2026-10-29: Updated two legacy unit test assertions to 0.4.21 after the first signed workflow exposed stale hard-coded 0.4.20 expectations; re-run complete signed release gate on updated source."
   ]
 }
