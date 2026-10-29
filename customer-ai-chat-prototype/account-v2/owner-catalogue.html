@@ -191,6 +191,9 @@ header.owner-header{display:flex;align-items:center;gap:12px;padding:4px 0 12px;
 .crm-card-workspace:empty{display:none}
 .crm-action-menu{border:0;background:transparent}
 .crm-action-menu>summary{padding:9px 0;font-size:14px}
+.crm-customer-card .crm-action-menu>summary{display:none}
+.crm-customer-card .crm-action-menu{margin:0}
+.crm-customer-card .crm-action-panel{display:flex;gap:9px;flex-wrap:wrap}
 .crm-inspector{margin:0;border-top:1px solid #d6e6e3;padding:14px 0 0}
 #legacyLeadDisclosure{padding:0;border:0;margin:0}
 #legacyLeadDisclosure>summary{display:none}
@@ -512,7 +515,8 @@ function buildCustomerCard(record,{registered=false,highlight=false}={}){
  head.append(identity);
  const meta=make('div',null,'crm-card-metadata');
  meta.append(make('span',statusLabel,'crm-tag crm-status-'+state));
- meta.append(make('small',typeLabel(record.requestedType)+' · CK: '+pct(record.discountBps)));
+ meta.append(make('small',typeLabel(record.requestedType)+
+   (registered?' · CK: ':' · CK dự kiến: ')+pct(record.discountBps)));
  const date=record.submittedAt||record.createdAt;
  if(date&&!Number.isNaN(new Date(date).getTime()))
   meta.append(make('small','Đăng ký: '+new Date(date).toLocaleDateString('vi-VN')));
@@ -630,7 +634,11 @@ function drawCustomers(){
      }catch(e){crmStatus('Không kích hoạt được: '+e.message,'error');act.disabled=false}
     };body.append(form);
    }
-   if(x.id!==ownerAccountId&&x.accessStatus!=='REMOVED')body.append(accountLifecycleControls(x));
+   if(x.id!==ownerAccountId&&x.accessStatus!=='REMOVED'){
+    const controls=accountLifecycleControls(x);
+    controls.open=true;
+    body.append(controls);
+   }
    dest.append(item);
   }
  }
