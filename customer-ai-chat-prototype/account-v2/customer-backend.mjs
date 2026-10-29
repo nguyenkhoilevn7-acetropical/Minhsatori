@@ -86,7 +86,7 @@ export async function adminCustomerList(pool){
 }
 export async function adminCreateLead(pool,ownerId,input){
  check(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
- const data=checked(()=>validateCustomerProfile(input,{admin:true}));
+ const data=checked(()=>validateCustomerProfile(input,{admin:true,phoneOptional:true}));
  return tx(pool,async c=>{
   const r=await c.query(
    'INSERT INTO satori_v2_customer_leads '+
@@ -102,7 +102,7 @@ export async function adminPatchLead(pool,ownerId,input){
  check(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
  check(isUuid(input.leadId)&&isRev(input.expectedRevision),'LEAD_REVISION_REQUIRED');
  check(typeof input.active==='boolean','LEAD_STATUS_INVALID');
- const data=input.active?checked(()=>validateCustomerProfile(input,{admin:true})):null;
+ const data=input.active?checked(()=>validateCustomerProfile(input,{admin:true,phoneOptional:true})):null;
  return tx(pool,async c=>{
   const old=await c.query('SELECT id,linked_account_id FROM satori_v2_customer_leads WHERE id=$1 FOR UPDATE',
    [input.leadId]);
@@ -531,7 +531,9 @@ async function activateLegacyAccount(c,owner,account,data,addresses,invoiceNos,s
    [account.id,data.requestedType,data.fullName,data.phone]);
   profileId=created.rows[0].id;
  }
- await c.query('INSERT INTO satori_v2_registrations '+
+ // Registration schema requires a shipping phone, but Gmail linking does not.
+ // Keep registration absent until a usable shipping phone is supplied.
+ if(data.phone)await c.query('INSERT INTO satori_v2_registrations '+
   '(account_id,full_name,phone,address,company_name,tax_code,note,requested_type,reviewed_at,reviewed_by) '+
   'VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),$9) ON CONFLICT(account_id) DO UPDATE SET '+
   'full_name=EXCLUDED.full_name,phone=EXCLUDED.phone,address=EXCLUDED.address,'+
@@ -646,20 +648,20 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
    email:lead.email,companyName:lead.company_name,taxCode:lead.tax_code,
    note:lead.note,requestedType:lead.requested_type,
    discountBps:lead.discount_bps,collaboratorBps:lead.collaborator_bps
-  },{admin:true});
+  },{admin:true,phoneOptional:true});
   if(!data.email||data.email!==email.trim().toLowerCase()||
      data.requestedType==='collaborator'&&!Number.isSafeInteger(data.collaboratorBps))
    return {state:'PENDING',reason:'LEGACY_POLICY_INVALID'};
-  const primary=validateAddress({label:'Khách cũ',recipientName:data.fullName,
-   recipientPhone:data.phone,address:data.address});
+  const primary=data.phone?validateAddress({label:'Khách cũ',recipientName:data.fullName,
+   recipientPhone:data.phone,address:data.address}):null;
   if(source.rows[0].event_type==='LEGACY_CRM_STAGED'){
    const staged=source.rows[0].details;
-   if(!Array.isArray(staged?.addresses)||!staged.addresses.length)
-    return {state:'PENDING',reason:'STAGED_ADDRESSES_INVALID'};
-   addresses=staged.addresses.map(x=>validateAddress(x));
-   // The latest Admin edits of the lead take precedence for the first address.
-   addresses[0]={...primary,label:addresses[0].label};
-  }else addresses=[primary];
+   if(!Array.isArray(staged?.addresses))return {state:'PENDING',reason:'STAGED_ADDRESSES_INVALID'};
+   addresses=staged.addresses.flatMap(x=>{
+    try{return [validateAddress(x)]}catch{return []}
+   });
+   if(primary)addresses=[primary,...addresses];
+  }else addresses=primary?[primary]:[];
  }catch{
   return {state:'PENDING',reason:'LEGACY_CONTACT_INVALID'};
  }
@@ -703,7 +705,7 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
    [targetProfile,addr.label,addr.recipientName,addr.recipientPhone,addr.address]);
   seen.add(addressKey(addr));addressesAdded++;
  }
- await c.query('INSERT INTO satori_v2_registrations '+
+ if(data.phone)await c.query('INSERT INTO satori_v2_registrations '+
   '(account_id,full_name,phone,address,company_name,tax_code,note,requested_type,reviewed_at,reviewed_by) '+
   'VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),$9) ON CONFLICT(account_id) DO UPDATE SET '+
   'full_name=EXCLUDED.full_name,phone=EXCLUDED.phone,address=EXCLUDED.address,'+
@@ -807,10 +809,10 @@ export async function ownerActivateSavedGmail(pool,owner,input){
    companyName:lead.company_name,taxCode:lead.tax_code,note:lead.note,
    requestedType:lead.requested_type,discountBps:lead.discount_bps,
    collaboratorBps:lead.collaborator_bps
-  },{admin:true}));
-  const primary=checked(()=>validateAddress({
+  },{admin:true,phoneOptional:true}));
+  const primary=data.phone?checked(()=>validateAddress({
    label:'Địa chỉ chính',recipientName:data.fullName,recipientPhone:data.phone,address:data.address
-  }));
+  })):null;
   const existingProfiles=await c.query('SELECT id FROM satori_v2_profiles '+
    'WHERE account_id=$1 ORDER BY created_at LIMIT 2 FOR UPDATE',[account.id]);
   check(existingProfiles.rowCount<=1,'AMBIGUOUS_PROFILES',409);
@@ -823,7 +825,7 @@ export async function ownerActivateSavedGmail(pool,owner,input){
     (r.collaborator_bps==null||r.collaborator_bps===data.collaboratorBps)),
     'EXISTING_POLICY_REQUIRES_OWNER',409);
   }
-  const result=await activateLegacyAccount(c,owner,account,data,[primary],[],null,account.revision);
+  const result=await activateLegacyAccount(c,owner,account,data,primary?[primary]:[],[],null,account.revision);
   const linked=await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
    'revision=revision+1,updated_at=now() WHERE id=$1 '+
    'AND (linked_account_id IS NULL OR linked_account_id=$2) RETURNING id',
@@ -966,12 +968,12 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
  const displayName=String(input.profileName||'').trim()||recent.name;
  const phone=legacyPhoneCandidate(input.contactPhone)||recent.phoneCandidate||
   grouped.map(r=>r.phoneCandidate).find(Boolean)||'';
- check(phone,'LEGACY_BIND_MISSING_CONTACT',409);
+ // Phone is not an account ownership factor; missing phone never blocks linking.
  const data=checked(()=>validateCustomerProfile({
   fullName:displayName,email:input.email,phone,address:recent.address,
   requestedType:role,discountBps:input.discountBps,
   collaboratorBps:role==='collaborator'?input.collaboratorBps:null
- },{admin:true}));
+ },{admin:true,phoneOptional:true}));
  const addresses=[];
  for(const row of grouped){
   let address;
@@ -981,7 +983,8 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
   })}catch{continue}
   addresses.push(address);
  }
- check(addresses.length>0,'LEGACY_BIND_NO_VALID_ADDRESS',409);
+ // Addresses without valid shipping phone stay visible in signed invoice history.
+ // Add a contact number only when placing a new delivery order.
  return tx(pool,async c=>{
   await c.query('SELECT pg_advisory_xact_lock($1,$2)',[20261029,19]);
   const account=await c.query('SELECT id,email,access_status,revision FROM satori_v2_accounts '+
