@@ -2174,8 +2174,35 @@ async function loadOrders(){
   }
   row.append(info);$('orderRows').append(row);
  }
- if(!(data.orders||[]).length)$('orderRows').append(node('p',
-  'Chưa có đơn V2 được xác nhận. Hệ thống không tự hiển thị hóa đơn cũ theo số điện thoại.','muted'));
+ // Historical invoices are linked by explicit owner-verified IDs only.
+ // Show live signed totals/status; never infer invoice ownership from name/phone.
+ let historical=null;
+ try{
+  historical=PREVIEW?{orders:[],linkedCount:0,unavailableCount:0}:
+   await call('/api/v2/legacy/history',undefined,'GET');
+ }catch{
+  $('orderRows').append(node('p','Chưa kiểm tra được liên kết hóa đơn lịch sử.','muted'));
+ }
+ if(historical?.orders?.length){
+  $('orderRows').append(node('h3','Hóa đơn lịch sử đã liên kết (chỉ xem)'));
+  for(const inv of historical.orders){
+   const row=node('div',undefined,'address-line'),info=node('div');
+   info.append(node('strong','#'+inv.invoiceNo+' · '+(inv.date||'')),
+    node('small',(inv.status||'Trạng thái chưa xác minh')+
+     ' · '+money(Number(inv.totalVnd)||0)+' · Sổ hóa đơn gốc'));
+   if(inv.address)info.append(node('small','Giao: '+inv.address,'muted'));
+   const details=node('details',undefined,'order-details');
+   details.append(node('summary','Xem sản phẩm lịch sử'));
+   for(const line of inv.items||[])details.append(node('small',
+    String(line.product||line.code||'Sản phẩm')+' × '+String(line.qty||0)+
+    ' · '+money(Number(line.unitPrice)||0)+' / '+String(line.unit||''),'muted'));
+   info.append(details);row.append(info);$('orderRows').append(row);
+  }
+ }
+ if(historical?.unavailableCount) $('orderRows').append(node('p',
+  historical.unavailableCount+' hóa đơn đã liên kết hiện chưa tải được từ nguồn ký số. Không tự thay thế bằng dữ liệu phỏng đoán.','muted'));
+ if(!(data.orders||[]).length&&!historical?.orders?.length)$('orderRows').append(node('p',
+  'Chưa có đơn V2 hoặc hóa đơn cũ được Admin liên kết bằng ID xác minh.','muted'));
 }
 $('refreshOrders').onclick=()=>loadOrders().catch(e=>toast(e.message));
 const originalInvoiceLogo=document.querySelector('.brand .satori-logo');
