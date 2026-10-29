@@ -632,6 +632,75 @@ function crmRoleChoices(select){
   b.setAttribute('aria-pressed',String(b.dataset.role===select.value)));
  select.addEventListener('change',paint);paint();return bar;
 }
+
+async function renderOwnerCtvClientCards(account,wrap){
+ if(!wrap.isConnected)return;
+ wrap.replaceChildren(make('p','Đang tải khách riêng CTV…','crm-client-banner'));
+ try{
+  const profiles=await api('/api/v2/admin/profiles?accountId='+encodeURIComponent(account.id));
+  const profile=profiles.profiles?.find(x=>x.type==='collaborator');
+  if(!profile){wrap.replaceChildren(make('p','Lưu vai trò CTV trước khi thêm khách riêng.'));return}
+  const [a,p]=await Promise.all([
+   api('/api/v2/admin/addresses?profileId='+encodeURIComponent(profile.id)),
+   api('/api/v2/admin/policies?profileId='+encodeURIComponent(profile.id))
+  ]);
+  if(!wrap.isConnected)return;
+  const policies=p.policies.filter(x=>x.enabled&&!x.productCode);
+  const last=xs=>xs.sort((x,y)=>y.version-x.version)[0];
+  const main=last(policies.filter(x=>!x.addressId)),cap=main?.collaboratorBps;
+  wrap.replaceChildren();
+  const head=make('div',null,'crm-ctv-heading');
+  head.append(make('h3','♧ Khách riêng của CTV ('+a.addresses.length+')'));wrap.append(head);
+  if(!Number.isSafeInteger(cap)||cap<0||cap>10000){
+   wrap.append(make('p','Chưa có CK CTV được duyệt. Không thể cấp CK cho khách riêng.','crm-client-banner'));
+   return;
+  }
+  const refresh=()=>renderOwnerCtvClientCards(account,wrap);
+  const add=ownerCtvNewClient(profile.id,cap,main.discountBps,customerEpoch,refresh);
+  add.classList.add('crm-client-add');
+  head.append(add);
+  const list=make('div',null,'crm-ctv-list');
+  for(const row of a.addresses){
+   const personal=last(policies.filter(x=>x.addressId===row.id)),bps=personal?.discountBps??main.discountBps;
+   const card=make('div',null,'crm-ctv-client-row'),info=make('div',null,'crm-client-data');
+   info.append(make('strong',row.recipientName||row.label||'Khách'));
+   const phone=make('small');phone.append(ownerIcon('phone'),document.createTextNode(' '+(row.recipientPhone||'—')));
+   const address=make('small');address.append(ownerIcon('pin'),document.createTextNode(' '+(row.address||'—')));
+   info.append(phone,address);
+   if(!row.active)info.append(make('small','Đang tạm dừng'));
+   card.append(info);
+   const form=make('form',null,'crm-client-rate'),input=document.createElement('input');
+   input.type='number';input.step='0.01';input.min='0';input.max=String(cap/100);input.required=true;
+   input.setAttribute('aria-label','CK khách '+(row.recipientName||row.label));
+   input.value=Number.isSafeInteger(bps)?String(bps/100):'';
+   input.disabled=!row.active;
+   const save=iconButton('Lưu CK','check','secondary');save.type='submit';save.disabled=!row.active;
+   form.append(input,make('span','%'),save);card.append(form);
+   form.onsubmit=async event=>{
+    event.preventDefault();
+    const n=Number(input.value),v=Math.round(n*100);
+    if(!input.value.trim()||!Number.isFinite(n)||v<0||v>cap||Math.abs(n*100-v)>0.00001)
+     return crmStatus('CK khách không hợp lệ hoặc vượt CK CTV.','error');
+    if(!confirm('Lưu CK '+pct(v)+' cho '+(row.recipientName||row.label)+'?'))return;
+    save.disabled=true;
+    try{
+     await api('/api/v2/admin/policies','POST',{confirmed:true,profileId:profile.id,
+      addressId:row.id,productCode:null,invoiceMode:'single',
+      discountBps:v,collaboratorBps:cap});
+     await refresh();crmStatus('Đã lưu CK riêng của khách.','success');
+    }catch(e){crmStatus('Không lưu được: '+e.message,'error');save.disabled=false}
+   };
+   const editor=ownerAddressEditor(profile.id,row,customerEpoch,refresh);
+   editor.classList.add('crm-client-options');
+   editor.querySelector('summary').textContent='⋯';
+   editor.querySelector('summary').setAttribute('aria-label','Sửa khách '+row.recipientName);
+   card.append(editor);list.append(card);
+  }
+  if(!a.addresses.length)list.append(make('p','Chưa có khách riêng được lưu.','crm-client-banner'));
+  wrap.append(list);
+ }catch(e){if(wrap.isConnected)wrap.replaceChildren(make('p','Không tải được khách riêng CTV: '+e.message))}
+}
+
 /* Role and tiered pricing editor: rendered only inside an expanded customer card. */
 function rolePricingEditor(account,body,item){
  const holder=make('section',null,'crm-role-editor');
@@ -1613,7 +1682,7 @@ function ownerFormInput(group,label,key,value,required=true){
 }
 
 /* CTV-specific owner create: one visible form for name, phone, address and CK. */
-function ownerCtvNewClient(profileId,cap,defaultBps,epoch){
+function ownerCtvNewClient(profileId,cap,defaultBps,epoch,refresh=()=>loadProfileDetails(profileId,epoch)){
  const group=make('details',null,'crm-ctv-add');group.append(make('summary','＋ Thêm khách riêng'));
  const form=make('form',null,'field-grid'),inputs={};
  for(const [key,label] of [
@@ -1648,16 +1717,16 @@ function ownerCtvNewClient(profileId,cap,defaultBps,epoch){
      confirmed:true,profileId,addressId:result.id,productCode:null,
      discountBps:bps,collaboratorBps:cap,invoiceMode:'single'});
    }catch(e){
-    await loadProfileDetails(profileId,epoch);
+    await refresh();
     throw Error('Đã tạo khách, nhưng CK chưa lưu được. Chỉnh CK trên dòng khách vừa tạo: '+e.message);
    }
-   await loadProfileDetails(profileId,epoch);
+   await refresh();
    crmStatus('Đã lưu khách riêng và CK '+pct(bps)+'.','success');
   }catch(e){crmStatus(e.message,'error');save.disabled=false}
  };
  group.append(form);return group;
 }
-function ownerAddressEditor(profileId,row,epoch){
+function ownerAddressEditor(profileId,row,epoch,refresh=()=>loadProfileDetails(profileId,epoch)){
  const details=make('details');details.append(make('summary',row?'✎ Sửa / ngừng sử dụng điểm giao':'＋ Thêm điểm giao mới'));
  const form=make('form',null,'field-grid');
  for(const [label,key,value] of [
@@ -1686,7 +1755,7 @@ function ownerAddressEditor(profileId,row,epoch){
   try{
    await api('/api/v2/admin/addresses',row?'PATCH':'POST',payload);
    crmStatus('✓ Đã lưu điểm giao nhận.','success');
-   if(epoch===customerEpoch)await loadProfileDetails(profileId,epoch);
+   if(epoch===customerEpoch)await refresh();
   }catch(e){crmStatus('Không lưu được địa chỉ: '+e.message,'error');save.disabled=false;}
  };
  details.append(form);return details;
