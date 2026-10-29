@@ -7,7 +7,7 @@ import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatu
  adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer,
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
  legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
- adminReconcileVerifiedLegacyPending} from '../customer-backend.mjs';
+ adminReconcileVerifiedLegacyPending,ownerBindLegacyInvoices,linkedLegacyInvoiceHistory} from '../customer-backend.mjs';
 
 const url=process.env.SATORI_V2_CI_DATABASE_URL||'';
 assert.ok(url.includes('127.0.0.1')&&url.endsWith('/satori_v2_ci'),
@@ -181,6 +181,61 @@ try{
   assert.equal(linked.state,'ACTIVE');assert.equal(linked.addressesAdded,2);
   const linkedAccount=await one('SELECT access_status FROM satori_v2_accounts WHERE id=$1',[newGoogle.id]);
   assert.equal(linkedAccount.access_status,'ACTIVE');
+
+  // Same LOCATION with 4 past deliveries (different recipient names/phones)
+  // must create ONE V2 address from the latest invoice, while keeping all bills.
+  const repeatAddress='42 Duong So 95, Cat Lai, Ho Chi Minh';
+  invoices=[
+   {id:990001,invoiceNo:990001,date:'01/10/2026',timestamp:1790812800,
+    name:'Client A',phone:'0900000001',location:repeatAddress,total:10000},
+   {id:990002,invoiceNo:990002,date:'02/10/2026',timestamp:1790899200,
+    name:'Client B',phone:'0900000002',location:'42 Đường Số 95, Cát Lái, Hồ Chí Minh',total:20000},
+   {id:990003,invoiceNo:990003,date:'03/10/2026',timestamp:1790985600,
+    name:'Client C',phone:'0900000003',location:'42 đường số 95, Cát Lái, Hồ Chí Minh.',total:30000},
+   {id:990004,invoiceNo:990004,date:'04/10/2026',timestamp:1791072000,
+    name:'Newest Recipient',phone:'0900000004',location:'42 DUONG SO 95 CAT LAI HO CHI MINH',total:40000},
+   {id:990005,invoiceNo:990005,date:'03/10/2026',timestamp:1790985600,
+    name:'Other Location',phone:'0900000005',location:'99 Distinct Road, Thu Duc',total:50000}
+  ];
+  const boundAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+   "VALUES($1,'historical-verified@example.invalid','PENDING') RETURNING id,revision,email",
+   ['ci-history-'+randomUUID()]);
+  const bind=await ownerBindLegacyInvoices(pool,owner,{
+   confirmed:true,identityConfirmed:true,accountId:boundAccount.id,
+   email:boundAccount.email,expectedAccountRevision:boundAccount.revision,
+   query:'42 Duong So 95',sourceRevision:42,
+   refs:invoices.map(x=>({invoiceNo:x.invoiceNo,sourceId:String(x.id)})),
+   requestedType:'collaborator',profileName:'CTV Owner-Verified',
+   contactPhone:'0900000123',discountBps:2000,collaboratorBps:3500
+  });
+  assert.equal(bind.accessStatus,'ACTIVE');
+  assert.equal(bind.linkedInvoices,5);
+  assert.equal(bind.uniqueAddresses,2);
+  const activeAddressRows=await pool.query(
+   'SELECT address,recipient_name,recipient_phone FROM satori_v2_addresses '+
+   'WHERE profile_id=$1 AND active=true',[bind.profileId]);
+  assert.equal(activeAddressRows.rowCount,2);
+  const newest=activeAddressRows.rows.find(x=>x.address.toUpperCase().includes('42 DUONG SO 95'));
+  assert.ok(newest);
+  assert.equal(newest.recipient_phone,'0900000004');
+  assert.equal(newest.recipient_name,'Newest Recipient');
+  const hist=await linkedLegacyInvoiceHistory(pool,{id:boundAccount.id});
+  assert.equal(hist.orders.length,5,'every original invoice remains independently visible');
+  assert.equal(hist.addresses.length,2,'only one destination for four repeated deliveries');
+  assert.equal(hist.addresses.find(x=>x.address.toUpperCase().includes('42 DUONG SO 95')).invoiceNo,990004);
+  // A verified invoice ID can NEVER be owned by a second Google account.
+  const intruder=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+   "VALUES($1,'intruder-history@example.invalid','PENDING') RETURNING id,revision,email",
+   ['ci-other-history-'+randomUUID()]);
+  await assert.rejects(()=>ownerBindLegacyInvoices(pool,owner,{
+   confirmed:true,identityConfirmed:true,accountId:intruder.id,
+   email:intruder.email,expectedAccountRevision:intruder.revision,
+   query:'42 Duong So 95',sourceRevision:42,
+   refs:[{invoiceNo:990004,sourceId:'990004'}],
+   requestedType:'agency',profileName:'Different Verified User',
+   discountBps:2000,contactPhone:'0900000004'
+  }),/LEGACY_INVOICE_ALREADY_OWNED/);
+
  }finally{
   globalThis.fetch=prevFetch;
   for(const [k,v] of Object.entries(prevVars))if(v===undefined)delete process.env[k];
