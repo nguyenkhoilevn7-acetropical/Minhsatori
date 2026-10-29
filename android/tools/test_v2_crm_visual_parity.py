@@ -30,12 +30,15 @@ class OwnerCrmVisualParity(unittest.TestCase):
         self.assertIn("button.danger {background:#fff1f3", PORTAL)
 
     def test_crm_first_hierarchy_and_consistent_mobile_fold_layout(self):
-        self.assertIn("main>header { display:none!important; }", PORTAL)
+        self.assertIn("main>header, #ownerTabs { display:none!important; }", PORTAL)
         self.assertIn("#crmConsole { order:1; }", PORTAL)
         self.assertIn("#legacyConsole { order:2; }", PORTAL)
         self.assertIn("#console { order:3; }", PORTAL)
-        self.assertIn('quickLink("Khách hàng"', PORTAL)
+        self.assertIn('quickLink("Khách mới"', PORTAL)
         self.assertIn('quickLink("Khách cũ"', PORTAL)
+        self.assertIn('activateOwnerTab(', PORTAL)
+        self.assertIn('selectNativeTab(0)', PORTAL)
+        self.assertIn('#ownerTabs { display:none!important; }', PORTAL)
         self.assertIn('quickLink("Danh mục"', PORTAL)
         self.assertIn("@media(max-width:560px)", PORTAL)
         self.assertIn("@media(min-width:700px)", PORTAL)
