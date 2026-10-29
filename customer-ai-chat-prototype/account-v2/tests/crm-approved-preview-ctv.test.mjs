@@ -159,3 +159,30 @@ test('all verified CTV and agency accounts share deduplicated old-recipient dire
  assert.doesNotMatch(dir,/\/api\/v2\/admin\/legacy\/import/);
  assert.doesNotThrow(()=>new vm.Script(ownerScript));
 });
+
+test('old customer invoice actions are one nested source, never two peer import paths',()=>{
+ const start=owner.indexOf('<details id="crmLedgerDiscovery"');
+ const advanced=owner.indexOf('<details id="legacyLedgerDisclosure"',start);
+ const panelClose=owner.indexOf('</section>',start);
+ assert.ok(start>=0&&advanced>start&&advanced<panelClose);
+ assert.match(owner.slice(start,panelClose),/Nâng cao · tìm hóa đơn để tạo hồ sơ chưa liên kết/);
+ assert.equal((owner.match(/id="legacySearchForm"/g)||[]).length,1);
+ assert.equal((owner.match(/id="legacyLedgerDisclosure"/g)||[]).length,1);
+ assert.equal((owner.match(/id="crmLedgerDiscovery"/g)||[]).length,1);
+});
+
+test('partner cards have one saved-recipient CK editor plus only new invoice candidates',()=>{
+ const view=ownerScript.slice(ownerScript.indexOf('async function renderLegacyRecipientDirectory('),
+  ownerScript.indexOf('\nfunction drawLedgerPreview(){'));
+ const cards=ownerScript.slice(ownerScript.indexOf('async function renderOwnerCtvClientCards('),
+  ownerScript.indexOf('/* Role and tiered pricing editor:'));
+ assert.match(view,/const fixedAccount=!!presetAccount&&accounts\.some/);
+ assert.match(view,/accountRow\.hidden=fixedAccount/);
+ assert.match(view,/if\(fixedAccount&&saved\.length\)\{alreadySaved\+\+;continue\}/);
+ assert.match(view,/finally\{accountSelect\.disabled=fixedAccount\}/);
+ assert.match(cards,/crmUniqueSavedAddressGroups\(a\.addresses\)/);
+ assert.match(ownerScript,/!\['collaborator','agency'\]\.includes\(registeredAccount\.requestedType\)/);
+ assert.match(cards,/Địa chỉ mới từ hóa đơn · kiểm tra & thêm/);
+ assert.doesNotMatch(view,/\/api\/v2\/admin\/legacy\/import/);
+ assert.doesNotThrow(()=>new vm.Script(ownerScript));
+});
