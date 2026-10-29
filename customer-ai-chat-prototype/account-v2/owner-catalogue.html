@@ -349,6 +349,75 @@ header.owner-header{display:flex;align-items:center;gap:12px;padding:4px 0 12px;
  #legacyConsole .crm-client-add>form{grid-template-columns:1fr}
 }
 
+
+/* Screenshot 9091 acceptance: dense typography and no duplicate, floating ledger cards. */
+body{font-size:14px;line-height:1.42}
+#legacyConsole{padding:14px!important}
+#legacyConsole .crm-panel-head{gap:9px!important;margin-bottom:10px!important}
+#legacyConsole .crm-panel-title{gap:10px}
+#legacyConsole .crm-panel-title .ico{width:23px;height:23px}
+#legacyConsole .crm-panel-title h2{font-size:19px!important;line-height:1.25}
+#legacyConsole .crm-panel-title p{font-size:12.5px!important;line-height:1.32;margin:1px 0}
+#legacyConsole .crm-panel-search input{height:41px;font-size:14px}
+#legacyConsole .crm-panel-search{grid-template-columns:minmax(0,1fr) 64px!important}
+#legacyConsole .crm-panel-search button{min-height:41px;padding:8px 10px}
+#legacyConsole .crm-customer-card{margin:8px 0!important;border-radius:16px;box-shadow:0 2px 5px #0a394909}
+#legacyConsole .crm-card-summary{min-height:72px!important;padding:10px 12px!important;
+ grid-template-columns:44px minmax(0,1fr) minmax(120px,.65fr) 20px!important;gap:9px!important}
+#legacyConsole .crm-avatar{width:42px;height:42px;font-size:17px}
+#legacyConsole .crm-card-identity{gap:1px!important}
+#legacyConsole .crm-card-identity strong{font-size:15.5px!important;line-height:1.23}
+#legacyConsole .crm-card-contact{font-size:12.5px!important;gap:5px;line-height:1.3}
+#legacyConsole .crm-card-contact .ico{width:14px;height:14px}
+#legacyConsole .crm-card-metadata{gap:3px;align-items:start}
+#legacyConsole .crm-card-metadata small{font-size:11.5px!important;line-height:1.3}
+#legacyConsole .crm-tag{font-size:11.5px!important;line-height:1.3;padding:3px 7px!important;display:inline-flex;gap:5px;align-items:center}
+#legacyConsole .crm-online-dot{width:7px;height:7px;border-radius:50%;background:#14c468;display:inline-block}
+#legacyConsole .crm-role-pill{color:#3e5c6c;font-weight:650}
+#legacyConsole .crm-card-open-label{border:0!important;padding:3px!important;justify-self:end}
+#legacyConsole .crm-card-open-label .ico{width:17px;height:17px}
+#legacyConsole .crm-card-expanded{padding:11px 12px!important;gap:9px!important}
+#legacyConsole .crm-role-editor>form{gap:8px!important}
+#legacyConsole .crm-role-choice-row{grid-template-columns:105px 1fr!important;gap:8px}
+#legacyConsole .crm-role-choice-row>strong{font-size:12.5px}
+#legacyConsole .crm-role-options button{min-height:37px!important;font-size:12px!important;padding:6px 3px!important;gap:3px}
+#legacyConsole .crm-role-options button .ico{height:16px;width:16px}
+#legacyConsole .crm-rate-row{grid-template-columns:minmax(0,1fr) 130px!important;gap:8px}
+#legacyConsole .crm-rate-row>span{font-size:12.5px!important;font-weight:650}
+#legacyConsole .crm-rate-row input{min-height:38px!important;padding:7px 9px!important;font-size:13px!important}
+#legacyConsole .crm-ctv-clients{padding:10px!important;margin:0!important}
+#legacyConsole .crm-ctv-heading h3{font-size:14px!important}
+#legacyConsole .crm-ctv-list{gap:6px}
+#legacyConsole .crm-ctv-client-row{padding:8px!important;gap:7px!important}
+#legacyConsole .crm-client-data strong{font-size:13px!important}
+#legacyConsole .crm-client-data small{font-size:11.5px!important;line-height:1.3}
+#legacyConsole .crm-client-rate input{min-height:36px!important;font-size:12.5px!important}
+#legacyConsole .crm-client-rate button{min-height:32px!important}
+#legacyConsole .crm-card-footer{gap:7px}
+#legacyConsole .crm-card-footer button{min-height:40px!important;font-size:11.5px!important;padding:7px 4px!important}
+#legacyConsole .crm-ledger-discovery{margin-top:13px!important;border:1px solid #dfe9e9;border-radius:13px;padding:9px 11px}
+#legacyConsole .crm-ledger-discovery>summary{font-size:13px!important;color:#38616a;font-weight:750;padding:6px 0}
+#legacyConsole .crm-ledger-note{font-size:12px;margin:3px 0 9px}
+#crmLedgerPreview{margin-top:8px}
+#legacyConsole .crm-ledger-card .crm-card-expanded{padding:11px!important}
+#legacyConsole #legacyLedgerDisclosure{margin-top:10px}
+#legacyConsole #legacyLedgerDisclosure>summary{font-size:13px}
+#crmOldFilters{display:none!important}
+#legacyLeadDisclosure{border:0;padding:0;margin:0}
+#legacyLeadDisclosure>summary{display:none}
+@media(max-width:660px){
+ #legacyConsole{padding:10px!important}
+ #legacyConsole .crm-card-summary{grid-template-columns:42px minmax(0,1fr) 20px!important;gap:7px!important}
+ #legacyConsole .crm-card-metadata{grid-column:2;grid-row:2;display:flex;flex-wrap:wrap;gap:4px 8px}
+ #legacyConsole .crm-card-open-label{grid-column:3;grid-row:1/3}
+ #legacyConsole .crm-role-choice-row{grid-template-columns:1fr!important;gap:5px}
+ #legacyConsole .crm-rate-row{grid-template-columns:minmax(0,1fr) 93px!important}
+ #legacyConsole .crm-ctv-client-row{grid-template-columns:minmax(0,1fr) 90px 24px!important;gap:4px!important}
+ #legacyConsole .crm-client-rate .crm-client-save{min-width:23px!important}
+ #legacyConsole .crm-card-footer{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+ #legacyConsole .crm-card-footer .crm-btn-primary{grid-column:auto}
+ #legacyConsole .crm-card-footer button{font-size:10.5px!important}
+}
 </style></head>
 <body>
 <main>
@@ -425,11 +494,17 @@ header.owner-header{display:flex;align-items:center;gap:12px;padding:4px 0 12px;
  <div class="crm-panel-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><div><h2>Khách hàng cũ</h2><p>Quản lý vai trò, chiết khấu và khách riêng của đại lý / CTV</p></div></div>
  <div class="crm-panel-search"><input id="crmOldFilter" type="search" maxlength="90" aria-label="Tìm khách hàng cũ" placeholder="Tìm tên, điện thoại hoặc Gmail"><button id="crmOldSearch" type="button" aria-label="Tìm khách hàng cũ"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button></div>
 </div>
-<div class="crm-ledger-month"><label for="crmLedgerMonth">Hóa đơn gốc tháng</label><input type="month" id="crmLedgerMonth"><span id="crmLedgerPreviewStatus" role="status"></span></div><div id="crmLedgerPreview"></div><div id="crmOldFilters" class="crm-filter-row" role="group" aria-label="Lọc trạng thái khách cũ"></div>
-<details id="legacyLeadDisclosure"><summary>Danh sách khách cũ đã lưu (<span id="crmCountOld">0</span>)</summary>
- <div id="legacyCustomers" aria-label="Hồ sơ khách cũ"></div>
+<div id="crmOldFilters" class="crm-filter-row" role="group" aria-label="Lọc trạng thái khách cũ"></div>
+<details id="legacyLeadDisclosure" open><summary>Khách hàng đã lưu (<span id="crmCountOld">0</span>)</summary>
+ <div id="legacyCustomers" aria-label="Hồ sơ khách cũ có thể quản trị"></div>
 </details>
-<details id="legacyLedgerDisclosure"><summary>Tìm khách cũ từ hóa đơn gốc</summary>
+<details id="crmLedgerDiscovery" class="crm-ledger-discovery">
+ <summary>Khách từ hóa đơn gốc · chưa liên kết <span id="crmLedgerCount"></span></summary>
+ <p class="crm-ledger-note">Khách chưa xác minh chỉ được tra cứu. Vai trò và chiết khấu chỉ áp dụng sau khi anh xác nhận hồ sơ.</p>
+ <div class="crm-ledger-month"><label for="crmLedgerMonth">Tháng hóa đơn</label><input type="month" id="crmLedgerMonth"><span id="crmLedgerPreviewStatus" role="status"></span></div>
+ <div id="crmLedgerPreview"></div>
+</details>
+<details id="legacyLedgerDisclosure"><summary>Tìm và phân loại khách từ hóa đơn gốc</summary>
 <form id="legacySearchForm" class="crm-controls">
 <label>🔍 Tên hoặc số điện thoại<input id="legacyQuery" type="search" minlength="2" maxlength="90" required placeholder="Nhập tên khách hoặc SĐT"></label>
 <button type="submit">Tìm trong sổ</button></form>
@@ -590,7 +665,10 @@ function activateOwnerTab(tab){
  // Selecting Khách cũ itself reveals the stored customer list; no second tap.
  byId('legacyLeadDisclosure').open=tab==='old';
  if(tab==='old'){drawCustomers();if(!customerRecord.ledgerLoaded)void loadLedgerMonthCustomers();}
- requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,0)));
+ // Always reset the embedded WebView scroll so the section title remains visible.
+ const resetScroll=()=>{window.scrollTo(0,0);
+  if(document.scrollingElement)document.scrollingElement.scrollTop=0;};
+ resetScroll();requestAnimationFrame(resetScroll);
 }
 document.querySelectorAll('[data-owner-tab]').forEach(btn=>
  btn.addEventListener('click',()=>activateOwnerTab(btn.dataset.ownerTab)));
@@ -643,9 +721,14 @@ function buildCustomerCard(record,{registered=false,highlight=false,compact=fals
  identity.append(cardContact(record.email||'Chưa có Gmail','mail'));
  head.append(identity);
  const meta=make('div',null,'crm-card-metadata');
- meta.append(make('span',statusLabel,'crm-tag crm-status-'+state));
- meta.append(make('small',typeLabel(record.requestedType)+
-   (registered?' · CK: ':' · CK dự kiến: ')+pct(record.discountBps)));
+ const status=make('span',null,'crm-tag crm-status-'+state);
+ status.append(make('span',null,'crm-online-dot'),document.createTextNode(statusLabel));
+ meta.append(status);
+ const type=make('small',typeLabel(record.requestedType),'crm-role-pill role-'+record.requestedType);
+ meta.append(type);
+ meta.append(make('small',(record.requestedType==='agency'?'CK đại lý: ':
+ record.requestedType==='collaborator'?'CK khách: ':'CK khách: ')+
+ pct(record.discountBps),'crm-inline-rate'));
  if(record.requestedType==='collaborator'&&record.collaboratorBps!=null)
   meta.append(make('small','CK CTV: '+pct(record.collaboratorBps)));
  const date=record.submittedAt||record.createdAt;
@@ -653,10 +736,10 @@ function buildCustomerCard(record,{registered=false,highlight=false,compact=fals
   meta.append(make('small','Đăng ký: '+new Date(date).toLocaleDateString('vi-VN')));
  head.append(meta);
  const open=make('span',null,'crm-card-open-label');
- open.append(document.createTextNode('Xem chi tiết'),ownerIcon('chevron'));
+ open.append(ownerIcon('chevron'));
  head.append(open);item.append(head);
  const body=make('div',null,'crm-card-expanded');
- if(compact)return {item,body};
+ if(compact){item.append(body);return {item,body};}
  const facts=make('div',null,'crm-card-details');
  facts.append(cardLine('Địa chỉ đăng ký',record.address||'Chưa cập nhật','pin'),
   cardLine('Thông tin',typeLabel(record.requestedType)+' · Chiết khấu: '+
@@ -870,11 +953,13 @@ async function loadLedgerMonthCustomers(){
   if(serial!==ledgerPreviewEpoch)return;
   if(!Array.isArray(result.customers)||result.source!=='canonical-signed-ledger')throw Error('LEDGER_SOURCE_INVALID');
   customerRecord.ledgerCustomers=result.customers;customerRecord.ledgerLoaded=true;
+  byId('crmLedgerCount').textContent='('+result.customers.length+')';
   byId('crmLedgerPreviewStatus').textContent=result.customers.length+' khách / '+result.scanned+' hóa đơn'+
    (result.truncated?' · Dữ liệu có giới hạn, tìm theo tên/SĐT để xem thêm':'');
  }catch(e){
   if(serial!==ledgerPreviewEpoch)return;
   customerRecord.ledgerCustomers=[];
+  byId('crmLedgerCount').textContent='';
   byId('crmLedgerPreviewStatus').textContent='Chưa đọc được sổ tháng: '+e.message;
  }
  drawLedgerPreview();
@@ -895,7 +980,7 @@ function drawLedgerPreview(){
   name.append(make('strong',x.name,'crm-customer-name'),cardContact(x.phone||'Chưa có SĐT','phone'));
   head.append(name);
   const meta=make('div',null,'crm-card-metadata');
-  meta.append(make('span','Từ hóa đơn · chưa liên kết','crm-tag crm-status-pending'),
+  meta.append(make('span','Chưa liên kết','crm-tag crm-status-pending'),
    make('small',x.invoiceCount+' hóa đơn'+(x.lastOrderDate?' · '+x.lastOrderDate:'')));
   head.append(meta);
   const arrow=make('span',null,'crm-card-open-label');arrow.append(ownerIcon('chevron'));head.append(arrow);
@@ -923,7 +1008,10 @@ function drawCustomers(){
  const oldTerm=byId('crmOldFilter').value.trim().toLocaleLowerCase('vi-VN');
  const registered=customerRecord.registered;
  const leads=customerRecord.leads;
- const oldItems=[...leads,...registered.filter(a=>a.accessStatus==='ACTIVE'&&!leads.some(l=>l.linkedAccountId===a.id))];
+ const oldItems=[...registered.filter(a=>a.accessStatus==='ACTIVE'),
+   ...leads.filter(l=>!l.linkedAccountId&&!registered.some(a=>
+     (a.phone&&l.phone&&a.phone.replace(/\D/g,'')===l.phone.replace(/\D/g,''))||
+     (a.email&&l.email&&a.email.toLowerCase()===l.email.toLowerCase())))];
  drawLedgerPreview();
  byId('crmCountOld').textContent=String(oldItems.length);
  const groups=[
@@ -1016,8 +1104,11 @@ function drawCustomers(){
  }
  let autoExpandCtv=true;
  const matches=oldFilters.find(x=>x.value===selectedOldFilter).items.filter(x=>
-  [x.fullName,x.email,x.phone,x.companyName,x.address]
-  .some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(oldTerm)));
+  [x.fullName,x.name,x.email,x.phone,x.companyName,x.address]
+  .some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(oldTerm)))
+  .sort((a,b)=>Number(b.requestedType==='collaborator')-Number(a.requestedType==='collaborator')||
+   Number(b.requestedType==='agency')-Number(a.requestedType==='agency')||
+   Number(b.accessStatus==='ACTIVE')-Number(a.accessStatus==='ACTIVE'));
  if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ cũ phù hợp. Có thể mở “Tìm khách từ hóa đơn gốc” để nhập hồ sơ.','crm-stage-hint'));
  for(const x of matches){
   // A verified Google account is authoritative for the linked lead's live role
@@ -1026,8 +1117,8 @@ function drawCustomers(){
   const cardRecord=registeredAccount?{...x,...registeredAccount}:x;
   const {item,body}=buildCustomerCard(cardRecord,{registered:!!registeredAccount,compact:true});
   const actions=make('div',null,'crm-card-actions');
-  const info=make('p',registeredAccount?'Gmail đã kích hoạt · Chỉnh vai trò và CK trong thẻ này.':'Chưa liên kết Google; lưu hồ sơ chờ kích hoạt.');
-  body.append(info,actions);
+  if(!registeredAccount)body.append(make('p','Hồ sơ chờ liên kết Gmail; vai trò và CK đã lưu chỉ là hồ sơ dự kiến.','crm-client-banner'));
+  body.append(actions);
   if(registeredAccount){
     if(registeredAccount?.accessStatus==='ACTIVE'&&registeredAccount.id!==ownerAccountId)
     body.append(rolePricingEditor(registeredAccount,body,item,{old:true}));
@@ -1375,7 +1466,11 @@ async function selectAccount(customer){
  });
 }
 byId('crmFilter').addEventListener('input',drawCustomers);
-byId('crmOldFilter').addEventListener('input',()=>{drawCustomers();drawLedgerPreview()});
+byId('crmOldFilter').addEventListener('input',()=>{
+ const q=byId('crmOldFilter').value.trim();
+ if(q.length>=2)byId('crmLedgerDiscovery').open=true;
+ drawCustomers();
+});
 byId('crmOldSearch').addEventListener('click',()=>byId('crmOldFilter').focus());
 byId('crmRefresh').addEventListener('click',loadCustomers);
 
