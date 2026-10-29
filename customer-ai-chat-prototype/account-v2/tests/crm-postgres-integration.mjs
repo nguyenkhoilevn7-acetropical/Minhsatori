@@ -637,8 +637,8 @@ try{
   expectedLeadRevision:usedLead.lead.revision,
   accountId:usedAccount.id,expectedAccountRevision:usedAccount.revision
  }),/ACTIVE_ACCOUNT_HAS_ORDER_HISTORY/);
- const unchanged=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[usedProfile.id]);
- assert.equal(unchanged.type,'retail');
+ const unchangedActiveProfile=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[usedProfile.id]);
+ assert.equal(unchangedActiveProfile.type,'retail');
 
  // Duplicate old records with the SAME Gmail: fail closed instead of assigning one partner.
  const duplicateEmail='ambiguous@example.invalid';
