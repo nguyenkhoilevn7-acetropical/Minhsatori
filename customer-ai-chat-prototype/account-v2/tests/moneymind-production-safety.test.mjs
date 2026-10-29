@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const files=[
- ['account-v2/app.html','b71cf56c','mm-bottom-nav'],
+ ['account-v2/app.html','b2d8e7b2','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const fnv32=s=>{let h=0x811c9dc5;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),0x01000193);return (h>>>0).toString(16).padStart(8,'0')};
@@ -17,16 +17,16 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // Reviewed 29/10: address/phone typography parity, catalogue direct quantity
  // selector and stable queued cart controls. Hashes intentionally updated after
  // verifying existing invoice/checkout security tests and isolated regression suite.
- // The current V2 build intentionally adds one accessible delivery-note field
+ // Reviewed customer sheet HTML deliberately changes the non-script business snapshot; the new hash locks it.\n // The current V2 build intentionally adds one accessible delivery-note field
  // and one delivery-note style to the original MoneyMind layout; freeze the
  // reviewed full-page business, CSS and non-script hashes to catch regressions.
  // Oct 29 reviewed CTV delivery customer pricing controls: two tabs,
  // address-scoped discount input and guarded client policy API.
- // Oct 29 reviewed typography-only delta: 16px onboarding/body and 20px headings.\n // Oct 28 reviewed delta: the owner-approved verified-ledger receipt adds one inline\n // chat card style and a guarded click action. Preserve the full-page hashes.
+ // Oct 29 reviewed CTV bottom sheet reuses saved-client writer and validates both rate tiers.\n // Oct 29 reviewed typography-only delta: 16px onboarding/body and 20px headings.\n // Oct 28 reviewed delta: the owner-approved verified-ledger receipt adds one inline\n // chat card style and a guarded click action. Preserve the full-page hashes.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const fnvPart=x=>fnv32(x);
- assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'79922a92');
- assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'09c6cffa');
+ assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'d75f167b');
+ assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'2bb8da6b');
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-subtitle,/);
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-phone \{/);
  assert.match(v2,/background:#eaf4f3;\s*color:#205e61;/);

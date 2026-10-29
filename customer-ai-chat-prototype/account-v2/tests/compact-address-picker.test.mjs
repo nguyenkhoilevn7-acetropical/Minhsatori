@@ -36,7 +36,8 @@ test('modal choices are scoped to profile, explicit selection and validated quot
  assert.match(script,/if\(!selectedDeliveryAddress\(\)\)openDeliveryDialog\(\)/);
  assert.doesNotMatch(script,/\$\('headerProfile'\)/);
  assert.match(script,/\$\('headerDelivery'\)\.onclick=openDeliveryDialog/);
- assert.match(script,/\$\('agentAddressManage'\)\.onclick=.*view\('addresses'\)/);
+ assert.match(script,/\$\('agentAddressManage'\)\.onclick=\(\)=>\{const ctv=currentCtvProfile\(\)/);
+ assert.match(script,/if\(ctv\)void openCtvSheet\(\);else\{closeDeliveryDialog\(true\);view\('addresses'\)/);
  assert.match(script,/\$\('quickAgentProfile'\)\.onchange=async/);
  assert.match(script,/const line=node\('details',undefined,'saved-address'\)/);
  assert.match(html,/\.saved-address>summary\{/);
