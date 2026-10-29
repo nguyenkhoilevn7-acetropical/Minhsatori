@@ -397,6 +397,49 @@ export function legacyPhoneCandidate(value){
  return '';
 }
 
+
+/**
+ * Owner-only, READ-ONLY preview of original invoice recipients for ONE month.
+ * The canonical transport forbids multi-month bulk reads. Historical invoices
+ * do not establish a customer's login, role, agency or CTV commission rate.
+ */
+export async function legacyMonthlyCustomerPreview(month){
+ check(typeof month==='string'&&/^20\d{2}-(0[1-9]|1[0-2])$/.test(month),'LEGACY_MONTH_INVALID');
+ const [year,number]=month.split('-').map(Number);
+ const last=new Date(Date.UTC(year,number,0)).getUTCDate();
+ const from=month+'-01',to=month+'-'+String(last).padStart(2,'0');
+ const signed=await readMinhSatori('orders.list',{from,to,limit:100});
+ const revision=Number(signed?.revision??signed?.data?.revision);
+ check(Number.isSafeInteger(revision)&&revision>=1,'LEGACY_SOURCE_UNVERIFIED',503);
+ const raw=Array.isArray(signed?.data?.orders)?signed.data.orders:[];
+ const byIdentity=new Map();
+ for(const order of raw.slice(0,100)){
+  if(!Number.isSafeInteger(Number(order.invoiceNo))||Number(order.invoiceNo)<1)continue;
+  const name=sourceText(order.name,120),phone=legacyPhoneCandidate(order.phone);
+  const address=sourceText(order.location,400);
+  if(!name)continue;
+  // Missing telephone is not enough evidence to merge distinct addresses.
+  const key=phone?'phone:'+phone:'name:'+name.toLocaleLowerCase('vi-VN')+
+   '|address:'+address.toLocaleLowerCase('vi-VN');
+  let row=byIdentity.get(key);
+  if(!row){
+   row={id:key,name,phone,addresses:[],invoiceCount:0,lastOrderDate:null,
+    invoiceNos:[]};
+   byIdentity.set(key,row);
+  }
+  row.invoiceCount+=1;
+  row.invoiceNos.push(Number(order.invoiceNo));
+  if(address&&!row.addresses.includes(address))row.addresses.push(address);
+  const date=sourceText(order.date,30);
+  if(date&&(!row.lastOrderDate||date>row.lastOrderDate))
+   row.lastOrderDate=date;
+ }
+ const total=Number(signed?.data?.totalMatches)||raw.length;
+ return {ok:true,source:'canonical-signed-ledger',month,revision,
+  customers:[...byIdentity.values()].sort((a,b)=>b.invoiceCount-a.invoiceCount),
+  truncated:total>raw.length||raw.length>=100,scanned:raw.length};
+}
+
 export async function legacyCustomerSearch(query){
  const q=sourceText(query,90);
  check(q.length>=2&&!/[*%_]/.test(q),'LEGACY_SEARCH_REQUIRED');
