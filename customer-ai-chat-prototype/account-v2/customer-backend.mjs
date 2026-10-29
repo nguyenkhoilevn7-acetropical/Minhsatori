@@ -70,6 +70,7 @@ export async function adminCustomerList(pool){
   pool.query('SELECT id,full_name AS "fullName",email,phone,address,'+
    'company_name AS "companyName",tax_code AS "taxCode",note,'+
    'requested_type AS "requestedType",discount_bps AS "discountBps",'+
+   'collaborator_bps AS "collaboratorBps",'+
    'linked_account_id AS "linkedAccountId",active,revision,created_at AS "createdAt",'+
    "EXISTS(SELECT 1 FROM satori_v2_audit e WHERE e.resource_id=l.id::text "+
    "AND e.event_type='LEGACY_CRM_STAGED') AS \"legacyStaged\" "+
@@ -84,10 +85,10 @@ export async function adminCreateLead(pool,ownerId,input){
  return tx(pool,async c=>{
   const r=await c.query(
    'INSERT INTO satori_v2_customer_leads '+
-   '(full_name,email,phone,address,company_name,tax_code,note,requested_type,discount_bps) '+
-   'VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,revision',
+   '(full_name,email,phone,address,company_name,tax_code,note,requested_type,discount_bps,collaborator_bps) '+
+   'VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,revision',
    [data.fullName,data.email,data.phone,data.address,data.companyName,
-    data.taxCode,data.note,data.requestedType,data.discountBps]);
+    data.taxCode,data.note,data.requestedType,data.discountBps,data.collaboratorBps]);
   await audit(c,ownerId,'CUSTOMER_LEAD_CREATED',r.rows[0].id);
   return {ok:true,lead:{...r.rows[0],active:true}};
  });
@@ -113,12 +114,14 @@ export async function adminPatchLead(pool,ownerId,input){
    'address=COALESCE($7,address),company_name=COALESCE($8,company_name),'+
    'tax_code=COALESCE($9,tax_code),note=COALESCE($10,note),'+
    'requested_type=COALESCE($11,requested_type),discount_bps=COALESCE($12,discount_bps),'+
+   'collaborator_bps=$13,'+
    'revision=revision+1,updated_at=now() '+
    'WHERE id=$1 AND revision=$2 RETURNING id,revision,active',
    [input.leadId,input.expectedRevision,input.active,
     data?.fullName??null,data?.email??null,data?.phone??null,
     data?.address??null,data?.companyName??null,data?.taxCode??null,
-    data?.note??null,data?.requestedType??null,data?.discountBps??null]);
+    data?.note??null,data?.requestedType??null,data?.discountBps??null,
+    input.active?data?.collaboratorBps??null:null]);
   check(r.rows.length===1,'LEAD_REVISION_CONFLICT',409);
   await audit(c,ownerId,input.active?'CUSTOMER_LEAD_UPDATED':'CUSTOMER_LEAD_ARCHIVED',input.leadId);
   return {ok:true,lead:r.rows[0]};
@@ -272,8 +275,12 @@ export async function adminLinkLead(pool,owner,input){
   const profile=await c.query('SELECT id FROM satori_v2_profiles WHERE account_id=$1 ORDER BY created_at LIMIT 1',
    [input.accountId]);
   // Old-customer discounts are imported as V2-only policy once Owner approved the identity.
+  if(l.requested_type==='collaborator')
+   check(Number.isSafeInteger(l.collaborator_bps)&&l.collaborator_bps>=l.discount_bps,
+    'CTV_RATE_REQUIRED_BEFORE_LINK',409);
   if(profile.rows.length&&l.discount_bps>=0)
-   await applyGeneralDiscount(c,profile.rows[0].id,owner.google_sub,l.discount_bps);
+   await applyGeneralDiscount(c,profile.rows[0].id,owner.google_sub,l.discount_bps,
+    l.requested_type==='collaborator'?l.collaborator_bps:null);
   await audit(c,owner.id,'CUSTOMER_LEAD_MANUALLY_LINKED',input.leadId,
    {linkedAccountId:input.accountId,discountBps:l.discount_bps});
   return {ok:true,lead:link.rows[0],linkedAccountId:input.accountId};
@@ -417,12 +424,17 @@ async function activateLegacyAccount(c,owner,account,data,addresses,invoiceNos,s
    [profileId,a.label,a.recipientName,a.recipientPhone,a.address]);
   known.add(key);addressesAdded++;
  }
- await applyGeneralDiscount(c,profileId,owner.google_sub,data.discountBps);
+ if(data.requestedType==='collaborator')
+  check(Number.isSafeInteger(data.collaboratorBps)&&data.collaboratorBps>=data.discountBps,
+   'CTV_RATE_REQUIRED_BEFORE_ACTIVATION',409);
+ await applyGeneralDiscount(c,profileId,owner.google_sub,data.discountBps,
+  data.requestedType==='collaborator'?data.collaboratorBps:null);
  const updated=await c.query('UPDATE satori_v2_accounts SET display_name=$2,'+
   "access_status='ACTIVE',revision=revision+1,updated_at=now() "+
   'WHERE id=$1 RETURNING revision',[account.id,data.fullName]);
  await audit(c,owner.id,'LEGACY_CRM_ACTIVATED',account.id,
-  {invoiceNos,sourceRevision,profileId,discountBps:data.discountBps,addressesAdded});
+  {invoiceNos,sourceRevision,profileId,discountBps:data.discountBps,
+   collaboratorBps:data.collaboratorBps,addressesAdded});
  return {ok:true,state:'ACTIVE',accountId:account.id,profileId,addressesAdded,
   revision:updated.rows[0].revision};
 }
@@ -450,13 +462,14 @@ export async function legacyCustomerImport(pool,owner,input){
     signed.revision,input.expectedAccountRevision);
   }
   const lead=await c.query('INSERT INTO satori_v2_customer_leads '+
-   '(full_name,email,phone,address,company_name,tax_code,note,requested_type,discount_bps) '+
-   'VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,revision',
+   '(full_name,email,phone,address,company_name,tax_code,note,requested_type,discount_bps,collaborator_bps) '+
+   'VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,revision',
    [data.fullName,data.email,data.phone,data.address,data.companyName,data.taxCode,
-    data.note,data.requestedType,data.discountBps]);
+    data.note,data.requestedType,data.discountBps,data.collaboratorBps]);
   // Private V2 audit holds all staged delivery points until customer verifies Gmail.
   await audit(c,owner.id,'LEGACY_CRM_STAGED',lead.rows[0].id,
-   {invoiceNos,sourceRevision:signed.revision,addresses,discountBps:data.discountBps});
+   {invoiceNos,sourceRevision:signed.revision,addresses,discountBps:data.discountBps,
+    collaboratorBps:data.collaboratorBps});
   return {ok:true,state:'WAITING_FOR_GMAIL',leadId:lead.rows[0].id,
    addressesStaged:addresses.length};
  });
@@ -483,7 +496,8 @@ export async function legacyCustomerActivateLead(pool,owner,input){
   const details=staged.rows[0].details;
   const data={fullName:lead.full_name,email:lead.email,phone:lead.phone,
    address:lead.address,companyName:lead.company_name,taxCode:lead.tax_code,
-   note:lead.note,requestedType:lead.requested_type,discountBps:lead.discount_bps};
+   note:lead.note,requestedType:lead.requested_type,discountBps:lead.discount_bps,
+   collaboratorBps:lead.collaborator_bps};
   check(Array.isArray(details.addresses),'LEGACY_STAGED_ADDRESSES_MISSING',409);
   const addresses=details.addresses.map(a=>validateAddress(a));
   // If owner corrected the staged contact, the primary destination follows those edits.
