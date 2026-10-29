@@ -93,7 +93,7 @@ object V2RegistrationAlerts {
  fun pendingCount(context:Context):Int =
   context.getSharedPreferences(PREF,Context.MODE_PRIVATE).getInt("pending_count",0)
 
- fun process(context:Context,feed:Feed):Int{
+ @Synchronized fun process(context:Context,feed:Feed):Int{
   val prefs=context.getSharedPreferences(PREF,Context.MODE_PRIVATE)
   val previous=prefs.getStringSet("seen_hashes",emptySet())?.toSet().orEmpty()
   val initialized=prefs.getBoolean("initialized",false)
