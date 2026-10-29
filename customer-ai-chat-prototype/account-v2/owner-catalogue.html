@@ -1040,8 +1040,9 @@ async function loadLedgerMonthCustomers(){
   if(serial!==ledgerPreviewEpoch)return;
   if(!Array.isArray(result.customers)||result.source!=='canonical-signed-ledger')throw Error('LEDGER_SOURCE_INVALID');
   customerRecord.ledgerCustomers=result.customers;customerRecord.ledgerLoaded=true;
-  byId('crmLedgerCount').textContent='('+result.customers.length+')';
-  byId('crmLedgerPreviewStatus').textContent=result.customers.length+' khách / '+result.scanned+' hóa đơn'+
+  const uniqueNames=crmNameGroups(result.customers).length;
+  byId('crmLedgerCount').textContent='('+uniqueNames+')';
+  byId('crmLedgerPreviewStatus').textContent=uniqueNames+' nhóm khách / '+result.scanned+' hóa đơn'+
    (result.truncated?' · Dữ liệu có giới hạn, tìm theo tên/SĐT để xem thêm':'');
  }catch(e){
   if(serial!==ledgerPreviewEpoch)return;
