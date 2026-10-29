@@ -24,7 +24,7 @@ import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
- adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead,
+ adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
  legacyCustomerActivateLead,adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
 
@@ -519,6 +519,9 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/admin/customers'&&req.method==='PATCH'){
    owner(actor);send(res,200,await adminChangeCustomerStatus(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/customer-role'&&req.method==='PATCH'){
+   owner(actor);send(res,200,await adminAssignCustomerRole(pool,actor,await json(req)));return true;
   }
   if(pathname==='/api/v2/admin/customers/details'&&req.method==='PATCH'){
    owner(actor);send(res,200,await adminEditRegisteredCustomer(pool,actor,await json(req)));return true;
