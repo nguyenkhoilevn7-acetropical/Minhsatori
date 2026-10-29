@@ -369,8 +369,9 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         root.addView(bar, LinearLayout.LayoutParams(-1, -2).apply {
             bottomMargin = dp(8)
         })
-        // Fast section links mirror the native app's compact icon row.
-        // The owner CRM is one screen; no new tab, database or browser app.
+        // One native tab bar only. The embedded owner web tabs are hidden
+        // by the pinned-origin theme; switching tabs must change web sections,
+        // not just scroll to sections still marked hidden.
         val navigation = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             isFillViewport = true
@@ -379,56 +380,63 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         val quickLinks = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), 0, dp(12), dp(6))
+            setPadding(dp(12), dp(2), dp(12), dp(8))
         }
-        fun quickLink(title: String, drawable: Int, destination: String) {
+        val navChips = arrayListOf<LinearLayout>()
+        fun selectNativeTab(index: Int) {
+            navChips.forEachIndexed { position, view ->
+                val selected = position == index
+                view.background = pill(if (selected) Color.rgb(0, 156, 153) else Color.WHITE, 13)
+                for (childIndex in 0 until view.childCount) {
+                    val child = view.getChildAt(childIndex)
+                    if (child is TextView) child.setTextColor(
+                        if (selected) Color.WHITE else Color.rgb(16, 43, 56))
+                    if (child is android.widget.ImageView) child.setColorFilter(
+                        if (selected) Color.WHITE else Color.rgb(0, 156, 153))
+                }
+                view.isSelected = selected
+            }
+        }
+        fun quickLink(title: String, drawable: Int, tab: String, index: Int) {
             val chip = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(12), dp(9), dp(12), dp(9))
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(10), dp(8), dp(10))
                 background = pill(Color.WHITE, 13)
-                minimumHeight = dp(42)
+                minimumHeight = dp(46)
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Mở mục " + title
                 setOnClickListener {
                     if (ready) {
-                        // Static selectors only; navigation never changes origin.
-                        val script = when (destination) {
-                            "crm" -> "document.getElementById('crmConsole')"
-                            "old" -> "document.getElementById('legacyConsole')"
-                            else -> "document.getElementById('console')"
-                        }
-                        web.evaluateJavascript(
-                            "(function(){var x=" + script +
-                                ";if(x){x.scrollIntoView({behavior:'smooth',block:'start'});}})()",
-                            null
-                        )
+                        val script = "(function(){if(typeof activateOwnerTab==='function'){" +
+                            "activateOwnerTab(" + org.json.JSONObject.quote(tab) + ");" +
+                            "window.scrollTo(0,0);}})()"
+                        web.evaluateJavascript(script, null)
+                        selectNativeTab(index)
                     }
                 }
             }
-            val symbol = android.widget.ImageView(this).apply {
+            chip.addView(android.widget.ImageView(this).apply {
                 setImageResource(drawable)
                 setColorFilter(Color.rgb(0, 156, 153))
-                setPadding(0, 0, 0, 0)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }
-            chip.addView(symbol, LinearLayout.LayoutParams(dp(19), dp(19)).apply {
-                marginEnd = dp(8)
-            })
+            }, LinearLayout.LayoutParams(dp(20), dp(20)).apply { marginEnd = dp(7) })
             chip.addView(TextView(this).apply {
                 text = title
                 textSize = 13f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(Color.rgb(16, 43, 56))
             })
-            quickLinks.addView(chip, LinearLayout.LayoutParams(-2, -2).apply {
-                marginEnd = dp(8)
+            navChips.add(chip)
+            quickLinks.addView(chip, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (index > 0) marginStart = dp(7)
             })
         }
-        quickLink("Khách hàng", R.drawable.ic_satori_users, "crm")
-        quickLink("Khách cũ", R.drawable.ic_satori_map_pin, "old")
-        quickLink("Danh mục", R.drawable.ic_satori_invoice, "catalog")
+        quickLink("Khách mới", R.drawable.ic_satori_users, "new", 0)
+        quickLink("Khách cũ", R.drawable.ic_satori_map_pin, "old", 1)
+        quickLink("Danh mục", R.drawable.ic_satori_invoice, "catalogue", 2)
+        selectNativeTab(0)
         navigation.addView(quickLinks)
         root.addView(navigation, LinearLayout.LayoutParams(-1, -2))
 
@@ -592,7 +600,15 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             main { display:flex!important;flex-direction:column;gap:0;
                 max-width:990px!important;width:100%!important;
                 padding:0 12px max(30px,env(safe-area-inset-bottom))!important;margin:0 auto!important; }
-            main>header { display:none!important; }
+            main>header, #ownerTabs { display:none!important; }
+            /* Native owns the only navigation row on Android. */
+            .crm-panel-head { gap:12px!important; }
+            .crm-customer-card { padding:0!important;min-height:0!important;overflow:hidden; }
+            .crm-customer-card>summary.crm-card-summary { padding:14px!important; }
+            .crm-customer-card .crm-card-expanded { padding:15px!important; }
+            .crm-role-editor { border:0!important;background:transparent!important; }
+            .crm-role-editor>form { padding:0!important; }
+            .crm-ctv-clients { background:#eaf8f6!important; }
             main>section[aria-label="Quyền truy cập"] { order:0; background:#e2f6f3!important;
                 border-color:#ccebe4!important; }
             #crmConsole { order:1; }
@@ -612,11 +628,11 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                 padding:12px!important;border-radius:13px!important;}
             .metric small {font-size:12px!important;}
             .metric strong {font-size:21px!important;color:#102b38!important;}
-            .crm-entry {background:#fff!important;border:1px solid #e1e9e9!important;
+            .crm-entry:not(.crm-customer-card) {background:#fff!important;border:1px solid #e1e9e9!important;
                 border-radius:14px!important;margin:8px 0!important;
                 padding:14px!important;box-shadow:none!important;}
-            .crm-entry strong {color:#102b38!important;font-size:15px!important;}
-            .crm-entry p,.crm-entry small {font-size:13px!important;line-height:1.5!important;
+            .crm-entry:not(.crm-customer-card) strong {color:#102b38!important;font-size:15px!important;}
+            .crm-entry:not(.crm-customer-card) p,.crm-entry:not(.crm-customer-card) small {font-size:13px!important;line-height:1.5!important;
                 color:#667982!important;}
             .crm-tag,.badge {background:#e2f6f3!important;color:#086b69!important;
                 border-radius:9px!important;font-weight:700!important;}
@@ -654,7 +670,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             #crmStatus[data-kind="success"],#legacyStatus[data-kind="success"] {color:#0f8165!important;}
             #notice[data-kind="error"] {background:#fff1f3!important;color:#b11c35!important;}
             #notice[data-kind="success"] {background:#e2f6f3!important;color:#0f8165!important;}
-            details>summary {padding:8px 0!important;color:#086b69!important;
+            details:not(.crm-customer-card)>summary {padding:8px 0!important;color:#086b69!important;
                 font-weight:650!important;}
             .field-grid {gap:12px!important;}
             @media(max-width:560px) {
