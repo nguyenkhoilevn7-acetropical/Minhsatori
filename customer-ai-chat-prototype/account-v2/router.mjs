@@ -252,7 +252,7 @@ async function ctvBase(c,actor,id){
  error(x&&Number.isSafeInteger(x.collaborator_bps)&&x.collaborator_bps>=x.discount_bps,'CTV_BASE_POLICY_NOT_APPROVED',409);
  return x;
 }
-async function ctvClientList(pool,actor,id){
+export async function ctvClientList(pool,actor,id){
  const p=await profileFor(pool,actor,id);
  error(p.type==='collaborator','CTV_PROFILE_FORBIDDEN',403);
  const base=await pool.query("SELECT discount_bps,collaborator_bps FROM satori_v2_policies WHERE profile_id=$1 AND address_id IS NULL AND product_code IS NULL AND enabled=true ORDER BY version DESC LIMIT 1",[id]);
@@ -261,7 +261,7 @@ async function ctvClientList(pool,actor,id){
  const r=await pool.query('SELECT a.id,a.label,a.recipient_name AS "recipientName",a.recipient_phone AS "recipientPhone",a.address,a.active,p.discount_bps AS "discountBps",p.version AS "policyVersion",p.approved_by AS "approvedBy" FROM satori_v2_addresses a LEFT JOIN LATERAL (SELECT discount_bps,version,approved_by FROM satori_v2_policies WHERE profile_id=$1 AND address_id=a.id AND product_code IS NULL AND enabled=true ORDER BY version DESC LIMIT 1) p ON true WHERE a.profile_id=$1 ORDER BY a.created_at DESC',[id]);
  return {ok:true,profileId:id,collaboratorBps:x.collaborator_bps,defaultCustomerBps:x.discount_bps,clients:r.rows.map(({approvedBy,...row})=>({...row,discountBps:row.discountBps??x.discount_bps,policyVersion:row.policyVersion??0,ownerLocked:approvedBy!=null&&approvedBy!==actor.google_sub}))};
 }
-async function ctvClientWrite(pool,actor,input,create){
+export async function ctvClientWrite(pool,actor,input,create){
  error(isUuid(input?.profileId),'CTV_PROFILE_REQUIRED');
  if(!create)error(isUuid(input.addressId)&&Number.isSafeInteger(input.expectedPolicyVersion)&&input.expectedPolicyVersion>=0,'CTV_CLIENT_REVISION_REQUIRED',409);
  const address=create?validateAddress(input):null;
