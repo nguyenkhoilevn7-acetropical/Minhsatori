@@ -7,7 +7,8 @@ import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatu
  adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer,
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
  legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
- adminReconcileVerifiedLegacyPending,ownerBindLegacyInvoices,linkedLegacyInvoiceHistory} from '../customer-backend.mjs';
+ adminReconcileVerifiedLegacyPending,ownerActivateSavedGmail,
+ ownerBindLegacyInvoices,linkedLegacyInvoiceHistory} from '../customer-backend.mjs';
 
 const url=process.env.SATORI_V2_CI_DATABASE_URL||'';
 assert.ok(url.includes('127.0.0.1')&&url.endsWith('/satori_v2_ci'),
@@ -117,6 +118,45 @@ try{
  await assert.rejects(()=>adminPatchLead(pool,owner.id,{
   leadId:extra.lead.id,expectedRevision:extra.lead.revision,active:false,confirmed:true}),
   /LEAD_REVISION_CONFLICT/);
+
+ // Exact owner-saved CRM lead → verified Google account requires NO staged invoice.
+ const linkedLead=await adminCreateLead(pool,owner.id,{
+  fullName:'Unstaged CTV Fake',phone:'0900000631',
+  address:'12 Saved Address Fake',email:'saved-ctv@example.invalid',
+  requestedType:'collaborator',discountBps:2000,collaboratorBps:3500,confirmed:true
+ });
+ const savedSub='ci-saved-ctv-'+randomUUID();
+ const savedAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,'saved-ctv@example.invalid','PENDING') RETURNING id,revision",
+  [savedSub]);
+ const savedResult=await ownerActivateSavedGmail(pool,owner,{
+  accountId:savedAccount.id,leadId:linkedLead.lead.id,
+  expectedAccountRevision:savedAccount.revision,expectedLeadRevision:linkedLead.lead.revision,
+  confirmed:true,identityConfirmed:true
+ });
+ assert.equal(savedResult.state,'ACTIVE');
+ const savedRole=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[savedResult.profileId]);
+ assert.equal(savedRole.type,'collaborator');
+ const savedPolicy=await one('SELECT discount_bps,collaborator_bps FROM satori_v2_policies '+
+  'WHERE profile_id=$1 AND enabled=true',[savedResult.profileId]);
+ assert.equal(savedPolicy.discount_bps,2000);
+ assert.equal(savedPolicy.collaborator_bps,3500);
+ const linkedLeadRow=await one('SELECT linked_account_id FROM satori_v2_customer_leads WHERE id=$1',
+  [linkedLead.lead.id]);assert.equal(linkedLeadRow.linked_account_id,savedAccount.id);
+ await assert.rejects(()=>ownerActivateSavedGmail(pool,owner,{
+  accountId:savedAccount.id,leadId:linkedLead.lead.id,
+  expectedAccountRevision:savedAccount.revision,expectedLeadRevision:linkedLead.lead.revision,
+  confirmed:true,identityConfirmed:true
+ }),/LEAD_REVISION_CONFLICT|CUSTOMER_NOT_PENDING/);
+ const wrongAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,'different-fake@example.invalid','PENDING') RETURNING id,revision",
+  ['ci-wrong-saved-'+randomUUID()]);
+ await assert.rejects(()=>ownerActivateSavedGmail(pool,owner,{
+  accountId:wrongAccount.id,leadId:linkedLead.lead.id,
+  expectedAccountRevision:wrongAccount.revision,expectedLeadRevision:linkedLead.lead.revision+1,
+  confirmed:true,identityConfirmed:true
+ }),/LEAD_LINKED_TO_ANOTHER_ACCOUNT/);
+
  // Synthetic signed legacy ledger: the fetch stub never contacts Apps Script.
  const prevFetch=globalThis.fetch;
  const prevVars=Object.fromEntries(['SATORI_READ_ENDPOINT','SATORI_READ_KEY_ID','SATORI_READ_HMAC_SECRET']
