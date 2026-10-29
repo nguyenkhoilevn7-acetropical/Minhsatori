@@ -792,6 +792,52 @@ export async function legacyCustomerActivateLead(pool,owner,input){
  * Never match a customer's ownership by name alone. Immutable audit entries
  * are V2 references; canonical invoice contents and payment status stay in V1.
  */
+
+/** One ACTIVE shipping point per normalized address on this exact V2 profile.
+ * Reuse a stable row ID when possible. Invoice history and V2 quotes stay intact.
+ * Latest signed source invoice determines the displayed phone/name/address.
+ */
+async function syncBoundLegacyAddresses(c,profileId,addresses){
+ const previous=await c.query('SELECT id,label,recipient_name,recipient_phone,address,active,created_at '+
+  'FROM satori_v2_addresses WHERE profile_id=$1 FOR UPDATE',[profileId]);
+ const byLocation=new Map();
+ for(const row of previous.rows){
+  const key=normalizedDeliveryAddress(row.address);
+  if(!key)continue;
+  if(!byLocation.has(key))byLocation.set(key,[]);
+  byLocation.get(key).push(row);
+ }
+ let created=0,updated=0,duplicatesDeactivated=0;
+ for(const a of addresses){
+  const key=normalizedDeliveryAddress(a.address);
+  if(!key)continue;
+  const matching=byLocation.get(key)||[];
+  matching.sort((x,y)=>Number(y.active)-Number(x.active)||
+   Date.parse(y.created_at)-Date.parse(x.created_at));
+  if(matching.length){
+   const canonical=matching[0];
+   await c.query('UPDATE satori_v2_addresses SET recipient_name=$2,recipient_phone=$3,'+
+    'address=$4,active=true,revision=revision+1,updated_at=now() WHERE id=$1',
+    [canonical.id,a.recipientName,a.recipientPhone,a.address]);
+   updated++;
+   for(const duplicate of matching.slice(1)){
+    if(!duplicate.active)continue;
+    await c.query('UPDATE satori_v2_addresses SET active=false,revision=revision+1,'+
+     'updated_at=now() WHERE id=$1',[duplicate.id]);
+    duplicatesDeactivated++;
+   }
+  }else{
+   const createdRow=await c.query('INSERT INTO satori_v2_addresses '+
+    '(profile_id,label,recipient_name,recipient_phone,address) '+
+    'VALUES($1,$2,$3,$4,$5) RETURNING id,created_at',
+    [profileId,a.label,a.recipientName,a.recipientPhone,a.address]);
+   byLocation.set(key,[{id:createdRow.rows[0].id,created_at:createdRow.rows[0].created_at,active:true}]);
+   created++;
+  }
+ }
+ return {created,updated,duplicatesDeactivated};
+}
+
 export async function ownerBindLegacyInvoices(pool,owner,input){
  check(input?.confirmed===true&&input?.identityConfirmed===true,'LEGACY_BIND_CONFIRMATION_REQUIRED',403);
  check(isUuid(input.accountId)&&isRev(input.expectedAccountRevision),'LEGACY_BIND_ACCOUNT_INVALID');
@@ -898,17 +944,9 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
    check(p.rowCount===1&&p.rows[0].discount_bps===data.discountBps&&
     (role!=='collaborator'||p.rows[0].collaborator_bps===data.collaboratorBps),
     'LEGACY_ACTIVE_POLICY_CONFLICT',409);
-   const existing=await c.query('SELECT recipient_phone,address FROM satori_v2_addresses WHERE profile_id=$1 FOR UPDATE',
-    [profileId]);
-   const seenAddress=new Set(existing.rows.map(x=>(x.recipient_phone+'|'+x.address).normalize('NFKC').toLowerCase()));
-   for(const a of addresses){
-    const key=(a.recipientPhone+'|'+a.address).normalize('NFKC').toLowerCase();
-    if(seenAddress.has(key))continue;
-    await c.query('INSERT INTO satori_v2_addresses(profile_id,label,recipient_name,recipient_phone,address) '+
-     'VALUES($1,$2,$3,$4,$5)',[profileId,a.label,a.recipientName,a.recipientPhone,a.address]);
-    seenAddress.add(key);
-   }
+   // The shared address sync below also handles existing ACTIVE accounts.
   }
+  const addressSync=await syncBoundLegacyAddresses(c,profileId,addresses);
   if(leads.rowCount===1&&!leads.rows[0].linked_account_id)
    await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,revision=revision+1 '+
     'WHERE id=$1',[leads.rows[0].id,target.id]);
@@ -927,7 +965,8 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
    newlyBound++;
   }
   return {ok:true,accountId:target.id,accessStatus:target.access_status==='PENDING'?'ACTIVE':'ACTIVE',
-   profileId,linkedInvoices:newlyBound,totalSelected:refs.length,sourceRevision:signed.revision};
+   profileId,linkedInvoices:newlyBound,totalSelected:refs.length,sourceRevision:signed.revision,
+   uniqueAddresses:addresses.length,addressSync};
  });
 }
 
@@ -965,7 +1004,9 @@ export async function linkedLegacyInvoiceHistory(pool,actor){
    }
   }catch{ /* never substitute unverified totals or broaden visibility */ }
  }
- return {ok:true,orders:[...resolved.values()].sort((a,b)=>b.invoiceNo-a.invoiceNo),
+ const orders=[...resolved.values()].sort((a,b)=>b.invoiceNo-a.invoiceNo);
+ const addresses=groupHistoricalAddresses(orders);
+ return {ok:true,orders,addresses,uniqueAddressCount:addresses.length,
   linkedCount:refs.size,unavailableCount:refs.size-resolved.size};
 }
 
