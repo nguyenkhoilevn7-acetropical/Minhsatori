@@ -1,25 +1,30 @@
 {
-  "purpose": "android-0.4.20-in-app-owner-google-crm-v2",
+  "purpose": "android-0.4.21-complete-v2-crm-owner-registration-alerts",
   "package": "vn.minhsatori.app",
-  "version": "0.4.20",
-  "versionCode": 37,
+  "version": "0.4.21",
+  "versionCode": 38,
   "branch": "release/android-v0.4.20-native-v2-crm-20261029",
   "requestedOn": "2026-10-29",
   "sourcePRs": [
     240,
-    241
+    241,
+    244,
+    251
   ],
-  "scope": "Integrate existing owner-only V2 CRM inside Minh Satori Android native Quản trị hệ thống: Google Play Services verified Admin owner, secure WebView session after server /me isAdmin, registration review then manual discount, signed legacy lookup/edit/multi-address/Gmail activation. Preserve native invoice/debt/payment/PDF/Drive workflows, package vn.minhsatori.app, signed in-place upgrade and all financial data.",
+  "scope": "Signed in-place Android native owner app update: unified V2 CRM with admin role/CTV pricing & Gemini customer account frontend served from live Render; add native owner-only new signup bell, badge, audible notifications, 25-second foreground polling and scheduled 15-minute best-effort background checks. Preserve invoices, accounting, payments, PDF, Google Drive, same package and signing identity.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
     "Only bridge server-issued HttpOnly+CSRF cookies to a pinned same-origin in-app owner WebView after GET /api/v2/me confirms isAdmin. Do not expose ID token or HMAC secret to JavaScript, logs or preferences.",
     "Use the existing pinned release signer and verify certificate SHA-256. NEVER distribute unsigned or debug APK as an update.",
-    "Version 0.4.20 code 37 is an in-place upgrade over 0.4.19 code 36. Do not uninstall the app or clear its existing invoice data.",
+    "Version 0.4.21 code 38 is an in-place upgrade over 0.4.20 code 37. Do not uninstall the app or clear its existing invoice data.",
     "Maintain all existing production invoice, payment, PDF, CTV and reconciliation logic; no changes to Apps Script or database schema.",
     "Run CI unit tests and compile signed APK, then test sign-in and owner operations with live Samsung/Z Fold before declaring device rollout accepted.",
     "No Google tokens, real passwords, or customer records in test logs/artifacts; no live invoice creation as part of acceptance.",
     "2026-10-29: Android unit tests and debug APK compiled PASS in PR #240. Trigger signed v0.4.20 release on pinned official certificate; physical Samsung owner OAuth/device acceptance remains separate.",
-    "2026-10-29: PR #241 harmonized owner CRM with production native app palette (#009C99 teal, #102B38 ink, #F1F4F5 background), full-width phone/Fold responsive cards, vector icon navigation, readable 47px fields. Android source tests and debug APK compile PASS. Request renewed pinned certificate signed release; supersedes earlier unthemed 0.4.20 artifact."
+    "2026-10-29: PR #241 harmonized owner CRM with production native app palette (#009C99 teal, #102B38 ink, #F1F4F5 background), full-width phone/Fold responsive cards, vector icon navigation, readable 47px fields. Android source tests and debug APK compile PASS. Request renewed pinned certificate signed release; supersedes earlier unthemed 0.4.20 artifact.",
+    "2026-10-29: owner approved completing all tasks then exporting signed APK. PR #251 integrated native signup alert workflow into existing 0.4.20 CRM release. Backend Render owner CRM + Gemini V2 commit aa578fd is LIVE; UI remains server-hosted and refreshes in secure in-app WebView.",
+    "Notification delivery is 25-second polling while signed in foreground, best-effort periodic OS scheduling in background; not instant FCM push while app is terminated. Validate with signed APK on Samsung/Z Fold and Google owner login before full device acceptance.",
+    "Bump Android identity to 0.4.21 versionCode 38. This commit triggers manual-gated signed release workflow and validates the pinned certificate; never distribute an unsigned/debug APK."
   ]
 }
