@@ -37,6 +37,7 @@
     "2026-10-29: User approved the two specific screenshot previews and required deleting duplicate tabs. PR #252 Android CI unit/build/emulator PASS; PR #253 V2 synthetic PostgreSQL + domain + Gemini/agency/CTV security PASS. Render V2 manual deploy requested with autoDeploy disabled.",
     "Version 0.4.22 code 39 supersedes 0.4.21 code 38; only distribute the signed release artifact with pinned certificate. Visual acceptance on a physical Samsung Z Fold still required.",
     "29/10/2026: owner screenshot #9102 compared against approved #9091. PR #256 web LIVE; PR #257 native typography and tab restoration. Native 0.4.23 is necessary because old signed APK v0.4.22 injects large !important CSS. New APK requires pinned certificate signature and same package, CI PASS before distribution.",
-    "2026-10-29: approved screenshot #9091 requires inline roles, Lưu/Tạm dừng/Xóa quyền horizontally, percent and Lưu CK aligned. Duplicate name groups are view-only with individually selectable original phone/addresses; no ledger merge. Release must be signed with original pinned certificate."
+    "2026-10-29: approved screenshot #9091 requires inline roles, Lưu/Tạm dừng/Xóa quyền horizontally, percent and Lưu CK aligned. Duplicate name groups are view-only with individually selectable original phone/addresses; no ledger merge. Release must be signed with original pinned certificate.",
+    "2026-10-29: Owner requested signed APK v0.4.24 build 41 now. Trigger the protected release-signing workflow for merged PRs #259-#261; require exact package/version, pinned certificate SHA-256 and release-verification.json before distribution. Debug APK is not a valid substitute."
   ]
 }
