@@ -165,7 +165,7 @@ test('old customer invoice actions are one nested source, never two peer import 
  const advanced=owner.indexOf('<details id="legacyLedgerDisclosure"',start);
  const panelClose=owner.indexOf('</section>',start);
  assert.ok(start>=0&&advanced>start&&advanced<panelClose);
- assert.match(owner.slice(start,panelClose),/Nâng cao · tìm hóa đơn để tạo hồ sơ chưa liên kết/);
+ assert.match(owner.slice(start,panelClose),/Nâng cao · đối chiếu và lập hồ sơ chưa liên kết/);
  assert.equal((owner.match(/id="legacySearchForm"/g)||[]).length,1);
  assert.equal((owner.match(/id="legacyLedgerDisclosure"/g)||[]).length,1);
  assert.equal((owner.match(/id="crmLedgerDiscovery"/g)||[]).length,1);
@@ -177,7 +177,7 @@ test('partner cards have one saved-recipient CK editor plus only new invoice can
  const cards=ownerScript.slice(ownerScript.indexOf('async function renderOwnerCtvClientCards('),
   ownerScript.indexOf('/* Role and tiered pricing editor:'));
  assert.match(view,/const fixedAccount=!!presetAccount&&accounts\.some/);
- assert.match(view,/accountRow\.hidden=fixedAccount/);
+ assert.match(view,/accountRow\.hidden=true;accountSelect\.disabled=true/);
  assert.match(view,/if\(fixedAccount&&saved\.length\)\{alreadySaved\+\+;continue\}/);
  assert.match(view,/finally\{accountSelect\.disabled=fixedAccount\}/);
  assert.match(cards,/crmUniqueSavedAddressGroups\(a\.addresses\)/);
@@ -185,4 +185,40 @@ test('partner cards have one saved-recipient CK editor plus only new invoice can
  assert.match(cards,/Địa chỉ mới từ hóa đơn · kiểm tra & thêm/);
  assert.doesNotMatch(view,/\/api\/v2\/admin\/legacy\/import/);
  assert.doesNotThrow(()=>new vm.Script(ownerScript));
+});
+
+test('unapproved CTV/agency rates do not hide previously saved delivery addresses',()=>{
+ const cards=ownerScript.slice(ownerScript.indexOf('async function renderOwnerCtvClientCards('),
+  ownerScript.indexOf('/* Role and tiered pricing editor:'));
+ assert.match(cards,/const hasApprovedCap=Number\.isSafeInteger\(cap\)/);
+ const gate=cards.indexOf('if(!hasApprovedCap){');
+ const addressList=cards.indexOf('const addressGroups=crmUniqueSavedAddressGroups(a.addresses);');
+ assert.ok(gate>=0&&addressList>gate,'saved addresses must render after missing-CK notice');
+ assert.doesNotMatch(cards.slice(gate,addressList),/\breturn\s*;/,
+  'missing CK must not return before showing addresses');
+ assert.match(cards,/const bps=personal\?\.discountBps\?\?main\?\.discountBps/);
+ assert.match(cards,/input\.disabled=!row\.active\|\|!hasApprovedCap/);
+ assert.match(cards,/save\.disabled=!row\.active\|\|!hasApprovedCap/);
+ assert.match(cards,/if\(!hasApprovedCap\)return crmStatus/);
+ assert.doesNotThrow(()=>new vm.Script(ownerScript));
+});
+
+test('global invoice recipient directory cannot edit account CK or switch partner identity',()=>{
+ const view=ownerScript.slice(ownerScript.indexOf('async function renderLegacyRecipientDirectory('),
+  ownerScript.indexOf('\nfunction drawLedgerPreview(){'));
+ assert.match(view,/if\(presetAccount&&!fixedAccount\)throw Error\('PARTNER_ACCOUNT_NOT_ACTIVE'\)/);
+ assert.match(view,/accountRow\.hidden=true;accountSelect\.disabled=true/);
+ assert.match(view,/if\(!fixedAccount\)\{[\s\S]*?Chỉ đối chiếu, không sửa CK[\s\S]*?continue;/);
+ assert.match(view,/if\(!fixedAccount\|\|!profile\|\|!Number\.isSafeInteger\(cap\)\)return/);
+ assert.match(view,/if\(!fixedAccount\)\{[\s\S]*?status\.textContent='Đối chiếu hóa đơn: chỉ đọc/);
+ assert.match(ownerScript,/Đối chiếu người nhận từ hóa đơn \(chỉ đọc\)/);
+});
+
+test('advanced legacy importer refuses to overwrite registered partners by email or phone',()=>{
+ const importer=ownerScript.slice(ownerScript.indexOf('async function submitLegacyImport('),
+  ownerScript.indexOf('/* Account-scoped profile and delivery editors reuse'));
+ assert.match(importer,/const submittedPhone=digits\(byId\('legacyPhone'\)\.value\)/);
+ assert.match(importer,/const matching=customerRecord\.registered\.filter/);
+ assert.match(importer,/if\(matching\.length\)return legacyNotice/);
+ assert.match(importer,/Khách đã có tài khoản: mở đúng hồ sơ/);
 });
