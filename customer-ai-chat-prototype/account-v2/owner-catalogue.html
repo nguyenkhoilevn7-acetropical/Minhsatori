@@ -1199,61 +1199,66 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
      if(!recipient.input.value.trim()||!/^\+?[0-9]{9,15}$/.test(number))
       return crmStatus('Cần xác minh tên và SĐT người nhận trước khi lưu.','error');
      const account=accounts.find(a=>a.id===accountSelect.value);
-     if(!account||!confirm('Gắn địa chỉ “'+entry.address+'” vào CTV '+(account.fullName||account.email)+
+     const selectedProfile=profile,selectedCap=cap;
+     if(!account||!selectedProfile||!confirm('Gắn địa chỉ “'+entry.address+'” vào CTV '+(account.fullName||account.email)+
       ' và áp dụng CK '+n+'% cho địa chỉ này? Hóa đơn gốc không thay đổi.'))return;
-     save.disabled=true;
+     save.disabled=true;accountSelect.disabled=true;
      try{
       // Read again immediately before create, to avoid duplicate on repeated clicks.
-      const fresh=await api('/api/v2/admin/addresses?profileId='+encodeURIComponent(profile.id));
+      const fresh=await api('/api/v2/admin/addresses?profileId='+encodeURIComponent(selectedProfile.id));
       const candidates=fresh.addresses.filter(a=>crmRecipientAddressKey(a.address)===entry.key);
       if(candidates.length>1)throw Error('ADDRESS_HAS_MULTIPLE_SAVED_RECIPIENTS');
       let target=candidates[0]||null;
       if(target&&String(target.recipientPhone||'').replace(/[ ().-]/g,'')!==number)
        throw Error('ADDRESS_SAVED_WITH_DIFFERENT_PHONE');
       if(!target){
-       const added=await api('/api/v2/admin/addresses','POST',{profileId:profile.id,
+       const added=await api('/api/v2/admin/addresses','POST',{profileId:selectedProfile.id,
         label:'Từ hóa đơn · '+entry.invoiceNos[0],
         recipientName:recipient.input.value.trim(),recipientPhone:number,address:entry.address});
        target={id:added.id};
       }
-      await api('/api/v2/admin/policies','POST',{confirmed:true,profileId:profile.id,
+      await api('/api/v2/admin/policies','POST',{confirmed:true,profileId:selectedProfile.id,
        addressId:target.id,productCode:null,invoiceMode:'single',
-       discountBps:bps,collaboratorBps:cap});
+       discountBps:bps,collaboratorBps:selectedCap});
       crmStatus('Đã lưu CK '+n+'% cho một địa chỉ duy nhất; hóa đơn giữ nguyên.','success');
       const [a,p]=await Promise.all([
-       api('/api/v2/admin/addresses?profileId='+encodeURIComponent(profile.id)),
-       api('/api/v2/admin/policies?profileId='+encodeURIComponent(profile.id))
+       api('/api/v2/admin/addresses?profileId='+encodeURIComponent(selectedProfile.id)),
+       api('/api/v2/admin/policies?profileId='+encodeURIComponent(selectedProfile.id))
       ]);
       if(accountSelect.value===account.id){addresses=a.addresses;policies=p.policies;draw()}
      }catch(error){crmStatus('Không hoàn tất lưu khách/CK: '+error.message+
       '. Nếu địa chỉ đã được tạo, chọn lại CTV để tải lại trước khi thử.','error');save.disabled=false}
+     finally{accountSelect.disabled=false}
     };
     card.append(form);rows.append(card);
    }
    if(!entries.length)rows.append(make('p','Không thấy địa chỉ theo đúng tên này trong kết quả hóa đơn.','crm-recipient-notice'));
   };
+  let loadGeneration=0;
   const load=async()=>{
+   const requestId=++loadGeneration;
    profile=null;cap=null;main=null;addresses=[];policies=[];rows.replaceChildren();
    const account=accounts.find(a=>a.id===accountSelect.value);
    if(!account){status.textContent='Chọn CTV xác thực để chỉnh chiết khấu; chưa thay đổi dữ liệu.';draw();return}
    status.textContent='Đang tải hồ sơ và CK của '+(account.fullName||account.name)+'…';
    try{
     const data=await api('/api/v2/admin/profiles?accountId='+encodeURIComponent(account.id));
-    profile=data.profiles?.find(p=>p.type==='collaborator')||null;
-    if(!profile)throw Error('CTV_PROFILE_NOT_FOUND');
+    if(requestId!==loadGeneration||accountSelect.value!==account.id)return;
+    const chosenProfile=data.profiles?.find(p=>p.type==='collaborator')||null;
+    if(!chosenProfile)throw Error('CTV_PROFILE_NOT_FOUND');
     const [a,p]=await Promise.all([
-     api('/api/v2/admin/addresses?profileId='+encodeURIComponent(profile.id)),
-     api('/api/v2/admin/policies?profileId='+encodeURIComponent(profile.id))
+     api('/api/v2/admin/addresses?profileId='+encodeURIComponent(chosenProfile.id)),
+     api('/api/v2/admin/policies?profileId='+encodeURIComponent(chosenProfile.id))
     ]);
-    if(accountSelect.value!==account.id)return;
-    addresses=a.addresses;policies=p.policies;
+    if(requestId!==loadGeneration||accountSelect.value!==account.id)return;
+    profile=chosenProfile;addresses=a.addresses;policies=p.policies;
     main=latest(policies.filter(x=>x.enabled&&!x.productCode&&!x.addressId));
     cap=main?.collaboratorBps;
     status.textContent=Number.isSafeInteger(cap)?
      'CTV '+(account.fullName||account.name)+' · CK CTV '+cap/100+'% · mỗi địa chỉ chỉ xuất hiện một lần.':
      'CTV chưa có mức CK được duyệt. Không thể lưu CK người nhận.';
-   }catch(error){status.textContent='Không tải được hồ sơ CTV: '+error.message}
-   draw();
+   }catch(error){if(requestId!==loadGeneration)return;status.textContent='Không tải được hồ sơ CTV: '+error.message}
+   if(requestId===loadGeneration)draw();
   };
   accountSelect.addEventListener('change',()=>void load());await load();
  }catch(error){if(host.isConnected)host.replaceChildren(make('p','Không tải được địa chỉ hóa đơn: '+error.message,'crm-recipient-notice'))}
