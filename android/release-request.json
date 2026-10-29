@@ -1,8 +1,8 @@
 {
-  "purpose": "android-0.4.23-approved-owner-crm-layout",
+  "purpose": "android-0.4.24-owner-crm-horizontal-grouped",
   "package": "vn.minhsatori.app",
-  "version": "0.4.23",
-  "versionCode": 40,
+  "version": "0.4.24",
+  "versionCode": 41,
   "branch": "release/android-v0.4.20-native-v2-crm-20261029",
   "requestedOn": "2026-10-29",
   "sourcePRs": [
@@ -14,9 +14,11 @@
     253,
     255,
     256,
-    257
+    257,
+    259,
+    260
   ],
-  "scope": "Signed Android 0.4.23: compact owner header/tabs, responsive CRM customer cards, selected tab restoration, dual CTV and customer rates, verified client details. Works with LIVE V2 owner website PR #256. No historical invoice or payment writer change.",
+  "scope": "Android 0.4.24 signed update: phone/Fold owner old-customer horizontal role chips and lifecycle footer, aligned percent and CTV client save. Uses /owner-v2 PR #259 for selectable same-name original records; never merges customer identity, invoices or pricing.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -34,6 +36,7 @@
     "2026-10-29: Updated two legacy unit test assertions to 0.4.21 after the first signed workflow exposed stale hard-coded 0.4.20 expectations; re-run complete signed release gate on updated source.",
     "2026-10-29: User approved the two specific screenshot previews and required deleting duplicate tabs. PR #252 Android CI unit/build/emulator PASS; PR #253 V2 synthetic PostgreSQL + domain + Gemini/agency/CTV security PASS. Render V2 manual deploy requested with autoDeploy disabled.",
     "Version 0.4.22 code 39 supersedes 0.4.21 code 38; only distribute the signed release artifact with pinned certificate. Visual acceptance on a physical Samsung Z Fold still required.",
-    "29/10/2026: owner screenshot #9102 compared against approved #9091. PR #256 web LIVE; PR #257 native typography and tab restoration. Native 0.4.23 is necessary because old signed APK v0.4.22 injects large !important CSS. New APK requires pinned certificate signature and same package, CI PASS before distribution."
+    "29/10/2026: owner screenshot #9102 compared against approved #9091. PR #256 web LIVE; PR #257 native typography and tab restoration. Native 0.4.23 is necessary because old signed APK v0.4.22 injects large !important CSS. New APK requires pinned certificate signature and same package, CI PASS before distribution.",
+    "2026-10-29: approved screenshot #9091 requires inline roles, Lưu/Tạm dừng/Xóa quyền horizontally, percent and Lưu CK aligned. Duplicate name groups are view-only with individually selectable original phone/addresses; no ledger merge. Release must be signed with original pinned certificate."
   ]
 }
