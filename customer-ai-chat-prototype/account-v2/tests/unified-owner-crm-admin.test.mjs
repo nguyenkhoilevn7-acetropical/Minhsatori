@@ -10,7 +10,9 @@ test('one owner-only backoffice shows catalogue, verified registrations and old 
  assert.match(html,/id="console"/);
  assert.match(html,/id="crmConsole" hidden/);
  assert.match(html,/if\(!me\?\.account\?\.isAdmin\)throw Error\('ADMIN_REQUIRED'\)/);
- assert.match(html,/byId\('crmConsole'\)\.hidden=false/);
+ assert.match(html,/byId\('ownerTabs'\)\.hidden=false/);
+ assert.match(html,/activateOwnerTab\('new'\)/);
+ assert.match(html,/selectedCustomerStage=null/);
  assert.match(html,/data\.registered/);
  assert.match(html,/data\.leads/);
  assert.match(html,/\/api\/v2\/admin\/customers/);
