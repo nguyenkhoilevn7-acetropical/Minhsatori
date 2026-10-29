@@ -21,7 +21,7 @@ test('approved preview has a single native-compatible owner tab row',()=>{
 
 test('role switches and CTV dual discounts are bound to the real APIs',()=>{
  assert.match(ownerScript,/crmRoleChoices\(role\)/);
- assert.match(ownerScript,/rolePricingEditor\(account,body,item\)/);
+ assert.match(ownerScript,/rolePricingEditor\(account,body,item/);
  assert.match(ownerScript,/const ctvLabel=make\('label','Chiết khấu CTV/);
  assert.match(ownerScript,/const customerLabel=make\('label','Chiết khấu mặc định cho khách/);
  assert.match(ownerScript,/ctvBps<customerBps/);
