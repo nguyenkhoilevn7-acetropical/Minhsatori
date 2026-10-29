@@ -329,7 +329,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         // The owner CRM is one screen; no new tab, database or browser app.
         val navigation = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
-            fillViewport = true
+            isFillViewport = true
             setBackgroundColor(Color.rgb(241, 244, 245))
         }
         val quickLinks = LinearLayout(this).apply {
