@@ -58,6 +58,8 @@ try{
  if(expected.some(x=>!found.has(x)))throw Error('V2_SCHEMA_READBACK_FAILED');
  const crmTables=['satori_v2_registrations','satori_v2_customer_leads'];
  if(crmTables.some(x=>!found.has(x)))throw Error('V2_CRM_READBACK_FAILED');
+ const ctvColumn=await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='satori_v2_customer_leads' AND column_name='collaborator_bps'");
+ if(ctvColumn.rowCount!==1)throw Error('V2_CTV_LEAD_RATE_MIGRATION_FAILED');
  const stateColumns=await client.query(
   "SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() "+
   "AND table_name='satori_v2_accounts' AND column_name IN ('access_status','revision')");

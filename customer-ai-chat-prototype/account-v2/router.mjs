@@ -240,6 +240,58 @@ async function adminPolicy(pool,actor,input){
   return policy.rows[0];
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}finally{client.release()}
 }
+
+/* Owner's global CTV rate is the authorization ceiling for each client's
+   address-scoped pricing policy; all writes remain one-invoice and audited. */
+async function ctvBase(c,actor,id){
+ error(isUuid(id),'CTV_PROFILE_REQUIRED');
+ const p=await c.query('SELECT id,type FROM satori_v2_profiles WHERE id=$1 AND account_id=$2 FOR UPDATE',[id,actor.id]);
+ error(p.rowCount===1&&p.rows[0].type==='collaborator','CTV_PROFILE_FORBIDDEN',403);
+ const q=await c.query("SELECT discount_bps,collaborator_bps FROM satori_v2_policies WHERE profile_id=$1 AND address_id IS NULL AND product_code IS NULL AND enabled=true AND (valid_from IS NULL OR valid_from<=now()) AND (valid_until IS NULL OR valid_until>now()) ORDER BY version DESC LIMIT 1",[id]);
+ const x=q.rows[0];
+ error(x&&Number.isSafeInteger(x.collaborator_bps)&&x.collaborator_bps>=x.discount_bps,'CTV_BASE_POLICY_NOT_APPROVED',409);
+ return x;
+}
+export async function ctvClientList(pool,actor,id){
+ const p=await profileFor(pool,actor,id);
+ error(p.type==='collaborator','CTV_PROFILE_FORBIDDEN',403);
+ const base=await pool.query("SELECT discount_bps,collaborator_bps FROM satori_v2_policies WHERE profile_id=$1 AND address_id IS NULL AND product_code IS NULL AND enabled=true ORDER BY version DESC LIMIT 1",[id]);
+ const x=base.rows[0];
+ error(x&&Number.isSafeInteger(x.collaborator_bps),'CTV_BASE_POLICY_NOT_APPROVED',409);
+ const r=await pool.query('SELECT a.id,a.label,a.recipient_name AS "recipientName",a.recipient_phone AS "recipientPhone",a.address,a.active,p.discount_bps AS "discountBps",p.version AS "policyVersion",p.approved_by AS "approvedBy" FROM satori_v2_addresses a LEFT JOIN LATERAL (SELECT discount_bps,version,approved_by FROM satori_v2_policies WHERE profile_id=$1 AND address_id=a.id AND product_code IS NULL AND enabled=true ORDER BY version DESC LIMIT 1) p ON true WHERE a.profile_id=$1 ORDER BY a.created_at DESC',[id]);
+ return {ok:true,profileId:id,collaboratorBps:x.collaborator_bps,defaultCustomerBps:x.discount_bps,clients:r.rows.map(({approvedBy,...row})=>({...row,discountBps:row.discountBps??x.discount_bps,policyVersion:row.policyVersion??0,ownerLocked:approvedBy!=null&&approvedBy!==actor.google_sub}))};
+}
+export async function ctvClientWrite(pool,actor,input,create){
+ error(isUuid(input?.profileId),'CTV_PROFILE_REQUIRED');
+ if(!create)error(isUuid(input.addressId)&&Number.isSafeInteger(input.expectedPolicyVersion)&&input.expectedPolicyVersion>=0,'CTV_CLIENT_REVISION_REQUIRED',409);
+ const address=create?validateAddress(input):null;
+ const c=await pool.connect();
+ try{
+  await c.query('BEGIN');
+  const base=await ctvBase(c,actor,input.profileId);
+  error(input.confirmed===true,'CTV_CONFIRMATION_REQUIRED',403);
+  error(Number.isSafeInteger(input.discountBps)&&input.discountBps>=0&&input.discountBps<=base.collaborator_bps,'CTV_CUSTOMER_RATE_OUT_OF_RANGE',409);
+  let addressId=input.addressId;
+  if(create){
+   const a=await c.query('INSERT INTO satori_v2_addresses(profile_id,label,recipient_name,recipient_phone,address) VALUES($1,$2,$3,$4,$5) RETURNING id',[input.profileId,address.label,address.recipientName,address.recipientPhone,address.address]);
+   addressId=a.rows[0].id;
+  }else{
+   const a=await c.query('SELECT id FROM satori_v2_addresses WHERE id=$1 AND profile_id=$2 AND active=true FOR UPDATE',[addressId,input.profileId]);
+   error(a.rowCount===1,'CTV_CLIENT_NOT_FOUND',404);
+  }
+  const existing=await c.query('SELECT version,approved_by FROM satori_v2_policies WHERE profile_id=$1 AND address_id=$2 AND product_code IS NULL AND enabled=true ORDER BY version DESC LIMIT 1',[input.profileId,addressId]);
+  if(!create){
+   error((existing.rows[0]?.version??0)===input.expectedPolicyVersion,'CTV_CLIENT_REVISION_CONFLICT',409);
+   error(!existing.rowCount||existing.rows[0].approved_by===actor.google_sub,'CTV_OWNER_POLICY_LOCKED',403);
+  }
+  const versions=await c.query('SELECT COALESCE(MAX(version),0)+1 AS version FROM satori_v2_policies WHERE profile_id=$1 AND address_id=$2 AND product_code IS NULL',[input.profileId,addressId]);
+  await c.query('UPDATE satori_v2_policies SET enabled=false,revision=revision+1 WHERE profile_id=$1 AND address_id=$2 AND product_code IS NULL AND enabled=true',[input.profileId,addressId]);
+  const p=await c.query("INSERT INTO satori_v2_policies(profile_id,address_id,product_code,discount_bps,collaborator_bps,invoice_mode,version,approved_by) VALUES($1,$2,NULL,$3,$4,'single',$5,$6) RETURNING id,version",[input.profileId,addressId,input.discountBps,base.collaborator_bps,versions.rows[0].version,actor.google_sub]);
+  await c.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) VALUES($1,$2,$3,$4,$5)',[actor.id,'ctv',create?'CTV_CLIENT_CREATED':'CTV_CLIENT_RATE_UPDATED',addressId,JSON.stringify({profileId:input.profileId,discountBps:input.discountBps,collaboratorBps:base.collaborator_bps,policyId:p.rows[0].id,invoiceMode:'single'})]);
+  await c.query('COMMIT');
+  return {ok:true,addressId,discountBps:input.discountBps,collaboratorBps:base.collaborator_bps,policyVersion:p.rows[0].version};
+ }catch(e){await c.query('ROLLBACK').catch(()=>{});throw e}finally{c.release()}
+}
 /** Canonical policy-approved read used without a write for cart preview. */
 async function pricedCart(pool,actor,input){
  const profile=await profileFor(pool,actor,input.profileId);
@@ -494,6 +546,17 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/logout'&&req.method==='POST'){
    await pool.query('DELETE FROM satori_v2_sessions WHERE token_hash=$1',[sha(cookies(req).satori_v2_session)]);
    send(res,200,{ok:true},{'set-cookie':clearCookies()});return true;
+  }
+
+  if(pathname==='/api/v2/ctv/clients'&&req.method==='GET'){
+   const id=new URL(req.url,'http://local').searchParams.get('profileId');
+   send(res,200,await ctvClientList(pool,actor,id));return true;
+  }
+  if(pathname==='/api/v2/ctv/clients'&&req.method==='POST'){
+   send(res,201,await ctvClientWrite(pool,actor,await json(req),true));return true;
+  }
+  if(pathname==='/api/v2/ctv/clients'&&req.method==='PATCH'){
+   send(res,200,await ctvClientWrite(pool,actor,await json(req),false));return true;
   }
   if(pathname==='/api/v2/addresses'&&req.method==='POST'){
    const input=await json(req),profile=await profileFor(pool,actor,input.profileId);

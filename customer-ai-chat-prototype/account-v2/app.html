@@ -587,6 +587,22 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .delivery-dialog .agent-address-choice .address-phone{font-weight:500;color:#3f5462}
 .delivery-dialog .delivery-profile-label{color:#4b5d6a}
 .delivery-dialog .delivery-dialog-brand{font-weight:750}
+
+/* CTV client controls: scoped to delivery-address workflow and mobile screens. */
+.ctv-client-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:13px 0}
+.ctv-client-tabs button{border:1px solid #b4ddda;border-radius:12px;background:#fff;color:#176b6a}
+.ctv-client-tabs button[aria-pressed="true"]{background:#009a94;color:white;border-color:#009a94}
+.ctv-client-rate{font-size:15px;background:#eaf7f5;color:#176967;padding:11px 13px;border-radius:12px}
+.ctv-client-entry{border:1px solid #d8e6e7;border-radius:13px;margin:10px 0;padding:13px;display:grid;gap:9px;background:#fff}
+.ctv-client-entry strong{font-size:16px;color:#183743}
+.ctv-client-entry p{font-size:15px;line-height:1.45;margin:2px 0;color:#46606a;overflow-wrap:anywhere}
+.ctv-client-entry form{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.ctv-client-entry label{display:grid;gap:5px;min-width:100px;flex:1;font-size:14px}
+.ctv-client-entry input{min-height:43px;width:100%;font-size:16px;border-radius:10px;border:1px solid #bfd5d6;padding:8px}
+.ctv-client-entry button{min-height:43px;background:#e8f6f4;color:#0c7771;border-radius:10px}
+#ctvCustomerDiscountField{background:#eaf7f5;border-radius:13px;padding:12px}
+#ctvClientStatus{font-size:14px}
+@media(max-width:420px){.ctv-client-entry form{display:grid;grid-template-columns:1fr auto}}
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
@@ -679,12 +695,28 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <button id="saveUserAddress" class="btn primary" type="button">Lưu thay đổi</button>
 <p class="muted">Chỉ thay đổi điểm giao V2. Hóa đơn đã phát hành không thay đổi.</p>
 </details></div>
-<form id="addressForm" class="panel"><h2>Thêm địa chỉ</h2>
+<section id="ctvClientPanel" class="panel" hidden aria-label="Khách riêng của cộng tác viên">
+<h2>Khách riêng của CTV</h2>
+<p class="muted">Chọn khách đã lưu hoặc thêm khách nhận hàng mới. Mỗi khách có chiết khấu riêng, không vượt mức CTV được duyệt.</p>
+<div id="ctvClientRates" role="status" class="ctv-client-rate"></div>
+<div class="ctv-client-tabs" role="group" aria-label="Khách riêng">
+<button id="ctvExistingTab" type="button" class="btn" aria-pressed="false">Khách cũ</button>
+<button id="ctvNewTab" type="button" class="btn" aria-pressed="true">+ Khách mới</button>
+</div>
+<div id="ctvClientList" hidden></div>
+<p id="ctvClientStatus" role="status" class="muted"></p>
+</section>
+<form id="addressForm" class="panel"><h2 id="addressFormTitle">Thêm địa chỉ</h2>
 <div class="field"><label>Nhãn</label><input name="label" required maxlength="70" placeholder="Nhà / Công ty"></div>
 <div class="field"><label>Người nhận</label><input name="recipientName" required maxlength="120"></div>
 <div class="field"><label>Số điện thoại</label><input name="recipientPhone" required inputmode="tel"></div>
 <div class="field"><label>Địa chỉ đầy đủ</label><input name="address" required maxlength="400"></div>
-<button type="submit" class="btn primary" style="width:100%">Lưu địa chỉ</button>
+<div id="ctvCustomerDiscountField" class="field" hidden>
+<label>Chiết khấu cho khách này (%)</label>
+<input id="ctvCustomerDiscount" name="customerDiscountPercent" type="number" inputmode="decimal" min="0" max="100" step="0.01">
+<small id="ctvCustomerLimit" class="muted">Chỉ dành cho tài khoản CTV.</small>
+</div>
+<button type="submit" class="btn primary" style="width:100%" id="saveNewAddress">Lưu khách &amp; địa chỉ</button>
 </form></section>
 <section id="ordersView" class="view hidden"><div class="screen-actions"><button class="screen-close back-to-chat" type="button" aria-label="Đóng màn hình và quay lại chat" title="Trở về chat">×</button></div><div class="panel">
 <div class="bar"><div class="invoice-masthead" id="invoiceMasthead"><h2>Hóa đơn Minh Satori</h2></div><button id="refreshOrders" class="btn" type="button" aria-label="Làm mới danh sách hóa đơn">↻</button></div>
@@ -788,6 +820,86 @@ const views=['chat','catalogue','cart','addresses','orders','account'];
 const PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
 let crmRows={registered:[],leads:[]};
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
+
+let ctvClientData=null,ctvClientEpoch=0,ctvCustomerTab='new';
+const currentCtvProfile=()=>me?.profiles?.find(p=>p.id===$('profile').value&&p.type==='collaborator');
+const validPercentBps=value=>{
+ const raw=String(value??'').trim(),n=Number(raw),bps=Math.round(n*100);
+ if(!raw||!Number.isFinite(n)||n<0||n>100||Math.abs(n*100-bps)>0.00001)
+  throw Error('Chiết khấu phải từ 0–100%, tối đa 2 chữ số thập phân.');
+ return bps;
+};
+function activateCtvClientTab(tab){
+ ctvCustomerTab=tab;
+ $('ctvClientList').hidden=tab!=='old';
+ $('addressForm').hidden=!!currentCtvProfile()&&tab==='old';
+ $('ctvExistingTab').setAttribute('aria-pressed',String(tab==='old'));
+ $('ctvNewTab').setAttribute('aria-pressed',String(tab==='new'));
+}
+function renderCtvSavedClients(data){
+ const root=$('ctvClientList');root.replaceChildren();
+ if(!data.clients.length)root.append(node('p','Chưa có khách riêng đã lưu. Chọn Khách mới để thêm.','muted'));
+ for(const customer of data.clients){
+  const row=node('div',undefined,'ctv-client-entry');
+  row.append(node('strong',customer.recipientName||customer.label||'Khách nhận hàng'));
+  row.append(node('p',(customer.recipientPhone||'')+' · '+customer.address));
+  if(!customer.active){row.append(node('p','Điểm giao đang tạm dừng.','muted'));root.append(row);continue}
+  const form=document.createElement('form'),label=node('label','Chiết khấu khách (%)');
+  const input=document.createElement('input');input.type='number';input.min='0';
+  input.max=String(data.collaboratorBps/100);input.step='0.01';input.required=true;
+  input.value=String(customer.discountBps/100);input.disabled=customer.ownerLocked;
+  label.append(input);form.append(label);
+  const save=node('button',customer.ownerLocked?'Admin đã khóa CK':'Lưu chiết khấu');
+  save.type='submit';save.disabled=customer.ownerLocked;
+  form.append(save);
+  form.onsubmit=async ev=>{
+   ev.preventDefault();
+   let bps;
+   try{bps=validPercentBps(input.value)}catch(e){return toast(e.message)}
+   if(bps>data.collaboratorBps)return toast('Chiết khấu không được vượt CK CTV.');
+   if(!confirm('Đổi CK khách '+(customer.recipientName||customer.label)+' thành '+bps/100+'%?'))return;
+   save.disabled=true;
+   try{
+    await call('/api/v2/ctv/clients',{profileId:data.profileId,addressId:customer.id,
+     expectedPolicyVersion:customer.policyVersion,discountBps:bps,confirmed:true},'PATCH');
+    resetTestQuote();invalidateCartPricing();await refreshCtvClients();
+    toast('Đã lưu chiết khấu riêng, không thay đổi hóa đơn cũ.');
+   }catch(e){toast(e.message);save.disabled=false}
+  };
+  row.append(form);root.append(row);
+ }
+}
+async function refreshCtvClients(){
+ const profile=currentCtvProfile(),epoch=++ctvClientEpoch;
+ $('ctvClientPanel').hidden=!profile;
+ $('ctvCustomerDiscountField').hidden=!profile;
+ $('ctvCustomerDiscount').required=!!profile;
+ $('addressFormTitle').textContent=profile?'Thêm khách nhận hàng mới':'Thêm địa chỉ';
+ if(!profile){ctvClientData=null;$('addressForm').hidden=false;
+  $('saveNewAddress').disabled=false;return}
+ $('ctvClientStatus').textContent='Đang tải chiết khấu CTV…';
+ try{
+  const data=await call('/api/v2/ctv/clients?profileId='+encodeURIComponent(profile.id),undefined,'GET');
+  if(epoch!==ctvClientEpoch||!currentCtvProfile()||$('profile').value!==profile.id)return;
+  ctvClientData=data;
+  $('ctvClientRates').textContent='CK CTV được duyệt: '+data.collaboratorBps/100+
+   '% · CK khách mặc định: '+data.defaultCustomerBps/100+'%';
+  $('ctvCustomerDiscount').max=String(data.collaboratorBps/100);
+  $('ctvCustomerDiscount').value=String(data.defaultCustomerBps/100);
+  $('ctvCustomerLimit').textContent='Tối đa '+data.collaboratorBps/100+'% (không vượt CK CTV).';
+  $('ctvClientStatus').textContent='Đã tải '+data.clients.length+' khách/điểm giao.';
+  renderCtvSavedClients(data);activateCtvClientTab(ctvCustomerTab);
+ }catch(e){
+  if(epoch!==ctvClientEpoch)return;
+  ctvClientData=null;$('ctvCustomerDiscount').value='';
+  $('ctvClientStatus').textContent='Không đọc được chính sách CTV: '+e.message;
+  $('saveNewAddress').disabled=true;
+  $('ctvClientList').replaceChildren();
+  return;
+ }
+ $('saveNewAddress').disabled=false;
+}
+
 // Catalogue numbers are drafts: only '+ Thêm' writes the shared cart.
 const catalogueQtyDraft=new Map();
 // Optimistic taps are serialized to preserve cart revisions and every quick +/- press.
@@ -1888,6 +2000,7 @@ async function changeProfile(forceDuringWrite=false){
    throw Error('CART_RESPONSE_INVALID');
   cart=r.lines;cartRev=r.revision;cartLoadedProfileId=requestedProfileId;
   renderBadge();renderCart();renderAddresses();
+  void refreshCtvClients();
  }catch(e){
   if(requestEpoch===cartProfileLoadEpoch){
    if(cartLoadedProfileId&&me?.profiles?.some(p=>p.id===cartLoadedProfileId)){
@@ -2098,11 +2211,29 @@ $('saveUserAddress').onclick=async()=>{
 };
 $('addressForm').onsubmit=async ev=>{
  ev.preventDefault();const form=new FormData(ev.target);
+ const fields=Object.fromEntries(form.entries());
+ delete fields.customerDiscountPercent;
+ const ctv=currentCtvProfile(),save=$('saveNewAddress');
  try{
-  await call('/api/v2/addresses',{
-   profileId:$('profile').value,...Object.fromEntries(form.entries())});
-  ev.target.reset();me=await call('/api/v2/me',undefined,'GET');renderAddresses();toast('Đã lưu địa chỉ');
- }catch(e){toast(e.message)}
+  if(ctv){
+   if(!ctvClientData||ctvClientData.profileId!==ctv.id)
+    throw Error('Chưa xác minh chính sách CTV. Không thể lưu khách.');
+   const discountBps=validPercentBps($('ctvCustomerDiscount').value);
+   if(discountBps>ctvClientData.collaboratorBps)
+    throw Error('Chiết khấu khách không được vượt CK CTV.');
+   if(!confirm('Thêm khách '+fields.recipientName+' với CK '+discountBps/100+'%?'))
+    return;
+   save.disabled=true;
+   await call('/api/v2/ctv/clients',{profileId:ctv.id,...fields,
+    discountBps,confirmed:true},'POST');
+  }else{
+   await call('/api/v2/addresses',{profileId:$('profile').value,...fields});
+  }
+  ev.target.reset();me=await call('/api/v2/me',undefined,'GET');
+  renderAddresses();resetTestQuote();invalidateCartPricing();
+  if(ctv){ctvCustomerTab='old';await refreshCtvClients()}
+  toast(ctv?'Đã lưu khách riêng và CK của khách.':'Đã lưu địa chỉ');
+ }catch(e){toast(e.message)}finally{save.disabled=false}
 };
 // Show a polished, clearly NON-FISCAL order confirmation with the same
 // Satori logo used by the app. Official invoices/PDF remain source-of-truth
@@ -2403,7 +2534,9 @@ window.addEventListener('online',()=>{
  }
 });
 
- $('agentAddressManage').onclick=()=>{closeDeliveryDialog(true);view('addresses')};
+ $('agentAddressManage').onclick=()=>{closeDeliveryDialog(true);view('addresses');void refreshCtvClients()};
+$('ctvExistingTab').onclick=()=>activateCtvClientTab('old');
+$('ctvNewTab').onclick=()=>activateCtvClientTab('new');
 
 // All V2 clients reconcile catalogue, authorized profiles, addresses and cart
 // while visible. Never write data or discard unsaved form fields.

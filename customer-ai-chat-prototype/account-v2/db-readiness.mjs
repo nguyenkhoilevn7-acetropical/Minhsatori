@@ -15,7 +15,7 @@ export const V2_REQUIRED_COLUMNS=Object.freeze({
  satori_v2_order_requests:['id','quote_id','request_id','state'],
  satori_v2_audit:['id','event_type'],
  satori_v2_registrations:['account_id','full_name','phone','address','revision'],
- satori_v2_customer_leads:['id','discount_bps','revision']
+ satori_v2_customer_leads:['id','discount_bps','collaborator_bps','revision']
 });
 
 export async function inspectV2Storage(pool){

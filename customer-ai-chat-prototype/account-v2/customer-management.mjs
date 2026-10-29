@@ -25,13 +25,17 @@ export function validateCustomerProfile(input,{admin=false}={}){
  const requestedType=input.requestedType||'retail';
  if(!customerTypes.includes(requestedType))fail('CUSTOMER_ROLE_INVALID');
  const discountBps=admin?input.discountBps??0:0;
+ const collaboratorBps=admin&&requestedType==='collaborator'?input.collaboratorBps??null:null;
+ if(requestedType!=='collaborator'&&input.collaboratorBps!=null)fail('CTV_ROLE_REQUIRED');
+ if(collaboratorBps!=null&&(!Number.isSafeInteger(collaboratorBps)||
+  collaboratorBps<discountBps||collaboratorBps>10000))fail('CTV_RATE_MUST_BE_AT_LEAST_CUSTOMER_RATE');
  if(!Number.isSafeInteger(discountBps)||discountBps<0||discountBps>10000)
   fail('CUSTOMER_DISCOUNT_INVALID');
  return Object.freeze({fullName,phone,address,email,
   companyName:text(input.companyName||'',160),
   taxCode:text(input.taxCode||'',35),
   note:text(input.note||'',350),
-  requestedType,discountBps});
+  requestedType,discountBps,collaboratorBps});
 }
 export function validateCustomerStatus(input){
  if(!input||typeof input!=='object')fail('CUSTOMER_UPDATE_INVALID');
