@@ -1519,15 +1519,15 @@ class NativeMainActivity : AppCompatActivity() {
         label(v2, "HỆ THỐNG KHÁCH HÀNG V2", 13f, true, ink)
         label(v2, "Đại lý / CTV • Hồ sơ & địa chỉ • Chính sách chiết khấu • Phân quyền",
             12f, false, muted, 7)
-        label(v2, "● Quản trị V2 chưa cấp quyền ghi", 12f, true,
-            Color.rgb(157, 92, 13), 11)
-        button(v2, "Xem trạng thái phân quyền") {
-            AlertDialog.Builder(this)
-                .setTitle("Phân quyền V2")
-                .setMessage("Quản trị V2 sẽ thao tác trực tiếp từ App qua Backend đã xác thực Admin. " +
-                    "Google OAuth V2 chưa xác minh chủ tài khoản nên các tác vụ ghi vẫn khóa.\n\n" +
-                    "Không tự động lấy quyền Admin từ đăng nhập Drive hoặc trình duyệt khách.")
-                .setPositiveButton("Đóng", null).show()
+        label(v2, "✓ Dùng tài khoản Google Admin V2 đã xác minh", 12f, true,
+            Color.rgb(17, 133, 91), 11)
+        label(v2, "Duyệt khách mới → nhập chiết khấu → kích hoạt. " +
+            "Tìm khách cũ theo tên/SĐT, sửa hồ sơ, thêm điểm giao và liên kết Gmail. " +
+            "Mọi thao tác được kiểm tra quyền trên server, không dùng quyền Drive thay thế.",
+            12f, false, muted, 8)
+        button(v2, "👥  QUẢN LÝ KHÁCH HÀNG V2", true,
+            R.drawable.ic_satori_users) {
+            startActivity(Intent(this, V2OwnerCrmActivity::class.java))
         }
         button(v2, "↻  Đồng bộ hóa đơn đang có") { refreshNow() }
         parent.addView(v2, LinearLayout.LayoutParams(-1, -2).apply { topMargin=dp(12) })
