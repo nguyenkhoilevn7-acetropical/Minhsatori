@@ -439,6 +439,10 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, false)
         web.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                if (url == ORIGIN + "/owner-v2") applyNativeOwnerTheme()
+            }
             override fun shouldOverrideUrlLoading(
                 v: WebView?, request: WebResourceRequest?
             ): Boolean {
@@ -484,6 +488,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             }
         }
         web.visibility = View.GONE
+        web.alpha = 0f // Prevent a flash of unthemed desktop HTML.
         root.addView(web, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
         busy("Đang kiểm tra phiên quản trị đã xác minh…")
@@ -519,6 +524,118 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                         state("Không kết nối được đăng nhập V2: " + (e.message ?: "Lỗi mạng"))
                     }
                 }
+            }
+        }
+    }
+
+
+    /**
+     * The owner-v2 portal shares the official V2 customer/discount API, but
+     * its responsive presentation adopts the INSTALLED native app theme.
+     * This theme is injected only into the pinned owner route after admin auth.
+     * No financial DOM, forms, event listeners or HTTP request logic is changed.
+     */
+    private fun applyNativeOwnerTheme() {
+        val css = """
+            :root {
+                color-scheme:light;
+                --bg:#f1f4f5; --ink:#102b38; --sub:#667982;
+                --line:#e1e9e9; --blue:#009c99; --pale:#e2f6f3;
+            }
+            html,body { background:#f1f4f5!important;color:#102b38!important; }
+            body { font-family:Roboto,system-ui,-apple-system,"Segoe UI",sans-serif!important;
+                font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%; }
+            main { display:flex!important;flex-direction:column;gap:0;
+                max-width:990px!important;width:100%!important;
+                padding:0 12px max(30px,env(safe-area-inset-bottom))!important;margin:0 auto!important; }
+            main>header { display:none!important; }
+            main>section[aria-label="Quyền truy cập"] { order:0; background:#e2f6f3!important;
+                border-color:#ccebe4!important; }
+            #crmConsole { order:1; }
+            #legacyConsole { order:2; }
+            #console { order:3; }
+            #denied { order:4; }
+            .card { background:#fff!important;border:1px solid #e1e9e9!important;
+                border-radius:17px!important;padding:16px!important;margin:8px 0!important;
+                box-shadow:0 1px 3px #102b3808!important; }
+            .card>h2 { font-weight:750;font-size:18px!important;color:#102b38!important;
+                line-height:1.3;margin:0 0 9px!important; }
+            h3 {font-size:16px!important;color:#102b38!important;line-height:1.4}
+            p,small,details,summary {color:#667982}
+            strong,b {color:#102b38}
+            .metrics {gap:9px!important;margin:12px 0!important;}
+            .metric {background:#f7faf9!important;border-color:#e1e9e9!important;
+                padding:12px!important;border-radius:13px!important;}
+            .metric small {font-size:12px!important;}
+            .metric strong {font-size:21px!important;color:#102b38!important;}
+            .crm-entry {background:#fff!important;border:1px solid #e1e9e9!important;
+                border-radius:14px!important;margin:8px 0!important;
+                padding:14px!important;box-shadow:none!important;}
+            .crm-entry strong {color:#102b38!important;font-size:15px!important;}
+            .crm-entry p,.crm-entry small {font-size:13px!important;line-height:1.5!important;
+                color:#667982!important;}
+            .crm-tag,.badge {background:#e2f6f3!important;color:#086b69!important;
+                border-radius:9px!important;font-weight:700!important;}
+            #crmCustomers {max-height:none!important;overflow:visible!important;}
+            .crm-controls {gap:10px!important;margin:14px 0!important;}
+            .crm-controls label,.field-grid label,.legacy-address label {
+                font-size:14px!important;font-weight:650!important;color:#526d72!important;
+            }
+            input,select,textarea,.crm-controls input,.crm-controls select,
+            .field-grid input,.field-grid select,.field-grid textarea,
+            .legacy-address input {
+                background:#fff!important;color:#102b38!important;
+                border:1px solid #cfdcdd!important;
+                border-radius:12px!important;min-height:47px!important;
+                font-size:16px!important;padding:10px 12px!important;
+            }
+            input:focus,select:focus,textarea:focus {
+                outline:2px solid #009c9955!important;outline-offset:0;
+                border-color:#009c99!important;
+            }
+            input[type="checkbox"] {min-height:22px!important;width:22px!important;
+                accent-color:#009c99;}
+            button {min-height:42px!important;border-radius:12px!important;
+                background:#009c99!important;color:#fff!important;
+                border:0!important;padding:10px 14px!important;
+                font-size:14px!important;font-weight:700!important;box-shadow:none!important;}
+            button.secondary {background:#e2f6f3!important;color:#086b69!important;}
+            button.danger {background:#fff1f3!important;color:#b11c35!important;}
+            button:disabled {opacity:.46!important;}
+            button .ico,h2>.ico,h3>.ico {color:inherit}
+            .legacy-address {background:#f8fbfa!important;border-color:#e1e9e9!important;
+                border-radius:14px!important;gap:10px!important;}
+            #notice {background:#f1f4f5!important;color:#102b38!important;}
+            #crmStatus[data-kind="error"],#legacyStatus[data-kind="error"] {color:#b11c35!important;}
+            #crmStatus[data-kind="success"],#legacyStatus[data-kind="success"] {color:#0f8165!important;}
+            #notice[data-kind="error"] {background:#fff1f3!important;color:#b11c35!important;}
+            #notice[data-kind="success"] {background:#e2f6f3!important;color:#0f8165!important;}
+            details>summary {padding:8px 0!important;color:#086b69!important;
+                font-weight:650!important;}
+            .field-grid {gap:12px!important;}
+            @media(max-width:560px) {
+                main {padding-left:12px!important;padding-right:12px!important;}
+                .card {padding:15px!important;}
+                .field-grid,.legacy-address {grid-template-columns:1fr!important;}
+                .crm-controls>label {min-width:100%!important;}
+                .metric strong {font-size:19px!important;}
+            }
+            @media(min-width:700px) {
+                main {padding-left:22px!important;padding-right:22px!important;}
+                .card {padding:20px!important;}
+            }
+        """.trimIndent()
+        // JSON quote escapes CSS as a string literal, never executes remote data.
+        val script = "(function(){if(location.origin!==" +
+            org.json.JSONObject.quote(ORIGIN) +
+            "||location.pathname!=='/owner-v2')return;" +
+            "var el=document.getElementById('satori-android-app-theme');" +
+            "if(!el){el=document.createElement('style');el.id='satori-android-app-theme';" +
+            "document.head.appendChild(el);}el.textContent=" +
+            org.json.JSONObject.quote(css) + ";})();"
+        web.evaluateJavascript(script) {
+            if (!isFinishing && !isDestroyed) {
+                web.animate().alpha(1f).setDuration(160).start()
             }
         }
     }
@@ -699,6 +816,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         authPanel.visibility = View.GONE
         web.visibility = View.VISIBLE
         refreshButton.visibility = View.VISIBLE
+        web.alpha = 0f
         web.loadUrl(ORIGIN + "/owner-v2")
     }
 
