@@ -98,7 +98,7 @@ object V2RegistrationAlerts {
   val previous=prefs.getStringSet("seen_hashes",emptySet())?.toSet().orEmpty()
   val initialized=prefs.getBoolean("initialized",false)
   val fresh=if(initialized)feed.items.filter{it.first !in previous}else emptyList()
-  val latest=(previous+feed.items.map{it.first}).takeLast(250).toSet()
+  val latest=(previous+feed.items.map{it.first}).toList().takeLast(250).toSet()
   prefs.edit().putStringSet("seen_hashes",latest).putBoolean("initialized",true)
    .putInt("pending_count",feed.pendingCount).apply()
   if(fresh.isNotEmpty())notify(context,feed.pendingCount,fresh[0].second)
