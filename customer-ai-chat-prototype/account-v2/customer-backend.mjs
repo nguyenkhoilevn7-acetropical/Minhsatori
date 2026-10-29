@@ -594,7 +594,7 @@ export async function legacyCustomerImport(pool,owner,input){
  * and email. Execute inside the login's existing SQL transaction. Ambiguity
  * and incomplete owner-approved pricing deliberately keep the account PENDING.
  */
-export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,email,ownerGoogleSub}){
+export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,email,ownerGoogleSub,dryRun=false}){
  if(!isUuid(accountId)||typeof googleSub!=='string'||googleSub.length<5||
     typeof email!=='string'||!email.trim()||!ownerGoogleSub||googleSub===ownerGoogleSub)
   return {state:'PENDING',reason:'IDENTITY_NOT_ELIGIBLE'};
@@ -661,6 +661,7 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
    p.collaborator_bps!=null&&p.collaborator_bps!==data.collaboratorBps))
    return {state:'PENDING',reason:'EXISTING_POLICY_REQUIRES_OWNER'};
  }
+ if(dryRun)return {state:'READY',role:data.requestedType};
  let targetProfile=profileId;
  if(targetProfile){
   await c.query('UPDATE satori_v2_profiles SET type=$2,display_name=$3,phone=$4,'+
@@ -710,6 +711,37 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
    discountBps:data.discountBps,collaboratorBps:data.collaboratorBps,
    addressesAdded,oneInvoice:true})]);
  return {state:'ACTIVE',profileId:targetProfile,leadId:lead.id,addressesAdded};
+}
+
+
+/** An existing session was originally established through verified Google OAuth.
+ * The customer can retry safe legacy reconciliation without re-authentication.
+ * Never derives identity from a user-supplied email, name, or phone.
+ */
+export async function reconcileVerifiedLegacySession(pool,actor,ownerGoogleSub,{dryRun=false}={}){
+ if(!actor||actor.access_status!=='PENDING')
+  return {state:'PENDING',reason:'ACCOUNT_NOT_PENDING'};
+ return tx(pool,c=>autoActivateVerifiedLegacyGmail(c,{
+  accountId:actor.id,googleSub:actor.google_sub,email:actor.email,
+  ownerGoogleSub,dryRun
+ }));
+}
+
+/** Admin explicitly reconciles previously verified PENDING accounts.
+ * One small transaction per account, failure isolated and no cross-account writes.
+ */
+export async function adminReconcileVerifiedLegacyPending(pool,owner,ownerGoogleSub){
+ check(owner?.google_sub===ownerGoogleSub,'ADMIN_REQUIRED',403);
+ const r=await pool.query('SELECT id,google_sub,email,access_status FROM satori_v2_accounts '+
+  "WHERE access_status='PENDING' ORDER BY created_at LIMIT 40");
+ let activated=0,unchanged=0;
+ const reasons={};
+ for(const actor of r.rows){
+  const out=await reconcileVerifiedLegacySession(pool,actor,ownerGoogleSub);
+  if(out.state==='ACTIVE')activated++;
+  else {unchanged++;reasons[out.reason||'NOT_ELIGIBLE']=(reasons[out.reason||'NOT_ELIGIBLE']||0)+1;}
+ }
+ return {ok:true,checked:r.rowCount,activated,unchanged,reasons,truncated:r.rowCount===40};
 }
 
 export async function legacyCustomerActivateLead(pool,owner,input){
