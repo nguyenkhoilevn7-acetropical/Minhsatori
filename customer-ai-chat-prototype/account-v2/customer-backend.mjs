@@ -709,14 +709,19 @@ export async function legacyCustomerImport(pool,owner,input){
  * and email. Execute inside the login's existing SQL transaction. Ambiguity
  * and incomplete owner-approved pricing deliberately keep the account PENDING.
  */
-export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,email,ownerGoogleSub,dryRun=false,primaryLeadId=null}){
+export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,email,ownerGoogleSub,dryRun=false,primaryLeadId=null,allowActiveOwnerReconcile=false}){
  if(!isUuid(accountId)||typeof googleSub!=='string'||googleSub.length<5||
     typeof email!=='string'||!email.trim()||!ownerGoogleSub||googleSub===ownerGoogleSub)
   return {state:'PENDING',reason:'IDENTITY_NOT_ELIGIBLE'};
+ // ACTIVE backfill is permitted only through the Owner's explicit action.
+ // OAuth/self-service does not pass this flag, so it cannot silently upgrade
+ // an already-active customer into an agency or CTV.
  const account=await c.query('SELECT id,email,access_status FROM satori_v2_accounts '+
-  "WHERE id=$1 AND google_sub=$2 AND lower(email)=lower($3) AND access_status='PENDING' FOR UPDATE",
-  [accountId,googleSub,email.trim()]);
+  "WHERE id=$1 AND google_sub=$2 AND lower(email)=lower($3) "+
+  "AND (access_status='PENDING' OR ($4::boolean AND access_status='ACTIVE')) FOR UPDATE",
+  [accountId,googleSub,email.trim(),allowActiveOwnerReconcile]);
  if(account.rowCount!==1)return {state:'PENDING',reason:'ACCOUNT_NOT_PENDING'};
+ const existingActive=account.rows[0].access_status==='ACTIVE';
  const duplicateAccount=await c.query('SELECT id FROM satori_v2_accounts '+
   'WHERE lower(email)=lower($1) AND id<>$2 LIMIT 1',[email.trim(),accountId]);
  if(duplicateAccount.rowCount)return {state:'PENDING',reason:'EMAIL_USED_BY_OTHER_ACCOUNT'};
@@ -768,21 +773,40 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
   if(key&&!addressMap.has(key))addressMap.set(key,a);
  }
  const addresses=[...addressMap.values()];
- const profiles=await c.query('SELECT id FROM satori_v2_profiles WHERE account_id=$1 '+
+ const profiles=await c.query('SELECT id,type FROM satori_v2_profiles WHERE account_id=$1 '+
   'ORDER BY created_at LIMIT 2 FOR UPDATE',[accountId]);
  if(profiles.rowCount>1)return {state:'PENDING',reason:'AMBIGUOUS_PROFILES'};
  const profileId=profiles.rows[0]?.id||null;
  if(profileId){
-  // Manually linked PENDING accounts can already have the old customer CK.
-  // Only reconcile an owner-signed DEFAULT policy matching the approved lead.
-  // Mismatched rates or customized address/SKU rules require manual review.
   const existing=await c.query('SELECT address_id,product_code,discount_bps,'+
    'collaborator_bps,approved_by FROM satori_v2_policies '+
    'WHERE profile_id=$1 AND enabled=true FOR UPDATE',[profileId]);
+  // Never overwrite custom address/SKU rules or policies approved by another actor.
   if(existing.rows.some(p=>p.address_id||p.product_code||
-   p.approved_by!==ownerGoogleSub||p.discount_bps!==data.discountBps||
-   p.collaborator_bps!=null&&p.collaborator_bps!==data.collaboratorBps))
+   p.approved_by!==ownerGoogleSub))
    return {state:'PENDING',reason:'EXISTING_POLICY_REQUIRES_OWNER'};
+  const policyConflict=existing.rows.some(p=>p.discount_bps!==data.discountBps||
+   (p.collaborator_bps??null)!==(data.requestedType==='collaborator'?data.collaboratorBps:null));
+  const roleConflict=profiles.rows[0].type!==data.requestedType;
+  if(existingActive&&(policyConflict||roleConflict||!existing.rows.length)){
+   // An ACTIVE account may have already placed V2 orders. Never retroactively
+   // reclassify its prices/role when quotes or invoice submissions exist.
+   const used=await c.query(
+    "SELECT EXISTS(SELECT 1 FROM satori_v2_quotes WHERE account_id=$1) "+
+    "OR EXISTS(SELECT 1 FROM satori_v2_order_requests WHERE account_id=$1) AS used",
+    [accountId]);
+   if(used.rows[0].used)
+    return {state:'PENDING',reason:'ACTIVE_ACCOUNT_HAS_ORDER_HISTORY'};
+  }
+  if(!existingActive&&policyConflict)
+   return {state:'PENDING',reason:'EXISTING_POLICY_REQUIRES_OWNER'};
+ }else if(existingActive){
+  const used=await c.query(
+   "SELECT EXISTS(SELECT 1 FROM satori_v2_quotes WHERE account_id=$1) "+
+   "OR EXISTS(SELECT 1 FROM satori_v2_order_requests WHERE account_id=$1) AS used",
+   [accountId]);
+  if(used.rows[0].used)
+   return {state:'PENDING',reason:'ACTIVE_ACCOUNT_HAS_ORDER_HISTORY'};
  }
  if(dryRun)return {state:'READY',role:data.requestedType};
  let targetProfile=profileId;
@@ -882,19 +906,21 @@ export async function ownerActivateSavedGmail(pool,owner,input){
    'FROM satori_v2_accounts WHERE id=$1 FOR UPDATE',[input.accountId]);
   check(accountResult.rowCount===1,'CUSTOMER_NOT_FOUND',404);
   const account=accountResult.rows[0];
-  check(account.access_status==='PENDING','CUSTOMER_NOT_PENDING',409);
+  check(['PENDING','ACTIVE'].includes(account.access_status),'LEGACY_ACCOUNT_UNAVAILABLE',409);
   check(account.revision===input.expectedAccountRevision,'CUSTOMER_REVISION_CONFLICT',409);
   check(account.google_sub&&account.email.toLowerCase()===lead.email.toLowerCase(),
    'LEGACY_VERIFIED_GMAIL_MISMATCH',403);
   const result=await autoActivateVerifiedLegacyGmail(c,{
    accountId:account.id,googleSub:account.google_sub,email:account.email,
-   ownerGoogleSub:owner.google_sub,primaryLeadId:lead.id
+   ownerGoogleSub:owner.google_sub,primaryLeadId:lead.id,
+   allowActiveOwnerReconcile:account.access_status==='ACTIVE'
   });
   check(result.state==='ACTIVE',result.reason||'LEGACY_ACTIVATION_FAILED',409);
   await audit(c,owner.id,'OWNER_SAVED_GMAIL_LINKED',lead.id,{
    accountId:account.id,profileId:result.profileId,invoiceHistoryUnchanged:true
   });
-  return {...result,accessStatus:'ACTIVE',leadId:lead.id,source:'owner-saved-crm'};
+  return {...result,accessStatus:'ACTIVE',alreadyActive:account.access_status==='ACTIVE',
+   leadId:lead.id,source:'owner-saved-crm'};
  });
 }
 
