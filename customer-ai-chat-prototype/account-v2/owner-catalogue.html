@@ -910,6 +910,17 @@ async function renderOwnerCtvClientCards(account,wrap){
   }
   if(!a.addresses.length)list.append(make('p','Chưa có khách riêng được lưu.','crm-client-banner'));
   wrap.append(list);
+  // One address directory from signed invoices, not a second invoice import.
+  const directory=make('details',null,'crm-ledger-discovery');
+  directory.append(make('summary','Đối chiếu địa chỉ từ hóa đơn gốc (gộp địa chỉ trùng)'));
+  const mount=make('div');directory.append(mount);
+  directory.addEventListener('toggle',()=>{
+   if(directory.open&&!directory.dataset.loaded){
+    directory.dataset.loaded='1';
+    void renderLegacyRecipientDirectory(mount,account.fullName||account.name||'',account);
+   }
+  });
+  wrap.append(directory);
  }catch(e){if(wrap.isConnected)wrap.replaceChildren(make('p','Không tải được khách riêng CTV: '+e.message))}
 }
 
@@ -1220,36 +1231,43 @@ function drawLedgerPreview(){
   !(x.phone&&phones.has(digits(x.phone)))&&
   [x.name,x.phone,...(x.addresses||[])].some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(q)));
  for(const group of crmNameGroups(visible)){
-  const cards=[];
-  for(const x of group.rows){
   const card=make('details',null,'crm-entry crm-customer-card crm-ledger-card');
   const head=make('summary',null,'crm-card-summary');
-  head.append(make('div',cardInitials(x.name),'crm-avatar'));
+  head.append(make('div',cardInitials(group.name),'crm-avatar'));
   const name=make('div',null,'crm-card-identity');
-  name.append(make('strong',x.name,'crm-customer-name'),cardContact(x.phone||'Chưa có SĐT','phone'));
+  name.append(make('strong',group.name,'crm-customer-name'),
+   make('small',group.rows.length+' đầu mối từ sổ; không xác định tài khoản bằng tên'));
   head.append(name);
   const meta=make('div',null,'crm-card-metadata');
-  meta.append(make('span','Chưa liên kết','crm-tag crm-status-pending'),
-   make('small',x.invoiceCount+' hóa đơn'+(x.lastOrderDate?' · '+x.lastOrderDate:'')));
+  const count=group.rows.reduce((sum,x)=>sum+(x.invoiceCount||0),0);
+  meta.append(make('span','Chưa xác minh liên kết','crm-tag crm-status-pending'),
+   make('small',count+' hóa đơn trong tháng được chọn'));
   head.append(meta);
   const arrow=make('span',null,'crm-card-open-label');arrow.append(ownerIcon('chevron'));head.append(arrow);
   const body=make('div',null,'crm-card-expanded');
-  body.append(make('p','Chưa xác minh tài khoản và CK V2. Chọn đúng hóa đơn để tạo hồ sơ, sau đó phân loại Đại lý/CTV.','crm-readonly-note'));
-  for(const a of x.addresses||[]){
-   const line=make('div',null,'crm-ledger-address');line.append(ownerIcon('pin'),make('span',a));body.append(line);
+  const unique=new Map();
+  for(const person of group.rows)for(const address of person.addresses||[]){
+   const key=crmRecipientAddressKey(address);if(key&&!unique.has(key))unique.set(key,address);
   }
-  const open=iconButton('Nhập và phân loại khách từ hóa đơn','edit');open.onclick=()=>{
-   byId('legacyLedgerDisclosure').open=true;
-   byId('legacyQuery').value=x.phone||x.name;
-   byId('legacySearchForm').requestSubmit();
-   byId('legacyLedgerDisclosure').scrollIntoView({behavior:'smooth',block:'nearest'});
-  };
-  body.append(open);card.append(head,body);cards.push(card);
+  body.append(make('p',unique.size+' địa chỉ không trùng trong tháng. '+
+   'Có thể mở tất cả kết quả theo tên từ sổ gốc, rồi chọn CTV đã xác minh để cấp CK. '+
+   'Không nhập lại hóa đơn đã được ghi nhận.','crm-readonly-note'));
+  for(const address of unique.values()){
+   const line=make('div',null,'crm-ledger-address');
+   line.append(ownerIcon('pin'),make('span',address));body.append(line);
   }
-  root.append(crmGroupCards(group,cards));
+  const directory=make('details',null,'crm-ledger-discovery');
+  directory.append(make('summary','Xem người nhận & điều chỉnh CK từ hóa đơn'));
+  const mount=make('div');directory.append(mount);
+  directory.addEventListener('toggle',()=>{
+   if(directory.open&&!directory.dataset.loaded){
+    directory.dataset.loaded='1';
+    void renderLegacyRecipientDirectory(mount,group.name);
+   }
+  });
+  body.append(directory);card.append(head,body);root.append(card);
  }
 }
-
 function drawCustomers(){
  if(!isOwner)return;
  resetCustomerInspector();
