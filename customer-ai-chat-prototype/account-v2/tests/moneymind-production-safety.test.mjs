@@ -22,11 +22,11 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // reviewed full-page business, CSS and non-script hashes to catch regressions.
  // Oct 29 reviewed CTV delivery customer pricing controls: two tabs,
  // address-scoped discount input and guarded client policy API.
- // Oct 29 reviewed typography-only delta: 16px onboarding/body and 20px headings.\n // Oct 28 reviewed delta: the owner-approved verified-ledger receipt adds one inline\n // chat card style and a guarded click action. Preserve the full-page hashes.
+ // Oct 29 reviewed CTV bottom sheet reuses saved-client writer and validates both rate tiers.\n // Oct 29 reviewed typography-only delta: 16px onboarding/body and 20px headings.\n // Oct 28 reviewed delta: the owner-approved verified-ledger receipt adds one inline\n // chat card style and a guarded click action. Preserve the full-page hashes.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const fnvPart=x=>fnv32(x);
- assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'79922a92');
- assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'09c6cffa');
+ assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'d75f167b');
+ assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'2bb8da6b');
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-subtitle,/);
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-phone \{/);
  assert.match(v2,/background:#eaf4f3;\s*color:#205e61;/);
