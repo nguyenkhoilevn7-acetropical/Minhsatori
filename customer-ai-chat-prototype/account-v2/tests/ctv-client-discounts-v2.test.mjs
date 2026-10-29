@@ -36,7 +36,7 @@ test('CTV per-client endpoint refuses cross-account, non-CTV, bad rate, stale wr
   'CTV_OWNER_POLICY_LOCKED','CTV_CONFIRMATION_REQUIRED',
   'CTV_CLIENT_CREATED','CTV_CLIENT_RATE_UPDATED'
  ])assert.ok(router.includes(x),x);
- assert.match(router,/profile_id=\$1 AND account_id=\$2 FOR UPDATE/);
+ assert.match(router,/WHERE id=\$1 AND account_id=\$2 FOR UPDATE/);
  assert.match(router,/input\.discountBps<=base\.collaborator_bps/);
  assert.match(router,/approved_by/);
  assert.match(router,/expectedPolicyVersion/);
