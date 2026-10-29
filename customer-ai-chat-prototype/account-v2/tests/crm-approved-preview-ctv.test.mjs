@@ -52,3 +52,30 @@ test('new mobile UI scripts compile and retain single-invoice safeguards',()=>{
  assert.match(ownerScript,/invoiceMode:'single'/);
  assert.match(ownerScript,/Hóa đơn cũ giữ nguyên|Không sửa hóa đơn cũ|Không sửa hóa đơn gốc/);
 });
+
+test('Android owner role/footer and CTV percent controls stay horizontal',()=>{
+ assert.match(owner,/#legacyConsole \.crm-role-options\{display:grid!important;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)!important/);
+ assert.match(owner,/#legacyConsole \.crm-card-footer\{display:grid!important;grid-template-columns:/);
+ assert.match(owner,/#legacyConsole \.crm-client-rate \.crm-client-save\{display:inline-flex!important/);
+ assert.match(ownerScript,/control\.append\(field,make\('span','%','crm-percent-suffix'\)\)/);
+ assert.match(ownerScript,/form\.append\(input,make\('span','%'\),save\)/);
+});
+
+test('same-name visual grouping preserves independent phone and account records',()=>{
+ assert.match(ownerScript,/function crmNameGroups\(rows\)/);
+ assert.match(ownerScript,/function crmGroupCards\(group,cards\)/);
+ assert.match(ownerScript,/crmGroupCards\(group,cards\)/);
+ const fn=ownerScript.match(/function crmNameGroups\(rows\)\{[\s\S]*?\n\}/)?.[0];
+ assert.ok(fn);
+ const records=[
+  {id:'1',fullName:' Hà Minh Nguyệt ',phone:'0983000970'},
+  {id:'2',fullName:'Hà  Minh Nguyệt',phone:'0768152072'},
+  {id:'3',fullName:'Traky Sài Gòn',phone:'0931325049'}
+ ];
+ const groups=vm.runInNewContext(fn+'; crmNameGroups(records);',{records});
+ assert.equal(groups.length,2);
+ assert.equal(groups[0].rows.length,2);
+ assert.equal(groups[0].rows[0].id,'1');
+ assert.equal(groups[0].rows[1].phone,'0768152072');
+ assert.equal(groups[1].rows[0].id,'3');
+});
