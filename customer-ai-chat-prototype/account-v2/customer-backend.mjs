@@ -58,9 +58,12 @@ export async function registrationRead(pool,actor){
 export async function adminCustomerList(pool){
  const [registered,leads]=await Promise.all([
   pool.query('SELECT a.id,a.email,a.display_name AS name,a.access_status AS "accessStatus",'+
-   'a.revision,a.created_at AS "createdAt",r.full_name AS "fullName",'+
-   'r.phone,r.address,r.company_name AS "companyName",r.tax_code AS "taxCode",'+
-   'r.note,r.requested_type AS "requestedType",r.revision AS "registrationRevision",'+
+   'a.revision,a.created_at AS "createdAt",COALESCE(r.full_name,a.display_name) AS "fullName",'+
+   'COALESCE(r.phone,(SELECT p.phone FROM satori_v2_profiles p WHERE p.account_id=a.id ' +
+   'ORDER BY p.created_at LIMIT 1),\'\') AS phone,r.address,r.company_name AS "companyName",r.tax_code AS "taxCode",'+
+   'r.note,COALESCE(r.requested_type,(SELECT p.type FROM satori_v2_profiles p '+
+   'WHERE p.account_id=a.id ORDER BY p.created_at LIMIT 1),\'retail\') AS "requestedType",'+
+   'r.revision AS "registrationRevision",'+
    'r.submitted_at AS "submittedAt",r.reviewed_at IS NOT NULL AS "approvedForPricing",'+
    '(SELECT p.discount_bps FROM satori_v2_profiles prof '+
    'JOIN satori_v2_policies p ON p.profile_id=prof.id '+
