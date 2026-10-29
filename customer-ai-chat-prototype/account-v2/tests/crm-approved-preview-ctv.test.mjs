@@ -134,3 +134,28 @@ test('already-imported original invoices are never reimported by recipient direc
  assert.match(ownerScript,/addressGroups=crmUniqueSavedAddressGroups\(a\.addresses\)/);
  assert.match(ownerScript,/members\.find\(x=>x\.id===choose\.value\)/);
 });
+
+test('all verified CTV and agency accounts share deduplicated old-recipient directory',()=>{
+ const dir=ownerScript.slice(
+  ownerScript.indexOf('async function renderLegacyRecipientDirectory('),
+  ownerScript.indexOf('\nfunction drawLedgerPreview(){'));
+ const cards=ownerScript.slice(
+  ownerScript.indexOf('async function renderOwnerCtvClientCards('),
+  ownerScript.indexOf('/* Role and tiered pricing editor:'));
+ const roles=ownerScript.slice(
+  ownerScript.indexOf('function rolePricingEditor('),
+  ownerScript.indexOf("byId('crmLedgerMonth').value="));
+ assert.match(dir,/\['collaborator','agency'\]\.includes\(a\.requestedType\)/);
+ assert.match(dir,/p\.type===account\.requestedType/);
+ assert.match(dir,/chosenProfile\.type==='collaborator'\?main\?\.collaboratorBps:main\?\.discountBps/);
+ assert.match(dir,/selectedProfile\.type==='collaborator'\?\{collaboratorBps:selectedCap\}:\{\}/);
+ assert.match(dir,/confirm\('Gắn địa chỉ/);
+ assert.match(cards,/profile\.type===account\.requestedType/);
+ assert.match(cards,/cap=isCtv\?main\?\.collaboratorBps:main\?\.discountBps/);
+ assert.match(cards,/isCtv\?\{collaboratorBps:cap\}:\{\}/);
+ assert.match(cards,/addressGroups=crmUniqueSavedAddressGroups\(a\.addresses\)/);
+ assert.match(roles,/isPartner=isCtv\|\|role\.value==='agency'/);
+ assert.match(roles,/clients\.hidden=!isPartner/);
+ assert.doesNotMatch(dir,/\/api\/v2\/admin\/legacy\/import/);
+ assert.doesNotThrow(()=>new vm.Script(ownerScript));
+});
