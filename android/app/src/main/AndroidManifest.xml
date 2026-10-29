@@ -17,6 +17,7 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout" />
+        <activity android:name=".V2OwnerCrmActivity" android:exported="false" android:windowSoftInputMode="adjustResize" android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout" />
         <activity
             android:name=".NativeMainActivity"
             android:exported="true"
