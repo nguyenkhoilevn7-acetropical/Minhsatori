@@ -991,6 +991,22 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
   check(['PENDING','ACTIVE'].includes(target.access_status),'LEGACY_ACCOUNT_UNAVAILABLE',409);
   check(target.revision===input.expectedAccountRevision,'CUSTOMER_REVISION_CONFLICT',409);
   check(target.email.toLowerCase()===data.email,'LEGACY_VERIFIED_GMAIL_MISMATCH',403);
+  if(input.leadId){
+   check(isUuid(input.leadId)&&isRev(input.expectedLeadRevision),
+    'CRM_LINK_REVISION_REQUIRED');
+   const leadResult=await c.query('SELECT * FROM satori_v2_customer_leads '+
+    'WHERE id=$1 FOR UPDATE',[input.leadId]);
+   check(leadResult.rowCount===1&&leadResult.rows[0].active,'LEGACY_LEAD_NOT_FOUND',404);
+   const lead=leadResult.rows[0];
+   check(lead.revision===input.expectedLeadRevision,'LEAD_REVISION_CONFLICT',409);
+   check(!lead.linked_account_id||lead.linked_account_id===target.id,
+    'LEAD_LINKED_TO_ANOTHER_ACCOUNT',409);
+   check(lead.email?.toLowerCase()===target.email.toLowerCase()&&
+    lead.requested_type===role&&lead.discount_bps===data.discountBps&&
+    (role!=='collaborator'||lead.collaborator_bps===data.collaboratorBps),
+    'CRM_APPROVED_PROFILE_MISMATCH',409);
+   check(lead.full_name===data.fullName,'CRM_APPROVED_NAME_MISMATCH',409);
+  }
   const dup=await c.query('SELECT id FROM satori_v2_accounts WHERE lower(email)=lower($1) AND id<>$2 LIMIT 1',
    [data.email,target.id]);
   check(dup.rowCount===0,'LEGACY_GMAIL_AMBIGUOUS',409);
