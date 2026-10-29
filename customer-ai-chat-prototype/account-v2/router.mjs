@@ -25,7 +25,7 @@ import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
- adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
+ adminApproveRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyCustomerImport,
  legacyCustomerActivateLead,adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
@@ -489,6 +489,11 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/admin/customers/approve'&&req.method==='POST'){
    owner(actor);
    send(res,200,await adminApproveRegistration(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/legacy/month-customers'&&req.method==='GET'){
+   owner(actor);
+   const month=new URL(req.url,'http://local').searchParams.get('month');
+   send(res,200,await legacyMonthlyCustomerPreview(month));return true;
   }
   if(pathname==='/api/v2/admin/legacy/search'&&req.method==='GET'){
    owner(actor);
