@@ -847,11 +847,11 @@ function crmRoleChoices(select){
 
 async function renderOwnerCtvClientCards(account,wrap){
  if(!wrap.isConnected)return;
- wrap.replaceChildren(make('p','Đang tải khách riêng CTV…','crm-client-banner'));
+ wrap.replaceChildren(make('p','Đang tải người nhận theo tài khoản…','crm-client-banner'));
  try{
   const profiles=await api('/api/v2/admin/profiles?accountId='+encodeURIComponent(account.id));
-  const profile=profiles.profiles?.find(x=>x.type==='collaborator');
-  if(!profile){wrap.replaceChildren(make('p','Lưu vai trò CTV trước khi thêm khách riêng.'));return}
+  const profile=profiles.profiles?.find(x=>x.type===account.requestedType&&['collaborator','agency'].includes(x.type));
+  if(!profile){wrap.replaceChildren(make('p','Lưu vai trò CTV / Đại lý trước khi thêm khách riêng.'));return}
   const [a,p]=await Promise.all([
    api('/api/v2/admin/addresses?profileId='+encodeURIComponent(profile.id)),
    api('/api/v2/admin/policies?profileId='+encodeURIComponent(profile.id))
@@ -859,21 +859,22 @@ async function renderOwnerCtvClientCards(account,wrap){
   if(!wrap.isConnected)return;
   const policies=p.policies.filter(x=>x.enabled&&!x.productCode);
   const last=xs=>xs.sort((x,y)=>y.version-x.version)[0];
-  const main=last(policies.filter(x=>!x.addressId)),cap=main?.collaboratorBps;
+  const main=last(policies.filter(x=>!x.addressId)),isCtv=profile.type==='collaborator';
+  const cap=isCtv?main?.collaboratorBps:main?.discountBps;
   wrap.replaceChildren();
   const head=make('div',null,'crm-ctv-heading');
-  head.append(make('h3','♧ Khách riêng của CTV ('+a.addresses.length+')'));wrap.append(head);
+  head.append(make('h3','♧ Khách riêng của '+(isCtv?'CTV':'Đại lý')+' ('+a.addresses.length+')'));wrap.append(head);
   if(!Number.isSafeInteger(cap)||cap<0||cap>10000){
-   wrap.append(make('p','Chưa có CK CTV được duyệt. Không thể cấp CK cho khách riêng.','crm-client-banner'));
+   wrap.append(make('p','Chưa có mức CK '+(isCtv?'CTV':'Đại lý')+' được duyệt. Không thể cấp CK cho khách riêng.','crm-client-banner'));
    return;
   }
   const refresh=()=>renderOwnerCtvClientCards(account,wrap);
-  const add=ownerCtvNewClient(profile.id,cap,main.discountBps,customerEpoch,refresh);
+  const add=ownerCtvNewClient(profile.id,cap,main.discountBps,customerEpoch,refresh,isCtv);
   add.classList.add('crm-client-add');
   head.append(add);
   const list=make('div',null,'crm-ctv-list');
   const addressGroups=crmUniqueSavedAddressGroups(a.addresses);
-  head.querySelector('h3').textContent='♧ Khách riêng của CTV ('+addressGroups.length+' địa chỉ)';
+  head.querySelector('h3').textContent='♧ Khách riêng của '+(isCtv?'CTV':'Đại lý')+' ('+addressGroups.length+' địa chỉ)';
   for(const members of addressGroups){
    let row=members.find(x=>x.active)||members[0];
    const card=make('div',null,'crm-ctv-client-row'),info=make('div',null,'crm-client-data');
@@ -921,7 +922,7 @@ async function renderOwnerCtvClientCards(account,wrap){
     try{
      await api('/api/v2/admin/policies','POST',{confirmed:true,profileId:profile.id,
       addressId:row.id,productCode:null,invoiceMode:'single',
-      discountBps:v,collaboratorBps:cap});
+      discountBps:v,...(isCtv?{collaboratorBps:cap}:{})});
      await refresh();crmStatus('Đã lưu CK riêng của khách.','success');
     }catch(e){crmStatus('Không lưu được: '+e.message,'error');save.disabled=false}
    };
@@ -931,7 +932,7 @@ async function renderOwnerCtvClientCards(account,wrap){
   wrap.append(list);
   // One address directory from signed invoices, not a second invoice import.
   const directory=make('details',null,'crm-ledger-discovery');
-  directory.append(make('summary','Đối chiếu địa chỉ từ hóa đơn gốc (gộp địa chỉ trùng)'));
+  directory.append(make('summary','Đối chiếu hóa đơn của '+(isCtv?'CTV':'Đại lý')+' (gộp địa chỉ trùng)'));
   const mount=make('div');directory.append(mount);
   directory.addEventListener('toggle',()=>{
    if(directory.open&&!directory.dataset.loaded){
@@ -972,15 +973,15 @@ function rolePricingEditor(account,body,item,{old=false}={}){
  const clients=make('section',null,'crm-ctv-clients');
  let loaded=false;
  const sync=()=>{
-  const isCtv=role.value==='collaborator';
+  const isCtv=role.value==='collaborator',isPartner=isCtv||role.value==='agency';
   ctv.row.hidden=!isCtv;ctv.field.required=isCtv;
-  clients.hidden=!isCtv;
+  clients.hidden=!isPartner;
   customer.title.textContent=isCtv?'Chiết khấu mặc định cho khách của CTV (%)':
    role.value==='agency'?'Chiết khấu Đại lý (%)':'Chiết khấu khách hàng (%)';
-  if(isCtv&&!loaded){
+  if(isPartner&&!loaded){
    loaded=true;
-   if(account.requestedType==='collaborator')requestAnimationFrame(()=>{if(clients.isConnected)void renderOwnerCtvClientCards(account,clients)});
-   else clients.replaceChildren(make('p','Lưu vai trò CTV và hai mức CK trước khi thêm khách riêng.','crm-client-banner'));
+   if(account.requestedType===role.value)requestAnimationFrame(()=>{if(clients.isConnected)void renderOwnerCtvClientCards(account,clients)});
+   else clients.replaceChildren(make('p','Lưu vai trò và mức CK trước khi thêm khách riêng.','crm-client-banner'));
   }
  };
  role.addEventListener('change',sync);sync();
@@ -1149,13 +1150,13 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
    '”. Tên trùng chưa chứng minh cùng tài khoản CTV. Chọn đúng CTV và xác nhận trước khi lưu.','crm-recipient-notice'));
   if(result.truncated)panel.append(make('p','Nguồn trả về giới hạn kết quả. Danh sách có thể chưa đầy đủ; tìm thêm theo SĐT nếu cần.','crm-recipient-notice'));
   const accounts=customerRecord.registered.filter(a=>a.accessStatus==='ACTIVE'&&
-   a.requestedType==='collaborator'&&a.id!==ownerAccountId);
+   ['collaborator','agency'].includes(a.requestedType)&&a.id!==ownerAccountId);
   const accountRow=make('div',null,'crm-recipient-account');
   const accountSelect=document.createElement('select');
-  accountSelect.setAttribute('aria-label','Chọn tài khoản CTV để quản lý chiết khấu');
-  const blank=make('option','Chọn tài khoản CTV đã xác minh');blank.value='';accountSelect.append(blank);
+  accountSelect.setAttribute('aria-label','Chọn CTV hoặc Đại lý để quản lý chiết khấu');
+  const blank=make('option','Chọn CTV / Đại lý đã xác minh');blank.value='';accountSelect.append(blank);
   for(const a of accounts){
-   const option=make('option',(a.fullName||a.name||a.email)+' · '+(a.phone||a.email||''));option.value=a.id;
+   const option=make('option',typeLabel(a.requestedType)+' · '+(a.fullName||a.name||a.email)+' · '+(a.phone||a.email||''));option.value=a.id;
    accountSelect.append(option);
   }
   if(presetAccount&&accounts.some(a=>a.id===presetAccount.id))accountSelect.value=presetAccount.id;
@@ -1203,7 +1204,7 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
       return crmStatus('Cần xác minh tên và SĐT người nhận trước khi lưu.','error');
      const account=accounts.find(a=>a.id===accountSelect.value);
      const selectedProfile=profile,selectedCap=cap;
-     if(!account||!selectedProfile||!confirm('Gắn địa chỉ “'+entry.address+'” vào CTV '+(account.fullName||account.email)+
+     if(!account||!selectedProfile||!confirm('Gắn địa chỉ “'+entry.address+'” vào '+typeLabel(account.requestedType)+' '+(account.fullName||account.email)+
       ' và áp dụng CK '+n+'% cho địa chỉ này? Hóa đơn gốc không thay đổi.'))return;
      save.disabled=true;accountSelect.disabled=true;
      try{
@@ -1222,7 +1223,7 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
       }
       await api('/api/v2/admin/policies','POST',{confirmed:true,profileId:selectedProfile.id,
        addressId:target.id,productCode:null,invoiceMode:'single',
-       discountBps:bps,collaboratorBps:selectedCap});
+       discountBps:bps,...(selectedProfile.type==='collaborator'?{collaboratorBps:selectedCap}:{})});
       crmStatus('Đã lưu CK '+n+'% cho một địa chỉ duy nhất; hóa đơn giữ nguyên.','success');
       const [a,p]=await Promise.all([
        api('/api/v2/admin/addresses?profileId='+encodeURIComponent(selectedProfile.id)),
@@ -1242,13 +1243,13 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
    const requestId=++loadGeneration;
    profile=null;cap=null;main=null;addresses=[];policies=[];rows.replaceChildren();
    const account=accounts.find(a=>a.id===accountSelect.value);
-   if(!account){status.textContent='Chọn CTV xác thực để chỉnh chiết khấu; chưa thay đổi dữ liệu.';draw();return}
+   if(!account){status.textContent='Chọn CTV / Đại lý xác thực để chỉnh chiết khấu; chưa thay đổi dữ liệu.';draw();return}
    status.textContent='Đang tải hồ sơ và CK của '+(account.fullName||account.name)+'…';
    try{
     const data=await api('/api/v2/admin/profiles?accountId='+encodeURIComponent(account.id));
     if(requestId!==loadGeneration||accountSelect.value!==account.id)return;
-    const chosenProfile=data.profiles?.find(p=>p.type==='collaborator')||null;
-    if(!chosenProfile)throw Error('CTV_PROFILE_NOT_FOUND');
+    const chosenProfile=data.profiles?.find(p=>p.type===account.requestedType&&['collaborator','agency'].includes(p.type))||null;
+    if(!chosenProfile)throw Error('PARTNER_PROFILE_NOT_FOUND');
     const [a,p]=await Promise.all([
      api('/api/v2/admin/addresses?profileId='+encodeURIComponent(chosenProfile.id)),
      api('/api/v2/admin/policies?profileId='+encodeURIComponent(chosenProfile.id))
@@ -1256,10 +1257,10 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
     if(requestId!==loadGeneration||accountSelect.value!==account.id)return;
     profile=chosenProfile;addresses=a.addresses;policies=p.policies;
     main=latest(policies.filter(x=>x.enabled&&!x.productCode&&!x.addressId));
-    cap=main?.collaboratorBps;
+    cap=chosenProfile.type==='collaborator'?main?.collaboratorBps:main?.discountBps;
     status.textContent=Number.isSafeInteger(cap)?
-     'CTV '+(account.fullName||account.name)+' · CK CTV '+cap/100+'% · mỗi địa chỉ chỉ xuất hiện một lần.':
-     'CTV chưa có mức CK được duyệt. Không thể lưu CK người nhận.';
+     typeLabel(account.requestedType)+' '+(account.fullName||account.name)+' · CK '+typeLabel(account.requestedType)+' '+cap/100+'% · mỗi địa chỉ chỉ xuất hiện một lần.':
+     'Tài khoản chưa có mức CK được duyệt. Không thể lưu CK người nhận.';
    }catch(error){if(requestId!==loadGeneration)return;status.textContent='Không tải được hồ sơ CTV: '+error.message}
    if(requestId===loadGeneration)draw();
   };
@@ -2187,7 +2188,7 @@ function ownerFormInput(group,label,key,value,required=true){
 }
 
 /* CTV-specific owner create: one visible form for name, phone, address and CK. */
-function ownerCtvNewClient(profileId,cap,defaultBps,epoch,refresh=()=>loadProfileDetails(profileId,epoch)){
+function ownerCtvNewClient(profileId,cap,defaultBps,epoch,refresh=()=>loadProfileDetails(profileId,epoch),isCtv=true){
  const group=make('details',null,'crm-ctv-add');group.append(make('summary','＋ Thêm khách riêng'));
  const form=make('form',null,'field-grid'),inputs={};
  for(const [key,label] of [
@@ -2220,7 +2221,7 @@ function ownerCtvNewClient(profileId,cap,defaultBps,epoch,refresh=()=>loadProfil
    try{
     await api('/api/v2/admin/policies','POST',{
      confirmed:true,profileId,addressId:result.id,productCode:null,
-     discountBps:bps,collaboratorBps:cap,invoiceMode:'single'});
+     discountBps:bps,...(isCtv?{collaboratorBps:cap}:{}),invoiceMode:'single'});
    }catch(e){
     await refresh();
     throw Error('Đã tạo khách, nhưng CK chưa lưu được. Chỉnh CK trên dòng khách vừa tạo: '+e.message);
