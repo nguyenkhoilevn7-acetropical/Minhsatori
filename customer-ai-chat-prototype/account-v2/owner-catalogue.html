@@ -908,7 +908,7 @@ async function renderOwnerCtvClientCards(account,wrap){
     }
     if(!row.active)info.append(make('small','Đang tạm dừng'));
     const personal=last(policies.filter(x=>x.addressId===row.id));
-    const bps=personal?.discountBps??main.discountBps;
+    const bps=personal?.discountBps??main?.discountBps;
     input.value=Number.isSafeInteger(bps)?String(bps/100):'';
     input.setAttribute('aria-label','CK khách '+(row.recipientName||row.label));
     input.disabled=!row.active||!hasApprovedCap;
