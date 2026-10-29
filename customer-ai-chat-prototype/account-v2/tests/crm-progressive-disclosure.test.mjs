@@ -13,7 +13,8 @@ test('CRM owner tabs are distinct and collapsed by default',()=>{
   assert.match(html,new RegExp('id="'+id+'"[^>]* hidden'));
  assert.match(html,/id="crmInspector" class="crm-inspector" hidden/);
  assert.match(html,/id="legacyLeadDisclosure"/);
- assert.match(html,/id="legacyLedgerDisclosure"/);
+ assert.doesNotMatch(html,/id="legacyLedgerDisclosure"/);
+ assert.match(html,/id="crmLegacyLink"/);
  assert.match(script,/let selectedOwnerGroup=null/);
  assert.match(script,/selectedOwnerGroup===g\.state/);
  assert.match(script,/const item=make\('details',null,'crm-entry crm-customer-card/);
