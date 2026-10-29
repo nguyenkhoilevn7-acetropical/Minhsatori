@@ -150,7 +150,7 @@ test('all verified CTV and agency accounts share deduplicated old-recipient dire
  assert.match(dir,/chosenProfile\.type==='collaborator'\?main\?\.collaboratorBps:main\?\.discountBps/);
  assert.match(dir,/selectedProfile\.type==='collaborator'\?\{collaboratorBps:selectedCap\}:\{\}/);
  assert.match(dir,/confirm\('Gắn địa chỉ/);
- assert.match(cards,/profile\.type===account\.requestedType/);
+ assert.match(cards,/x\.type===account\.requestedType/);
  assert.match(cards,/cap=isCtv\?main\?\.collaboratorBps:main\?\.discountBps/);
  assert.match(cards,/isCtv\?\{collaboratorBps:cap\}:\{\}/);
  assert.match(cards,/addressGroups=crmUniqueSavedAddressGroups\(a\.addresses\)/);
