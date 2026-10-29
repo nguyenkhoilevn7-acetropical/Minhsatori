@@ -2184,13 +2184,22 @@ async function loadOrders(){
   $('orderRows').append(node('p','Chưa kiểm tra được liên kết hóa đơn lịch sử.','muted'));
  }
  if(historical?.orders?.length){
+  $('orderRows').append(node('h3','Địa chỉ giao hàng lịch sử ('+
+   (historical.addresses||[]).length+' điểm duy nhất)'));
+  for(const a of historical.addresses||[]){
+   const line=node('div',undefined,'address-line');
+   line.append(node('strong',a.address),
+    node('small','Lần giao gần nhất: '+(a.date||'Chưa có ngày')+
+      (a.name?' · '+a.name:'')+' · '+(a.phoneCandidate||'Chưa có số điện thoại'),'muted'));
+   $('orderRows').append(line);
+  }
   $('orderRows').append(node('h3','Hóa đơn lịch sử đã liên kết (chỉ xem)'));
   for(const inv of historical.orders){
    const row=node('div',undefined,'address-line'),info=node('div');
    info.append(node('strong','#'+inv.invoiceNo+' · '+(inv.date||'')),
     node('small',(inv.status||'Trạng thái chưa xác minh')+
      ' · '+money(Number(inv.totalVnd)||0)+' · Sổ hóa đơn gốc'));
-   if(inv.address)info.append(node('small','Giao: '+inv.address,'muted'));
+   // Delivery locations are shown once above; invoices remain individually auditable.
    const details=node('details',undefined,'order-details');
    details.append(node('summary','Xem sản phẩm lịch sử'));
    for(const line of inv.items||[])details.append(node('small',
