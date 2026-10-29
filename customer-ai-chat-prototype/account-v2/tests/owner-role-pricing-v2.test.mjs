@@ -45,9 +45,9 @@ test('Owner uses only three icon tabs and expanded cards provide role/commission
  assert.equal((owner.match(/id="ownerTabs"/g)||[]).length,1);
  assert.equal((nav.match(/data-owner-tab=/g)||[]).length,3);
  assert.equal((nav.match(/<svg /g)||[]).length,3);
- assert.match(owner,/function rolePricingEditor\(account,body,item\)/);
+ assert.match(owner,/function rolePricingEditor\(account,body,item/);
  assert.match(owner,/body\.append\(rolePricingEditor\(x,body,item\)\)/);
- assert.match(owner,/rolePricingEditor\(registeredAccount,body,item\)/);
+ assert.match(owner,/rolePricingEditor\(registeredAccount,body,item,\{old:true\}\)/);
  assert.match(owner,/crmRoleChoices\(role\)/);
  assert.match(owner,/openCustomerInspector\(registeredAccount,body,item\)/);
  assert.match(owner,/\/api\/v2\/admin\/customer-role/);
