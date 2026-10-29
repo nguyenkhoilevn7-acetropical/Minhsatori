@@ -1002,6 +1002,42 @@ async function loadLedgerMonthCustomers(){
  }
  drawLedgerPreview();
 }
+/* Visual grouping only. Never combine customer IDs, identities, orders, policies or invoices. */
+function crmNameGroups(rows){
+ const groups=new Map();
+ rows.forEach((rec,index)=>{
+  const name=String(rec.fullName||rec.name||'').normalize('NFKC').trim().replace(/\s+/g,' ');
+  const key=name?name.toLocaleLowerCase('vi-VN'):'__unnamed_'+index;
+  if(!groups.has(key))groups.set(key,{name:name||'Không có tên',rows:[]});
+  groups.get(key).rows.push(rec);
+ });
+ return [...groups.values()];
+}
+function crmGroupCards(group,cards){
+ if(cards.length===1)return cards[0];
+ const shell=make('details',null,'crm-duplicate-group');
+ const heading=make('summary',null,'crm-duplicate-summary');
+ heading.append(make('strong',group.name),make('small',cards.length+' hồ sơ cùng tên · Chọn số / địa chỉ'));
+ const picker=make('div',null,'crm-duplicate-picker'),selected=make('div',null,'crm-duplicate-selected');
+ const index=cards.findIndex(card=>card.open),active=index<0?0:index;
+ const buttons=[],phoneCount=new Map();
+ for(const rec of group.rows){const key=String(rec.phone||'').replace(/\D/g,'');if(key)phoneCount.set(key,(phoneCount.get(key)||0)+1);}
+ cards.forEach((card,i)=>{
+  const rec=group.rows[i],digits=String(rec.phone||'').replace(/\D/g,'');
+  const label=(rec.phone||'Hồ sơ '+(i+1))+(digits&&phoneCount.get(digits)>1?' · '+(i+1):'');
+  const button=make('button',label,'secondary');button.type='button';
+  button.title=String(rec.address||rec.addresses?.[0]||rec.email||'Chọn hồ sơ '+(i+1));
+  button.setAttribute('aria-pressed',String(i===active));buttons.push(button);
+  button.onclick=()=>{
+   cards.forEach((c,j)=>{c.hidden=i!==j;buttons[j].setAttribute('aria-pressed',String(i===j));});
+   card.open=true;
+  };
+  card.hidden=i!==active;selected.append(card);picker.append(button);
+ });
+ shell.append(heading,picker,selected);shell.open=index>=0;
+ return shell;
+}
+
 function drawLedgerPreview(){
  const root=byId('crmLedgerPreview');root.replaceChildren();
  const known=[...customerRecord.leads,...customerRecord.registered];
