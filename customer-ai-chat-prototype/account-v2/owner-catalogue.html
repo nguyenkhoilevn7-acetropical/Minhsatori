@@ -263,6 +263,12 @@ header.owner-header{display:flex;align-items:center;gap:12px;padding:4px 0 12px;
 .crm-ctv-add form input{width:100%;min-height:43px}
 .crm-ctv-add form button{grid-column:1/-1}
 @media(max-width:540px){.crm-role-editor>form,.crm-ctv-add form,.crm-ctv-client-row{grid-template-columns:1fr}}
+
+#crmOldFilters{display:none!important}
+#legacyConsole .crm-panel-search{max-width:none}
+.crm-card-expanded>.crm-inspector{padding:12px;background:#ecfaf7;border-radius:12px}
+.crm-card-expanded>.crm-inspector>h2{font-size:18px}
+.crm-card-expanded>.crm-inspector .crm-entry{background:#fff}
 </style></head>
 <body>
 <main>
@@ -316,7 +322,7 @@ header.owner-header{display:flex;align-items:center;gap:12px;padding:4px 0 12px;
  <div id="crmStageFilters" class="crm-filter-row" role="group" aria-label="Lọc khách hàng mới"></div>
  <p id="crmStatus" role="status" aria-live="polite">Chưa tải danh sách.</p>
  <div id="crmCustomers" aria-label="Danh sách khách hàng"></div>
- <div id="crmInspectorHome"><div id="crmInspector" class="crm-inspector" hidden><h2>Hồ sơ và địa chỉ giao hàng</h2>
+ <div id="crmInspectorHome"><div id="crmInspector" class="crm-inspector" hidden><h2>Khách riêng &amp; chính sách CTV</h2>
  <div id="crmDetails" aria-live="polite">Chọn một khách hàng đã đăng ký để xem.</div>
  <form id="crmPolicyForm" hidden>
   <h2 style="margin-top:20px">Cấp chiết khấu được duyệt</h2>
@@ -588,7 +594,8 @@ function openCustomerInspector(rec,body,item){
  for(const el of document.querySelectorAll('#crmCustomers .crm-customer-card'))
   if(el!==item)el.open=false;
  const inspector=byId('crmInspector');
- body.append(inspector);
+ const lifecycle=body.querySelector('.crm-action-menu');
+ if(lifecycle)body.insertBefore(inspector,lifecycle);else body.append(inspector);
  void selectAccount(rec);
 }
 function crmFilterButton(label,value,count,selected,kind){
@@ -896,6 +903,9 @@ function drawCustomers(){
    };actions.append(link);
   }
   if(!registeredAccount)actions.append(leadLifecycleControls(x));
+  if(registeredAccount?.accessStatus==='ACTIVE'&&registeredAccount.requestedType==='collaborator'){
+   item.addEventListener('toggle',()=>{if(item.open)openCustomerInspector(registeredAccount,body,item)});
+  }
   oldDest.append(item);
  }
 }
