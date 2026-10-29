@@ -15,8 +15,10 @@ test('CRM owner tabs are distinct and collapsed by default',()=>{
  assert.match(html,/id="legacyLeadDisclosure"/);
  assert.match(html,/id="legacyLedgerDisclosure"/);
  assert.match(script,/let selectedOwnerGroup=null/);
- assert.match(script,/pane\.open=selectedOwnerGroup===group\.state/);
- assert.match(script,/const pane=make\('details',null,'crm-status-group/);
+ assert.match(script,/selectedOwnerGroup===g\.state/);
+ assert.match(script,/const item=make\('details',null,'crm-entry crm-customer-card/);
+ assert.match(script,/resetCustomerInspector\(\)/);
+ assert.match(html,/id="crmOldFilter" type="search"/);
  assert.match(script,/activateOwnerTab\('new'\)/);
  assert.match(script,/byId\('crmInspector'\)\.hidden=false/);
 });
