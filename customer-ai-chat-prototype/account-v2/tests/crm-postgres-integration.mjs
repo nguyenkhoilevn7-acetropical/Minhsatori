@@ -6,7 +6,8 @@ import {ctvClientWrite,ctvClientList} from '../router.mjs';
 import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,
  adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer,
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
- legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail} from '../customer-backend.mjs';
+ legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
+ adminReconcileVerifiedLegacyPending} from '../customer-backend.mjs';
 
 const url=process.env.SATORI_V2_CI_DATABASE_URL||'';
 assert.ok(url.includes('127.0.0.1')&&url.endsWith('/satori_v2_ci'),
@@ -366,6 +367,40 @@ try{
  assert.equal(conflict.state,'PENDING');
  const conflictRate=await one('SELECT discount_bps FROM satori_v2_policies WHERE profile_id=$1 '+
   'AND enabled=true',[conflictProfile.id]);assert.equal(conflictRate.discount_bps,4000);
+
+
+ // Previously signed-in pending session can reconcile without a new Google login.
+ const previousEmail='previous-session@example.invalid';
+ const previousSub='ci-prev-session-'+randomUUID();
+ await adminCreateLead(pool,owner.id,{...form,email:previousEmail,
+  discountBps:1800,confirmed:true});
+ const previousAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id,email,access_status,google_sub",
+  [previousSub,previousEmail]);
+ const preview=await reconcileVerifiedLegacySession(pool,previousAccount,owner.google_sub,{dryRun:true});
+ assert.equal(preview.state,'READY','dry-run diagnoses eligible pending session without mutations');
+ const unchanged=await one('SELECT access_status FROM satori_v2_accounts WHERE id=$1',[previousAccount.id]);
+ assert.equal(unchanged.access_status,'PENDING');
+ const sessionResult=await reconcileVerifiedLegacySession(pool,previousAccount,owner.google_sub);
+ assert.equal(sessionResult.state,'ACTIVE','old session should activate without Google callback');
+ const previousCheck=await one('SELECT access_status FROM satori_v2_accounts WHERE id=$1',[previousAccount.id]);
+ assert.equal(previousCheck.access_status,'ACTIVE');
+ // Admin reconciles pending accounts that already authenticated with Google.
+ const bulkEmail='bulk-reconcile@example.invalid';
+ const bulkSub='ci-bulk-'+randomUUID();
+ await adminCreateLead(pool,owner.id,{...form,email:bulkEmail,discountBps:1600,confirmed:true});
+ const bulkAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id",[bulkSub,bulkEmail]);
+ const batch=await adminReconcileVerifiedLegacyPending(pool,owner,owner.google_sub);
+ assert.ok(batch.checked>=1&&batch.activated>=1);
+ const batchAccount=await one('SELECT access_status FROM satori_v2_accounts WHERE id=$1',[bulkAccount.id]);
+ assert.equal(batchAccount.access_status,'ACTIVE');
+ const noMatching=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id,google_sub,email,access_status",
+  ['ci-no-match-'+randomUUID(),'unmatched-ci@example.invalid']);
+ const missing=await reconcileVerifiedLegacySession(pool,noMatching,owner.google_sub,{dryRun:true});
+ assert.equal(missing.state,'PENDING');
+ assert.equal(missing.reason,'NO_UNIQUE_LEGACY_LEAD');
 
  // Duplicate old records with the SAME Gmail: fail closed instead of assigning one partner.
  const duplicateEmail='ambiguous@example.invalid';
