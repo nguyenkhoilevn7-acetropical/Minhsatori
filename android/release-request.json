@@ -1,27 +1,22 @@
 {
-  "purpose": "android-0.4.19-total-sales-kpi-red-invoices-owner-production",
+  "purpose": "android-0.4.20-in-app-owner-google-crm-v2",
   "package": "vn.minhsatori.app",
-  "version": "0.4.19",
-  "versionCode": 36,
-  "branch": "release/android-v0.4.19-sales-kpi-red-invoices-20261028",
-  "requestedOn": "2026-10-28",
+  "version": "0.4.20",
+  "versionCode": 37,
+  "branch": "release/android-v0.4.20-native-v2-crm-20261029",
+  "requestedOn": "2026-10-29",
   "sourcePRs": [
-    218,
-    220
+    240
   ],
-  "scope": "Fix Android Home to show Total Sales and Debt side by side/stacked adaptively. Invoice tab also shows real total sales. All invoice amounts red #DC2626 after filter changes. Exclude test, internal CTV, cancelled and Không Tính from total sales. Preserve all accounting writes, API/Drive/PDF/auth, right-edge drawer, pinned signer and vn.minhsatori.app package.",
+  "scope": "Integrate existing owner-only V2 CRM inside Minh Satori Android native Quản trị hệ thống: Google Play Services verified Admin owner, secure WebView session after server /me isAdmin, registration review then manual discount, signed legacy lookup/edit/multi-address/Gmail activation. Preserve native invoice/debt/payment/PDF/Drive workflows, package vn.minhsatori.app, signed in-place upgrade and all financial data.",
   "notes": [
-    "Owner explicitly requests production Android layout. Build signed RELEASE APK using existing stable release keystore and verify certificate SHA-256 against pinned repository variable. NEVER distribute debug build.",
-    "Keep installed package vn.minhsatori.app and existing user session/data; increment versionCode 33→34 for non-destructive in-place update.",
-    "Capture emulator UI for standard phone and Fold inner/outer dimensions. Respect reduced motion; preserve unsent Gemini chat draft across folding.",
-    "Do not claim real payment/edit functions have been end-to-end tested in authenticated production; use fake data only for CI, require Samsung installation and business acceptance.",
-    "Keep previous signed 0.4.16 APK for rollback; do not uninstall existing application, change Apps Script, invoices, Drive IDs, PostgreSQL or HMAC secrets.",
-    "2026-10-28: source visual tests updated for MoneyMind; signed release requested after owner approved production. Pinned signer still mandatory.",
-    "2026-10-28: corrected MoneyMind light-border UI palette and retained seven financial-method integrity hashes. Re-run signed release.",
-    "2026-10-28: Owner explicitly reaffirmed production request for existing Android app; trigger pinned-cert signed APK workflow; Android must still be installed and verified on physical Samsung before calling device rollout complete.",
-    "Explicit owner requests 2026-10-28: position hamburger beside Settings, drawer from right; all invoice/debt amounts red. Signed APK using pinned certificate; do not auto-install or modify finance production.",
-    "Source static tests and Gradle build must PASS; require visual owner acceptance on Samsung Z Fold before considering device rollout complete.",
-    "Owner clarified these changes are ANDROID, not GitHub Pages website. Validate both normal phone and Z Fold widths.",
-    "Never fake sales revenue when disconnected; retain — and current account session."
+    "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
+    "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
+    "Only bridge server-issued HttpOnly+CSRF cookies to a pinned same-origin in-app owner WebView after GET /api/v2/me confirms isAdmin. Do not expose ID token or HMAC secret to JavaScript, logs or preferences.",
+    "Use the existing pinned release signer and verify certificate SHA-256. NEVER distribute unsigned or debug APK as an update.",
+    "Version 0.4.20 code 37 is an in-place upgrade over 0.4.19 code 36. Do not uninstall the app or clear its existing invoice data.",
+    "Maintain all existing production invoice, payment, PDF, CTV and reconciliation logic; no changes to Apps Script or database schema.",
+    "Run CI unit tests and compile signed APK, then test sign-in and owner operations with live Samsung/Z Fold before declaring device rollout accepted.",
+    "No Google tokens, real passwords, or customer records in test logs/artifacts; no live invoice creation as part of acceptance."
   ]
 }
