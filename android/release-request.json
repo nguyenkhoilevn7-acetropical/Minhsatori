@@ -6,7 +6,8 @@
   "branch": "release/android-v0.4.20-native-v2-crm-20261029",
   "requestedOn": "2026-10-29",
   "sourcePRs": [
-    240
+    240,
+    241
   ],
   "scope": "Integrate existing owner-only V2 CRM inside Minh Satori Android native Quản trị hệ thống: Google Play Services verified Admin owner, secure WebView session after server /me isAdmin, registration review then manual discount, signed legacy lookup/edit/multi-address/Gmail activation. Preserve native invoice/debt/payment/PDF/Drive workflows, package vn.minhsatori.app, signed in-place upgrade and all financial data.",
   "notes": [
@@ -18,6 +19,7 @@
     "Maintain all existing production invoice, payment, PDF, CTV and reconciliation logic; no changes to Apps Script or database schema.",
     "Run CI unit tests and compile signed APK, then test sign-in and owner operations with live Samsung/Z Fold before declaring device rollout accepted.",
     "No Google tokens, real passwords, or customer records in test logs/artifacts; no live invoice creation as part of acceptance.",
-    "2026-10-29: Android unit tests and debug APK compiled PASS in PR #240. Trigger signed v0.4.20 release on pinned official certificate; physical Samsung owner OAuth/device acceptance remains separate."
+    "2026-10-29: Android unit tests and debug APK compiled PASS in PR #240. Trigger signed v0.4.20 release on pinned official certificate; physical Samsung owner OAuth/device acceptance remains separate.",
+    "2026-10-29: PR #241 harmonized owner CRM with production native app palette (#009C99 teal, #102B38 ink, #F1F4F5 background), full-width phone/Fold responsive cards, vector icon navigation, readable 47px fields. Android source tests and debug APK compile PASS. Request renewed pinned certificate signed release; supersedes earlier unthemed 0.4.20 artifact."
   ]
 }
