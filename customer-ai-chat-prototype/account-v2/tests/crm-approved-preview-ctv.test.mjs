@@ -14,9 +14,9 @@ test('approved preview has a single native-compatible owner tab row',()=>{
  for(const tab of ['new','old','catalogue'])
   assert.match(owner,new RegExp('data-owner-tab="'+tab+'"'));
  assert.match(ownerScript,/activateOwnerTab\(tab\)/);
- assert.match(ownerScript,/const oldItems=\[\.\.\.leads,\.\.\.registered\.filter/);
+ assert.match(ownerScript,/const oldItems=\[\.\.\.registered\.filter/);
  assert.match(ownerScript,/registeredAccount\?\.accessStatus==='ACTIVE'/);
- assert.match(owner,/crm-customer-card/);
+ assert.match(owner,/crm-customer-card/);\n assert.match(owner,/id="crmLedgerDiscovery" class="crm-ledger-discovery"/);\n assert.match(ownerScript,/if\(compact\)\{item\.append\(body\);return \{item,body\};\}/);
 });
 
 test('role switches and CTV dual discounts are bound to the real APIs',()=>{
