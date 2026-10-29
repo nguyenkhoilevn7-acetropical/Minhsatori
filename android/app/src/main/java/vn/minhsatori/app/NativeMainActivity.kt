@@ -108,6 +108,40 @@ class NativeMainActivity : AppCompatActivity() {
     private var lastOAuthRecoveryAt = 0L
     private val oauthRetryBackoffMs = 300_000L
     private val newOrderChannelId = "minh_satori_live_orders"
+    // Separate from accounting: V2 new customer alerts require ONLY a verified
+    // owner WebView session; never borrow a Google Drive OAuth scope.
+    private val v2AlertHandler=Handler(Looper.getMainLooper())
+    private val v2AlertExecutor=java.util.concurrent.Executors.newSingleThreadExecutor()
+    private var v2SignupBadge:TextView?=null
+    private val v2AlertTick=object:Runnable{
+        override fun run(){
+            if(!foreground)return
+            val cookie=V2RegistrationAlerts.cookie()
+            if(cookie.contains("satori_v2_session=")){
+                try{
+                    v2AlertExecutor.execute{
+                        try{
+                            val feed=V2RegistrationAlerts.fetch(cookie)
+                            if(feed!=null){
+                                val count=V2RegistrationAlerts.process(applicationContext,feed)
+                                runOnUiThread{
+                                    if(!isFinishing&&!isDestroyed)updateNativeV2Badge(count)
+                                }
+                            }
+                        }catch(_:Exception){}
+                    }
+                }catch(_:java.util.concurrent.RejectedExecutionException){}
+            }
+            v2AlertHandler.postDelayed(this,25_000L)
+        }
+    }
+    private fun updateNativeV2Badge(count:Int){
+        v2SignupBadge?.apply{
+            visibility=if(count>0)View.VISIBLE else View.GONE
+            text=if(count>99)"99+" else count.toString()
+            contentDescription="$count khách mới đang chờ duyệt"
+        }
+    }
     // Never persist OAuth tokens. Re-authorize silently through Google when
     // resuming; show a consent dialog only when Android actually requires it.
     private val syncTick = object : Runnable {
@@ -332,6 +366,8 @@ class NativeMainActivity : AppCompatActivity() {
         foreground = true
         syncHandler.removeCallbacks(syncTick)
         syncHandler.postDelayed(syncTick, syncIntervalMs)
+        v2AlertHandler.removeCallbacks(v2AlertTick)
+        v2AlertHandler.post(v2AlertTick)
         // Resume promptly checks orders written while another app was open.
         if (!isLoading && !authorizationPending && !authorizationDeclined) {
             if (preferredSource() == AutoSyncPolicy.DRIVE && snapshot != null &&
@@ -356,6 +392,7 @@ class NativeMainActivity : AppCompatActivity() {
     override fun onPause() {
         foreground = false
         syncHandler.removeCallbacks(syncTick)
+        v2AlertHandler.removeCallbacks(v2AlertTick)
         super.onPause()
     }
 
@@ -407,6 +444,8 @@ class NativeMainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         syncHandler.removeCallbacks(syncTick)
+        v2AlertHandler.removeCallbacks(v2AlertTick)
+        v2AlertExecutor.shutdownNow()
         // OAuth tokens/snapshots stay in memory; only the encrypted pending write survives.
         accessToken = null
         snapshot = null
@@ -873,7 +912,27 @@ class NativeMainActivity : AppCompatActivity() {
                 render()
             }
         }
-        brand.addView(bellButton, LinearLayout.LayoutParams(dp(38), dp(46)))
+        val bellContainer=FrameLayout(this)
+        bellContainer.addView(bellButton,FrameLayout.LayoutParams(dp(38),dp(46)))
+        val alertCount=V2RegistrationAlerts.pendingCount(this)
+        v2SignupBadge=TextView(this).apply{
+            text=if(alertCount>99)"99+" else alertCount.toString()
+            textSize=10f;gravity=Gravity.CENTER
+            setTypeface(typeface,Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            background=panelBackground(Color.rgb(189,31,57),12)
+            minimumWidth=dp(21);minHeight=dp(21)
+            setPadding(dp(3),0,dp(3),0)
+            visibility=if(alertCount>0)View.VISIBLE else View.GONE
+            isClickable=true;isFocusable=true
+            contentDescription="Mở "+alertCount+" đăng ký Gmail mới chờ duyệt"
+            setOnClickListener{
+                startActivity(Intent(this@NativeMainActivity,V2OwnerCrmActivity::class.java))
+            }
+        }
+        bellContainer.addView(v2SignupBadge,FrameLayout.LayoutParams(-2,dp(21),
+            Gravity.TOP or Gravity.END))
+        brand.addView(bellContainer,LinearLayout.LayoutParams(dp(38),dp(46)))
         val options = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_settings)
             setColorFilter(if (activeTab == 0) white else ink)
@@ -1525,7 +1584,13 @@ class NativeMainActivity : AppCompatActivity() {
             "Tìm khách cũ theo tên/SĐT, sửa hồ sơ, thêm điểm giao và liên kết Gmail. " +
             "Mọi thao tác được kiểm tra quyền trên server, không dùng quyền Drive thay thế.",
             12f, false, muted, 8)
-        button(v2, "👥  QUẢN LÝ KHÁCH HÀNG V2", true,
+        val pendingV2=V2RegistrationAlerts.pendingCount(this)
+        if(pendingV2>0){
+            label(v2,"🔔  "+pendingV2+" khách mới đang chờ duyệt",15f,true,
+                Color.rgb(178,45,55),8)
+        }
+        button(v2, "👥  QUẢN LÝ KHÁCH HÀNG V2"+
+            (if(pendingV2>0)"  •  "+pendingV2+" mới" else ""), true,
             R.drawable.ic_satori_users) {
             startActivity(Intent(this, V2OwnerCrmActivity::class.java))
         }
