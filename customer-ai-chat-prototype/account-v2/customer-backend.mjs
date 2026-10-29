@@ -584,6 +584,134 @@ export async function legacyCustomerImport(pool,owner,input){
    addressesStaged:addresses.length};
  });
 }
+
+/**
+ * A verified Google login may claim exactly one PRE-APPROVED, still-unlinked
+ * old CRM lead with the same email. It never infers identity from name/phone,
+ * claims historical invoices, or grants a rate from customer registration.
+ *
+ * Caller must already have verified the Google ID token and must pass its sub
+ * and email. Execute inside the login's existing SQL transaction. Ambiguity
+ * and incomplete owner-approved pricing deliberately keep the account PENDING.
+ */
+export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,email,ownerGoogleSub}){
+ if(!isUuid(accountId)||typeof googleSub!=='string'||googleSub.length<5||
+    typeof email!=='string'||!email.trim()||!ownerGoogleSub||googleSub===ownerGoogleSub)
+  return {state:'PENDING',reason:'IDENTITY_NOT_ELIGIBLE'};
+ const account=await c.query('SELECT id,email,access_status FROM satori_v2_accounts '+
+  "WHERE id=$1 AND google_sub=$2 AND lower(email)=lower($3) AND access_status='PENDING' FOR UPDATE",
+  [accountId,googleSub,email.trim()]);
+ if(account.rowCount!==1)return {state:'PENDING',reason:'ACCOUNT_NOT_PENDING'};
+ const duplicateAccount=await c.query('SELECT id FROM satori_v2_accounts '+
+  'WHERE lower(email)=lower($1) AND id<>$2 LIMIT 1',[email.trim(),accountId]);
+ if(duplicateAccount.rowCount)return {state:'PENDING',reason:'EMAIL_USED_BY_OTHER_ACCOUNT'};
+ const leads=await c.query('SELECT * FROM satori_v2_customer_leads '+
+  'WHERE active=true AND lower(email)=lower($1) ORDER BY id FOR UPDATE',[email.trim()]);
+ // Multiple accounts/contacts for the same Gmail must be resolved by owner.
+ if(leads.rowCount!==1)return {state:'PENDING',reason:'NO_UNIQUE_LEGACY_LEAD'};
+ const lead=leads.rows[0];
+ // An earlier owner action may already have linked this SAME Google account
+ // without granting ACTIVE access. Preserve that link, never relink another.
+ if(lead.linked_account_id&&lead.linked_account_id!==accountId)
+  return {state:'PENDING',reason:'LEAD_LINKED_TO_ANOTHER_ACCOUNT'};
+ const source=await c.query('SELECT event_type,details FROM satori_v2_audit '+
+  "WHERE resource_id=$1 AND event_type IN ('CUSTOMER_LEAD_CREATED','LEGACY_CRM_STAGED') "+
+  'ORDER BY id DESC LIMIT 1',[lead.id]);
+ if(source.rowCount!==1)return {state:'PENDING',reason:'NO_OWNER_APPROVAL'};
+ const owner=await c.query('SELECT id FROM satori_v2_accounts WHERE google_sub=$1 LIMIT 1',
+  [ownerGoogleSub]);
+ if(owner.rowCount!==1)return {state:'PENDING',reason:'OWNER_NOT_INITIALIZED'};
+ let data,addresses;
+ try{
+  data=validateCustomerProfile({
+   fullName:lead.full_name,phone:lead.phone,address:lead.address,
+   email:lead.email,companyName:lead.company_name,taxCode:lead.tax_code,
+   note:lead.note,requestedType:lead.requested_type,
+   discountBps:lead.discount_bps,collaboratorBps:lead.collaborator_bps
+  },{admin:true});
+  if(!data.email||data.email!==email.trim().toLowerCase()||
+     data.requestedType==='collaborator'&&!Number.isSafeInteger(data.collaboratorBps))
+   return {state:'PENDING',reason:'LEGACY_POLICY_INVALID'};
+  const primary=validateAddress({label:'Khách cũ',recipientName:data.fullName,
+   recipientPhone:data.phone,address:data.address});
+  if(source.rows[0].event_type==='LEGACY_CRM_STAGED'){
+   const staged=source.rows[0].details;
+   if(!Array.isArray(staged?.addresses)||!staged.addresses.length)
+    return {state:'PENDING',reason:'STAGED_ADDRESSES_INVALID'};
+   addresses=staged.addresses.map(x=>validateAddress(x));
+   // The latest Admin edits of the lead take precedence for the first address.
+   addresses[0]={...primary,label:addresses[0].label};
+  }else addresses=[primary];
+ }catch{
+  return {state:'PENDING',reason:'LEGACY_CONTACT_INVALID'};
+ }
+ const profiles=await c.query('SELECT id FROM satori_v2_profiles WHERE account_id=$1 '+
+  'ORDER BY created_at LIMIT 2 FOR UPDATE',[accountId]);
+ if(profiles.rowCount>1)return {state:'PENDING',reason:'AMBIGUOUS_PROFILES'};
+ const profileId=profiles.rows[0]?.id||null;
+ if(profileId){
+  // Manually linked PENDING accounts can already have the old customer CK.
+  // Only reconcile an owner-signed DEFAULT policy matching the approved lead.
+  // Mismatched rates or customized address/SKU rules require manual review.
+  const existing=await c.query('SELECT address_id,product_code,discount_bps,'+
+   'collaborator_bps,approved_by FROM satori_v2_policies '+
+   'WHERE profile_id=$1 AND enabled=true FOR UPDATE',[profileId]);
+  if(existing.rows.some(p=>p.address_id||p.product_code||
+   p.approved_by!==ownerGoogleSub||p.discount_bps!==data.discountBps||
+   p.collaborator_bps!=null&&p.collaborator_bps!==data.collaboratorBps))
+   return {state:'PENDING',reason:'EXISTING_POLICY_REQUIRES_OWNER'};
+ }
+ let targetProfile=profileId;
+ if(targetProfile){
+  await c.query('UPDATE satori_v2_profiles SET type=$2,display_name=$3,phone=$4,'+
+   'revision=revision+1 WHERE id=$1',[targetProfile,data.requestedType,data.fullName,data.phone]);
+ }else{
+  const created=await c.query('INSERT INTO satori_v2_profiles '+
+   '(account_id,type,display_name,phone) VALUES($1,$2,$3,$4) RETURNING id',
+   [accountId,data.requestedType,data.fullName,data.phone]);
+  targetProfile=created.rows[0].id;
+ }
+ const stored=await c.query('SELECT recipient_phone,address FROM satori_v2_addresses '+
+  'WHERE profile_id=$1 FOR UPDATE',[targetProfile]);
+ const addressKey=a=>(String(a.recipientPhone||a.recipient_phone||'')+'|'+String(a.address||''))
+  .normalize('NFKC').trim().toLowerCase();
+ const seen=new Set(stored.rows.map(addressKey));
+ let addressesAdded=0;
+ for(const addr of addresses){
+  if(seen.has(addressKey(addr)))continue;
+  await c.query('INSERT INTO satori_v2_addresses '+
+   '(profile_id,label,recipient_name,recipient_phone,address) VALUES($1,$2,$3,$4,$5)',
+   [targetProfile,addr.label,addr.recipientName,addr.recipientPhone,addr.address]);
+  seen.add(addressKey(addr));addressesAdded++;
+ }
+ await c.query('INSERT INTO satori_v2_registrations '+
+  '(account_id,full_name,phone,address,company_name,tax_code,note,requested_type,reviewed_at,reviewed_by) '+
+  'VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),$9) ON CONFLICT(account_id) DO UPDATE SET '+
+  'full_name=EXCLUDED.full_name,phone=EXCLUDED.phone,address=EXCLUDED.address,'+
+  'company_name=EXCLUDED.company_name,tax_code=EXCLUDED.tax_code,note=EXCLUDED.note,'+
+  'requested_type=EXCLUDED.requested_type,reviewed_at=now(),reviewed_by=EXCLUDED.reviewed_by,'+
+  'revision=satori_v2_registrations.revision+1,updated_at=now()',
+  [accountId,data.fullName,data.phone,data.address,data.companyName,data.taxCode,data.note,
+   data.requestedType,owner.rows[0].id]);
+ await applyGeneralDiscount(c,targetProfile,ownerGoogleSub,data.discountBps,
+  data.requestedType==='collaborator'?data.collaboratorBps:null);
+ if(!lead.linked_account_id){
+  const linked=await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
+   'revision=revision+1,updated_at=now() WHERE id=$1 AND linked_account_id IS NULL RETURNING id',
+   [lead.id,accountId]);
+  check(linked.rowCount===1,'LEGACY_LEAD_RACE',409);
+ }
+ await c.query('UPDATE satori_v2_accounts SET display_name=$2,'+
+  "access_status='ACTIVE',revision=revision+1,updated_at=now() WHERE id=$1",
+  [accountId,data.fullName]);
+ await c.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
+  "VALUES($1,'system','LEGACY_VERIFIED_GMAIL_AUTO_ACTIVATED',$2,$3)",
+  [accountId,lead.id,JSON.stringify({profileId:targetProfile,role:data.requestedType,
+   discountBps:data.discountBps,collaboratorBps:data.collaboratorBps,
+   addressesAdded,oneInvoice:true})]);
+ return {state:'ACTIVE',profileId:targetProfile,leadId:lead.id,addressesAdded};
+}
+
 export async function legacyCustomerActivateLead(pool,owner,input){
  check(input?.confirmed===true&&input?.identityConfirmed===true,
   'LEGACY_OWNER_CONFIRMATION_REQUIRED',403);

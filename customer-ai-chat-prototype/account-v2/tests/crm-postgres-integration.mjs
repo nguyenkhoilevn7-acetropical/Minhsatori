@@ -6,7 +6,7 @@ import {ctvClientWrite,ctvClientList} from '../router.mjs';
 import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,
  adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer,
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
- legacyCustomerActivateLead} from '../customer-backend.mjs';
+ legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail} from '../customer-backend.mjs';
 
 const url=process.env.SATORI_V2_CI_DATABASE_URL||'';
 assert.ok(url.includes('127.0.0.1')&&url.endsWith('/satori_v2_ci'),
@@ -36,7 +36,7 @@ try{
  assert.ok(lead.lead.id);
  const leadRow=await one('SELECT discount_bps,active FROM satori_v2_customer_leads WHERE id=$1',
   [lead.lead.id]);assert.equal(leadRow.discount_bps,2000);
- // Link only after selecting a Google-verified account; no name/phone auto claim.
+ // Manual owner link remains possible; automatic claims require a verified Google token.
  const link=await adminLinkLead(pool,owner,{leadId:lead.lead.id,accountId:customer.id,
   expectedRevision:lead.lead.revision,confirmed:true});
  assert.equal(link.linkedAccountId,customer.id);
@@ -268,6 +268,140 @@ try{
  assert.equal(ctvAfterRole.requestedType,'collaborator');
  assert.equal(ctvAfterRole.discountBps,2000);
  assert.equal(ctvAfterRole.collaboratorBps,4000);
+
+
+ // Owner-set old-client Gmail auto-activates only when GOOGLE verified the sub.
+ // All records here are synthetic; no Gmail, invoices or real customer identities.
+ const loginClaim=async(account,sub,email)=>{
+  const conn=await pool.connect();
+  try{
+   await conn.query('BEGIN');
+   const result=await autoActivateVerifiedLegacyGmail(conn,{
+    accountId:account.id,googleSub:sub,email,ownerGoogleSub:owner.google_sub});
+   await conn.query('COMMIT');return result;
+  }catch(e){await conn.query('ROLLBACK');throw e}finally{conn.release()}
+ };
+ const autoEmail='auto-ctv@example.invalid',autoSub='ci-auto-ctv-'+randomUUID();
+ const autoLead=await adminCreateLead(pool,owner.id,{
+  fullName:'CTV Approved Legacy',email:autoEmail,phone:'0900000444',
+  address:'44 Synthetic Old Client',requestedType:'collaborator',
+  discountBps:2000,collaboratorBps:3500,confirmed:true});
+ const autoAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id,access_status",[autoSub,autoEmail.toUpperCase()]);
+ await one("INSERT INTO satori_v2_profiles(account_id,type,display_name) "+
+  "VALUES($1,'retail','Google Display Name') RETURNING id",[autoAccount.id]);
+ const wrongSub=await loginClaim(autoAccount,'wrong-google-sub',autoEmail);
+ assert.equal(wrongSub.state,'PENDING','cannot claim from a client-supplied Gmail');
+ const autoResult=await loginClaim(autoAccount,autoSub,autoEmail);
+ assert.equal(autoResult.state,'ACTIVE');
+ const activatedUser=await one('SELECT access_status,display_name FROM satori_v2_accounts WHERE id=$1',
+  [autoAccount.id]);
+ assert.equal(activatedUser.access_status,'ACTIVE');
+ assert.equal(activatedUser.display_name,'CTV Approved Legacy');
+ const role=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[autoResult.profileId]);
+ assert.equal(role.type,'collaborator');
+ const rate=await one('SELECT discount_bps,collaborator_bps,invoice_mode FROM satori_v2_policies '+
+  'WHERE profile_id=$1 AND enabled=true',[autoResult.profileId]);
+ assert.equal(rate.discount_bps,2000);assert.equal(rate.collaborator_bps,3500);
+ assert.equal(rate.invoice_mode,'single');
+ const autoAddress=await one('SELECT count(*)::int AS count FROM satori_v2_addresses WHERE profile_id=$1',
+  [autoResult.profileId]);assert.equal(autoAddress.count,1);
+ const autoLink=await one('SELECT linked_account_id FROM satori_v2_customer_leads WHERE id=$1',
+  [autoLead.lead.id]);assert.equal(autoLink.linked_account_id,autoAccount.id);
+ const reviewed=await one('SELECT requested_type,reviewed_at IS NOT NULL AS approved FROM satori_v2_registrations WHERE account_id=$1',
+  [autoAccount.id]);assert.equal(reviewed.approved,true);assert.equal(reviewed.requested_type,'collaborator');
+ const replay=await loginClaim(autoAccount,autoSub,autoEmail);
+ assert.equal(replay.state,'PENDING','already active user cannot reapply CK policy');
+ const policyCount=await one('SELECT count(*)::int AS count FROM satori_v2_policies WHERE profile_id=$1',
+  [autoResult.profileId]);assert.equal(policyCount.count,1);
+
+ // Existing case from owner CRM: pending Google account already has CK from
+ // manual lead link. Matching owner-approved CK must not block auto activation.
+ const preEmail='already-linked@example.invalid',preSub='ci-prelinked-'+randomUUID();
+ const preLead=await adminCreateLead(pool,owner.id,{...form,email:preEmail,
+  discountBps:2000,confirmed:true});
+ const preAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id,email,access_status",[preSub,preEmail]);
+ await registrationSave(pool,preAccount,{...form,email:preEmail});
+ const preLink=await adminLinkLead(pool,owner,{leadId:preLead.lead.id,
+  accountId:preAccount.id,expectedRevision:preLead.lead.revision,confirmed:true});
+ assert.equal(preLink.linkedAccountId,preAccount.id);
+ const preActivated=await loginClaim(preAccount,preSub,preEmail);
+ assert.equal(preActivated.state,'ACTIVE','owner-prelinked pending customer should self-activate');
+ const prePolicy=await one('SELECT count(*)::int AS count FROM satori_v2_policies WHERE profile_id=$1 '+
+  'AND enabled=true AND discount_bps=2000',[preActivated.profileId]);
+ assert.equal(prePolicy.count,1,'do not leave duplicate active CK policies');
+ const preType=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[preActivated.profileId]);
+ assert.equal(preType.type,'agency');
+ // A pre-existing owner-approved customer CK=20% may be upgraded to the
+ // explicitly approved CTV 35% cap, without replacing the 20% customer rate.
+ const preCtvEmail='ctv-existing-rate@example.invalid',preCtvSub='ci-prectv-'+randomUUID();
+ await adminCreateLead(pool,owner.id,{fullName:'CTV Historical Approved',
+  phone:'0900011111',address:'10 CTV Sample Lane',email:preCtvEmail,
+  requestedType:'collaborator',discountBps:2000,collaboratorBps:3500,confirmed:true});
+ const preCtvAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id",[preCtvSub,preCtvEmail]);
+ const preCtvProfile=await one('INSERT INTO satori_v2_profiles(account_id,type,display_name) '+
+  "VALUES($1,'retail','Waiting CTV') RETURNING id",[preCtvAccount.id]);
+ await pool.query('INSERT INTO satori_v2_policies '+
+  '(profile_id,discount_bps,collaborator_bps,invoice_mode,version,approved_by) '+
+  "VALUES($1,2000,NULL,'single',1,$2)",[preCtvProfile.id,owner.google_sub]);
+ const preCtvActivated=await loginClaim(preCtvAccount,preCtvSub,preCtvEmail);
+ assert.equal(preCtvActivated.state,'ACTIVE');
+ const preCtvPolicy=await one('SELECT discount_bps,collaborator_bps FROM satori_v2_policies '+
+  'WHERE profile_id=$1 AND enabled=true',[preCtvProfile.id]);
+ assert.equal(preCtvPolicy.discount_bps,2000);
+ assert.equal(preCtvPolicy.collaborator_bps,3500);
+ // Wrong CK must never be silently replaced using an old Gmail record.
+ const conflictEmail='conflict-rate@example.invalid',conflictSub='ci-conflict-'+randomUUID();
+ await adminCreateLead(pool,owner.id,{...form,email:conflictEmail,discountBps:2000,confirmed:true});
+ const conflictAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id",[conflictSub,conflictEmail]);
+ const conflictProfile=await one('INSERT INTO satori_v2_profiles(account_id,type,display_name) '+
+  "VALUES($1,'retail','Conflict') RETURNING id",[conflictAccount.id]);
+ await pool.query('INSERT INTO satori_v2_policies '+
+  '(profile_id,discount_bps,invoice_mode,version,approved_by) '+
+  "VALUES($1,4000,'single',1,$2)",[conflictProfile.id,owner.google_sub]);
+ const conflict=await loginClaim(conflictAccount,conflictSub,conflictEmail);
+ assert.equal(conflict.state,'PENDING');
+ const conflictRate=await one('SELECT discount_bps FROM satori_v2_policies WHERE profile_id=$1 '+
+  'AND enabled=true',[conflictProfile.id]);assert.equal(conflictRate.discount_bps,4000);
+
+ // Duplicate old records with the SAME Gmail: fail closed instead of assigning one partner.
+ const duplicateEmail='ambiguous@example.invalid';
+ await adminCreateLead(pool,owner.id,{...form,email:duplicateEmail,discountBps:2000,confirmed:true});
+ await adminCreateLead(pool,owner.id,{...form,email:duplicateEmail,discountBps:3000,confirmed:true});
+ const dupSub='ci-duplicate-'+randomUUID();
+ const dupAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id",[dupSub,duplicateEmail]);
+ assert.equal((await loginClaim(dupAccount,dupSub,duplicateEmail)).state,'PENDING');
+ // Unapproved legacy lead (no Admin audit) cannot auto-grant a role/discount.
+ const noAuditEmail='no-audit@example.invalid',noAuditSub='ci-no-audit-'+randomUUID();
+ await one('INSERT INTO satori_v2_customer_leads '+
+  '(full_name,email,phone,address,requested_type,discount_bps) '+
+  "VALUES('Unapproved','no-audit@example.invalid','0900000999','99 Test St','agency',2000) RETURNING id");
+ const noAuditAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id",[noAuditSub,noAuditEmail]);
+ assert.equal((await loginClaim(noAuditAccount,noAuditSub,noAuditEmail)).state,'PENDING');
+ // Exact verified Gmail may restore all staged old invoice-recipient addresses.
+ const stagedEmail='auto-staged@example.invalid',stagedSub='ci-staged-'+randomUUID();
+ const stagedLead=await adminCreateLead(pool,owner.id,{
+  ...form,email:stagedEmail,discountBps:1500,confirmed:true});
+ await pool.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
+  "VALUES($1,'owner','LEGACY_CRM_STAGED',$2,$3)",
+  [owner.id,stagedLead.lead.id,JSON.stringify({addresses:[
+   {label:'Nhà',recipientName:form.fullName,recipientPhone:form.phone,address:form.address},
+   {label:'Điểm giao 2',recipientName:form.fullName,recipientPhone:form.phone,address:'88 Second St'}
+  ],invoiceNos:[999001],sourceRevision:1})]);
+ const stagedAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id",[stagedSub,stagedEmail]);
+ const stagedResult=await loginClaim(stagedAccount,stagedSub,stagedEmail);
+ assert.equal(stagedResult.state,'ACTIVE');assert.equal(stagedResult.addressesAdded,2);
+ const stagedAddresses=await one('SELECT count(*)::int AS count FROM satori_v2_addresses WHERE profile_id=$1',
+  [stagedResult.profileId]);assert.equal(stagedAddresses.count,2);
+ const audit=await one("SELECT actor FROM satori_v2_audit WHERE event_type='LEGACY_VERIFIED_GMAIL_AUTO_ACTIVATED' "+
+  'AND resource_id=$1',[stagedLead.lead.id]);
+ assert.equal(audit.actor,'system');
 
  // Staged old CTV must keep both owner-set discounts independently.
  const leadCtv=await adminCreateLead(pool,owner.id,{fullName:'CTV Legacy Synthetic',
