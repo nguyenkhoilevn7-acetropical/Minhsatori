@@ -695,6 +695,51 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             #legacyConsole .crm-client-data small {font-size:11px!important;}
             #legacyConsole .crm-card-footer button {min-height:40px!important;font-size:11.5px!important;}
             #legacyConsole #crmLedgerDiscovery>summary {font-size:13px!important;}
+
+            /* Physical Samsung #9107/#9109 versus approved #9091.
+               Remote owner UI stays authenticated; only visual grid is forced. */
+            #legacyConsole .crm-role-choice-row {display:grid!important;
+                grid-template-columns:76px minmax(0,1fr)!important;align-items:center!important;}
+            #legacyConsole .crm-role-options {display:grid!important;
+                grid-template-columns:repeat(3,minmax(0,1fr))!important;
+                width:100%!important;gap:5px!important;min-width:0!important;}
+            #legacyConsole .crm-role-options button {width:100%!important;min-width:0!important;
+                display:inline-flex!important;flex-direction:row!important;justify-content:center!important;
+                align-items:center!important;white-space:nowrap!important;padding:5px 2px!important;}
+            #legacyConsole .crm-card-footer {display:grid!important;
+                grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) minmax(0,1.45fr)!important;
+                gap:5px!important;width:100%!important;}
+            #legacyConsole .crm-card-footer .crm-btn-primary {grid-column:auto!important;}
+            #legacyConsole .crm-card-footer button {display:inline-flex!important;flex-direction:row!important;
+                align-items:center!important;justify-content:center!important;gap:3px!important;
+                white-space:nowrap!important;min-width:0!important;
+                font-size:clamp(9px,2.5vw,12px)!important;padding:5px 2px!important;}
+            #legacyConsole .crm-card-footer button .ico {width:13px!important;height:13px!important;margin:0!important;}
+            #legacyConsole .crm-rate-row {display:grid!important;
+                grid-template-columns:minmax(0,1fr) minmax(105px,135px)!important;gap:6px!important;}
+            #legacyConsole .crm-percent-control {display:flex!important;min-width:0!important;align-items:stretch;}
+            #legacyConsole .crm-percent-control input {flex:1 1 0!important;width:100%!important;
+                min-width:0!important;text-align:right!important;}
+            #legacyConsole .crm-ctv-client-row {display:grid!important;
+                grid-template-columns:minmax(0,1fr) minmax(130px,175px) 24px!important;
+                gap:5px!important;align-items:center!important;}
+            #legacyConsole .crm-client-rate {display:flex!important;flex-flow:row nowrap!important;
+                gap:3px!important;align-items:center!important;min-width:0!important;}
+            #legacyConsole .crm-client-rate input {min-width:0!important;width:42px!important;
+                flex:1 1 42px!important;padding:5px 3px!important;}
+            #legacyConsole .crm-client-rate>span {flex:0 0 auto!important;font-size:11px!important;}
+            #legacyConsole .crm-client-rate .crm-client-save {display:inline-flex!important;
+                align-items:center!important;white-space:nowrap!important;min-width:0!important;
+                width:auto!important;font-size:10px!important;padding:4px!important;}
+            #legacyConsole .crm-client-rate .crm-client-save .ico {width:11px!important;
+                height:11px!important;margin:0!important;}
+            #legacyConsole .crm-duplicate-picker {display:flex!important;flex-wrap:wrap!important;}
+            @media(max-width:430px) {
+                #legacyConsole .crm-role-choice-row {grid-template-columns:1fr!important;}
+                #legacyConsole .crm-role-options {grid-template-columns:repeat(3,minmax(0,1fr))!important;}
+                #legacyConsole .crm-card-footer {grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) minmax(0,1.45fr)!important;}
+                #legacyConsole .crm-ctv-client-row {grid-template-columns:minmax(0,1fr) minmax(122px,145px) 20px!important;}
+            }
             @media(max-width:560px) {
                 main {padding-left:10px!important;padding-right:10px!important;}
                 .card {padding:11px!important;}

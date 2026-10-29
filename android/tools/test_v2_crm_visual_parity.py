@@ -64,6 +64,16 @@ class OwnerCrmVisualParity(unittest.TestCase):
         self.assertNotIn("CustomTabsIntent.Builder()", PORTAL)
         self.assertIn("V2OwnerCrmActivity::class.java", NATIVE)
 
+    def test_owner_phone_fold_controls_remain_horizontal(self):
+        self.assertIn("#legacyConsole .crm-role-options {display:grid!important;", PORTAL)
+        self.assertIn("grid-template-columns:repeat(3,minmax(0,1fr))!important;", PORTAL)
+        self.assertIn("#legacyConsole .crm-card-footer {display:grid!important;", PORTAL)
+        self.assertIn("#legacyConsole .crm-card-footer .crm-btn-primary {grid-column:auto!important;}", PORTAL)
+        self.assertIn("#legacyConsole .crm-ctv-client-row {display:grid!important;", PORTAL)
+        self.assertIn("#legacyConsole .crm-client-rate {display:flex!important;flex-flow:row nowrap!important;", PORTAL)
+        self.assertIn("#legacyConsole .crm-client-rate .crm-client-save {display:inline-flex!important;", PORTAL)
+        self.assertIn("#legacyConsole .crm-duplicate-picker {display:flex!important;flex-wrap:wrap!important;}", PORTAL)
+
     def test_original_finance_tabs_are_not_changed(self):
         for value in ("renderInvoices(content, data)", "renderDebt(content, data)",
                       "renderCustomers(content, data)", "confirmInvoicePayment",
