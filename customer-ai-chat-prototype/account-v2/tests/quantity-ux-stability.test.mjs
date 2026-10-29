@@ -12,6 +12,8 @@ function section(begin,end){
 }
 test('address text and phone have identical weight and size',()=>{
  assert.match(html,/\.agent-address-choice \.address-subtitle,\s*\.agent-address-choice \.address-phone\s*\{[^}]*font-size:15px;line-height:1\.5;font-weight:500/);
+ assert.match(html,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-subtitle,\s*\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-phone\s*\{[^}]*font-weight:550/);
+ assert.doesNotMatch(html,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-phone\s*\{\s*font-weight:700/);
 });
 test('catalogue directly supports numeric input and +/- before adding',()=>{
  const src=section('function catalogueQuantity(code){','/**\n * Prices in this screen');
