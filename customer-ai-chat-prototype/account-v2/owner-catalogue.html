@@ -168,7 +168,7 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
 'use strict';
 const byId=id=>document.getElementById(id);
 const csrf=()=>document.cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith('satori_v2_csrf='))?.slice(15)||'';
-let isOwner=false,busy=false,sourceReady=false;
+let isOwner=false,busy=false,sourceReady=false,ownerAccountId=null;
 function state(message,kind='info'){byId('notice').textContent=message;byId('notice').dataset.kind=kind}
 async function api(route,method='GET',body){
  const headers={'accept':'application/json'};
@@ -334,7 +334,7 @@ function drawCustomers(){
    };
    item.append(form);
   }
-  if(x.accessStatus!=='REMOVED')item.append(accountLifecycleControls(x));
+  if(x.id!==ownerAccountId&&x.accessStatus!=='REMOVED')item.append(accountLifecycleControls(x));
   dest.append(item);
  }
  if(legacyListOpen&&!old.length)oldDest.append(make('p','Không có hồ sơ cũ khớp tìm kiếm.'));
@@ -413,7 +413,7 @@ function drawCustomers(){
 
 /* Lifecycle actions reuse revision-controlled owner API. No invoice is deleted. */
 async function changeAccountLifecycle(rec,status,discountBps){
- if(!isOwner||rec.accessStatus==='REMOVED')return;
+ if(!isOwner||rec.id===ownerAccountId||rec.accessStatus==='REMOVED')return;
  const who=rec.fullName||rec.email||'tài khoản';
  const message=status==='REMOVED'
   ?'Xóa quyền truy cập của '+who+'? Hồ sơ và hóa đơn lịch sử được giữ để đối soát. Không thể kích hoạt lại bằng nút này.'
@@ -634,7 +634,7 @@ async function initCrm(){
  try{
   const me=await api('/api/v2/me');
   if(!me?.account?.isAdmin)throw Error('ADMIN_REQUIRED');
-  isOwner=true;byId('authState').textContent='Đã xác thực quyền Admin.';
+  isOwner=true;ownerAccountId=me.account.id;byId('authState').textContent='Đã xác thực quyền Admin.';
   await initCrm();await reload();
  }catch(e){
   byId('authState').textContent='Không có phiên Admin hợp lệ.';
