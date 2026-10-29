@@ -7,6 +7,8 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "app/src/main/java/vn/minhsatori/app/NativeMainActivity.kt").read_text(encoding="utf-8")
 GRADLE = (ROOT / "app/build.gradle.kts").read_text(encoding="utf-8")
+PORTAL = (ROOT / "app/src/main/java/vn/minhsatori/app/AiCustomerPortalActivity.kt").read_text(encoding="utf-8")
+MANIFEST = (ROOT / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
 
 class V2AdminEntryContract(unittest.TestCase):
     def test_owner_backoffice_is_a_native_tab(self):
@@ -26,15 +28,30 @@ class V2AdminEntryContract(unittest.TestCase):
         self.assertIn('render()', SOURCE)
         self.assertIn('private fun renderV2OwnerBackend(parent: LinearLayout, current: SatoriSnapshot?)', SOURCE)
 
-    def test_no_admin_navigation_to_customer_site_or_embedded_browser(self):
+    def test_in_app_owner_crm_authenticates_with_native_google_before_webview(self):
         self.assertNotIn('/app-v2?view=account', SOURCE)
         self.assertNotIn('openV2Admin()', SOURCE)
         self.assertNotIn('CustomTabsIntent.Builder()', SOURCE)
-        method=SOURCE.split('private fun renderV2OwnerBackend(',1)[1].split('private fun renderOverview(',1)[0]
-        self.assertNotIn('WebView(', method)
+        method = SOURCE.split('private fun renderV2OwnerBackend(', 1)[1].split('private fun renderOverview(', 1)[0]
+        self.assertNotIn('WebView(', method, "Settings page must stay native")
         self.assertNotIn('SATORI_BOT_SECRET', method)
-        self.assertIn('Google OAuth V2 chưa xác minh chủ tài khoản', method)
-        self.assertIn('Không tự động lấy quyền Admin từ đăng nhập Drive', method)
+        self.assertIn('V2OwnerCrmActivity::class.java', method)
+        self.assertIn('QUẢN LÝ KHÁCH HÀNG V2', method)
+        self.assertIn('không dùng quyền Drive thay thế', method)
+        self.assertIn('class V2OwnerCrmActivity', PORTAL)
+        self.assertIn('android:name=".V2OwnerCrmActivity"', MANIFEST)
+        self.assertIn('requestIdToken(clientId)', PORTAL)
+        self.assertIn('verifyOwnerSession(cookies)', PORTAL)
+        self.assertIn('optBoolean("isAdmin") == true', PORTAL)
+        self.assertIn('"/api/v2/auth/google"', PORTAL)
+        self.assertIn('"/api/v2/me"', PORTAL)
+        self.assertIn('CookieManager.getInstance().setAcceptThirdPartyCookies(web, false)', PORTAL)
+        self.assertIn('javax.net.ssl.HttpsURLConnection', PORTAL)
+        self.assertIn('onReceivedSslError(', PORTAL)
+        self.assertIn('onJsConfirm(', PORTAL)
+        self.assertNotIn('SATORI_BOT_SECRET', PORTAL)
+        self.assertNotIn('CustomTabsIntent.Builder()', PORTAL)
+        self.assertNotIn('WebView.setWebContentsDebuggingEnabled(true)', PORTAL)
 
     def test_existing_owner_invoice_and_customer_pages_remain_accessible(self):
         for pair in ['activeTab = 1','activeTab = 2','activeTab = 3','activeTab = 4']:
