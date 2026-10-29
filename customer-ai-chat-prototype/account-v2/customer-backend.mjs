@@ -518,3 +518,40 @@ export async function adminRegistrationNotifications(pool){
  return {ok:true,pendingCount:counts.rows[0]?.count||0,
   newest:latest.rows,checkedAt:new Date().toISOString()};
 }
+
+/** Owner-only CTV profit ledger. Source = ONE canonical COMMITTED order request
+ * and its immutable priced quote snapshot, never a second CTV invoice.
+ * A missing/old CTV rate is reported as unpriced instead of invented margin.
+ */
+export async function adminCtvProfitSummary(pool,profileId){
+ check(isUuid(profileId),'CTV_PROFILE_REQUIRED');
+ const profile=await pool.query(
+  'SELECT id,display_name AS name,type FROM satori_v2_profiles WHERE id=$1',[profileId]);
+ check(profile.rowCount===1&&profile.rows[0].type==='collaborator','CTV_PROFILE_REQUIRED',404);
+ const result=await pool.query(
+  'SELECT r.ledger_invoice_no AS "invoiceNo",r.created_at AS "createdAt",'+
+  'q.payload FROM satori_v2_order_requests r '+
+  'JOIN satori_v2_quotes q ON q.id=r.quote_id '+
+  "WHERE q.profile_id=$1 AND r.state='COMMITTED' "+
+  'ORDER BY r.created_at DESC LIMIT 200',[profileId]);
+ let salesVnd=0,marginVnd=0,internalCostVnd=0,unpricedCount=0;
+ const entries=result.rows.map(row=>{
+  const q=row.payload||{},total=Number(q.totalVnd);
+  const margin=Number(q.collaboratorMarginVnd);
+  const internal=Number(q.internalReference?.goodsVnd);
+  const validMargin=Number.isSafeInteger(margin)&&margin>=0&&
+   Number.isSafeInteger(internal)&&internal>=0&&
+   Number.isSafeInteger(total)&&total>=margin;
+  const validTotal=Number.isSafeInteger(total)&&total>=0;
+  if(validTotal)salesVnd+=total;
+  if(validMargin){marginVnd+=margin;internalCostVnd+=internal}
+  else unpricedCount++;
+  return {invoiceNo:row.invoiceNo,createdAt:row.createdAt,
+   customer:q.delivery?.recipientName||'Khách của CTV',
+   address:q.delivery?.address||'',
+   saleVnd:validTotal?total:null,marginVnd:validMargin?margin:null,
+   ...(validMargin?{internalCostVnd:internal}:{})};
+ });
+ return {ok:true,profileId,invoiceMode:'single',count:entries.length,
+  salesVnd,marginVnd,internalCostVnd,unpricedCount,entries};
+}
