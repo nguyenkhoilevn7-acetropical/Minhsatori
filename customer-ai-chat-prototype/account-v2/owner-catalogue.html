@@ -752,12 +752,17 @@ function drawCustomers(){
   .some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(oldTerm)));
  if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ cũ phù hợp. Có thể mở “Tìm khách từ hóa đơn gốc” để nhập hồ sơ.','crm-stage-hint'));
  for(const x of matches){
-  const {item,body}=buildCustomerCard(x);
+  // A verified Google account is authoritative for the linked lead's live role
+  // and policy. Never show stale lead rates as if they still govern Gemini.
+  const registeredAccount=x.linkedAccountId
+   ?customerRecord.registered.find(a=>a.id===x.linkedAccountId):null;
+  const cardRecord=registeredAccount?{...x,requestedType:registeredAccount.requestedType,
+   discountBps:registeredAccount.discountBps,collaboratorBps:registeredAccount.collaboratorBps}:x;
+  const {item,body}=buildCustomerCard(cardRecord);
   const actions=make('div',null,'crm-card-actions');
   const info=make('p',x.linkedAccountId?'Đã liên kết tài khoản Google.':'Chưa liên kết Google; chưa tự cấp quyền đặt hàng.');
   body.append(info,actions);
   if(x.linkedAccountId){
-   const registeredAccount=customerRecord.registered.find(a=>a.id===x.linkedAccountId);
    if(registeredAccount?.accessStatus==='ACTIVE'&&registeredAccount.id!==ownerAccountId)
     body.append(rolePricingEditor(registeredAccount));
    else body.append(make('p','Hồ sơ đã liên kết: quản lý quyền qua tài khoản Google đang hoạt động.','crm-role-hint'));
