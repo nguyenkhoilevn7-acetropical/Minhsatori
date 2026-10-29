@@ -26,7 +26,7 @@ import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead,
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
- legacyCustomerActivateLead} from './customer-backend.mjs';
+ legacyCustomerActivateLead,adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -200,14 +200,18 @@ async function adminPolicy(pool,actor,input){
  error(Number.isInteger(input.discountBps)&&input.discountBps>=0&&input.discountBps<=10000,'DISCOUNT_INVALID');
  const mode=input.invoiceMode||'single';
  error(['single','pair'].includes(mode),'INVOICE_MODE_INVALID');
- error(mode!=='pair'||Number.isInteger(input.collaboratorBps)&&input.collaboratorBps>=0&&input.collaboratorBps<=10000,
-  'COLLABORATOR_DISCOUNT_INVALID');
+ error(mode!=='pair','ONE_INVOICE_REQUIRED',400);
+ // The two approved CTV rates are metadata in ONE single invoice policy.
+ // The customer-facing discount is always lower than or equal to CTV rate.
+ error(input.collaboratorBps==null||(Number.isSafeInteger(input.collaboratorBps)&&
+  input.collaboratorBps>=input.discountBps&&input.collaboratorBps<=10000),
+  'CTV_RATE_MUST_BE_AT_LEAST_CUSTOMER_RATE');
  const client=await pool.connect();
  try{
   await client.query('BEGIN');
   const profile=await client.query('SELECT id,type FROM satori_v2_profiles WHERE id=$1 FOR UPDATE',[input.profileId]);
   error(profile.rows.length===1,'PROFILE_NOT_FOUND',404);
-  error(mode!=='pair'||profile.rows[0].type==='collaborator','PAIR_NOT_AUTHORIZED');
+  error(input.collaboratorBps==null||profile.rows[0].type==='collaborator','CTV_ROLE_REQUIRED');
   if(input.addressId){
    const addr=await client.query('SELECT id FROM satori_v2_addresses WHERE id=$1 AND profile_id=$2',
     [input.addressId,input.profileId]);
@@ -226,11 +230,12 @@ async function adminPolicy(pool,actor,input){
    '(profile_id,address_id,product_code,discount_bps,collaborator_bps,invoice_mode,version,approved_by) '+
    'VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,version',
    [input.profileId,input.addressId||null,input.productCode||null,input.discountBps,
-    mode==='pair'?input.collaboratorBps:null,mode,version.rows[0].version,actor.google_sub]);
+    input.collaboratorBps??null,'single',version.rows[0].version,actor.google_sub]);
   await client.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
    'VALUES($1,$2,$3,$4,$5)',[actor.id,'owner','POLICY_APPROVED',policy.rows[0].id,
     JSON.stringify({profileId:input.profileId,addressId:input.addressId||null,productCode:input.productCode||null,
-     discountBps:input.discountBps,collaboratorBps:mode==='pair'?input.collaboratorBps:null,mode})]);
+     discountBps:input.discountBps,collaboratorBps:input.collaboratorBps??null,mode:'single',
+     profitMarginBps:input.collaboratorBps==null?null:input.collaboratorBps-input.discountBps})]);
   await client.query('COMMIT');
   return policy.rows[0];
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}finally{client.release()}
@@ -265,6 +270,7 @@ function customerPricing(data){
 }
 async function quote(pool,actor,input){
  const {priced,cartRevision,catalogueRevision}=await pricedCart(pool,actor,input);
+ error(priced.invoiceMode==='single','V2_PAIR_INVOICE_POLICY_DISABLED',409);
  const deliveryRequest=validatedV2QuoteDelivery(input.deliveryRequest);
  // Persist the customer-requested instruction INSIDE this V2 quote snapshot,
  // never in a client-only invoice or the old Apps Script ledger.
@@ -444,6 +450,14 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/admin/legacy/activate'&&req.method==='POST'){
    owner(actor);
    send(res,200,await legacyCustomerActivateLead(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/ctv/profit'&&req.method==='GET'){
+   owner(actor);
+   const p=new URL(req.url,'http://local').searchParams.get('profileId');
+   send(res,200,await adminCtvProfitSummary(pool,p));return true;
+  }
+  if(pathname==='/api/v2/admin/notifications'&&req.method==='GET'){
+   owner(actor);send(res,200,await adminRegistrationNotifications(pool));return true;
   }
   if(pathname==='/api/v2/admin/customers'&&req.method==='GET'){
    owner(actor);send(res,200,await adminCustomerList(pool));return true;

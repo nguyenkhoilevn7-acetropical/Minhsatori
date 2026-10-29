@@ -40,6 +40,8 @@ export async function registrationSave(pool,actor,input){
    [actor.id,data.fullName,data.phone,data.address,data.companyName,data.taxCode,data.note,data.requestedType]);
   await c.query('UPDATE satori_v2_accounts SET display_name=$2,updated_at=now() WHERE id=$1',
    [actor.id,data.fullName]);
+  await audit(c,actor.id,'CUSTOMER_REGISTRATION_SUBMITTED',actor.id,
+   {registrationRevision:r.rows[0].revision});
   return {ok:true,accessStatus:'PENDING',revision:r.rows[0].revision,
    message:'Đã nhận hồ sơ. Admin cần duyệt trước khi đặt hàng.'};
  });
@@ -122,16 +124,16 @@ export async function adminPatchLead(pool,ownerId,input){
   return {ok:true,lead:r.rows[0]};
  });
 }
-async function applyGeneralDiscount(c,profileId,ownerSub,discountBps){
+async function applyGeneralDiscount(c,profileId,ownerSub,discountBps,collaboratorBps=null){
  const versions=await c.query('SELECT COALESCE(MAX(version),0)+1 AS version FROM satori_v2_policies '+
   'WHERE profile_id=$1 AND address_id IS NULL AND product_code IS NULL',[profileId]);
  await c.query('UPDATE satori_v2_policies SET enabled=false,revision=revision+1 '+
   'WHERE profile_id=$1 AND address_id IS NULL AND product_code IS NULL AND enabled=true',[profileId]);
  return c.query(
   'INSERT INTO satori_v2_policies '+
-  '(profile_id,address_id,product_code,discount_bps,invoice_mode,version,approved_by) '+
-  "VALUES($1,NULL,NULL,$2,'single',$3,$4) RETURNING id,version",
-  [profileId,discountBps,versions.rows[0].version,ownerSub]);
+  '(profile_id,address_id,product_code,discount_bps,collaborator_bps,invoice_mode,version,approved_by) '+
+  "VALUES($1,NULL,NULL,$2,$3,'single',$4,$5) RETURNING id,version",
+  [profileId,discountBps,collaboratorBps,versions.rows[0].version,ownerSub]);
 }
 export async function adminEditRegisteredCustomer(pool,owner,input){
  check(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
@@ -197,6 +199,11 @@ export async function adminChangeCustomerStatus(pool,owner,input){
    check(reg.rows.length===1,'CUSTOMER_REGISTRATION_INCOMPLETE',409);
    check(reg.rows[0].reviewed_at!==null,'CUSTOMER_APPROVAL_REQUIRED_BEFORE_PRICING',409);
    const data=reg.rows[0];
+   const isCtv=data.requested_type==='collaborator';
+   const ctvRate=input.collaboratorBps;
+   check(!isCtv||Number.isSafeInteger(ctvRate)&&ctvRate>=change.discountBps&&ctvRate<=10000,
+    'CTV_DISCOUNT_REQUIRED_AND_NOT_BELOW_CUSTOMER',409);
+   check(isCtv||ctvRate==null,'CTV_ROLE_REQUIRED',409);
    const existing=await c.query('SELECT id,type FROM satori_v2_profiles WHERE account_id=$1 '+
     'ORDER BY created_at LIMIT 1 FOR UPDATE',[input.accountId]);
    if(existing.rows.length){
@@ -216,7 +223,8 @@ export async function adminChangeCustomerStatus(pool,owner,input){
     await c.query('INSERT INTO satori_v2_addresses(profile_id,label,recipient_name,recipient_phone,address) '+
      "VALUES($1,'Địa chỉ đăng ký',$2,$3,$4)",[profileId,data.full_name,data.phone,data.address]);
    if(change.discountBps!==undefined)
-    await applyGeneralDiscount(c,profileId,owner.google_sub,change.discountBps);
+    await applyGeneralDiscount(c,profileId,owner.google_sub,change.discountBps,
+     isCtv?ctvRate:null);
    await c.query('UPDATE satori_v2_registrations SET reviewed_at=now(),reviewed_by=$2 '+
     'WHERE account_id=$1',[input.accountId,owner.id]);
   }else{
@@ -230,7 +238,9 @@ export async function adminChangeCustomerStatus(pool,owner,input){
    'revision=revision+1,updated_at=now() WHERE id=$1 RETURNING id,revision,access_status AS "accessStatus"',
    [input.accountId,change.status]);
   await audit(c,owner.id,'CUSTOMER_ACCESS_'+change.status,input.accountId,
-   {approvedDiscountBps:change.status==='ACTIVE'?change.discountBps??null:null});
+   {approvedDiscountBps:change.status==='ACTIVE'?change.discountBps??null:null,
+    collaboratorBps:change.status==='ACTIVE'?input.collaboratorBps??null:null,
+    oneInvoice:true});
   return {ok:true,customer:updated.rows[0],profileId};
  });
 }
@@ -297,6 +307,22 @@ export async function adminApproveRegistration(pool,owner,input){
 
 /* Signed, owner-gated legacy customer search. Never rewrite source invoices. */
 const sourceText=(v,max)=>typeof v==='string'?v.trim().slice(0,max):'';
+/**
+ * Ledger phones sometimes include customer notes, punctuation or Vietnamese
+ * display names in parentheses. Keep original source untouched for display.
+ * Extract a VALID phone candidate; never treat the whole field as a number
+ * or silently invent one. Owner must check contact before activation.
+ */
+export function legacyPhoneCandidate(value){
+ const text=sourceText(value,120).normalize('NFKC');
+ const parts=text.match(/\+?\d[\d().\s-]{7,28}\d/g)||[];
+ for(const part of parts){
+  const digits=part.replace(/[ ().-]/g,'');
+  if(/^\+?[0-9]{9,15}$/.test(digits))return digits;
+ }
+ return '';
+}
+
 export async function legacyCustomerSearch(query){
  const q=sourceText(query,90);
  check(q.length>=2&&!/[*%_]/.test(q),'LEGACY_SEARCH_REQUIRED');
@@ -307,7 +333,8 @@ export async function legacyCustomerSearch(query){
  const orders=raw.slice(0,100).filter(o=>Number.isSafeInteger(Number(o.invoiceNo))&&Number(o.invoiceNo)>0)
  .map(o=>({
   id:String(o.id||'').slice(0,80),invoiceNo:Number(o.invoiceNo),
-  name:sourceText(o.name,120),phone:sourceText(o.phone,24),
+  name:sourceText(o.name,120),phone:sourceText(o.phone,80),
+  phoneCandidate:legacyPhoneCandidate(o.phone),
   address:sourceText(o.location,400),date:sourceText(o.date,30),
   status:sourceText(o.status,50),total:Number(o.total)||0,
   vatAmount:Number(o.vatAmount)||0,shippingAmount:Number(o.shippingAmount)||0,
@@ -469,4 +496,62 @@ export async function legacyCustomerActivateLead(pool,owner,input){
   await audit(c,owner.id,'LEGACY_CRM_STAGED_LINKED',lead.id,{accountId:account.id});
   return {...result,leadId:lead.id};
  });
+}
+
+/**
+ * Owner-only, read-only registration notification feed. No extra schema,
+ * no invoices, and no notification tokens stored in customer data.
+ * Existing reviewed/activated accounts are excluded.
+ */
+export async function adminRegistrationNotifications(pool){
+ const [counts,latest]=await Promise.all([
+  pool.query('SELECT COUNT(*)::int AS count FROM satori_v2_accounts a '+
+   'JOIN satori_v2_registrations r ON r.account_id=a.id '+
+   "WHERE a.access_status='PENDING' AND r.reviewed_at IS NULL"),
+  pool.query('SELECT a.id,a.email,r.full_name AS "fullName",r.phone,'+
+   'r.requested_type AS "requestedType",r.submitted_at AS "submittedAt",'+
+   'r.revision FROM satori_v2_accounts a '+
+   'JOIN satori_v2_registrations r ON r.account_id=a.id '+
+   "WHERE a.access_status='PENDING' AND r.reviewed_at IS NULL "+
+   'ORDER BY r.submitted_at DESC,a.created_at DESC LIMIT 100')
+ ]);
+ return {ok:true,pendingCount:counts.rows[0]?.count||0,
+  newest:latest.rows,checkedAt:new Date().toISOString()};
+}
+
+/** Owner-only CTV profit ledger. Source = ONE canonical COMMITTED order request
+ * and its immutable priced quote snapshot, never a second CTV invoice.
+ * A missing/old CTV rate is reported as unpriced instead of invented margin.
+ */
+export async function adminCtvProfitSummary(pool,profileId){
+ check(isUuid(profileId),'CTV_PROFILE_REQUIRED');
+ const profile=await pool.query(
+  'SELECT id,display_name AS name,type FROM satori_v2_profiles WHERE id=$1',[profileId]);
+ check(profile.rowCount===1&&profile.rows[0].type==='collaborator','CTV_PROFILE_REQUIRED',404);
+ const result=await pool.query(
+  'SELECT r.ledger_invoice_no AS "invoiceNo",r.created_at AS "createdAt",'+
+  'q.payload FROM satori_v2_order_requests r '+
+  'JOIN satori_v2_quotes q ON q.id=r.quote_id '+
+  "WHERE q.profile_id=$1 AND r.state='COMMITTED' "+
+  'ORDER BY r.created_at DESC LIMIT 200',[profileId]);
+ let salesVnd=0,marginVnd=0,internalCostVnd=0,unpricedCount=0;
+ const entries=result.rows.map(row=>{
+  const q=row.payload||{},total=Number(q.totalVnd);
+  const margin=Number(q.collaboratorMarginVnd);
+  const internal=Number(q.internalReference?.goodsVnd);
+  const validMargin=Number.isSafeInteger(margin)&&margin>=0&&
+   Number.isSafeInteger(internal)&&internal>=0&&
+   Number.isSafeInteger(total)&&total>=margin;
+  const validTotal=Number.isSafeInteger(total)&&total>=0;
+  if(validTotal)salesVnd+=total;
+  if(validMargin){marginVnd+=margin;internalCostVnd+=internal}
+  else unpricedCount++;
+  return {invoiceNo:row.invoiceNo,createdAt:row.createdAt,
+   customer:q.delivery?.recipientName||'Khách của CTV',
+   address:q.delivery?.address||'',
+   saleVnd:validTotal?total:null,marginVnd:validMargin?margin:null,
+   ...(validMargin?{internalCostVnd:internal}:{})};
+ });
+ return {ok:true,profileId,invoiceMode:'single',count:entries.length,
+  salesVnd,marginVnd,internalCostVnd,unpricedCount,entries};
 }
