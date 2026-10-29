@@ -523,10 +523,11 @@ async function loadProfilesFor(accountId,epoch){
  const select=byId('crmProfile');select.replaceChildren();
  for(const x of data.profiles){
   const option=make('option',x.name+' · '+typeLabel(x.type));
-  option.value=x.id;select.append(option);
+  option.value=x.id;option.dataset.type=x.type;select.append(option);
  }
  byId('crmPolicyForm').hidden=!data.profiles.length;
  selectedProfileId=data.profiles[0]?.id||null;
+ updateOwnerCtvFields();
  if(selectedProfileId)await loadProfileDetails(selectedProfileId,epoch);
  else byId('crmDetails').textContent='Tài khoản chưa được quản trị duyệt để tạo hồ sơ.';
 }
@@ -559,6 +560,9 @@ async function loadProfileDetails(profileId,epoch){
    const entry=make('div',null,'crm-entry');
    entry.append(make('strong',pct(row.discountBps)+' · '+(row.enabled?'Đang áp dụng':'Ngưng')));
    appendLine(entry,'Phiên bản '+row.version+' · '+(row.productCode||'Toàn bộ sản phẩm'));
+   if(row.collaboratorBps!=null)appendLine(entry,
+    '🤝 CK CTV: '+pct(row.collaboratorBps)+' · CK khách: '+pct(row.discountBps)+
+    ' · Lợi nhuận theo bảng giá: '+pct(row.collaboratorBps-row.discountBps));
    appendLine(entry,'Địa chỉ: '+(a.addresses.find(x=>x.id===row.addressId)?.label|| (row.addressId?'Địa chỉ đã lưu':'Tất cả điểm giao')));
    dest.append(entry);
   }
@@ -585,8 +589,31 @@ async function selectAccount(customer){
 }
 byId('crmFilter').addEventListener('input',drawCustomers);
 byId('crmRefresh').addEventListener('click',loadCustomers);
+
+function updateOwnerCtvFields(){
+ const select=byId('crmProfile'),option=select.selectedOptions[0];
+ const ctv=option?.dataset?.type==='collaborator';
+ const label=byId('crmCtvRateLabel'),output=byId('crmCtvProfit');
+ label.hidden=!ctv;output.hidden=!ctv;
+ const input=byId('crmCtvRate');input.required=ctv;
+ if(!ctv)input.value='';
+ refreshCtvProfit();
+}
+function refreshCtvProfit(){
+ const output=byId('crmCtvProfit');
+ if(output.hidden)return;
+ const customer=Number(byId('crmDiscount').value),ctv=Number(byId('crmCtvRate').value);
+ output.textContent=byId('crmDiscount').value!==''&&byId('crmCtvRate').value!==''&&
+  Number.isFinite(ctv)&&Number.isFinite(customer)&&ctv>=customer?
+   'Lợi nhuận CTV = '+ctv+'% − '+customer+'% = '+(ctv-customer).toLocaleString('vi-VN')+
+   ' điểm % trên giá niêm yết (trước làm tròn). 1 hóa đơn khách.':
+   'Nhập CK CTV ≥ CK khách để tính phần chênh.';
+}
+byId('crmDiscount').addEventListener('input',refreshCtvProfit);
+byId('crmCtvRate').addEventListener('input',refreshCtvProfit);
 byId('crmProfile').addEventListener('change',()=>{
  const id=byId('crmProfile').value;
+ updateOwnerCtvFields();
  const epoch=customerEpoch;
  if(id)void loadProfileDetails(id,epoch);
 });
@@ -598,10 +625,17 @@ byId('crmPolicyForm').addEventListener('submit',async e=>{
     Math.abs(value*100-bps)>1e-7){
   return crmStatus('Chiết khấu không hợp lệ. Tối đa hai số lẻ.','error');
  }
+ const isCtv=byId('crmProfile').selectedOptions[0]?.dataset?.type==='collaborator';
+ const ctvValue=Number(byId('crmCtvRate').value);
+ const ctvBps=Math.round(ctvValue*100);
+ if(isCtv&&(!byId('crmCtvRate').value||!Number.isFinite(ctvValue)||
+  ctvBps<bps||ctvBps>10000||Math.abs(ctvValue*100-ctvBps)>0.00001))
+  return crmStatus('CTV phải có chiết khấu riêng ≥ chiết khấu khách.','error');
  const profileId=selectedProfileId,addressId=byId('crmAddress').value||null;
  const productCode=byId('crmSku').value||null;
  const target=customerRecord.registered.find(x=>x.id===selectedAccountId);
- const msg='Xác nhận chiết khấu '+value.toLocaleString('vi-VN')+'% cho '+
+ const msg='Xác nhận chiết khấu khách '+value.toLocaleString('vi-VN')+'%'+
+  (isCtv?', CK CTV '+ctvValue+'%, chênh '+(ctvValue-value)+' điểm %':'')+' cho '+
   (target?.fullName||target?.email||'khách hàng')+
   (addressId?' tại địa chỉ đã chọn':' tại mọi địa chỉ')+
   (productCode?' cho mã '+productCode:' cho mọi sản phẩm')+'?';
@@ -610,7 +644,8 @@ byId('crmPolicyForm').addEventListener('submit',async e=>{
  try{
   await api('/api/v2/admin/policies','POST',{
    confirmed:true,profileId,addressId,productCode,
-   invoiceMode:'single',discountBps:bps
+   invoiceMode:'single',discountBps:bps,
+   ...(isCtv?{collaboratorBps:ctvBps}:{})
   });
   crmStatus('Đã lưu chính sách giá có phiên bản mới. Gemini và Web V2 sử dụng cùng công thức giá.','success');
   await loadProfileDetails(profileId,customerEpoch);
