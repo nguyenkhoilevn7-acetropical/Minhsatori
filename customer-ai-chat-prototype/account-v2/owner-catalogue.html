@@ -557,6 +557,12 @@ body{font-size:14px;line-height:1.42}
 <details id="legacyLeadDisclosure" open><summary>Khách hàng đã lưu (<span id="crmCountOld">0</span>)</summary>
  <div id="legacyCustomers" aria-label="Hồ sơ khách cũ có thể quản trị"></div>
 </details>
+<section id="crmSignedHistory" class="crm-legacy-signed" aria-label="Khách cũ từ sổ hóa đơn gốc">
+ <h3>Điểm giao từ hóa đơn gốc (chỉ đọc)</h3>
+ <p id="crmSignedHistoryStatus">Chọn tab Khách cũ để tải địa chỉ lịch sử.</p>
+ <div id="crmSignedHistoryRows"></div>
+ <button id="crmSignedHistoryMore" class="secondary" type="button" hidden>Xem thêm lịch sử 24 tháng</button>
+</section>
 <section id="crmLegacyLink" class="crm-legacy-unified" aria-label="Liên kết Gmail và lịch sử khách cũ"></section>
 </section>
 <section class="card" id="denied" hidden>
@@ -698,6 +704,61 @@ byId('crmSoundToggle').addEventListener('click',async()=>{
 
 let selectedAccountId=null,selectedProfileId=null,customerEpoch=0,knownProducts=[];
 let selectedOwnerGroup=null,selectedOldFilter='all';
+
+/** Restore the signed old-customer address directory in the SAME Khách cũ tab.
+ * This is a browsing surface; any Gmail ownership still requires Owner approval.
+ */
+async function loadLedgerMonthCustomers(months=12){
+ if(!isOwner)return;
+ const status=byId('crmSignedHistoryStatus'),dest=byId('crmSignedHistoryRows');
+ if(!status||!dest)return;
+ customerRecord.ledgerLoaded=false;
+ status.textContent='Đang tải địa chỉ giao hàng từ sổ hóa đơn gốc…';
+ try{
+  const data=await api('/api/v2/admin/legacy/address-directory?months='+months);
+  if(!Array.isArray(data.addresses))throw Error('LEGACY_DIRECTORY_INVALID');
+  customerRecord.ledgerCustomers=data.addresses;
+  customerRecord.ledgerLoaded=true;
+  const q=byId('crmOldFilter')?.value.trim().toLocaleLowerCase('vi-VN')||'';
+  dest.replaceChildren();
+  const matches=data.addresses.filter(x=>[x.name,x.phone,x.address]
+   .some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(q)));
+  for(const group of matches){
+   const row=make('div',null,'crm-entry');
+   row.append(make('strong',group.address),
+    make('small',(group.name||'Người nhận chưa rõ')+' · '+group.invoiceCount+
+     ' hóa đơn · lần mới nhất: '+(group.date||'Không rõ ngày'),'muted'));
+   if(group.phone)row.append(make('small','SĐT giao gần nhất: '+group.phone,'muted'));
+   const go=iconButton('Liên kết địa chỉ với Gmail','mail','secondary');
+   go.onclick=()=>{
+    const panel=byId('crmLegacyLink').querySelector('details');
+    if(!panel)return crmStatus('Chức năng liên kết Gmail chưa tải.','error');
+    panel.open=true;
+    const query=byId('crmLegacyInvoiceQuery'),name=byId('crmLegacyProfileName');
+    if(query)query.value=group.name||group.address;
+    if(name&&!name.value)name.value=group.name||'';
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+    byId('crmLegacyInvoiceFind')?.click();
+   };
+   row.append(go);dest.append(row);
+  }
+  if(!matches.length)dest.append(make('p',
+   'Không có địa chỉ trùng bộ lọc. Hãy thử tên, SĐT hoặc địa chỉ khác.'));
+  status.textContent='Sổ gốc: '+data.uniqueAddresses+' địa chỉ duy nhất · '+
+   data.invoiceCount+' hóa đơn trong '+data.readMonths+'/'+data.requestedMonths+
+   ' tháng. Không thay đổi sổ gốc.'+
+   (data.missingMonths?.length?' Có '+data.missingMonths.length+
+    ' tháng chưa tải được, vui lòng thử tải lại.':'')+
+   (data.truncatedMonths?' Có tháng đạt giới hạn 100 hóa đơn; cần tìm chi tiết để đối chiếu.':'');
+  byId('crmSignedHistoryMore').hidden=months>=24;
+ }catch(e){
+  customerRecord.ledgerLoaded=false;
+  status.textContent='Không tải được danh sách sổ gốc: '+e.message+
+   '. Hồ sơ đã lưu trên PostgreSQL vẫn giữ nguyên; nhấn Khách cũ để tải lại.';
+ }
+}
+byId('crmSignedHistoryMore').addEventListener('click',()=>loadLedgerMonthCustomers(24));
+
 function activateOwnerTab(tab){
  for(const [name,id] of [['new','crmConsole'],['old','legacyConsole'],['catalogue','console']])
   byId(id).hidden=name!==tab;
@@ -1368,7 +1429,7 @@ function drawCustomers(){
   .sort((a,b)=>Number(b.requestedType==='collaborator')-Number(a.requestedType==='collaborator')||
    Number(b.requestedType==='agency')-Number(a.requestedType==='agency')||
    Number(b.accessStatus==='ACTIVE')-Number(a.accessStatus==='ACTIVE'));
- if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ phù hợp. Mở “Hóa đơn gốc · đối chiếu người nhận” bên dưới để tra cứu hồ sơ chưa liên kết.','crm-stage-hint'));
+ if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ CRM đã lưu. Danh sách địa chỉ lịch sử từ sổ gốc nằm ngay bên dưới.','crm-stage-hint'));
  for(const group of crmNameGroups(matches)){
   const cards=[];
   for(const x of group.rows){
@@ -1408,7 +1469,7 @@ function drawCustomers(){
     const outer=make('label',label),field=document.createElement('input');
     field.name=key;field.value=value||'';
     if(key==='email')field.type='email';
-    if(['fullName','phone','address'].includes(key))field.required=true;
+    if(['fullName','address'].includes(key))field.required=true;
     outer.append(field);form.append(outer);
    }
    const role=make('label','Vai trò'),sel=document.createElement('select');
@@ -1728,7 +1789,16 @@ async function selectAccount(customer){
  });
 }
 byId('crmFilter').addEventListener('input',drawCustomers);
-byId('crmOldFilter').addEventListener('input',drawCustomers);
+byId('crmOldFilter').addEventListener('input',()=>{
+ drawCustomers();
+ if(customerRecord.ledgerLoaded){
+  // Filtering historical records is local: avoid repeated signed-ledger requests.
+  const q=byId('crmOldFilter').value.trim().toLocaleLowerCase('vi-VN');
+  for(const row of byId('crmSignedHistoryRows').children){
+   row.hidden=!row.textContent.toLocaleLowerCase('vi-VN').includes(q);
+  }
+ }
+});
 byId('crmOldSearch').addEventListener('click',()=>byId('crmOldFilter').focus());
 byId('crmRefresh').addEventListener('click',loadCustomers);
 byId('crmAutoLinkPending').addEventListener('click',async()=>{
