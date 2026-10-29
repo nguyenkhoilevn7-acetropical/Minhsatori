@@ -49,7 +49,7 @@ test('Owner uses only three icon tabs and expanded cards provide role/commission
  assert.match(owner,/body\.append\(rolePricingEditor\(x,body,item\)\)/);
  assert.match(owner,/rolePricingEditor\(registeredAccount,body,item,\{old:true\}\)/);
  assert.match(owner,/crmRoleChoices\(role\)/);
- assert.match(owner,/openCustomerInspector\(registeredAccount,body,item\)/);
+ assert.match(owner,/renderOwnerCtvClientCards\(account,clients\)/);
  assert.match(owner,/\/api\/v2\/admin\/customer-role/);
  assert.doesNotThrow(()=>new vm.Script(owner.match(/<script>([\s\S]*?)<\/script>/)?.[1]||''));
 });
