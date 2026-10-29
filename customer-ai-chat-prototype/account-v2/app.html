@@ -542,6 +542,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .catalogue-qty input:focus-visible{outline:2px solid #80c5fc}
 #cartView{overflow-anchor:none}
 #cartLines .cart-line{overflow-anchor:none}
+.cart-price-line.placeholder{visibility:hidden;pointer-events:none}
 #cartLines .num button{touch-action:manipulation;user-select:none}
 #cartLines .num input{font-size:16px;font-variant-numeric:tabular-nums;
  -moz-appearance:textfield;appearance:textfield}
@@ -1627,6 +1628,10 @@ function renderCart(fetchPrices=true){
    info.append(node('span','Đơn giá niêm yết: '+money(p.listPrice),'cart-price-line'));
    info.append(node('span',pendingCartQuantities.size||quantityFlushActive?
     'Đang lưu số lượng…':'Đang kiểm tra giá sau chiết khấu…','cart-price-line'));
+   // Reserve the same four pricing rows while waiting for CAS + pricing:
+   // rapid taps must not move the +/- controls vertically under a finger.
+   info.append(node('span','\u00a0','cart-price-line placeholder'),
+    node('span','\u00a0','cart-price-line placeholder'));
   }
   rows.push(row);
  }
