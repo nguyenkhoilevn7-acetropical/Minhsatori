@@ -1044,9 +1044,12 @@ function drawLedgerPreview(){
  const digits=v=>String(v||'').replace(/\D/g,'');
  const phones=new Set(known.map(v=>digits(v.phone)).filter(v=>v.length>=9));
  const q=byId('crmOldFilter').value.trim().toLocaleLowerCase('vi-VN');
- for(const x of customerRecord.ledgerCustomers){
-  if(x.phone&&phones.has(digits(x.phone)))continue;
-  if(![x.name,x.phone,...(x.addresses||[])].some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(q)))continue;
+ const visible=customerRecord.ledgerCustomers.filter(x=>
+  !(x.phone&&phones.has(digits(x.phone)))&&
+  [x.name,x.phone,...(x.addresses||[])].some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(q)));
+ for(const group of crmNameGroups(visible)){
+  const cards=[];
+  for(const x of group.rows){
   const card=make('details',null,'crm-entry crm-customer-card crm-ledger-card');
   const head=make('summary',null,'crm-card-summary');
   head.append(make('div',cardInitials(x.name),'crm-avatar'));
@@ -1069,7 +1072,9 @@ function drawLedgerPreview(){
    byId('legacySearchForm').requestSubmit();
    byId('legacyLedgerDisclosure').scrollIntoView({behavior:'smooth',block:'nearest'});
   };
-  body.append(open);card.append(head,body);root.append(card);
+  body.append(open);card.append(head,body);cards.push(card);
+  }
+  root.append(crmGroupCards(group,cards));
  }
 }
 
@@ -1184,7 +1189,9 @@ function drawCustomers(){
    Number(b.requestedType==='agency')-Number(a.requestedType==='agency')||
    Number(b.accessStatus==='ACTIVE')-Number(a.accessStatus==='ACTIVE'));
  if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ cũ phù hợp. Có thể mở “Tìm khách từ hóa đơn gốc” để nhập hồ sơ.','crm-stage-hint'));
- for(const x of matches){
+ for(const group of crmNameGroups(matches)){
+  const cards=[];
+  for(const x of group.rows){
   // A verified Google account is authoritative for the linked lead's live role
   // and policy. Never show stale lead rates as if they still govern Gemini.
   const registeredAccount=customerRecord.registered.find(a=>a.id===(x.linkedAccountId||x.id))||null;
@@ -1281,12 +1288,14 @@ function drawCustomers(){
    body.append(controls);
   }else if(!registeredAccount)actions.append(leadLifecycleControls(x));
 
-  oldDest.append(item);
+  cards.push(item);
   // Preview defaults to the first verified CTV expanded, not all accounts.
   if(autoExpandCtv&&registeredAccount?.accessStatus==='ACTIVE'&&
      registeredAccount.requestedType==='collaborator'&&!oldTerm){
    item.open=true;autoExpandCtv=false;
   }
+  }
+  oldDest.append(crmGroupCards(group,cards));
  }
 }
 /* Owner-only customer lifecycle. Keep receipts and history for accounting. */
