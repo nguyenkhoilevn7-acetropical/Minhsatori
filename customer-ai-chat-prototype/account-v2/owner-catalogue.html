@@ -262,17 +262,28 @@ function drawCustomers(){
  const old=customerRecord.leads.filter(x=>
   [x.fullName,x.email,x.phone,x.companyName]
    .some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(term)));
- const group=make('h3','Đã đăng ký Google · '+current.length);dest.append(group);
- if(!current.length)dest.append(make('p','Không có hồ sơ đăng ký khớp tìm kiếm.'));
- for(const x of current){
-  const item=make('div',null,'crm-entry');
-  item.append(make('strong',x.fullName||x.name||'Chưa có tên'));
-  item.append(make('small',(x.email||'—')+' · '+(x.phone||'Chưa có điện thoại')));
+ const groups=[
+  {label:'🟠 Chờ duyệt',state:'pending',items:current.filter(x=>x.accessStatus==='PENDING'&&!x.approvedForPricing)},
+  {label:'🟢 Đã duyệt · chờ nhập chiết khấu',state:'reviewed',items:current.filter(x=>x.accessStatus==='PENDING'&&x.approvedForPricing)},
+  {label:'✅ Đã kích hoạt',state:'active',items:current.filter(x=>x.accessStatus==='ACTIVE')},
+  {label:'⏸ Tạm khóa / khác',state:'inactive',items:current.filter(x=>!['ACTIVE','PENDING'].includes(x.accessStatus))}
+ ];
+ for(const group of groups){
+  const h=make('h3',null,'crm-stage '+group.state);
+  h.append(document.createTextNode(group.label+' '),
+   make('span',String(group.items.length),'crm-stage-count'));
+  dest.append(h);
+  if(!group.items.length)dest.append(make('p','Không có tài khoản ở trạng thái này.','muted'));
+  for(const x of group.items){
+  const item=make('div',null,'crm-entry'+(group.state==='pending'?' new-account':''));
+  item.append(make('strong',x.fullName||x.name||'Chưa có tên','crm-customer-name'));
+  item.append(make('p','✉ '+(x.email||'—')+' · ☎ '+(x.phone||'Chưa có điện thoại'),'crm-customer-contact'));
+  if(x.submittedAt)item.append(make('small','Đăng ký: '+new Date(x.submittedAt).toLocaleString('vi-VN'),'crm-registered-time'));
   item.append(make('span',(typeLabel(x.requestedType))+' · '+
    (x.accessStatus==='PENDING'?(x.approvedForPricing?'Đã duyệt · chờ nhập CK':'Chờ duyệt'):(x.accessStatus||'PENDING'))+
    ' · CK: '+pct(x.discountBps),'crm-tag'));
   if(x.companyName)appendLine(item,'Công ty: '+x.companyName);
-  if(x.address)appendLine(item,'Địa chỉ đăng ký: '+x.address);
+  if(x.address)appendLine(item,'📍 '+x.address,'crm-customer-address');
   const b=make('button','Xem hồ sơ & chiết khấu');
   b.type='button';b.className='secondary';
   b.onclick=()=>selectAccount(x);
@@ -291,6 +302,15 @@ function drawCustomers(){
    input.type='number';input.min='0';input.max='100';input.step='0.01';
    input.required=true;input.placeholder='Ví dụ: 20 hoặc 0';
    label.append(input);form.append(label);
+   let ctvInput=null;
+   if(x.requestedType==='collaborator'){
+    const ctvLabel=make('label','🤝 Chiết khấu riêng CTV (%)');
+    ctvInput=document.createElement('input');ctvInput.type='number';
+    ctvInput.min='0';ctvInput.max='100';ctvInput.step='0.01';ctvInput.required=true;
+    ctvInput.placeholder='Ví dụ 35';
+    ctvLabel.append(ctvInput);form.append(ctvLabel);
+    form.append(make('small','Ví dụ khách 20%, CTV 35% → CTV hưởng phần chênh 15 điểm %. Một hóa đơn duy nhất.'));
+   }
    const act=make('button','✓ Lưu chiết khấu & kích hoạt');
    act.type='submit';form.append(act);
    form.onsubmit=async ev=>{
@@ -299,13 +319,18 @@ function drawCustomers(){
     const n=Number(input.value),bps=Math.round(n*100);
     if(!Number.isFinite(n)||n<0||n>100||
      Math.abs(n*100-bps)>0.00001)return crmStatus('Chiết khấu không hợp lệ','error');
+    const ctvValue=ctvInput?Number(ctvInput.value):null;
+    const ctvBps=ctvInput?Math.round(ctvValue*100):null;
+    if(ctvInput&&(!ctvInput.value||!Number.isFinite(ctvValue)||
+       ctvBps<bps||ctvBps>10000||Math.abs(ctvValue*100-ctvBps)>0.00001))
+     return crmStatus('CK CTV phải lớn hơn hoặc bằng CK khách.','error');
     if(!confirm('Kích hoạt tài khoản đã duyệt '+(x.fullName||x.email)+
-     ' với chiết khấu '+n+'%?'))return;
+     ' với CK khách '+n+'%'+(ctvInput?', CTV '+ctvValue+'%':'')+'?'))return;
     act.disabled=true;
     try{
      await api('/api/v2/admin/customers','PATCH',{
       accountId:x.id,status:'ACTIVE',expectedRevision:x.revision,
-      discountBps:bps,confirmed:true});
+      discountBps:bps,...(ctvInput?{collaboratorBps:ctvBps}:{}),confirmed:true});
      crmStatus('Đã lưu '+n+'% và kích hoạt Gmail cho khách.','success');
      await loadCustomers();
     }catch(e){crmStatus('Không kích hoạt được: '+e.message,'error');act.disabled=false;}
@@ -313,6 +338,7 @@ function drawCustomers(){
    item.append(form);
   }
   dest.append(item);
+  }
  }
  dest.append(make('h3','Khách cũ chưa liên kết tài khoản · '+old.length));
  if(!old.length)dest.append(make('p','Không có hồ sơ cũ khớp tìm kiếm.'));
