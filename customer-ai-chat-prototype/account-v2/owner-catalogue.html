@@ -615,6 +615,7 @@ byId('legacySearchForm').addEventListener('submit',async ev=>{
  const query=byId('legacyQuery').value.trim();
  if(query.length<2)return;
  legacyData=null;legacySelected.clear();
+ byId('legacySelectionTools').hidden=true;
  byId('legacyResults').replaceChildren();
  byId('legacyEditPanel').replaceChildren();
  legacyNotice('Đang đối chiếu với sổ hóa đơn đã ký…');
@@ -622,13 +623,22 @@ byId('legacySearchForm').addEventListener('submit',async ev=>{
   const data=await api('/api/v2/admin/legacy/search?query='+encodeURIComponent(query));
   if(!Array.isArray(data.orders))throw Error('LEGACY_SEARCH_INVALID');
   legacyData={...data,query};
+  byId('legacySelectionTools').hidden=!data.orders.length;
   drawLegacyResults();
   legacyNotice('Tìm được '+data.orders.length+' hóa đơn. Chọn đúng hóa đơn của khách để mở hồ sơ.'+
    (data.truncated?' Kết quả bị giới hạn; tìm theo số điện thoại cụ thể.':''));
  }catch(e){legacyNotice('Không tìm được hồ sơ: '+e.message,true)}
 });
+function updateLegacySelectionCount(){
+ const all=(legacyData?.orders||[]).length;
+ const count=legacySelected.size;
+ byId('legacySelectedCount').textContent=count+' / '+all+' hóa đơn đã chọn';
+ byId('legacySelectAll').checked=all>0&&count===all;
+ byId('legacySelectAll').indeterminate=count>0&&count<all;
+}
 function drawLegacyResults(){
  const root=byId('legacyResults');root.replaceChildren();
+ updateLegacySelectionCount();
  if(!legacyData?.orders?.length){root.append(make('p','Không có hóa đơn nào khớp tên hoặc SĐT.'));return}
  for(const o of legacyData.orders){
   const card=make('div',null,'crm-entry');
@@ -638,12 +648,14 @@ function drawLegacyResults(){
   cb.addEventListener('change',()=>{
    if(cb.checked){if(legacySelected.size>=30){cb.checked=false;return legacyNotice('Tối đa 30 hóa đơn mỗi lần nhập.',true)}
     legacySelected.add(o.invoiceNo)}else legacySelected.delete(o.invoiceNo);
-   prepareLegacyForm();
+   updateLegacySelectionCount();prepareLegacyForm();
   });
   label.append(cb,document.createTextNode('  #'+o.invoiceNo+' · '+o.name+' · '+o.phone));
   card.append(label);
   card.append(make('small',o.date+' · '+o.status+' · '+Number(o.total).toLocaleString('vi-VN')+'đ'));
   card.append(make('p','📍 '+o.address));
+  if(!o.phoneCandidate)card.append(make('small',
+   '⚠ SĐT hóa đơn có ghi chú hoặc không hợp lệ. Vui lòng nhập số đúng khi kích hoạt.'));
   for(const item of o.items){
    card.append(make('small',item.product+' · '+item.qty+' '+item.unit+
     ' · '+item.unitPrice.toLocaleString('vi-VN')+'đ'+
@@ -661,6 +673,22 @@ function legacyField(parent,title,id,kind='text',value='',required=false){
  if(required)control.required=true;
  label.append(control);parent.append(label);return control;
 }
+byId('legacySelectAll').addEventListener('change',e=>{
+ if(!legacyData?.orders?.length)return;
+ if(e.target.checked){
+  if(legacyData.orders.length>30){
+   e.target.checked=false;
+   return legacyNotice('Có '+legacyData.orders.length+
+    ' hóa đơn, vượt giới hạn nhập 30/lần. Hãy tìm theo SĐT/địa chỉ để thu hẹp.',
+    true);
+  }
+  legacySelected=new Set(legacyData.orders.map(x=>x.invoiceNo));
+ }else legacySelected.clear();
+ drawLegacyResults();prepareLegacyForm();
+});
+byId('legacySelectNone').addEventListener('click',()=>{
+ legacySelected.clear();drawLegacyResults();prepareLegacyForm();
+});
 function legacyDeliveryRow(root,item){
  const wrap=make('div',null,'legacy-address');
  for(const [label,key,val] of [
@@ -695,7 +723,7 @@ function prepareLegacyForm(){
  form.append(make('p','Anh chỉnh được mọi thông tin. Mức chiết khấu từ hóa đơn cũ chỉ để tham khảo.'));
  const fields=make('div',null,'field-grid');
  legacyField(fields,'👤 Tên khách hàng','legacyName','text',example.name,true);
- legacyField(fields,'☎️ Số điện thoại','legacyPhone','tel',example.phone,true);
+ legacyField(fields,'☎️ Số điện thoại','legacyPhone','tel',example.phoneCandidate||'',true);
  legacyField(fields,'📧 Gmail sẽ kích hoạt','legacyEmail','email','');
  const roleLabel=make('label','Loại khách');
  const role=document.createElement('select');role.id='legacyType';
@@ -722,10 +750,11 @@ function prepareLegacyForm(){
   const key=(o.phone+'|'+o.address).toLowerCase();
   if(!o.address||seen.has(key))continue;
   seen.add(key);legacyDeliveryRow(addresses,{
-   label:'Địa chỉ '+seen.size,recipientName:o.name,recipientPhone:o.phone,address:o.address});
+   label:'Địa chỉ '+seen.size,recipientName:o.name,
+   recipientPhone:o.phoneCandidate||'',address:o.address});
  }
  if(!addresses.children.length)legacyDeliveryRow(addresses,{
-  label:'Nhà',recipientName:example.name,recipientPhone:example.phone,address:''});
+  label:'Nhà',recipientName:example.name,recipientPhone:example.phoneCandidate||'',address:''});
  const add=iconButton('Thêm điểm giao mới','plus','secondary');
  add.onclick=()=>{if(addresses.children.length>=30)return legacyNotice('Tối đa 30 địa chỉ.',true);
   legacyDeliveryRow(addresses,{label:'Địa chỉ mới',recipientName:byId('legacyName').value,
@@ -756,6 +785,9 @@ async function submitLegacyImport(event,button){
   return legacyNotice('Không được liên kết hồ sơ khách với Gmail Admin.',true);
  const addresses=legacyReadAddresses(byId('legacyAddressRows'));
  if(!addresses.length)return legacyNotice('Cần ít nhất một điểm giao.',true);
+ const phoneOk=v=>/^\+?[0-9]{9,15}$/.test(String(v||'').replace(/[ ().-]/g,''));
+ if(!phoneOk(byId('legacyPhone').value)||addresses.some(a=>!phoneOk(a.recipientPhone)))
+  return legacyNotice('Vui lòng kiểm tra và nhập lại SĐT khách cùng từng điểm giao (9–15 chữ số).',true);
  const payload={
   query:legacyData.query,sourceRevision:legacyData.revision,
   invoiceNos:[...legacySelected],fullName:byId('legacyName').value.trim(),
