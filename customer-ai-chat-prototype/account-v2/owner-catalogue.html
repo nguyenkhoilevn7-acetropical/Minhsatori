@@ -59,6 +59,45 @@ a.owner-link{color:var(--blue)}
 @media(max-width:540px){.field-grid,.legacy-address{grid-template-columns:1fr}main{padding:15px 12px}.card{padding:16px}}
 
 button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important;background:#fff1f3!important}
+
+/* Owner review worklists — clear visual separation without changing app palette. */
+.crm-alerts{display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+ background:#eaf7f5;border:1px solid #cce8e4;border-radius:15px;
+ padding:10px 12px;margin:12px 0}
+.crm-alerts button{min-height:40px}
+.crm-alerts #crmBellText{font-size:14px;color:#315c60;flex:1;min-width:125px}
+.crm-bell{display:inline-flex;align-items:center;gap:7px;font-size:15px;font-weight:750}
+.crm-alert-count{display:inline-flex;align-items:center;justify-content:center;
+ min-width:25px;height:25px;padding:0 6px;border-radius:999px;
+ font-size:14px;font-weight:800;background:#b4233c;color:white}
+.crm-stage{margin:17px 0 9px;display:flex;align-items:center;gap:9px;
+ font-size:17px;font-weight:800;color:#102b38}
+.crm-stage-count{display:inline-flex;align-items:center;justify-content:center;
+ min-width:29px;height:29px;border-radius:9px;background:#e2f6f3;color:#086b69;
+ font-weight:800;font-size:14px}
+.crm-stage.pending .crm-stage-count{background:#fff0d8;color:#995900}
+.crm-entry{padding:16px 17px;margin:9px 0;min-height:120px}
+.crm-entry.new-account{border:1px solid #ecd4a8;background:#fffdf8;box-shadow:0 2px 9px #6448000b}
+.crm-entry .crm-customer-name{font-size:19px;font-weight:800;line-height:1.35;
+ color:#102b38;overflow-wrap:anywhere}
+.crm-entry .crm-customer-contact{font-size:15px;line-height:1.5;
+ color:#405a65;overflow-wrap:anywhere}
+.crm-entry .crm-customer-address{font-size:15px;line-height:1.5;font-weight:550;
+ color:#405a65;overflow-wrap:anywhere}
+.crm-entry .crm-tag{font-size:13px;font-weight:750;padding:6px 9px}
+.crm-entry button{min-height:43px}
+.crm-entry .crm-registered-time{font-size:13px;color:#657981}
+.crm-select-tools{display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+ padding:12px 14px;margin:12px 0;border-radius:13px;background:#eff7f6;color:#205e61}
+.crm-select-tools input{width:20px;height:20px;accent-color:#009c99}
+.crm-select-tools label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.crm-select-tools button{min-height:37px}
+.crm-profit{display:block;align-self:end;font-weight:800;color:#087b63;
+ background:#eaf7f0;padding:12px;border-radius:12px}
+@media(max-width:540px){.crm-entry .crm-customer-name{font-size:18px}
+ .crm-alerts #crmSoundToggle{width:100%}
+ .crm-select-tools{justify-content:flex-start}}
+
 </style></head>
 <body>
 <main>
@@ -91,6 +130,14 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
 <section class="card" id="crmConsole" hidden aria-label="Quản trị khách hàng V2">
  <h2>👥 Khách hàng, đại lý và cộng tác viên</h2>
  <p>Gmail đã xác minh → duyệt hồ sơ → <strong>Admin nhập mức chiết khấu</strong> → kích hoạt. Không tự cấp mặc định 0%. Hồ sơ cũ được nhập sau khi đối chiếu chứng từ.</p>
+ <div class="crm-alerts" role="status" aria-live="polite">
+  <button id="crmBell" class="secondary crm-bell" type="button" aria-label="Bật thông báo đăng ký mới">
+   <span aria-hidden="true">🔔</span><span>Đăng ký mới</span>
+   <span id="crmBellCount" class="crm-alert-count" hidden>0</span>
+  </button>
+  <span id="crmBellText">Đang kiểm tra đăng ký mới…</span>
+  <button id="crmSoundToggle" class="secondary" type="button" aria-pressed="false">Bật tiếng chuông</button>
+ </div>
  <div class="crm-controls">
   <label>Tìm khách hàng<input id="crmFilter" type="search" maxlength="90" placeholder="Tên, email hoặc số điện thoại"></label>
   <button id="crmRefresh" class="secondary" type="button">↻ Tải danh sách</button>
@@ -104,7 +151,9 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
   <p>Giá được hệ thống V2 tính theo hồ sơ / địa chỉ / sản phẩm. CTV dùng một hóa đơn khách hàng; không tự tạo bill nội bộ.</p>
   <div class="crm-controls">
    <label>Hồ sơ<select id="crmProfile" required></select></label>
-   <label>Chiết khấu (%)<input id="crmDiscount" type="number" min="0" max="100" step="0.01" required></label>
+   <label>Chiết khấu KHÁCH (%)<input id="crmDiscount" type="number" min="0" max="100" step="0.01" required></label>
+   <label id="crmCtvRateLabel" hidden>Chiết khấu CTV (%)<input id="crmCtvRate" type="number" min="0" max="100" step="0.01"></label>
+   <output id="crmCtvProfit" hidden class="crm-profit">Lợi nhuận CTV: —</output>
    <label>Áp dụng địa chỉ<select id="crmAddress"></select></label>
    <label>Áp dụng sản phẩm<select id="crmSku"></select></label>
   </div>
@@ -119,6 +168,11 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
 <label>🔍 Tên hoặc số điện thoại<input id="legacyQuery" type="search" minlength="2" maxlength="90" required placeholder="Nhập tên khách hoặc SĐT"></label>
 <button type="submit">Tìm trong sổ</button></form>
 <p id="legacyStatus" role="status" aria-live="polite">Chưa tìm kiếm.</p>
+<div class="crm-select-tools" id="legacySelectionTools" hidden>
+ <label><input id="legacySelectAll" type="checkbox"> <strong>Chọn tất cả</strong> hóa đơn/địa chỉ phù hợp</label>
+ <button id="legacySelectNone" class="secondary" type="button">Bỏ chọn</button>
+ <span id="legacySelectedCount" role="status">0 đã chọn</span>
+</div>
 <div id="legacyResults"></div>
 <div id="legacyEditPanel"></div>
 </section>
