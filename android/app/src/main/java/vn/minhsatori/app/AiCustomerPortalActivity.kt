@@ -217,47 +217,8 @@ class V2OwnerCrmActivity : AppCompatActivity() {
     private lateinit var authButton: TextView
     private lateinit var status: TextView
     private lateinit var refreshButton: TextView
-    private var googleClient: com.google.android.gms.auth.api.signin.GoogleSignInClient? = null
+    private var webClientId: String? = null
     private var ready = false
-
-    private val googleSignIn = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode != Activity.RESULT_OK) {
-            state("Chưa chọn Gmail quản trị. Không có dữ liệu nào bị thay đổi.")
-            return@registerForActivityResult
-        }
-        try {
-            val task = com.google.android.gms.auth.api.signin.GoogleSignIn
-                .getSignedInAccountFromIntent(result.data)
-            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-            val token = account.idToken
-                ?: throw IllegalStateException("Không nhận được Google ID token.")
-            busy("Đang xác minh Google và quyền Admin trên máy chủ…")
-            worker.execute {
-                try {
-                    val cookies = exchangeGoogleToken(token)
-                    verifyOwnerSession(cookies)
-                    runOnUiThread {
-                        if (!isFinishing && !isDestroyed) openAuthorizedOwner(cookies)
-                    }
-                } catch (e: Exception) {
-                    runOnUiThread {
-                        if (!isFinishing && !isDestroyed) {
-                            state("Đăng nhập chưa thành công: " + (e.message ?: "Lỗi kết nối"))
-                        }
-                    }
-                }
-            }
-        } catch (e: com.google.android.gms.common.api.ApiException) {
-            state(if (e.statusCode == 10)
-                "Google OAuth chưa đăng ký SHA-1 / package của bản APK này. " +
-                "Cần cấu hình Android OAuth client trong cùng Google Cloud project."
-            else "Google Sign-In chưa thành công (mã " + e.statusCode + ").")
-        } catch (e: Exception) {
-            state("Không đăng nhập được: " + (e.message ?: "Google không sẵn sàng"))
-        }
-    }
 
     private fun dp(n: Int) = (resources.displayMetrics.density * n + .5f).toInt()
     private fun pill(color: Int, radius: Int = 13): android.graphics.drawable.GradientDrawable =
@@ -286,8 +247,8 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         authPanel.visibility = View.VISIBLE
         web.visibility = View.GONE
         refreshButton.visibility = View.GONE
-        authButton.isEnabled = googleClient != null
-        authButton.alpha = if (googleClient != null) 1f else .55f
+        authButton.isEnabled = webClientId != null
+        authButton.alpha = if (webClientId != null) 1f else .55f
         ready = false
     }
 
@@ -464,13 +425,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                         .matches(clientId)) { "Google Client ID của V2 chưa sẵn sàng." }
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
-                    val options = com.google.android.gms.auth.api.signin.GoogleSignInOptions
-                        .Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN)
-                        .requestEmail()
-                        .requestIdToken(clientId)
-                        .build()
-                    googleClient = com.google.android.gms.auth.api.signin.GoogleSignIn
-                        .getClient(this, options)
+                    webClientId = clientId
                     state("Chọn Gmail Admin để xác minh danh tính. " +
                         "Không sử dụng quyền Google Drive thay cho quyền Admin.")
                 }
@@ -485,8 +440,81 @@ class V2OwnerCrmActivity : AppCompatActivity() {
     }
 
     private fun startNativeGoogleSignIn() {
-        val client = googleClient ?: return
-        googleSignIn.launch(client.signInIntent)
+        val id = webClientId ?: return
+        busy("Đang mở trình chọn Gmail qua Credential Manager…")
+        try {
+            // Google removed the old GoogleSignIn APIs from play-services-auth
+            // v22 (Aug 2026). The supported Credential Manager provider issues
+            // the same signed ID token already verified by our V2 server.
+            val nonceBytes = ByteArray(32)
+            java.security.SecureRandom().nextBytes(nonceBytes)
+            val nonce = android.util.Base64.encodeToString(nonceBytes,
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or
+                    android.util.Base64.NO_PADDING)
+            val google = com.google.android.libraries.identity.googleid
+                .GetSignInWithGoogleOption.Builder(id)
+                .setNonce(nonce)
+                .build()
+            val request = androidx.credentials.GetCredentialRequest.Builder()
+                .addCredentialOption(google)
+                .build()
+            androidx.credentials.CredentialManager.create(this).getCredentialAsync(
+                context = this,
+                request = request,
+                cancellationSignal = null,
+                executor = androidx.core.content.ContextCompat.getMainExecutor(this),
+                callback = object : androidx.credentials.CredentialManagerCallback<
+                    androidx.credentials.GetCredentialResponse,
+                    androidx.credentials.exceptions.GetCredentialException> {
+                    override fun onResult(result: androidx.credentials.GetCredentialResponse) {
+                        try {
+                            val credential = result.credential
+                            val type = com.google.android.libraries.identity.googleid
+                                .GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                            if (credential !is androidx.credentials.CustomCredential ||
+                                credential.type != type) {
+                                throw IllegalStateException("GOOGLE_CREDENTIAL_TYPE_INVALID")
+                            }
+                            val token = com.google.android.libraries.identity.googleid
+                                .GoogleIdTokenCredential.createFrom(credential.data).idToken
+                            busy("Đang xác minh Google và quyền Admin trên máy chủ…")
+                            worker.execute {
+                                try {
+                                    val cookies = exchangeGoogleToken(token)
+                                    verifyOwnerSession(cookies)
+                                    runOnUiThread {
+                                        if (!isFinishing && !isDestroyed) {
+                                            openAuthorizedOwner(cookies)
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    runOnUiThread {
+                                        if (!isFinishing && !isDestroyed) {
+                                            state("Không xác minh được quyền Admin: " +
+                                                (e.message ?: "Lỗi kết nối"))
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            state("Không đọc được Google ID token: " +
+                                (e.message ?: "Credential Manager không sẵn sàng"))
+                        }
+                    }
+
+                    override fun onError(
+                        e: androidx.credentials.exceptions.GetCredentialException
+                    ) {
+                        state("Google chưa đăng nhập thành công. Kiểm tra tài khoản " +
+                            "và cấu hình SHA-1/package Android OAuth (nếu được yêu cầu). " +
+                            (e.type ?: ""))
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            state("Không mở được Google Credential Manager: " +
+                (e.message ?: "Lỗi không xác định"))
+        }
     }
 
     private fun request(
