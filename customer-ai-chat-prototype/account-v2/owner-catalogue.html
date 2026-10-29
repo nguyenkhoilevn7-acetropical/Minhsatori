@@ -236,6 +236,80 @@ byId('sync').addEventListener('click',async()=>{
 });
 
 const customerRecord={registered:[],leads:[]};
+let ownerBellEnabled=false,ownerBellAudio=null,ownerNotificationKnown=null;
+let ownerNotificationPoll=null;
+function playRegistrationBell(){
+ if(!ownerBellEnabled)return;
+ try{
+  const Audio=window.AudioContext||window.webkitAudioContext;
+  if(!Audio)return;
+  ownerBellAudio=ownerBellAudio||new Audio();
+  if(ownerBellAudio.state==='suspended')void ownerBellAudio.resume();
+  const t=ownerBellAudio.currentTime;
+  for(const [offset,freq] of [[0,840],[0.19,1100]]){
+   const osc=ownerBellAudio.createOscillator(),gain=ownerBellAudio.createGain();
+   osc.type='sine';osc.frequency.value=freq;
+   gain.gain.setValueAtTime(.0001,t+offset);
+   gain.gain.exponentialRampToValueAtTime(.10,t+offset+.015);
+   gain.gain.exponentialRampToValueAtTime(.0001,t+offset+.17);
+   osc.connect(gain).connect(ownerBellAudio.destination);
+   osc.start(t+offset);osc.stop(t+offset+.18);
+  }
+ }catch(e){console.warn('Owner alert sound unavailable',e?.message)}
+}
+function setRegistrationBadge(count){
+ const badge=byId('crmBellCount');
+ badge.hidden=count===0;badge.textContent=count>99?'99+':String(count);
+ const text=byId('crmBellText');
+ text.textContent=count?count+' khách đăng ký mới cần duyệt.':
+  'Không có hồ sơ mới chờ duyệt.';
+ byId('crmBell').setAttribute('aria-label','Thông báo: '+count+' đăng ký mới chờ duyệt');
+ document.title=(count?'('+count+') ':'')+'Minh Satori · Quản trị khách hàng';
+}
+async function refreshRegistrationAlerts(){
+ if(!isOwner)return;
+ try{
+  const data=await api('/api/v2/admin/notifications');
+  if(!Array.isArray(data.newest)||!Number.isSafeInteger(data.pendingCount))throw Error('ALERT_FEED_INVALID');
+  const keys=new Set(data.newest.map(x=>x.id+':'+x.revision));
+  const newProfiles=ownerNotificationKnown?data.newest.filter(x=>!ownerNotificationKnown.has(x.id+':'+x.revision)):[];
+  ownerNotificationKnown=keys;
+  setRegistrationBadge(data.pendingCount);
+  if(newProfiles.length){
+   playRegistrationBell();
+   if(document.visibilityState==='hidden'&&'Notification' in window&&Notification.permission==='granted'){
+    const latest=newProfiles[0];
+    new Notification('Minh Satori · Khách mới đăng ký',{
+     body:(latest.fullName||'Khách hàng')+' — '+(latest.phone||latest.email||''),
+     tag:'satori-v2-new-registration',silent:true
+    });
+   }
+   await loadCustomers();
+  }
+ }catch(e){byId('crmBellText').textContent='Chưa cập nhật được thông báo: '+e.message}
+}
+function startRegistrationAlerts(){
+ if(ownerNotificationPoll!==null)return;
+ void refreshRegistrationAlerts();
+ ownerNotificationPoll=window.setInterval(()=>{if(isOwner)void refreshRegistrationAlerts()},25000);
+}
+byId('crmBell').addEventListener('click',()=>{
+ const target=byId('crmCustomers');
+ target.scrollIntoView({behavior:'smooth',block:'start'});
+});
+byId('crmSoundToggle').addEventListener('click',async()=>{
+ ownerBellEnabled=!ownerBellEnabled;
+ const btn=byId('crmSoundToggle');
+ btn.setAttribute('aria-pressed',String(ownerBellEnabled));
+ btn.textContent=ownerBellEnabled?'🔔 Tiếng chuông đã bật':'🔕 Bật tiếng chuông';
+ if(ownerBellEnabled){
+  playRegistrationBell(); // user gesture unlocks browser AudioContext
+  if('Notification' in window&&Notification.permission==='default'){
+   try{await Notification.requestPermission()}catch{}
+  }
+ }
+});
+
 let selectedAccountId=null,selectedProfileId=null,customerEpoch=0,knownProducts=[];
 const make=(tag,value,cls)=>{
  const item=document.createElement(tag);
@@ -556,6 +630,7 @@ async function initCrm(){
   }
  }catch(e){crmStatus('Không đọc được danh mục; chỉ có thể cấp giá chung.','error')}
  await loadCustomers();
+ startRegistrationAlerts();
 }
 
 (async()=>{
