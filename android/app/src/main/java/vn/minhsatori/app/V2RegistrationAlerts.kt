@@ -82,7 +82,7 @@ object V2RegistrationAlerts {
     val revision=item.optInt("revision",0)
     if(id.isBlank()||revision<1)continue
     val digest=java.security.MessageDigest.getInstance("SHA-256")
-     .digest("$id:$revision".toByteArray(Charsets.UTF_8))
+     .digest(id.toByteArray(Charsets.UTF_8))
      .joinToString(""){"%02x".format(it)}
     items.add(digest to item.optString("fullName","Khách mới").take(80))
    }
@@ -128,10 +128,12 @@ object V2RegistrationAlerts {
 
 /** OS-scheduled poll. True instant background push would require FCM. */
 class V2RegistrationAlertJob:JobService(){
- private val executor=Executors.newSingleThreadExecutor()
+ private var executor:java.util.concurrent.ExecutorService?=null
  override fun onStartJob(params:JobParameters):Boolean{
   val cookie=V2RegistrationAlerts.cookie() // main thread: WebView CookieManager
-  executor.execute{
+  val current=Executors.newSingleThreadExecutor()
+  executor=current
+  current.execute{
    try{
     val feed=V2RegistrationAlerts.fetch(cookie)
     if(feed!=null)V2RegistrationAlerts.process(applicationContext,feed)
@@ -140,7 +142,8 @@ class V2RegistrationAlertJob:JobService(){
   return true
  }
  override fun onStopJob(params:JobParameters):Boolean{
-  executor.shutdownNow()
+  executor?.shutdownNow()
+  executor=null
   return false
  }
 }
