@@ -39,6 +39,12 @@ jobs:
           node -e "const fs=require('node:fs');const html=fs.readFileSync('account-v2/app.html','utf8');const m=html.match(/<script>([\\s\\S]*?)<\\/script>/);if(!m)throw Error('INLINE_APP_SCRIPT_MISSING');new Function(m[1]);"
       - name: Pure domain security and pricing tests
         run: npm run test:account-v2
+      - name: Install isolated browser test runner
+        run: |
+          npm install --no-save --no-package-lock playwright@1.51.1
+          npx playwright install --with-deps chromium
+      - name: Browser CRM source selection regression (synthetic APIs only)
+        run: node account-v2/tests/crm-source-selection-browser.mjs
       - name: Existing Gemini parser regression tests
         run: |
           node tests/production-launch-guard.test.mjs
