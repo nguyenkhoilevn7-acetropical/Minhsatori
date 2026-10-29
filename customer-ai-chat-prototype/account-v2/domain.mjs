@@ -73,7 +73,9 @@ export function selectPolicy({profileId,addressId,code,policies=[],at=Date.now()
  const duplicate=match[1];
  if(duplicate&&duplicate._specificity===best._specificity&&duplicate.version===best.version)
   throw new DomainError('POLICY_AMBIGUOUS');
- return {discountBps:best.discountBps,collaboratorBps:best.invoiceMode==='pair'?best.collaboratorBps:null,
+ ensure(best.collaboratorBps==null||(bps(best.collaboratorBps)&&
+  best.collaboratorBps>=best.discountBps),'CTV_RATE_INVALID');
+ return {discountBps:best.discountBps,collaboratorBps:best.collaboratorBps??null,
   invoiceMode:best.invoiceMode,version:best.version,policyId:best.id||null};
 }
 function percentPrice(price,discountBps){
@@ -102,7 +104,7 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
   products.set(product.code,product);
  }
  const lines=normalizeCart(cart);
- let goods=0,collabGoods=0,pair=false,policyVersion=0;
+ let goods=0,collabGoods=0,pair=false,policyVersion=0,ctvGoods=0,ctvMargin=0,ctvRated=false;
  const priced=lines.map(line=>{
   const product=products.get(line.code);
   ensure(product&&product.active!==false,'PRODUCT_UNAVAILABLE');
@@ -112,9 +114,20 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
   if(policy.invoiceMode==='pair'&&pricedModeConflict(lines,policies,profile.id,address.id,at))throw new DomainError('MIXED_INVOICE_POLICY');
   if(policy.invoiceMode==='pair')pair=true;
   const unitPrice=percentPrice(product.listPrice,policy.discountBps);
-  const internalUnitPrice=policy.invoiceMode==='pair'?percentPrice(product.listPrice,policy.collaboratorBps):null;
+  // A collaborator can have TWO approved discounts under ONE canonical invoice:
+  // e.g. customer 20%, CTV 35% -> CTV earns the 15-point VND difference.
+  // The quote and checkout still contain exactly ONE customer-facing invoice.
+  const singleCtv=profile.type==='collaborator'&&policy.invoiceMode==='single'&&
+   policy.collaboratorBps!=null;
+  ensure(!singleCtv||policy.collaboratorBps>=policy.discountBps,'CTV_RATE_INVALID');
+  const internalUnitPrice=(policy.invoiceMode==='pair'||singleCtv)?
+   percentPrice(product.listPrice,policy.collaboratorBps):null;
   goods+=unitPrice*line.qty;
-  if(internalUnitPrice!=null)collabGoods+=internalUnitPrice*line.qty;
+  if(policy.invoiceMode==='pair'&&internalUnitPrice!=null)collabGoods+=internalUnitPrice*line.qty;
+  if(singleCtv){
+   ctvRated=true;ctvGoods+=internalUnitPrice*line.qty;
+   ctvMargin+=(unitPrice-internalUnitPrice)*line.qty;
+  }
   policyVersion=Math.max(policyVersion,policy.version);
   return {code:line.code,name:product.name,unit:product.unit,qty:line.qty,listPrice:product.listPrice,
     discountBps:policy.discountBps,unitPrice,lineTotal:unitPrice*line.qty,
@@ -126,6 +139,12 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
  const summary={currency:'VND',catalogueRevision,policyVersion,addressId:address.id,profileId:profile.id,
   delivery,items:priced,goodsVnd:goods,shippingVnd,vatVnd,totalVnd:total,
   invoiceMode:pair?'pair':'single'};
+ if(ctvRated&&!pair){
+  ensure(Number.isSafeInteger(ctvMargin)&&ctvMargin>=0,'CTV_MARGIN_INVALID');
+  summary.collaboratorMarginVnd=ctvMargin;
+  summary.internalReference={goodsVnd:ctvGoods,marginVnd:ctvMargin,
+   note:'CTV internal margin only. Exactly one customer invoice is produced.'};
+ }
  if(pair){
   const internalVatVnd=Math.round(collabGoods*vatBps/10_000);
   summary.internalReference={goodsVnd:collabGoods,vatVnd:internalVatVnd,
