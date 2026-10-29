@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {randomUUID,createHmac} from 'node:crypto';
 import pg from 'pg';
 import {ctvClientWrite,ctvClientList} from '../router.mjs';
-import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatus,
+import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,
  adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer,
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
  legacyCustomerActivateLead} from '../customer-backend.mjs';
@@ -218,6 +218,57 @@ try{
  await assert.rejects(()=>ctvClientList(pool,{id:owner.id,google_sub:owner.google_sub},activeCtv.profileId),/PROFILE_FORBIDDEN/);
  const actual=await one("SELECT discount_bps,collaborator_bps,invoice_mode FROM satori_v2_policies WHERE profile_id=$1 AND address_id=$2 AND enabled=true",[activeCtv.profileId,clientOne.addressId]);
  assert.equal(actual.discount_bps,2100);assert.equal(actual.collaborator_bps,3500);assert.equal(actual.invoice_mode,'single');
+
+ // One atomic role/pricing update on the already verified account:
+ // - cap reduction must not silently exceed existing client discounts
+ // - existing customer discount and shipping address must be preserved
+ // - each CTV / agency conversion must update both registration and profile.
+ await assert.rejects(()=>adminAssignCustomerRole(pool,owner,{
+  accountId:ctv.id,expectedRevision:activeCtv.customer.revision,
+  requestedType:'collaborator',discountBps:1500,collaboratorBps:2000,confirmed:true
+ }),/CTV_CLIENT_DISCOUNT_EXCEEDS_NEW_RATE/);
+ const agencyRole=await adminAssignCustomerRole(pool,owner,{
+  accountId:ctv.id,expectedRevision:activeCtv.customer.revision,
+  requestedType:'agency',discountBps:2500,confirmed:true
+ });
+ assert.equal(agencyRole.requestedType,'agency');
+ assert.equal(agencyRole.revision,activeCtv.customer.revision+1);
+ const agencyProfile=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[activeCtv.profileId]);
+ assert.equal(agencyProfile.type,'agency');
+ const agencyAddressPolicy=await one(
+  'SELECT discount_bps,collaborator_bps,invoice_mode,version FROM satori_v2_policies '+
+  'WHERE profile_id=$1 AND address_id=$2 AND enabled=true',
+  [activeCtv.profileId,clientOne.addressId]);
+ assert.equal(agencyAddressPolicy.discount_bps,2100);
+ assert.equal(agencyAddressPolicy.collaborator_bps,null);
+ assert.equal(agencyAddressPolicy.invoice_mode,'single');
+ assert.equal(agencyAddressPolicy.version,3);
+ await assert.rejects(()=>ctvClientList(pool,ctvActor,activeCtv.profileId),/CTV_PROFILE_FORBIDDEN/);
+ await assert.rejects(()=>adminAssignCustomerRole(pool,owner,{
+  accountId:ctv.id,expectedRevision:activeCtv.customer.revision,
+  requestedType:'collaborator',discountBps:2000,collaboratorBps:3500,confirmed:true
+ }),/CUSTOMER_REVISION_CONFLICT/);
+ const restoredCtv=await adminAssignCustomerRole(pool,owner,{
+  accountId:ctv.id,expectedRevision:agencyRole.revision,
+  requestedType:'collaborator',discountBps:2000,collaboratorBps:4000,confirmed:true
+ });
+ assert.equal(restoredCtv.revision,agencyRole.revision+1);
+ const restoredProfile=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[activeCtv.profileId]);
+ assert.equal(restoredProfile.type,'collaborator');
+ const restoredPolicy=await one(
+  'SELECT discount_bps,collaborator_bps,invoice_mode,version FROM satori_v2_policies '+
+  'WHERE profile_id=$1 AND address_id=$2 AND enabled=true',
+  [activeCtv.profileId,clientOne.addressId]);
+ assert.equal(restoredPolicy.discount_bps,2100);
+ assert.equal(restoredPolicy.collaborator_bps,4000);
+ assert.equal(restoredPolicy.invoice_mode,'single');
+ assert.equal(restoredPolicy.version,4);
+ const listedAfterRole=await adminCustomerList(pool);
+ const ctvAfterRole=listedAfterRole.registered.find(x=>x.id===ctv.id);
+ assert.equal(ctvAfterRole.requestedType,'collaborator');
+ assert.equal(ctvAfterRole.discountBps,2000);
+ assert.equal(ctvAfterRole.collaboratorBps,4000);
+
  // Staged old CTV must keep both owner-set discounts independently.
  const leadCtv=await adminCreateLead(pool,owner.id,{fullName:'CTV Legacy Synthetic',
   phone:'0900000222',address:'22 Synthetic Legacy Street',

@@ -590,6 +590,13 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 
 /* CTV client controls: scoped to delivery-address workflow and mobile screens. */
 .ctv-client-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:13px 0}
+.delivery-dialog .address-ctv-discount{display:block;margin-top:7px;padding:7px 10px;border-radius:10px;
+ background:#e2f5ef;color:#086c58;font-size:14px;line-height:1.45;font-weight:700}
+.ctv-client-entry{border:1px solid #d5e9e5;border-radius:13px;padding:13px;margin:9px 0;background:#fff}
+.ctv-client-entry form{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:10px}
+.ctv-client-entry form label{flex:1 1 150px;min-width:0;font-size:15px}
+.ctv-client-entry form input{min-height:44px;font-size:16px}
+.ctv-client-entry form button{flex:0 0 auto;min-height:44px}
 .ctv-client-tabs button{border:1px solid #b4ddda;border-radius:12px;background:#fff;color:#176b6a}
 .ctv-client-tabs button[aria-pressed="true"]{background:#009a94;color:white;border-color:#009a94}
 .ctv-client-rate{font-size:15px;background:#eaf7f5;color:#176967;padding:11px 13px;border-radius:12px}
@@ -696,12 +703,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <p class="muted">Chỉ thay đổi điểm giao V2. Hóa đơn đã phát hành không thay đổi.</p>
 </details></div>
 <section id="ctvClientPanel" class="panel" hidden aria-label="Khách riêng của cộng tác viên">
-<h2>Khách riêng của CTV</h2>
+<h2>👥 Khách riêng của CTV</h2>
 <p class="muted">Chọn khách đã lưu hoặc thêm khách nhận hàng mới. Mỗi khách có chiết khấu riêng, không vượt mức CTV được duyệt.</p>
 <div id="ctvClientRates" role="status" class="ctv-client-rate"></div>
 <div class="ctv-client-tabs" role="group" aria-label="Khách riêng">
-<button id="ctvExistingTab" type="button" class="btn" aria-pressed="false">Khách cũ</button>
-<button id="ctvNewTab" type="button" class="btn" aria-pressed="true">+ Khách mới</button>
+<button id="ctvExistingTab" type="button" class="btn" aria-pressed="false">👥 Khách cũ</button>
+<button id="ctvNewTab" type="button" class="btn" aria-pressed="true">✚ Khách mới</button>
 </div>
 <div id="ctvClientList" hidden></div>
 <p id="ctvClientStatus" role="status" class="muted"></p>
@@ -889,6 +896,8 @@ async function refreshCtvClients(){
   $('ctvCustomerLimit').textContent='Tối đa '+data.collaboratorBps/100+'% (không vượt CK CTV).';
   $('ctvClientStatus').textContent='Đã tải '+data.clients.length+' khách/điểm giao.';
   renderCtvSavedClients(data);activateCtvClientTab(ctvCustomerTab);
+  // Refresh visible delivery choices when the approved per-client rate changes.
+  renderAddresses();
  }catch(e){
   if(epoch!==ctvClientEpoch)return;
   ctvClientData=null;$('ctvCustomerDiscount').value='';
@@ -1941,6 +1950,9 @@ function renderAddresses(){
   (current.type==='agency'?'Đại lý':current.type==='collaborator'?'CTV':'Khách hàng')+
   ', '+active.length+' địa chỉ giao':'Chưa có hồ sơ';
  const choices=$('agentAddressChoices');choices.replaceChildren();
+ $('agentAddressManage').textContent=current?.type==='collaborator'
+  ?'👥 Khách cũ / ✚ Khách mới · Quản lý chiết khấu'
+  :'+ Thêm hoặc chỉnh sửa địa chỉ';
  for(const address of active){
   const button=node('button',undefined,'agent-address-choice');button.type='button';
   button.setAttribute('aria-pressed',String(address.id===$('location').value));
@@ -1950,6 +1962,13 @@ function renderAddresses(){
   meta.append(node('span',address.label,'address-title'),
    node('span',address.address,'address-subtitle'),
    node('span',address.recipientPhone||'Chưa lưu số điện thoại','address-phone'));
+  const ctvClient=current?.type==='collaborator'&&ctvClientData?.profileId===current.id
+   ?ctvClientData.clients.find(client=>client.id===address.id):null;
+  if(ctvClient){
+   const ck=(ctvClient.discountBps/100).toLocaleString('vi-VN',{maximumFractionDigits:2});
+   meta.append(node('span','CK khách '+ck+'% · '+(ctvClient.ownerLocked?
+    'Admin quản lý':'CTV được chỉnh'),'address-ctv-discount'));
+  }
   button.append(meta);
   button.setAttribute('aria-label',
    [address.label,address.address,address.recipientPhone||'Chưa lưu số điện thoại'].join(', '));

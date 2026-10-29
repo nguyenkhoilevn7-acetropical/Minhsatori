@@ -37,6 +37,27 @@ export function validateCustomerProfile(input,{admin=false}={}){
   note:text(input.note||'',350),
   requestedType,discountBps,collaboratorBps});
 }
+/**
+ * Owner-only atomic role/price change for ACTIVE accounts. Customer-facing
+ * discount is distinct from the CTV commission reference; no paired invoice.
+ */
+export function validateOwnerRolePricing(input){
+ if(!input||typeof input!=='object'||Array.isArray(input))fail('CUSTOMER_UPDATE_INVALID');
+ if(input.confirmed!==true)fail('OWNER_CONFIRMATION_REQUIRED');
+ if(!customerTypes.includes(input.requestedType))fail('CUSTOMER_ROLE_INVALID');
+ if(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<1)
+  fail('CUSTOMER_REVISION_REQUIRED');
+ const discountBps=input.discountBps;
+ if(!Number.isSafeInteger(discountBps)||discountBps<0||discountBps>10000)
+  fail('CUSTOMER_DISCOUNT_INVALID');
+ const ctv=input.requestedType==='collaborator';
+ if(ctv&&(!Number.isSafeInteger(input.collaboratorBps)||
+  input.collaboratorBps<discountBps||input.collaboratorBps>10000))
+  fail('CTV_RATE_MUST_BE_AT_LEAST_CUSTOMER_RATE');
+ if(!ctv&&input.collaboratorBps!=null)fail('CTV_ROLE_REQUIRED');
+ return Object.freeze({requestedType:input.requestedType,expectedRevision:input.expectedRevision,
+  discountBps,collaboratorBps:ctv?input.collaboratorBps:null});
+}
 export function validateCustomerStatus(input){
  if(!input||typeof input!=='object')fail('CUSTOMER_UPDATE_INVALID');
  if(input.confirmed!==true)fail('OWNER_CONFIRMATION_REQUIRED');
