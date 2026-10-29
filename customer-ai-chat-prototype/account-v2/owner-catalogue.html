@@ -966,7 +966,7 @@ function drawCustomers(){
     input.placeholder='Ví dụ: 20';label.append(input);form.append(label);
     let ctvInput=null;
     if(x.requestedType==='collaborator'){
-     const ctvLabel=make('label','Chiết khấu CTV (%)');
+     const ctvLabel=make('label','Chiết khấu CTV (%)');ctvLabel.className='crm-rate-row full';
      ctvInput=document.createElement('input');ctvInput.type='number';
      ctvInput.min='0';ctvInput.max='100';ctvInput.step='0.01';ctvInput.required=true;
      ctvInput.placeholder='Ví dụ: 35';ctvLabel.append(ctvInput);form.append(ctvLabel);
@@ -1014,6 +1014,7 @@ function drawCustomers(){
   b.onclick=()=>{selectedOldFilter=g.value;drawCustomers()};
   oldRoot.append(b);
  }
+ let autoExpandCtv=true;
  const matches=oldFilters.find(x=>x.value===selectedOldFilter).items.filter(x=>
   [x.fullName,x.email,x.phone,x.companyName,x.address]
   .some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(oldTerm)));
@@ -1022,8 +1023,7 @@ function drawCustomers(){
   // A verified Google account is authoritative for the linked lead's live role
   // and policy. Never show stale lead rates as if they still govern Gemini.
   const registeredAccount=customerRecord.registered.find(a=>a.id===(x.linkedAccountId||x.id))||null;
-  const cardRecord=registeredAccount?{...x,requestedType:registeredAccount.requestedType,
-   discountBps:registeredAccount.discountBps,collaboratorBps:registeredAccount.collaboratorBps}:x;
+  const cardRecord=registeredAccount?{...x,...registeredAccount}:x;
   const {item,body}=buildCustomerCard(cardRecord,{registered:!!registeredAccount,compact:true});
   const actions=make('div',null,'crm-card-actions');
   const info=make('p',registeredAccount?'Gmail đã kích hoạt · Chỉnh vai trò và CK trong thẻ này.':'Chưa liên kết Google; lưu hồ sơ chờ kích hoạt.');
@@ -1052,8 +1052,10 @@ function drawCustomers(){
    for(const [v,t] of [['retail','Khách lẻ'],['agency','Đại lý'],['collaborator','CTV']]){
     const opt=make('option',t);opt.value=v;opt.selected=x.requestedType===v;sel.append(opt);
    }
-   role.append(sel);form.append(role);
+   role.append(sel);role.hidden=true;
+   form.append(role,make('strong','Vai trò','crm-role-options-label'),crmRoleChoices(sel));
    const rate=make('label','Chiết khấu mặc định cho khách (%)'),percentage=document.createElement('input');
+   rate.className='crm-rate-row full';
    percentage.type='number';percentage.min='0';percentage.max='100';percentage.step='0.01';
    percentage.required=true;percentage.name='discountPercent';
    percentage.value=String((x.discountBps||0)/100);
@@ -1113,6 +1115,11 @@ function drawCustomers(){
   }else if(!registeredAccount)actions.append(leadLifecycleControls(x));
 
   oldDest.append(item);
+  // Preview defaults to the first verified CTV expanded, not all accounts.
+  if(autoExpandCtv&&registeredAccount?.accessStatus==='ACTIVE'&&
+     registeredAccount.requestedType==='collaborator'&&!oldTerm){
+   item.open=true;autoExpandCtv=false;
+  }
  }
 }
 /* Owner-only customer lifecycle. Keep receipts and history for accounting. */
