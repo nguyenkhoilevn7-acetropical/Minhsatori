@@ -124,16 +124,16 @@ export async function adminPatchLead(pool,ownerId,input){
   return {ok:true,lead:r.rows[0]};
  });
 }
-async function applyGeneralDiscount(c,profileId,ownerSub,discountBps){
+async function applyGeneralDiscount(c,profileId,ownerSub,discountBps,collaboratorBps=null){
  const versions=await c.query('SELECT COALESCE(MAX(version),0)+1 AS version FROM satori_v2_policies '+
   'WHERE profile_id=$1 AND address_id IS NULL AND product_code IS NULL',[profileId]);
  await c.query('UPDATE satori_v2_policies SET enabled=false,revision=revision+1 '+
   'WHERE profile_id=$1 AND address_id IS NULL AND product_code IS NULL AND enabled=true',[profileId]);
  return c.query(
   'INSERT INTO satori_v2_policies '+
-  '(profile_id,address_id,product_code,discount_bps,invoice_mode,version,approved_by) '+
-  "VALUES($1,NULL,NULL,$2,'single',$3,$4) RETURNING id,version",
-  [profileId,discountBps,versions.rows[0].version,ownerSub]);
+  '(profile_id,address_id,product_code,discount_bps,collaborator_bps,invoice_mode,version,approved_by) '+
+  "VALUES($1,NULL,NULL,$2,$3,'single',$4,$5) RETURNING id,version",
+  [profileId,discountBps,collaboratorBps,versions.rows[0].version,ownerSub]);
 }
 export async function adminEditRegisteredCustomer(pool,owner,input){
  check(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
@@ -199,6 +199,11 @@ export async function adminChangeCustomerStatus(pool,owner,input){
    check(reg.rows.length===1,'CUSTOMER_REGISTRATION_INCOMPLETE',409);
    check(reg.rows[0].reviewed_at!==null,'CUSTOMER_APPROVAL_REQUIRED_BEFORE_PRICING',409);
    const data=reg.rows[0];
+   const isCtv=data.requested_type==='collaborator';
+   const ctvRate=input.collaboratorBps;
+   check(!isCtv||Number.isSafeInteger(ctvRate)&&ctvRate>=change.discountBps&&ctvRate<=10000,
+    'CTV_DISCOUNT_REQUIRED_AND_NOT_BELOW_CUSTOMER',409);
+   check(isCtv||ctvRate==null,'CTV_ROLE_REQUIRED',409);
    const existing=await c.query('SELECT id,type FROM satori_v2_profiles WHERE account_id=$1 '+
     'ORDER BY created_at LIMIT 1 FOR UPDATE',[input.accountId]);
    if(existing.rows.length){
@@ -218,7 +223,8 @@ export async function adminChangeCustomerStatus(pool,owner,input){
     await c.query('INSERT INTO satori_v2_addresses(profile_id,label,recipient_name,recipient_phone,address) '+
      "VALUES($1,'Địa chỉ đăng ký',$2,$3,$4)",[profileId,data.full_name,data.phone,data.address]);
    if(change.discountBps!==undefined)
-    await applyGeneralDiscount(c,profileId,owner.google_sub,change.discountBps);
+    await applyGeneralDiscount(c,profileId,owner.google_sub,change.discountBps,
+     isCtv?ctvRate:null);
    await c.query('UPDATE satori_v2_registrations SET reviewed_at=now(),reviewed_by=$2 '+
     'WHERE account_id=$1',[input.accountId,owner.id]);
   }else{
@@ -232,7 +238,9 @@ export async function adminChangeCustomerStatus(pool,owner,input){
    'revision=revision+1,updated_at=now() WHERE id=$1 RETURNING id,revision,access_status AS "accessStatus"',
    [input.accountId,change.status]);
   await audit(c,owner.id,'CUSTOMER_ACCESS_'+change.status,input.accountId,
-   {approvedDiscountBps:change.status==='ACTIVE'?change.discountBps??null:null});
+   {approvedDiscountBps:change.status==='ACTIVE'?change.discountBps??null:null,
+    collaboratorBps:change.status==='ACTIVE'?input.collaboratorBps??null:null,
+    oneInvoice:true});
   return {ok:true,customer:updated.rows[0],profileId};
  });
 }
