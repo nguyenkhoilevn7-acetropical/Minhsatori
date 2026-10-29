@@ -18,7 +18,7 @@ test('old customer section is a single card-based surface matching approved two-
  assert.match(script,/Chiết khấu CTV \(%\)/);
  assert.match(script,/Chiết khấu mặc định cho khách của CTV/);
  assert.match(script,/renderOwnerCtvClientCards\(account,clients\)/);
- assert.match(script,/ownerCtvNewClient\(profile\.id,cap,main\.discountBps/);
+ assert.match(script,/ownerCtvNewClient\(profile\.id,cap,main\?\.discountBps\?\?0/);
  assert.match(script,/ownerAddressEditor\(profile\.id,row,customerEpoch,refresh\)/);
  assert.match(script,/changeAccountLifecycle\(account,'SUSPENDED'\)/);
  assert.match(script,/changeAccountLifecycle\(account,'REMOVED'\)/);
