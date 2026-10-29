@@ -40,6 +40,8 @@ export async function registrationSave(pool,actor,input){
    [actor.id,data.fullName,data.phone,data.address,data.companyName,data.taxCode,data.note,data.requestedType]);
   await c.query('UPDATE satori_v2_accounts SET display_name=$2,updated_at=now() WHERE id=$1',
    [actor.id,data.fullName]);
+  await audit(c,actor.id,'CUSTOMER_REGISTRATION_SUBMITTED',actor.id,
+   {registrationRevision:r.rows[0].revision});
   return {ok:true,accessStatus:'PENDING',revision:r.rows[0].revision,
    message:'Đã nhận hồ sơ. Admin cần duyệt trước khi đặt hàng.'};
  });
@@ -297,6 +299,22 @@ export async function adminApproveRegistration(pool,owner,input){
 
 /* Signed, owner-gated legacy customer search. Never rewrite source invoices. */
 const sourceText=(v,max)=>typeof v==='string'?v.trim().slice(0,max):'';
+/**
+ * Ledger phones sometimes include customer notes, punctuation or Vietnamese
+ * display names in parentheses. Keep original source untouched for display.
+ * Extract a VALID phone candidate; never treat the whole field as a number
+ * or silently invent one. Owner must check contact before activation.
+ */
+export function legacyPhoneCandidate(value){
+ const text=sourceText(value,120).normalize('NFKC');
+ const parts=text.match(/\+?\d[\d().\s-]{7,28}\d/g)||[];
+ for(const part of parts){
+  const digits=part.replace(/[ ().-]/g,'');
+  if(/^\+?[0-9]{9,15}$/.test(digits))return digits;
+ }
+ return '';
+}
+
 export async function legacyCustomerSearch(query){
  const q=sourceText(query,90);
  check(q.length>=2&&!/[*%_]/.test(q),'LEGACY_SEARCH_REQUIRED');
@@ -307,7 +325,8 @@ export async function legacyCustomerSearch(query){
  const orders=raw.slice(0,100).filter(o=>Number.isSafeInteger(Number(o.invoiceNo))&&Number(o.invoiceNo)>0)
  .map(o=>({
   id:String(o.id||'').slice(0,80),invoiceNo:Number(o.invoiceNo),
-  name:sourceText(o.name,120),phone:sourceText(o.phone,24),
+  name:sourceText(o.name,120),phone:sourceText(o.phone,80),
+  phoneCandidate:legacyPhoneCandidate(o.phone),
   address:sourceText(o.location,400),date:sourceText(o.date,30),
   status:sourceText(o.status,50),total:Number(o.total)||0,
   vatAmount:Number(o.vatAmount)||0,shippingAmount:Number(o.shippingAmount)||0,
@@ -469,4 +488,25 @@ export async function legacyCustomerActivateLead(pool,owner,input){
   await audit(c,owner.id,'LEGACY_CRM_STAGED_LINKED',lead.id,{accountId:account.id});
   return {...result,leadId:lead.id};
  });
+}
+
+/**
+ * Owner-only, read-only registration notification feed. No extra schema,
+ * no invoices, and no notification tokens stored in customer data.
+ * Existing reviewed/activated accounts are excluded.
+ */
+export async function adminRegistrationNotifications(pool){
+ const [counts,latest]=await Promise.all([
+  pool.query('SELECT COUNT(*)::int AS count FROM satori_v2_accounts a '+
+   'JOIN satori_v2_registrations r ON r.account_id=a.id '+
+   "WHERE a.access_status='PENDING' AND r.reviewed_at IS NULL"),
+  pool.query('SELECT a.id,a.email,r.full_name AS "fullName",r.phone,'+
+   'r.requested_type AS "requestedType",r.submitted_at AS "submittedAt",'+
+   'r.revision FROM satori_v2_accounts a '+
+   'JOIN satori_v2_registrations r ON r.account_id=a.id '+
+   "WHERE a.access_status='PENDING' AND r.reviewed_at IS NULL "+
+   'ORDER BY r.submitted_at DESC,a.created_at DESC LIMIT 100')
+ ]);
+ return {ok:true,pendingCount:counts.rows[0]?.count||0,
+  newest:latest.rows,checkedAt:new Date().toISOString()};
 }
