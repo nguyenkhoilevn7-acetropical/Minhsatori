@@ -555,12 +555,12 @@ body{font-size:14px;line-height:1.42}
  <div id="legacyCustomers" aria-label="Hồ sơ khách cũ có thể quản trị"></div>
 </details>
 <details id="crmLedgerDiscovery" class="crm-ledger-discovery">
- <summary>Khách từ hóa đơn gốc · chưa liên kết <span id="crmLedgerCount"></span></summary>
+ <summary>Hóa đơn gốc · đối chiếu người nhận <span id="crmLedgerCount"></span></summary>
  <p class="crm-ledger-note">Khách chưa xác minh chỉ được tra cứu. Vai trò và chiết khấu chỉ áp dụng sau khi anh xác nhận hồ sơ.</p>
  <div class="crm-ledger-month"><label for="crmLedgerMonth">Tháng hóa đơn</label><input type="month" id="crmLedgerMonth"><span id="crmLedgerPreviewStatus" role="status"></span></div>
  <div id="crmLedgerPreview"></div>
-</details>
-<details id="legacyLedgerDisclosure"><summary>Tìm và phân loại khách từ hóa đơn gốc</summary>
+<details id="legacyLedgerDisclosure"><summary>Nâng cao · tìm hóa đơn để tạo hồ sơ chưa liên kết</summary>
+<p class="crm-ledger-note">Chỉ dùng khi chưa có hồ sơ quản lý. Khách đã lưu: mở đúng hồ sơ ở danh sách phía trên để đối chiếu địa chỉ và lưu chiết khấu, không nhập lại hóa đơn.</p>
 <form id="legacySearchForm" class="crm-controls">
 <label>🔍 Tên hoặc số điện thoại<input id="legacyQuery" type="search" minlength="2" maxlength="90" required placeholder="Nhập tên khách hoặc SĐT"></label>
 <button type="submit">Tìm trong sổ</button></form>
@@ -572,6 +572,7 @@ body{font-size:14px;line-height:1.42}
 </div>
 <div id="legacyResults"></div>
 <div id="legacyEditPanel"></div>
+</details>
 </details>
 </section>
 <section class="card" id="denied" hidden>
@@ -932,7 +933,7 @@ async function renderOwnerCtvClientCards(account,wrap){
   wrap.append(list);
   // One address directory from signed invoices, not a second invoice import.
   const directory=make('details',null,'crm-ledger-discovery');
-  directory.append(make('summary','Đối chiếu hóa đơn của '+(isCtv?'CTV':'Đại lý')+' (gộp địa chỉ trùng)'));
+  directory.append(make('summary','Địa chỉ mới từ hóa đơn · kiểm tra & thêm'));
   const mount=make('div');directory.append(mount);
   directory.addEventListener('toggle',()=>{
    if(directory.open&&!directory.dataset.loaded){
@@ -1151,6 +1152,7 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
   if(result.truncated)panel.append(make('p','Nguồn trả về giới hạn kết quả. Danh sách có thể chưa đầy đủ; tìm thêm theo SĐT nếu cần.','crm-recipient-notice'));
   const accounts=customerRecord.registered.filter(a=>a.accessStatus==='ACTIVE'&&
    ['collaborator','agency'].includes(a.requestedType)&&a.id!==ownerAccountId);
+  const fixedAccount=!!presetAccount&&accounts.some(a=>a.id===presetAccount.id);
   const accountRow=make('div',null,'crm-recipient-account');
   const accountSelect=document.createElement('select');
   accountSelect.setAttribute('aria-label','Chọn CTV hoặc Đại lý để quản lý chiết khấu');
@@ -1159,8 +1161,11 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
    const option=make('option',typeLabel(a.requestedType)+' · '+(a.fullName||a.name||a.email)+' · '+(a.phone||a.email||''));option.value=a.id;
    accountSelect.append(option);
   }
-  if(presetAccount&&accounts.some(a=>a.id===presetAccount.id))accountSelect.value=presetAccount.id;
-  accountRow.append(accountSelect);panel.append(accountRow);
+  if(fixedAccount)accountSelect.value=presetAccount.id;
+  accountRow.append(accountSelect);accountRow.hidden=fixedAccount;panel.append(accountRow);
+  if(fixedAccount)panel.append(make('p','Hồ sơ: '+typeLabel(presetAccount.requestedType)+' · '+
+   (presetAccount.fullName||presetAccount.name||presetAccount.email)+
+   '. Địa chỉ đã lưu chỉnh CK ở danh sách bên trên; chỉ gợi ý địa chỉ chưa lưu.','crm-recipient-notice'));
   const status=make('p','','crm-recipient-notice');panel.append(status);
   const rows=make('div');rows.style.display='grid';rows.style.gap='7px';panel.append(rows);
   host.replaceChildren(panel);
@@ -1168,8 +1173,12 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
   const latest=xs=>xs.slice().sort((a,b)=>Number(b.version)-Number(a.version))[0];
   const draw=()=>{
    rows.replaceChildren();
+   let alreadySaved=0;
    for(const entry of entries){
     const saved=addresses.filter(a=>crmRecipientAddressKey(a.address)===entry.key);
+    // Inside a selected partner profile, saved addresses already have an editable CK row.
+    // Show only new invoice candidates here, never a second duplicate CK editor.
+    if(fixedAccount&&saved.length){alreadySaved++;continue}
     const existing=saved.find(a=>a.active)||saved[0]||null;
     const policy=existing?latest(policies.filter(p=>p.enabled&&!p.productCode&&p.addressId===existing.id)):null;
     const rate=policy?.discountBps??main?.discountBps;
@@ -1232,11 +1241,16 @@ async function renderLegacyRecipientDirectory(host,ownerName,presetAccount=null)
       if(accountSelect.value===account.id){addresses=a.addresses;policies=p.policies;draw()}
      }catch(error){crmStatus('Không hoàn tất lưu khách/CK: '+error.message+
       '. Nếu địa chỉ đã được tạo, chọn lại CTV để tải lại trước khi thử.','error');save.disabled=false}
-     finally{accountSelect.disabled=false}
+     finally{accountSelect.disabled=fixedAccount}
     };
     card.append(form);rows.append(card);
    }
+   if(fixedAccount&&alreadySaved){
+    rows.prepend(make('p',alreadySaved+' địa chỉ đã lưu — chỉnh CK trực tiếp ở “Khách riêng” phía trên.','crm-recipient-notice'));
+   }
    if(!entries.length)rows.append(make('p','Không thấy địa chỉ theo đúng tên này trong kết quả hóa đơn.','crm-recipient-notice'));
+   else if(fixedAccount&&alreadySaved===entries.length)
+    rows.append(make('p','Không có địa chỉ mới từ kết quả đã tìm.','crm-recipient-notice'));
   };
   let loadGeneration=0;
   const load=async()=>{
@@ -1427,7 +1441,7 @@ function drawCustomers(){
   .sort((a,b)=>Number(b.requestedType==='collaborator')-Number(a.requestedType==='collaborator')||
    Number(b.requestedType==='agency')-Number(a.requestedType==='agency')||
    Number(b.accessStatus==='ACTIVE')-Number(a.accessStatus==='ACTIVE'));
- if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ cũ phù hợp. Có thể mở “Tìm khách từ hóa đơn gốc” để nhập hồ sơ.','crm-stage-hint'));
+ if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ phù hợp. Mở “Hóa đơn gốc · đối chiếu người nhận” bên dưới để tra cứu hồ sơ chưa liên kết.','crm-stage-hint'));
  for(const group of crmNameGroups(matches)){
   const cards=[];
   for(const x of group.rows){
@@ -1440,7 +1454,7 @@ function drawCustomers(){
   if(!registeredAccount)body.append(make('p','Hồ sơ chờ liên kết Gmail; vai trò và CK đã lưu chỉ là hồ sơ dự kiến.','crm-client-banner'));
   // Use the same read-only invoice address directory even for staged leads.
   if(!registeredAccount||registeredAccount.accessStatus!=='ACTIVE'||
-     registeredAccount.requestedType!=='collaborator'){
+     !['collaborator','agency'].includes(registeredAccount.requestedType)){
    const lookup=make('details',null,'crm-ledger-discovery');
    lookup.append(make('summary','Địa chỉ người nhận từ hóa đơn (gộp trùng)'));
    const mount=make('div');lookup.append(mount);
