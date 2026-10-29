@@ -42,8 +42,8 @@ class RightEdgeDrawerContract(unittest.TestCase):
 
     def test_non_destructive_samsung_upgrade(self):
         self.assertIn('applicationId = "vn.minhsatori.app"', GRADLE)
-        self.assertIn('versionName = "0.4.20"', GRADLE)
-        self.assertIn("versionCode = 37", GRADLE)
+        self.assertIn('versionName = "0.4.21"', GRADLE)
+        self.assertIn("versionCode = 38", GRADLE)
 
 if __name__ == "__main__":
     unittest.main()
