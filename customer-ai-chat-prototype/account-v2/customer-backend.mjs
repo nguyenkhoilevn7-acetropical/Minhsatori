@@ -782,6 +782,187 @@ export async function legacyCustomerActivateLead(pool,owner,input){
  });
 }
 
+
+/**
+ * Explicit OWNER binding of legacy invoice IDs to a Google-verified V2 account.
+ * Never match a customer's ownership by name alone. Immutable audit entries
+ * are V2 references; canonical invoice contents and payment status stay in V1.
+ */
+export async function ownerBindLegacyInvoices(pool,owner,input){
+ check(input?.confirmed===true&&input?.identityConfirmed===true,'LEGACY_BIND_CONFIRMATION_REQUIRED',403);
+ check(isUuid(input.accountId)&&isRev(input.expectedAccountRevision),'LEGACY_BIND_ACCOUNT_INVALID');
+ check(input.accountId!==owner.id,'OWNER_CANNOT_BIND_SELF',403);
+ check(typeof input.query==='string'&&input.query.trim().length>=2,'LEGACY_SEARCH_REQUIRED');
+ const refs=input.refs;
+ check(Array.isArray(refs)&&refs.length>=1&&refs.length<=30,'LEGACY_BIND_REFS_REQUIRED');
+ const keys=new Set();
+ for(const r of refs){
+  check(Number.isSafeInteger(r?.invoiceNo)&&r.invoiceNo>0&&
+   typeof r?.sourceId==='string'&&r.sourceId.length>0&&r.sourceId.length<=80,'LEGACY_BIND_REF_INVALID');
+  const key=r.invoiceNo+'|'+r.sourceId;
+  check(!keys.has(key),'LEGACY_BIND_DUPLICATE',409);
+  keys.add(key);
+ }
+ const signed=await legacyCustomerSearch(input.query);
+ check(signed.revision===input.sourceRevision,'LEGACY_SOURCE_REVISION_CHANGED',409);
+ check(!signed.truncated,'LEGACY_BIND_RESULT_TRUNCATED',409);
+ const found=new Map(signed.orders.map(x=>[x.invoiceNo+'|'+x.id,x]));
+ const rows=refs.map(x=>found.get(x.invoiceNo+'|'+x.sourceId));
+ check(rows.every(Boolean),'LEGACY_BIND_SOURCE_REF_NOT_FOUND',409);
+ const cleanName=s=>String(s||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('vi-VN');
+ check(new Set(rows.map(x=>cleanName(x.name))).size===1,'LEGACY_BIND_MIXED_NAMES',409);
+ const role=input.requestedType;
+ check(['retail','agency','collaborator'].includes(role),'CUSTOMER_ROLE_INVALID');
+ check(Number.isSafeInteger(input.discountBps)&&input.discountBps>=0&&input.discountBps<=10000,
+  'CUSTOMER_DISCOUNT_INVALID');
+ check(role!=='collaborator'||Number.isSafeInteger(input.collaboratorBps)&&
+  input.collaboratorBps>=input.discountBps&&input.collaboratorBps<=10000,
+  'CTV_RATE_MUST_BE_AT_LEAST_CUSTOMER_RATE');
+ check(role==='collaborator'||input.collaboratorBps==null,'CTV_ROLE_REQUIRED');
+ const phone=legacyPhoneCandidate(input.contactPhone)||rows.map(r=>r.phoneCandidate).find(Boolean)||'';
+ const primary=rows.find(x=>x.address?.trim()&&x.address.trim().length>=5);
+ check(primary&&phone,'LEGACY_BIND_MISSING_CONTACT',409);
+ const data=checked(()=>validateCustomerProfile({
+  fullName:rows[0].name,email:input.email,phone,address:primary.address,
+  requestedType:role,discountBps:input.discountBps,
+  collaboratorBps:role==='collaborator'?input.collaboratorBps:null
+ },{admin:true}));
+ const addresses=[],seen=new Set();
+ for(const row of rows){
+  if(!row.address||row.address.trim().length<5)continue;
+  const recipientPhone=row.phoneCandidate||phone;
+  let address;
+  try{address=validateAddress({
+   label:'Địa chỉ lịch sử',recipientName:data.fullName,recipientPhone,
+   address:row.address
+  })}catch{continue}
+  const key=(address.recipientPhone+'|'+address.address).normalize('NFKC').toLowerCase();
+  if(!seen.has(key)){seen.add(key);addresses.push(address)}
+ }
+ check(addresses.length>0,'LEGACY_BIND_NO_VALID_ADDRESS',409);
+ return tx(pool,async c=>{
+  await c.query('SELECT pg_advisory_xact_lock($1,$2)',[20261029,19]);
+  const account=await c.query('SELECT id,email,access_status,revision FROM satori_v2_accounts '+
+   'WHERE id=$1 FOR UPDATE',[input.accountId]);
+  check(account.rowCount===1,'CUSTOMER_NOT_FOUND',404);
+  const target=account.rows[0];
+  check(['PENDING','ACTIVE'].includes(target.access_status),'LEGACY_ACCOUNT_UNAVAILABLE',409);
+  check(target.revision===input.expectedAccountRevision,'CUSTOMER_REVISION_CONFLICT',409);
+  check(target.email.toLowerCase()===data.email,'LEGACY_VERIFIED_GMAIL_MISMATCH',403);
+  const dup=await c.query('SELECT id FROM satori_v2_accounts WHERE lower(email)=lower($1) AND id<>$2 LIMIT 1',
+   [data.email,target.id]);
+  check(dup.rowCount===0,'LEGACY_GMAIL_AMBIGUOUS',409);
+  const leads=await c.query('SELECT id,linked_account_id FROM satori_v2_customer_leads '+
+   'WHERE active=true AND lower(email)=lower($1) ORDER BY id FOR UPDATE',[data.email]);
+  check(leads.rows.every(x=>!x.linked_account_id||x.linked_account_id===target.id),
+   'LEGACY_GMAIL_LEAD_LINK_CONFLICT',409);
+  check(leads.rowCount<=1,'LEGACY_GMAIL_AMBIGUOUS',409);
+  let newlyBound=0;
+  for(const ref of refs){
+   const old=await c.query('SELECT account_id FROM satori_v2_audit WHERE '+
+    "event_type='LEGACY_INVOICE_ACCOUNT_BOUND' AND details->>'sourceId'=$1 "+
+    "AND details->>'invoiceNo'=$2 LIMIT 1",[ref.sourceId,String(ref.invoiceNo)]);
+   check(old.rowCount===0||old.rows[0].account_id===target.id,'LEGACY_INVOICE_ALREADY_OWNED',409);
+  }
+  let profileId=null;
+  if(target.access_status==='PENDING'){
+   const current=await c.query('SELECT id FROM satori_v2_profiles '+
+    'WHERE account_id=$1 ORDER BY created_at LIMIT 2 FOR UPDATE',[target.id]);
+   check(current.rowCount<=1,'AMBIGUOUS_PROFILES',409);
+   if(current.rowCount){
+    const policies=await c.query('SELECT discount_bps,collaborator_bps,address_id,product_code '+
+     'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true FOR UPDATE',
+     [current.rows[0].id]);
+    check(policies.rows.every(p=>p.address_id==null&&p.product_code==null&&
+     p.discount_bps===data.discountBps&&
+     (p.collaborator_bps==null||p.collaborator_bps===data.collaboratorBps)),
+     'EXISTING_POLICY_REQUIRES_OWNER',409);
+   }
+   const result=await activateLegacyAccount(c,owner,target,data,addresses,
+    refs.map(x=>x.invoiceNo),signed.revision,target.revision);
+   profileId=result.profileId;
+  }else{
+   const active=await c.query('SELECT p.id,p.type FROM satori_v2_profiles p '+
+    'WHERE p.account_id=$1 ORDER BY created_at LIMIT 2 FOR UPDATE',[target.id]);
+   check(active.rowCount===1&&active.rows[0].type===role,'LEGACY_ACTIVE_ROLE_CONFLICT',409);
+   profileId=active.rows[0].id;
+   const p=await c.query('SELECT discount_bps,collaborator_bps FROM satori_v2_policies '+
+    'WHERE profile_id=$1 AND enabled=true AND address_id IS NULL AND product_code IS NULL '+
+    'ORDER BY version DESC LIMIT 1',[profileId]);
+   check(p.rowCount===1&&p.rows[0].discount_bps===data.discountBps&&
+    (role!=='collaborator'||p.rows[0].collaborator_bps===data.collaboratorBps),
+    'LEGACY_ACTIVE_POLICY_CONFLICT',409);
+   const existing=await c.query('SELECT recipient_phone,address FROM satori_v2_addresses WHERE profile_id=$1 FOR UPDATE',
+    [profileId]);
+   const seenAddress=new Set(existing.rows.map(x=>(x.recipient_phone+'|'+x.address).normalize('NFKC').toLowerCase()));
+   for(const a of addresses){
+    const key=(a.recipientPhone+'|'+a.address).normalize('NFKC').toLowerCase();
+    if(seenAddress.has(key))continue;
+    await c.query('INSERT INTO satori_v2_addresses(profile_id,label,recipient_name,recipient_phone,address) '+
+     'VALUES($1,$2,$3,$4,$5)',[profileId,a.label,a.recipientName,a.recipientPhone,a.address]);
+    seenAddress.add(key);
+   }
+  }
+  if(leads.rowCount===1&&!leads.rows[0].linked_account_id)
+   await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,revision=revision+1 '+
+    'WHERE id=$1',[leads.rows[0].id,target.id]);
+  for(const ref of refs){
+   const already=await c.query('SELECT 1 FROM satori_v2_audit WHERE '+
+    "event_type='LEGACY_INVOICE_ACCOUNT_BOUND' AND account_id=$1 "+
+    "AND details->>'sourceId'=$2 AND details->>'invoiceNo'=$3 LIMIT 1",
+    [target.id,ref.sourceId,String(ref.invoiceNo)]);
+   if(already.rowCount)continue;
+   const invoice=found.get(ref.invoiceNo+'|'+ref.sourceId);
+   await c.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
+    "VALUES($1,'owner','LEGACY_INVOICE_ACCOUNT_BOUND',$2,$3)",
+    [target.id,ref.sourceId,JSON.stringify({invoiceNo:ref.invoiceNo,sourceId:ref.sourceId,
+     query:rows[0].name,sourceName:invoice.name,sourceRevision:signed.revision,
+     profileId,readOnly:true})]);
+   newlyBound++;
+  }
+  return {ok:true,accountId:target.id,accessStatus:target.access_status==='PENDING'?'ACTIVE':'ACTIVE',
+   profileId,linkedInvoices:newlyBound,totalSelected:refs.length,sourceRevision:signed.revision};
+ });
+}
+
+/** Read-only legacy history for the authenticated account. The bindings, not
+ * mutable names or phone numbers, authorize an old invoice to appear.
+ * Live signed ledger remains the only source of totals/payment states.
+ */
+export async function linkedLegacyInvoiceHistory(pool,actor){
+ const binds=await pool.query('SELECT details FROM satori_v2_audit '+
+  "WHERE account_id=$1 AND event_type='LEGACY_INVOICE_ACCOUNT_BOUND' "+
+  'ORDER BY id DESC LIMIT 300',[actor.id]);
+ if(!binds.rowCount)return {ok:true,orders:[],linkedCount:0,unavailableCount:0};
+ const refs=new Map();
+ for(const row of binds.rows){
+  const d=row.details||{},key=d.invoiceNo+'|'+d.sourceId;
+  if(Number.isSafeInteger(d.invoiceNo)&&typeof d.sourceId==='string'&&d.sourceId)
+   refs.set(key,d);
+ }
+ const groups=new Map();
+ for(const d of refs.values()){
+  const name=d.query;
+  if(typeof name==='string'&&name.length>=2)groups.set(name,null);
+ }
+ const resolved=new Map();
+ for(const name of [...groups.keys()].slice(0,8)){
+  try{
+   const result=await legacyCustomerSearch(name);
+   for(const order of result.orders){
+    const key=order.invoiceNo+'|'+order.id;
+    if(refs.has(key))resolved.set(key,{
+     source:'legacy',invoiceNo:order.invoiceNo,sourceId:order.id,
+     date:order.date,name:order.name,address:order.address,status:order.status,
+     totalVnd:order.total,items:order.items,readOnly:true
+    });
+   }
+  }catch{ /* never substitute unverified totals or broaden visibility */ }
+ }
+ return {ok:true,orders:[...resolved.values()].sort((a,b)=>b.invoiceNo-a.invoiceNo),
+  linkedCount:refs.size,unavailableCount:refs.size-resolved.size};
+}
+
 /**
  * Owner-only, read-only registration notification feed. No extra schema,
  * no invoices, and no notification tokens stored in customer data.
