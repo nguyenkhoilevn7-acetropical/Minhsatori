@@ -8,7 +8,7 @@ import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatu
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
  legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
  adminReconcileVerifiedLegacyPending,ownerActivateSavedGmail,
- ownerBindLegacyInvoices,linkedLegacyInvoiceHistory} from '../customer-backend.mjs';
+ ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,legacyAddressDirectory} from '../customer-backend.mjs';
 
 const url=process.env.SATORI_V2_CI_DATABASE_URL||'';
 assert.ok(url.includes('127.0.0.1')&&url.endsWith('/satori_v2_ci'),
@@ -157,6 +157,30 @@ try{
   confirmed:true,identityConfirmed:true
  }),/LEAD_LINKED_TO_ANOTHER_ACCOUNT/);
 
+
+ // V2 owner-saved Gmail can be activated even when the lead's phone is blank.
+ // No invented placeholder phone or delivery points must be stored.
+ const noPhoneEmail='no-phone-owner@example.invalid';
+ const noPhoneLead=await adminCreateLead(pool,owner.id,{
+  ...form,fullName:'No Phone Owner',email:noPhoneEmail,phone:'',
+  discountBps:2000,confirmed:true
+ });
+ const noPhoneAccount=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'PENDING') RETURNING id,revision",['ci-no-phone-'+randomUUID(),noPhoneEmail]);
+ const noPhoneActivation=await ownerActivateSavedGmail(pool,owner,{
+  confirmed:true,identityConfirmed:true,
+  accountId:noPhoneAccount.id,leadId:noPhoneLead.lead.id,
+  expectedAccountRevision:noPhoneAccount.revision,expectedLeadRevision:noPhoneLead.lead.revision
+ });
+ assert.equal(noPhoneActivation.state,'ACTIVE');
+ assert.equal(noPhoneActivation.addressesAdded,0);
+ const noPhoneStatus=await one('SELECT access_status FROM satori_v2_accounts WHERE id=$1',[noPhoneAccount.id]);
+ assert.equal(noPhoneStatus.access_status,'ACTIVE');
+ const noPhoneProfile=await one('SELECT phone FROM satori_v2_profiles WHERE id=$1',[noPhoneActivation.profileId]);
+ assert.equal(noPhoneProfile.phone,'');
+ const noPhoneAddresses=await one('SELECT count(*)::integer AS n FROM satori_v2_addresses WHERE profile_id=$1',
+  [noPhoneActivation.profileId]);assert.equal(noPhoneAddresses.n,0);
+
  // Synthetic signed legacy ledger: the fetch stub never contacts Apps Script.
  const prevFetch=globalThis.fetch;
  const prevVars=Object.fromEntries(['SATORI_READ_ENDPOINT','SATORI_READ_KEY_ID','SATORI_READ_HMAC_SECRET']
@@ -185,6 +209,11 @@ try{
    return new Response(JSON.stringify({ok:true,action:b.action,revision:42,
     data:{revision:42,totalMatches:invoices.length,orders:invoices}}),{status:200});
   };
+  const directory=await legacyAddressDirectory({months:12});
+  assert.equal(directory.readMonths,12);
+  assert.equal(directory.uniqueAddresses,2);
+  assert.equal(directory.addresses.length,2);
+  assert.ok(directory.addresses.every(x=>x.invoiceCount>=1));
   const matches=await legacyCustomerSearch('Old Test');
   assert.equal(matches.orders.length,2);
   assert.equal(matches.orders[0].items[0].estimatedDiscountPercent,20);

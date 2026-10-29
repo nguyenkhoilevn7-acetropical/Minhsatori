@@ -25,7 +25,7 @@ import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
- adminApproveRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyCustomerImport,
+ adminApproveRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyAddressDirectory,legacyCustomerImport,
  legacyCustomerActivateLead,ownerActivateSavedGmail,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
  adminReconcileVerifiedLegacyPending,ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,
  adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
@@ -510,6 +510,11 @@ export async function handleAccountV2(req,res,pathname){
    owner(actor);
    const month=new URL(req.url,'http://local').searchParams.get('month');
    send(res,200,await legacyMonthlyCustomerPreview(month));return true;
+  }
+  if(pathname==='/api/v2/admin/legacy/address-directory'&&req.method==='GET'){
+   owner(actor);
+   const months=new URL(req.url,'http://local').searchParams.get('months')||'12';
+   send(res,200,await legacyAddressDirectory({months:Number(months)}));return true;
   }
   if(pathname==='/api/v2/admin/legacy/search'&&req.method==='GET'){
    owner(actor);

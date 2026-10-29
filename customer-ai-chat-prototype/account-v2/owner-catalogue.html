@@ -557,6 +557,12 @@ body{font-size:14px;line-height:1.42}
 <details id="legacyLeadDisclosure" open><summary>Khách hàng đã lưu (<span id="crmCountOld">0</span>)</summary>
  <div id="legacyCustomers" aria-label="Hồ sơ khách cũ có thể quản trị"></div>
 </details>
+<section id="crmSignedHistory" class="crm-legacy-signed" aria-label="Khách cũ từ sổ hóa đơn gốc">
+ <h3>Điểm giao từ hóa đơn gốc (chỉ đọc)</h3>
+ <p id="crmSignedHistoryStatus">Chọn tab Khách cũ để tải địa chỉ lịch sử.</p>
+ <div id="crmSignedHistoryRows"></div>
+ <button id="crmSignedHistoryMore" class="secondary" type="button" hidden>Xem thêm lịch sử 24 tháng</button>
+</section>
 <section id="crmLegacyLink" class="crm-legacy-unified" aria-label="Liên kết Gmail và lịch sử khách cũ"></section>
 </section>
 <section class="card" id="denied" hidden>
@@ -698,6 +704,61 @@ byId('crmSoundToggle').addEventListener('click',async()=>{
 
 let selectedAccountId=null,selectedProfileId=null,customerEpoch=0,knownProducts=[];
 let selectedOwnerGroup=null,selectedOldFilter='all';
+
+/** Restore the signed old-customer address directory in the SAME Khách cũ tab.
+ * This is a browsing surface; any Gmail ownership still requires Owner approval.
+ */
+async function loadLedgerMonthCustomers(months=12){
+ if(!isOwner)return;
+ const status=byId('crmSignedHistoryStatus'),dest=byId('crmSignedHistoryRows');
+ if(!status||!dest)return;
+ customerRecord.ledgerLoaded=false;
+ status.textContent='Đang tải địa chỉ giao hàng từ sổ hóa đơn gốc…';
+ try{
+  const data=await api('/api/v2/admin/legacy/address-directory?months='+months);
+  if(!Array.isArray(data.addresses))throw Error('LEGACY_DIRECTORY_INVALID');
+  customerRecord.ledgerCustomers=data.addresses;
+  customerRecord.ledgerLoaded=true;
+  const q=byId('crmOldFilter')?.value.trim().toLocaleLowerCase('vi-VN')||'';
+  dest.replaceChildren();
+  const matches=data.addresses.filter(x=>[x.name,x.phone,x.address]
+   .some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(q)));
+  for(const group of matches){
+   const row=make('div',null,'crm-entry');
+   row.append(make('strong',group.address),
+    make('small',(group.name||'Người nhận chưa rõ')+' · '+group.invoiceCount+
+     ' hóa đơn · lần mới nhất: '+(group.date||'Không rõ ngày'),'muted'));
+   if(group.phone)row.append(make('small','SĐT giao gần nhất: '+group.phone,'muted'));
+   const go=iconButton('Liên kết địa chỉ với Gmail','mail','secondary');
+   go.onclick=()=>{
+    const panel=byId('crmLegacyLink').querySelector('details');
+    if(!panel)return crmStatus('Chức năng liên kết Gmail chưa tải.','error');
+    panel.open=true;
+    const query=byId('crmLegacyInvoiceQuery'),name=byId('crmLegacyProfileName');
+    if(query)query.value=group.name||group.address;
+    if(name&&!name.value)name.value=group.name||'';
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+    byId('crmLegacyInvoiceFind')?.click();
+   };
+   row.append(go);dest.append(row);
+  }
+  if(!matches.length)dest.append(make('p',
+   'Không có địa chỉ trùng bộ lọc. Hãy thử tên, SĐT hoặc địa chỉ khác.'));
+  status.textContent='Sổ gốc: '+data.uniqueAddresses+' địa chỉ duy nhất · '+
+   data.invoiceCount+' hóa đơn trong '+data.readMonths+'/'+data.requestedMonths+
+   ' tháng. Không thay đổi sổ gốc.'+
+   (data.missingMonths?.length?' Có '+data.missingMonths.length+
+    ' tháng chưa tải được, vui lòng thử tải lại.':'')+
+   (data.truncatedMonths?' Có tháng đạt giới hạn 100 hóa đơn; cần tìm chi tiết để đối chiếu.':'');
+  byId('crmSignedHistoryMore').hidden=months>=24;
+ }catch(e){
+  customerRecord.ledgerLoaded=false;
+  status.textContent='Không tải được danh sách sổ gốc: '+e.message+
+   '. Hồ sơ đã lưu trên PostgreSQL vẫn giữ nguyên; nhấn Khách cũ để tải lại.';
+ }
+}
+byId('crmSignedHistoryMore').addEventListener('click',()=>loadLedgerMonthCustomers(24));
+
 function activateOwnerTab(tab){
  for(const [name,id] of [['new','crmConsole'],['old','legacyConsole'],['catalogue','console']])
   byId(id).hidden=name!==tab;
@@ -1080,7 +1141,8 @@ function legacyBindingPanel(){
  const leadBox=make('label','1. Hồ sơ Khách cũ');
  const lead=document.createElement('select');lead.id='crmLegacyLeadSelect';
  const blank=make('option','Chọn hồ sơ đã lưu (hoặc tìm trực tiếp hóa đơn)');blank.value='';lead.append(blank);
- for(const x of customerRecord.leads.filter(x=>x.active&&!x.linkedAccountId)){
+ for(const x of customerRecord.leads.filter(x=>x.active&&(!x.linkedAccountId||
+  customerRecord.registered.find(a=>a.id===x.linkedAccountId)?.accessStatus==='PENDING'))){
   const option=make('option',(x.fullName||'Hồ sơ')+' · '+(x.email||'Chưa gắn Gmail'));
   option.value=x.id;lead.append(option);
  }
@@ -1099,8 +1161,10 @@ function legacyBindingPanel(){
   control.type=type;control.value=value||'';
   row.append(control);inputs.append(row);return control;
  };
- const name=field('Tên hồ sơ chính','');
- const phone=field('SĐT liên hệ','', 'tel');
+ const name=field('Tên hồ sơ chính','');name.id='crmLegacyProfileName';
+ const email=field('Gmail chủ tài khoản (không cần SĐT)','', 'email');
+ email.autocomplete='off';
+ const phone=field('SĐT liên hệ (tùy chọn)','', 'tel');
  const roleBox=make('label','Vai trò');
  const role=document.createElement('select');
  for(const [id,label] of [['retail','Khách lẻ'],['agency','Đại lý'],['collaborator','CTV']]){
@@ -1112,8 +1176,10 @@ function legacyBindingPanel(){
  const cap=document.createElement('input');cap.type='number';cap.min='0';cap.max='100';cap.step='0.01';capRow.append(cap);inputs.append(capRow);
  wrap.append(inputs);
  const search=make('div',null,'crm-panel-search');
- const query=document.createElement('input');query.type='search';query.placeholder='3. Tìm hóa đơn bằng tên / địa chỉ / SĐT';query.maxLength=90;
- const find=iconButton('Tra cứu hóa đơn','search','secondary');search.append(query,find);wrap.append(search);
+ const query=document.createElement('input');query.id='crmLegacyInvoiceQuery';query.type='search';
+ query.placeholder='3. Tìm hóa đơn bằng tên / địa chỉ / SĐT';query.maxLength=90;
+ const find=iconButton('Tra cứu hóa đơn','search','secondary');find.id='crmLegacyInvoiceFind';
+ search.append(query,find);wrap.append(search);
  const selected=make('div',null,'crm-ctv-list'),status=make('p','Chọn hồ sơ cũ và Gmail trước.','crm-readonly-note');
  wrap.append(status,selected);
  const finish=iconButton('Xác nhận liên kết & kích hoạt','shield');finish.disabled=true;
@@ -1123,8 +1189,12 @@ function legacyBindingPanel(){
  const refs=()=>[...selected.querySelectorAll('input[type=checkbox]:checked')]
   .flatMap(x=>JSON.parse(x.dataset.refs||'[]'))
   .filter((x,i,all)=>all.findIndex(y=>x.invoiceNo===y.invoiceNo&&x.sourceId===y.sourceId)===i);
- const canLink=()=>!!account.value&&(!!currentLead()||!!refs().length);
- const update=()=>{finish.disabled=!canLink()};
+ const canLink=()=>!!account.value&&(!!currentLead()||!!refs().length)||
+  (!account.value&&!currentLead()&&!!refs().length&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()));
+ const update=()=>{
+  finish.disabled=!canLink();
+  finish.title=account.value?'Xác nhận liên kết Gmail':'Lưu Gmail đã được Admin xác nhận; khách đăng nhập sẽ tự kích hoạt';
+ };
  const syncRole=()=>{capRow.hidden=role.value!=='collaborator'};
  role.onchange=syncRole;
  lead.onchange=()=>{
@@ -1135,7 +1205,7 @@ function legacyBindingPanel(){
    !!item.email&&x.email?.toLowerCase()===item.email.toLowerCase()&&
    ['PENDING','ACTIVE'].includes(x.accessStatus));
   account.value=matches.length===1?matches[0].id:'';
-  name.value=item.fullName||'';phone.value=item.phone||'';
+  name.value=item.fullName||'';email.value=item.email||'';phone.value=item.phone||'';
   role.value=item.requestedType||'retail';
   discount.value=Number.isSafeInteger(item.discountBps)?String(item.discountBps/100):'';
   cap.value=Number.isSafeInteger(item.collaboratorBps)?String(item.collaboratorBps/100):'';
@@ -1151,6 +1221,7 @@ function legacyBindingPanel(){
   }
   if(!item&&target){
    name.value=target.fullName||target.name||'';
+   email.value=target.email||'';
    role.value=target.requestedType||'retail';
    discount.value=Number.isSafeInteger(target.discountBps)?String(target.discountBps/100):'';
    cap.value=Number.isSafeInteger(target.collaboratorBps)?String(target.collaboratorBps/100):'';
@@ -1158,6 +1229,7 @@ function legacyBindingPanel(){
   }
   update();
  };
+ email.addEventListener('input',update);
  const bps=control=>{
   const v=control.value.trim(),n=Number(v),r=Math.round(n*100);
   if(!v||!Number.isFinite(n)||r<0||r>10000||Math.abs(r-n*100)>1e-7)
@@ -1175,8 +1247,11 @@ function legacyBindingPanel(){
    for(const group of (result.addressGroups||[]).slice(0,30)){
     const row=make('label',null,'crm-client-data'),checkbox=document.createElement('input');
     checkbox.type='checkbox';checkbox.dataset.refs=JSON.stringify(group.refs);
+    checkbox.dataset.address=group.address;
+    checkbox.dataset.recipient=group.name||'';
     checkbox.onchange=()=>{
      if(refs().length>30){checkbox.checked=false;status.textContent='Tối đa 30 hóa đơn mỗi lần.'}
+     if(checkbox.checked&&!currentLead()&&!name.value)name.value=group.name||'';
      update();
     };
     row.append(checkbox,make('strong',group.address),make('small',
@@ -1191,7 +1266,10 @@ function legacyBindingPanel(){
  };
  finish.onclick=async()=>{
   const item=currentLead(),target=customerRecord.registered.find(x=>x.id===account.value),list=refs();
-  if(!target)return crmStatus('Chưa chọn Gmail Google đã xác minh.','error');
+  if(!target&&item)return crmStatus('Khách chưa đăng nhập bằng Gmail đã lưu. Không thể kích hoạt thủ công khi Google chưa xác minh.','error');
+  if(!target&&!list.length)return crmStatus('Chọn ít nhất một địa chỉ từ hóa đơn gốc để lưu Gmail khách cũ.','error');
+  if(!target&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()))
+   return crmStatus('Nhập Gmail hợp lệ. Không cần nhập số điện thoại.','error');
   if(item&&target.email.toLowerCase()!==String(item.email||'').toLowerCase())
    return crmStatus('Gmail không khớp hồ sơ cũ.','error');
   if(!item&&!list.length)return crmStatus('Chọn hồ sơ Khách cũ hoặc hóa đơn gốc.','error');
@@ -1207,11 +1285,28 @@ function legacyBindingPanel(){
     throw Error('Vai trò hoặc CK khác hồ sơ đã lưu. Chỉnh hồ sơ gốc trước.');
    if(list.length&&!source)throw Error('Hóa đơn chưa xác minh, hãy tra cứu lại.');
   }catch(e){return crmStatus(e.message,'error')}
-  if(!confirm('Kết nối Gmail '+target.email+' với '+(name.value||'hồ sơ đã chọn')+
-   (list.length?' và '+list.length+' hóa đơn lịch sử':' (chưa gắn hóa đơn lịch sử)')+
+  if(!confirm((target?'Kết nối Gmail '+target.email:'Lưu Gmail '+email.value.trim().toLowerCase()+
+   ' để tự kích hoạt khi khách đăng nhập Google')+
+   ' với '+(name.value||'hồ sơ đã chọn')+
+   (list.length?' và xác nhận '+list.length+' hóa đơn lịch sử':' (chưa gắn hóa đơn lịch sử)')+
    '? Không sửa hoặc tạo lại hóa đơn.'))return;
   finish.disabled=true;status.textContent='Đang xác thực và liên kết…';
   try{
+   const firstAddress=[...selected.querySelectorAll('input[type=checkbox]:checked')][0]?.dataset.address||'';
+   if(!target){
+    if(!firstAddress)throw Error('Chọn một địa chỉ giao hàng trong sổ gốc trước.');
+    const created=await api('/api/v2/admin/customer-leads','POST',{
+     confirmed:true,fullName:name.value.trim(),email:email.value.trim().toLowerCase(),
+     phone:phone.value.trim(),address:firstAddress,
+     requestedType:role.value,discountBps,
+     ...(collaboratorBps==null?{}:{collaboratorBps})
+    });
+    await loadCustomers();
+    crmStatus('Đã lưu Gmail '+email.value.trim()+' vào Khách cũ ('+
+     (created?.lead?.id?'đã tạo hồ sơ':'đã lưu')+
+     '). Khách đăng nhập đúng Google Gmail sẽ tự kích hoạt. SĐT không bắt buộc.','success');
+    return;
+   }
    const result=list.length
     ?await api('/api/v2/admin/legacy/bind-history','POST',{
       confirmed:true,identityConfirmed:true,accountId:target.id,
@@ -1247,7 +1342,8 @@ function drawCustomers(){
  const registered=customerRecord.registered;
  const leads=customerRecord.leads;
  const oldItems=[...registered.filter(a=>a.accessStatus==='ACTIVE'),
-  ...leads.filter(l=>l.active&&!l.linkedAccountId)];
+  ...leads.filter(l=>!l.linkedAccountId||
+   registered.find(a=>a.id===l.linkedAccountId)?.accessStatus!=='ACTIVE')];
  byId('crmCountOld').textContent=String(oldItems.length);
  const groups=[
   {label:'Chờ duyệt',state:'pending',items:registered.filter(x=>x.accessStatus==='PENDING'&&!x.approvedForPricing)},
@@ -1368,10 +1464,10 @@ function drawCustomers(){
   .sort((a,b)=>Number(b.requestedType==='collaborator')-Number(a.requestedType==='collaborator')||
    Number(b.requestedType==='agency')-Number(a.requestedType==='agency')||
    Number(b.accessStatus==='ACTIVE')-Number(a.accessStatus==='ACTIVE'));
- if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ phù hợp. Mở “Hóa đơn gốc · đối chiếu người nhận” bên dưới để tra cứu hồ sơ chưa liên kết.','crm-stage-hint'));
- for(const group of crmNameGroups(matches)){
-  const cards=[];
-  for(const x of group.rows){
+ if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ CRM đã lưu. Danh sách địa chỉ lịch sử từ sổ gốc nằm ngay bên dưới.','crm-stage-hint'));
+ // Do not hide independent CRM profiles behind a name-based duplicate picker.
+ // Only shipping destinations are deduplicated, by normalized location.
+ for(const x of matches){
   // A verified Google account is authoritative for the linked lead's live role
   // and policy. Never show stale lead rates as if they still govern Gemini.
   const registeredAccount=customerRecord.registered.find(a=>a.id===(x.linkedAccountId||x.id))||null;
@@ -1380,7 +1476,7 @@ function drawCustomers(){
   const actions=make('div',null,'crm-card-actions');
   if(!registeredAccount)body.append(make('p','Hồ sơ chờ liên kết Gmail; vai trò và CK đã lưu chỉ là hồ sơ dự kiến.','crm-client-banner'));
   // A single account-bound operation replaces multiple old ledger lookups.
-  if(x.active&&!x.linkedAccountId){
+  if(x.active&&(!x.linkedAccountId||registeredAccount?.accessStatus==='PENDING')){
    const link=iconButton('Liên kết Gmail & lịch sử','mail','secondary');
    link.onclick=()=>{
     const panel=byId('crmLegacyLink').querySelector('details');
@@ -1408,7 +1504,7 @@ function drawCustomers(){
     const outer=make('label',label),field=document.createElement('input');
     field.name=key;field.value=value||'';
     if(key==='email')field.type='email';
-    if(['fullName','phone','address'].includes(key))field.required=true;
+    if(['fullName','address'].includes(key))field.required=true;
     outer.append(field);form.append(outer);
    }
    const role=make('label','Vai trò'),sel=document.createElement('select');
@@ -1463,14 +1559,12 @@ function drawCustomers(){
    body.append(controls);
   }else if(!registeredAccount)actions.append(leadLifecycleControls(x));
 
-  cards.push(item);
+  oldDest.append(item);
   // Preview defaults to the first verified CTV expanded, not all accounts.
   if(autoExpandCtv&&registeredAccount?.accessStatus==='ACTIVE'&&
      registeredAccount.requestedType==='collaborator'&&!oldTerm){
    item.open=true;autoExpandCtv=false;
   }
-  }
-  oldDest.append(crmGroupCards(group,cards));
  }
 }
 /* Owner-only customer lifecycle. Keep receipts and history for accounting. */
@@ -1728,7 +1822,16 @@ async function selectAccount(customer){
  });
 }
 byId('crmFilter').addEventListener('input',drawCustomers);
-byId('crmOldFilter').addEventListener('input',drawCustomers);
+byId('crmOldFilter').addEventListener('input',()=>{
+ drawCustomers();
+ if(customerRecord.ledgerLoaded){
+  // Filtering historical records is local: avoid repeated signed-ledger requests.
+  const q=byId('crmOldFilter').value.trim().toLocaleLowerCase('vi-VN');
+  for(const row of byId('crmSignedHistoryRows').children){
+   row.hidden=!row.textContent.toLocaleLowerCase('vi-VN').includes(q);
+  }
+ }
+});
 byId('crmOldSearch').addEventListener('click',()=>byId('crmOldFilter').focus());
 byId('crmRefresh').addEventListener('click',loadCustomers);
 byId('crmAutoLinkPending').addEventListener('click',async()=>{
