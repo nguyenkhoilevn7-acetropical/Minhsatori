@@ -441,7 +441,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         web.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                if (url == ORIGIN + "/owner-v2") applyNativeOwnerTheme()
+                if (url == ORIGIN + "/owner-v2" || url == ORIGIN + "/owner-v2/") applyNativeOwnerTheme()
             }
             override fun shouldOverrideUrlLoading(
                 v: WebView?, request: WebResourceRequest?
@@ -628,7 +628,8 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         // JSON quote escapes CSS as a string literal, never executes remote data.
         val script = "(function(){if(location.origin!==" +
             org.json.JSONObject.quote(ORIGIN) +
-            "||location.pathname!=='/owner-v2')return;" +
+            "||(location.pathname!=='/owner-v2'&&" +
+            "location.pathname!=='/owner-v2/'))return;" +
             "var el=document.getElementById('satori-android-app-theme');" +
             "if(!el){el=document.createElement('style');el.id='satori-android-app-theme';" +
             "document.head.appendChild(el);}el.textContent=" +
