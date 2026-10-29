@@ -706,6 +706,10 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             #legacyConsole .crm-role-options button {width:100%!important;min-width:0!important;
                 display:inline-flex!important;flex-direction:row!important;justify-content:center!important;
                 align-items:center!important;white-space:nowrap!important;padding:5px 2px!important;}
+            /* Older owner CSS gives EVERY descendant button grid-column:1/-1.
+               Override per actual grid item, not only the grid container. */
+            #legacyConsole .crm-role-editor .crm-role-options>button {grid-column:auto!important;
+                grid-row:auto!important;justify-self:stretch!important;}
             #legacyConsole .crm-card-footer {display:grid!important;
                 grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) minmax(0,1.45fr)!important;
                 gap:5px!important;width:100%!important;}
@@ -714,6 +718,8 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                 align-items:center!important;justify-content:center!important;gap:3px!important;
                 white-space:nowrap!important;min-width:0!important;
                 font-size:clamp(9px,2.5vw,12px)!important;padding:5px 2px!important;}
+            #legacyConsole .crm-role-editor .crm-card-footer>button {grid-column:auto!important;
+                grid-row:auto!important;justify-self:stretch!important;}
             #legacyConsole .crm-card-footer button .ico {width:13px!important;height:13px!important;margin:0!important;}
             #legacyConsole .crm-rate-row {display:grid!important;
                 grid-template-columns:minmax(0,1fr) minmax(105px,135px)!important;gap:6px!important;}

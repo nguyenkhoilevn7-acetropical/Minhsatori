@@ -74,6 +74,14 @@ class OwnerCrmVisualParity(unittest.TestCase):
         self.assertIn("#legacyConsole .crm-client-rate .crm-client-save {display:inline-flex!important;", PORTAL)
         self.assertIn("#legacyConsole .crm-duplicate-picker {display:flex!important;flex-wrap:wrap!important;}", PORTAL)
 
+    def test_each_button_resets_inherited_full_row_span(self):
+        # A 3-column grid does not help when inherited CSS sets grid-column:1/-1
+        # on EVERY descendant button: it still paints one button per row.
+        self.assertIn('#legacyConsole .crm-role-editor .crm-role-options>button {grid-column:auto!important;', PORTAL)
+        self.assertIn('#legacyConsole .crm-role-editor .crm-card-footer>button {grid-column:auto!important;', PORTAL)
+        self.assertIn('grid-row:auto!important;justify-self:stretch!important;', PORTAL)
+        self.assertIn('grid-template-columns:repeat(3,minmax(0,1fr))!important;', PORTAL)
+
     def test_original_finance_tabs_are_not_changed(self):
         for value in ("renderInvoices(content, data)", "renderDebt(content, data)",
                       "renderCustomers(content, data)", "confirmInvoicePayment",
