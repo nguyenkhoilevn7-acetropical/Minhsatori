@@ -305,6 +305,52 @@ try{
    discountBps:2000,contactPhone:'0900000004'
   }),/LEGACY_INVOICE_ALREADY_OWNED/);
 
+
+  // Existing ACTIVE new-registration case with signed invoice checkboxes chosen:
+  // one owner action must reconcile same Google account AND bind exact source IDs.
+  invoices=[
+   {id:991001,invoiceNo:991001,date:'15/10/2026',name:'Existing CTV Recipient',
+    phone:'0900000221',location:'42 Existing Signed Road',total:60000},
+   {id:991002,invoiceNo:991002,date:'18/10/2026',name:'Existing CTV Recipient',
+    phone:'0900000222',location:'42 Existing Signed Road',total:70000}
+  ];
+  const signedEmail='active-signed-ctv@example.invalid';
+  const signedLeads=[];
+  for(let i=0;i<2;i++){
+   const r=await adminCreateLead(pool,owner.id,{
+    ...form,email:signedEmail,fullName:'Existing CTV Recipient',
+    phone:'090000022'+(i+1),address:'42 Existing Signed Road',
+    requestedType:'collaborator',discountBps:2000,collaboratorBps:3500,confirmed:true
+   });
+   signedLeads.push(r.lead);
+  }
+  const signedGoogle=await one(
+   "INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+   "VALUES($1,$2,'ACTIVE') RETURNING id,revision,email",
+   ['ci-active-signed-'+randomUUID(),signedEmail]);
+  const signedProfile=await one(
+   "INSERT INTO satori_v2_profiles(account_id,type,display_name) "+
+   "VALUES($1,'retail','New Buyer') RETURNING id",[signedGoogle.id]);
+  await pool.query("INSERT INTO satori_v2_policies(profile_id,discount_bps,version,approved_by) "+
+   "VALUES($1,0,1,$2)",[signedProfile.id,owner.google_sub]);
+  const signedResult=await ownerBindLegacyInvoices(pool,owner,{
+   confirmed:true,identityConfirmed:true,accountId:signedGoogle.id,
+   expectedAccountRevision:signedGoogle.revision,email:signedGoogle.email,
+   query:'Existing CTV Recipient',sourceRevision:42,leadId:signedLeads[0].id,
+   expectedLeadRevision:signedLeads[0].revision,
+   refs:invoices.map(x=>({invoiceNo:x.invoiceNo,sourceId:String(x.id)})),
+   profileName:'Existing CTV Recipient',contactPhone:'',requestedType:'collaborator',
+   discountBps:2000,collaboratorBps:3500
+  });
+  assert.equal(signedResult.linkedInvoices,2,'exact signed legacy invoice IDs bound');
+  assert.equal(signedResult.profileId,signedProfile.id,'no duplicate profile/account');
+  const signedHistory=await linkedLegacyInvoiceHistory(pool,{id:signedGoogle.id});
+  assert.equal(signedHistory.orders.length,2);
+  assert.equal(signedHistory.addresses.length,1);
+  const signedRates=await one("SELECT discount_bps,collaborator_bps FROM satori_v2_policies "+
+   "WHERE profile_id=$1 AND enabled=true AND address_id IS NULL",[signedProfile.id]);
+  assert.equal(signedRates.discount_bps,2000);
+  assert.equal(signedRates.collaborator_bps,3500);
  }finally{
   globalThis.fetch=prevFetch;
   for(const [k,v] of Object.entries(prevVars))if(v===undefined)delete process.env[k];
