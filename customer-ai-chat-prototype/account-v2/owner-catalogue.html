@@ -269,6 +269,13 @@ header.owner-header{display:flex;align-items:center;gap:12px;padding:4px 0 12px;
 .crm-card-expanded>.crm-inspector{padding:12px;background:#ecfaf7;border-radius:12px}
 .crm-card-expanded>.crm-inspector>h2{font-size:18px}
 .crm-card-expanded>.crm-inspector .crm-entry{background:#fff}
+
+.crm-ctv-add>summary{padding:10px 0;color:#087a75;font-weight:800}
+.crm-ctv-add>form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;background:#fff;padding:13px;border-radius:13px}
+.crm-ctv-add>form label{display:grid;gap:6px}
+.crm-ctv-add>form input{min-height:45px}
+.crm-ctv-add>form button{grid-column:1/-1}
+@media(max-width:560px){.crm-ctv-add>form{grid-template-columns:1fr}}
 </style></head>
 <body>
 <main>
@@ -902,7 +909,12 @@ function drawCustomers(){
     }catch(e){crmStatus('Không kích hoạt được: '+e.message,'error');link.disabled=false}
    };actions.append(link);
   }
-  if(!registeredAccount)actions.append(leadLifecycleControls(x));
+  if(registeredAccount&&registeredAccount.id!==ownerAccountId&&
+     registeredAccount.accessStatus!=='REMOVED'){
+   const controls=accountLifecycleControls(registeredAccount);
+   controls.open=true;
+   body.append(controls);
+  }else if(!registeredAccount)actions.append(leadLifecycleControls(x));
   if(registeredAccount?.accessStatus==='ACTIVE'&&registeredAccount.requestedType==='collaborator'){
    item.addEventListener('toggle',()=>{if(item.open)openCustomerInspector(registeredAccount,body,item)});
   }
@@ -1104,7 +1116,7 @@ async function loadProfileDetails(profileId,epoch){
    dest.append(entry);
   }
   if(!a.addresses.length)dest.append(make('p','Chưa có địa chỉ.'));
-  dest.append(ownerAddressEditor(profileId,null,epoch));
+  dest.append(isCtv&&Number.isSafeInteger(ctvCap)?ownerCtvNewClient(profileId,ctvCap,mainPolicy.discountBps,epoch):ownerAddressEditor(profileId,null,epoch));
   dest.append(make('h3','Lịch sử chính sách ('+p.policies.length+')'));
   for(const row of p.policies){
    const entry=make('div',null,'crm-entry');
@@ -1537,6 +1549,52 @@ function ownerFormInput(group,label,key,value,required=true){
  if(key==='email')inp.type='email';
  if(key==='recipientPhone'||key==='phone')inp.inputMode='tel';
  outer.append(inp);group.append(outer);return inp;
+}
+
+/* CTV-specific owner create: one visible form for name, phone, address and CK. */
+function ownerCtvNewClient(profileId,cap,defaultBps,epoch){
+ const group=make('details',null,'crm-ctv-add');group.append(make('summary','＋ Thêm khách riêng'));
+ const form=make('form',null,'field-grid'),inputs={};
+ for(const [key,label] of [
+  ['recipientName','Tên khách nhận hàng'],['recipientPhone','Số điện thoại'],
+  ['address','Địa chỉ giao hàng'],['discount','Chiết khấu riêng khách (%)']]){
+  const outer=make('label',label),input=document.createElement('input');
+  input.required=true;input.name=key;
+  if(key==='recipientPhone')input.inputMode='tel';
+  if(key==='address')input.maxLength=400;
+  if(key==='discount'){
+   input.type='number';input.min='0';input.max=String(cap/100);input.step='0.01';
+   input.value=String(defaultBps/100);
+  }
+  outer.append(input);form.append(outer);inputs[key]=input;
+ }
+ const save=iconButton('Lưu khách riêng & CK','check');save.type='submit';form.append(save);
+ form.onsubmit=async event=>{
+  event.preventDefault();
+  const v=Number(inputs.discount.value),bps=Math.round(v*100);
+  if(inputs.discount.value.trim()===''||!Number.isFinite(v)||bps<0||bps>cap||
+     Math.abs(v*100-bps)>0.00001)
+   return crmStatus('CK khách phải từ 0 đến '+pct(cap)+' và tối đa 2 số thập phân.','error');
+  const name=inputs.recipientName.value.trim();
+  if(!confirm('Tạo khách riêng '+name+' · CK '+pct(bps)+'? Đơn cũ không đổi.'))return;
+  save.disabled=true;
+  try{
+   const result=await api('/api/v2/admin/addresses','POST',{
+    profileId,label:name,recipientName:name,
+    recipientPhone:inputs.recipientPhone.value.trim(),address:inputs.address.value.trim()});
+   try{
+    await api('/api/v2/admin/policies','POST',{
+     confirmed:true,profileId,addressId:result.id,productCode:null,
+     discountBps:bps,collaboratorBps:cap,invoiceMode:'single'});
+   }catch(e){
+    await loadProfileDetails(profileId,epoch);
+    throw Error('Đã tạo khách, nhưng CK chưa lưu được. Chỉnh CK trên dòng khách vừa tạo: '+e.message);
+   }
+   await loadProfileDetails(profileId,epoch);
+   crmStatus('Đã lưu khách riêng và CK '+pct(bps)+'.','success');
+  }catch(e){crmStatus(e.message,'error');save.disabled=false}
+ };
+ group.append(form);return group;
 }
 function ownerAddressEditor(profileId,row,epoch){
  const details=make('details');details.append(make('summary',row?'✎ Sửa / ngừng sử dụng điểm giao':'＋ Thêm điểm giao mới'));
