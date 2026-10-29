@@ -266,13 +266,15 @@ class V2OwnerCrmActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(247, 250, 253)
-        window.navigationBarColor = Color.rgb(247, 250, 253)
+        window.statusBarColor = Color.rgb(241, 244, 245)
+        window.navigationBarColor = Color.rgb(241, 244, 245)
+        window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+            View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR)
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(247, 250, 253))
+            setBackgroundColor(Color.rgb(241, 244, 245))
         }
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -280,62 +282,144 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             setPadding(dp(12), dp(8), dp(12), dp(8))
             setBackgroundColor(Color.WHITE)
         }
-        bar.addView(action("‹", Color.rgb(20, 51, 79), Color.rgb(238, 245, 253)) {
+        bar.addView(action("‹", Color.rgb(16, 43, 56), Color.rgb(241, 244, 245)) {
             finish()
+        })
+        val icon = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_satori_users)
+            setColorFilter(Color.rgb(0, 156, 153))
+            background = pill(Color.rgb(226, 246, 243), 11)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            contentDescription = null
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        bar.addView(icon, LinearLayout.LayoutParams(dp(37), dp(37)).apply {
+            marginStart = dp(10)
         })
         val headline = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), 0, dp(4), 0)
+            setPadding(dp(11), 0, dp(4), 0)
         }
         headline.addView(TextView(this).apply {
-            text = "👥 Khách hàng • Quản trị"
-            textSize = 17f
+            text = "MINH SATORI"
+            textSize = 15f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.rgb(20, 51, 79))
+            setTextColor(Color.rgb(16, 43, 56))
         })
         headline.addView(TextView(this).apply {
-            text = "Minh Satori · tài khoản chủ"
+            text = "QUẢN TRỊ  •  KHÁCH HÀNG V2"
             textSize = 12f
-            setTextColor(Color.rgb(83, 105, 130))
+            setTextColor(Color.rgb(102, 121, 130))
         })
         bar.addView(headline, LinearLayout.LayoutParams(0, -2, 1f))
-        refreshButton = action("↻", Color.rgb(0, 112, 214),
-            Color.rgb(229, 242, 255)) {
+        refreshButton = action("↻", Color.rgb(0, 156, 153),
+            Color.rgb(226, 246, 243)) {
             if (ready) web.reload()
         }.apply {
+            textSize = 22f
+            setPadding(dp(10), dp(8), dp(10), dp(8))
             contentDescription = "Làm mới quản lý khách hàng"
             visibility = View.GONE
         }
         bar.addView(refreshButton)
-        root.addView(bar, LinearLayout.LayoutParams(-1, -2))
+        root.addView(bar, LinearLayout.LayoutParams(-1, -2).apply {
+            bottomMargin = dp(8)
+        })
+        // Fast section links mirror the native app's compact icon row.
+        // The owner CRM is one screen; no new tab, database or browser app.
+        val navigation = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            fillViewport = true
+            setBackgroundColor(Color.rgb(241, 244, 245))
+        }
+        val quickLinks = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), 0, dp(12), dp(6))
+        }
+        fun quickLink(title: String, drawable: Int, destination: String) {
+            val chip = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(9), dp(12), dp(9))
+                background = pill(Color.WHITE, 13)
+                minimumHeight = dp(42)
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Mở mục " + title
+                setOnClickListener {
+                    if (ready) {
+                        // Static selectors only; navigation never changes origin.
+                        val script = when (destination) {
+                            "crm" -> "document.getElementById('crmConsole')"
+                            "old" -> "document.getElementById('legacyConsole')"
+                            else -> "document.getElementById('console')"
+                        }
+                        web.evaluateJavascript(
+                            "(function(){var x=" + script +
+                                ";if(x){x.scrollIntoView({behavior:'smooth',block:'start'});}})()",
+                            null
+                        )
+                    }
+                }
+            }
+            val symbol = android.widget.ImageView(this).apply {
+                setImageResource(drawable)
+                setColorFilter(Color.rgb(0, 156, 153))
+                setPadding(0, 0, 0, 0)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            chip.addView(symbol, LinearLayout.LayoutParams(dp(19), dp(19)).apply {
+                marginEnd = dp(8)
+            })
+            chip.addView(TextView(this).apply {
+                text = title
+                textSize = 13f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Color.rgb(16, 43, 56))
+            })
+            quickLinks.addView(chip, LinearLayout.LayoutParams(-2, -2).apply {
+                marginEnd = dp(8)
+            })
+        }
+        quickLink("Khách hàng", R.drawable.ic_satori_users, "crm")
+        quickLink("Khách cũ", R.drawable.ic_satori_map_pin, "old")
+        quickLink("Danh mục", R.drawable.ic_satori_invoice, "catalog")
+        navigation.addView(quickLinks)
+        root.addView(navigation, LinearLayout.LayoutParams(-1, -2))
 
         authPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(24), dp(20), dp(24))
+            setPadding(dp(18), dp(19), dp(18), dp(19))
+            background = pill(Color.WHITE, 17)
         }
         authPanel.addView(TextView(this).apply {
-            text = "🔐 Đăng nhập Google Admin"
+            text = "Đăng nhập Google quản trị"
             textSize = 21f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.rgb(20, 51, 79))
+            setTextColor(Color.rgb(16, 43, 56))
         })
         authPanel.addView(TextView(this).apply {
             text = "Chỉ Gmail chủ Minh Satori được quản lý khách, duyệt đăng ký, " +
                 "chiết khấu và địa chỉ. Các hóa đơn đang hoạt động không bị chỉnh sửa."
             textSize = 15f
-            setTextColor(Color.rgb(65, 86, 112))
+            setTextColor(Color.rgb(102, 121, 130))
             setPadding(0, dp(10), 0, dp(18))
         })
         authButton = action("Tiếp tục bằng Google", Color.WHITE,
-            Color.rgb(0, 122, 255)) { startNativeGoogleSignIn() }
+            Color.rgb(0, 156, 153)) { startNativeGoogleSignIn() }
         authPanel.addView(authButton, LinearLayout.LayoutParams(-1, -2))
         status = TextView(this).apply {
             textSize = 14f
-            setTextColor(Color.rgb(74, 92, 117))
+            setTextColor(Color.rgb(102, 121, 130))
             setPadding(0, dp(18), 0, 0)
         }
         authPanel.addView(status)
-        root.addView(authPanel, LinearLayout.LayoutParams(-1, -2))
+        root.addView(authPanel, LinearLayout.LayoutParams(-1, -2).apply {
+            marginStart = dp(12)
+            marginEnd = dp(12)
+            topMargin = dp(12)
+        })
 
         web = WebView(this)
         web.settings.apply {
