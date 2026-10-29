@@ -190,7 +190,7 @@ try{
  // Synthetic CTV: one owner-approved global cap, customer-specific policies
  // on two distinct saved delivery addresses and account-scoped CAS updates.
  const ctvSub='ci-ctv-'+randomUUID();
- const ctv=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) VALUES($1,$2,'PENDING') RETURNING id,revision",[ctvSub,'ctv-ci@example.invalid']);
+ const ctv=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) VALUES($1,$2,'PENDING') RETURNING id,revision,email",[ctvSub,'ctv-ci@example.invalid']);
  const ctvForm={fullName:'CTV Synthetic',phone:'0900000123',address:'123 Synthetic CTV Street',
   email:'ctv-ci@example.invalid',requestedType:'collaborator'};
  await registrationSave(pool,{...ctv,access_status:'PENDING'},ctvForm);
