@@ -608,9 +608,12 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
  const leads=await c.query('SELECT * FROM satori_v2_customer_leads '+
   'WHERE active=true AND lower(email)=lower($1) ORDER BY id FOR UPDATE',[email.trim()]);
  // Multiple accounts/contacts for the same Gmail must be resolved by owner.
- if(leads.rowCount!==1||leads.rows[0].linked_account_id)
-  return {state:'PENDING',reason:'NO_UNIQUE_UNLINKED_LEAD'};
+ if(leads.rowCount!==1)return {state:'PENDING',reason:'NO_UNIQUE_LEGACY_LEAD'};
  const lead=leads.rows[0];
+ // An earlier owner action may already have linked this SAME Google account
+ // without granting ACTIVE access. Preserve that link, never relink another.
+ if(lead.linked_account_id&&lead.linked_account_id!==accountId)
+  return {state:'PENDING',reason:'LEAD_LINKED_TO_ANOTHER_ACCOUNT'};
  const source=await c.query('SELECT event_type,details FROM satori_v2_audit '+
   "WHERE resource_id=$1 AND event_type IN ('CUSTOMER_LEAD_CREATED','LEGACY_CRM_STAGED') "+
   'ORDER BY id DESC LIMIT 1',[lead.id]);
@@ -647,10 +650,16 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
  if(profiles.rowCount>1)return {state:'PENDING',reason:'AMBIGUOUS_PROFILES'};
  const profileId=profiles.rows[0]?.id||null;
  if(profileId){
-  // Do not override a manually prepared policy or scoped pricing.
-  const existing=await c.query('SELECT 1 FROM satori_v2_policies '+
-   'WHERE profile_id=$1 AND enabled=true LIMIT 1',[profileId]);
-  if(existing.rowCount)return {state:'PENDING',reason:'EXISTING_POLICY_REQUIRES_OWNER'};
+  // Manually linked PENDING accounts can already have the old customer CK.
+  // Only reconcile an owner-signed DEFAULT policy matching the approved lead.
+  // Mismatched rates or customized address/SKU rules require manual review.
+  const existing=await c.query('SELECT address_id,product_code,discount_bps,'+
+   'collaborator_bps,approved_by FROM satori_v2_policies '+
+   'WHERE profile_id=$1 AND enabled=true FOR UPDATE',[profileId]);
+  if(existing.rows.some(p=>p.address_id||p.product_code||
+   p.approved_by!==ownerGoogleSub||p.discount_bps!==data.discountBps||
+   p.collaborator_bps!=null&&p.collaborator_bps!==data.collaboratorBps))
+   return {state:'PENDING',reason:'EXISTING_POLICY_REQUIRES_OWNER'};
  }
  let targetProfile=profileId;
  if(targetProfile){
@@ -686,10 +695,12 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
    data.requestedType,owner.rows[0].id]);
  await applyGeneralDiscount(c,targetProfile,ownerGoogleSub,data.discountBps,
   data.requestedType==='collaborator'?data.collaboratorBps:null);
- const linked=await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
-  'revision=revision+1,updated_at=now() WHERE id=$1 AND linked_account_id IS NULL RETURNING id',
-  [lead.id,accountId]);
- check(linked.rowCount===1,'LEGACY_LEAD_RACE',409);
+ if(!lead.linked_account_id){
+  const linked=await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
+   'revision=revision+1,updated_at=now() WHERE id=$1 AND linked_account_id IS NULL RETURNING id',
+   [lead.id,accountId]);
+  check(linked.rowCount===1,'LEGACY_LEAD_RACE',409);
+ }
  await c.query('UPDATE satori_v2_accounts SET display_name=$2,'+
   "access_status='ACTIVE',revision=revision+1,updated_at=now() WHERE id=$1",
   [accountId,data.fullName]);
