@@ -517,6 +517,8 @@ function buildCustomerCard(record,{registered=false,highlight=false}={}){
  meta.append(make('span',statusLabel,'crm-tag crm-status-'+state));
  meta.append(make('small',typeLabel(record.requestedType)+
    (registered?' · CK: ':' · CK dự kiến: ')+pct(record.discountBps)));
+ if(record.requestedType==='collaborator'&&record.collaboratorBps!=null)
+  meta.append(make('small','CK CTV: '+pct(record.collaboratorBps)));
  const date=record.submittedAt||record.createdAt;
  if(date&&!Number.isNaN(new Date(date).getTime()))
   meta.append(make('small','Đăng ký: '+new Date(date).toLocaleDateString('vi-VN')));
@@ -683,11 +685,18 @@ function drawCustomers(){
     const opt=make('option',t);opt.value=v;opt.selected=x.requestedType===v;sel.append(opt);
    }
    role.append(sel);form.append(role);
-   const rate=make('label','Chiết khấu (%)'),percentage=document.createElement('input');
+   const rate=make('label','Chiết khấu mặc định cho khách (%)'),percentage=document.createElement('input');
    percentage.type='number';percentage.min='0';percentage.max='100';percentage.step='0.01';
    percentage.required=true;percentage.name='discountPercent';
    percentage.value=String((x.discountBps||0)/100);
    rate.append(percentage);form.append(rate);
+   const ctvLabel=make('label','Chiết khấu CTV (%)');
+   const ctvRate=document.createElement('input');ctvRate.type='number';ctvRate.min='0';
+   ctvRate.max='100';ctvRate.step='0.01';ctvRate.name='ctvPercent';
+   ctvRate.value=x.collaboratorBps==null?'':String(x.collaboratorBps/100);
+   ctvLabel.append(ctvRate);form.append(ctvLabel);
+   const updateRole=()=>{ctvLabel.hidden=sel.value!=='collaborator';ctvRate.required=sel.value==='collaborator'};
+   sel.addEventListener('change',updateRole);updateRole();
    const save=iconButton('Lưu chỉnh sửa','edit');save.type='submit';form.append(save);
    form.onsubmit=async ev=>{
     ev.preventDefault();const data=Object.fromEntries(new FormData(form).entries());
@@ -695,7 +704,14 @@ function drawCustomers(){
     if(!Number.isFinite(percent)||percent<0||percent>100||
        Math.abs(percent*100-bps)>0.00001)return;
     data.discountBps=bps;delete data.discountPercent;
-    if(!confirm('Lưu hồ sơ cũ? Không sửa hóa đơn gốc.'))return;
+    const cp=data.ctvPercent,cv=Number(cp),cbps=Math.round(cv*100);
+    if(data.requestedType==='collaborator'){
+     if(cp===''||!Number.isFinite(cv)||cv<percent||cv>100||
+        Math.abs(cv*100-cbps)>0.00001)return crmStatus('CK CTV phải ≥ CK khách, tối đa 100%.','error');
+     data.collaboratorBps=cbps;
+    }
+    delete data.ctvPercent;
+    if(!confirm('Lưu vai trò '+typeLabel(data.requestedType)+' và chiết khấu cho '+x.fullName+'? Không sửa hóa đơn gốc.'))return;
     save.disabled=true;
     try{
      await api('/api/v2/admin/customer-leads','PATCH',{
@@ -801,7 +817,8 @@ function leadLifecycleControls(rec){
     leadId:rec.id,expectedRevision:rec.revision,active,confirmed:true,
     ...(active?{fullName:rec.fullName,phone:rec.phone,address:rec.address,email:rec.email,
      companyName:rec.companyName||'',taxCode:rec.taxCode||'',note:rec.note||'',
-     requestedType:rec.requestedType||'retail',discountBps:rec.discountBps}:{}),
+     requestedType:rec.requestedType||'retail',discountBps:rec.discountBps,
+     ...(rec.requestedType==='collaborator'?{collaboratorBps:rec.collaboratorBps}:{})}:{}),
    });
    await loadCustomers();
    crmStatus(active?'Đã khôi phục hồ sơ.':'Đã lưu trữ hồ sơ; hóa đơn vẫn được giữ.','success');
@@ -1197,9 +1214,16 @@ function prepareLegacyForm(){
   const opt=make('option',t);opt.value=v;role.append(opt);
  }
  roleLabel.append(role);fields.append(roleLabel);
- const discount=legacyField(fields,'💯 Chiết khấu hiện hành (%)','legacyDiscount','number','',true);
+ const discount=legacyField(fields,'💯 CK mặc định khách (%)','legacyDiscount','number','',true);
  discount.min='0';discount.max='100';discount.step='0.01';
  discount.placeholder='Anh tự nhập (kể cả 0%)';
+ const ctv=legacyField(fields,'CK CTV (%) nếu vai trò CTV','legacyCtvDiscount','number');
+ ctv.min='0';ctv.max='100';ctv.step='0.01';
+ const roleSelect=byId('legacyRole');
+ if(roleSelect){
+  const sync=()=>{ctv.parentNode.hidden=roleSelect.value!=='collaborator';ctv.required=roleSelect.value==='collaborator'};
+  roleSelect.addEventListener('change',sync);sync();
+ }
  legacyField(fields,'Công ty / cửa hàng','legacyCompany');
  legacyField(fields,'Mã số thuế','legacyTax');
  const note=legacyField(fields,'Ghi chú','legacyNote');note.parentNode.classList.add('full');
