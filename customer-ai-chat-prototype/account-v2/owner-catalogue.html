@@ -271,8 +271,8 @@ async function refreshRegistrationAlerts(){
  try{
   const data=await api('/api/v2/admin/notifications');
   if(!Array.isArray(data.newest)||!Number.isSafeInteger(data.pendingCount))throw Error('ALERT_FEED_INVALID');
-  const keys=new Set(data.newest.map(x=>x.id+':'+x.revision));
-  const newProfiles=ownerNotificationKnown?data.newest.filter(x=>!ownerNotificationKnown.has(x.id+':'+x.revision)):[];
+  const keys=new Set(data.newest.map(x=>x.id));
+  const newProfiles=ownerNotificationKnown?data.newest.filter(x=>!ownerNotificationKnown.has(x.id)):[];
   ownerNotificationKnown=keys;
   setRegistrationBadge(data.pendingCount);
   if(newProfiles.length){
