@@ -227,6 +227,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
     }
     private var webClientId: String? = null
     private var ready = false
+    private var requestedOwnerTab = "new"
 
     private fun dp(n: Int) = (resources.displayMetrics.density * n + .5f).toInt()
     private fun pill(color: Int, radius: Int = 13): android.graphics.drawable.GradientDrawable =
@@ -409,6 +410,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                 contentDescription = "Mở mục " + title
                 setOnClickListener {
                     if (ready) {
+                        requestedOwnerTab = tab
                         val script = "(function(){if(typeof activateOwnerTab==='function'){" +
                             "activateOwnerTab(" + org.json.JSONObject.quote(tab) + ");" +
                             "window.scrollTo(0,0);}})()"
@@ -716,6 +718,9 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             org.json.JSONObject.quote(css) + ";})();"
         web.evaluateJavascript(script) {
             if (!isFinishing && !isDestroyed) {
+                val restore = "(function(){if(typeof activateOwnerTab==='function')" +
+                    "activateOwnerTab(" + org.json.JSONObject.quote(requestedOwnerTab) + ");})()"
+                web.evaluateJavascript(restore, null)
                 web.animate().alpha(1f).setDuration(160).start()
             }
         }
