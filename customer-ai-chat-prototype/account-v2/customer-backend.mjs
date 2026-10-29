@@ -441,6 +441,67 @@ export async function legacyMonthlyCustomerPreview(month){
   truncated:total>raw.length||raw.length>=100,scanned:raw.length};
 }
 
+
+/**
+ * Restores the old-customer directory from the signed canonical invoice ledger.
+ * Addresses (not names or phone numbers) define display deduplication only.
+ * This is read-only; ownership requires the separate verified-Gmail/owner binding.
+ */
+export async function legacyAddressDirectory({months=12}={}){
+ const count=Number(months);
+ check(Number.isSafeInteger(count)&&count>=1&&count<=24,'LEGACY_MONTH_RANGE_INVALID');
+ const now=new Date(),monthsToRead=[];
+ for(let i=0;i<count;i++){
+  const beginning=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-i,1));
+  const last=new Date(Date.UTC(beginning.getUTCFullYear(),beginning.getUTCMonth()+1,0));
+  const from=beginning.toISOString().slice(0,10),to=last.toISOString().slice(0,10);
+  monthsToRead.push({from,to});
+ }
+ const all=[],errors=[];
+ let truncatedMonths=0,readMonths=0;
+ // Bound concurrency to protect the signed Apps Script ledger and production latency.
+ for(let i=0;i<monthsToRead.length;i+=3){
+  const results=await Promise.allSettled(monthsToRead.slice(i,i+3).map(w=>
+   readMinhSatori('orders.list',{from:w.from,to:w.to,limit:100})));
+  results.forEach((out,j)=>{
+   if(out.status!=='fulfilled'){errors.push(monthsToRead[i+j].from);return}
+   const v=out.value;
+   const revision=Number(v?.revision??v?.data?.revision);
+   if(!Number.isSafeInteger(revision)||revision<1){
+    errors.push(monthsToRead[i+j].from);return;
+   }
+   readMonths++;
+   const orders=Array.isArray(v?.data?.orders)?v.data.orders:[];
+   if(Number(v?.data?.totalMatches)>orders.length||orders.length>=100)truncatedMonths++;
+   for(const row of orders){
+    const address=sourceText(row.location,400);
+    if(!normalizedDeliveryAddress(address))continue;
+    if(!Number.isSafeInteger(Number(row.invoiceNo))||Number(row.invoiceNo)<1)continue;
+    all.push({address,name:sourceText(row.name,120),phoneCandidate:legacyPhoneCandidate(row.phone),
+     date:sourceText(row.date,30),invoiceNo:Number(row.invoiceNo),
+     createdAt:typeof row.createdAt==='string'?sourceText(row.createdAt,48):null,
+     timestamp:Number.isFinite(Number(row.timestamp))&&Number(row.timestamp)>946684800?
+      Number(row.timestamp):null});
+   }
+  });
+ }
+ check(readMonths>0,'LEGACY_DIRECTORY_READ_UNAVAILABLE',503);
+ const grouped=new Map();
+ for(const item of all){
+  const key=normalizedDeliveryAddress(item.address);
+  if(!grouped.has(key))grouped.set(key,[]);
+  grouped.get(key).push(item);
+ }
+ const addresses=groupHistoricalAddresses(all).map(recent=>({
+  key:recent.normalizedAddress,address:recent.address,name:recent.name,
+  phone:recent.phoneCandidate,date:recent.date,invoiceNo:recent.invoiceNo,
+  invoiceCount:grouped.get(recent.normalizedAddress)?.length||1
+ }));
+ return {ok:true,source:'canonical-signed-ledger',addresses,
+  uniqueAddresses:addresses.length,invoiceCount:all.length,
+  requestedMonths:count,readMonths,truncatedMonths,missingMonths:errors};
+}
+
 export async function legacyCustomerSearch(query){
  const q=sourceText(query,90);
  check(q.length>=2&&!/[*%_]/.test(q),'LEGACY_SEARCH_REQUIRED');
