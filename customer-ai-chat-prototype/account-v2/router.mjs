@@ -26,7 +26,7 @@ import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,adminChangeCustomerStatus,adminEditRegisteredCustomer,adminLinkLead,
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
- legacyCustomerActivateLead,adminRegistrationNotifications} from './customer-backend.mjs';
+ legacyCustomerActivateLead,adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -270,6 +270,7 @@ function customerPricing(data){
 }
 async function quote(pool,actor,input){
  const {priced,cartRevision,catalogueRevision}=await pricedCart(pool,actor,input);
+ error(priced.invoiceMode==='single','V2_PAIR_INVOICE_POLICY_DISABLED',409);
  const deliveryRequest=validatedV2QuoteDelivery(input.deliveryRequest);
  // Persist the customer-requested instruction INSIDE this V2 quote snapshot,
  // never in a client-only invoice or the old Apps Script ledger.
@@ -449,6 +450,11 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/admin/legacy/activate'&&req.method==='POST'){
    owner(actor);
    send(res,200,await legacyCustomerActivateLead(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/ctv/profit'&&req.method==='GET'){
+   owner(actor);
+   const p=new URL(req.url,'http://local').searchParams.get('profileId');
+   send(res,200,await adminCtvProfitSummary(pool,p));return true;
   }
   if(pathname==='/api/v2/admin/notifications'&&req.method==='GET'){
    owner(actor);send(res,200,await adminRegistrationNotifications(pool));return true;
