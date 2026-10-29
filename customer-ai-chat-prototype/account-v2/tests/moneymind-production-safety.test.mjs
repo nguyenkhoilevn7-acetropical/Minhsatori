@@ -20,11 +20,11 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // The current V2 build intentionally adds one accessible delivery-note field
  // and one delivery-note style to the original MoneyMind layout; freeze the
  // reviewed full-page business, CSS and non-script hashes to catch regressions.
- // Oct 28 reviewed delta: the owner-approved verified-ledger receipt adds one inline\n // chat card style and a guarded click action. Preserve the full-page hashes.
+ // Oct 29 reviewed typography-only delta: 16px onboarding/body and 20px headings.\n // Oct 28 reviewed delta: the owner-approved verified-ledger receipt adds one inline\n // chat card style and a guarded click action. Preserve the full-page hashes.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const fnvPart=x=>fnv32(x);
- assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'45b053eb');
- assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'6ebb7110');
+ assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'b18ce153');
+ assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'607da8f2');
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-subtitle,/);
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-phone \{/);
  assert.match(v2,/background:#eaf4f3;\s*color:#205e61;/);

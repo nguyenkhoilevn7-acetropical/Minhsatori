@@ -104,6 +104,28 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
 .crm-ctv-report-row{background:#fff;padding:10px;border:1px solid #e0ebe6;border-radius:10px}
 .crm-ctv-report-row strong{font-size:14px}
 
+
+/* V2 CRM progressive disclosure. One section and one status group at a time. */
+.owner-tabs{display:flex;gap:8px;overflow-x:auto;margin:12px 0;scrollbar-width:thin}
+.owner-tabs button{flex:1;min-width:105px;white-space:nowrap;background:white;color:#165a5b;border:1px solid var(--line);min-height:48px}
+.owner-tabs button[aria-selected="true"]{background:#e3f6f2;border-color:#6db4a9;color:#08665b}
+.crm-status-group{margin:10px 0;background:#fff;border:1px solid var(--line);border-radius:15px;overflow:hidden}
+.crm-status-group>summary{display:flex;align-items:center;gap:9px;list-style:none;padding:14px 15px;cursor:pointer;color:var(--ink);font-weight:750}
+.crm-status-group>summary::-webkit-details-marker{display:none}
+.crm-status-group>summary:after{content:'⌄';margin-left:auto;font-size:20px;font-weight:500}
+.crm-status-group[open]>summary:after{content:'⌃'}
+.crm-status-group .crm-stage-count{margin-left:2px}
+.crm-status-group>.crm-entry,.crm-status-group>p{margin:9px 12px 12px}
+.crm-status-group[open]{border-color:#9fd4cb;box-shadow:0 2px 14px #154f4b0b}
+.crm-inspector{border-top:1px solid var(--line);margin-top:18px;padding-top:16px}
+.crm-action-panel{display:flex;flex-wrap:wrap;gap:9px}
+.crm-action-panel button{font-size:14px;padding:8px 12px}
+.crm-entry .crm-action-menu{margin:3px 0 0}
+.crm-action-menu>summary{color:#0c7468;font-weight:700;padding:7px 0}
+#crmCustomers{max-height:none;overflow:visible}
+#legacyLeadDisclosure,#legacyLedgerDisclosure{border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0}
+#legacyLeadDisclosure>summary,#legacyLedgerDisclosure>summary{font-size:16px;font-weight:700;color:#146a63}
+@media(max-width:430px){.owner-tabs button{font-size:14px;padding:10px 8px;min-width:95px}.crm-status-group>summary{padding:13px 12px}}
 </style></head>
 <body>
 <main>
@@ -113,6 +135,11 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
  <p>Dùng phiên Google Admin hiện tại. Không cần nhập lại API key, HMAC secret hoặc mật khẩu.</p>
  <p id="authState" role="status">Đang kiểm tra quyền truy cập…</p>
 </section>
+<nav id="ownerTabs" class="owner-tabs" hidden role="tablist" aria-label="Khu vực quản trị">
+ <button type="button" data-owner-tab="new" role="tab" aria-selected="true" aria-controls="crmConsole">Khách mới</button>
+ <button type="button" data-owner-tab="old" role="tab" aria-selected="false" aria-controls="legacyConsole">Khách cũ</button>
+ <button type="button" data-owner-tab="catalogue" role="tab" aria-selected="false" aria-controls="console">Danh mục</button>
+</nav>
 <section class="card" id="console" hidden>
  <h2>📦 Danh mục đã xác minh</h2>
  <p>Dữ liệu trên PostgreSQL V2, tách biệt với sổ hóa đơn và các link đại lý cũ.</p>
@@ -150,7 +177,7 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
  </div>
  <p id="crmStatus" role="status" aria-live="polite">Chưa tải danh sách.</p>
  <div id="crmCustomers" aria-label="Danh sách khách hàng"></div>
- <h2 style="margin-top:22px">Hồ sơ và địa chỉ giao hàng</h2>
+ <div id="crmInspector" class="crm-inspector" hidden><h2>Hồ sơ và địa chỉ giao hàng</h2>
  <div id="crmDetails" aria-live="polite">Chọn một khách hàng đã đăng ký để xem.</div>
  <form id="crmPolicyForm" hidden>
   <h2 style="margin-top:20px">Cấp chiết khấu được duyệt</h2>
@@ -166,10 +193,15 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
   <div class="actions"><button id="crmPolicySubmit" type="submit">Duyệt chính sách giá</button></div>
   <p>Lưu ý: để trống địa chỉ/sản phẩm là chính sách mặc định toàn hồ sơ. Chính sách mới sẽ thay thế phiên bản hiệu lực cùng phạm vi; hóa đơn đã phát hành không bị sửa giá.</p>
  </form>
+ </div>
 </section>
 <section class="card" id="legacyConsole" hidden aria-label="Tra cứu khách hàng cũ">
 <h2>🔎 Khách hàng cũ từ sổ Minh Satori</h2>
-<p>Tìm tên hoặc số điện thoại từ hóa đơn thật, kiểm tra mức chiết khấu trước đây và chọn hồ sơ chính xác.</p>
+<p>Mỗi tác vụ được thu gọn. Bấm vào danh sách hoặc tra cứu khi cần.</p>
+<details id="legacyLeadDisclosure"><summary>Danh sách khách cũ đã lưu (<span id="crmCountOld">0</span>)</summary>
+ <div id="legacyCustomers" aria-label="Hồ sơ khách cũ"></div>
+</details>
+<details id="legacyLedgerDisclosure"><summary>Tìm khách cũ từ hóa đơn gốc</summary>
 <form id="legacySearchForm" class="crm-controls">
 <label>🔍 Tên hoặc số điện thoại<input id="legacyQuery" type="search" minlength="2" maxlength="90" required placeholder="Nhập tên khách hoặc SĐT"></label>
 <button type="submit">Tìm trong sổ</button></form>
@@ -181,6 +213,7 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
 </div>
 <div id="legacyResults"></div>
 <div id="legacyEditPanel"></div>
+</details>
 </section>
 <section class="card" id="denied" hidden>
  <h2>Chưa thể mở quản trị</h2>
@@ -192,7 +225,7 @@ button>.ico{vertical-align:-4px;margin-right:6px}.danger{color:#b11c35!important
 'use strict';
 const byId=id=>document.getElementById(id);
 const csrf=()=>document.cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith('satori_v2_csrf='))?.slice(15)||'';
-let isOwner=false,busy=false,sourceReady=false;
+let isOwner=false,busy=false,sourceReady=false,ownerAccountId=null;
 function state(message,kind='info'){byId('notice').textContent=message;byId('notice').dataset.kind=kind}
 async function api(route,method='GET',body){
  const headers={'accept':'application/json'};
@@ -300,6 +333,9 @@ function startRegistrationAlerts(){
  ownerNotificationPoll=window.setInterval(()=>{if(isOwner)void refreshRegistrationAlerts()},25000);
 }
 byId('crmBell').addEventListener('click',()=>{
+ activateOwnerTab('new');
+ selectedOwnerGroup='pending';
+ drawCustomers();
  const target=byId('crmCustomers');
  target.scrollIntoView({behavior:'smooth',block:'start'});
 });
@@ -317,6 +353,17 @@ byId('crmSoundToggle').addEventListener('click',async()=>{
 });
 
 let selectedAccountId=null,selectedProfileId=null,customerEpoch=0,knownProducts=[];
+let selectedOwnerGroup=null;
+function activateOwnerTab(tab){
+ for(const [name,id] of [['new','crmConsole'],['old','legacyConsole'],['catalogue','console']])
+  byId(id).hidden=name!==tab;
+ for(const el of document.querySelectorAll('[data-owner-tab]'))
+  el.setAttribute('aria-selected',String(el.dataset.ownerTab===tab));
+ // Selecting Khách cũ itself reveals the stored customer list; no second tap.
+ byId('legacyLeadDisclosure').open=tab==='old';
+}
+document.querySelectorAll('[data-owner-tab]').forEach(btn=>
+ btn.addEventListener('click',()=>activateOwnerTab(btn.dataset.ownerTab)));
 const make=(tag,value,cls)=>{
  const item=document.createElement(tag);
  if(cls)item.className=cls;
@@ -336,6 +383,8 @@ function drawCustomers(){
  if(!isOwner)return;
  const term=byId('crmFilter').value.trim().toLocaleLowerCase('vi-VN');
  const dest=byId('crmCustomers');dest.replaceChildren();
+ const oldDest=byId('legacyCustomers');oldDest.replaceChildren();
+ byId('crmCountOld').textContent=String(customerRecord.leads.length);
  const current=customerRecord.registered.filter(x=>
   [x.fullName,x.name,x.email,x.phone,x.companyName]
    .some(v=>String(v||'').toLocaleLowerCase('vi-VN').includes(term)));
@@ -349,11 +398,19 @@ function drawCustomers(){
   {label:'⏸ Tạm khóa / khác',state:'inactive',items:current.filter(x=>!['ACTIVE','PENDING'].includes(x.accessStatus))}
  ];
  for(const group of groups){
-  const h=make('h3',null,'crm-stage '+group.state);
+  const pane=make('details',null,'crm-status-group '+group.state);
+  pane.open=selectedOwnerGroup===group.state;
+  const h=make('summary');
   h.append(document.createTextNode(group.label+' '),
    make('span',String(group.items.length),'crm-stage-count'));
-  dest.append(h);
-  if(!group.items.length)dest.append(make('p','Không có tài khoản ở trạng thái này.','muted'));
+  h.addEventListener('click',()=>{
+   selectedOwnerGroup=pane.open?null:group.state;
+   if(!pane.open)dest.querySelectorAll('.crm-status-group').forEach(el=>{
+    if(el!==pane)el.open=false;
+   });
+  });
+  pane.append(h);dest.append(pane);
+  if(!group.items.length)pane.append(make('p','Không có tài khoản ở trạng thái này.','muted'));
   for(const x of group.items){
   const item=make('div',null,'crm-entry'+(group.state==='pending'?' new-account':''));
   item.append(make('strong',x.fullName||x.name||'Chưa có tên','crm-customer-name'));
@@ -366,7 +423,7 @@ function drawCustomers(){
   if(x.address)appendLine(item,'📍 '+x.address,'crm-customer-address');
   const b=make('button','Xem hồ sơ & chiết khấu');
   b.type='button';b.className='secondary';
-  b.onclick=()=>selectAccount(x);
+  b.onclick=async()=>{await selectAccount(x);byId('crmInspector').scrollIntoView({behavior:'smooth',block:'nearest'});};
   item.append(b);
   if(x.accessStatus==='PENDING'&&x.registrationRevision&&!x.approvedForPricing){
    const approve=make('button','Duyệt đăng ký');
@@ -417,11 +474,11 @@ function drawCustomers(){
    };
    item.append(form);
   }
-  dest.append(item);
+  if(x.id!==ownerAccountId&&x.accessStatus!=='REMOVED')item.append(accountLifecycleControls(x));
+  pane.append(item);
   }
  }
- dest.append(make('h3','Khách cũ chưa liên kết tài khoản · '+old.length));
- if(!old.length)dest.append(make('p','Không có hồ sơ cũ khớp tìm kiếm.'));
+ if(!old.length)oldDest.append(make('p','Không có hồ sơ cũ khớp tìm kiếm.'));
  for(const x of old){
   const item=make('div',null,'crm-entry');
   item.append(make('strong',x.fullName||'Khách cũ'));
@@ -490,14 +547,101 @@ function drawCustomers(){
    };
    item.append(b);
   }
-  dest.append(item);
+  item.append(leadLifecycleControls(x));
+  oldDest.append(item);
  }
+}
+
+/* Owner-only customer lifecycle. Keep receipts and history for accounting. */
+async function changeAccountLifecycle(rec,status,discountBps,collaboratorBps){
+ if(!isOwner||rec.id===ownerAccountId||rec.accessStatus==='REMOVED')return;
+ const name=rec.fullName||rec.email||'tài khoản';
+ const question=status==='SUSPENDED'
+  ?'Tạm dừng '+name+'? Phiên đăng nhập sẽ bị thu hồi, hóa đơn lịch sử vẫn còn.'
+  :status==='REMOVED'
+  ?'Xóa quyền truy cập của '+name+'? Không xóa hóa đơn. Không thể bật lại bằng nút Kích hoạt.'
+  :'Kích hoạt lại '+name+' với CK khách '+discountBps/100+'%'+
+   (collaboratorBps!=null?', CK CTV '+collaboratorBps/100+'%':'')+'?';
+ if(!confirm(question))return;
+ if(status==='REMOVED'&&prompt('Nhập XOA để xác nhận:')!=='XOA')return;
+ try{
+  await api('/api/v2/admin/customers','PATCH',{
+   accountId:rec.id,status,expectedRevision:rec.revision,confirmed:true,
+   ...(status==='ACTIVE'?{discountBps,
+    ...(collaboratorBps!=null?{collaboratorBps}:{})}:{})
+  });
+  await loadCustomers();
+  crmStatus('Đã cập nhật trạng thái '+name+'. Hóa đơn không thay đổi.','success');
+ }catch(e){crmStatus('Không cập nhật được: '+e.message,'error')}
+}
+function accountLifecycleControls(rec){
+ const root=make('details',null,'crm-action-menu');
+ root.append(make('summary','Quản lý tài khoản · '+typeLabel(rec.requestedType)));
+ const actions=make('div',null,'crm-action-panel');
+ if(rec.accessStatus==='ACTIVE'){
+  const pause=make('button','Tạm dừng');pause.type='button';pause.className='secondary';
+  pause.onclick=()=>changeAccountLifecycle(rec,'SUSPENDED');actions.append(pause);
+ }
+ if(rec.accessStatus==='SUSPENDED'&&rec.approvedForPricing){
+  const form=make('form',null,'crm-controls');
+  const customer=make('label','Chiết khấu khách (%)');
+  const ck=document.createElement('input');ck.type='number';ck.min='0';ck.max='100';
+  ck.step='0.01';ck.required=true;
+  ck.value=rec.discountBps==null?'':String(Number(rec.discountBps)/100);
+  customer.append(ck);form.append(customer);
+  let ctv=null;
+  if(rec.requestedType==='collaborator'){
+   const label=make('label','Chiết khấu CTV (%)');
+   ctv=document.createElement('input');ctv.type='number';ctv.min='0';ctv.max='100';
+   ctv.step='0.01';ctv.required=true;ctv.placeholder='Nhập mức CTV đã duyệt';
+   label.append(ctv);form.append(label);
+  }
+  const activate=make('button','Kích hoạt lại');activate.type='submit';form.append(activate);
+  form.onsubmit=ev=>{
+   ev.preventDefault();const pctValue=Number(ck.value),bps=Math.round(pctValue*100);
+   const cp=ctv?Number(ctv.value):null,cbps=ctv?Math.round(cp*100):null;
+   if(!ck.value||!Number.isFinite(pctValue)||pctValue<0||pctValue>100||
+      Math.abs(pctValue*100-bps)>0.00001||
+      (ctv&&(!ctv.value||!Number.isFinite(cp)||cbps<bps||cbps>10000||
+       Math.abs(cp*100-cbps)>0.00001)))
+    return crmStatus('Mức chiết khấu khách/CTV không hợp lệ.','error');
+   void changeAccountLifecycle(rec,'ACTIVE',bps,cbps);
+  };actions.append(form);
+ }
+ const remove=make('button','Xóa quyền truy cập');remove.type='button';
+ remove.className='danger';remove.onclick=()=>changeAccountLifecycle(rec,'REMOVED');
+ actions.append(remove);root.append(actions);return root;
+}
+function leadLifecycleControls(rec){
+ const root=make('div',null,'crm-action-panel');
+ const btn=make('button',rec.active?'Lưu trữ hồ sơ':'Khôi phục hồ sơ');
+ btn.type='button';btn.className=rec.active?'danger':'secondary';
+ if(!rec.active&&rec.linkedAccountId){
+  btn.disabled=true;btn.title='Hồ sơ liên kết cần quản lý qua tài khoản Google';
+ }
+ btn.onclick=async()=>{
+  const active=!rec.active;
+  if(!confirm(active?'Khôi phục hồ sơ chờ '+rec.fullName+'? Không tự cấp quyền đặt hàng.'
+   :'Lưu trữ '+rec.fullName+'? Không xóa hóa đơn hay tạm dừng Google đã liên kết.'))return;
+  try{
+   await api('/api/v2/admin/customer-leads','PATCH',{
+    leadId:rec.id,expectedRevision:rec.revision,active,confirmed:true,
+    ...(active?{fullName:rec.fullName,phone:rec.phone,address:rec.address,email:rec.email,
+     companyName:rec.companyName||'',taxCode:rec.taxCode||'',note:rec.note||'',
+     requestedType:rec.requestedType||'retail',discountBps:rec.discountBps}:{}),
+   });
+   await loadCustomers();
+   crmStatus(active?'Đã khôi phục hồ sơ.':'Đã lưu trữ hồ sơ; hóa đơn vẫn được giữ.','success');
+  }catch(e){crmStatus('Không cập nhật được hồ sơ cũ: '+e.message,'error')}
+ };
+ root.append(btn);return root;
 }
 async function loadCustomers(){
  if(!isOwner)return;
  const generation=++customerEpoch;
  selectedAccountId=null;selectedProfileId=null;
  byId('crmPolicyForm').hidden=true;
+ byId('crmInspector').hidden=true;
  byId('crmDetails').textContent='Chọn một khách hàng đã đăng ký để xem.';
  byId('crmRefresh').disabled=true;crmStatus('Đang tải hồ sơ xác thực…');
  try{
@@ -609,6 +753,7 @@ async function loadProfileDetails(profileId,epoch){
 async function selectAccount(customer){
  if(!isOwner||!customer?.id)return;
  selectedAccountId=customer.id;selectedProfileId=null;
+ byId('crmInspector').hidden=false;
  const epoch=++customerEpoch;
  byId('crmPolicyForm').hidden=true;
  byId('crmDetails').textContent='Đang đọc hồ sơ '+(customer.fullName||customer.name||'')+'…';
@@ -682,8 +827,8 @@ byId('crmPolicyForm').addEventListener('submit',async e=>{
  finally{btn.disabled=false}
 });
 async function initCrm(){
- byId('crmConsole').hidden=false;
- byId('legacyConsole').hidden=false;
+ byId('ownerTabs').hidden=false;
+ activateOwnerTab('new');
  try{
   const data=await api('/api/v2/catalogue');
   if(Array.isArray(data.items))knownProducts=data.items.filter(x=>/^TP-[0-9]{5}$/.test(x.code));
@@ -701,8 +846,9 @@ async function initCrm(){
  try{
   const me=await api('/api/v2/me');
   if(!me?.account?.isAdmin)throw Error('ADMIN_REQUIRED');
-  isOwner=true;byId('authState').textContent='Đã xác thực quyền Admin.';
-  byId('console').hidden=false;await reload();await initCrm();
+  isOwner=true;ownerAccountId=me.account.id;
+  byId('authState').textContent='Đã xác thực quyền Admin.';
+  await initCrm();await reload();
  }catch(e){
   byId('authState').textContent='Không có phiên Admin hợp lệ.';
   byId('denied').hidden=false;
