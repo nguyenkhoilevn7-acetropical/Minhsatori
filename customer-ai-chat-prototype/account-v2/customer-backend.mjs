@@ -1139,15 +1139,31 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
   }else{
    const active=await c.query('SELECT p.id,p.type FROM satori_v2_profiles p '+
     'WHERE p.account_id=$1 ORDER BY created_at LIMIT 2 FOR UPDATE',[target.id]);
-   check(active.rowCount===1&&active.rows[0].type===role,'LEGACY_ACTIVE_ROLE_CONFLICT',409);
+   check(active.rowCount===1,'AMBIGUOUS_PROFILES',409);
    profileId=active.rows[0].id;
    const p=await c.query('SELECT discount_bps,collaborator_bps FROM satori_v2_policies '+
     'WHERE profile_id=$1 AND enabled=true AND address_id IS NULL AND product_code IS NULL '+
     'ORDER BY version DESC LIMIT 1',[profileId]);
-   check(p.rowCount===1&&p.rows[0].discount_bps===data.discountBps&&
-    (role!=='collaborator'||p.rows[0].collaborator_bps===data.collaboratorBps),
-    'LEGACY_ACTIVE_POLICY_CONFLICT',409);
-   // The shared address sync below also handles existing ACTIVE accounts.
+   const needsApprovedReconcile=active.rows[0].type!==role||p.rowCount!==1||
+    p.rows[0].discount_bps!==data.discountBps||
+    (p.rows[0].collaborator_bps??null)!==(role==='collaborator'?data.collaboratorBps:null);
+   if(needsApprovedReconcile){
+    // Exact source invoice refs have already been verified. Reuse the SAME
+    // owner-only, approved-Gmail reconciliation used by the no-invoice path.
+    // Neither OAuth nor a customer can invoke this ACTIVE role migration.
+    check(leads.rowCount>0,'ACTIVE_LEGACY_OWNER_LEAD_REQUIRED',409);
+    const google=await c.query('SELECT google_sub FROM satori_v2_accounts '+
+     'WHERE id=$1 FOR UPDATE',[target.id]);
+    check(google.rowCount===1,'CUSTOMER_NOT_FOUND',404);
+    const linked=await autoActivateVerifiedLegacyGmail(c,{
+     accountId:target.id,googleSub:google.rows[0].google_sub,email:target.email,
+     ownerGoogleSub:owner.google_sub,primaryLeadId:input.leadId||null,
+     allowActiveOwnerReconcile:true
+    });
+    check(linked.state==='ACTIVE',linked.reason||'ACTIVE_LEGACY_RECONCILE_FAILED',409);
+    check(linked.profileId===profileId,'ACTIVE_PROFILE_ID_CHANGED',409);
+   }
+   // The shared address sync merges latest signed source delivery details.
   }
   const addressSync=await syncBoundLegacyAddresses(c,profileId,addresses);
   for(const entry of leads.rows)if(!entry.linked_account_id)
