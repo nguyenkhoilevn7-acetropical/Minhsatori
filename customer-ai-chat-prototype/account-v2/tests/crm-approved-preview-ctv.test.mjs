@@ -22,12 +22,12 @@ test('approved preview has a single native-compatible owner tab row',()=>{
 test('role switches and CTV dual discounts are bound to the real APIs',()=>{
  assert.match(ownerScript,/crmRoleChoices\(role\)/);
  assert.match(ownerScript,/rolePricingEditor\(account,body,item/);
- assert.match(ownerScript,/const ctvLabel=make\('label','Chiết khấu CTV/);
- assert.match(ownerScript,/const customerLabel=make\('label','Chiết khấu mặc định cho khách/);
- assert.match(ownerScript,/ctvBps<customerBps/);
+ assert.match(ownerScript,/const ctv=rateField\('Chiết khấu CTV/);
+ assert.match(ownerScript,/Chiết khấu mặc định cho khách của CTV/);
+ assert.match(ownerScript,/ctvRate<customerRate/);
  assert.match(ownerScript,/\/api\/v2\/admin\/customer-role','PATCH'/);
  assert.match(ownerScript,/\/api\/v2\/admin\/policies','POST'/);
- assert.match(ownerScript,/openCustomerInspector\(registeredAccount,body,item\)/);
+ assert.match(ownerScript,/renderOwnerCtvClientCards\(account,clients\)/);
 });
 
 test('Gemini CTV sheet reuses one editor and one server-approved client writer',()=>{
