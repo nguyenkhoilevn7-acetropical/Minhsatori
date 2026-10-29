@@ -266,13 +266,15 @@ class V2OwnerCrmActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(247, 250, 253)
-        window.navigationBarColor = Color.rgb(247, 250, 253)
+        window.statusBarColor = Color.rgb(241, 244, 245)
+        window.navigationBarColor = Color.rgb(241, 244, 245)
+        window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+            View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR)
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(247, 250, 253))
+            setBackgroundColor(Color.rgb(241, 244, 245))
         }
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -280,62 +282,144 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             setPadding(dp(12), dp(8), dp(12), dp(8))
             setBackgroundColor(Color.WHITE)
         }
-        bar.addView(action("‹", Color.rgb(20, 51, 79), Color.rgb(238, 245, 253)) {
+        bar.addView(action("‹", Color.rgb(16, 43, 56), Color.rgb(241, 244, 245)) {
             finish()
+        })
+        val icon = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_satori_users)
+            setColorFilter(Color.rgb(0, 156, 153))
+            background = pill(Color.rgb(226, 246, 243), 11)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            contentDescription = null
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        bar.addView(icon, LinearLayout.LayoutParams(dp(37), dp(37)).apply {
+            marginStart = dp(10)
         })
         val headline = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), 0, dp(4), 0)
+            setPadding(dp(11), 0, dp(4), 0)
         }
         headline.addView(TextView(this).apply {
-            text = "👥 Khách hàng • Quản trị"
-            textSize = 17f
+            text = "MINH SATORI"
+            textSize = 15f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.rgb(20, 51, 79))
+            setTextColor(Color.rgb(16, 43, 56))
         })
         headline.addView(TextView(this).apply {
-            text = "Minh Satori · tài khoản chủ"
+            text = "QUẢN TRỊ  •  KHÁCH HÀNG V2"
             textSize = 12f
-            setTextColor(Color.rgb(83, 105, 130))
+            setTextColor(Color.rgb(102, 121, 130))
         })
         bar.addView(headline, LinearLayout.LayoutParams(0, -2, 1f))
-        refreshButton = action("↻", Color.rgb(0, 112, 214),
-            Color.rgb(229, 242, 255)) {
+        refreshButton = action("↻", Color.rgb(0, 156, 153),
+            Color.rgb(226, 246, 243)) {
             if (ready) web.reload()
         }.apply {
+            textSize = 22f
+            setPadding(dp(10), dp(8), dp(10), dp(8))
             contentDescription = "Làm mới quản lý khách hàng"
             visibility = View.GONE
         }
         bar.addView(refreshButton)
-        root.addView(bar, LinearLayout.LayoutParams(-1, -2))
+        root.addView(bar, LinearLayout.LayoutParams(-1, -2).apply {
+            bottomMargin = dp(8)
+        })
+        // Fast section links mirror the native app's compact icon row.
+        // The owner CRM is one screen; no new tab, database or browser app.
+        val navigation = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = true
+            setBackgroundColor(Color.rgb(241, 244, 245))
+        }
+        val quickLinks = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), 0, dp(12), dp(6))
+        }
+        fun quickLink(title: String, drawable: Int, destination: String) {
+            val chip = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(9), dp(12), dp(9))
+                background = pill(Color.WHITE, 13)
+                minimumHeight = dp(42)
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Mở mục " + title
+                setOnClickListener {
+                    if (ready) {
+                        // Static selectors only; navigation never changes origin.
+                        val script = when (destination) {
+                            "crm" -> "document.getElementById('crmConsole')"
+                            "old" -> "document.getElementById('legacyConsole')"
+                            else -> "document.getElementById('console')"
+                        }
+                        web.evaluateJavascript(
+                            "(function(){var x=" + script +
+                                ";if(x){x.scrollIntoView({behavior:'smooth',block:'start'});}})()",
+                            null
+                        )
+                    }
+                }
+            }
+            val symbol = android.widget.ImageView(this).apply {
+                setImageResource(drawable)
+                setColorFilter(Color.rgb(0, 156, 153))
+                setPadding(0, 0, 0, 0)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            chip.addView(symbol, LinearLayout.LayoutParams(dp(19), dp(19)).apply {
+                marginEnd = dp(8)
+            })
+            chip.addView(TextView(this).apply {
+                text = title
+                textSize = 13f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Color.rgb(16, 43, 56))
+            })
+            quickLinks.addView(chip, LinearLayout.LayoutParams(-2, -2).apply {
+                marginEnd = dp(8)
+            })
+        }
+        quickLink("Khách hàng", R.drawable.ic_satori_users, "crm")
+        quickLink("Khách cũ", R.drawable.ic_satori_map_pin, "old")
+        quickLink("Danh mục", R.drawable.ic_satori_invoice, "catalog")
+        navigation.addView(quickLinks)
+        root.addView(navigation, LinearLayout.LayoutParams(-1, -2))
 
         authPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(24), dp(20), dp(24))
+            setPadding(dp(18), dp(19), dp(18), dp(19))
+            background = pill(Color.WHITE, 17)
         }
         authPanel.addView(TextView(this).apply {
-            text = "🔐 Đăng nhập Google Admin"
+            text = "Đăng nhập Google quản trị"
             textSize = 21f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.rgb(20, 51, 79))
+            setTextColor(Color.rgb(16, 43, 56))
         })
         authPanel.addView(TextView(this).apply {
             text = "Chỉ Gmail chủ Minh Satori được quản lý khách, duyệt đăng ký, " +
                 "chiết khấu và địa chỉ. Các hóa đơn đang hoạt động không bị chỉnh sửa."
             textSize = 15f
-            setTextColor(Color.rgb(65, 86, 112))
+            setTextColor(Color.rgb(102, 121, 130))
             setPadding(0, dp(10), 0, dp(18))
         })
         authButton = action("Tiếp tục bằng Google", Color.WHITE,
-            Color.rgb(0, 122, 255)) { startNativeGoogleSignIn() }
+            Color.rgb(0, 156, 153)) { startNativeGoogleSignIn() }
         authPanel.addView(authButton, LinearLayout.LayoutParams(-1, -2))
         status = TextView(this).apply {
             textSize = 14f
-            setTextColor(Color.rgb(74, 92, 117))
+            setTextColor(Color.rgb(102, 121, 130))
             setPadding(0, dp(18), 0, 0)
         }
         authPanel.addView(status)
-        root.addView(authPanel, LinearLayout.LayoutParams(-1, -2))
+        root.addView(authPanel, LinearLayout.LayoutParams(-1, -2).apply {
+            marginStart = dp(12)
+            marginEnd = dp(12)
+            topMargin = dp(12)
+        })
 
         web = WebView(this)
         web.settings.apply {
@@ -355,6 +439,10 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, false)
         web.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                if (url == ORIGIN + "/owner-v2" || url == ORIGIN + "/owner-v2/") applyNativeOwnerTheme()
+            }
             override fun shouldOverrideUrlLoading(
                 v: WebView?, request: WebResourceRequest?
             ): Boolean {
@@ -400,6 +488,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             }
         }
         web.visibility = View.GONE
+        web.alpha = 0f // Prevent a flash of unthemed desktop HTML.
         root.addView(web, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
         busy("Đang kiểm tra phiên quản trị đã xác minh…")
@@ -435,6 +524,119 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                         state("Không kết nối được đăng nhập V2: " + (e.message ?: "Lỗi mạng"))
                     }
                 }
+            }
+        }
+    }
+
+
+    /**
+     * The owner-v2 portal shares the official V2 customer/discount API, but
+     * its responsive presentation adopts the INSTALLED native app theme.
+     * This theme is injected only into the pinned owner route after admin auth.
+     * No financial DOM, forms, event listeners or HTTP request logic is changed.
+     */
+    private fun applyNativeOwnerTheme() {
+        val css = """
+            :root {
+                color-scheme:light;
+                --bg:#f1f4f5; --ink:#102b38; --sub:#667982;
+                --line:#e1e9e9; --blue:#009c99; --pale:#e2f6f3;
+            }
+            html,body { background:#f1f4f5!important;color:#102b38!important; }
+            body { font-family:Roboto,system-ui,-apple-system,"Segoe UI",sans-serif!important;
+                font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%; }
+            main { display:flex!important;flex-direction:column;gap:0;
+                max-width:990px!important;width:100%!important;
+                padding:0 12px max(30px,env(safe-area-inset-bottom))!important;margin:0 auto!important; }
+            main>header { display:none!important; }
+            main>section[aria-label="Quyền truy cập"] { order:0; background:#e2f6f3!important;
+                border-color:#ccebe4!important; }
+            #crmConsole { order:1; }
+            #legacyConsole { order:2; }
+            #console { order:3; }
+            #denied { order:4; }
+            .card { background:#fff!important;border:1px solid #e1e9e9!important;
+                border-radius:17px!important;padding:16px!important;margin:8px 0!important;
+                box-shadow:0 1px 3px #102b3808!important; }
+            .card>h2 { font-weight:750;font-size:18px!important;color:#102b38!important;
+                line-height:1.3;margin:0 0 9px!important; }
+            h3 {font-size:16px!important;color:#102b38!important;line-height:1.4}
+            p,small,details,summary {color:#667982}
+            strong,b {color:#102b38}
+            .metrics {gap:9px!important;margin:12px 0!important;}
+            .metric {background:#f7faf9!important;border-color:#e1e9e9!important;
+                padding:12px!important;border-radius:13px!important;}
+            .metric small {font-size:12px!important;}
+            .metric strong {font-size:21px!important;color:#102b38!important;}
+            .crm-entry {background:#fff!important;border:1px solid #e1e9e9!important;
+                border-radius:14px!important;margin:8px 0!important;
+                padding:14px!important;box-shadow:none!important;}
+            .crm-entry strong {color:#102b38!important;font-size:15px!important;}
+            .crm-entry p,.crm-entry small {font-size:13px!important;line-height:1.5!important;
+                color:#667982!important;}
+            .crm-tag,.badge {background:#e2f6f3!important;color:#086b69!important;
+                border-radius:9px!important;font-weight:700!important;}
+            #crmCustomers {max-height:none!important;overflow:visible!important;}
+            .crm-controls {gap:10px!important;margin:14px 0!important;}
+            .crm-controls label,.field-grid label,.legacy-address label {
+                font-size:14px!important;font-weight:650!important;color:#526d72!important;
+            }
+            input,select,textarea,.crm-controls input,.crm-controls select,
+            .field-grid input,.field-grid select,.field-grid textarea,
+            .legacy-address input {
+                background:#fff!important;color:#102b38!important;
+                border:1px solid #cfdcdd!important;
+                border-radius:12px!important;min-height:47px!important;
+                font-size:16px!important;padding:10px 12px!important;
+            }
+            input:focus,select:focus,textarea:focus {
+                outline:2px solid #009c9955!important;outline-offset:0;
+                border-color:#009c99!important;
+            }
+            input[type="checkbox"] {min-height:22px!important;width:22px!important;
+                accent-color:#009c99;}
+            button {min-height:42px!important;border-radius:12px!important;
+                background:#009c99!important;color:#fff!important;
+                border:0!important;padding:10px 14px!important;
+                font-size:14px!important;font-weight:700!important;box-shadow:none!important;}
+            button.secondary {background:#e2f6f3!important;color:#086b69!important;}
+            button.danger {background:#fff1f3!important;color:#b11c35!important;}
+            button:disabled {opacity:.46!important;}
+            button .ico,h2>.ico,h3>.ico {color:inherit}
+            .legacy-address {background:#f8fbfa!important;border-color:#e1e9e9!important;
+                border-radius:14px!important;gap:10px!important;}
+            #notice {background:#f1f4f5!important;color:#102b38!important;}
+            #crmStatus[data-kind="error"],#legacyStatus[data-kind="error"] {color:#b11c35!important;}
+            #crmStatus[data-kind="success"],#legacyStatus[data-kind="success"] {color:#0f8165!important;}
+            #notice[data-kind="error"] {background:#fff1f3!important;color:#b11c35!important;}
+            #notice[data-kind="success"] {background:#e2f6f3!important;color:#0f8165!important;}
+            details>summary {padding:8px 0!important;color:#086b69!important;
+                font-weight:650!important;}
+            .field-grid {gap:12px!important;}
+            @media(max-width:560px) {
+                main {padding-left:12px!important;padding-right:12px!important;}
+                .card {padding:15px!important;}
+                .field-grid,.legacy-address {grid-template-columns:1fr!important;}
+                .crm-controls>label {min-width:100%!important;}
+                .metric strong {font-size:19px!important;}
+            }
+            @media(min-width:700px) {
+                main {padding-left:22px!important;padding-right:22px!important;}
+                .card {padding:20px!important;}
+            }
+        """.trimIndent()
+        // JSON quote escapes CSS as a string literal, never executes remote data.
+        val script = "(function(){if(location.origin!==" +
+            org.json.JSONObject.quote(ORIGIN) +
+            "||(location.pathname!=='/owner-v2'&&" +
+            "location.pathname!=='/owner-v2/'))return;" +
+            "var el=document.getElementById('satori-android-app-theme');" +
+            "if(!el){el=document.createElement('style');el.id='satori-android-app-theme';" +
+            "document.head.appendChild(el);}el.textContent=" +
+            org.json.JSONObject.quote(css) + ";})();"
+        web.evaluateJavascript(script) {
+            if (!isFinishing && !isDestroyed) {
+                web.animate().alpha(1f).setDuration(160).start()
             }
         }
     }
@@ -615,6 +817,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         authPanel.visibility = View.GONE
         web.visibility = View.VISIBLE
         refreshButton.visibility = View.VISIBLE
+        web.alpha = 0f
         web.loadUrl(ORIGIN + "/owner-v2")
     }
 
