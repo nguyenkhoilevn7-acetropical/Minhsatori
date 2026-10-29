@@ -42,7 +42,9 @@ class OwnerCrmVisualParity(unittest.TestCase):
         self.assertIn('quickLink("Danh mục"', PORTAL)
         self.assertIn("@media(max-width:560px)", PORTAL)
         self.assertIn("@media(min-width:700px)", PORTAL)
-        self.assertIn("min-height:47px!important", PORTAL)
+        self.assertIn("min-height:39px!important", PORTAL)
+        self.assertIn("font-size:13.5px;line-height:1.42", PORTAL)
+        self.assertIn('minimumHeight = dp(41)', PORTAL)
         self.assertIn('android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout"', MANIFEST)
         self.assertIn('isFillViewport = true', PORTAL)
 
