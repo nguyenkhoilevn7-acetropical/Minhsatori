@@ -1525,7 +1525,13 @@ class NativeMainActivity : AppCompatActivity() {
             "Tìm khách cũ theo tên/SĐT, sửa hồ sơ, thêm điểm giao và liên kết Gmail. " +
             "Mọi thao tác được kiểm tra quyền trên server, không dùng quyền Drive thay thế.",
             12f, false, muted, 8)
-        button(v2, "👥  QUẢN LÝ KHÁCH HÀNG V2", true,
+        val pendingV2=V2RegistrationAlerts.pendingCount(this)
+        if(pendingV2>0){
+            label(v2,"🔔  "+pendingV2+" khách mới đang chờ duyệt",15f,true,
+                Color.rgb(178,45,55),8)
+        }
+        button(v2, "👥  QUẢN LÝ KHÁCH HÀNG V2"+
+            (if(pendingV2>0)"  •  "+pendingV2+" mới" else ""), true,
             R.drawable.ic_satori_users) {
             startActivity(Intent(this, V2OwnerCrmActivity::class.java))
         }
