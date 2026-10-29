@@ -29,7 +29,7 @@ test('three owner tabs remain, exactly one CRM Gmail/history linking panel',()=>
 });
 
 test('owner-saved old lead stays visible even when same Gmail registered in Google V2',()=>{
- assert.match(ownerScript,/leads\.filter\(l=>l\.active&&!l\.linkedAccountId\)/);
+ assert.match(ownerScript,/leads\.filter\(l=>!l\.linkedAccountId\|\|/);
  assert.doesNotMatch(ownerScript,/!registered\.some\(a=>[\s\S]*a\.email&&l\.email/);
  assert.match(ownerScript,/select\.dispatchEvent\(new Event\('change'\)\)/);
  assert.match(ownerScript,/x\.email\?\.toLowerCase\(\)===item\.email\.toLowerCase\(\)/);
