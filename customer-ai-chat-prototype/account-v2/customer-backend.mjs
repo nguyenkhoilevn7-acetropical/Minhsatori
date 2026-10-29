@@ -798,7 +798,12 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
    if(used.rows[0].used)
     return {state:'PENDING',reason:'ACTIVE_ACCOUNT_HAS_ORDER_HISTORY'};
   }
-  if(!existingActive&&policyConflict)
+  // PENDING customers sometimes have an owner-signed customer rate but no
+  // CTV commission configured yet. Preserve the 20% customer rate and add
+  // the approved 35% CTV cap rather than treating the NULL cap as conflict.
+  if(!existingActive&&existing.rows.some(p=>
+   p.discount_bps!==data.discountBps||
+   (p.collaborator_bps!=null&&p.collaborator_bps!==data.collaboratorBps)))
    return {state:'PENDING',reason:'EXISTING_POLICY_REQUIRES_OWNER'};
  }else if(existingActive){
   const used=await c.query(
