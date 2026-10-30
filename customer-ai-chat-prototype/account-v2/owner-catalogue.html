@@ -563,6 +563,15 @@ body{font-size:14px;line-height:1.42}
 .crm-charge-recipient span{overflow-wrap:anywhere}
 .crm-charge-form>button{justify-self:start;background:#087f7e;color:white;border:0;border-radius:10px;padding:10px 13px;font-size:13px;font-weight:800}
 @media(max-width:460px){.crm-charge-fieldset{padding:10px}.crm-charge-policy{padding:9px}}
+
+/* New account approvals have their own form. Old-ledger discovery is optional. */
+.crm-new-registration{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0;
+ padding:13px;border:1px solid #cae4dd;border-radius:13px;background:#f6faf9}
+.crm-new-registration label{display:grid;gap:6px;min-width:0;font-weight:700;font-size:13px;color:#274d59}
+.crm-new-registration input,.crm-new-registration select{width:100%;min-height:42px;padding:8px 10px;
+ border:1px solid #cfdfe0;border-radius:9px;background:#fff;color:#1c3844;font-size:15px}
+.crm-new-registration button{grid-column:1/-1;justify-self:start;min-height:41px}
+@media(max-width:540px){.crm-new-registration{grid-template-columns:1fr}}
 </style></head>
 <body>
 <main>
@@ -1602,8 +1611,55 @@ function drawCustomers(){
    const manage=iconButton('Quản lý hồ sơ & chiết khấu','edit');
    manage.onclick=()=>openCustomerInspector(x,body,item);
    actions.append(manage);
-   if(x.accessStatus==='PENDING'){
-    const inspect=iconButton('Kiểm tra Gmail khách cũ','search','secondary');
+   if(x.accessStatus==='PENDING'&&!x.registrationRevision){
+    const note=make('p','Gmail Google đã đăng nhập nhưng CHƯA hoàn tất đăng ký V2. Đây là khách mới: không cần hồ sơ cũ. Bổ sung thông tin nhận hàng để tiếp tục duyệt.','crm-readonly-note');
+    body.append(note);
+    const registrationForm=make('form',null,'crm-controls crm-new-registration');
+    const newFields=[
+     ['Tên khách hàng','fullName','text',x.fullName||x.name||''],
+     ['Số điện thoại','phone','tel',x.phone||''],
+     ['Địa chỉ giao hàng','address','text',x.address||'']
+    ];
+    for(const [label,key,type,value] of newFields){
+     const row=make('label',label),input=document.createElement('input');
+     input.name=key;input.type=type;input.value=value;input.required=true;
+     if(key==='phone')input.inputMode='tel';
+     if(key==='address')input.maxLength=400;
+     row.append(input);registrationForm.append(row);
+    }
+    const role=make('label','Vai trò khách mới');
+    const select=document.createElement('select');select.name='requestedType';
+    for(const [value,label] of [['retail','Khách hàng'],['agency','Đại lý'],['collaborator','CTV']]){
+     const option=make('option',label);option.value=value;option.selected=value===x.requestedType;
+     select.append(option);
+    }
+    role.append(select);registrationForm.append(role);
+    const complete=iconButton('Hoàn thiện đăng ký mới','check');
+    complete.type='submit';registrationForm.append(complete);
+    registrationForm.onsubmit=async event=>{
+     event.preventDefault();
+     const entry=Object.fromEntries(new FormData(registrationForm).entries());
+     if(!confirm('Xác nhận hồ sơ khách mới cho Gmail đã xác minh '+x.email+
+      '? Không liên kết hoặc tạo hóa đơn lịch sử.'))return;
+     complete.disabled=true;
+     try{
+      await api('/api/v2/admin/customers/complete-new-registration','POST',{
+       confirmed:true,accountId:x.id,expectedRevision:x.revision,...entry
+      });
+      await loadCustomers();
+      crmStatus('Đã hoàn thiện hồ sơ khách mới. Anh có thể duyệt và nhập chiết khấu.','success');
+     }catch(e){
+      crmStatus('Chưa hoàn thiện được hồ sơ khách mới: '+e.message,'error');
+      complete.disabled=false;
+     }
+    };
+    body.append(registrationForm);
+   }
+   if(x.accessStatus==='PENDING'&&x.registrationRevision){
+    const history=make('details',null,'crm-ledger-discovery');
+    history.append(make('summary','Kiểm tra lịch sử khách cũ (tùy chọn, không bắt buộc)'));
+    history.append(make('p','Chỉ dùng khi khách thực sự đã có hóa đơn cũ. Không có hồ sơ cũ vẫn duyệt như khách mới bình thường.','crm-readonly-note'));
+    const inspect=iconButton('Đối chiếu Gmail với lịch sử','search','secondary');
     const reason=make('p','', 'crm-readonly-note');reason.hidden=true;
     inspect.onclick=async()=>{
      inspect.disabled=true;reason.hidden=false;reason.textContent='Đang đối chiếu Gmail…';
@@ -1611,7 +1667,7 @@ function drawCustomers(){
       const r=await api('/api/v2/admin/legacy/check?accountId='+encodeURIComponent(x.id));
       const messages={
        READY:'Hồ sơ khách cũ đã được xác minh, có thể tự kích hoạt khi đăng nhập hoặc đồng bộ.',
-       NO_UNIQUE_LEGACY_LEAD:'Chưa có đúng một hồ sơ Khách cũ đang hoạt động với Gmail này. Kiểm tra Gmail trong tab Khách cũ.',
+       NO_UNIQUE_LEGACY_LEAD:'Không tìm thấy hồ sơ cũ khớp Gmail. Đây không phải lỗi đăng ký và KHÔNG ngăn duyệt khách mới.',
        NO_OWNER_APPROVAL:'Hồ sơ Khách cũ chưa được Admin lưu/duyệt tại V2.',
        LEGACY_CONTACT_INVALID:'Hồ sơ khách cũ thiếu tên, điện thoại hoặc địa chỉ hợp lệ.',
        LEGACY_LEAD_POLICY_CONFLICT:'Các điểm giao cùng Gmail có vai trò hoặc chiết khấu khác nhau. Admin cần thống nhất trước khi liên kết.',
@@ -1625,13 +1681,13 @@ function drawCustomers(){
      }catch(e){reason.textContent='Không kiểm tra được: '+e.message}
      finally{inspect.disabled=false}
     };
-    actions.append(inspect);body.append(reason);
+    history.append(inspect,reason);body.append(history);
    }
    body.append(actions);
    if(x.accessStatus==='ACTIVE'&&x.id!==ownerAccountId)
     body.append(rolePricingEditor(x,body,item));
    if(x.accessStatus==='PENDING'&&x.registrationRevision&&!x.approvedForPricing){
-    const approve=iconButton('Duyệt đăng ký','check');
+    const approve=iconButton('Duyệt khách mới','check');
     approve.onclick=()=>approveCustomer(x);actions.append(approve);
    }
    if(x.accessStatus==='PENDING'&&x.approvedForPricing){
@@ -1944,7 +2000,7 @@ async function loadCustomers(){
 async function approveCustomer(x){
  if(!isOwner||x.accessStatus!=='PENDING'||x.approvedForPricing)return;
  if(!confirm('Duyệt hồ sơ đăng ký '+(x.fullName||x.email)+
-  '? Khách CHƯA được đặt hàng cho tới khi anh nhập chiết khấu.'))return;
+  '? Đây là bước duyệt khách mới, không yêu cầu hồ sơ cũ. Khách chưa được đặt hàng cho đến khi anh nhập chiết khấu.'))return;
  try{
   await api('/api/v2/admin/customers/approve','POST',{
    accountId:x.id,expectedRevision:x.revision,confirmed:true});
