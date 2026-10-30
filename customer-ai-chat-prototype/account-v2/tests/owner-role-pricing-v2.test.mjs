@@ -54,11 +54,15 @@ test('Owner uses only three icon tabs and expanded cards provide role/commission
  assert.doesNotThrow(()=>new vm.Script(owner.match(/<script>([\s\S]*?)<\/script>/)?.[1]||''));
 });
 
-test('Gemini CTV delivery supports old/new client prices in a compact address picker',()=>{
+test('Gemini CTV pricing remains in client editor, never in delivery location cards',()=>{
  for(const key of ['ctvClientPanel','ctvExistingTab','ctvNewTab','ctvCustomerDiscount',
-  'ctvCustomerDiscountField','address-ctv-discount'])assert.ok(app.includes(key),key);
- assert.match(app,/CTV được chỉnh/);
- assert.match(app,/ctvClientData\.clients\.find/);
+  'ctvCustomerDiscountField'])assert.ok(app.includes(key),key);
+ const picker=app.split("const choices=$('agentAddressChoices');choices.replaceChildren();")[1]
+  ?.split("if(!active.length)choices.append")[0]||'';
+ assert.match(picker,/address\.recipientName/);
+ assert.match(picker,/address\.recipientPhone/);
+ assert.match(picker,/address\.address/);
+ assert.doesNotMatch(picker,/ctvClientData|discountBps|invoiceNo|CTV được chỉnh/);
  assert.match(app,/expectedPolicyVersion:customer\.policyVersion/);
  assert.match(app,/\/api\/v2\/ctv\/clients/);
  assert.doesNotThrow(()=>new vm.Script(app.match(/<script>([\s\S]*?)<\/script>/)?.[1]||''));
