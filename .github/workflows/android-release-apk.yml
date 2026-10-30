@@ -28,6 +28,7 @@ on:
       - 'feature/android-accounting-pro-profit45-v0429-signed-20261030'
       - 'feature/android-debt-profit-unified-filter-20261030'
       - 'feature/android-owner-invoice-edit-v0431-20261030'
+      - 'feature/android-invoice-detail-compact-actions-20261030'
       - 'release/android-v0.4.20-native-v2-crm-20261029'
       - 'release/android-v0.4.13-customer-info-20261027'
       - 'release/android-v0.4.14-owner-edit-payment-20261027'
