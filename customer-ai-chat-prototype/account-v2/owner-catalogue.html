@@ -580,6 +580,30 @@ body{font-size:14px;line-height:1.42}
 .crm-ledger-contact{font-size:13px;line-height:1.5;color:#506a75;overflow-wrap:anywhere}
 .crm-ledger-muted{font-size:12px;color:#657781}
 .crm-ledger-match button{justify-self:start;min-height:36px;border-radius:9px;font-size:12px;margin-top:5px}
+
+.crm-ledger-import{margin:13px 0;border:1px solid #c5dfdb;background:#f8fbfa;
+ border-radius:14px;padding:11px 13px}
+.crm-ledger-import>summary{font-weight:800;color:#167e79;font-size:14px;cursor:pointer;line-height:1.5}
+.crm-import-panel{display:grid;gap:13px;padding-top:12px}
+.crm-import-panel>label{display:grid;gap:7px;color:#294f59;font-size:13px;font-weight:700;min-width:0}
+.crm-import-panel select,.crm-import-panel input[type=search],
+.crm-import-panel input[type=tel]{width:100%;min-height:41px;padding:8px 10px;
+ border:1px solid #cfdfdf;background:white;color:#193743;border-radius:10px;font-size:14px}
+.crm-import-search{display:flex;gap:8px;align-items:center}
+.crm-import-search>input{flex:1;min-width:0}
+.crm-import-search>button{flex:none;min-height:41px}
+.crm-import-results{display:grid;gap:9px;max-height:360px;overflow:auto}
+.crm-import-recipient{display:flex;align-items:flex-start;gap:11px;
+ padding:11px;border:1px solid #d9e5e5;background:#fff;border-radius:12px;cursor:pointer}
+.crm-import-recipient>input{flex:none;margin-top:4px;accent-color:#078b86}
+.crm-import-address{display:grid;gap:4px;min-width:0;flex:1;font-size:13px;font-weight:500;
+ color:#536a75;line-height:1.5;overflow-wrap:anywhere}
+.crm-import-address strong{font-size:14px;color:#233d49}
+.crm-import-address small{color:#a26725}
+.crm-import-panel>button{justify-self:start;background:#087f7e;color:white;
+ border:0;border-radius:10px;padding:10px 13px;font-size:13px;font-weight:800;min-height:41px}
+.crm-import-panel>button:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:440px){.crm-import-search{flex-wrap:wrap}.crm-import-search>button{width:100%}}
 </style></head>
 <body>
 <main>
@@ -668,6 +692,10 @@ body{font-size:14px;line-height:1.42}
  <p class="crm-readonly-note">Đây là địa chỉ giao hàng trong sổ Satori, kể cả của người chưa có tài khoản V2. Tìm theo tên, SĐT hoặc địa chỉ ở ô phía trên và bấm kính lúp để tra cứu trực tiếp. Không tự gắn địa chỉ vào Gmail.</p>
  <p id="crmSignedHistoryExactStatus" class="crm-readonly-note" role="status" aria-live="polite"></p>
  <div id="crmSignedHistoryExactRows" class="crm-ledger-match-list" aria-label="Kết quả tra cứu địa chỉ gốc"></div>
+ <details id="crmImportDelivery" class="crm-ledger-import">
+  <summary>＋ Import địa chỉ giao hàng cũ vào Gmail V2 (không import hóa đơn)</summary>
+  <div id="crmImportDeliveryBody"></div>
+ </details>
  <p id="crmSignedHistoryStatus">Chọn tab Khách cũ để tải địa chỉ lịch sử.</p>
  <div id="crmSignedHistoryRows"></div>
  <button id="crmSignedHistoryMore" class="secondary" type="button" hidden>Xem thêm lịch sử 24 tháng</button>
@@ -2003,6 +2031,7 @@ async function loadCustomers(){
   customerRecord.registered=data.registered;
   customerRecord.leads=data.leads;
   drawCustomers();
+  renderHistoricAddressImporter();
   byId('crmLegacyLink').replaceChildren(legacyBindingPanel());
   crmStatus('Đã tải '+data.registered.length+' tài khoản và '+data.leads.length+' khách cũ.','success');
  }catch(e){if(generation===customerEpoch)crmStatus('Không đọc được danh sách: '+e.message,'error')}
@@ -2170,6 +2199,119 @@ byId('crmOldFilter').addEventListener('input',()=>{
 });
 // The old-customer search button additionally queries the SIGNED original ledger.
  // Unlike local CRM filtering, this finds recipients who have never registered a Google account.
+/**
+ * Owner deliberately imports recipients from signed invoice source INTO ONE
+ * Google-verified V2 account. Explicit per-address checkboxes, never auto bind
+ * invoice ownership, old CRM leads or discounts.
+ */
+function renderHistoricAddressImporter(){
+ const box=byId('crmImportDeliveryBody');
+ if(!box)return;
+ box.replaceChildren();
+ const panel=make('div',null,'crm-import-panel');
+ panel.append(make('p','Chọn Gmail đã đăng nhập V2 và các điểm giao cũ. Hệ thống chỉ thêm địa chỉ mới, bỏ qua địa chỉ trùng. Không chuyển hóa đơn hay tự kích hoạt tài khoản.','crm-readonly-note'));
+ const targetLabel=make('label','1. Tài khoản Gmail V2 nhận địa chỉ');
+ const target=document.createElement('select');target.id='crmImportDeliveryAccount';
+ const blank=make('option','Chọn tài khoản Gmail');blank.value='';target.append(blank);
+ for(const account of customerRecord.registered.filter(x=>
+  ['PENDING','ACTIVE'].includes(x.accessStatus)&&x.registrationRevision)){
+  const opt=make('option',account.email+' · '+(account.fullName||account.name||'Chưa có tên')+
+   (account.accessStatus==='PENDING'?' (đang chờ duyệt)':''));
+  opt.value=account.id;target.append(opt);
+ }
+ targetLabel.append(target);panel.append(targetLabel);
+ const searchLabel=make('label','2. Tìm địa chỉ giao hàng trong sổ gốc');
+ const search=make('div',null,'crm-import-search');
+ const query=document.createElement('input');query.id='crmImportDeliveryQuery';
+ query.type='search';query.maxLength=90;query.placeholder='Tên, địa chỉ hoặc SĐT (ví dụ: Traky)';
+ const find=iconButton('Tra địa chỉ','search','secondary');find.type='button';
+ search.append(query,find);searchLabel.append(search);panel.append(searchLabel);
+ const status=make('p','','crm-readonly-note');status.setAttribute('role','status');panel.append(status);
+ const results=make('div',null,'crm-import-results');panel.append(results);
+ const submit=iconButton('Import các địa chỉ đã chọn','check');
+ submit.disabled=true;submit.type='button';panel.append(submit);
+ box.append(panel);
+ let source=null,loadedQuery='';
+ const selectedRows=[];
+ const refreshButton=()=>{
+  submit.disabled=!target.value||!source||!selectedRows.some(x=>x.checked.checked);
+ };
+ target.onchange=refreshButton;
+ find.onclick=async()=>{
+  const q=query.value.trim();results.replaceChildren();
+  selectedRows.length=0;source=null;submit.disabled=true;
+  if(q.length<2){status.textContent='Nhập ít nhất 2 ký tự để tìm địa chỉ gốc.';return}
+  find.disabled=true;status.textContent='Đang tìm điểm giao…';
+  try{
+   const data=await api('/api/v2/admin/legacy/search?query='+encodeURIComponent(q));
+   if(!Array.isArray(data.addressGroups)||!Number.isSafeInteger(data.revision))
+    throw Error('SOURCE_INVALID');
+   source=data;loadedQuery=q;
+   for(const group of data.addressGroups){
+    if(!group.ref?.sourceId||!group.ref?.invoiceNo||!group.address)continue;
+    const label=make('label',null,'crm-import-recipient');
+    const checkbox=document.createElement('input');checkbox.type='checkbox';
+    const info=make('div',null,'crm-import-address');
+    info.append(make('strong',group.name||'Người nhận chưa có tên'));
+    info.append(make('span',group.address));
+    if(group.phone)info.append(make('span','☎ '+group.phone));
+    else{
+     info.append(make('small','Sổ cũ chưa có số điện thoại hợp lệ. Admin cần bổ sung để tạo điểm giao.'));
+    }
+    const phoneInput=document.createElement('input');phoneInput.type='tel';
+    phoneInput.maxLength=24;phoneInput.inputMode='tel';
+    phoneInput.placeholder='SĐT hợp lệ nếu sổ gốc thiếu';
+    phoneInput.value=group.phone||'';
+    phoneInput.className='crm-import-phone';
+    phoneInput.setAttribute('aria-label','Số điện thoại điểm giao '+(group.name||group.address));
+    if(group.phone)phoneInput.readOnly=true;
+    info.append(phoneInput);
+    label.append(checkbox,info);results.append(label);
+    selectedRows.push({checked:checkbox,phone:phoneInput,group});
+    checkbox.onchange=refreshButton;
+   }
+   status.textContent='Tìm thấy '+selectedRows.length+' điểm giao'+
+    (data.truncated?' (kết quả giới hạn, nên tìm cụ thể hơn)':'')+
+    '. Chọn từng điểm giao, tối đa 30 địa chỉ/lần.';
+   if(!selectedRows.length)results.append(make('p','Không có điểm giao đủ thông tin địa chỉ.','crm-readonly-note'));
+  }catch(e){status.textContent='Không tra được nguồn hóa đơn gốc: '+e.message}
+  finally{find.disabled=false;refreshButton()}
+ };
+ query.addEventListener('keydown',event=>{
+  if(event.key==='Enter'){event.preventDefault();void find.click()}
+ });
+ submit.onclick=async()=>{
+  const account=customerRecord.registered.find(x=>x.id===target.value);
+  if(!account||!account.registrationRevision||!source||!loadedQuery)
+   return crmStatus('Chọn Gmail đã hoàn tất đăng ký và tra cứu lại địa chỉ.','error');
+  const selected=selectedRows.filter(x=>x.checked.checked);
+  if(!selected.length||selected.length>30)
+   return crmStatus('Chọn từ 1 đến 30 địa chỉ mỗi lần import.','error');
+  const items=selected.map(x=>({
+   invoiceNo:x.group.ref.invoiceNo,sourceId:String(x.group.ref.sourceId),
+   ...(x.group.phone?{}:{phoneOverride:x.phone.value.trim()})
+  }));
+  for(const row of selected){
+   if(!row.group.phone&&!/^\+?[0-9 ()-]{9,24}$/.test(row.phone.value.trim()))
+    return crmStatus('Cần nhập SĐT hợp lệ cho '+(row.group.name||row.group.address),'error');
+  }
+  if(!confirm('Import '+items.length+' điểm giao đã chọn vào Gmail '+account.email+
+   '? Chỉ thêm địa chỉ, không liên kết hóa đơn lịch sử hay thay đổi chiết khấu.'))return;
+  submit.disabled=true;
+  try{
+   const response=await api('/api/v2/admin/legacy/import-delivery-points','POST',{
+    accountId:account.id,expectedAccountRevision:account.revision,
+    query:loadedQuery,sourceRevision:source.revision,selected:items,
+    confirmed:true,identityConfirmed:true
+   });
+   crmStatus('Import thành công: thêm '+response.created+' điểm giao; bỏ qua '+
+    response.skippedExisting+' địa chỉ đã có. Hóa đơn lịch sử không thay đổi.','success');
+   status.textContent='Đã import. Khách cần đăng nhập V2 hoặc tải lại địa chỉ để xem.';
+   results.replaceChildren();selectedRows.length=0;source=null;
+  }catch(e){crmStatus('Không import được: '+e.message,'error');refreshButton()}
+ };
+}
+
 async function searchSignedOldCustomers(){
  const query=byId('crmOldFilter').value.trim();
  const results=byId('crmSignedHistoryExactRows'),status=byId('crmSignedHistoryExactStatus');
