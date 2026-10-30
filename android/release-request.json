@@ -1,9 +1,9 @@
 {
-  "purpose": "android-v0.4.30-unified-debt-profit-period-owner-acceptance",
+  "purpose": "android-v0.4.31-profit-debt-shared-period-and-guarded-edit-owner-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.30",
-  "versionCode": 47,
-  "branch": "feature/android-debt-profit-unified-filter-20261030",
+  "version": "0.4.31",
+  "versionCode": 48,
+  "branch": "feature/android-owner-invoice-edit-v0431-20261030",
   "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
@@ -29,9 +29,10 @@
     301,
     302,
     303,
-    305
+    305,
+    306
   ],
-  "scope": "Android-only owner accounting UI: concise Lợi nhuận caption inside invoice and outstanding-debt cards; adjacent Tổng công nợ cần thu / Tổng lợi nhuận with a shared all/day/month/year/custom invoice-date filter. Profit uses the existing historical supplier discount 45% gross estimate, not net profit. Outstanding debt includes unpaid bills only; profit includes eligible paid and unpaid sales. Unknown/untrusted data is flagged, never guessed. Protected order/edit/delete/payment and invoiceQuickCard methods, Gemini V2, ChatGPT, website, Render, PostgreSQL and production invoice writers unchanged.",
+  "scope": "Android only: shared day/month/year/custom period filter for debt and 45%-supplier discounted gross profit, margin labels on invoice and debt cards, and direct guarded owner Edit invoice. Preserve revision/id+invoiceNo verification, payment/CTV protection, pending write journal, backup/readback and Google Owner Mobile API authorization. No Gemini V2, ChatGPT, website or server production changes, and no automatic merge or deployment.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -64,6 +65,7 @@
     "2026-10-30: v0.4.29 build 46 is a staging-only same-certificate owner acceptance build after the v0.4.28 three-card removal. Must pass Gradle/Kotlin unit, emulator and signer checks; maintain all original invoice creation, payment, edit and Gemini routes untouched. Do NOT treat gross estimated margin as final settled net profit.",
     "2026-10-30: Signed v0.4.29 build46 owner acceptance requested AFTER GitHub Android unit+build and Keystore/emulator CI PASSED on this branch and source screenshot CI passed. Use pinned original release signing certificate, generate APK+verification JSON, never merge/deploy backend or publish until owner manually tests on Samsung.",
     "2026-10-30: Owner explicitly requested v0.4.29 build 46 installable signed APK after Android CI on PR #303 and parent PR #302 passed. Re-submit protected same-signing-key acceptance build on this isolated branch only; strictly validate certificate fingerprint, version and APK, no merge, production deployment or monetary writes.",
-    "2026-10-30: Owner requested shared period filtering and profit figures on each outstanding debt card and beside aggregate debt, with only the short visible label Lợi nhuận. PR #305 isolated Android read-only UI + regression tests. Signed v0.4.30 code47 owner acceptance build only, same application ID and pinned signer, no auto merge/deploy. Confirm GitHub signed-release PASS and APK hash prior to installing over v0.4.29 without uninstalling."
+    "2026-10-30: Owner requested shared period filtering and profit figures on each outstanding debt card and beside aggregate debt, with only the short visible label Lợi nhuận. PR #305 isolated Android read-only UI + regression tests. Signed v0.4.30 code47 owner acceptance build only, same application ID and pinned signer, no auto merge/deploy. Confirm GitHub signed-release PASS and APK hash prior to installing over v0.4.29 without uninstalling.",
+    "2026-10-30: Signed owner acceptance requested for Android v0.4.31 build48 stacked PR #306 after #305. Verify full tests, pinned original signing cert SHA-256, package identity and APK digest. The actual Android edit write requires deployed Apps Script owner Mobile API SatoriBotApi.ownerMobileWrite supporting orders.update, not just a successful APK build; prove live permissions before editing any invoice. No synthetic live writes, preserve previous APK until UAT."
   ]
 }
