@@ -75,7 +75,8 @@ test('owner signed lookup, saved Gmail activation and account-scoped history bin
  assert.match(backend,/LEGACY_VERIFIED_GMAIL_MISMATCH/);
  assert.match(backend,/LEGACY_INVOICE_ALREADY_OWNED/);
  assert.match(backend,/LEGACY_CRM_ACTIVATED/);
- assert.match(html,/id="crmLegacyLink"/);
+ assert.match(html,/id="crmImportDelivery"/);
+ assert.doesNotMatch(html,/id="crmLegacyLink"/);
  assert.doesNotMatch(html,/id="legacyQuery"/);
  assert.match(html,/ownerAddressEditor/);
  assert.match(html,/ownerContactEditor/);

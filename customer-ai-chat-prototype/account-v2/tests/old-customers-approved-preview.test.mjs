@@ -11,7 +11,7 @@ const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
 
 test('old customer section is a single card-based surface matching approved two-tier CTV preview',()=>{
  assert.ok(source.includes('id="legacyConsole"'));
- assert.ok(source.includes('id="crmLegacyLink"'));
+ assert.ok(source.includes('id="crmImportDelivery"'));
  assert.match(script,/make\('div',null,'crm-card-footer'\)/);
  assert.match(script,/function rolePricingEditor\(account,body,item,\{old=false\}=\{\}\)/);
  assert.match(script,/crmRoleChoices\(role\)/);
@@ -30,8 +30,9 @@ test('monthly signed ledger stays owner-only, while duplicate on-screen imports 
  assert.ok(backend.includes("readMinhSatori('orders.list',{from,to,limit:100})"));
  for(const id of ['crmLedgerDiscovery','legacyLedgerDisclosure','legacySearchForm','crmLedgerPreview'])
   assert.doesNotMatch(source,new RegExp('id="'+id+'"'));
- assert.match(source,/id="crmLegacyLink"/);
- assert.match(script,/function legacyBindingPanel\(/);
+ assert.match(source,/id="crmImportDelivery"/);
+ assert.match(script,/function renderHistoricAddressImporter\(/);
+ assert.doesNotMatch(script,/function legacyBindingPanel\(/);
  assert.doesNotMatch(script,/function renderLegacyRecipientDirectory\(/);
  assert.doesNotMatch(script,/function submitLegacyImport\(/);
 });

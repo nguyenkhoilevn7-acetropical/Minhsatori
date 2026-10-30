@@ -734,7 +734,6 @@ body{font-size:14px;line-height:1.42}
  <div id="crmSignedHistoryRows"></div>
  <button id="crmSignedHistoryMore" class="secondary" type="button" hidden>Xem thêm lịch sử 24 tháng</button>
 </section>
-<section id="crmLegacyLink" class="crm-legacy-unified" aria-label="Liên kết Gmail và lịch sử khách cũ"></section>
 </section>
 <section class="card" id="denied" hidden>
  <h2>Chưa thể mở quản trị</h2>
@@ -900,18 +899,8 @@ async function loadLedgerMonthCustomers(months=12){
     make('small',(group.name||'Người nhận chưa rõ')+' · '+group.invoiceCount+
      ' hóa đơn · lần mới nhất: '+(group.date||'Không rõ ngày'),'muted'));
    if(group.phone)row.append(make('small','SĐT giao gần nhất: '+group.phone,'muted'));
-   const go=iconButton('Liên kết địa chỉ với Gmail','mail','secondary');
-   go.onclick=()=>{
-    const panel=byId('crmLegacyLink').querySelector('details');
-    if(!panel)return crmStatus('Chức năng liên kết Gmail chưa tải.','error');
-    panel.open=true;
-    const query=byId('crmLegacyInvoiceQuery'),name=byId('crmLegacyProfileName');
-    if(query)query.value=group.name||group.address;
-    if(name&&!name.value)name.value=group.name||'';
-    panel.scrollIntoView({behavior:'smooth',block:'start'});
-    byId('crmLegacyInvoiceFind')?.click();
-   };
-   row.append(go);dest.append(row);
+   // Historical addresses remain read-only; import is a separate, explicit owner flow.
+   dest.append(row);
   }
   if(!matches.length)dest.append(make('p',
    'Không có địa chỉ trùng bộ lọc. Hãy thử tên, SĐT hoặc địa chỉ khác.'));
@@ -1604,215 +1593,6 @@ function crmUniqueSavedAddressGroups(addresses){
  }
  return [...groups.values()];
 }
-/** Admin explicitly selects source-verified invoice references and the already
- * verified Google account. Name is used to SEARCH only, never to authorize.
- */
-/**
- * Single CRM action: owner-approved saved lead → exact Google account;
- * optionally binds explicitly checked signed historical invoice IDs.
- */
-function legacyBindingPanel(){
- const panel=make('details',null,'crm-ledger-discovery');
- panel.append(make('summary','Liên kết Gmail & lịch sử · một thao tác'));
- const wrap=make('div',null,'crm-card-expanded');
- wrap.append(make('p','Chọn hồ sơ cũ và Gmail tương ứng. Có thể kích hoạt ngay hoặc chọn các địa chỉ từ hóa đơn để liên kết lịch sử. Địa chỉ trùng chỉ lưu một lần (ưu tiên lần tạo gần nhất); mọi hóa đơn vẫn giữ nguyên.','crm-readonly-note'));
- const leadBox=make('label','1. Hồ sơ Khách cũ');
- const lead=document.createElement('select');lead.id='crmLegacyLeadSelect';
- const blank=make('option','Chọn hồ sơ đã lưu (hoặc tìm trực tiếp hóa đơn)');blank.value='';lead.append(blank);
- for(const x of customerRecord.leads.filter(x=>x.active&&(!x.linkedAccountId||
-  customerRecord.registered.find(a=>a.id===x.linkedAccountId)?.accessStatus==='PENDING'))){
-  const option=make('option',(x.fullName||'Hồ sơ')+' · '+(x.email||'Chưa gắn Gmail'));
-  option.value=x.id;lead.append(option);
- }
- leadBox.append(lead);wrap.append(leadBox);
- const accountBox=make('label','2. Tài khoản Google V2 đã xác minh');
- const account=document.createElement('select');
- const empty=make('option','Chọn Gmail Google đã đăng nhập');empty.value='';account.append(empty);
- for(const x of customerRecord.registered.filter(x=>['PENDING','ACTIVE'].includes(x.accessStatus))){
-  const option=make('option',(x.email||'—')+' · '+(x.fullName||x.name||''));
-  option.value=x.id;account.append(option);
- }
- accountBox.append(account);wrap.append(accountBox);
- const inputs=make('div',null,'field-grid');
- const field=(label,value,type='text')=>{
-  const row=make('label',label),control=document.createElement('input');
-  control.type=type;control.value=value||'';
-  row.append(control);inputs.append(row);return control;
- };
- const name=field('Tên hồ sơ chính','');name.id='crmLegacyProfileName';
- const email=field('Gmail chủ tài khoản (không cần SĐT)','', 'email');
- email.autocomplete='off';
- const phone=field('SĐT liên hệ (tùy chọn)','', 'tel');
- const roleBox=make('label','Vai trò');
- const role=document.createElement('select');
- for(const [id,label] of [['retail','Khách lẻ'],['agency','Đại lý'],['collaborator','CTV']]){
-  const option=make('option',label);option.value=id;role.append(option);
- }
- roleBox.append(role);inputs.append(roleBox);
- const discount=field('CK khách (%)','','number');discount.step='0.01';discount.min='0';discount.max='100';
- const capRow=make('label','CK CTV (%)');
- const cap=document.createElement('input');cap.type='number';cap.min='0';cap.max='100';cap.step='0.01';capRow.append(cap);inputs.append(capRow);
- wrap.append(inputs);
- const search=make('div',null,'crm-panel-search');
- const query=document.createElement('input');query.id='crmLegacyInvoiceQuery';query.type='search';
- query.placeholder='3. Tìm hóa đơn bằng tên / địa chỉ / SĐT';query.maxLength=90;
- const find=iconButton('Tra cứu hóa đơn','search','secondary');find.id='crmLegacyInvoiceFind';
- search.append(query,find);wrap.append(search);
- const selected=make('div',null,'crm-ctv-list'),status=make('p','Chọn hồ sơ cũ và Gmail trước.','crm-readonly-note');
- wrap.append(status,selected);
- const finish=iconButton('Xác nhận liên kết & kích hoạt','shield');finish.disabled=true;
- wrap.append(finish);panel.append(wrap);
- let source=null,sourceQuery='';
- const currentLead=()=>customerRecord.leads.find(x=>x.id===lead.value)||null;
- const refs=()=>[...selected.querySelectorAll('input[type=checkbox]:checked')]
-  .flatMap(x=>JSON.parse(x.dataset.refs||'[]'))
-  .filter((x,i,all)=>all.findIndex(y=>x.invoiceNo===y.invoiceNo&&x.sourceId===y.sourceId)===i);
- const canLink=()=>!!account.value&&(!!currentLead()||!!refs().length)||
-  (!account.value&&!currentLead()&&!!refs().length&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()));
- const update=()=>{
-  finish.disabled=!canLink();
-  finish.title=account.value?'Xác nhận liên kết Gmail':'Lưu Gmail đã được Admin xác nhận; khách đăng nhập sẽ tự kích hoạt';
- };
- const syncRole=()=>{capRow.hidden=role.value!=='collaborator'};
- role.onchange=syncRole;
- lead.onchange=()=>{
-  const item=currentLead();
-  source=null;selected.replaceChildren();
-  if(!item){update();return}
-  query.value=item.fullName||'';
-  const matches=customerRecord.registered.filter(x=>
-   !!item.email&&x.email?.toLowerCase()===item.email.toLowerCase()&&
-   ['PENDING','ACTIVE'].includes(x.accessStatus));
-  account.value=matches.length===1?matches[0].id:'';
-  name.value=item.fullName||'';email.value=item.email||'';phone.value=item.phone||'';
-  role.value=item.requestedType||'retail';
-  discount.value=Number.isSafeInteger(item.discountBps)?String(item.discountBps/100):'';
-  cap.value=Number.isSafeInteger(item.collaboratorBps)?String(item.collaboratorBps/100):'';
-  syncRole();update();
-  status.textContent=matches.length===1?
-   'Đã khớp Gmail Google. Có thể kích hoạt ngay hoặc tra cứu hóa đơn lịch sử.' :
-   'Không có duy nhất tài khoản Google trùng Gmail hồ sơ. Khách cần đăng nhập trước hoặc Admin kiểm tra Gmail.';
- };
- account.onchange=()=>{
-  const item=currentLead(),target=customerRecord.registered.find(x=>x.id===account.value);
-  if(item&&target?.email?.toLowerCase()!==item.email?.toLowerCase()){
-   account.value='';status.textContent='Gmail khác hồ sơ khách cũ. Không thể liên kết.';
-  }
-  if(!item&&target){
-   name.value=target.fullName||target.name||'';
-   email.value=target.email||'';
-   role.value=target.requestedType||'retail';
-   discount.value=Number.isSafeInteger(target.discountBps)?String(target.discountBps/100):'';
-   cap.value=Number.isSafeInteger(target.collaboratorBps)?String(target.collaboratorBps/100):'';
-   syncRole();
-  }
-  update();
- };
- email.addEventListener('input',update);
- const bps=control=>{
-  const v=control.value.trim(),n=Number(v),r=Math.round(n*100);
-  if(!v||!Number.isFinite(n)||r<0||r>10000||Math.abs(r-n*100)>1e-7)
-   throw Error('CK phải từ 0 đến 100%, tối đa hai chữ số thập phân.');
-  return r;
- };
- find.onclick=async()=>{
-  source=null;selected.replaceChildren();update();
-  if(query.value.trim().length<2)return status.textContent='Nhập ít nhất hai ký tự.';
-  find.disabled=true;status.textContent='Đang đọc hóa đơn gốc có chữ ký…';
-  try{
-   const searchedQuery=query.value.trim();
-   const result=await api('/api/v2/admin/legacy/search?query='+encodeURIComponent(searchedQuery));
-   if(result.truncated)throw Error('Danh sách bị giới hạn. Vui lòng thu hẹp theo địa chỉ hoặc SĐT.');
-   source=result;sourceQuery=searchedQuery;
-   for(const group of (result.addressGroups||[]).slice(0,30)){
-    const row=make('label',null,'crm-client-data'),checkbox=document.createElement('input');
-    checkbox.type='checkbox';checkbox.dataset.refs=JSON.stringify(group.refs);
-    checkbox.dataset.address=group.address;
-    checkbox.dataset.recipient=group.name||'';
-    checkbox.onchange=()=>{
-     if(refs().length>30){checkbox.checked=false;status.textContent='Tối đa 30 hóa đơn mỗi lần.'}
-     if(checkbox.checked&&!currentLead()&&!name.value)name.value=group.name||'';
-     update();
-    };
-    row.append(checkbox,make('strong',group.address),make('small',
-     group.invoiceCount+' lượt giao · mới nhất: '+(group.date||'—')+
-     ' · SĐT: '+(group.phone||'—')+' · Hóa đơn: '+group.refs.map(x=>'#'+x.invoiceNo).join(', ')));
-    selected.append(row);
-   }
-   status.textContent='Có '+(result.addressGroups||[]).length+
-    ' địa chỉ duy nhất. Chọn địa chỉ để lấy tất cả lượt giao của địa chỉ đó.';
-  }catch(e){status.textContent='Không tra cứu được: '+e.message}
-  finally{find.disabled=false;update()}
- };
- finish.onclick=async()=>{
-  const item=currentLead(),target=customerRecord.registered.find(x=>x.id===account.value),list=refs();
-  if(!target&&item)return crmStatus('Khách chưa đăng nhập bằng Gmail đã lưu. Không thể kích hoạt thủ công khi Google chưa xác minh.','error');
-  if(!target&&!list.length)return crmStatus('Chọn ít nhất một địa chỉ từ hóa đơn gốc để lưu Gmail khách cũ.','error');
-  if(!target&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()))
-   return crmStatus('Nhập Gmail hợp lệ. Không cần nhập số điện thoại.','error');
-  if(item&&target.email.toLowerCase()!==String(item.email||'').toLowerCase())
-   return crmStatus('Gmail không khớp hồ sơ cũ.','error');
-  if(!item&&!list.length)return crmStatus('Chọn hồ sơ Khách cũ hoặc hóa đơn gốc.','error');
-  let discountBps,collaboratorBps=null;
-  try{
-   discountBps=bps(discount);
-   if(role.value==='collaborator'){
-    collaboratorBps=bps(cap);
-    if(collaboratorBps<discountBps)throw Error('CK CTV phải ≥ CK khách.');
-   }
-   if(item&&(role.value!==item.requestedType||discountBps!==item.discountBps||
-    (role.value==='collaborator'&&collaboratorBps!==item.collaboratorBps)))
-    throw Error('Vai trò hoặc CK khác hồ sơ đã lưu. Chỉnh hồ sơ gốc trước.');
-   if(list.length&&!source)throw Error('Hóa đơn chưa xác minh, hãy tra cứu lại.');
-  }catch(e){return crmStatus(e.message,'error')}
-  if(!confirm((target?'Kết nối Gmail '+target.email:'Lưu Gmail '+email.value.trim().toLowerCase()+
-   ' để tự kích hoạt khi khách đăng nhập Google')+
-   ' với '+(name.value||'hồ sơ đã chọn')+
-   (list.length?' và xác nhận '+list.length+' hóa đơn lịch sử':' (chưa gắn hóa đơn lịch sử)')+
-   '? Không sửa hoặc tạo lại hóa đơn.'))return;
-  finish.disabled=true;status.textContent='Đang xác thực và liên kết…';
-  try{
-   const firstAddress=[...selected.querySelectorAll('input[type=checkbox]:checked')][0]?.dataset.address||'';
-   if(!target){
-    if(!firstAddress)throw Error('Chọn một địa chỉ giao hàng trong sổ gốc trước.');
-    const created=await api('/api/v2/admin/customer-leads','POST',{
-     confirmed:true,fullName:name.value.trim(),email:email.value.trim().toLowerCase(),
-     phone:phone.value.trim(),address:firstAddress,
-     requestedType:role.value,discountBps,
-     ...(collaboratorBps==null?{}:{collaboratorBps})
-    });
-    await loadCustomers();
-    crmStatus('Đã lưu Gmail '+email.value.trim()+' vào Khách cũ ('+
-     (created?.lead?.id?'đã tạo hồ sơ':'đã lưu')+
-     '). Khách đăng nhập đúng Google Gmail sẽ tự kích hoạt. SĐT không bắt buộc.','success');
-    return;
-   }
-   const result=list.length
-    ?await api('/api/v2/admin/legacy/bind-history','POST',{
-      confirmed:true,identityConfirmed:true,accountId:target.id,
-      expectedAccountRevision:target.revision,email:target.email,query:sourceQuery,
-      sourceRevision:source.revision,refs:list,contactPhone:phone.value,
-      profileName:name.value.trim(),requestedType:role.value,discountBps,
-      ...(item?{leadId:item.id,expectedLeadRevision:item.revision}:{}),
-      ...(collaboratorBps==null?{}:{collaboratorBps})
-     })
-    :await api('/api/v2/admin/legacy/activate-saved','POST',{
-      confirmed:true,identityConfirmed:true,leadId:item.id,accountId:target.id,
-      expectedLeadRevision:item.revision,expectedAccountRevision:target.revision
-     });
-   await loadCustomers();
-   crmStatus('Đã kích hoạt '+target.email+
-    (list.length?' và gắn '+result.linkedInvoices+' hóa đơn, '+result.uniqueAddresses+
-     ' địa chỉ duy nhất.':'. Có thể gắn hóa đơn lịch sử sau.')+
-    ' Không thay đổi sổ gốc.','success');
-  }catch(e){
-   status.textContent='Không liên kết được: '+e.message;finish.disabled=false;
-  }
- };
- syncRole();return panel;
-}
-
-
 /**
  * Hide redundant pre-import CRM lead cards, not Google accounts, saved
  * addresses, CTV client records, prices, invoices, or audit history.
@@ -2066,19 +1846,8 @@ function drawCustomers(){
   const cardRecord=registeredAccount?{...x,...registeredAccount}:x;
   const {item,body}=buildCustomerCard(cardRecord,{registered:!!registeredAccount,compact:true});
   const actions=make('div',null,'crm-card-actions');
-  if(!registeredAccount)body.append(make('p','Hồ sơ chờ liên kết Gmail; vai trò và CK đã lưu chỉ là hồ sơ dự kiến.','crm-client-banner'));
-  // A single account-bound operation replaces multiple old ledger lookups.
-  if(x.active&&(!x.linkedAccountId||registeredAccount?.accessStatus==='PENDING')){
-   const link=iconButton('Liên kết Gmail & lịch sử','mail','secondary');
-   link.onclick=()=>{
-    const panel=byId('crmLegacyLink').querySelector('details');
-    const select=byId('crmLegacyLeadSelect');
-    if(!panel||!select)return crmStatus('Không tải được chức năng liên kết.','error');
-    panel.open=true;select.value=x.id;select.dispatchEvent(new Event('change'));
-    panel.scrollIntoView({behavior:'smooth',block:'start'});
-   };
-   actions.append(link);
-  }
+  if(!registeredAccount)body.append(make('p',
+   'Hồ sơ khách cũ chưa có tài khoản Google V2. Chỉ import địa chỉ sau khi xác minh đúng tài khoản trong mục Import địa chỉ giao hàng cũ.','crm-client-banner'));
   if(!registeredAccount&&x.active&&!x.linkedAccountId&&x.email){
    const candidates=registered.filter(a=>a.accessStatus==='ACTIVE'&&
     String(a.email||'').trim().toLowerCase()===String(x.email).trim().toLowerCase());
@@ -2088,7 +1857,7 @@ function drawCustomers(){
     actions.append(remove);
    }
   }
-  body.append(actions);
+  if(actions.childElementCount)body.append(actions);
   if(registeredAccount){
     if(registeredAccount?.accessStatus==='ACTIVE'&&registeredAccount.id!==ownerAccountId)
     body.append(rolePricingEditor(registeredAccount,body,item,{old:true}));
@@ -2277,7 +2046,6 @@ async function loadCustomers(){
   customerRecord.leads=data.leads;
   drawCustomers();
   renderHistoricAddressImporter();
-  byId('crmLegacyLink').replaceChildren(legacyBindingPanel());
   crmStatus('Đã tải '+data.registered.length+' tài khoản và '+data.leads.length+' khách cũ.','success');
  }catch(e){if(generation===customerEpoch)crmStatus('Không đọc được danh sách: '+e.message,'error')}
  finally{byId('crmRefresh').disabled=false}
@@ -2572,7 +2340,7 @@ async function searchSignedOldCustomers(){
   if(!Array.isArray(data.addressGroups))throw Error('LEGACY_SEARCH_DATA_INVALID');
   status.textContent='Sổ gốc: '+data.addressGroups.length+' điểm giao khớp “'+query+'”'+
    (data.truncated?' · kết quả có giới hạn, hãy tìm bằng địa chỉ cụ thể hơn.':'.')+
-   ' Chưa liên kết với tài khoản Google.';
+   ' Kết quả chỉ đọc; để thêm địa chỉ vào Gmail V2, mở mục Import địa chỉ giao hàng cũ.';
   for(const group of data.addressGroups){
    const row=make('article',null,'crm-ledger-match');
    row.append(make('strong',group.name||'Người nhận chưa rõ','crm-ledger-name'));
@@ -2580,19 +2348,7 @@ async function searchSignedOldCustomers(){
    row.append(make('span','⌖ '+group.address,'crm-ledger-contact'));
    row.append(make('small',(group.invoiceCount||0)+' hóa đơn đã tìm thấy · '+
     (group.date||'Chưa rõ lần giao cuối'),'crm-ledger-muted'));
-   const link=iconButton('Đối chiếu & liên kết khi xác nhận đúng chủ','mail','secondary');
-   link.onclick=()=>{
-    const panel=byId('crmLegacyLink').querySelector('details');
-    if(!panel)return crmStatus('Chức năng liên kết chưa tải.','error');
-    panel.open=true;
-    const input=byId('crmLegacyInvoiceQuery');
-    if(input)input.value=group.name||query;
-    const name=byId('crmLegacyProfileName');
-    if(name&&!name.value)name.value=group.name||'';
-    panel.scrollIntoView({behavior:'smooth',block:'start'});
-    byId('crmLegacyInvoiceFind')?.click();
-   };
-   row.append(link);results.append(row);
+   results.append(row);
   }
   if(!data.addressGroups.length)results.append(make('p',
    'Không có điểm giao khớp từ khóa trong sổ gốc. Hãy thử tên, số điện thoại hoặc địa chỉ khác.','crm-stage-hint'));
