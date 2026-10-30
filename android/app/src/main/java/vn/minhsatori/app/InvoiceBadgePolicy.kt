@@ -17,7 +17,7 @@ object InvoiceBadgePolicy {
         val maxSeen = valid.maxOfOrNull { it.invoiceNo }
         if (previous.highWater == null) {
             // First verified sync is a baseline, never 130 false "new" invoices.
-            return InvoiceBadgeUpdate(InvoiceBadgeState(maxSeen, emptySet()), emptySet())
+            return InvoiceBadgeUpdate(InvoiceBadgeState(maxSeen ?: 0L, emptySet()), emptySet())
         }
         val currentFacing = valid.asSequence().filter { it.isCustomerFacing }
             .map { it.invoiceNo }.toSet()
