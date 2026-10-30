@@ -19,7 +19,7 @@ class SalesKpiAndRedAmounts(unittest.TestCase):
         self.assertIn('label(moneyCard, "Tổng công nợ cần thu"',home)
         self.assertLess(home.index('summaryCards.addView(salesCard'),home.index('summaryCards.addView(moneyCard'))
         self.assertIn('resources.configuration.screenWidthDp >= 460',home)
-        self.assertIn('setOnClickListener { activeTab = 1; acknowledgeInvoiceBadge(); render() }',home)
+        self.assertIn('setOnClickListener { activeTab = 1; render() }',home)
 
     def test_total_sales_are_not_counted_twice_and_offline_is_honest(self):
         self.assertIn('isTest || isInternalCollaboratorBill',MODEL)
