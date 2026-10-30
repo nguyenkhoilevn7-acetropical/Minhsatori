@@ -2334,6 +2334,28 @@ class NativeMainActivity : AppCompatActivity() {
             setOnClickListener { action() }
         }
 
+    /**
+     * Add a read-only profit caption INSIDE the last invoice card, above its
+     * existing actions. Keep invoiceQuickCard/openInvoice and all protected
+     * edit/payment/delete handlers unchanged.
+     */
+    private fun showProfitInsideInvoiceCard(parent: LinearLayout,
+                                            row: AccountingProMargin45Row?) {
+        val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
+        val caption = TextView(this).apply {
+            text = "Lợi nhuận: " +
+                (row?.estimatedOwnerMarginVnd?.let(SatoriData::money) ?: "Chưa đủ dữ liệu")
+            textSize = 12.5f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(invoiceMoneyRed)
+            setPadding(0, dp(7), 0, dp(2))
+            includeFontPadding = false
+            contentDescription = text
+        }
+        // Position before the button row so it is unambiguously in the card.
+        card.addView(caption, (card.childCount - 1).coerceAtLeast(0))
+    }
+
     private fun invoiceQuickCard(parent: LinearLayout, invoice: SatoriInvoice,
                                  fromDebt: Boolean = false) {
         val card = LinearLayout(this).apply {
@@ -2392,28 +2414,6 @@ class NativeMainActivity : AppCompatActivity() {
         parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(9)
         })
-    }
-
-    /**
-     * Add a read-only profit caption INSIDE the last invoice card, above its
-     * existing actions. Keep invoiceQuickCard/openInvoice and all protected
-     * edit/payment/delete handlers unchanged.
-     */
-    private fun showProfitInsideInvoiceCard(parent: LinearLayout,
-                                            row: AccountingProMargin45Row?) {
-        val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
-        val caption = TextView(this).apply {
-            text = "Lợi nhuận: " +
-                (row?.estimatedOwnerMarginVnd?.let(SatoriData::money) ?: "Chưa đủ dữ liệu")
-            textSize = 12.5f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(invoiceMoneyRed)
-            setPadding(0, dp(7), 0, dp(2))
-            includeFontPadding = false
-            contentDescription = text
-        }
-        // Position before the button row so it is unambiguously in the card.
-        card.addView(caption, (card.childCount - 1).coerceAtLeast(0))
     }
 
     /** One guarded soft-delete from the invoice list, debt list and detail. */
