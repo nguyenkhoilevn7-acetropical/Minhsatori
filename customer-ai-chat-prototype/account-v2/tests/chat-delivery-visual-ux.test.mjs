@@ -31,9 +31,11 @@ test('delivery dialog uses one location icon in the group heading and omits redu
  assert.match(dialog,/id="agentAddressChoices"/);
  assert.match(dialog,/id="agentAddressManage"/);
  const choices=section("const choices=$('agentAddressChoices');","if(!active.length)choices.append",inline[1]);
- assert.match(choices,/node\('span',address\.label,'address-title'\)/);
- assert.match(choices,/node\('span',address\.address,'address-subtitle'\)/);
- assert.match(choices,/node\('span',address\.recipientPhone\|\|'Chưa lưu số điện thoại','address-phone'\)/);
+ assert.match(choices,/node\('span',address\.label\|\|'Điểm giao','address-title'\)/);
+ assert.match(choices,/node\('span',recipient,'address-recipient'\)/);
+ assert.match(choices,/node\('span',address\.recipientPhone\|\|'Chưa lưu số điện thoại','address-contact-text'\)/);
+ assert.match(choices,/node\('span',address\.address,'address-contact-text'\)/);
+ assert.doesNotMatch(choices,/ctvClientData|discountBps|invoiceNo|lineTotal|goodsVnd|shippingVnd|vatVnd|totalVnd/);
  assert.doesNotMatch(choices,/lastOrderedAt\?'.*Đã đặt gần đây/);
  assert.doesNotMatch(choices,/cloneNode\(true\)/);
  assert.doesNotMatch(choices,/node\('span',undefined,'pin'\)/);
