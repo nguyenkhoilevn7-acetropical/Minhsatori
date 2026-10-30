@@ -96,6 +96,32 @@ class SatoriModelsTest {
     }
 
     @Test
+    fun cancelledInvoiceWithHistoricalPaymentStaysCancelledAndExcluded() {
+        val source = JSONObject().put("id", 1).put("invoiceNo", 5914)
+            .put("name", "Khách kiểm thử").put("status", "Đã hủy")
+            .put("total", 950400).put("customerPaidAt", "2026-10-19T14:10:08Z")
+            .put("satoriPaidAt", "2026-10-20T14:10:08Z")
+        val orders = JSONArray().put(source)
+        val state = JSONObject().put("revision", 189).put("values",
+            JSONObject().put("satori_orders_v15", orders.toString()))
+        val parsed = SatoriData.fromDriveState(state.toString())
+        val invoice = parsed.invoices.single()
+        assertTrue(invoice.isCancelled)
+        assertTrue(invoice.isExcluded)
+        assertEquals("Đã hủy", invoice.status)
+        assertEquals("2026-10-19T14:10:08Z", invoice.customerPaidAt)
+        assertFalse(invoice.customerHasPaid)
+        assertFalse(invoice.satoriHasPaid)
+        assertFalse(invoice.isOutstanding)
+        assertFalse(invoice.canMarkCustomerPaid)
+        assertFalse(invoice.canChangePayment)
+        assertFalse(invoice.canEditOrDelete)
+        assertEquals(0L, parsed.outstandingAmount)
+        assertEquals(0, parsed.activeCount)
+        assertNull(parsed.confirmedCustomerPayment("5914", 950400L))
+    }
+
+    @Test
     fun cancelledInvoicesAreNotDebtOrActiveAndCannotBePaid() {
         val orders = JSONArray()
             .put(JSONObject().put("id", 1).put("invoiceNo", 100)
