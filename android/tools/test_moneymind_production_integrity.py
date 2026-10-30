@@ -14,7 +14,7 @@ BASELINE={
  'launchEditor':'a449a547',
  'recoverDriveAccessUsingOwnerApi':'4c0215f3',
  'openInvoice':'d6c87d15',
- 'invoiceQuickCard':'f4d0343c',
+ 'invoiceQuickCard':'d5571946',
 }
 def method(name):
  token='    private fun '+name+'('

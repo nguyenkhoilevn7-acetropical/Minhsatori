@@ -38,6 +38,24 @@ class OwnerInvoiceEditPaymentContract(unittest.TestCase):
         self.assertIn("launchEditor(editing = latest)", guard)
         self.assertNotIn("executeWrite(", guard)
 
+    def test_unpaid_status_uses_debt_amber_and_profit_is_top_right_badge(self):
+        card = UI.split("private fun invoiceQuickCard(", 1)[1].split(
+            "private fun confirmSoftDelete(", 1)[0]
+        self.assertIn('invoice.status.contains("chưa thanh toán", ignoreCase = true)', card)
+        self.assertIn('Color.rgb(181, 95, 6)', card)
+        self.assertIn('Color.rgb(16, 122, 78)', card)
+        self.assertIn('label(statusLine, invoice.displayDate', card)
+        self.assertIn('label(statusLine, invoice.status, 11f, true, statusColor)', card)
+        badge = UI.split("private fun showProfitInsideInvoiceCard(", 1)[1].split(
+            "private fun requestInvoiceEdit(", 1)[0]
+        self.assertIn("header.removeView(amount)", badge)
+        self.assertIn("header.addView(right", badge)
+        self.assertIn('text = "Lợi nhuận  " +', badge)
+        self.assertIn('contentDescription = "Lợi nhuận: "', badge)
+        self.assertIn('Color.rgb(255, 243, 241)', badge)
+        self.assertIn("showProfitInsideInvoiceCard(list, marginByInvoice[inv])", UI)
+        self.assertIn("showProfitInsideInvoiceCard(parent, marginByInvoice[invoice])", UI)
+
     def test_edit_confirmation_preserves_original_invoice_and_checks_catalogue(self):
         self.assertIn("Tổng bill trước sửa:", EDITOR)
         self.assertIn("Tổng bill sau sửa:", EDITOR)
