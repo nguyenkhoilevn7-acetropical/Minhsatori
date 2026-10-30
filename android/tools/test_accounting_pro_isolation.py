@@ -40,6 +40,28 @@ class AccountingProIsolationTest(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, source)
 
+    def test_payment_demo_uses_only_synthetic_invoices_and_never_calls_writer(self):
+        source = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
+        start = source.index("    private fun showAccountingProAllocationDemo() {")
+        end = source.index("    /**", start + 1)
+        demo = source[start:end]
+        self.assertIn("DEMO-LEDGER-A", demo)
+        self.assertIn("DEMO-LEDGER-B", demo)
+        self.assertIn("990001L", demo)
+        self.assertIn("990002L", demo)
+        self.assertIn("AccountingProPaymentAllocation.preview(", demo)
+        self.assertIn("KHÔNG GHI SỔ", demo)
+        self.assertIn("KHÔNG LƯU", demo)
+        self.assertNotIn("data.invoices", demo)
+        self.assertNotIn("snapshot?.invoices", demo)
+        for forbidden in (
+            "performWrite(", "sendPayment(", "executePayment(", "refreshFromMobileApi(",
+            "payments.markCustomerPaid", "payments.markSatoriPaid",
+            "launchEditor(", "apiEndpoint", "HttpURLConnection", "startActivity("
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, demo)
+
     def test_new_ui_is_opt_in_and_uses_existing_snapshot_only(self):
         source = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
         self.assertIn("private fun showAccountingProPreview(data: SatoriSnapshot)", source)
