@@ -1174,13 +1174,19 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
   // Keep the canonical single-lead FK until a separately approved migration.
   // Other approved points are represented by the account's address rows and
   // audited lead IDs; linking an invoice must not hit UNIQUE(linked_account_id).
-  const canonical=leads.rows.find(x=>x.linked_account_id===target.id)||
-   leads.rows.find(x=>x.id===input.leadId)||leads.rows[0];
-  if(canonical&&!canonical.linked_account_id){
-   const linked=await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
-    'revision=revision+1,updated_at=now() WHERE id=$1 AND linked_account_id IS NULL RETURNING id',
-    [canonical.id,target.id]);
-   check(linked.rowCount===1,'LEGACY_LEAD_RACE',409);
+  // The ACTIVE owner reconcile above may already have linked the canonical
+  // source lead in this same transaction. Re-query it instead of using the
+  // stale leads.rows snapshot taken before reconciliation.
+  const alreadyLinked=await c.query('SELECT id FROM satori_v2_customer_leads '+
+   'WHERE linked_account_id=$1 ORDER BY created_at DESC LIMIT 1',[target.id]);
+  if(!alreadyLinked.rowCount){
+   const canonical=leads.rows.find(x=>x.id===input.leadId)||leads.rows[0];
+   if(canonical){
+    const linked=await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
+     'revision=revision+1,updated_at=now() WHERE id=$1 AND linked_account_id IS NULL RETURNING id',
+     [canonical.id,target.id]);
+    check(linked.rowCount===1,'LEGACY_LEAD_RACE',409);
+   }
   }
   for(const ref of refs){
    const already=await c.query('SELECT 1 FROM satori_v2_audit WHERE '+
