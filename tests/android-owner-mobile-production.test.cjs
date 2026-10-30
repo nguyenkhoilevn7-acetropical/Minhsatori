@@ -49,6 +49,21 @@ assert.equal(snap.data.revision,133);
 assert.equal(snap.data.actorId,'12345678901234567890');
 assert.ok(snap.data.allowedActions.includes('orders.restore'));
 assert.ok(snap.data.allowedActions.includes('orders.delete'));
+const savedBridge=ctx.SatoriBotApi;
+ctx.SatoriBotApi=undefined;
+const noBridge=request('mobile.snapshot');
+assert.equal(noBridge.ok,true,'Owner can still read when writer was not deployed');
+assert.deepEqual(noBridge.data.allowedActions.map(String).sort(),
+ ['mobile.revision','mobile.snapshot','mobile.trash'].sort(),
+ 'Missing Bot bridge must never advertise any payment or order write');
+const noBridgePayment=request('payments.markSatoriPaid',{
+ id:11,invoiceNo:8001,expectedRevision:133,expectedName:'FAKE A',
+ expectedTotal:20000,reason:'Fixture only',confirmed:true,
+ requestId:'fake-payment-nobridge-1'
+});
+assert.equal(noBridgePayment.error.code,'API_NOT_READY');
+assert.equal(mobileWrites.length,0,'Unready owner API must never perform a write');
+ctx.SatoriBotApi=savedBridge;
 assert.equal(snap.data.values.satori_orders_v15,ledger.values.satori_orders_v15);
 assert.ok(!('satori_trash_bin_v15' in snap.data.values),'trash not exposed with general snapshot');
 assert.ok(!JSON.stringify(snap).includes('FAKE_TEST_OWNER_TOKEN_EXPLICIT'),'token not echoed');
