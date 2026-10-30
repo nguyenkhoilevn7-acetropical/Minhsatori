@@ -1,0 +1,115 @@
+name: Account V2 isolated offline tests
+on:
+  push:
+    branches:
+      - feature/account-based-ordering-v2-20261025
+    paths:
+      - 'customer-ai-chat-prototype/account-v2/**'
+      - 'customer-ai-chat-prototype/server.mjs'
+      - 'customer-ai-chat-prototype/package.json'
+      - '.github/workflows/account-v2-offline.yml'
+  pull_request:
+    paths:
+      - 'customer-ai-chat-prototype/account-v2/**'
+      - 'customer-ai-chat-prototype/server.mjs'
+      - 'customer-ai-chat-prototype/package.json'
+      - '.github/workflows/account-v2-offline.yml'
+permissions:
+  contents: read
+jobs:
+  account-domain:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: customer-ai-chat-prototype
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install only runtime dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check syntax
+        run: |
+          node --check server.mjs
+          node --check account-v2/router.mjs
+          node --check account-v2/domain.mjs
+      - name: Parse account page inline script without executing it
+        run: |
+          node -e "const fs=require('node:fs');const html=fs.readFileSync('account-v2/app.html','utf8');const m=html.match(/<script>([\\s\\S]*?)<\\/script>/);if(!m)throw Error('INLINE_APP_SCRIPT_MISSING');new Function(m[1]);"
+      - name: Pure domain security and pricing tests
+        run: npm run test:account-v2
+      - name: Install isolated browser test runner
+        run: |
+          npm install --no-save --no-package-lock playwright@1.51.1
+          npx playwright install --with-deps chromium
+      - name: Browser CRM source selection regression (synthetic APIs only)
+        run: node account-v2/tests/crm-source-selection-browser.mjs
+      - name: Existing Gemini parser regression tests
+        run: |
+          node tests/production-launch-guard.test.mjs
+          node tests/checkout-preflight.test.mjs
+
+  postgres-integration:
+    name: Synthetic PostgreSQL migration / 100 request races / restore
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: satori_ci
+          POSTGRES_PASSWORD: v2_ci_fake_only_never_prod
+          POSTGRES_DB: satori_v2_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U satori_ci -d satori_v2_ci"
+          --health-interval=5s --health-timeout=5s --health-retries=12
+    defaults:
+      run:
+        working-directory: customer-ai-chat-prototype
+    env:
+      SATORI_V2_CI_DATABASE_URL: postgresql://satori_ci:v2_ci_fake_only_never_prod@127.0.0.1:5432/satori_v2_ci
+      PGPASSWORD: v2_ci_fake_only_never_prod
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: satori_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install sandbox Node dependencies
+        run: npm install --no-audit --no-fund
+      - name: Dedicated V2 migrator end-to-end, no production data
+        env:
+          SATORI_ACCOUNT_V2_MIGRATION_APPROVED: '1'
+          SATORI_ACCOUNT_V2_DATABASE_URL: postgresql://satori_ci:v2_ci_fake_only_never_prod@127.0.0.1:5432/satori_v2_ci
+        run: |
+          node account-v2/migrate.mjs
+          node account-v2/migrate.mjs
+      - name: Real PostgreSQL synthetic schema / 100 simultaneous retry guard
+        run: node account-v2/tests/postgres-integration.mjs
+      - name: CRM registered customer, owner discounts, suspension and revocation (fake accounts only)
+        run: node account-v2/tests/crm-postgres-integration.mjs
+      - name: Offline logical backup, restore, and readback drill
+        run: |
+          set -euo pipefail
+          # Use PostgreSQL 16 client in the SAME image as the CI database.
+          # Runner apt may offer newer pg_restore with incompatible SET statements.
+          docker run --rm --network host -e PGPASSWORD \
+            -v "$RUNNER_TEMP:/ci" postgres:16 \
+            pg_dump -h 127.0.0.1 -U satori_ci -d satori_v2_ci -Fc \
+              --no-owner --no-acl -f /ci/satori-v2-ci-only.dump
+          docker run --rm --network host -e PGPASSWORD postgres:16 \
+            psql -h 127.0.0.1 -U satori_ci -d postgres -v ON_ERROR_STOP=1 \
+              -c 'CREATE DATABASE satori_v2_restore;'
+          docker run --rm --network host -e PGPASSWORD \
+            -v "$RUNNER_TEMP:/ci" postgres:16 \
+            pg_restore -h 127.0.0.1 -U satori_ci --no-owner --no-acl \
+              -d satori_v2_restore /ci/satori-v2-ci-only.dump
+          SATORI_V2_CI_DATABASE_URL=postgresql://satori_ci:v2_ci_fake_only_never_prod@127.0.0.1:5432/satori_v2_restore \
+            node account-v2/tests/restore-readback.mjs
+          sudo rm -f "$RUNNER_TEMP/satori-v2-ci-only.dump"
+      - name: HTTP checkout races with Admin revocation and suspension (fake accounts only)
+        run: node account-v2/tests/checkout-races-postgres.mjs

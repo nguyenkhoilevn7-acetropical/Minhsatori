@@ -12,6 +12,7 @@ import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {parseOrder,parseRules,parseComplexOrderWithGemini,geminiConfigured,identityChange} from './free-parser.mjs';
+import {handleAccountV2} from './account-v2/router.mjs';
 import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
 import {chatBasketChanges,applyCartChanges} from './cart-semantics.mjs';
 import {customerSuggestions} from './customer-suggestions.mjs';
@@ -290,6 +291,8 @@ function sendHtml(res){const html=previewHtml('index.html');res.writeHead(200,{'
 const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
+ // Account V2 is opt-in, isolated, and refuses all real-invoice writes.
+ if(await handleAccountV2(req,res,p))return;
  // Headless PDF generation is a private HMAC service for the OWNER's
  // Apps Script scheduler. It uses the website's exact pdfmake definition;
  // never exposes real customer data to a public/Gemini route.
