@@ -108,6 +108,48 @@ class NativeMainActivity : AppCompatActivity() {
     private var lastOAuthRecoveryAt = 0L
     private val oauthRetryBackoffMs = 300_000L
     private val newOrderChannelId = "minh_satori_live_orders"
+    // Persist only invoice sequence IDs, never customer information or order contents.
+    private var invoiceBadgeState = InvoiceBadgeState()
+    private var invoiceBadgeLoaded = false
+    private fun currentInvoiceBadge(): InvoiceBadgeState {
+        if (!invoiceBadgeLoaded) {
+            val prefs = getPreferences(MODE_PRIVATE)
+            val rawHigh = prefs.getLong("invoice_badge_high_water_v1", -1L)
+            val ids = prefs.getStringSet("invoice_badge_unread_v1", emptySet())
+                .orEmpty().mapNotNull { it.toLongOrNull()?.takeIf { no -> no > 0 } }.toSet()
+            invoiceBadgeState = InvoiceBadgeState(rawHigh.takeIf { it >= 0L }, ids)
+            invoiceBadgeLoaded = true
+        }
+        return invoiceBadgeState
+    }
+
+    private fun saveInvoiceBadge(state: InvoiceBadgeState) {
+        invoiceBadgeState = state
+        getPreferences(MODE_PRIVATE).edit()
+            .putLong("invoice_badge_high_water_v1", state.highWater ?: -1L)
+            .putStringSet("invoice_badge_unread_v1", state.unread.map { it.toString() }.toSet())
+            .apply()
+    }
+
+    private fun acknowledgeInvoiceBadge() {
+        val current = currentInvoiceBadge()
+        if (current.count > 0) saveInvoiceBadge(InvoiceBadgePolicy.acknowledgeAll(current))
+    }
+
+    private fun badgePill(count: Int): TextView = TextView(this).apply {
+        text = if (count > 99) "99+" else count.toString()
+        textSize = 10f
+        setTextColor(Color.WHITE)
+        setTypeface(typeface, Typeface.BOLD)
+        gravity = Gravity.CENTER
+        includeFontPadding = false
+        minWidth = dp(18)
+        minHeight = dp(18)
+        setPadding(dp(3), 0, dp(3), 0)
+        background = panelBackground(Color.rgb(213, 40, 50), 15)
+        contentDescription = "$count hóa đơn mới chưa xem"
+    }
+
     // Separate from accounting: V2 new customer alerts require ONLY a verified
     // owner WebView session; never borrow a Google Drive OAuth scope.
     private val v2AlertHandler=Handler(Looper.getMainLooper())
@@ -193,30 +235,43 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun notifyVerifiedNewInvoices(prior: SatoriSnapshot?, latest: SatoriSnapshot) {
-        if (prior == null || latest.revision <= prior.revision) return
-        val known = prior.invoices.map { it.number }.toSet()
-        val added = latest.invoices.filter { !it.isTest && it.number !in known }
-        if (added.isEmpty()) return
-        // A revisioned snapshot is authoritative; do not alert on demo orders,
-        // on first app launch, or on a stale/out-of-order response.
-        statusMessage = "🔔 " + added.size + " hóa đơn thật mới đã đồng bộ • revision " +
-            latest.revision
+        // Always process a verified ledger, including after app restart. First
+        // sync establishes a quiet baseline; only a higher canonical invoice
+        // number can become new, regardless of payment/status edits.
+        if (prior != null && latest.revision < prior.revision) return
+        val entries = latest.invoices.mapNotNull { invoice ->
+            invoice.number.toLongOrNull()?.takeIf { it > 0 }?.let {
+                InvoiceBadgeEntry(it, !invoice.isExcluded)
+            }
+        }
+        val update = InvoiceBadgePolicy.reconcile(currentInvoiceBadge(), entries)
+        saveInvoiceBadge(update.state)
+        if (update.fresh.isEmpty()) return
+        statusMessage = "🔔 Có " + update.state.count +
+            " hóa đơn mới chưa xem • dữ liệu thật Rev " + latest.revision
+        // In-app badge is ALWAYS visible, even if Android 13 notification
+        // permission is denied or the owner disabled audible notifications.
+        Toast.makeText(this, "🔔 " + update.fresh.size +
+            " hóa đơn mới đã được ghi vào sổ Minh Satori", Toast.LENGTH_LONG).show()
+        if (!getPreferences(MODE_PRIVATE).getBoolean("satori_live_notifications", false)) return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED) return
         val notifications = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26)
             notifications.createNotificationChannel(NotificationChannel(newOrderChannelId,
                 "Đơn hàng thật Minh Satori", NotificationManager.IMPORTANCE_HIGH))
-        if (Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-                PackageManager.PERMISSION_GRANTED) return
-        if (!getPreferences(MODE_PRIVATE).getBoolean("satori_live_notifications", false)) return
+        val invoice = latest.invoices.firstOrNull { row ->
+            row.number.toLongOrNull()?.let { it in update.fresh } == true
+        } ?: return
         @Suppress("DEPRECATION")
         val notification = if (Build.VERSION.SDK_INT >= 26)
             Notification.Builder(this, newOrderChannelId)
         else Notification.Builder(this)
         notification.setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Minh Satori • " + added.size + " hóa đơn mới")
-            .setContentText("Hóa đơn #" + added.first().number + " • " +
-                SatoriData.money(added.first().total))
+            .setContentTitle("Minh Satori • " + update.state.count + " hóa đơn chưa xem")
+            .setContentText("Mới nhất #" + invoice.number + " • " +
+                SatoriData.money(invoice.total))
             .setAutoCancel(true)
         notifications.notify(52001, notification.build())
     }
@@ -772,7 +827,13 @@ class NativeMainActivity : AppCompatActivity() {
                 contentDescription = null
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }
-            tile.addView(iconView, LinearLayout.LayoutParams(dp(46), dp(46)))
+            val iconSlot = FrameLayout(this)
+            iconSlot.addView(iconView, FrameLayout.LayoutParams(dp(46), dp(46),
+                Gravity.CENTER))
+            if (index == 0 && currentInvoiceBadge().count > 0)
+                iconSlot.addView(badgePill(currentInvoiceBadge().count),
+                    FrameLayout.LayoutParams(dp(23), dp(19), Gravity.TOP or Gravity.END))
+            tile.addView(iconSlot, LinearLayout.LayoutParams(dp(52), dp(48)))
             label(tile, title, 11f, true, ink, 5)
             row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f))
         }
@@ -788,7 +849,11 @@ class NativeMainActivity : AppCompatActivity() {
             return
         }
         data.invoices.take(4).forEach { invoice ->
-            section(parent, "#" + invoice.number + "  ·  " + invoice.customer,
+            val isUnread = invoice.number.toLongOrNull()?.let {
+                it in currentInvoiceBadge().unread
+            } == true
+            section(parent, (if (isUnread) "🔴 MỚI · " else "") +
+                "#" + invoice.number + "  ·  " + invoice.customer,
                 invoice.displayDate + "  ·  " + SatoriData.money(invoice.total)) {
                 openInvoice(invoice)
             }
@@ -1182,7 +1247,9 @@ class NativeMainActivity : AppCompatActivity() {
                 minimumHeight = dp(53)
                 isClickable = true
                 isFocusable = true
-                contentDescription = "Mở " + title
+                contentDescription = if (index == 1 && currentInvoiceBadge().count > 0)
+                    "Mở Hóa đơn, có " + currentInvoiceBadge().count + " đơn mới"
+                    else "Mở " + title
                 setOnClickListener {
                     if (activeTab != index) {
                         activeTab = index
@@ -1200,8 +1267,16 @@ class NativeMainActivity : AppCompatActivity() {
                 contentDescription = null
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }
-            item.addView(glyph, LinearLayout.LayoutParams(
-                dp(if (index == 4) 45 else 33), dp(if (index == 4) 45 else 33)))
+            val iconSlot = FrameLayout(this)
+            iconSlot.addView(glyph, FrameLayout.LayoutParams(
+                dp(if (index == 4) 45 else 33), dp(if (index == 4) 45 else 33),
+                Gravity.CENTER))
+            if (index == 1 && currentInvoiceBadge().count > 0) {
+                val unread = badgePill(currentInvoiceBadge().count)
+                iconSlot.addView(unread, FrameLayout.LayoutParams(
+                    dp(23), dp(19), Gravity.TOP or Gravity.END))
+            }
+            item.addView(iconSlot, LinearLayout.LayoutParams(dp(49), dp(45)))
             if (selected && tabChanged && motionEnabled()) {
                 glyph.scaleX = 0.88f
                 glyph.scaleY = 0.88f
@@ -2336,6 +2411,28 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
+        if (currentInvoiceBadge().count > 0) {
+            val pending = currentInvoiceBadge().count
+            val freshNumbers = data.invoices.filter {
+                it.number.toLongOrNull()?.let { no -> no in currentInvoiceBadge().unread } == true
+            }.take(5).joinToString(" · ") { "#" + it.number }
+            val banner = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(9), dp(12), dp(9))
+                background = panelBackground(Color.rgb(255, 237, 237), 12)
+            }
+            val message = if (freshNumbers.isBlank()) "🔔  $pending hóa đơn mới chưa xem"
+                else "🔔  $pending đơn mới · $freshNumbers"
+            label(banner, message, 13f, true, Color.rgb(176, 35, 45))
+            banner.addView(compactAction("Đã xem", teal) {
+                acknowledgeInvoiceBadge()
+                render()
+            }, LinearLayout.LayoutParams(-2, dp(38)).apply { marginStart = dp(9) })
+            parent.addView(banner, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = dp(9)
+            })
+        }
         // MoneyMind: compact toolbar instead of three full-width CTA blocks.
         val toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
