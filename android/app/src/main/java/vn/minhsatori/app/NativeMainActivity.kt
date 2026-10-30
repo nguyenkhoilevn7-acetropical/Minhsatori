@@ -2827,14 +2827,11 @@ class NativeMainActivity : AppCompatActivity() {
         section(panel, "Khách đã đánh dấu trả đủ: " + totals.customerPaidFlagCount,
             "Khách chưa đánh dấu trả đủ: " + totals.customerUnpaidFlagCount +
                 ". Chưa có sổ phân bổ thanh toán từng phần.")
-        section(panel, "Đã đánh dấu trả Satori: " + totals.satoriPaidFlagCount,
-            "Chưa đánh dấu trả Satori: " + totals.satoriUnpaidFlagCount +
-                ". Đây là trạng thái riêng, không suy ra khách đã trả.")
-        if (totals.questionableInvoiceCount > 0) {
-            section(panel, "CẦN ĐỐI CHIẾU ID HÓA ĐƠN",
-                totals.questionableInvoiceCount.toString() +
-                    " bản ghi thiếu hoặc trùng định danh. Tạm ẩn tổng tiền để tránh cộng sai.")
-        } else {
+        // The owner removed the three summary cards for Satori payment status,
+        // invoice-ID exceptions and invalid dates. Keep the corresponding
+        // model checks: invalid IDs still suppress totals, and the dedicated
+        // read-only review screens continue to show exceptions.
+        if (totals.questionableInvoiceCount == 0) {
             label(panel, "TỔNG THEO CỜ TRẠNG THÁI CŨ", 12f, true, cyan, 16)
             section(panel, "Tổng bill hợp lệ: " +
                 (totals.grossByLegacyFlags?.let(SatoriData::money) ?: "Chưa xác minh"),
@@ -2842,10 +2839,6 @@ class NativeMainActivity : AppCompatActivity() {
             section(panel, "Cần thu theo trạng thái cũ: " +
                 (totals.unpaidByLegacyFlags?.let(SatoriData::money) ?: "Chưa xác minh"),
                 "Ước tính từ hóa đơn chưa đánh dấu trả đủ; KHÔNG phải số dư sau trả từng phần.")
-        }
-        if (totals.invalidDateCount > 0) {
-            section(panel, "Ngày hóa đơn cần kiểm tra: " + totals.invalidDateCount,
-                "Không tự suy ra hạn thanh toán hoặc tuổi nợ từ ngày không hợp lệ.")
         }
         button(panel, "XEM DANH SÁCH HÓA ĐƠN CẦN ĐỐI SOÁT",
             false, R.drawable.ic_satori_invoice) {
