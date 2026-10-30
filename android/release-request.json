@@ -1,9 +1,9 @@
 {
-  "purpose": "android-v0.4.28-accounting-pro-simplified-owner-acceptance",
+  "purpose": "android-0.4.29-accounting-pro-margin-45percent-owner-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.28",
-  "versionCode": 45,
-  "branch": "feature/android-accounting-pro-hide-three-cards-v0428-20261030",
+  "version": "0.4.29",
+  "versionCode": 46,
+  "branch": "feature/android-accounting-pro-profit45-v0429-signed-20261030",
   "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
@@ -25,9 +25,11 @@
     296,
     297,
     298,
-    299
+    299,
+    301,
+    302
   ],
-  "scope": "Android-only reduction of three redundant Accounting Pro overview cards (Satori paid flag, invalid/duplicate invoice IDs, invalid invoice dates). Preserve all underlying validation, independent payment states, other Accounting Pro sections, native order/edit/payment routes, Gemini V2, ChatGPT, Website, Render and databases. Owner same-certificate signed APK for manual Samsung acceptance only, no production backend changes.",
+  "scope": "Android owner-side profit report only: 45% supplier discount on list prices recorded in existing invoice lines, per-bill read-only estimated gross margin, all-time dashboard estimate, day/month/year/custom date filters, with CTV commission deducted only when documented. VAT and charged shipping excluded from goods revenue; real delivery cost, tax, overhead absent and therefore not represented as net profit. No changes to Gemini V2, ChatGPT, Website, backend or production financial writers.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -56,6 +58,9 @@
     "2026-10-30: Manual Samsung/ Z Fold verification and owner approval required before releasing to the installed app. Finance writes, partial payments, bank reconciliation, email sending, legal e-invoice issuance and real CTV commission settlement remain disabled.",
     "2026-10-30: Owner requested a real-device, official same-signer APK for acceptance. Submit release-request push ONLY on feature/android-accounting-pro-v0427-signed-acceptance-20261030 with branch-restricted signed artifact workflow; maintain protected signer pin, no merge, no production API changes, no automatic install. Check signed verification report before sharing.",
     "2026-10-30: Owner requested removing exactly three visible top cards from Accounting Pro overview: Satori payment status, ID reconciliation, invalid-date count. Data checks and drilldowns stay intact. v0.4.28 build 45 is a same-package, same-signing-certificate in-place update over v0.4.27 build 44; do not uninstall or clear data. No financial writes or backend changes.",
-    "2026-10-30: Signed-release request re-submitted after enabling this isolated feature branch in the protected workflow push allowlist. Strict checks required for release certificate, package vn.minhsatori.app, v0.4.28 build 45, APK hash and no unintended changes. Only download and install on the owner's device; no automatic merge or deployment."
+    "2026-10-30: Signed-release request re-submitted after enabling this isolated feature branch in the protected workflow push allowlist. Strict checks required for release certificate, package vn.minhsatori.app, v0.4.28 build 45, APK hash and no unintended changes. Only download and install on the owner's device; no automatic merge or deployment.",
+    "2026-10-30: v0.4.29 build 46 is a staging-only same-certificate owner acceptance build after the v0.4.28 three-card removal. Must pass Gradle/Kotlin unit, emulator and signer checks; maintain all original invoice creation, payment, edit and Gemini routes untouched. Do NOT treat gross estimated margin as final settled net profit.",
+    "2026-10-30: Signed v0.4.29 build46 owner acceptance requested AFTER GitHub Android unit+build and Keystore/emulator CI PASSED on this branch and source screenshot CI passed. Use pinned original release signing certificate, generate APK+verification JSON, never merge/deploy backend or publish until owner manually tests on Samsung.",
+    "2026-10-30: Owner explicitly requested v0.4.29 build 46 installable signed APK after Android CI on PR #303 and parent PR #302 passed. Re-submit protected same-signing-key acceptance build on this isolated branch only; strictly validate certificate fingerprint, version and APK, no merge, production deployment or monetary writes."
   ]
 }
