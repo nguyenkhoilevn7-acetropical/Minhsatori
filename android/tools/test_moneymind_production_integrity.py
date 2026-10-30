@@ -13,8 +13,8 @@ BASELINE={
  'executeWrite':'a513026e',
  'launchEditor':'a449a547',
  'recoverDriveAccessUsingOwnerApi':'4c0215f3',
- 'openInvoice':'692e6f53',
- 'invoiceQuickCard':'78fafe9c',
+ 'openInvoice':'cb0f31d3',
+ 'invoiceQuickCard':'88bb9544',
 }
 def method(name):
  token='    private fun '+name+'('
