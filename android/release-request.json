@@ -1,9 +1,9 @@
 {
-  "purpose": "android-v0.4.31-profit-debt-shared-period-and-guarded-edit-owner-acceptance",
+  "purpose": "android-v0.4.32-compact-invoice-detail-payment-status-and-brand-share-icons-owner-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.31",
-  "versionCode": 48,
-  "branch": "feature/android-owner-invoice-edit-v0431-20261030",
+  "version": "0.4.32",
+  "versionCode": 49,
+  "branch": "feature/android-invoice-detail-compact-actions-20261030",
   "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
@@ -30,9 +30,10 @@
     302,
     303,
     305,
-    306
+    306,
+    308
   ],
-  "scope": "Android only: shared day/month/year/custom period filter for debt and 45%-supplier discounted gross profit, margin labels on invoice and debt cards, and direct guarded owner Edit invoice. Preserve revision/id+invoiceNo verification, payment/CTV protection, pending write journal, backup/readback and Google Owner Mobile API authorization. No Gemini V2, ChatGPT, website or server production changes, and no automatic merge or deployment.",
+  "scope": "Android native only: replace verbose invoice detail action stack with compact independent customer/Satori payment status rows and icon toolbar (Edit, soft Delete, branded Zalo, Messenger). Existing owner permissions, invoice confirmation, PDF, 30-day trash, CTV share check and safe write paths retained. No Gemini V2, ChatGPT, website, PostgreSQL, production order writes or automatic merge.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -66,6 +67,7 @@
     "2026-10-30: Signed v0.4.29 build46 owner acceptance requested AFTER GitHub Android unit+build and Keystore/emulator CI PASSED on this branch and source screenshot CI passed. Use pinned original release signing certificate, generate APK+verification JSON, never merge/deploy backend or publish until owner manually tests on Samsung.",
     "2026-10-30: Owner explicitly requested v0.4.29 build 46 installable signed APK after Android CI on PR #303 and parent PR #302 passed. Re-submit protected same-signing-key acceptance build on this isolated branch only; strictly validate certificate fingerprint, version and APK, no merge, production deployment or monetary writes.",
     "2026-10-30: Owner requested shared period filtering and profit figures on each outstanding debt card and beside aggregate debt, with only the short visible label Lợi nhuận. PR #305 isolated Android read-only UI + regression tests. Signed v0.4.30 code47 owner acceptance build only, same application ID and pinned signer, no auto merge/deploy. Confirm GitHub signed-release PASS and APK hash prior to installing over v0.4.29 without uninstalling.",
-    "2026-10-30: Signed owner acceptance requested for Android v0.4.31 build48 stacked PR #306 after #305. Verify full tests, pinned original signing cert SHA-256, package identity and APK digest. The actual Android edit write requires deployed Apps Script owner Mobile API SatoriBotApi.ownerMobileWrite supporting orders.update, not just a successful APK build; prove live permissions before editing any invoice. No synthetic live writes, preserve previous APK until UAT."
+    "2026-10-30: Signed owner acceptance requested for Android v0.4.31 build48 stacked PR #306 after #305. Verify full tests, pinned original signing cert SHA-256, package identity and APK digest. The actual Android edit write requires deployed Apps Script owner Mobile API SatoriBotApi.ownerMobileWrite supporting orders.update, not just a successful APK build; prove live permissions before editing any invoice. No synthetic live writes, preserve previous APK until UAT.",
+    "2026-10-30: PR #308 stacked on #306; v0.4.32 code49 Android owner-only acceptance build. Replaces long Zalo/Messenger labels with white brand icons on blue tiles, adds accessibility labels, two independent clickable payment status rows. Requires full unit tests, original signer certificate match, owner Samsung UAT. No backend/production merge, no financial write tests."
   ]
 }
