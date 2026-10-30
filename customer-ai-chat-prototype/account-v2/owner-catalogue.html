@@ -619,6 +619,25 @@ body{font-size:14px;line-height:1.42}
 @media(min-width:660px){
  .crm-imported-delivery-list{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+/* Compact per-SKU unit selling price next to discount, modeled after V1. */
+.crm-product-price-editor{background:#f6fbfa;border:1px solid #d8e7e4;border-radius:14px;
+ padding:12px 13px;margin:13px 0;display:grid;gap:9px}
+.crm-product-price-editor h4{font-size:15px;color:#1d414c;margin:0;font-weight:800}
+.crm-price-hint{font-size:12px;color:#58727e;line-height:1.5;margin:0}
+.crm-product-price-grid{display:grid;grid-template-columns:minmax(160px,1.3fr) minmax(115px,1fr)
+ minmax(145px,1fr);gap:10px;align-items:end}
+.crm-product-price-grid label{display:grid;gap:6px;min-width:0;font-size:12px;font-weight:750;color:#36525e}
+.crm-product-price-grid select,.crm-product-price-grid input{height:41px;min-width:0;width:100%;
+ background:#fff;border:1px solid #d2dedf;border-radius:10px;padding:8px 10px;color:#183742;
+ font-size:14px;font-weight:650}
+.crm-product-price-grid input{text-align:right}
+.crm-product-price-save{justify-self:start;border:0;border-radius:10px;background:#087f7e;
+ color:#fff;font-size:13px;font-weight:750;min-height:40px;padding:9px 13px}
+.crm-product-price-save:disabled{opacity:.45}
+@media(max-width:720px){.crm-product-price-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .crm-product-price-grid label:first-child{grid-column:1/-1}}
+@media(max-width:390px){.crm-product-price-grid{grid-template-columns:1fr}
+ .crm-product-price-grid label:first-child{grid-column:auto}}
 </style></head>
 <body>
 <main>
@@ -1306,6 +1325,141 @@ async function renderOwnerCtvClientCards(account,wrap){
  }catch(e){if(wrap.isConnected)wrap.replaceChildren(make('p','Không tải được khách riêng CTV: '+e.message))}
 }
 
+/**
+ * An owner's unit selling price belongs to ONE catalogue SKU. A global
+ * customer percentage cannot uniquely determine a VND price without it.
+ * Read the authoritative product price; show percentage and price side by
+ * side, with exact-VND preference for direct-price edits.
+ */
+function ownerUnitSalePriceEditor(account,role){
+ const section=make('section',null,'crm-product-price-editor');
+ section.append(make('h4','Đơn giá bán theo sản phẩm'));
+ const helper=make('p','Chọn sản phẩm để quy đổi giữa % chiết khấu và đơn giá bán. Giá niêm yết lấy từ danh mục V2.','crm-price-hint');
+ section.append(helper);
+ const columns=make('div',null,'crm-product-price-grid');
+ const skuLabel=make('label','Sản phẩm');
+ const sku=document.createElement('select');sku.required=true;
+ const placeholder=make('option','Chọn sản phẩm để tính giá');placeholder.value='';sku.append(placeholder);
+ for(const product of knownProducts.filter(x=>Number.isSafeInteger(x.listPrice)&&x.listPrice>0)){
+  const option=make('option',product.name+' · '+product.unit);option.value=product.code;sku.append(option);
+ }
+ skuLabel.append(sku);columns.append(skuLabel);
+ const rateLabel=make('label','Chiết khấu sản phẩm (%)');
+ const rate=document.createElement('input');rate.type='number';rate.min='0';rate.max='100';
+ rate.step='0.01';rate.inputMode='decimal';rate.disabled=true;
+ rateLabel.append(rate);columns.append(rateLabel);
+ const saleLabel=make('label','Đơn giá bán (đ)');
+ const sale=document.createElement('input');sale.type='number';sale.min='0';
+ sale.max='1000000000';sale.step='1';sale.inputMode='numeric';sale.disabled=true;
+ saleLabel.append(sale);columns.append(saleLabel);section.append(columns);
+ const reference=make('p','Chọn sản phẩm để hiện giá niêm yết.','crm-price-hint');
+ section.append(reference);
+ const button=iconButton('Lưu đơn giá bán','check');button.type='button';
+ button.classList.add('crm-product-price-save');button.disabled=true;section.append(button);
+ let currentProfile=null,editMode='rate',sequence=0;
+ const product=()=>knownProducts.find(x=>x.code===sku.value&&
+  Number.isSafeInteger(x.listPrice)&&x.listPrice>0);
+ const discountBps=()=>{
+  const raw=rate.value.trim(),number=Number(raw),bps=Math.round(number*100);
+  if(!raw||!Number.isFinite(number)||!Number.isSafeInteger(bps)||bps<0||bps>10000||
+     Math.abs(bps-number*100)>0.000001)throw Error('Chiết khấu chỉ từ 0–100%, tối đa 2 số thập phân.');
+  return bps;
+ };
+ const saleVnd=()=>{
+  const raw=sale.value.trim(),number=Number(raw),p=product();
+  if(!p||!raw||!Number.isSafeInteger(number)||number<0||number>p.listPrice)
+   throw Error('Đơn giá bán phải là số đồng nguyên từ 0 đến giá niêm yết.');
+  return number;
+ };
+ const showReference=()=>{
+  const p=product();
+  rate.disabled=sale.disabled=button.disabled=!p;
+  saleLabel.firstChild.textContent=p?'Đơn giá bán / '+p.unit+' (đ)':'Đơn giá bán (đ)';
+  if(!p)return;
+  reference.textContent='Giá niêm yết / '+p.unit+': '+
+   Number(p.listPrice).toLocaleString('vi-VN')+'đ · Mã '+p.code+
+   ' · Đơn giá bán nhập trực tiếp được lưu chính xác đến từng đồng.';
+ };
+ rate.addEventListener('input',()=>{
+  const p=product();editMode='rate';if(!p)return;
+  try{sale.value=String(Math.round(p.listPrice*(10000-discountBps())/10000))}
+  catch{sale.value=''}
+ });
+ sale.addEventListener('input',()=>{
+  const p=product();editMode='price';if(!p)return;
+  try{rate.value=String(Math.round((p.listPrice-saleVnd())*10000/p.listPrice)/100)}
+  catch{rate.value=''}
+ });
+ sku.addEventListener('change',async()=>{
+  const epoch=++sequence;rate.value='';sale.value='';currentProfile=null;
+  showReference();
+  const p=product();if(!p)return;
+  rate.disabled=sale.disabled=button.disabled=true;
+  try{
+   const profiles=await api('/api/v2/admin/profiles?accountId='+encodeURIComponent(account.id));
+   if(epoch!==sequence)return;
+   const profile=profiles.profiles?.find(x=>x.type===account.requestedType);
+   if(!profile)throw Error('Lưu vai trò trước khi đặt đơn giá bán.');
+   const policies=await api('/api/v2/admin/policies?profileId='+encodeURIComponent(profile.id));
+   if(epoch!==sequence)return;
+   currentProfile=profile;
+   const scoped=policies.policies?.filter(x=>x.enabled&&x.productCode===p.code&&!x.addressId)
+     .sort((a,b)=>b.version-a.version)[0];
+   const base=policies.policies?.filter(x=>x.enabled&&!x.productCode&&!x.addressId)
+     .sort((a,b)=>b.version-a.version)[0];
+   const initialBps=scoped?.discountBps??base?.discountBps??account.discountBps??0;
+   rate.value=String(initialBps/100);
+   sale.value=String(scoped?.unitPriceVnd==null?
+    Math.round(p.listPrice*(10000-initialBps)/10000):Number(scoped.unitPriceVnd));
+   editMode=scoped?.unitPriceVnd==null?'rate':'price';
+   showReference();
+  }catch(e){
+   reference.textContent='Chưa đọc được chính sách giá: '+e.message;
+   rate.disabled=sale.disabled=button.disabled=true;
+  }
+ });
+ role.addEventListener('change',()=>{
+  ++sequence;currentProfile=null;rate.value='';sale.value='';
+  rate.disabled=sale.disabled=button.disabled=true;
+  reference.textContent='Lưu vai trò trước khi đặt giá theo sản phẩm.';
+ });
+ button.onclick=async()=>{
+  const p=product();
+  if(!p||!currentProfile)return crmStatus('Hãy chọn sản phẩm và tải giá hiện tại.','error');
+  if(role.value!==account.requestedType)
+   return crmStatus('Cần lưu vai trò khách trước khi đặt đơn giá bán.','error');
+  let bps,vnd;
+  try{bps=discountBps();vnd=saleVnd();
+   if(Math.round((p.listPrice-vnd)*10000/p.listPrice)!==bps)
+    throw Error('Giá bán và % chiết khấu chưa khớp.');
+  }catch(e){return crmStatus(e.message,'error')}
+  if(role.value==='collaborator'&&account.collaboratorBps!=null&&
+    bps>account.collaboratorBps)
+   return crmStatus('Chiết khấu sản phẩm không được vượt mức CK CTV.','error');
+  const cap=role.value==='collaborator'?account.collaboratorBps:null;
+  if(role.value==='collaborator'&&!Number.isSafeInteger(cap))
+   return crmStatus('Cần duyệt chiết khấu CTV trước khi lưu đơn giá.','error');
+  const exact=editMode==='price';
+  if(!confirm('Áp dụng '+p.name+' / '+p.unit+' cho '+(account.fullName||account.name||account.email)+
+    ': Đơn giá bán '+vnd.toLocaleString('vi-VN')+'đ ('+(bps/100).toLocaleString('vi-VN')+
+    '% CK)? '+(exact?'Lưu chính xác đơn giá bán.':'Lưu % CK, giá bán theo làm tròn.')+
+    ' Chỉ áp dụng đơn mới, không sửa hóa đơn đã phát hành.'))return;
+  button.disabled=true;
+  try{
+   await api('/api/v2/admin/policies','POST',{
+    confirmed:true,profileId:currentProfile.id,addressId:null,productCode:p.code,
+    discountBps:bps,invoiceMode:'single',
+    ...(exact?{unitPriceVnd:vnd}:{}),
+    ...(cap==null?{}:{collaboratorBps:cap})
+   });
+   crmStatus('Đã lưu đơn giá bán / '+p.unit+' cho '+p.name+
+    ': '+vnd.toLocaleString('vi-VN')+'đ. Hóa đơn cũ không đổi.','success');
+   sku.dispatchEvent(new Event('change'));
+  }catch(e){crmStatus('Không lưu được đơn giá bán: '+e.message,'error');button.disabled=false}
+ };
+ return section;
+}
+
 /* Role and tiered pricing editor: rendered only inside an expanded customer card. */
 function rolePricingEditor(account,body,item,{old=false}={}){
  const holder=make('section',null,'crm-role-editor');
@@ -1361,7 +1515,7 @@ function rolePricingEditor(account,body,item,{old=false}={}){
    footer.append(pause,revoke);
   }
  }else form.append(save);
- holder.append(form,clients);
+ holder.append(form,ownerUnitSalePriceEditor(account,role),clients);
  if(old)holder.append(footer);
  form.onsubmit=async event=>{
   event.preventDefault();

@@ -1,3 +1,4 @@
+import {discountFromUnitPrice} from './unit-sale-price.mjs';
 /*
  * Minh Satori Account Ordering V2 — PURE pricing/ownership domain.
  * Does not access BotApi, Drive, private agency links or production invoices.
@@ -76,7 +77,8 @@ export function selectPolicy({profileId,addressId,code,policies=[],at=Date.now()
  ensure(best.collaboratorBps==null||(bps(best.collaboratorBps)&&
   best.collaboratorBps>=best.discountBps),'CTV_RATE_INVALID');
  return {discountBps:best.discountBps,collaboratorBps:best.collaboratorBps??null,
-  invoiceMode:best.invoiceMode,version:best.version,policyId:best.id||null};
+  invoiceMode:best.invoiceMode,version:best.version,policyId:best.id||null,
+  productCode:best.productCode??null,unitPriceVnd:best.unitPriceVnd??null};
 }
 function percentPrice(price,discountBps){
  // Per-unit VND rounding. Integer-only multiplication: price <= 1e9.
@@ -113,7 +115,15 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
   if(pair&&policy.invoiceMode!=='pair')throw new DomainError('MIXED_INVOICE_POLICY');
   if(policy.invoiceMode==='pair'&&pricedModeConflict(lines,policies,profile.id,address.id,at))throw new DomainError('MIXED_INVOICE_POLICY');
   if(policy.invoiceMode==='pair')pair=true;
-  const unitPrice=percentPrice(product.listPrice,policy.discountBps);
+  const exactPrice=policy.unitPriceVnd==null?null:Number(policy.unitPriceVnd);
+  if(exactPrice!==null){
+   ensure(policy.productCode===line.code,'EXACT_PRICE_SKU_REQUIRED');
+   ensure(Number.isSafeInteger(exactPrice)&&exactPrice>=0&&
+    exactPrice<=product.listPrice&&product.listPrice>0,'EXACT_PRICE_INVALID');
+   ensure(discountFromUnitPrice(product.listPrice,exactPrice)===policy.discountBps,
+    'EXACT_PRICE_RATE_STALE');
+  }
+  const unitPrice=exactPrice??percentPrice(product.listPrice,policy.discountBps);
   // A collaborator can have TWO approved discounts under ONE canonical invoice:
   // e.g. customer 20%, CTV 35% -> CTV earns the 15-point VND difference.
   // The quote and checkout still contain exactly ONE customer-facing invoice.
@@ -122,6 +132,7 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
   ensure(!singleCtv||policy.collaboratorBps>=policy.discountBps,'CTV_RATE_INVALID');
   const internalUnitPrice=(policy.invoiceMode==='pair'||singleCtv)?
    percentPrice(product.listPrice,policy.collaboratorBps):null;
+  ensure(internalUnitPrice===null||unitPrice>=internalUnitPrice,'CTV_MARGIN_NEGATIVE');
   goods+=unitPrice*line.qty;
   if(policy.invoiceMode==='pair'&&internalUnitPrice!=null)collabGoods+=internalUnitPrice*line.qty;
   if(singleCtv){
