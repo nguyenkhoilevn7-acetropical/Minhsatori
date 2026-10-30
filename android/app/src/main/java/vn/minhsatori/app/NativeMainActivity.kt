@@ -4061,8 +4061,14 @@ class NativeMainActivity : AppCompatActivity() {
             isClickable = true
             setOnClickListener { click() }
         }
-        parent.addView(icon, LinearLayout.LayoutParams(0, dp(51), 1f).apply {
-            marginEnd = dp(8)
+        // Branded sharing actions stay compact. Edit/Delete retain their wide touch targets.
+        val shareIcon = iconRes == R.drawable.ic_brand_zalo ||
+            iconRes == R.drawable.ic_brand_messenger
+        val shareWidth = if (shareIcon) dp(48) else 0
+        val shareHeight = if (shareIcon) dp(48) else dp(51)
+        val weight = if (shareIcon) 0f else 1f
+        parent.addView(icon, LinearLayout.LayoutParams(shareWidth, shareHeight, weight).apply {
+            marginEnd = if (iconRes == R.drawable.ic_brand_messenger) 0 else dp(8)
         })
     }
 
