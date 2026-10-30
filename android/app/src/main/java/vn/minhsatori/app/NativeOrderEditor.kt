@@ -91,7 +91,7 @@ object NativeOrderEditor {
             textSize = 12f
             isChecked = false
         }
-        page.addView(newBranch)
+        if (editing == null) page.addView(newBranch)
         action(a,page,"CHỌN KHÁCH / ĐỊA CHỈ GIAO"){
             AlertDialog.Builder(a).setTitle("Chọn đúng khách và điểm giao")
                 .setItems(profiles.map{
@@ -201,6 +201,9 @@ object NativeOrderEditor {
                         val listed=amount(it.listPrice.text.toString()).let{v->
                             if(v==0L)price else v
                         }
+                        require(listed>=price && listed<=10000000000L) {
+                            "Giá niêm yết phải lớn hơn hoặc bằng đơn giá bán."
+                        }
                         lines.put(JSONObject().put("product",product).put("code",it.code)
                             .put("qty",qty).put("unit",it.unit.text.toString().trim())
                             .put("unitPrice",price).put("listPrice",listed))
@@ -250,7 +253,13 @@ object NativeOrderEditor {
                         "Đơn có đánh dấu TEST chỉ được tạo trong môi trường thử, không lưu vào hóa đơn thật."
                     }
                     val preview=StringBuilder(if(editing==null)"TẠO HÓA ĐƠN" else "SỬA HÓA ĐƠN #"+editing.number)
-                        .append("\nKhách: ").append(cleanName)
+                    if (editing != null) {
+                        preview.append("\nTổng bill trước sửa: ")
+                            .append(SatoriData.money(editing.total))
+                        preview.append("\nTổng bill sau sửa: ")
+                            .append(SatoriData.money(sum))
+                    }
+                    preview.append("\nKhách: ").append(cleanName)
                         .append("\nSĐT: ").append(cleanPhone)
                         .append("\nGiao: ").append(cleanAddress)
                     for(i in 0 until lines.length()){
