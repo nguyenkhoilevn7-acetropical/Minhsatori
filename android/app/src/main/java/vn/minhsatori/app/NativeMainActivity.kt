@@ -1688,6 +1688,22 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
+        val marginRows = AccountingProMargin45.calculate(data.invoices)
+        val marginAll = AccountingProMargin45.summarize(
+            marginRows, AccountingProMargin45Period.all())
+        section(parent,
+            "TỔNG LÃI GỘP ƯỚC TÍNH · NHẬP CHIẾT KHẤU 45%: " +
+                (marginAll.estimatedMarginKnownVnd?.let(SatoriData::money)
+                    ?: "Chưa đủ dữ liệu"),
+            "Tính được " + marginAll.computedInvoiceCount + "/" +
+                marginAll.totalInvoiceCount + " hóa đơn hợp lệ có ngày đúng." +
+                (if (marginAll.missingInvoiceCount > 0)
+                    " Có " + marginAll.missingInvoiceCount + " bill chưa đủ giá/CTV." else "") +
+                " Chưa trừ phí giao thực, thuế và chi phí vận hành.")
+        button(parent, "XEM LÃI TỪNG BILL · LỌC NGÀY / THÁNG / NĂM",
+            false, R.drawable.ic_satori_debt) {
+            showAccountingProMarginPeriod(data)
+        }
         label(parent, "Truy cập nhanh", 15f, true, ink, 15)
         val row1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -2316,7 +2332,8 @@ class NativeMainActivity : AppCompatActivity() {
         }
 
     private fun invoiceQuickCard(parent: LinearLayout, invoice: SatoriInvoice,
-                                 fromDebt: Boolean = false) {
+                                 fromDebt: Boolean = false,
+                                 estimatedMargin: AccountingProMargin45Row? = null) {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(12), dp(13), dp(12))
@@ -2350,6 +2367,16 @@ class NativeMainActivity : AppCompatActivity() {
             Color.rgb(25, 104, 181))
         label(card, invoice.displayDate + "   •   " + invoice.status,
             11f, false, if (fromDebt) Color.rgb(181, 95, 6) else softInk, 8)
+        if (!invoice.isExcluded) {
+            val profit = estimatedMargin ?: AccountingProMargin45.calculate(
+                snapshot?.invoices.orEmpty()).firstOrNull {
+                    it.invoice.id == invoice.id && it.invoice.number == invoice.number
+                }
+            label(card, "Lãi gộp ước tính (giá nhập CK 45%): " +
+                (profit?.estimatedOwnerMarginVnd?.let(SatoriData::money)
+                    ?: "Chưa đủ dữ liệu"),
+                12.5f, true, invoiceMoneyRed, 7)
+        }
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
@@ -2507,6 +2534,8 @@ class NativeMainActivity : AppCompatActivity() {
         })
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         parent.addView(list)
+        val marginById = AccountingProMargin45.calculate(data.invoices)
+            .associateBy { it.invoice.id }
         fun updateList() {
             list.removeAllViews()
             val status = statuses[filter.selectedItemPosition.coerceIn(0, statuses.lastIndex)]
@@ -2518,7 +2547,7 @@ class NativeMainActivity : AppCompatActivity() {
                 (if (status != "Tất cả") " • " + status else ""),
                 11.5f, true, cyan, 7)
             matching.take(120).forEach { inv ->
-                invoiceQuickCard(list, inv)
+                invoiceQuickCard(list, inv, estimatedMargin = marginById[inv.id])
             }
             // Filter/search callbacks build cards *after* render(); normalize
             // prices here as well so old green inline TextViews cannot reappear.
@@ -3024,6 +3053,147 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     /**
+     * Filter estimated gross margin by invoice DATE, not payment timestamp.
+     * Uses only the already-synced ledger and 45%-off catalog price in invoice
+     * lines; excluded / unsafe invoices are never silently assigned zero profit.
+     */
+    private fun showAccountingProMarginPeriod(data: SatoriSnapshot) {
+        val marginRows=AccountingProMargin45.calculate(data.invoices)
+        val panel=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(14),dp(12),dp(14),dp(16))
+        }
+        label(panel,"LÃI GỘP ƯỚC TÍNH · CHIẾT KHẤU NHẬP 45%",
+            15f,true,ink)
+        label(panel,"Chỉ xem · Theo ngày lập hóa đơn · Chưa trừ chi phí vận hành",
+            11f,false,softInk,6)
+        val choices=listOf("Tất cả","Theo ngày","Theo tháng","Theo năm",
+            "Khoảng tùy chỉnh")
+        val periodChoice=darkSpinner(choices)
+        panel.addView(periodChoice, LinearLayout.LayoutParams(-1,dp(45)).apply {
+            topMargin=dp(8)
+        })
+        val fields=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        panel.addView(fields)
+        val inputs=mutableMapOf<String,EditText>()
+        val results=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(0,dp(6),0,dp(6))
+        }
+        val listScroll=ScrollView(this).apply { addView(results) }
+        panel.addView(listScroll, LinearLayout.LayoutParams(-1,
+            (resources.displayMetrics.heightPixels * 43 / 100).coerceAtLeast(dp(170))))
+        val today=java.time.LocalDate.now()
+        val todayIso=today.toString()
+
+        fun value(key:String)=inputs[key]?.text?.toString()?.trim().orEmpty()
+        fun redraw() {
+            results.removeAllViews()
+            val range=try {
+                when(periodChoice.selectedItemPosition.coerceIn(0,choices.lastIndex)) {
+                    1 -> AccountingProMargin45Period.day(java.time.LocalDate.parse(value("day")))
+                    2 -> java.time.YearMonth.parse(value("month")).let {
+                        AccountingProMargin45Period.month(it.year,it.monthValue) }
+                    3 -> AccountingProMargin45Period.year(value("year").toInt())
+                    4 -> AccountingProMargin45Period.custom(
+                        java.time.LocalDate.parse(value("from")),
+                        java.time.LocalDate.parse(value("to")))
+                    else -> AccountingProMargin45Period.all()
+                }
+            } catch (_: Exception) {
+                label(results,"Bộ lọc chưa đúng. Nhập ngày YYYY-MM-DD, " +
+                    "tháng YYYY-MM hoặc năm YYYY.",12f,true,invoiceMoneyRed,9)
+                return
+            }
+            val summary=AccountingProMargin45.summarize(marginRows,range)
+            section(results,"TỔNG LÃI GỘP ƯỚC TÍNH: " +
+                (summary.estimatedMarginKnownVnd?.let(SatoriData::money)
+                    ?: "Chưa đủ dữ liệu"),
+                range.title + " · Tính được " + summary.computedInvoiceCount +
+                    "/" + summary.totalInvoiceCount + " bill." +
+                    (if (summary.missingInvoiceCount>0)
+                        " Thiếu " + summary.missingInvoiceCount + " bill chưa xác minh." else "") +
+                    " Không phải lợi nhuận ròng.")
+            val filtered=marginRows.filter { range.includes(it.invoice) }
+            label(results,"HÓA ĐƠN TRONG KỲ (" + filtered.size + ")",
+                12f,true,cyan,12)
+            filtered.take(90).forEach { row ->
+                section(results,"#" + row.invoice.number + " · " + row.invoice.customer,
+                    row.invoice.displayDate + "\nTiền hàng: " +
+                    (row.saleGoodsVnd?.let(SatoriData::money) ?: "Chưa xác minh") +
+                    " · Vốn 55%: " +
+                    (row.estimatedPurchaseVnd?.let(SatoriData::money)
+                        ?: "Chưa xác minh") +
+                    "\nHoa hồng CTV: " +
+                    (row.estimatedCtvCommissionVnd?.let(SatoriData::money)
+                        ?: "Chưa xác minh") +
+                    "\nLãi gộp ước tính: " +
+                    (row.estimatedOwnerMarginVnd?.let(SatoriData::money)
+                        ?: "Chưa đủ dữ liệu") +
+                    (row.reason?.let { "\nCần rà soát: " + it } ?: ""))
+            }
+            if(summary.excludedInvalidDates>0)
+                label(results,"Có " + summary.excludedInvalidDates +
+                    " hóa đơn ngày sai, không đưa vào bất kỳ báo cáo thời gian nào.",
+                    11f,false,Color.rgb(175,94,0),10)
+            if(filtered.size>90)
+                label(results,"Đang giới hạn 90 bill, chọn kỳ ngắn hơn để xem tiếp.",
+                    11f,false,softInk,8)
+        }
+
+        fun addField(key:String,heading:String,initial:String) {
+            label(fields,heading,11.5f,true,softInk,8)
+            val field=EditText(this).apply {
+                setSingleLine(true)
+                setText(initial)
+                textSize=13f
+                setTextColor(ink)
+                background=panelBackground(Color.WHITE,10)
+                setPadding(dp(11),0,dp(11),0)
+                contentDescription=heading
+            }
+            fields.addView(field,LinearLayout.LayoutParams(-1,dp(43)).apply {
+                topMargin=dp(4)
+            })
+            inputs[key]=field
+            field.addTextChangedListener(object:TextWatcher {
+                override fun beforeTextChanged(s:CharSequence?,start:Int,
+                    count:Int,after:Int) {}
+                override fun onTextChanged(s:CharSequence?,start:Int,
+                    before:Int,count:Int) { redraw() }
+                override fun afterTextChanged(s:Editable?) {}
+            })
+        }
+        fun updateFields() {
+            fields.removeAllViews()
+            inputs.clear()
+            when(periodChoice.selectedItemPosition.coerceIn(0,choices.lastIndex)) {
+                1 -> addField("day","Ngày (YYYY-MM-DD)",todayIso)
+                2 -> addField("month","Tháng (YYYY-MM)",
+                    java.time.YearMonth.from(today).toString())
+                3 -> addField("year","Năm (YYYY)",today.year.toString())
+                4 -> {
+                    addField("from","Từ ngày (YYYY-MM-DD)",
+                        today.withDayOfMonth(1).toString())
+                    addField("to","Đến ngày (YYYY-MM-DD)",todayIso)
+                }
+            }
+            redraw()
+        }
+        periodChoice.onItemSelectedListener =
+            object:android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p:android.widget.AdapterView<*>?,
+                    v:View?,pos:Int,id:Long) { updateFields() }
+                override fun onNothingSelected(p:android.widget.AdapterView<*>?) {}
+            }
+        updateFields()
+        val scroll=ScrollView(this).apply { addView(panel) }
+        AlertDialog.Builder(this)
+            .setTitle("Accounting Pro · Lãi gộp theo kỳ")
+            .setView(scroll).setPositiveButton("Đóng",null).show()
+    }
+
+    /**
      * Owner Android-only CTV/profit readiness. No purchase-cost/commission
      * ledgers are available in the legacy snapshot, hence all real profit
      * numbers stay unknown instead of being inferred from discounts.
@@ -3048,8 +3218,21 @@ class NativeMainActivity : AppCompatActivity() {
         section(panel, "Dấu vết CTV cũ: " + summary.legacyCtvReferenceCount,
             "Cặp dữ liệu cần rà soát: " + summary.legacyPairsNeedingReviewCount +
                 " · ID chưa đáng tin cậy: " + summary.invalidInvoiceIdentityCount)
-        section(panel, "Lợi nhuận thực: CHƯA ĐỦ DỮ LIỆU",
-            "Chưa có giá nhập, chi phí giao thực, doanh thu chưa VAT và sổ hoa hồng đã duyệt.")
+        val grossMargin45 = AccountingProMargin45.summarize(
+            AccountingProMargin45.calculate(data.invoices), AccountingProMargin45Period.all())
+        section(panel, "LÃI GỘP ƯỚC TÍNH · CK NHẬP 45%: " +
+            (grossMargin45.estimatedMarginKnownVnd?.let(SatoriData::money)
+                ?: "Chưa đủ dữ liệu"),
+            "Đủ giá: " + grossMargin45.computedInvoiceCount + "/" +
+                grossMargin45.totalInvoiceCount +
+                " bill. Trừ hoa hồng CTV khi có dữ liệu đối chiếu." +
+                " Chưa trừ chi phí giao, thuế và vận hành.")
+        button(panel, "LỌC LÃI GỘP THEO NGÀY / THÁNG / NĂM",
+            false, R.drawable.ic_satori_debt) {
+            showAccountingProMarginPeriod(data)
+        }
+        section(panel, "Lợi nhuận ròng: CHƯA ĐỦ DỮ LIỆU",
+            "Lãi gộp ước tính chưa phải lợi nhuận ròng sau phí giao, thuế và vận hành.")
         section(panel, "Hoa hồng CTV phải trả: CHƯA XÁC MINH",
             "Không dùng chênh lệch giá hai bill lịch sử để tự ghi công nợ CTV.")
         if (summary.missingProductDetailCount > 0) {
@@ -3615,6 +3798,18 @@ class NativeMainActivity : AppCompatActivity() {
         label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true, cyan, 7)
         label(heading, SatoriData.money(invoice.total), 20f, true,
             Color.rgb(17, 133, 91), 8)
+        if (!invoice.isExcluded) {
+            val calculated=AccountingProMargin45.calculate(snapshot?.invoices.orEmpty())
+                .firstOrNull { it.invoice.id == invoice.id &&
+                    it.invoice.number == invoice.number }
+            label(heading, "LÃI GỘP ƯỚC TÍNH (CK NHẬP 45%): " +
+                (calculated?.estimatedOwnerMarginVnd?.let(SatoriData::money)
+                    ?: "Chưa đủ dữ liệu"),
+                13f, true, invoiceMoneyRed, 9)
+            label(heading, "Tiền hàng trừ giá vốn giả định và hoa hồng CTV nếu đủ dữ liệu; " +
+                "chưa trừ phí giao thực, thuế và chi phí vận hành.",
+                10.5f, false, softInk, 5)
+        }
         content.addView(heading)
         if (invoice.isTest) label(content,
             "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ",
