@@ -3900,6 +3900,7 @@ class NativeMainActivity : AppCompatActivity() {
             12f, false, softInk, 5)
         label(content, "TỔNG THANH TOÁN: " + SatoriData.money(invoice.total),
             18f, true, Color.rgb(17, 133, 91), 11)
+        // BEGIN_ACCOUNTING_PROFIT45_READ_ONLY
         // Never guess margin for duplicates, missing list price, VAT/ship
         // mismatch or internal CTV bills.
         val originalRows = snapshot?.invoices.orEmpty()
@@ -3940,6 +3941,7 @@ class NativeMainActivity : AppCompatActivity() {
                 (margin45.warning ?: "Cần xác minh bảng giá."),
                 11.5f, true, Color.rgb(175, 94, 0), 5)
         }
+        // END_ACCOUNTING_PROFIT45_READ_ONLY
         if (invoice.deliveryNote.isNotBlank()) {
             label(content, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, cyan, 13)
             label(content, invoice.deliveryNote, 13f, false, white, 5)
