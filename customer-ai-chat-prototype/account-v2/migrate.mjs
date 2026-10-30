@@ -44,7 +44,7 @@ try{
  await client.query(statements('migrations/20261025_owner_edits.sql'));
  await client.query(statements('migrations/20261025_policy_revision.sql'));
  await client.query(statements('migrations/20261025_customer_crm.sql'));
- await client.query(statements('migrations/20261030_legacy_multiple_delivery_leads.sql'));
+ // CRM connection works against existing UNIQUE(linked_account_id); no schema migration.
  await client.query(statements('migrations/20261028_canonical_checkout_journal.sql'));
  const expected=[
   'satori_v2_accounts','satori_v2_sessions','satori_v2_profiles',
@@ -59,19 +59,6 @@ try{
  if(expected.some(x=>!found.has(x)))throw Error('V2_SCHEMA_READBACK_FAILED');
  const crmTables=['satori_v2_registrations','satori_v2_customer_leads'];
  if(crmTables.some(x=>!found.has(x)))throw Error('V2_CRM_READBACK_FAILED');
- const linkedLeadUnique=await client.query(
-  "SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass "+
-  "AND contype='u' AND conname='satori_v2_customer_leads_linked_account_id_key'");
- if(linkedLeadUnique.rowCount!==0)throw Error('V2_MULTI_DELIVERY_LEAD_UNIQUE_STILL_PRESENT');
- const linkedLeadLookup=await client.query(
-  "SELECT 1 FROM pg_indexes WHERE schemaname=current_schema() "+
-  "AND tablename='satori_v2_customer_leads' "+
-  "AND indexname='satori_v2_customer_leads_linked_account_lookup_idx'");
- if(linkedLeadLookup.rowCount!==1)throw Error('V2_MULTI_DELIVERY_LOOKUP_INDEX_MISSING');
- const linkedLeadFk=await client.query(
-  "SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass "+
-  "AND contype='f' AND conname='satori_v2_customer_leads_linked_account_id_fkey'");
- if(linkedLeadFk.rowCount!==1)throw Error('V2_LEAD_GOOGLE_ACCOUNT_FK_MISSING');
  const ctvColumn=await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='satori_v2_customer_leads' AND column_name='collaborator_bps'");
  if(ctvColumn.rowCount!==1)throw Error('V2_CTV_LEAD_RATE_MIGRATION_FAILED');
  const stateColumns=await client.query(
