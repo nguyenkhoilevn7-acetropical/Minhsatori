@@ -48,16 +48,19 @@ test('owner can configure old Gmail without phone; normal registration keeps shi
  assert.throws(()=>validateCustomerProfile({...base,phone:'123'},{admin:true,phoneOptional:true}),/CUSTOMER_PHONE_INVALID/);
  assert.match(backend,/phoneOptional:true/);
  assert.match(backend,/if\(data\.phone\)await c\.query\('INSERT INTO satori_v2_registrations/);
- assert.match(js,/SĐT liên hệ \(tùy chọn\)/);
- assert.match(js,/\/api\/v2\/admin\/customer-leads','POST'/);
- assert.match(js,/\/api\/v2\/admin\/legacy\/activate-saved','POST'/);
- assert.match(js,/\/api\/v2\/admin\/legacy\/bind-history','POST'/);
+ assert.match(backend,/DELIVERY_IMPORT_PHONE_REQUIRED/);
+ assert.match(js,/Sổ cũ chưa có số điện thoại hợp lệ/);
+ assert.match(js,/phoneOverride:x\.phone\.value\.trim\(\)/);
+ assert.match(js,/\/api\/v2\/admin\/legacy\/import-delivery-points','POST'/);
+ assert.doesNotMatch(js,/\/api\/v2\/admin\/legacy\/activate-saved','POST'/);
+ assert.doesNotMatch(js,/\/api\/v2\/admin\/legacy\/bind-history','POST'/);
 });
 
 test('linking never uses a phone number or matching names as identity proof',()=>{
  assert.match(backend,/LEGACY_VERIFIED_GMAIL_MISMATCH/);
  assert.match(backend,/LEAD_LINKED_TO_ANOTHER_ACCOUNT/);
  assert.match(backend,/LEGACY_INVOICE_ALREADY_OWNED/);
- assert.match(js,/target\.email\.toLowerCase\(\)!==String\(item\.email\|\|''\)\.toLowerCase\(\)/);
+ assert.match(js,/identityConfirmed:true/);
+ assert.match(backend,/DELIVERY_IMPORT_GOOGLE_ACCOUNT_NOT_VERIFIED/);
  assert.doesNotMatch(backend,/check\(phone,'LEGACY_BIND_MISSING_CONTACT'/);
 });
