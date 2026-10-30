@@ -2936,8 +2936,9 @@ class NativeMainActivity : AppCompatActivity() {
             topMargin = dp(10)
         })
         val periodText = label(panel, "", 12f, true, ink, 8)
+        // Full-width date controls stack safely on narrow Fold outer displays.
         val dateButtons = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = LinearLayout.VERTICAL
             setPadding(0, dp(3), 0, dp(5))
         }
         panel.addView(dateButtons)
@@ -3265,6 +3266,10 @@ class NativeMainActivity : AppCompatActivity() {
             "Chưa có giá nhập, chi phí giao thực, doanh thu chưa VAT và sổ hoa hồng đã duyệt.")
         section(panel, "Hoa hồng CTV phải trả: CHƯA XÁC MINH",
             "Không dùng chênh lệch giá hai bill lịch sử để tự ghi công nợ CTV.")
+        button(panel, "XEM LÃI HÀNG CK 45% · LỌC NGÀY / THÁNG / NĂM",
+            false, R.drawable.ic_satori_debt) {
+            showAccountingProProfit45Report(data)
+        }
         if (summary.missingProductDetailCount > 0) {
             section(panel, "Thiếu chi tiết sản phẩm: " + summary.missingProductDetailCount,
                 "Cần kiểm tra danh mục hoặc dòng hàng gốc; không tự bổ sung giá vốn.")
