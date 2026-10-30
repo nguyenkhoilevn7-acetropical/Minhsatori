@@ -2356,6 +2356,66 @@ class NativeMainActivity : AppCompatActivity() {
         card.addView(caption, (card.childCount - 1).coerceAtLeast(0))
     }
 
+    /**
+     * Native edit entrypoint, never a local ledger mutation. The button on
+     * each card must open the editor directly when the owner API is available,
+     * and give actionable connection steps instead of silently doing nothing.
+     */
+    private fun requestInvoiceEdit(original: SatoriInvoice) {
+        val latest = snapshot?.invoices?.singleOrNull { current ->
+            current.id == original.id && current.number == original.number
+        }
+        if (latest == null || latest != original) {
+            AlertDialog.Builder(this)
+                .setTitle("Hóa đơn đã thay đổi")
+                .setMessage("Không xác minh được đúng bản hóa đơn hiện tại. " +
+                    "Đồng bộ lại trước khi sửa để tránh ghi đè dữ liệu mới.")
+                .setNegativeButton("Đóng", null)
+                .setPositiveButton("Đồng bộ") { _, _ -> syncPreferredSource() }
+                .show()
+            return
+        }
+        if (!latest.canEditOrDelete || latest.number.toIntOrNull()?.takeIf { it > 0 } == null) {
+            AlertDialog.Builder(this)
+                .setTitle("Hóa đơn không được phép sửa")
+                .setMessage("Chỉ sửa hóa đơn chưa thanh toán, chưa đối soát, không phải " +
+                    "bản nội bộ CTV hoặc hóa đơn đã hủy.")
+                .setPositiveButton("Đóng", null).show()
+            return
+        }
+        val identity = snapshot?.let { data ->
+            AccountingProReadOnly.invoiceRows(data.invoices)
+                .singleOrNull { row -> row.invoice === latest }
+        }
+        if (identity?.identityReliable != true) {
+            AlertDialog.Builder(this)
+                .setTitle("Mã hóa đơn cần đối chiếu")
+                .setMessage("ID hoặc số hóa đơn trùng/không đáng tin cậy. " +
+                    "Tạm khóa sửa để không ghi vào hóa đơn khác.")
+                .setPositiveButton("Đóng", null).show()
+            return
+        }
+        if (!canAction("orders.update")) {
+            val reason = when {
+                apiEndpoint == null -> "Chưa cấu hình Mobile API quản trị."
+                pendingWrite != null || pendingStorageError ->
+                    "Đang có thao tác ghi chưa được xác minh. Hãy đối chiếu trước."
+                dataSource != "Minh Satori API" ->
+                    "Đang ở chế độ xem Google Drive, không có quyền ghi."
+                else -> "Mobile API chưa cấp quyền orders.update cho chủ tài khoản."
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Kết nối quyền sửa hóa đơn")
+                .setMessage(reason + "\n\nSửa hóa đơn thật phải qua Mobile API " +
+                    "đã xác thực Google Owner. Không ghi trực tiếp vào Drive.")
+                .setNegativeButton("Đóng", null)
+                .setPositiveButton("Kết nối / Kiểm tra") { _, _ -> showConnectionSettings() }
+                .show()
+            return
+        }
+        launchEditor(editing = latest)
+    }
+
     private fun invoiceQuickCard(parent: LinearLayout, invoice: SatoriInvoice,
                                  fromDebt: Boolean = false) {
         val card = LinearLayout(this).apply {
@@ -2400,7 +2460,7 @@ class NativeMainActivity : AppCompatActivity() {
             LinearLayout.LayoutParams(0, dp(38), 1f))
         if (invoice.canEditOrDelete) {
             actions.addView(compactAction("Sửa", cyan) {
-                openInvoice(invoice)
+                requestInvoiceEdit(invoice)
             }, LinearLayout.LayoutParams(-2, dp(38)).apply { marginStart = dp(8) })
         }
         if (invoice.canEditOrDelete) {

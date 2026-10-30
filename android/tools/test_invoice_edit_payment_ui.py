@@ -22,6 +22,30 @@ class OwnerInvoiceEditPaymentContract(unittest.TestCase):
         self.assertIn('showConnectionSettings()', detail)
         self.assertIn('launchEditor(editing = invoice)', detail)
 
+    def test_card_edit_opens_real_editor_only_after_server_authorization(self):
+        card = UI.split("private fun invoiceQuickCard(", 1)[1].split(
+            "private fun confirmSoftDelete(", 1)[0]
+        self.assertIn('compactAction("Sửa", cyan)', card)
+        self.assertIn("requestInvoiceEdit(invoice)", card)
+        self.assertIn("openInvoice(invoice)", card)
+        guard = UI.split("private fun requestInvoiceEdit(", 1)[1].split(
+            "private fun invoiceQuickCard(", 1)[0]
+        self.assertIn("singleOrNull", guard)
+        self.assertIn("identityReliable", guard)
+        self.assertIn("latest.canEditOrDelete", guard)
+        self.assertIn('canAction("orders.update")', guard)
+        self.assertIn("showConnectionSettings()", guard)
+        self.assertIn("launchEditor(editing = latest)", guard)
+        self.assertNotIn("executeWrite(", guard)
+
+    def test_edit_confirmation_preserves_original_invoice_and_checks_catalogue(self):
+        self.assertIn("Tổng bill trước sửa:", EDITOR)
+        self.assertIn("Tổng bill sau sửa:", EDITOR)
+        self.assertIn("require(listed>=price", EDITOR)
+        self.assertIn("if (editing == null) page.addView(newBranch)", EDITOR)
+        self.assertIn('payload.put("id",editing.id)', EDITOR)
+        self.assertIn('expectedRevision",state.revision', EDITOR)
+
     def test_independent_payment_actions_visible_but_never_bypass_permission(self):
         detail = UI.split("private fun openInvoice(", 1)[1].split("private fun configureMobileApi(", 1)[0]
         for action in ("payments.markCustomerPaid", "payments.markCustomerUnpaid",
