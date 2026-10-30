@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID,createHmac} from 'node:crypto';
 import pg from 'pg';
+import {readFileSync} from 'node:fs';
 import {ctvClientWrite,ctvClientList} from '../router.mjs';
 import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,
  adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer,
@@ -23,6 +24,22 @@ const form={
  requestedType:'agency',email:'oldagency@example.invalid'
 };
 try{
+ // Verify migration rollback and FK preservation against an actual PostgreSQL DB.
+ const migration=readFileSync(new URL('../migrations/20261030_legacy_multiple_delivery_leads.sql',import.meta.url),'utf8');
+ const connection=await pool.connect();
+ try{
+  await connection.query('ALTER TABLE satori_v2_customer_leads ADD CONSTRAINT satori_v2_customer_leads_linked_account_id_key UNIQUE(linked_account_id)');
+  await connection.query('BEGIN');
+  await connection.query(migration.replace(/^\s*(?:BEGIN|COMMIT)\s*;\s*$/gmi,''));
+  await connection.query('ROLLBACK');
+  const restored=await connection.query("SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass AND conname='satori_v2_customer_leads_linked_account_id_key'");
+  assert.equal(restored.rowCount,1,'transaction rollback restores original uniqueness');
+  await connection.query(migration);await connection.query(migration);
+  const removed=await connection.query("SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass AND conname='satori_v2_customer_leads_linked_account_id_key'");
+  assert.equal(removed.rowCount,0,'migration is idempotent');
+  const fk=await connection.query("SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass AND confrelid='satori_v2_accounts'::regclass AND contype='f'");
+  assert.equal(fk.rowCount,1,'Google account foreign key remains enforced');
+ }finally{connection.release()}
  const owner=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
   "VALUES($1,'owner@demo.invalid','ACTIVE') RETURNING id,google_sub",
   ['ci-owner-'+randomUUID()]);

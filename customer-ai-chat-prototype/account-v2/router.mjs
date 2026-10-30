@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {classifyCrmFailure,crmFailureLog} from './crm-failure.mjs';
 import {fileURLToPath} from 'node:url';
 import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
 import {interpretLegacyOrder} from './legacy-interpret.mjs';
@@ -1099,6 +1100,12 @@ export async function handleAccountV2(req,res,pathname){
   send(res,404,{ok:false,error:'NOT_FOUND'});return true;
  }catch(e){
   const known=e instanceof ApiError||e instanceof DomainError||e instanceof CrmError;
+  if(!known&&pathname.startsWith('/api/v2/admin/legacy/')){
+   const failure=classifyCrmFailure(e),requestId=crypto.randomUUID();
+   console.error(JSON.stringify(crmFailureLog(e,{requestId,route:pathname,code:failure.code})));
+   send(res,failure.status,{ok:false,error:failure.code,message:failure.message,requestId});
+   return true;
+  }
   const status=e instanceof ApiError||e instanceof CrmError?e.status:e instanceof DomainError?409:503;
   send(res,status,{ok:false,error:known?e.code:'ACCOUNT_V2_UNAVAILABLE',
    message:known?e.message:'Hệ thống mới hiện chưa sẵn sàng; dữ liệu cũ không bị ảnh hưởng.'});
