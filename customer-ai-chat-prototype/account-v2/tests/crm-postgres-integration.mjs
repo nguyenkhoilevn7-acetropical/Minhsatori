@@ -8,7 +8,7 @@ import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatu
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
  legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
  adminReconcileVerifiedLegacyPending,ownerActivateSavedGmail,
- ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,legacyAddressDirectory} from '../customer-backend.mjs';
+ ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,legacyAddressDirectory,ownerArchiveImportedDuplicateLeads} from '../customer-backend.mjs';
 
 const url=process.env.SATORI_V2_CI_DATABASE_URL||'';
 assert.ok(url.includes('127.0.0.1')&&url.endsWith('/satori_v2_ci'),
@@ -670,6 +670,44 @@ try{
  assert.equal(activeDestinations.rowCount,5,'six leads, five unique delivery addresses');
  assert.equal(activeDestinations.rows.find(x=>x.address==='42 Existing Delivery Road').recipient_phone,
   '0900000201','latest created contact is preferred');
+
+ // Test that duplicate OLD leads are archived while imported CTV deliveries remain.
+ const leadState=await pool.query('SELECT id,revision,active,linked_account_id FROM satori_v2_customer_leads WHERE lower(email)=lower($1)',[activeEmail]);
+ const linkedOld=leadState.rows.filter(x=>x.linked_account_id===existingAccount.id);
+ const surplus=leadState.rows.filter(x=>!x.linked_account_id);
+ assert.equal(linkedOld.length,1);
+ assert.equal(surplus.length,5);
+ const cleaned=await ownerArchiveImportedDuplicateLeads(pool,owner,{
+  confirmed:true,accountId:existingAccount.id,
+  leads:surplus.map(x=>({id:x.id,expectedRevision:x.revision}))
+ });
+ assert.equal(cleaned.archivedCount,5);
+ assert.equal(cleaned.skipped.length,0);
+ const leadsAfter=await pool.query('SELECT id,active FROM satori_v2_customer_leads WHERE lower(email)=lower($1)',[activeEmail]);
+ assert.equal(leadsAfter.rowCount,6,'no lead rows deleted');
+ assert.equal(leadsAfter.rows.filter(x=>x.active).length,1);
+ assert.equal(leadsAfter.rows.find(x=>x.id===linkedOld[0].id).active,true);
+ const preservedGoogle=await one('SELECT access_status FROM satori_v2_accounts WHERE id=$1',[existingAccount.id]);
+ assert.equal(preservedGoogle.access_status,'ACTIVE');
+ const preservedAddresses=await one('SELECT count(*)::int AS n FROM satori_v2_addresses WHERE profile_id=$1 AND active=true',[existingProfile.id]);
+ assert.equal(preservedAddresses.n,5);
+ const protectedLead=await ownerArchiveImportedDuplicateLeads(pool,owner,{
+  confirmed:true,accountId:existingAccount.id,
+  leads:[{id:linkedOld[0].id,expectedRevision:linkedOld[0].revision}]
+ });
+ assert.equal(protectedLead.archivedCount,0);
+ assert.equal(protectedLead.skipped[0].reason,'CANONICAL_LEAD_PROTECTED');
+ const neverImported=await adminCreateLead(pool,owner.id,{
+  ...form,email:activeEmail,fullName:'Distinct CTV Destination',
+  phone:'0900000998',address:'Distinct Never Imported Road',
+  requestedType:'collaborator',discountBps:2000,collaboratorBps:3500,confirmed:true
+ });
+ const rejectedMissingAddress=await ownerArchiveImportedDuplicateLeads(pool,owner,{
+  confirmed:true,accountId:existingAccount.id,
+  leads:[{id:neverImported.lead.id,expectedRevision:neverImported.lead.revision}]
+ });
+ assert.equal(rejectedMissingAddress.archivedCount,0);
+ assert.equal(rejectedMissingAddress.skipped[0].reason,'DELIVERY_ADDRESS_NOT_IMPORTED');
  // Active accounts with existing V2 ordering history cannot be silently
  // reclassified with a different role or price, even by matching Gmail.
  const usedEmail='active-has-orders@example.invalid',usedLead=await adminCreateLead(pool,owner.id,{

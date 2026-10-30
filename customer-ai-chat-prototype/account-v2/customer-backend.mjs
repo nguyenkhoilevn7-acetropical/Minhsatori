@@ -135,6 +135,88 @@ export async function adminPatchLead(pool,ownerId,input){
   return {ok:true,lead:r.rows[0]};
  });
 }
+
+/**
+ * Archive ONLY leftover CRM contact cards already represented by active
+ * delivery addresses on the SAME verified Google account.
+ * Never delete or deactivate Google accounts, profiles, delivery addresses,
+ * CTV client entries, signed invoices, payments, or historical audit rows.
+ *
+ * The old schema permits a single linked lead FK per account: preserve it.
+ * Other old delivery leads remain recoverable as inactive CRM records.
+ */
+export async function ownerArchiveImportedDuplicateLeads(pool,owner,input){
+ check(input?.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
+ check(isUuid(input?.accountId)&&input.accountId!==owner?.id,'CUSTOMER_ACCOUNT_INVALID');
+ const entries=input?.leads;
+ check(Array.isArray(entries)&&entries.length>=1&&entries.length<=50,
+  'DUPLICATE_LEADS_SELECTION_INVALID');
+ const ids=new Set();
+ for(const x of entries){
+  check(isUuid(x?.id)&&isRev(x?.expectedRevision),'LEAD_REVISION_REQUIRED');
+  check(!ids.has(x.id),'DUPLICATE_LEAD_ID_REPEATED',409);
+  ids.add(x.id);
+ }
+ return tx(pool,async c=>{
+  const account=await c.query("SELECT id,email,access_status FROM satori_v2_accounts "+
+   "WHERE id=$1 FOR UPDATE",[input.accountId]);
+  check(account.rowCount===1&&account.rows[0].access_status==='ACTIVE',
+   'VERIFIED_ACTIVE_ACCOUNT_REQUIRED',409);
+  const email=String(account.rows[0].email||'').trim().toLowerCase();
+  check(email,'VERIFIED_GMAIL_REQUIRED',409);
+  // Duplicate or conflicting Google identities must NOT authorize CRM deletion.
+  const duplicates=await c.query('SELECT id FROM satori_v2_accounts '+
+   'WHERE lower(email)=lower($1) AND id<>$2 LIMIT 1',[email,input.accountId]);
+  check(duplicates.rowCount===0,'LEGACY_GMAIL_AMBIGUOUS',409);
+  const addresses=await c.query('SELECT a.address,p.type FROM satori_v2_addresses a '+
+   'JOIN satori_v2_profiles p ON p.id=a.profile_id '+
+   'WHERE p.account_id=$1 AND a.active=true',[input.accountId]);
+  const importedByRole=new Map();
+  for(const row of addresses.rows){
+   const key=normalizedDeliveryAddress(row.address);
+   if(!key)continue;
+   if(!importedByRole.has(row.type))importedByRole.set(row.type,new Set());
+   importedByRole.get(row.type).add(key);
+  }
+  check(addresses.rowCount>0,'NO_IMPORTED_DELIVERY_ADDRESSES',409);
+  const rows=await c.query('SELECT id,revision,active,email,address,requested_type,linked_account_id '+
+   'FROM satori_v2_customer_leads WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+   [[...ids]]);
+  check(rows.rowCount===entries.length,'LEAD_NOT_FOUND',404);
+  const expected=new Map(entries.map(x=>[x.id,x.expectedRevision]));
+  const skipped=[];
+  const archived=[];
+  for(const lead of rows.rows){
+   check(lead.revision===expected.get(lead.id),'LEAD_REVISION_CONFLICT',409);
+   check(String(lead.email||'').trim().toLowerCase()===email,
+    'LEAD_GMAIL_ACCOUNT_MISMATCH',409);
+   check(!lead.linked_account_id||lead.linked_account_id===input.accountId,
+    'LEAD_LINKED_TO_ANOTHER_ACCOUNT',409);
+   // The canonical lead FK is an ownership reference: never archive it in a
+   // duplicate-cleanup operation.
+   if(lead.linked_account_id){skipped.push({id:lead.id,reason:'CANONICAL_LEAD_PROTECTED'});continue}
+   if(!lead.active){skipped.push({id:lead.id,reason:'ALREADY_ARCHIVED'});continue}
+   const addressKey=normalizedDeliveryAddress(lead.address);
+   if(!addressKey||!importedByRole.get(lead.requested_type)?.has(addressKey)){
+    skipped.push({id:lead.id,reason:'DELIVERY_ADDRESS_NOT_IMPORTED'});continue;
+   }
+   const updated=await c.query('UPDATE satori_v2_customer_leads '+
+    'SET active=false,revision=revision+1,updated_at=now() '+
+    'WHERE id=$1 AND revision=$2 AND active=true AND linked_account_id IS NULL '+
+    'RETURNING id',[lead.id,lead.revision]);
+   check(updated.rowCount===1,'LEAD_REVISION_CONFLICT',409);
+   await audit(c,owner.id,'CUSTOMER_LEAD_IMPORTED_DUPLICATE_ARCHIVED',lead.id,{
+    accountId:input.accountId,normalizedAddress:addressKey,
+    reversible:true,invoiceHistoryUnchanged:true
+   });
+   archived.push(lead.id);
+  }
+  return {ok:true,accountId:input.accountId,archivedCount:archived.length,
+   archivedLeadIds:archived,skipped,keptLinkedAccount:true,
+   invoicesUnchanged:true};
+ });
+}
+
 async function applyGeneralDiscount(c,profileId,ownerSub,discountBps,collaboratorBps=null){
  const versions=await c.query('SELECT COALESCE(MAX(version),0)+1 AS version FROM satori_v2_policies '+
   'WHERE profile_id=$1 AND address_id IS NULL AND product_code IS NULL',[profileId]);
