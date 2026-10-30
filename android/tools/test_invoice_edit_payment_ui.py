@@ -16,7 +16,7 @@ BOT = (ROOT / "api/BotApi.gs").read_text(encoding="utf-8")
 class OwnerInvoiceEditPaymentContract(unittest.TestCase):
     def test_edit_button_is_visible_on_eligible_invoice_before_api_authorization(self):
         detail = UI.split("private fun openInvoice(", 1)[1].split("private fun configureMobileApi(", 1)[0]
-        self.assertIn('if (invoice.canEditOrDelete)', detail)
+        self.assertIn('if (invoice.canEditOrDelete && validInvoiceNumber != null)', detail)
         self.assertIn('invoiceMiniAction(actions, R.drawable.ic_satori_edit', detail)
         self.assertIn('if (!canAction("orders.update"))', detail)
         self.assertIn('showConnectionSettings()', detail)
