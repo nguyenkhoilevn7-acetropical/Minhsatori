@@ -41,8 +41,8 @@ class SalesKpiAndRedAmounts(unittest.TestCase):
 
     def test_upgrades_existing_app_without_modifying_payment_or_pdf_routes(self):
         self.assertIn('applicationId = "vn.minhsatori.app"',GRADLE)
-        self.assertIn('versionCode = 42',GRADLE)
-        self.assertIn('versionName = "0.4.25"',GRADLE)
+        self.assertIn('versionCode = 43',GRADLE)
+        self.assertIn('versionName = "0.4.26"',GRADLE)
         for method in ['confirmInvoicePayment','confirmSoftDelete','executeWrite',
                        'launchEditor','recoverDriveAccessUsingOwnerApi',
                        'openInvoice','invoiceQuickCard']:
