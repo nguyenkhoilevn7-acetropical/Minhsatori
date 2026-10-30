@@ -2296,7 +2296,9 @@ function invoiceDateLabel(value){
  }).format(date);
 }
 function invoiceLegacyDate(value){
- const match=String(value||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+ const raw=String(value||'').trim();
+ if(/^\d{4}-\d{2}-\d{2}$/.test(raw))return raw;
+ const match=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
  if(!match)return null;
  const year=Number(match[3]),month=Number(match[2]),day=Number(match[1]);
  const iso=String(year).padStart(4,'0')+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
@@ -2338,7 +2340,7 @@ function invoiceCard(order,{historical=false}={}){
   invoiceDateLabel(order.orderedAt);
  const when=node('div',undefined,'invoice-order-meta');
  when.append(node('strong','Ngày đặt: '),document.createTextNode(orderedAt));profile.append(when);
- const address=historical?order.location:order.delivery?.address;
+ const address=historical?order.address:order.delivery?.address;
  if(address){
   const location=node('div',undefined,'invoice-order-meta');
   location.append(node('strong','Giao đến: '),document.createTextNode(String(address)));
@@ -2366,7 +2368,7 @@ function invoiceCard(order,{historical=false}={}){
  }
  const footer=node('div',undefined,'invoice-order-footer');
  const total=node('div');
- total.append(node('div','TỔNG THANH TOÁN','invoice-order-total-label'),
+ total.append(node('div',historical||verified?'TỔNG THANH TOÁN':'TỔNG BÁO GIÁ V2','invoice-order-total-label'),
   node('div',money(Number(historical?order.totalVnd:verified?order.receipt?.totalVnd:order.totalVnd)||0),'invoice-order-total'));
  footer.append(total);
  if(!historical&&['UNCERTAIN','RELAY_PENDING'].includes(order.state)&&realCheckoutEnabled){
