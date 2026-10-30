@@ -14,6 +14,8 @@ test('itemized invoice is a separate accessible V2 screen, not a Gemini chat car
  assert.match(html,/id="invoiceDetailBody"/);
  assert.match(inline,/const views=\[[^\]]*'invoiceDetail'/);
  assert.match(receipt,/view\('invoiceDetail'\)/);
+ assert.doesNotMatch(receipt,/field\(information,'Mã yêu cầu',order\.requestId\)/);
+ assert.match(receipt,/field\(information,'Người nhận',order\.delivery\?\.recipientName\)/);
  assert.match(receipt,/\$\('invoiceDetailBody'\)/);
  assert.doesNotMatch(receipt,/\$\('messages'\)|chat-canonical-receipt|view\('chat'\)/);
  assert.match(inline,/Xem chi tiết hóa đơn/);

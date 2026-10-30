@@ -2228,7 +2228,6 @@ function showCommittedReceipt(order){
   dateStyle:'short',timeStyle:'short',timeZone:'Asia/Ho_Chi_Minh'
  }).format(new Date(dt)):'Chưa có thời gian';
  field(information,'Thời gian đặt hàng V2',date);
- field(information,'Mã yêu cầu',order.requestId);
  field(information,'Người nhận',order.delivery?.recipientName);
  field(information,'Số điện thoại',order.delivery?.recipientPhone);
  field(information,'Địa chỉ giao hàng',order.delivery?.address);
