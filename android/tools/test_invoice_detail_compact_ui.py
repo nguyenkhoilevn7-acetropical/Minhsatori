@@ -50,11 +50,28 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn('contentDescription = title', helper)
         self.assertIn('tooltipText = title', helper)
         self.assertIn('setOnClickListener { click() }', helper)
+        self.assertIn('val shareIcon = iconRes == R.drawable.ic_brand_zalo', helper)
+        self.assertIn('iconRes == R.drawable.ic_brand_messenger', helper)
+        self.assertIn('val shareWidth = if (shareIcon) dp(48) else 0', helper)
+        self.assertIn('val shareHeight = if (shareIcon) dp(48) else dp(51)', helper)
         for name in ("zalo", "messenger"):
             vector = (DRAWABLE / f"ic_brand_{name}.xml").read_text(encoding="utf-8")
             self.assertIn('<vector', vector)
             self.assertIn('android:pathData=', vector)
             self.assertIn('android:fillColor="#FFFFFFFF"', vector)
+
+    def test_zalo_vector_uses_android_safe_polygon_not_svg_arc_flags(self):
+        import re
+        from xml.etree import ElementTree as ET
+        path = DRAWABLE / "ic_brand_zalo.xml"
+        root = ET.fromstring(path.read_text(encoding="utf-8"))
+        name = "{http://schemas.android.com/apk/res/android}"
+        paths = root.findall("path")
+        self.assertEqual(len(paths), 1)
+        data = paths[0].attrib.get(name + "pathData", "")
+        self.assertGreater(data.count("L"), 70)
+        self.assertEqual(paths[0].attrib.get(name + "fillType"), "evenOdd")
+        self.assertNotRegex(data, r"[Aa]")  # no ambiguous SVG arc syntax
 
 
 if __name__ == "__main__":
