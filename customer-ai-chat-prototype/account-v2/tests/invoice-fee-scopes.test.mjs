@@ -28,7 +28,7 @@ test('deny unapproved, orphan IDs, duplicate IDs, invalid scope and invalid amou
   req({shipping:{scope:'all',amountVnd:1.5,addressIds:[]}}),
   req({shipping:{scope:'selected',amountVnd:20000,addressIds:['other']}})
  ];
- for(const input of bad)assert.throws(()=>validateInvoiceFeePolicy(input),input);
+ for(const input of bad)assert.throws(()=>validateInvoiceFeePolicy(input),/CHARGE_/);
 });
 test('saved scopes are revisioned and checked against current active profile addresses',async()=>{
  const journal=[];
