@@ -40,6 +40,28 @@ class AccountingProIsolationTest(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, source)
 
+    def test_owner_profit45_uses_historical_list_cost_and_has_all_period_filters(self):
+        source = (KOTLIN / "AccountingProMargin45.kt").read_text(encoding="utf-8")
+        self.assertIn("SUPPLIER_DISCOUNT_PERCENT = 45", source)
+        self.assertIn("invoice.lines", source)
+        self.assertIn("discounted(pair.second,SUPPLIER_DISCOUNT_PERCENT)", source)
+        self.assertIn("AccountingProReadOnly.invoiceRows(invoices)", source)
+        self.assertIn("estimatedOwnerMarginVnd", source)
+        self.assertIn("fun day(", source)
+        self.assertIn("fun month(", source)
+        self.assertIn("fun year(", source)
+        self.assertIn("fun custom(", source)
+        for forbidden in ("HttpURLConnection", "OkHttp", "Retrofit",
+                          "orders.create", "payments.mark", "writeInvoice(",
+                          "sendEmail(", "SharedPreferences", "FileOutputStream"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
+        ui = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("TỔNG LÃI GỘP ƯỚC TÍNH", ui)
+        self.assertIn("private fun showAccountingProMarginPeriod(data: SatoriSnapshot)", ui)
+        self.assertIn("Lãi gộp ước tính (CK nhập 45%)", ui)
+        self.assertIn("LÃI GỘP ƯỚC TÍNH", ui)
+
     def test_document_review_is_metadata_only_without_email_or_tax_writers(self):
         model = (KOTLIN / "AccountingProDocumentAudit.kt").read_text(encoding="utf-8")
         self.assertIn("NOT_AVAILABLE_IN_SNAPSHOT", model)
