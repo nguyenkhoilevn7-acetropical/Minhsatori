@@ -2888,7 +2888,7 @@ class NativeMainActivity : AppCompatActivity() {
                 textSize = 15f
                 setSingleLine(true)
                 inputType = InputType.TYPE_CLASS_NUMBER
-                filters = arrayOf(android.text.InputFilter.LengthFilter(16))
+                filters = arrayOf<android.text.InputFilter>(android.text.InputFilter.LengthFilter(16))
                 setTextColor(ink)
                 setHintTextColor(softInk)
                 setPadding(dp(12), 0, dp(12), 0)
