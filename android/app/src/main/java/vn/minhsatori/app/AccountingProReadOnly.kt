@@ -1,11 +1,12 @@
 package vn.minhsatori.app
 
 /**
- * Phase 1, display-only Accounting Pro projection over the existing canonical
- * snapshot. No network, no DB, no payment writes, and no inferred instalments.
+ * Android Accounting Pro, phase 1–2: pure read-only projection of the CURRENT
+ * canonical invoice snapshot. No local bank feed, payment allocation or
+ * write-capable integration is constructed by this module.
  *
- * The old ledger has customer/Satori paid FLAGS, not an allocated cash ledger.
- * The numbers below are explicitly "by legacy flag", never bank-confirmed cash.
+ * Customer and Satori flags are independent. A customer flag is NOT proof of
+ * bank settlement, and an unpaid flag is NOT an accurate partial-payment due.
  */
 data class AccountingProReadOnlySummary(
     val activeInvoiceCount: Int,
@@ -20,16 +21,47 @@ data class AccountingProReadOnlySummary(
     val unpaidByLegacyFlags: Long?
 )
 
+data class AccountingProInvoiceReview(
+    val invoice: SatoriInvoice,
+    val identityReliable: Boolean,
+    val reason: String
+) {
+    val needsIdentityReview: Boolean get() = !identityReliable
+    val needsDateReview: Boolean get() = !invoice.hasValidDate
+    val pendingCustomerFlag: Boolean get() = !invoice.customerHasPaid
+    val pendingSatoriFlag: Boolean get() = !invoice.satoriHasPaid
+}
+
 object AccountingProReadOnly {
-    fun summarize(invoices: List<SatoriInvoice>): AccountingProReadOnlySummary {
+    /**
+     * One row per active invoice, never aggregated by matching human names.
+     * Duplicate invoice numbers OR immutable IDs are marked unsafe rather than
+     * silently selected, even when the amounts happen to match.
+     */
+    fun invoiceRows(invoices: List<SatoriInvoice>): List<AccountingProInvoiceReview> {
         val active = invoices.filterNot { it.isExcluded }
         val numbers = active.groupingBy { it.number.trim() }.eachCount()
         val ids = active.groupingBy { it.id.trim() }.eachCount()
-        val questionable = active.count { row ->
-            row.id.isBlank() || row.id.startsWith("row-") ||
-                row.number.toLongOrNull()?.let { it <= 0L } != false ||
-                numbers[row.number.trim()] != 1 || ids[row.id.trim()] != 1
-        }
+        return active.map { invoice ->
+            val id = invoice.id.trim()
+            val number = invoice.number.trim()
+            val reason = when {
+                id.isBlank() || id.startsWith("row-") -> "ID hóa đơn gốc thiếu/chỉ là giá trị tạm."
+                number.toLongOrNull()?.let { it > 0L } != true ->
+                    "Số hóa đơn gốc không hợp lệ."
+                numbers[number] != 1 -> "Số hóa đơn trùng trong dữ liệu đang xem."
+                ids[id] != 1 -> "ID hóa đơn gốc bị trùng."
+                else -> ""
+            }
+            AccountingProInvoiceReview(invoice, reason.isEmpty(), reason)
+        }.sortedWith(compareByDescending<AccountingProInvoiceReview> { it.invoice.sortDate }
+            .thenByDescending { it.invoice.number.toLongOrNull() ?: 0L })
+    }
+
+    fun summarize(invoices: List<SatoriInvoice>): AccountingProReadOnlySummary {
+        val active = invoices.filterNot { it.isExcluded }
+        val rows = invoiceRows(invoices)
+        val questionable = rows.count { it.needsIdentityReview }
         // Do not silently calculate money from duplicated, missing or overflowed
         // invoice identity. Those require manual reconciliation first.
         val gross = if (questionable == 0)
