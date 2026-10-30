@@ -262,7 +262,7 @@ class NativeMainActivity : AppCompatActivity() {
             notifications.createNotificationChannel(NotificationChannel(newOrderChannelId,
                 "Đơn hàng thật Minh Satori", NotificationManager.IMPORTANCE_HIGH))
         val invoice = latest.invoices.firstOrNull { row ->
-            row.number.toLongOrNull() in update.fresh
+            row.number.toLongOrNull()?.let { it in update.fresh } == true
         } ?: return
         @Suppress("DEPRECATION")
         val notification = if (Build.VERSION.SDK_INT >= 26)
