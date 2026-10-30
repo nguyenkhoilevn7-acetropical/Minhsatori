@@ -55,6 +55,23 @@ class AccountingProMargin45Test {
         assertEquals(100_000L,row.estimatedOwnerMarginVnd)
     }
 
+    @Test fun canceledCtvReferenceCannotProduceEstimatedCommission() {
+        val buyer=invoice(pairRole="customer",pairGroup="p1",pairNo="5902",collaborator="ctv1")
+        val canceled=invoice(id="ref",no="5902",unitPrice=65_000L,total=650_000L,
+            pairRole="collaborator",pairGroup="p1",pairNo="5901",collaborator="ctv1",
+            status="Đã hủy")
+        val result=AccountingProMargin45.calculate(listOf(buyer,canceled)).single()
+        assertNull(result.estimatedOwnerMarginVnd)
+        assertNotNull(result.reason)
+    }
+
+    @Test fun ambiguousLegacyPairWithoutRoleCannotUseDiscountSnapshot() {
+        val row=AccountingProMargin45.calculate(listOf(
+            invoice(pairGroup="unverified-pair",collaborator="ctv1",discount=35.0)
+        )).single()
+        assertNull(row.estimatedOwnerMarginVnd)
+    }
+
     @Test fun ctvWithNoKnownPolicyRefusesToInventOwnerProfit() {
         val row=AccountingProMargin45.calculate(listOf(
             invoice(collaborator="ctv1"))).single()
