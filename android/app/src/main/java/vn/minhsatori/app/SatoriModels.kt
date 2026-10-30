@@ -90,8 +90,12 @@ data class SatoriInvoice(
     // Cancellation is the authoritative lifecycle state. Retain historical
     // payment timestamps only for audit; they must not revive a cancelled bill.
     val isCancelled: Boolean get() = status.equals("Đã hủy", ignoreCase = true)
+    val isNonCounted: Boolean get() = status.equals("Không Tính", ignoreCase = true)
     val isExcluded: Boolean get() = isTest || isInternalCollaboratorBill ||
-        status.equals("Không Tính", ignoreCase = true) || isCancelled
+        isNonCounted || isCancelled
+    // Display/accounting only: keep the original invoice total in the audit source.
+    val accountingValue: Long get() = if (isExcluded) 0L else total
+    val displayPayable: Long get() = if (isNonCounted) 0L else total
     val customerHasPaid: Boolean get() = !isCancelled &&
         (status.equals("Đã thanh toán", ignoreCase = true) || customerPaidAt.isNotBlank())
     // "Đã TT Satori" reflects settlement with Satori, NOT payment by customer.

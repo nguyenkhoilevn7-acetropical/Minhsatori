@@ -2454,7 +2454,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
         top.addView(code, LinearLayout.LayoutParams(0, -2, 1f))
         val amount = TextView(this).apply {
-            text = SatoriData.money(invoice.total)
+            text = SatoriData.money(invoice.displayPayable)
             textSize = 15f
             setTextColor(if (fromDebt) Color.rgb(181, 95, 6)
                 else Color.rgb(17, 133, 91))
@@ -2471,6 +2471,7 @@ class NativeMainActivity : AppCompatActivity() {
         // Dates remain neutral; payment statuses use the same semantic tint
         // in Hóa đơn and Công nợ (unpaid amber, paid green).
         val statusColor = when {
+            invoice.isNonCounted -> Color.rgb(105, 74, 164)
             invoice.isCancelled -> Color.rgb(190, 40, 48)
             invoice.status.contains("chưa thanh toán", ignoreCase = true) ->
                 Color.rgb(181, 95, 6)
@@ -2486,6 +2487,10 @@ class NativeMainActivity : AppCompatActivity() {
         label(statusLine, invoice.displayDate + "   •   ", 11f, false, softInk)
         label(statusLine, invoice.status, 11f, true, statusColor)
         card.addView(statusLine)
+        if (invoice.isNonCounted) {
+            label(card, "Không tính doanh thu / công nợ • Giá gốc: " +
+                SatoriData.money(invoice.total), 11f, false, softInk, 5)
+        }
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
@@ -2731,7 +2736,8 @@ class NativeMainActivity : AppCompatActivity() {
             isClickable = true
             isFocusable = true
             contentDescription = "Hóa đơn số " + invoice.number + ", khách " +
-                invoice.customer + ", " + SatoriData.money(invoice.total)
+                invoice.customer + ", " + invoice.status + ", " +
+                SatoriData.money(invoice.displayPayable)
             setOnClickListener { openInvoice(invoice) }
         }
         val headline = LinearLayout(this).apply {
@@ -2742,15 +2748,20 @@ class NativeMainActivity : AppCompatActivity() {
             16f, true, ink)
         headline.removeView(invoiceTitle)
         headline.addView(invoiceTitle, LinearLayout.LayoutParams(0, -2, 1f))
-        val amount = label(headline, SatoriData.money(invoice.total),
-            16f, true, cyan)
+        val amount = label(headline, SatoriData.money(invoice.displayPayable),
+            16f, true, if (invoice.isNonCounted) Color.rgb(105, 74, 164) else cyan)
         headline.removeView(amount)
         headline.addView(amount, LinearLayout.LayoutParams(-2, -2).apply {
             marginStart = dp(8)
         })
         card.addView(headline)
         label(card, invoice.displayDate, 11.5f, false, softInk, 5)
-        if (invoice.isCancelled) {
+        if (invoice.isNonCounted) {
+            label(card, "KHÔNG TÍNH • GIÁ TRỊ 0 đ", 12f, true,
+                Color.rgb(105, 74, 164), 7)
+            label(card, "Giá gốc để đối soát: " + SatoriData.money(invoice.total),
+                11f, false, softInk, 4)
+        } else if (invoice.isCancelled) {
             label(card, "⊘ HÓA ĐƠN ĐÃ HỦY", 12f, true, Color.rgb(190, 40, 48), 7)
             if (invoice.customerPaidAt.isNotBlank() || invoice.satoriPaidAt.isNotBlank())
                 label(card, "Có lịch sử thanh toán • cần đối soát", 11f, true,
@@ -2919,10 +2930,11 @@ class NativeMainActivity : AppCompatActivity() {
                         background = panelBackground(surface, 12)
                     }
                     label(row, "#" + invoice.number + "  •  " +
-                        SatoriData.money(invoice.total), 13.5f, true, ink)
+                        SatoriData.money(invoice.displayPayable), 13.5f, true, ink)
                     label(row, invoice.displayDate + "  •  " + invoice.status,
                         11.5f, true,
-                        if (invoice.isCancelled) Color.rgb(190, 40, 48)
+                        if (invoice.isNonCounted) Color.rgb(105, 74, 164)
+                        else if (invoice.isCancelled) Color.rgb(190, 40, 48)
                         else if (invoice.customerHasPaid) Color.rgb(16, 122, 78)
                         else Color.rgb(168, 91, 16), 5)
                     detail.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
@@ -4159,8 +4171,9 @@ class NativeMainActivity : AppCompatActivity() {
         label(heading, "HÓA ĐƠN #" + invoice.number, 21f, true, white)
         label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true,
             if (invoice.isCancelled) Color.rgb(190, 40, 48) else cyan, 7)
-        label(heading, SatoriData.money(invoice.total), 20f, true,
-            Color.rgb(17, 133, 91), 8)
+        label(heading, SatoriData.money(invoice.displayPayable), 20f, true,
+            if (invoice.isNonCounted) Color.rgb(105, 74, 164)
+            else Color.rgb(17, 133, 91), 8)
         content.addView(heading)
         if (invoice.isTest) label(content,
             "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ",
@@ -4226,8 +4239,18 @@ class NativeMainActivity : AppCompatActivity() {
             12f, false, softInk, 13)
         label(content, "Thuế VAT: " + SatoriData.money(invoice.vat),
             12f, false, softInk, 5)
-        label(content, "TỔNG THANH TOÁN: " + SatoriData.money(invoice.total),
-            18f, true, Color.rgb(17, 133, 91), 11)
+        label(content, (if (invoice.isNonCounted) "GIÁ TRỊ TÍNH: "
+            else "TỔNG THANH TOÁN: ") + SatoriData.money(invoice.displayPayable),
+            18f, true, if (invoice.isNonCounted) Color.rgb(105, 74, 164)
+            else Color.rgb(17, 133, 91), 11)
+        if (invoice.isNonCounted) {
+            label(content, "KHÔNG TÍNH • Không phải khoản phải thu", 12f, true,
+                Color.rgb(105, 74, 164), 6)
+            label(content, "Tổng tiền gốc lưu để đối chiếu: " +
+                SatoriData.money(invoice.total) +
+                ". PDF lưu giữ giá gốc; không sử dụng để yêu cầu thanh toán.",
+                11f, false, softInk, 5)
+        }
         if (invoice.deliveryNote.isNotBlank()) {
             label(content, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, cyan, 13)
             label(content, invoice.deliveryNote, 13f, false, white, 5)
@@ -4256,7 +4279,10 @@ class NativeMainActivity : AppCompatActivity() {
         }
 
         // The two flags must never be merged: customer receipt != Satori settlement.
-        if (invoice.isCancelled) {
+        if (invoice.isNonCounted) {
+            label(content, "KHÔNG TÍNH • GIÁ TRỊ 0 đ • KHÓA THANH TOÁN",
+                12f, true, Color.rgb(105, 74, 164), 14)
+        } else if (invoice.isCancelled) {
             label(content, "ĐÃ HỦY • KHÔNG TÍNH DOANH THU / CÔNG NỢ", 12f, true,
                 Color.rgb(190, 40, 48), 14)
             if (invoice.customerPaidAt.isNotBlank() || invoice.satoriPaidAt.isNotBlank())
