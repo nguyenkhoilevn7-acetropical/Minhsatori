@@ -59,7 +59,7 @@ class AccountingProIsolationTest(unittest.TestCase):
         ui = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
         self.assertIn("TỔNG LÃI GỘP ƯỚC TÍNH", ui)
         self.assertIn("private fun showAccountingProMarginPeriod(data: SatoriSnapshot)", ui)
-        self.assertIn('text = "Lợi nhuận: "', ui)
+        self.assertIn('text = "Lợi nhuận  " +', ui)
         self.assertIn("showProfitInsideInvoiceCard(list, marginByInvoice[inv])", ui)
         self.assertIn("showProfitInsideInvoiceCard(parent, marginByInvoice[invoice])", ui)
         self.assertIn('totalCard("Tổng lợi nhuận"', ui)
