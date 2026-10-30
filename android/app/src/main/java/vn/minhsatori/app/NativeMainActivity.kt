@@ -2857,14 +2857,82 @@ class NativeMainActivity : AppCompatActivity() {
             false, R.drawable.ic_satori_debt) {
             showAccountingProProfitAudit(data)
         }
+        button(panel, "ĐỐI SOÁT NGÂN HÀNG  ·  MÔ PHỎNG CHỈ ĐỌC",
+            false, R.drawable.ic_satori_debt) {
+            showAccountingProBankDemo()
+        }
         section(panel, "03  Nhắc nợ, đối soát ngân hàng",
-            "Chưa kết nối ngân hàng và chưa tự gửi nhắc nợ.")
+            "Chưa kết nối ngân hàng thật và chưa tự gửi nhắc nợ.")
         section(panel, "04  Email, PDF & hóa đơn điện tử",
             "Chưa kích hoạt gửi email hoặc phát hành chứng từ thuế.")
         AlertDialog.Builder(this)
             .setTitle("Minh Satori · Accounting Pro")
             .setView(scroll)
             .setPositiveButton("Đóng", null)
+            .show()
+    }
+
+    /**
+     * Synthetic-only bank matching scenarios. No bank connection, statement
+     * upload, privileged account information or invoice status update.
+     */
+    private fun showAccountingProBankDemo() {
+        val candidates = listOf(
+            AccountingProBankInvoice("DEMO-BILL-A", 990001L, 400_000L, 1L),
+            AccountingProBankInvoice("DEMO-BILL-B", 990002L, 600_000L, 1L)
+        )
+        val transfers = listOf(
+            AccountingProBankTransfer("DEMO-TX-1", "DEMO-ACCOUNT",
+                990001L, 400_000L, AccountingProBankDirection.CREDIT, true),
+            AccountingProBankTransfer("DEMO-TX-2", "DEMO-ACCOUNT",
+                990002L, 200_000L, AccountingProBankDirection.CREDIT, true),
+            AccountingProBankTransfer("DEMO-TX-3", "DEMO-ACCOUNT",
+                null, 400_000L, AccountingProBankDirection.CREDIT, true),
+            AccountingProBankTransfer("DEMO-TX-4", "DEMO-ACCOUNT",
+                990001L, 500_000L, AccountingProBankDirection.CREDIT, true),
+            AccountingProBankTransfer("DEMO-TX-5", "DEMO-ACCOUNT",
+                990002L, 600_000L, AccountingProBankDirection.CREDIT, false)
+        )
+        val checks=AccountingProBankTriage.preview(1L,transfers,candidates)
+        val panel=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(14),dp(12),dp(14),dp(18))
+        }
+        label(panel,"ĐỐI SOÁT NGÂN HÀNG",16f,true,ink)
+        label(panel,"DEMO · GIAO DỊCH GIẢ LẬP · CHỈ ĐỌC",
+            11.5f,true,Color.rgb(175,94,0),7)
+        label(panel,"Dữ liệu không lấy từ ngân hàng hay khách thật. Gợi ý khớp " +
+            "không phải xác nhận đã thu tiền.",11.5f,false,softInk,8)
+        section(panel,"Cần xét duyệt: " + checks.count { it.isSuggestionOnly },
+            "Chỉ gợi ý khi mã hóa đơn rõ ràng, dữ liệu tin cậy và revision phù hợp.")
+        section(panel,"Cần giữ để kiểm tra: " + checks.count { !it.isSuggestionOnly },
+            "Không tự đánh dấu đã thanh toán, chuyển dư hoặc khớp chỉ bằng số tiền.")
+        val names=mapOf(
+            AccountingProBankTriageStatus.REVIEW_EXACT_CREDIT to "Gợi ý khớp đủ · CẦN DUYỆT",
+            AccountingProBankTriageStatus.REVIEW_PARTIAL_CREDIT to "Gợi ý thanh toán một phần · CẦN DUYỆT",
+            AccountingProBankTriageStatus.HOLD_MISSING_INVOICE_REFERENCE to "Chưa có mã hóa đơn",
+            AccountingProBankTriageStatus.HOLD_OVERPAYMENT to "Chuyển dư · KHÔNG TỰ GHÉP",
+            AccountingProBankTriageStatus.HOLD_UNVERIFIED to "Nguồn chưa xác minh",
+            AccountingProBankTriageStatus.HOLD_DUPLICATE_TRANSACTION to "Giao dịch trùng",
+            AccountingProBankTriageStatus.HOLD_AMBIGUOUS_INVOICE to "Hóa đơn không rõ ID",
+            AccountingProBankTriageStatus.HOLD_STALE_LEDGER to "Dữ liệu hóa đơn cũ",
+            AccountingProBankTriageStatus.HOLD_INVALID_TRANSACTION to "Giao dịch không hợp lệ",
+            AccountingProBankTriageStatus.HOLD_INVALID_OPEN_BALANCE to "Số dư chưa xác minh"
+        )
+        checks.forEach { result ->
+            section(panel,result.transfer.providerTransactionId + " · " +
+                SatoriData.money(result.transfer.amountVnd),
+                (names[result.status] ?: "Cần kiểm tra") +
+                    "\nHóa đơn demo: " +
+                    (result.transfer.invoiceNoReference?.toString() ?: "(không có)"))
+        }
+        label(panel,"Không có nút xác nhận, không nhập sao kê, không lưu tiền.",
+            11.5f,true,Color.rgb(175,94,0),13)
+        val scroll=ScrollView(this).apply { addView(panel) }
+        AlertDialog.Builder(this)
+            .setTitle("Accounting Pro · Bank DEMO")
+            .setView(scroll)
+            .setPositiveButton("Đóng",null)
             .show()
     }
 
