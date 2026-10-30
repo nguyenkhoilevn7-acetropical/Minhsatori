@@ -837,11 +837,15 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
    data.requestedType,owner.rows[0].id]);
  await applyGeneralDiscount(c,targetProfile,ownerGoogleSub,data.discountBps,
   data.requestedType==='collaborator'?data.collaboratorBps:null);
- for(const entry of ordered){
-  if(entry.linked_account_id)continue;
+ // Pre-migration PostgreSQL has UNIQUE(linked_account_id). This linkage is
+ // account-level: keep a single canonical lead FK and track the other
+ // owner-approved delivery leads through the audit + profile/address records.
+ // No schema migration or invoice rewrite is required to activate Gmail.
+ const canonical=ordered.find(x=>x.linked_account_id===accountId)||lead;
+ if(!canonical.linked_account_id){
   const linked=await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
    'revision=revision+1,updated_at=now() WHERE id=$1 AND linked_account_id IS NULL RETURNING id',
-   [entry.id,accountId]);
+   [canonical.id,accountId]);
   check(linked.rowCount===1,'LEGACY_LEAD_RACE',409);
  }
  await c.query('UPDATE satori_v2_accounts SET display_name=$2,'+
@@ -851,7 +855,8 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
   "VALUES($1,'system','LEGACY_VERIFIED_GMAIL_AUTO_ACTIVATED',$2,$3)",
   [accountId,lead.id,JSON.stringify({profileId:targetProfile,role:data.requestedType,
    discountBps:data.discountBps,collaboratorBps:data.collaboratorBps,
-   addressesAdded,leadIds:ordered.map(x=>x.id),oneInvoice:true})]);
+   addressesAdded,leadIds:ordered.map(x=>x.id),canonicalLeadId:canonical.id,
+   linkMode:'one-canonical-fk',oneInvoice:true})]);
  return {state:'ACTIVE',profileId:targetProfile,leadId:lead.id,addressesAdded};
 }
 
@@ -1166,11 +1171,17 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
    // The shared address sync merges latest signed source delivery details.
   }
   const addressSync=await syncBoundLegacyAddresses(c,profileId,addresses);
-  // ACTIVE-account owner reconciliation may have linked these same leads.
-  // Never increment their revisions twice in the same transaction.
-  for(const entry of leads.rows)if(!entry.linked_account_id)
-   await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,revision=revision+1 '+
-    'WHERE id=$1 AND linked_account_id IS NULL',[entry.id,target.id]);
+  // Keep the canonical single-lead FK until a separately approved migration.
+  // Other approved points are represented by the account's address rows and
+  // audited lead IDs; linking an invoice must not hit UNIQUE(linked_account_id).
+  const canonical=leads.rows.find(x=>x.linked_account_id===target.id)||
+   leads.rows.find(x=>x.id===input.leadId)||leads.rows[0];
+  if(canonical&&!canonical.linked_account_id){
+   const linked=await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
+    'revision=revision+1,updated_at=now() WHERE id=$1 AND linked_account_id IS NULL RETURNING id',
+    [canonical.id,target.id]);
+   check(linked.rowCount===1,'LEGACY_LEAD_RACE',409);
+  }
   for(const ref of refs){
    const already=await c.query('SELECT 1 FROM satori_v2_audit WHERE '+
     "event_type='LEGACY_INVOICE_ACCOUNT_BOUND' AND account_id=$1 "+
