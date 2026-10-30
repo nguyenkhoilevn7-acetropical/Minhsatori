@@ -719,6 +719,51 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .ctv-sheet-contents .ctv-extra-note input{min-height:46px;width:100%}
 @media(min-width:761px){.ctv-customer-dialog{margin:auto;inset:0;max-height:90dvh;border-radius:24px}}
 @media(max-width:420px){.ctv-customer-dialog{padding:12px 12px max(12px,env(safe-area-inset-bottom))}.ctv-sheet-head h2{font-size:19px}}
+
+/* V2 delivery picker refinement: tighter vertical rhythm, one neutral info surface.
+   Scope strictly to the mandatory delivery picker, not CTV editor or elsewhere. */
+.delivery-dialog{padding:15px 16px 14px;line-height:1.4}
+.delivery-dialog .delivery-dialog-head{gap:8px}
+.delivery-dialog .delivery-dialog-brand{gap:8px}
+.delivery-dialog h2{font-size:19px;line-height:1.25;margin:12px 0 4px}
+.delivery-dialog #deliveryDialogDesc{font-size:14px;line-height:1.45;color:#657680;margin:0 0 12px}
+.delivery-dialog .delivery-profile-label{font-size:14px;line-height:1.4;color:#3f5964;margin:9px 0 5px;font-weight:650}
+.delivery-dialog .delivery-profile-select{height:41px;min-height:41px;padding:7px 11px;font-size:15px;background:#fff;border-color:#d9e4e3}
+.delivery-dialog #agentAddressMenu{margin-top:10px}
+.delivery-dialog #agentAddressMenu>summary{min-height:37px;padding:7px 10px;border-radius:11px;font-size:14px;line-height:1.35;background:#eef6f4;color:#186d68}
+.delivery-dialog #agentAddressMenu>summary svg{width:18px;height:18px}
+.delivery-dialog .agent-address-popover{padding-top:7px}
+.delivery-dialog #agentAddressChoices{display:grid;gap:7px}
+.delivery-dialog #agentAddressChoices .agent-address-choice{
+ min-height:0;margin:0;padding:12px 13px;align-items:flex-start;
+ border:1px solid #dce8e6;border-radius:13px;background:#fff;box-shadow:none
+}
+.delivery-dialog #agentAddressChoices .agent-address-choice[aria-pressed="true"]{
+ border-color:#77bfb8;background:#f0f8f6;box-shadow:0 0 0 1px #77bfb83d
+}
+.delivery-dialog #agentAddressChoices .agent-address-choice .address-meta{
+ display:flex;flex-direction:column;gap:4px;min-width:0
+}
+.delivery-dialog #agentAddressChoices .agent-address-choice .address-title{
+ margin:0;color:#213946;font-size:15px;line-height:1.35;font-weight:750
+}
+.delivery-dialog #agentAddressChoices .agent-address-choice .address-subtitle,
+.delivery-dialog #agentAddressChoices .agent-address-choice .address-phone{
+ display:block;margin:0;padding:0;border:0;border-radius:0;background:transparent;
+ color:#4d626b;font-size:14px;line-height:1.4;font-weight:500;letter-spacing:0;
+ overflow-wrap:anywhere
+}
+.delivery-dialog #agentAddressChoices .agent-address-choice .address-ctv-discount{
+ margin-top:3px;padding:4px 7px;font-size:12px;line-height:1.4
+}
+.delivery-dialog #agentAddressManage{min-height:39px;margin-top:9px;padding:8px 11px;
+ background:#f1f6f5;color:#1a6965;font-size:14px;font-weight:700;border-radius:11px
+}
+@media(max-width:420px){
+ .delivery-dialog{padding:14px 14px 13px}
+ .delivery-dialog h2{margin-top:10px}
+ .delivery-dialog #agentAddressChoices .agent-address-choice{padding:11px 12px}
+}
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
