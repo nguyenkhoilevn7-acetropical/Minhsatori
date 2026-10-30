@@ -2842,6 +2842,10 @@ class NativeMainActivity : AppCompatActivity() {
             false, R.drawable.ic_satori_invoice) {
             showAccountingProInvoiceList(data)
         }
+        button(panel, "TÍNH THỬ THANH TOÁN TỪNG PHẦN  ·  DEMO",
+            false, R.drawable.ic_satori_debt) {
+            showAccountingProAllocationDemo()
+        }
         label(panel, "BƯỚC TIẾP THEO — CHƯA KÍCH HOẠT", 12f, true, cyan, 17)
         section(panel, "01  Thanh toán nhiều lần",
             "Chờ backend có khoản thu, chứng từ và phân bổ bất biến theo invoice ID.")
@@ -2853,6 +2857,118 @@ class NativeMainActivity : AppCompatActivity() {
             "Chưa kích hoạt gửi email hoặc phát hành chứng từ thuế.")
         AlertDialog.Builder(this)
             .setTitle("Minh Satori · Accounting Pro")
+            .setView(scroll)
+            .setPositiveButton("Đóng", null)
+            .show()
+    }
+
+    /**
+     * Deliberately isolated training calculator with TWO synthetic example bills.
+     * It NEVER consumes the actual owner invoice snapshot or calls a payment API.
+     * Real partial-payment confirmation remains disabled until server-side ledger,
+     * immutable allocation events and signed readback are accepted.
+     */
+    private fun showAccountingProAllocationDemo() {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(20))
+        }
+        label(panel, "MÔ PHỎNG PHÂN BỔ THANH TOÁN", 16f, true, ink)
+        label(panel, "DỮ LIỆU GIẢ LẬP · KHÔNG LƯU · KHÔNG CHUYỂN TIỀN",
+            11.5f, true, Color.rgb(175, 94, 0), 7)
+        label(panel, "Nhập số tiền VND nguyên để thử một khoản thu phân bổ cho " +
+            "hai hóa đơn DEMO-A và DEMO-B. Không đọc hoặc sửa hóa đơn khách thật.",
+            11.5f, false, softInk, 8)
+
+        fun amountField(title: String, initial: String): EditText {
+            label(panel, title, 12f, true, ink, 12)
+            val field = EditText(this).apply {
+                hint = "0"
+                setText(initial)
+                textSize = 15f
+                setSingleLine(true)
+                inputType = InputType.TYPE_CLASS_NUMBER
+                filters = arrayOf(android.text.InputFilter.LengthFilter(16))
+                setTextColor(ink)
+                setHintTextColor(softInk)
+                setPadding(dp(12), 0, dp(12), 0)
+                background = panelBackground(Color.WHITE, 10)
+                contentDescription = title
+            }
+            panel.addView(field, LinearLayout.LayoutParams(-1, dp(46)).apply {
+                topMargin = dp(5)
+            })
+            return field
+        }
+
+        val receipt = amountField("Số tiền khách chuyển (VND)", "650000")
+        val dueA = amountField("DEMO-A · Dư nợ giả định", "350000")
+        val paidA = amountField("DEMO-A · Muốn phân bổ", "350000")
+        val dueB = amountField("DEMO-B · Dư nợ giả định", "500000")
+        val paidB = amountField("DEMO-B · Muốn phân bổ", "300000")
+        val results = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(12), 0, 0)
+        }
+        panel.addView(results)
+
+        fun positiveVnd(field: EditText, allowZero: Boolean = false): Long {
+            val raw = field.text.toString().trim()
+            val value = raw.toLongOrNull()
+                ?: throw IllegalArgumentException("Chỉ nhập số nguyên VND hợp lệ.")
+            require(value >= 0L && (allowZero || value > 0L)) {
+                "Số tiền phải lớn hơn 0."
+            }
+            return value
+        }
+
+        button(panel, "TÍNH THỬ — KHÔNG GHI SỔ", true,
+            R.drawable.ic_satori_debt) {
+            results.removeAllViews()
+            try {
+                val received = positiveVnd(receipt)
+                val aOpen = positiveVnd(dueA, allowZero = true)
+                val bOpen = positiveVnd(dueB, allowZero = true)
+                val aAllocation = positiveVnd(paidA, allowZero = true)
+                val bAllocation = positiveVnd(paidB, allowZero = true)
+                val allocations = buildList {
+                    if (aAllocation > 0L) add(AccountingProAllocationLine(
+                        "DEMO-LEDGER-A", 990001L, aAllocation))
+                    if (bAllocation > 0L) add(AccountingProAllocationLine(
+                        "DEMO-LEDGER-B", 990002L, bAllocation))
+                }
+                val preview = AccountingProPaymentAllocation.preview(
+                    receiptVnd = received, expectedLedgerRevision = 1L,
+                    verifiedOpenBalances = listOf(
+                        AccountingProVerifiedOpenBalance(
+                            "DEMO-LEDGER-A", 990001L, 1L, aOpen),
+                        AccountingProVerifiedOpenBalance(
+                            "DEMO-LEDGER-B", 990002L, 1L, bOpen)
+                    ),
+                    intendedAllocations = allocations
+                )
+                section(results, "Tổng phân bổ: " +
+                    SatoriData.money(preview.allocatedVnd),
+                    "Tiền chưa phân bổ: " + SatoriData.money(preview.unallocatedVnd))
+                section(results, "DEMO-A · Còn lại: " +
+                    SatoriData.money(preview.remainingByLedgerId["DEMO-LEDGER-A"] ?: 0L),
+                    "DEMO-B · Còn lại: " +
+                        SatoriData.money(preview.remainingByLedgerId["DEMO-LEDGER-B"] ?: 0L))
+                label(results, "CHỈ LÀ PHÉP TÍNH THỬ. Không cập nhật " +
+                    "trạng thái khách trả, Satori, công nợ thật hoặc ngân hàng.",
+                    11.5f, true, Color.rgb(175, 94, 0), 12)
+            } catch (e: IllegalArgumentException) {
+                label(results, "KHÔNG HỢP LỆ · " + (e.message ?: "Kiểm tra số tiền."),
+                    12f, true, Color.rgb(203, 48, 48), 5)
+            }
+        }
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            addView(panel)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Accounting Pro · DEMO")
             .setView(scroll)
             .setPositiveButton("Đóng", null)
             .show()
