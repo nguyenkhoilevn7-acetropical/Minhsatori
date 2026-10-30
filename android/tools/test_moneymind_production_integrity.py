@@ -36,8 +36,8 @@ class ProductionLayoutContract(unittest.TestCase):
      # Only one explicit display-only section may differ from the signed
      # accounting/payment/PDF original. Strip exactly that section and require
      # the remaining source to retain the original signed method checksum.
-     start='        // BEGIN_ACCOUNTING_PROFIT45_READ_ONLY\\n'
-     end='        // END_ACCOUNTING_PROFIT45_READ_ONLY\\n'
+     start='        // BEGIN_ACCOUNTING_PROFIT45_READ_ONLY\n'
+     end='        // END_ACCOUNTING_PROFIT45_READ_ONLY\n'
      self.assertEqual(actual.count(start),1)
      self.assertEqual(actual.count(end),1)
      i=actual.index(start)
