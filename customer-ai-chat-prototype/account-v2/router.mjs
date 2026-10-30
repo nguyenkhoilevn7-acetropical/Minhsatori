@@ -21,6 +21,7 @@ import {acceptedSubjects} from './identity-rollout.mjs';
 import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
+import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
 import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
@@ -230,6 +231,21 @@ async function adminPolicy(pool,actor,input){
     [input.addressId,input.profileId]);
    error(addr.rows.length===1,'ADDRESS_FORBIDDEN',403);
   }
+  // Price overrides are scoped to one SKU, never to all products.
+  if(input.unitPriceVnd!==undefined&&input.unitPriceVnd!==null){
+   error(input.productCode!=null&&input.addressId==null,'UNIT_PRICE_SKU_SCOPE_REQUIRED');
+   error(Number.isSafeInteger(input.unitPriceVnd)&&input.unitPriceVnd>=0,
+    'UNIT_SALE_PRICE_INVALID');
+   const sku=await client.query('SELECT list_price AS "listPrice" FROM satori_v2_catalogue '+
+    'WHERE code=$1 AND active=true',[input.productCode]);
+   error(sku.rows.length===1,'PRODUCT_UNAVAILABLE',409);
+   try{validateExactUnitPrice(Number(sku.rows[0].listPrice),input.unitPriceVnd,input.discountBps)}
+   catch{throw new ApiError('UNIT_SALE_PRICE_RATE_MISMATCH',400)}
+   if(input.collaboratorBps!=null){
+    const internal=Math.round(Number(sku.rows[0].listPrice)*(10000-input.collaboratorBps)/10000);
+    error(input.unitPriceVnd>=internal,'CTV_MARGIN_NEGATIVE',409);
+   }
+  }
   // Replacing a policy closes prior approved revisions for the EXACT scope.
   // Historical quotes still store immutable price/policy snapshots.
   const version=await client.query('SELECT COALESCE(MAX(version),0)+1 AS version FROM satori_v2_policies '+
@@ -247,7 +263,8 @@ async function adminPolicy(pool,actor,input){
   await client.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
    'VALUES($1,$2,$3,$4,$5)',[actor.id,'owner','POLICY_APPROVED',policy.rows[0].id,
     JSON.stringify({profileId:input.profileId,addressId:input.addressId||null,productCode:input.productCode||null,
-     discountBps:input.discountBps,collaboratorBps:input.collaboratorBps??null,mode:'single',
+     discountBps:input.discountBps,collaboratorBps:input.collaboratorBps??null,
+     ...(input.unitPriceVnd==null?{}:{unitPriceVnd:input.unitPriceVnd}),mode:'single',
      profitMarginBps:input.collaboratorBps==null?null:input.collaboratorBps-input.discountBps})]);
   await client.query('COMMIT');
   return policy.rows[0];
@@ -318,7 +335,11 @@ async function pricedCart(pool,actor,input){
  error(cartRow.rows.length===1,'CART_EMPTY');
  const cat=await pool.query('SELECT code,name,unit,list_price AS "listPrice",revision,active FROM satori_v2_catalogue');
  error(cat.rows.length>0&&cat.rows.every(p=>p.revision===cat.rows[0].revision),'CATALOGUE_NOT_READY',503);
- const policies=await pool.query('SELECT id,profile_id AS "profileId",address_id AS "addressId", '+
+ const policies=await pool.query('SELECT id,'+
+  '(SELECT (aux.details->>\\'unitPriceVnd\\')::bigint FROM satori_v2_audit aux '+
+  'WHERE aux.resource_id=satori_v2_policies.id AND aux.event_type=\\'POLICY_APPROVED\\' '+
+  'ORDER BY aux.id DESC LIMIT 1) AS "unitPriceVnd",'+
+  'profile_id AS "profileId",address_id AS "addressId", '+
   'product_code AS "productCode", discount_bps AS "discountBps",collaborator_bps AS "collaboratorBps", '+
   'invoice_mode AS "invoiceMode",enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
   'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[profile.id]);
@@ -440,7 +461,11 @@ async function verifyLiveLockedQuote(client,actor,q){
  error(cat.rows.length>0&&cat.rows.every(p=>p.revision===q.catalogue_revision),
   'QUOTE_CATALOGUE_STALE',409);
  const policies=await client.query(
-  'SELECT id,profile_id AS "profileId",address_id AS "addressId",'+
+  'SELECT id,'+
+  '(SELECT (aux.details->>\\'unitPriceVnd\\')::bigint FROM satori_v2_audit aux '+
+  'WHERE aux.resource_id=satori_v2_policies.id AND aux.event_type=\\'POLICY_APPROVED\\' '+
+  'ORDER BY aux.id DESC LIMIT 1) AS "unitPriceVnd",'+
+  'profile_id AS "profileId",address_id AS "addressId",'+
   'product_code AS "productCode",discount_bps AS "discountBps",'+
   'collaborator_bps AS "collaboratorBps",invoice_mode AS "invoiceMode",'+
   'enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
@@ -879,7 +904,11 @@ export async function handleAccountV2(req,res,pathname){
     error(cat.rows.length>0&&cat.rows.every(p=>p.revision===q.catalogue_revision),
      'QUOTE_CATALOGUE_STALE',409);
     const approvedPolicies=await client.query(
-     'SELECT id,profile_id AS "profileId",address_id AS "addressId",'+
+     'SELECT id,'+
+  '(SELECT (aux.details->>\\'unitPriceVnd\\')::bigint FROM satori_v2_audit aux '+
+  'WHERE aux.resource_id=satori_v2_policies.id AND aux.event_type=\\'POLICY_APPROVED\\' '+
+  'ORDER BY aux.id DESC LIMIT 1) AS "unitPriceVnd",'+
+  'profile_id AS "profileId",address_id AS "addressId",'+
      'product_code AS "productCode",discount_bps AS "discountBps",'+
      'collaborator_bps AS "collaboratorBps",invoice_mode AS "invoiceMode",'+
      'enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
@@ -1135,7 +1164,11 @@ export async function handleAccountV2(req,res,pathname){
    owner(actor);
    const profileId=new URL(req.url,'http://local').searchParams.get('profileId');
    error(isUuid(profileId),'PROFILE_INVALID');
-   const list=await pool.query('SELECT id,address_id AS "addressId",product_code AS "productCode", '+
+   const list=await pool.query('SELECT id,'+
+    '(SELECT (aux.details->>\\'unitPriceVnd\\')::bigint FROM satori_v2_audit aux '+
+  'WHERE aux.resource_id=satori_v2_policies.id AND aux.event_type=\\'POLICY_APPROVED\\' '+
+  'ORDER BY aux.id DESC LIMIT 1) AS "unitPriceVnd",'+
+    'address_id AS "addressId",product_code AS "productCode", '+
     'discount_bps AS "discountBps",collaborator_bps AS "collaboratorBps",'+
     'invoice_mode AS "invoiceMode",version,enabled,revision FROM satori_v2_policies '+
     'WHERE profile_id=$1 ORDER BY version DESC,created_at DESC LIMIT 100',[profileId]);
