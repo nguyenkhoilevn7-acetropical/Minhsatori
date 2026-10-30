@@ -40,6 +40,26 @@ class AccountingProIsolationTest(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, source)
 
+    def test_document_review_is_metadata_only_without_email_or_tax_writers(self):
+        model = (KOTLIN / "AccountingProDocumentAudit.kt").read_text(encoding="utf-8")
+        self.assertIn("NOT_AVAILABLE_IN_SNAPSHOT", model)
+        self.assertIn("verifiedLegalEInvoiceCount: Int? = null", model)
+        for forbidden in ("HttpURLConnection", "sendEmail(", "sendVatInvoice(",
+                          "publishInvoice(", "orders.create", "payments.mark"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, model)
+        ui = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
+        start = ui.index("    private fun showAccountingProDocuments(data: SatoriSnapshot)")
+        end = ui.index("    /**", start + 1)
+        screen = ui[start:end]
+        self.assertIn("AccountingProDocumentAudit.summary(data.invoices)", screen)
+        self.assertIn("Chưa xác minh", screen)
+        for forbidden in ("startActivity(", "launchEditor(", "performWrite(",
+                          "sendEmail(", "HttpURLConnection", "orders.create",
+                          "payments.mark"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, screen)
+
     def test_bank_demo_is_synthetic_and_has_no_provider_api_or_payment_writes(self):
         model = (KOTLIN / "AccountingProBankTriage.kt").read_text(encoding="utf-8")
         for forbidden in ("HttpURLConnection", "Retrofit", "OkHttp",
