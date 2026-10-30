@@ -667,12 +667,119 @@ async function readLegacySearch(q){
   return {key:latest.normalizedAddress,address:latest.address,
    phone:latest.phoneCandidate||'',name:latest.name,
    date:latest.date,createdAt:latest.createdAt,timestamp:latest.timestamp,
+   // Exact latest signed ref is a source locator, never proof of Gmail ownership.
+   ref:{invoiceNo:latest.invoiceNo,sourceId:latest.id},
    invoiceCount:members.length,refs:members.map(x=>({invoiceNo:x.invoiceNo,sourceId:x.id}))};
  });
  return {ok:true,source:'canonical-signed-ledger',revision,orders,addressGroups,
   totalMatches:Number(signed?.data?.totalMatches)||orders.length,
   truncated:Number(signed?.data?.totalMatches)>orders.length};
 }
+/**
+ * Import ONLY selected recipient delivery points from a fresh, signed original
+ * ledger search into an existing Google-verified account. No invoice ownership
+ * transfer, customer-lead binding, policy change, activation or fake orders.
+ * A source name is used to find records, not as proof of ownership: owner
+ * explicitly selects the target Google account and confirms identity.
+ */
+export async function ownerImportHistoricDeliveryPoints(pool,owner,input){
+ check(input?.confirmed===true&&input?.identityConfirmed===true,
+  'DELIVERY_IMPORT_OWNER_CONFIRMATION_REQUIRED',403);
+ check(isUuid(input?.accountId)&&isRev(input?.expectedAccountRevision),
+  'DELIVERY_IMPORT_ACCOUNT_INVALID');
+ check(input.accountId!==owner.id,'OWNER_CANNOT_IMPORT_SELF',403);
+ check(typeof input.query==='string'&&input.query.trim().length>=2&&input.query.trim().length<=90,
+  'DELIVERY_IMPORT_SEARCH_REQUIRED');
+ check(Number.isSafeInteger(input.sourceRevision)&&input.sourceRevision>=1,
+  'DELIVERY_IMPORT_REVISION_REQUIRED');
+ const chosen=input.selected;
+ check(Array.isArray(chosen)&&chosen.length>0&&chosen.length<=30,
+  'DELIVERY_IMPORT_SELECTION_REQUIRED');
+ const keys=new Set();
+ for(const item of chosen){
+  check(Number.isSafeInteger(item?.invoiceNo)&&item.invoiceNo>0&&
+   typeof item?.sourceId==='string'&&item.sourceId.length>0&&item.sourceId.length<=80,
+   'DELIVERY_IMPORT_REFERENCE_INVALID');
+  const key=item.invoiceNo+'|'+item.sourceId;
+  check(!keys.has(key),'DELIVERY_IMPORT_DUPLICATE_SOURCE',409);
+  keys.add(key);
+  check(item.phoneOverride===undefined||
+   typeof item.phoneOverride==='string'&&item.phoneOverride.length<=32,
+   'DELIVERY_IMPORT_PHONE_INVALID');
+ }
+ const source=await legacyCustomerSearch(input.query);
+ check(source.revision===input.sourceRevision,'LEGACY_SOURCE_REVISION_CHANGED',409);
+ const verified=new Map(source.orders.map(o=>[o.invoiceNo+'|'+o.id,o]));
+ // Addresses are independently checked against exact signed refs, never just
+ // the name or phone supplied from the browser.
+ const imports=[],selectedAddresses=new Set();
+ for(const item of chosen){
+  const signed=verified.get(item.invoiceNo+'|'+item.sourceId);
+  check(signed,'DELIVERY_IMPORT_SOURCE_NOT_FOUND',409);
+  const addressKey=normalizedDeliveryAddress(signed.address);
+  check(addressKey,'DELIVERY_IMPORT_EMPTY_ADDRESS',409);
+  check(!selectedAddresses.has(addressKey),'DELIVERY_IMPORT_DUPLICATE_ADDRESS',409);
+  selectedAddresses.add(addressKey);
+  const sourcePhone=legacyPhoneCandidate(signed.phone);
+  let phone=sourcePhone;
+  if(!phone){
+   check(typeof item.phoneOverride==='string'&&item.phoneOverride.trim(),
+    'DELIVERY_IMPORT_PHONE_REQUIRED',409);
+   phone=item.phoneOverride;
+  }else if(item.phoneOverride!==undefined){
+   const proposed=String(item.phoneOverride).replace(/[ ().-]/g,'');
+   check(proposed===sourcePhone,'DELIVERY_IMPORT_PHONE_SOURCE_CONFLICT',409);
+  }
+  const proposed={label:signed.name||'Điểm giao cũ',
+   recipientName:signed.name||'Người nhận cũ',recipientPhone:phone,address:signed.address};
+  const verifiedAddress=checked(()=>validateAddress(proposed));
+  imports.push({source:signed,address:verifiedAddress,key:addressKey});
+ }
+ return tx(pool,async c=>{
+  const locked=await c.query('SELECT id,email,google_sub,access_status,revision '+
+   'FROM satori_v2_accounts WHERE id=$1 FOR UPDATE',[input.accountId]);
+  check(locked.rowCount===1,'DELIVERY_IMPORT_ACCOUNT_NOT_FOUND',404);
+  const account=locked.rows[0];
+  check(account.google_sub&&account.email&&['PENDING','ACTIVE'].includes(account.access_status),
+   'DELIVERY_IMPORT_GOOGLE_ACCOUNT_NOT_VERIFIED',403);
+  check(account.revision===input.expectedAccountRevision,'CUSTOMER_REVISION_CONFLICT',409);
+  const registration=await c.query('SELECT full_name,phone,requested_type FROM satori_v2_registrations '+
+   'WHERE account_id=$1',[account.id]);
+  check(registration.rowCount===1,'DELIVERY_IMPORT_COMPLETE_REGISTRATION_FIRST',409);
+  const registered=registration.rows[0];
+  const current=await c.query('SELECT id FROM satori_v2_profiles WHERE account_id=$1 '+
+   'ORDER BY created_at LIMIT 1 FOR UPDATE',[account.id]);
+  let profileId=current.rows[0]?.id;
+  if(!profileId){
+   const made=await c.query('INSERT INTO satori_v2_profiles(account_id,type,display_name,phone) '+
+    'VALUES($1,$2,$3,$4) RETURNING id',
+    [account.id,registered.requested_type,registered.full_name,registered.phone]);
+   profileId=made.rows[0].id;
+  }
+  const existing=await c.query('SELECT id,address FROM satori_v2_addresses '+
+   'WHERE profile_id=$1 FOR UPDATE',[profileId]);
+  const saved=new Set(existing.rows.map(x=>normalizedDeliveryAddress(x.address)).filter(Boolean));
+  let created=0,skippedExisting=0;
+  for(const item of imports){
+   if(saved.has(item.key)){skippedExisting++;continue}
+   const a=item.address;
+   await c.query('INSERT INTO satori_v2_addresses(profile_id,label,recipient_name,recipient_phone,address) '+
+    'VALUES($1,$2,$3,$4,$5)',
+    [profileId,a.label,a.recipientName,a.recipientPhone,a.address]);
+   saved.add(item.key);created++;
+  }
+  await audit(c,owner.id,'DELIVERY_POINTS_IMPORTED_FROM_SIGNED_LEDGER',account.id,{
+   profileId,sourceRevision:source.revision,selected:chosen.length,
+   created,skippedExisting,sourceRefs:imports.map(x=>({
+    invoiceNo:x.source.invoiceNo,sourceId:x.source.id
+   })),invoiceHistoryImported:false,accessStatusUnchanged:account.access_status
+  });
+  return {ok:true,accountId:account.id,profileId,selected:imports.length,
+   created,skippedExisting,invoiceHistoryImported:false,
+   accessStatus:account.access_status};
+ });
+}
+
 /** Resolve immutable composite references, never mutable search text or bill number alone. */
 export async function resolveLegacyInvoiceRefs(refs,sourceRevision){
  check(Array.isArray(refs)&&refs.length>0&&refs.length<=30,'LEGACY_BIND_REFS_REQUIRED');
