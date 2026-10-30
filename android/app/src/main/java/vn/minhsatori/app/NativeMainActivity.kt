@@ -2853,14 +2853,121 @@ class NativeMainActivity : AppCompatActivity() {
         label(panel, "BƯỚC TIẾP THEO — CHƯA KÍCH HOẠT", 12f, true, cyan, 17)
         section(panel, "01  Thanh toán nhiều lần",
             "Chờ backend có khoản thu, chứng từ và phân bổ bất biến theo invoice ID.")
-        section(panel, "02  Lợi nhuận & hoa hồng CTV",
-            "Chờ dữ liệu giá nhập thực và sổ quyết toán; không tính lãi từ giá niêm yết.")
+        button(panel, "LỢI NHUẬN & HOA HỒNG CTV  ·  CHỈ ĐỌC",
+            false, R.drawable.ic_satori_debt) {
+            showAccountingProProfitAudit(data)
+        }
         section(panel, "03  Nhắc nợ, đối soát ngân hàng",
             "Chưa kết nối ngân hàng và chưa tự gửi nhắc nợ.")
         section(panel, "04  Email, PDF & hóa đơn điện tử",
             "Chưa kích hoạt gửi email hoặc phát hành chứng từ thuế.")
         AlertDialog.Builder(this)
             .setTitle("Minh Satori · Accounting Pro")
+            .setView(scroll)
+            .setPositiveButton("Đóng", null)
+            .show()
+    }
+
+    /**
+     * Owner Android-only CTV/profit readiness. No purchase-cost/commission
+     * ledgers are available in the legacy snapshot, hence all real profit
+     * numbers stay unknown instead of being inferred from discounts.
+     */
+    private fun showAccountingProProfitAudit(data: SatoriSnapshot) {
+        val summary = AccountingProProfitAudit.summary(data.invoices)
+        val rows = AccountingProProfitAudit.rows(data.invoices)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(10), dp(13), dp(12))
+        }
+        label(panel, "LỢI NHUẬN & HOA HỒNG CTV", 16f, true, ink)
+        label(panel, "CHỈ ĐỌC · DỮ LIỆU GỐC REVISION " + data.revision,
+            11.5f, true, cyan, 6)
+        section(panel, "Hóa đơn khách hợp lệ: " + summary.activeSaleCount,
+            "Bill CTV nội bộ bị loại khỏi doanh thu: " +
+                summary.excludedInternalBillCount +
+                ". Không tạo hóa đơn thứ hai.")
+        section(panel, "Tổng giá trị bill từ sổ gốc: " +
+            (summary.grossInvoiceTotalVnd?.let(SatoriData::money) ?: "Chưa xác minh"),
+            "Tổng bill có thể gồm VAT và phí giao; KHÔNG phải doanh thu thuần.")
+        section(panel, "Dấu vết CTV cũ: " + summary.legacyCtvReferenceCount,
+            "Cặp dữ liệu cần rà soát: " + summary.legacyPairsNeedingReviewCount +
+                " · ID chưa đáng tin cậy: " + summary.invalidInvoiceIdentityCount)
+        section(panel, "Lợi nhuận thực: CHƯA ĐỦ DỮ LIỆU",
+            "Chưa có giá nhập, chi phí giao thực, doanh thu chưa VAT và sổ hoa hồng đã duyệt.")
+        section(panel, "Hoa hồng CTV phải trả: CHƯA XÁC MINH",
+            "Không dùng chênh lệch giá hai bill lịch sử để tự ghi công nợ CTV.")
+        if (summary.missingProductDetailCount > 0) {
+            section(panel, "Thiếu chi tiết sản phẩm: " + summary.missingProductDetailCount,
+                "Cần kiểm tra danh mục hoặc dòng hàng gốc; không tự bổ sung giá vốn.")
+        }
+        label(panel, "TRA CỨU HÓA ĐƠN CÓ DẤU VẾT CTV", 12f, true, cyan, 14)
+        val search = EditText(this).apply {
+            hint = "Tìm hóa đơn, khách, CTV…"
+            setSingleLine(true)
+            textSize = 13f
+            setTextColor(ink)
+            setHintTextColor(softInk)
+            background = panelBackground(Color.WHITE, 12)
+            setPadding(dp(12), 0, dp(12), 0)
+            contentDescription = "Tìm hóa đơn CTV"
+        }
+        panel.addView(search, LinearLayout.LayoutParams(-1, dp(44)).apply {
+            topMargin = dp(7)
+        })
+        val results = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(4), 0, dp(12))
+        }
+        val inner = ScrollView(this).apply { addView(results) }
+        panel.addView(inner, LinearLayout.LayoutParams(-1,
+            (resources.displayMetrics.heightPixels * 35 / 100).coerceAtLeast(dp(160))))
+        fun redraw() {
+            results.removeAllViews()
+            val q = SatoriData.normalized(search.text.toString())
+            val found = rows.filter { row ->
+                row.hasLegacyCtvMetadata &&
+                    (SatoriData.search(row.invoice, q) ||
+                        SatoriData.normalized(row.historicalCtvLabel).contains(q))
+            }
+            label(results, "Hiển thị " + minOf(found.size, 55) + "/" +
+                found.size + " dòng có dấu vết CTV", 11f, true, cyan, 8)
+            if (found.isEmpty()) {
+                section(results, "Chưa có dữ liệu CTV phù hợp",
+                    "Không có metadata trong snapshot không chứng minh đây là khách lẻ.")
+            }
+            found.take(55).forEach { item ->
+                val warning = when {
+                    !item.identityReliable -> "CẦN KIỂM TRA ID HÓA ĐƠN"
+                    item.pairNeedsReview -> "CẦN ĐỐI CHIẾU CẶP HÓA ĐƠN CŨ"
+                    item.legacyPairVerified -> "Cặp CTV cũ đối chiếu được; không cộng bill nội bộ"
+                    else -> "Chưa có sổ quyết toán CTV được xác minh"
+                }
+                section(results, "#" + item.invoice.number +
+                    " · " + item.historicalCtvLabel,
+                    item.invoice.customer + " · " +
+                        SatoriData.money(item.invoice.total) + "\n" +
+                        warning + "\nHoa hồng/lợi nhuận: Chưa đủ dữ liệu")
+            }
+            if (found.size > 55) {
+                label(results, "Đang giới hạn 55 dòng; tìm kiếm để thu hẹp.",
+                    11f, false, softInk, 8)
+            }
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int,
+                count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int,
+                before: Int, count: Int) { redraw() }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        redraw()
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            addView(panel)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Accounting Pro · CTV")
             .setView(scroll)
             .setPositiveButton("Đóng", null)
             .show()
