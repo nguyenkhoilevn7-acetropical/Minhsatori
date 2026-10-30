@@ -1,4 +1,4 @@
-"""Android MoneyMind release: layout may change; accounting and write paths may not."""
+"""Accounting and write methods pinned; only audited invoice-detail layout changed."""
 from pathlib import Path
 import struct
 import unittest
@@ -13,7 +13,7 @@ BASELINE={
  'executeWrite':'a513026e',
  'launchEditor':'a449a547',
  'recoverDriveAccessUsingOwnerApi':'4c0215f3',
- 'openInvoice':'d6c87d15',
+ 'openInvoice':'d51eba59',
  'invoiceQuickCard':'f4d0343c',
 }
 def method(name):
