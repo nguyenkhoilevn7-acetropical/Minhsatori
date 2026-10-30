@@ -1024,6 +1024,11 @@ async function renderOwnerCtvClientCards(account,wrap){
     editor.classList.add('crm-client-options');
     editor.querySelector('summary').textContent='⋯';
     editor.querySelector('summary').setAttribute('aria-label','Sửa khách '+row.recipientName);
+    editor.addEventListener('toggle',()=>{
+     const summary=editor.querySelector('summary');
+     summary.textContent=editor.open?'✕ Đóng chỉnh sửa':'⋯';
+     summary.setAttribute('aria-expanded',String(editor.open));
+    });
     if(editorNode)editorNode.replaceWith(editor);
     else card.append(editor);
     editorNode=editor;
