@@ -337,7 +337,7 @@ async function pricedCart(pool,actor,input){
  error(cat.rows.length>0&&cat.rows.every(p=>p.revision===cat.rows[0].revision),'CATALOGUE_NOT_READY',503);
  const policies=await pool.query('SELECT id,'+
   '(SELECT (aux.details->>\'unitPriceVnd\')::bigint FROM satori_v2_audit aux '+
-  'WHERE aux.resource_id=satori_v2_policies.id AND aux.event_type=\'POLICY_APPROVED\' '+
+  'WHERE aux.resource_id=satori_v2_policies.id::text AND aux.event_type=\'POLICY_APPROVED\' '+
   'ORDER BY aux.id DESC LIMIT 1) AS "unitPriceVnd",'+
   'profile_id AS "profileId",address_id AS "addressId", '+
   'product_code AS "productCode", discount_bps AS "discountBps",collaborator_bps AS "collaboratorBps", '+
@@ -463,7 +463,7 @@ async function verifyLiveLockedQuote(client,actor,q){
  const policies=await client.query(
   'SELECT id,'+
   '(SELECT (aux.details->>\'unitPriceVnd\')::bigint FROM satori_v2_audit aux '+
-  'WHERE aux.resource_id=satori_v2_policies.id AND aux.event_type=\'POLICY_APPROVED\' '+
+  'WHERE aux.resource_id=satori_v2_policies.id::text AND aux.event_type=\'POLICY_APPROVED\' '+
   'ORDER BY aux.id DESC LIMIT 1) AS "unitPriceVnd",'+
   'profile_id AS "profileId",address_id AS "addressId",'+
   'product_code AS "productCode",discount_bps AS "discountBps",'+
@@ -906,7 +906,7 @@ export async function handleAccountV2(req,res,pathname){
     const approvedPolicies=await client.query(
      'SELECT id,'+
   '(SELECT (aux.details->>\'unitPriceVnd\')::bigint FROM satori_v2_audit aux '+
-  'WHERE aux.resource_id=satori_v2_policies.id AND aux.event_type=\'POLICY_APPROVED\' '+
+  'WHERE aux.resource_id=satori_v2_policies.id::text AND aux.event_type=\'POLICY_APPROVED\' '+
   'ORDER BY aux.id DESC LIMIT 1) AS "unitPriceVnd",'+
   'profile_id AS "profileId",address_id AS "addressId",'+
      'product_code AS "productCode",discount_bps AS "discountBps",'+
@@ -1166,7 +1166,7 @@ export async function handleAccountV2(req,res,pathname){
    error(isUuid(profileId),'PROFILE_INVALID');
    const list=await pool.query('SELECT id,'+
     '(SELECT (aux.details->>\'unitPriceVnd\')::bigint FROM satori_v2_audit aux '+
-  'WHERE aux.resource_id=satori_v2_policies.id AND aux.event_type=\'POLICY_APPROVED\' '+
+  'WHERE aux.resource_id=satori_v2_policies.id::text AND aux.event_type=\'POLICY_APPROVED\' '+
   'ORDER BY aux.id DESC LIMIT 1) AS "unitPriceVnd",'+
     'address_id AS "addressId",product_code AS "productCode", '+
     'discount_bps AS "discountBps",collaborator_bps AS "collaboratorBps",'+
