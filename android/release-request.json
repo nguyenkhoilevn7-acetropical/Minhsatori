@@ -1,9 +1,9 @@
 {
-  "purpose": "android-v0.4.32-consistent-unpaid-amber-profit-badge-topright-signed-owner-acceptance",
+  "purpose": "android-v0.4.33-icon-only-invoice-detail-preserving-profit-badge-owner-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.32",
-  "versionCode": 49,
-  "branch": "feature/android-invoice-status-profit-badge-v0432-20261030",
+  "version": "0.4.33",
+  "versionCode": 50,
+  "branch": "feature/android-invoice-compact-icons-v0433-20261030",
   "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
@@ -31,9 +31,10 @@
     303,
     305,
     306,
-    307
+    307,
+    309
   ],
-  "scope": "Android UI-only: use debt-tab amber (#B55F06) for Chưa thanh toán throughout Hóa đơn and Công nợ, retain neutral dates and green paid statuses; show 45%-supplier estimated gross profit as a subtle top-right badge under total on invoice cards in both tabs. Preserve owner Edit invoice/payment/delete guards, financial math, pending-write journal, source authentication, Gemini V2, website, ChatGPT bot and Apps Script Production. No auto merge/deploy.",
+  "scope": "Android-only native invoice detail: compact independently actionable customer/Satori payment status, 4-icon toolbar (Edit/Delete/Zalo/Messenger), accessible labels, original account verification and payment confirmation unchanged. Inherits v0.4.32 top-right Lợi nhuận badge and unified unpaid amber in invoice and debt tabs. Gemini V2, website, ChatGPT, Apps Script, PostgreSQL untouched; no automatic production merge.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -68,6 +69,8 @@
     "2026-10-30: Owner explicitly requested v0.4.29 build 46 installable signed APK after Android CI on PR #303 and parent PR #302 passed. Re-submit protected same-signing-key acceptance build on this isolated branch only; strictly validate certificate fingerprint, version and APK, no merge, production deployment or monetary writes.",
     "2026-10-30: Owner requested shared period filtering and profit figures on each outstanding debt card and beside aggregate debt, with only the short visible label Lợi nhuận. PR #305 isolated Android read-only UI + regression tests. Signed v0.4.30 code47 owner acceptance build only, same application ID and pinned signer, no auto merge/deploy. Confirm GitHub signed-release PASS and APK hash prior to installing over v0.4.29 without uninstalling.",
     "2026-10-30: Signed owner acceptance requested for Android v0.4.31 build48 stacked PR #306 after #305. Verify full tests, pinned original signing cert SHA-256, package identity and APK digest. The actual Android edit write requires deployed Apps Script owner Mobile API SatoriBotApi.ownerMobileWrite supporting orders.update, not just a successful APK build; prove live permissions before editing any invoice. No synthetic live writes, preserve previous APK until UAT.",
-    "2026-10-30: Owner requested unpaid status match Công nợ orange everywhere and profit be a top-right badge in each invoice card. v0.4.32 build49 Android-only acceptance build signed with the unchanged original release key; do not uninstall or delete local data. CI/emulator and signed artifact verification required before sharing. Server orders.update remains independently blocked until a verified owner Production Mobile API deployment."
+    "2026-10-30: Owner requested unpaid status match Công nợ orange everywhere and profit be a top-right badge in each invoice card. v0.4.32 build49 Android-only acceptance build signed with the unchanged original release key; do not uninstall or delete local data. CI/emulator and signed artifact verification required before sharing. Server orders.update remains independently blocked until a verified owner Production Mobile API deployment.",
+    "2026-10-30: PR #309 is correctly stacked on #307, preserving v0.4.32 profit badge/status colors. v0.4.33 build50 signed owner acceptance only, original pinned certificate and GitHub CI required. Invoice details use two independent payment rows and brand icon sharing with unchanged permission, PDF, delete and CTV safeguards; no live financial writes in tests.",
+    "2026-10-30: v0.4.33 first CI caught one stale test literal after adding the stricter validInvoiceNumber Edit gate; assertion corrected without weakening authorization or modifying any payment/ledger function. Re-request signed owner acceptance build after new green test gate."
   ]
 }
