@@ -508,6 +508,9 @@ export async function legacyAddressDirectory({months=12}={}){
 export async function legacyCustomerSearch(query){
  const q=sourceText(query,90);
  check(q.length>=2&&!/[*%_]/.test(q),'LEGACY_SEARCH_REQUIRED');
+ return readLegacySearch(q);
+}
+async function readLegacySearch(q){
  const signed=await readMinhSatori('orders.list',{query:q,limit:100});
  const raw=Array.isArray(signed?.data?.orders)?signed.data.orders:[];
  const revision=Number(signed?.revision??signed?.data?.revision);
@@ -548,6 +551,34 @@ export async function legacyCustomerSearch(query){
  return {ok:true,source:'canonical-signed-ledger',revision,orders,addressGroups,
   totalMatches:Number(signed?.data?.totalMatches)||orders.length,
   truncated:Number(signed?.data?.totalMatches)>orders.length};
+}
+/** Resolve immutable composite references, never mutable search text or bill number alone. */
+export async function resolveLegacyInvoiceRefs(refs,sourceRevision){
+ check(Array.isArray(refs)&&refs.length>0&&refs.length<=30,'LEGACY_BIND_REFS_REQUIRED');
+ const unique=new Set();
+ for(const r of refs){
+  check(Number.isSafeInteger(r?.invoiceNo)&&r.invoiceNo>0&&
+   typeof r.sourceId==='string'&&r.sourceId.length>0&&r.sourceId.length<=80,
+   'LEGACY_BIND_REF_INVALID');
+  const key=JSON.stringify([r.invoiceNo,r.sourceId]);
+  check(!unique.has(key),'LEGACY_BIND_DUPLICATE',409);unique.add(key);
+ }
+ const byNumber=new Map();
+ let revision=sourceRevision;
+ for(const n of new Set(refs.map(r=>r.invoiceNo))){
+  const signed=await readLegacySearch(String(n));
+  if(revision===undefined)revision=signed.revision;
+  check(signed.revision===revision,'LEGACY_SOURCE_REVISION_CHANGED',409);
+  check(!signed.truncated,'LEGACY_BIND_RESULT_TRUNCATED',409);
+  byNumber.set(n,signed.orders.filter(o=>o.invoiceNo===n));
+ }
+ const orders=refs.map(ref=>{
+  const matches=byNumber.get(ref.invoiceNo).filter(o=>o.id===ref.sourceId);
+  check(matches.length>0,'LEGACY_BIND_SOURCE_REF_NOT_FOUND',409);
+  check(matches.length===1,'LEGACY_BIND_SOURCE_REF_AMBIGUOUS',409);
+  return matches[0];
+ });
+ return {revision,orders};
 }
 function checkedLegacyDetails(input){
  check(input?.confirmed===true&&input?.identityConfirmed===true,
@@ -671,79 +702,116 @@ export async function legacyCustomerImport(pool,owner,input){
 
 /**
  * A verified Google login may claim exactly one PRE-APPROVED, still-unlinked
- * old CRM lead with the same email. It never infers identity from name/phone,
+ * old CRM lead group with the same email and consistent owner-approved pricing. It never infers identity from name/phone,
  * claims historical invoices, or grants a rate from customer registration.
  *
  * Caller must already have verified the Google ID token and must pass its sub
  * and email. Execute inside the login's existing SQL transaction. Ambiguity
  * and incomplete owner-approved pricing deliberately keep the account PENDING.
  */
-export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,email,ownerGoogleSub,dryRun=false}){
+export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,email,ownerGoogleSub,dryRun=false,primaryLeadId=null,allowActiveOwnerReconcile=false}){
  if(!isUuid(accountId)||typeof googleSub!=='string'||googleSub.length<5||
     typeof email!=='string'||!email.trim()||!ownerGoogleSub||googleSub===ownerGoogleSub)
   return {state:'PENDING',reason:'IDENTITY_NOT_ELIGIBLE'};
+ // ACTIVE backfill is permitted only through the Owner's explicit action.
+ // OAuth/self-service does not pass this flag, so it cannot silently upgrade
+ // an already-active customer into an agency or CTV.
  const account=await c.query('SELECT id,email,access_status FROM satori_v2_accounts '+
-  "WHERE id=$1 AND google_sub=$2 AND lower(email)=lower($3) AND access_status='PENDING' FOR UPDATE",
-  [accountId,googleSub,email.trim()]);
+  "WHERE id=$1 AND google_sub=$2 AND lower(email)=lower($3) "+
+  "AND (access_status='PENDING' OR ($4::boolean AND access_status='ACTIVE')) FOR UPDATE",
+  [accountId,googleSub,email.trim(),allowActiveOwnerReconcile]);
  if(account.rowCount!==1)return {state:'PENDING',reason:'ACCOUNT_NOT_PENDING'};
+ const existingActive=account.rows[0].access_status==='ACTIVE';
  const duplicateAccount=await c.query('SELECT id FROM satori_v2_accounts '+
   'WHERE lower(email)=lower($1) AND id<>$2 LIMIT 1',[email.trim(),accountId]);
  if(duplicateAccount.rowCount)return {state:'PENDING',reason:'EMAIL_USED_BY_OTHER_ACCOUNT'};
  const leads=await c.query('SELECT * FROM satori_v2_customer_leads '+
   'WHERE active=true AND lower(email)=lower($1) ORDER BY id FOR UPDATE',[email.trim()]);
- // Multiple accounts/contacts for the same Gmail must be resolved by owner.
- if(leads.rowCount!==1)return {state:'PENDING',reason:'NO_UNIQUE_LEGACY_LEAD'};
- const lead=leads.rows[0];
- // An earlier owner action may already have linked this SAME Google account
- // without granting ACTIVE access. Preserve that link, never relink another.
- if(lead.linked_account_id&&lead.linked_account_id!==accountId)
+ // Multiple owner-approved delivery points are one Gmail identity. Conflicting
+ // prices, unapproved rows or a different linked account still fail closed.
+ if(!leads.rowCount)return {state:'PENDING',reason:'NO_UNIQUE_LEGACY_LEAD'};
+ const ordered=[...leads.rows].sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at));
+ const lead=ordered.find(x=>x.id===primaryLeadId)||ordered[0];
+ if(ordered.some(x=>x.linked_account_id&&x.linked_account_id!==accountId))
   return {state:'PENDING',reason:'LEAD_LINKED_TO_ANOTHER_ACCOUNT'};
- const source=await c.query('SELECT event_type,details FROM satori_v2_audit '+
-  "WHERE resource_id=$1 AND event_type IN ('CUSTOMER_LEAD_CREATED','LEGACY_CRM_STAGED') "+
-  'ORDER BY id DESC LIMIT 1',[lead.id]);
- if(source.rowCount!==1)return {state:'PENDING',reason:'NO_OWNER_APPROVAL'};
+ if(ordered.some(x=>x.requested_type!==lead.requested_type||
+  x.discount_bps!==lead.discount_bps||x.collaborator_bps!==lead.collaborator_bps))
+  return {state:'PENDING',reason:'LEGACY_LEAD_POLICY_CONFLICT'};
  const owner=await c.query('SELECT id FROM satori_v2_accounts WHERE google_sub=$1 LIMIT 1',
   [ownerGoogleSub]);
  if(owner.rowCount!==1)return {state:'PENDING',reason:'OWNER_NOT_INITIALIZED'};
- let data,addresses;
- try{
-  data=validateCustomerProfile({
-   fullName:lead.full_name,phone:lead.phone,address:lead.address,
-   email:lead.email,companyName:lead.company_name,taxCode:lead.tax_code,
-   note:lead.note,requestedType:lead.requested_type,
-   discountBps:lead.discount_bps,collaboratorBps:lead.collaborator_bps
-  },{admin:true,phoneOptional:true});
-  if(!data.email||data.email!==email.trim().toLowerCase()||
-     data.requestedType==='collaborator'&&!Number.isSafeInteger(data.collaboratorBps))
-   return {state:'PENDING',reason:'LEGACY_POLICY_INVALID'};
-  const primary=data.phone?validateAddress({label:'Khách cũ',recipientName:data.fullName,
-   recipientPhone:data.phone,address:data.address}):null;
-  if(source.rows[0].event_type==='LEGACY_CRM_STAGED'){
-   const staged=source.rows[0].details;
-   if(!Array.isArray(staged?.addresses))return {state:'PENDING',reason:'STAGED_ADDRESSES_INVALID'};
-   addresses=staged.addresses.flatMap(x=>{
-    try{return [validateAddress(x)]}catch{return []}
-   });
-   if(primary)addresses=[primary,...addresses];
-  }else addresses=primary?[primary]:[];
- }catch{
-  return {state:'PENDING',reason:'LEGACY_CONTACT_INVALID'};
+ let data;
+ const addressCandidates=[];
+ for(const entry of ordered){
+  const source=await c.query('SELECT event_type,details FROM satori_v2_audit '+
+   "WHERE resource_id=$1 AND event_type IN ('CUSTOMER_LEAD_CREATED','LEGACY_CRM_STAGED') "+
+   'ORDER BY id DESC LIMIT 1',[entry.id]);
+  if(source.rowCount!==1)return {state:'PENDING',reason:'NO_OWNER_APPROVAL'};
+  try{
+   const checked=validateCustomerProfile({
+    fullName:entry.full_name,phone:entry.phone,address:entry.address,
+    email:entry.email,companyName:entry.company_name,taxCode:entry.tax_code,
+    note:entry.note,requestedType:entry.requested_type,
+    discountBps:entry.discount_bps,collaboratorBps:entry.collaborator_bps
+   },{admin:true,phoneOptional:true});
+   if(!checked.email||checked.email!==email.trim().toLowerCase()||
+      checked.requestedType==='collaborator'&&!Number.isSafeInteger(checked.collaboratorBps))
+    return {state:'PENDING',reason:'LEGACY_POLICY_INVALID'};
+   if(entry.id===lead.id)data=checked;
+   if(checked.phone)addressCandidates.push(validateAddress({label:'Khách cũ',
+    recipientName:checked.fullName,recipientPhone:checked.phone,address:checked.address}));
+   if(source.rows[0].event_type==='LEGACY_CRM_STAGED'){
+    const staged=source.rows[0].details;
+    if(!Array.isArray(staged?.addresses))return {state:'PENDING',reason:'STAGED_ADDRESSES_INVALID'};
+    for(const x of staged.addresses){try{addressCandidates.push(validateAddress(x))}catch{}}
+   }
+  }catch{return {state:'PENDING',reason:'LEGACY_CONTACT_INVALID'}}
  }
- const profiles=await c.query('SELECT id FROM satori_v2_profiles WHERE account_id=$1 '+
+ const addressMap=new Map();
+ for(const a of addressCandidates){
+  const key=normalizedDeliveryAddress(a.address);
+  if(key&&!addressMap.has(key))addressMap.set(key,a);
+ }
+ const addresses=[...addressMap.values()];
+ const profiles=await c.query('SELECT id,type FROM satori_v2_profiles WHERE account_id=$1 '+
   'ORDER BY created_at LIMIT 2 FOR UPDATE',[accountId]);
  if(profiles.rowCount>1)return {state:'PENDING',reason:'AMBIGUOUS_PROFILES'};
  const profileId=profiles.rows[0]?.id||null;
  if(profileId){
-  // Manually linked PENDING accounts can already have the old customer CK.
-  // Only reconcile an owner-signed DEFAULT policy matching the approved lead.
-  // Mismatched rates or customized address/SKU rules require manual review.
   const existing=await c.query('SELECT address_id,product_code,discount_bps,'+
    'collaborator_bps,approved_by FROM satori_v2_policies '+
    'WHERE profile_id=$1 AND enabled=true FOR UPDATE',[profileId]);
+  // Never overwrite custom address/SKU rules or policies approved by another actor.
   if(existing.rows.some(p=>p.address_id||p.product_code||
-   p.approved_by!==ownerGoogleSub||p.discount_bps!==data.discountBps||
-   p.collaborator_bps!=null&&p.collaborator_bps!==data.collaboratorBps))
+   p.approved_by!==ownerGoogleSub))
    return {state:'PENDING',reason:'EXISTING_POLICY_REQUIRES_OWNER'};
+  const policyConflict=existing.rows.some(p=>p.discount_bps!==data.discountBps||
+   (p.collaborator_bps??null)!==(data.requestedType==='collaborator'?data.collaboratorBps:null));
+  const roleConflict=profiles.rows[0].type!==data.requestedType;
+  if(existingActive&&(policyConflict||roleConflict||!existing.rows.length)){
+   // An ACTIVE account may have already placed V2 orders. Never retroactively
+   // reclassify its prices/role when quotes or invoice submissions exist.
+   const used=await c.query(
+    "SELECT EXISTS(SELECT 1 FROM satori_v2_quotes WHERE account_id=$1) "+
+    "OR EXISTS(SELECT 1 FROM satori_v2_order_requests WHERE account_id=$1) AS used",
+    [accountId]);
+   if(used.rows[0].used)
+    return {state:'PENDING',reason:'ACTIVE_ACCOUNT_HAS_ORDER_HISTORY'};
+  }
+  // PENDING customers sometimes have an owner-signed customer rate but no
+  // CTV commission configured yet. Preserve the 20% customer rate and add
+  // the approved 35% CTV cap rather than treating the NULL cap as conflict.
+  if(!existingActive&&existing.rows.some(p=>
+   p.discount_bps!==data.discountBps||
+   (p.collaborator_bps!=null&&p.collaborator_bps!==data.collaboratorBps)))
+   return {state:'PENDING',reason:'EXISTING_POLICY_REQUIRES_OWNER'};
+ }else if(existingActive){
+  const used=await c.query(
+   "SELECT EXISTS(SELECT 1 FROM satori_v2_quotes WHERE account_id=$1) "+
+   "OR EXISTS(SELECT 1 FROM satori_v2_order_requests WHERE account_id=$1) AS used",
+   [accountId]);
+  if(used.rows[0].used)
+   return {state:'PENDING',reason:'ACTIVE_ACCOUNT_HAS_ORDER_HISTORY'};
  }
  if(dryRun)return {state:'READY',role:data.requestedType};
  let targetProfile=profileId;
@@ -756,19 +824,8 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
    [accountId,data.requestedType,data.fullName,data.phone]);
   targetProfile=created.rows[0].id;
  }
- const stored=await c.query('SELECT recipient_phone,address FROM satori_v2_addresses '+
-  'WHERE profile_id=$1 FOR UPDATE',[targetProfile]);
- const addressKey=a=>(String(a.recipientPhone||a.recipient_phone||'')+'|'+String(a.address||''))
-  .normalize('NFKC').trim().toLowerCase();
- const seen=new Set(stored.rows.map(addressKey));
- let addressesAdded=0;
- for(const addr of addresses){
-  if(seen.has(addressKey(addr)))continue;
-  await c.query('INSERT INTO satori_v2_addresses '+
-   '(profile_id,label,recipient_name,recipient_phone,address) VALUES($1,$2,$3,$4,$5)',
-   [targetProfile,addr.label,addr.recipientName,addr.recipientPhone,addr.address]);
-  seen.add(addressKey(addr));addressesAdded++;
- }
+ const addressSync=await syncBoundLegacyAddresses(c,targetProfile,addresses);
+ const addressesAdded=addressSync.created;
  if(data.phone)await c.query('INSERT INTO satori_v2_registrations '+
   '(account_id,full_name,phone,address,company_name,tax_code,note,requested_type,reviewed_at,reviewed_by) '+
   'VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),$9) ON CONFLICT(account_id) DO UPDATE SET '+
@@ -780,10 +837,11 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
    data.requestedType,owner.rows[0].id]);
  await applyGeneralDiscount(c,targetProfile,ownerGoogleSub,data.discountBps,
   data.requestedType==='collaborator'?data.collaboratorBps:null);
- if(!lead.linked_account_id){
+ for(const entry of ordered){
+  if(entry.linked_account_id)continue;
   const linked=await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
    'revision=revision+1,updated_at=now() WHERE id=$1 AND linked_account_id IS NULL RETURNING id',
-   [lead.id,accountId]);
+   [entry.id,accountId]);
   check(linked.rowCount===1,'LEGACY_LEAD_RACE',409);
  }
  await c.query('UPDATE satori_v2_accounts SET display_name=$2,'+
@@ -793,7 +851,7 @@ export async function autoActivateVerifiedLegacyGmail(c,{accountId,googleSub,ema
   "VALUES($1,'system','LEGACY_VERIFIED_GMAIL_AUTO_ACTIVATED',$2,$3)",
   [accountId,lead.id,JSON.stringify({profileId:targetProfile,role:data.requestedType,
    discountBps:data.discountBps,collaboratorBps:data.collaboratorBps,
-   addressesAdded,oneInvoice:true})]);
+   addressesAdded,leadIds:ordered.map(x=>x.id),oneInvoice:true})]);
  return {state:'ACTIVE',profileId:targetProfile,leadId:lead.id,addressesAdded};
 }
 
@@ -853,54 +911,21 @@ export async function ownerActivateSavedGmail(pool,owner,input){
    'FROM satori_v2_accounts WHERE id=$1 FOR UPDATE',[input.accountId]);
   check(accountResult.rowCount===1,'CUSTOMER_NOT_FOUND',404);
   const account=accountResult.rows[0];
-  check(account.access_status==='PENDING','CUSTOMER_NOT_PENDING',409);
+  check(['PENDING','ACTIVE'].includes(account.access_status),'LEGACY_ACCOUNT_UNAVAILABLE',409);
   check(account.revision===input.expectedAccountRevision,'CUSTOMER_REVISION_CONFLICT',409);
   check(account.google_sub&&account.email.toLowerCase()===lead.email.toLowerCase(),
    'LEGACY_VERIFIED_GMAIL_MISMATCH',403);
-  const duplicates=await c.query('SELECT id FROM satori_v2_customer_leads '+
-   'WHERE active=true AND lower(email)=lower($1) AND id<>$2 LIMIT 1',[lead.email,lead.id]);
-  check(!duplicates.rowCount,'LEGACY_GMAIL_AMBIGUOUS',409);
-  const otherAccounts=await c.query('SELECT id FROM satori_v2_accounts '+
-   'WHERE lower(email)=lower($1) AND id<>$2 LIMIT 1',[lead.email,account.id]);
-  check(!otherAccounts.rowCount,'LEGACY_GMAIL_AMBIGUOUS',409);
-  // Never authorize a lead that was not actually created through the owner CRM.
-  const approved=await c.query('SELECT 1 FROM satori_v2_audit '+
-   "WHERE resource_id=$1 AND event_type IN ('CUSTOMER_LEAD_CREATED','LEGACY_CRM_STAGED') "+
-   'LIMIT 1',[lead.id]);
-  check(approved.rowCount===1,'NO_OWNER_APPROVAL',409);
-  const data=checked(()=>validateCustomerProfile({
-   fullName:lead.full_name,email:lead.email,phone:lead.phone,address:lead.address,
-   companyName:lead.company_name,taxCode:lead.tax_code,note:lead.note,
-   requestedType:lead.requested_type,discountBps:lead.discount_bps,
-   collaboratorBps:lead.collaborator_bps
-  },{admin:true,phoneOptional:true}));
-  const primary=data.phone?checked(()=>validateAddress({
-   label:'Địa chỉ chính',recipientName:data.fullName,recipientPhone:data.phone,address:data.address
-  })):null;
-  const existingProfiles=await c.query('SELECT id FROM satori_v2_profiles '+
-   'WHERE account_id=$1 ORDER BY created_at LIMIT 2 FOR UPDATE',[account.id]);
-  check(existingProfiles.rowCount<=1,'AMBIGUOUS_PROFILES',409);
-  if(existingProfiles.rowCount){
-   const rules=await c.query('SELECT address_id,product_code,discount_bps,collaborator_bps,approved_by '+
-    'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true FOR UPDATE',
-    [existingProfiles.rows[0].id]);
-   check(rules.rows.every(r=>r.address_id==null&&r.product_code==null&&
-    r.approved_by===owner.google_sub&&r.discount_bps===data.discountBps&&
-    (r.collaborator_bps==null||r.collaborator_bps===data.collaboratorBps)),
-    'EXISTING_POLICY_REQUIRES_OWNER',409);
-  }
-  const result=await activateLegacyAccount(c,owner,account,data,primary?[primary]:[],[],null,account.revision);
-  const linked=await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,'+
-   'revision=revision+1,updated_at=now() WHERE id=$1 '+
-   'AND (linked_account_id IS NULL OR linked_account_id=$2) RETURNING id',
-   [lead.id,account.id]);
-  check(linked.rowCount===1,'LEAD_LINK_CONFLICT',409);
-  await audit(c,owner.id,'OWNER_SAVED_GMAIL_LINKED',lead.id,{
-   accountId:account.id,profileId:result.profileId,role:data.requestedType,
-   discountBps:data.discountBps,collaboratorBps:data.collaboratorBps,
-   invoiceHistoryUnchanged:true
+  const result=await autoActivateVerifiedLegacyGmail(c,{
+   accountId:account.id,googleSub:account.google_sub,email:account.email,
+   ownerGoogleSub:owner.google_sub,primaryLeadId:lead.id,
+   allowActiveOwnerReconcile:account.access_status==='ACTIVE'
   });
-  return {...result,leadId:lead.id,source:'owner-saved-crm'};
+  check(result.state==='ACTIVE',result.reason||'LEGACY_ACTIVATION_FAILED',409);
+  await audit(c,owner.id,'OWNER_SAVED_GMAIL_LINKED',lead.id,{
+   accountId:account.id,profileId:result.profileId,invoiceHistoryUnchanged:true
+  });
+  return {...result,accessStatus:'ACTIVE',alreadyActive:account.access_status==='ACTIVE',
+   leadId:lead.id,source:'owner-saved-crm'};
  });
 }
 
@@ -1009,12 +1034,11 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
   check(!keys.has(key),'LEGACY_BIND_DUPLICATE',409);
   keys.add(key);
  }
- const signed=await legacyCustomerSearch(input.query);
- check(signed.revision===input.sourceRevision,'LEGACY_SOURCE_REVISION_CHANGED',409);
- check(!signed.truncated,'LEGACY_BIND_RESULT_TRUNCATED',409);
+ check(Number.isSafeInteger(input.sourceRevision)&&input.sourceRevision>=1,
+  'LEGACY_SOURCE_UNVERIFIED',409);
+ const signed=await resolveLegacyInvoiceRefs(refs,input.sourceRevision);
  const found=new Map(signed.orders.map(x=>[x.invoiceNo+'|'+x.id,x]));
- const rows=refs.map(x=>found.get(x.invoiceNo+'|'+x.sourceId));
- check(rows.every(Boolean),'LEGACY_BIND_SOURCE_REF_NOT_FOUND',409);
+ const rows=signed.orders;
  // Never determine record identity or deduplicate destinations by customer name.
  // Only owner-confirmed source invoice IDs can establish the account binding.
  const role=input.requestedType;
@@ -1077,11 +1101,17 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
   const dup=await c.query('SELECT id FROM satori_v2_accounts WHERE lower(email)=lower($1) AND id<>$2 LIMIT 1',
    [data.email,target.id]);
   check(dup.rowCount===0,'LEGACY_GMAIL_AMBIGUOUS',409);
-  const leads=await c.query('SELECT id,linked_account_id FROM satori_v2_customer_leads '+
+  const leads=await c.query('SELECT * FROM satori_v2_customer_leads '+
    'WHERE active=true AND lower(email)=lower($1) ORDER BY id FOR UPDATE',[data.email]);
   check(leads.rows.every(x=>!x.linked_account_id||x.linked_account_id===target.id),
    'LEGACY_GMAIL_LEAD_LINK_CONFLICT',409);
-  check(leads.rowCount<=1,'LEGACY_GMAIL_AMBIGUOUS',409);
+  check(leads.rows.every(x=>x.requested_type===role&&x.discount_bps===data.discountBps&&
+   x.collaborator_bps===data.collaboratorBps),'LEGACY_LEAD_POLICY_CONFLICT',409);
+  for(const entry of leads.rows){
+   const approved=await c.query('SELECT 1 FROM satori_v2_audit '+
+    "WHERE resource_id=$1 AND event_type IN ('CUSTOMER_LEAD_CREATED','LEGACY_CRM_STAGED') LIMIT 1",[entry.id]);
+   check(approved.rowCount===1,'NO_OWNER_APPROVAL',409);
+  }
   let newlyBound=0;
   for(const ref of refs){
    const old=await c.query('SELECT account_id FROM satori_v2_audit WHERE '+
@@ -1109,20 +1139,38 @@ export async function ownerBindLegacyInvoices(pool,owner,input){
   }else{
    const active=await c.query('SELECT p.id,p.type FROM satori_v2_profiles p '+
     'WHERE p.account_id=$1 ORDER BY created_at LIMIT 2 FOR UPDATE',[target.id]);
-   check(active.rowCount===1&&active.rows[0].type===role,'LEGACY_ACTIVE_ROLE_CONFLICT',409);
+   check(active.rowCount===1,'AMBIGUOUS_PROFILES',409);
    profileId=active.rows[0].id;
    const p=await c.query('SELECT discount_bps,collaborator_bps FROM satori_v2_policies '+
     'WHERE profile_id=$1 AND enabled=true AND address_id IS NULL AND product_code IS NULL '+
     'ORDER BY version DESC LIMIT 1',[profileId]);
-   check(p.rowCount===1&&p.rows[0].discount_bps===data.discountBps&&
-    (role!=='collaborator'||p.rows[0].collaborator_bps===data.collaboratorBps),
-    'LEGACY_ACTIVE_POLICY_CONFLICT',409);
-   // The shared address sync below also handles existing ACTIVE accounts.
+   const needsApprovedReconcile=active.rows[0].type!==role||p.rowCount!==1||
+    p.rows[0].discount_bps!==data.discountBps||
+    (p.rows[0].collaborator_bps??null)!==(role==='collaborator'?data.collaboratorBps:null);
+   if(needsApprovedReconcile){
+    // Exact source invoice refs have already been verified. Reuse the SAME
+    // owner-only, approved-Gmail reconciliation used by the no-invoice path.
+    // Neither OAuth nor a customer can invoke this ACTIVE role migration.
+    check(leads.rowCount>0,'ACTIVE_LEGACY_OWNER_LEAD_REQUIRED',409);
+    const google=await c.query('SELECT google_sub FROM satori_v2_accounts '+
+     'WHERE id=$1 FOR UPDATE',[target.id]);
+    check(google.rowCount===1,'CUSTOMER_NOT_FOUND',404);
+    const linked=await autoActivateVerifiedLegacyGmail(c,{
+     accountId:target.id,googleSub:google.rows[0].google_sub,email:target.email,
+     ownerGoogleSub:owner.google_sub,primaryLeadId:input.leadId||null,
+     allowActiveOwnerReconcile:true
+    });
+    check(linked.state==='ACTIVE',linked.reason||'ACTIVE_LEGACY_RECONCILE_FAILED',409);
+    check(linked.profileId===profileId,'ACTIVE_PROFILE_ID_CHANGED',409);
+   }
+   // The shared address sync merges latest signed source delivery details.
   }
   const addressSync=await syncBoundLegacyAddresses(c,profileId,addresses);
-  if(leads.rowCount===1&&!leads.rows[0].linked_account_id)
+  // ACTIVE-account owner reconciliation may have linked these same leads.
+  // Never increment their revisions twice in the same transaction.
+  for(const entry of leads.rows)if(!entry.linked_account_id)
    await c.query('UPDATE satori_v2_customer_leads SET linked_account_id=$2,revision=revision+1 '+
-    'WHERE id=$1',[leads.rows[0].id,target.id]);
+    'WHERE id=$1 AND linked_account_id IS NULL',[entry.id,target.id]);
   for(const ref of refs){
    const already=await c.query('SELECT 1 FROM satori_v2_audit WHERE '+
     "event_type='LEGACY_INVOICE_ACCOUNT_BOUND' AND account_id=$1 "+
@@ -1171,11 +1219,25 @@ export async function linkedLegacyInvoiceHistory(pool,actor){
     const key=order.invoiceNo+'|'+order.id;
     if(refs.has(key))resolved.set(key,{
      source:'legacy',invoiceNo:order.invoiceNo,sourceId:order.id,
-     date:order.date,name:order.name,address:order.address,status:order.status,
+     date:order.date,createdAt:order.createdAt,timestamp:order.timestamp,
+     name:order.name,address:order.address,status:order.status,
      totalVnd:order.total,items:order.items,readOnly:true
     });
    }
   }catch{ /* never substitute unverified totals or broaden visibility */ }
+ }
+ // A stored search term is only an optimization, never invoice identity.
+ for(const ref of [...refs.values()].filter(d=>!resolved.has(d.invoiceNo+'|'+d.sourceId)).slice(0,30)){
+  try{
+   const result=await resolveLegacyInvoiceRefs([ref]);
+   const order=result.orders[0];
+   resolved.set(ref.invoiceNo+'|'+ref.sourceId,{
+    source:'legacy',invoiceNo:order.invoiceNo,sourceId:order.id,
+    date:order.date,createdAt:order.createdAt,timestamp:order.timestamp,
+    name:order.name,address:order.address,status:order.status,
+    totalVnd:order.total,items:order.items,readOnly:true
+   });
+  }catch{ /* missing, ambiguous or unavailable source stays unavailable */ }
  }
  const orders=[...resolved.values()].sort((a,b)=>b.invoiceNo-a.invoiceNo);
  const addresses=groupHistoricalAddresses(orders);
