@@ -50,15 +50,27 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn('contentDescription = title', helper)
         self.assertIn('tooltipText = title', helper)
         self.assertIn('setOnClickListener { click() }', helper)
-        self.assertIn('val shareIcon = iconRes == R.drawable.ic_brand_zalo', helper)
-        self.assertIn('iconRes == R.drawable.ic_brand_messenger', helper)
-        self.assertIn('val shareWidth = if (shareIcon) dp(48) else 0', helper)
-        self.assertIn('val shareHeight = if (shareIcon) dp(48) else dp(51)', helper)
+        self.assertIn('LinearLayout.LayoutParams(dp(48), dp(48))', helper)
+        self.assertNotIn('LayoutParams(0, dp(51), 1f)', helper)
+        self.assertNotIn('shareWidth =', helper)
+        self.assertIn('if (parent.childCount == 0) 0 else dp(7)', helper)
         for name in ("zalo", "messenger"):
             vector = (DRAWABLE / f"ic_brand_{name}.xml").read_text(encoding="utf-8")
             self.assertIn('<vector', vector)
             self.assertIn('android:pathData=', vector)
             self.assertIn('android:fillColor="#FFFFFFFF"', vector)
+
+    def test_fold_cover_and_inner_display_layout(self):
+        helper = SRC.split("private fun resizeInvoiceDialog(", 1)[1].split(
+            "private fun invoicePaymentRow(", 1)[0]
+        self.assertIn("viewportWidth - 24", helper)
+        self.assertIn(".coerceAtMost(540)", helper)
+        self.assertIn("dialog.window?.setLayout(dp(safeWidth), usableHeight)", helper)
+        self.assertIn("activeInvoiceDialog?.takeIf { it.isShowing }?.let(::resizeInvoiceDialog)", SRC)
+        self.assertIn("if (resources.configuration.screenWidthDp >= 420)", DETAIL)
+        self.assertIn('toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))', DETAIL)
+        self.assertIn('actions.gravity = Gravity.CENTER', DETAIL)
+        self.assertIn("resizeInvoiceDialog(dialog)", DETAIL)
 
     def test_zalo_vector_uses_android_safe_polygon_not_svg_arc_flags(self):
         import re
