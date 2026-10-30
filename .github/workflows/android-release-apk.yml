@@ -25,6 +25,7 @@ on:
       # Owner-approved staging-only signed APK acceptance; never auto-deploy.
       - 'feature/android-accounting-pro-v0427-signed-acceptance-20261030'
       - 'feature/android-accounting-pro-hide-three-cards-v0428-20261030'
+      - 'feature/android-accounting-pro-profit45-perbill-period-v0429-20261030'
       - 'release/android-v0.4.20-native-v2-crm-20261029'
       - 'release/android-v0.4.13-customer-info-20261027'
       - 'release/android-v0.4.14-owner-edit-payment-20261027'
