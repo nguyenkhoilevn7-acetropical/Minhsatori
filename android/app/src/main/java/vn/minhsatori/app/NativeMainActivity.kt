@@ -1111,6 +1111,32 @@ class NativeMainActivity : AppCompatActivity() {
                 else "$salesCount hóa đơn bán · Xem chi tiết ›",
                 11f, false, Color.rgb(16, 132, 100), 4)
 
+            // Real line prices + company's agreed 45% discount. This is
+            // merchandise margin BEFORE unverified CTV/operating expenses.
+            val allProfit45 = data?.let {
+                AccountingProProfit45.summarize(it.invoices,
+                    java.time.LocalDate.MIN, java.time.LocalDate.MAX)
+            }
+            val profitCard = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(13), dp(12), dp(13), dp(11))
+                background = panelBackground(Color.WHITE, 14)
+                isClickable = data != null
+                isFocusable = data != null
+                contentDescription = "Xem tiền lời theo chiết khấu công ty 45 phần trăm"
+                if (data != null) setOnClickListener { showAccountingProProfit45Report(data) }
+            }
+            label(profitCard, "Lãi hàng dự tính · CK công ty 45%", 11f, false, muted)
+            label(profitCard, if (data == null) "—"
+                else allProfit45?.grossMerchandiseMarginVnd
+                    ?.let(SatoriData::money) ?: "Chưa xác minh",
+                23f, true, invoiceMoneyRed, 4)
+            label(profitCard, if (allProfit45 == null) "Chưa đồng bộ dữ liệu"
+                else "${allProfit45.calculatedCount}/${allProfit45.invoiceCount} hóa đơn đủ giá" +
+                    (if (allProfit45.skippedCount > 0) " · Có bill chưa tính" else "") +
+                    " · Lọc ngày/tháng/năm ›",
+                11f, false, Color.rgb(16, 132, 100), 4)
+
             val summaryCards = LinearLayout(this).apply {
                 orientation = if (resources.configuration.screenWidthDp >= 460)
                     LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
@@ -1128,6 +1154,9 @@ class NativeMainActivity : AppCompatActivity() {
             }
             hero.addView(summaryCards, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(9)
+            })
+            hero.addView(profitCard, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(8)
             })
             content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(8)
@@ -3682,6 +3711,46 @@ class NativeMainActivity : AppCompatActivity() {
             12f, false, softInk, 5)
         label(content, "TỔNG THANH TOÁN: " + SatoriData.money(invoice.total),
             18f, true, Color.rgb(17, 133, 91), 11)
+        // Never guess margin for duplicates, missing list price, VAT/ship
+        // mismatch or internal CTV bills.
+        val originalRows = snapshot?.invoices.orEmpty()
+        val trustedIdentity = AccountingProReadOnly.invoiceRows(originalRows)
+            .firstOrNull { it.invoice === invoice }?.identityReliable == true
+        val margin45 = AccountingProProfit45.invoice(
+            invoice, originalRows, trustedIdentity)
+        label(content, "LÃI HÀNG · CHIẾT KHẤU NGUỒN 45%", 12.5f, true, cyan, 14)
+        if (margin45.canAggregate) {
+            label(content, "Tiền hàng bán: " +
+                SatoriData.money(margin45.merchandiseRevenueVnd!!),
+                12f, false, softInk, 5)
+            label(content, "Giá nhập theo CK 45%: " +
+                SatoriData.money(margin45.companyCostEstimateVnd!!),
+                12f, false, softInk, 4)
+            label(content, "Lãi hàng trước CTV/chi phí: " +
+                SatoriData.money(margin45.merchandiseMarginBeforeCtvVnd!!),
+                15f, true, invoiceMoneyRed, 6)
+            if (margin45.verifiedLegacyCtvCommissionVnd != null &&
+                (invoice.collaboratorId.isNotBlank() || invoice.isLinkedPairBill)) {
+                label(content, "Chênh lệch CTV từ cặp bill xác minh: " +
+                    SatoriData.money(margin45.verifiedLegacyCtvCommissionVnd),
+                    12f, false, softInk, 4)
+                if (margin45.marginAfterVerifiedLegacyCtvVnd != null)
+                    label(content, "Lãi hàng sau CTV (ước tính): " +
+                        SatoriData.money(margin45.marginAfterVerifiedLegacyCtvVnd),
+                        14f, true, invoiceMoneyRed, 4)
+            } else if (invoice.collaboratorId.isNotBlank() || invoice.isLinkedPairBill ||
+                invoice.pairDiscountPercent != null) {
+                label(content, "CTV chưa đối soát · chưa thể tính lãi sau hoa hồng.",
+                    12f, true, Color.rgb(175, 94, 0), 5)
+            }
+            label(content, "Lãi ước tính theo bảng giá; chưa trừ chi phí khác, " +
+                "không phải lợi nhuận ròng hoặc số tiền đã thu.",
+                11f, false, softInk, 5)
+        } else {
+            label(content, "Chưa đủ dữ liệu tính lãi: " +
+                (margin45.warning ?: "Cần xác minh bảng giá."),
+                11.5f, true, Color.rgb(175, 94, 0), 5)
+        }
         if (invoice.deliveryNote.isNotBlank()) {
             label(content, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, cyan, 13)
             label(content, invoice.deliveryNote, 13f, false, white, 5)
