@@ -38,7 +38,7 @@ test('owner can complete a completely NEW Google account without legacy CRM or i
  assert.equal(log.some(x=>x.sql.includes('readMinhSatori')||x.sql.includes('legacy')||
    x.sql.includes('satori_v2_orders')||x.sql.includes('satori_v2_invoices')),false);
  assert.match(log.find(x=>x.sql.includes('INSERT INTO satori_v2_registrations')).sql,/requested_type/);
- assert.ok(log.some(x=>x.sql.includes('CUSTOMER_NEW_REGISTRATION_COMPLETED')));
+ assert.ok(log.some(x=>x.params?.[2]==='CUSTOMER_NEW_REGISTRATION_COMPLETED'));
  assert.equal(log.some(x=>x.sql.includes("access_status='ACTIVE'")),false);
 });
 test('no auto approval, no overwrite of existing registration, no unauthenticated account',async()=>{
