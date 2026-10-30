@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const files=[
- ['account-v2/app.html','29291195','mm-bottom-nav'],
+ ['account-v2/app.html','3b05fe3b','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const fnv32=s=>{let h=0x811c9dc5;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),0x01000193);return (h>>>0).toString(16).padStart(8,'0')};
@@ -22,11 +22,11 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // reviewed full-page business, CSS and non-script hashes to catch regressions.
  // Oct 29 reviewed CTV delivery customer pricing controls: two tabs,
  // address-scoped discount input and guarded client policy API.
- // Oct 29 reviewed CTV bottom sheet reuses saved-client writer and validates both rate tiers.\n // Oct 29 reviewed typography-only delta: 16px onboarding/body and 20px headings.\n // Oct 30 reviewed delta: verified receipt opens a separate detail screen with\n // stored quote lines and totals; canonical PDF remains explicitly pending.\n // Preserve full-page hashes after this scoped UI/API review.
+ // Oct 29 reviewed CTV bottom sheet reuses saved-client writer and validates both rate tiers.\n // Oct 29 reviewed typography-only delta: 16px onboarding/body and 20px headings.\n // Oct 30 reviewed delta: account-scoped date/recipient filters and standalone\n // responsive invoice cards. Receipts remain separate from Gemini conversation.\n // Preserve full-page hashes after this scoped UX/API review.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const fnvPart=x=>fnv32(x);
- assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'1be54b43');
- assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'51706899');
+ assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'2899307a');
+ assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'e92fb3e6');
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-subtitle,/);
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-phone \{/);
  assert.match(v2,/background:#eaf4f3;\s*color:#205e61;/);
