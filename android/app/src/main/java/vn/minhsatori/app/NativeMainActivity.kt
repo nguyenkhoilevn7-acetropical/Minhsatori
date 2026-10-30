@@ -76,6 +76,9 @@ class NativeMainActivity : AppCompatActivity() {
     private var snapshot: SatoriSnapshot? = null
     private var statusMessage = "Chưa liên kết dữ liệu Google Drive. Bấm KẾT NỐI DỮ LIỆU để bắt đầu."
     private var searchText = ""
+    // UI-only filters: no ledger mutation and no new data permissions.
+    private var debtProfitPeriod = AccountingProMargin45Period.all()
+    private var debtProfitChoice = 0
     private var isLoading = false
     private var fileUri: Uri? = null
     private var dataSource = ""
@@ -2391,6 +2394,28 @@ class NativeMainActivity : AppCompatActivity() {
         })
     }
 
+    /**
+     * Add a read-only profit caption INSIDE the last invoice card, above its
+     * existing actions. Keep invoiceQuickCard/openInvoice and all protected
+     * edit/payment/delete handlers unchanged.
+     */
+    private fun showProfitInsideInvoiceCard(parent: LinearLayout,
+                                            row: AccountingProMargin45Row?) {
+        val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
+        val caption = TextView(this).apply {
+            text = "Lợi nhuận: " +
+                (row?.estimatedOwnerMarginVnd?.let(SatoriData::money) ?: "Chưa đủ dữ liệu")
+            textSize = 12.5f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(invoiceMoneyRed)
+            setPadding(0, dp(7), 0, dp(2))
+            includeFontPadding = false
+            contentDescription = text
+        }
+        // Position before the button row so it is unambiguously in the card.
+        card.addView(caption, (card.childCount - 1).coerceAtLeast(0))
+    }
+
     /** One guarded soft-delete from the invoice list, debt list and detail. */
     private fun confirmSoftDelete(invoice: SatoriInvoice, after: (() -> Unit)? = null) {
         val number = invoice.number.toIntOrNull()?.takeIf { it > 0 }
@@ -2523,8 +2548,12 @@ class NativeMainActivity : AppCompatActivity() {
         })
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         parent.addView(list)
-        val marginById = AccountingProMargin45.calculate(data.invoices)
-            .associateBy { it.invoice.id }
+        val marginByInvoice =
+            java.util.IdentityHashMap<SatoriInvoice, AccountingProMargin45Row>().apply {
+                AccountingProMargin45.calculate(data.invoices).forEach {
+                    put(it.invoice, it)
+                }
+            }
         fun updateList() {
             list.removeAllViews()
             val status = statuses[filter.selectedItemPosition.coerceIn(0, statuses.lastIndex)]
@@ -2536,17 +2565,9 @@ class NativeMainActivity : AppCompatActivity() {
                 (if (status != "Tất cả") " • " + status else ""),
                 11.5f, true, cyan, 7)
             matching.take(120).forEach { inv ->
-                // Do not modify the signed/protected invoiceQuickCard/openInvoice
-                // functions. Show the owner's 45%-basis margin as a separate,
-                // read-only line under each original invoice card.
                 invoiceQuickCard(list, inv)
-                if (!inv.isExcluded) {
-                    val profit=marginById[inv.id]
-                    label(list, "Lãi gộp ước tính (CK nhập 45%): " +
-                        (profit?.estimatedOwnerMarginVnd?.let(SatoriData::money)
-                            ?: "Chưa đủ dữ liệu"),
-                        12f, true, invoiceMoneyRed, 3)
-                }
+                if (!inv.isExcluded)
+                    showProfitInsideInvoiceCard(list, marginByInvoice[inv])
             }
             // Filter/search callbacks build cards *after* render(); normalize
             // prices here as well so old green inline TextViews cannot reappear.
@@ -3619,29 +3640,179 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun renderDebt(parent: LinearLayout, data: SatoriSnapshot) {
-        val summary = LinearLayout(this).apply {
+    /**
+     * Shared date filter for Debt and Profit. The same period is applied to
+     * both cards and the debt invoice list; no invoice states are written.
+     */
+    private fun showDebtProfitFilter() {
+        val today = java.time.LocalDate.now()
+        val choices = listOf("Tất cả", "Theo ngày", "Theo tháng",
+            "Theo năm", "Khoảng tùy chỉnh")
+        val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(15), dp(16), dp(14))
-            background = panelBackground(Color.rgb(227, 247, 243), 18)
+            setPadding(dp(14), dp(10), dp(14), dp(12))
         }
-        label(summary, "Tổng công nợ cần thu", 12f, true, Color.rgb(20, 103, 104))
-        label(summary, SatoriData.money(data.outstandingAmount), 24f, true, ink, 5)
-        label(summary, data.outstandingCount.toString() +
-            " hóa đơn khách chưa thanh toán", 11.5f, false, softInk, 5)
-        parent.addView(summary)
+        label(panel, "Áp dụng chung cho Công nợ và Lợi nhuận",
+            12f, true, ink)
+        val picker = darkSpinner(choices)
+        picker.setSelection(debtProfitChoice)
+        panel.addView(picker, LinearLayout.LayoutParams(-1, dp(44)).apply {
+            topMargin = dp(8)
+        })
+        val fields = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        panel.addView(fields)
+        val inputs = mutableMapOf<String, EditText>()
+        val initial = debtProfitPeriod.from ?: today
+        fun input(key: String, caption: String, value: String) {
+            label(fields, caption, 11.5f, true, softInk, 9)
+            val field = EditText(this).apply {
+                textSize = 13f
+                setSingleLine(true)
+                setText(value)
+                setTextColor(ink)
+                setPadding(dp(11), 0, dp(11), 0)
+                background = panelBackground(Color.rgb(248, 249, 252), 10)
+                contentDescription = caption
+            }
+            fields.addView(field, LinearLayout.LayoutParams(-1, dp(43)).apply {
+                topMargin = dp(4)
+            })
+            inputs[key] = field
+        }
+        fun redrawFields() {
+            fields.removeAllViews()
+            inputs.clear()
+            when (picker.selectedItemPosition) {
+                1 -> input("day", "Ngày (YYYY-MM-DD)", initial.toString())
+                2 -> input("month", "Tháng (YYYY-MM)",
+                    java.time.YearMonth.from(initial).toString())
+                3 -> input("year", "Năm (YYYY)", initial.year.toString())
+                4 -> {
+                    input("from", "Từ ngày (YYYY-MM-DD)", initial.toString())
+                    input("to", "Đến ngày (YYYY-MM-DD)",
+                        (debtProfitPeriod.through ?: today).toString())
+                }
+            }
+        }
+        picker.onItemSelectedListener =
+            object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?,
+                    view: View?, position: Int, id: Long) { redrawFields() }
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+            }
+        redrawFields()
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Lọc thời gian")
+            .setView(panel)
+            .setNegativeButton("Hủy", null)
+            .setNeutralButton("Xóa lọc", null)
+            .setPositiveButton("Áp dụng", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                debtProfitPeriod = AccountingProMargin45Period.all()
+                debtProfitChoice = 0
+                dialog.dismiss()
+                render()
+            }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                fun value(key: String) = inputs[key]?.text?.toString()?.trim().orEmpty()
+                val period = try {
+                    when (picker.selectedItemPosition) {
+                        1 -> AccountingProMargin45Period.day(
+                            java.time.LocalDate.parse(value("day")))
+                        2 -> java.time.YearMonth.parse(value("month")).let {
+                            AccountingProMargin45Period.month(it.year, it.monthValue)
+                        }
+                        3 -> AccountingProMargin45Period.year(value("year").toInt())
+                        4 -> AccountingProMargin45Period.custom(
+                            java.time.LocalDate.parse(value("from")),
+                            java.time.LocalDate.parse(value("to")))
+                        else -> AccountingProMargin45Period.all()
+                    }
+                } catch (_: Exception) {
+                    Toast.makeText(this,
+                        "Ngày không hợp lệ. Dùng YYYY-MM-DD, YYYY-MM hoặc YYYY.",
+                        Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                debtProfitPeriod = period
+                debtProfitChoice = picker.selectedItemPosition
+                dialog.dismiss()
+                render()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun renderDebt(parent: LinearLayout, data: SatoriSnapshot) {
+        val margins = AccountingProMargin45.calculate(data.invoices)
+        val report = AccountingProDebtProfitPolicy.report(
+            data.invoices, margins, debtProfitPeriod)
+        val marginByInvoice =
+            java.util.IdentityHashMap<SatoriInvoice, AccountingProMargin45Row>().apply {
+                margins.forEach { put(it.invoice, it) }
+            }
+        button(parent, "☷ Lọc thời gian · " + debtProfitPeriod.title) {
+            showDebtProfitFilter()
+        }
+        val totals = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.TOP
+        }
+        fun totalCard(title: String, amount: String, detail: String, bg: Int,
+                      marginEnd: Int = 0) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(11), dp(13), dp(11), dp(13))
+                background = panelBackground(bg, 15)
+            }
+            label(card, title, 11.5f, true, Color.rgb(20, 103, 104))
+            label(card, amount, 17.5f, true, invoiceMoneyRed, 7).apply {
+                maxLines = 2
+                setAutoSizeTextTypeUniformWithConfiguration(12, 18, 1,
+                    android.util.TypedValue.COMPLEX_UNIT_SP)
+            }
+            label(card, detail, 10.5f, false, softInk, 6)
+            totals.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                marginEnd.let { this.marginEnd = dp(it) }
+            })
+        }
+        totalCard("Tổng công nợ cần thu",
+            report.outstandingVnd?.let(SatoriData::money) ?: "Chưa xác minh",
+            report.outstandingInvoices.size.toString() + " hóa đơn chưa thanh toán",
+            Color.rgb(227, 247, 243), 7)
+        val known = report.margin.computedInvoiceCount
+        val eligible = report.margin.totalInvoiceCount
+        val unknown = report.margin.missingInvoiceCount
+        totalCard("Tổng lợi nhuận",
+            report.margin.estimatedMarginKnownVnd?.let(SatoriData::money)
+                ?: "Chưa đủ dữ liệu",
+            "Ước tính · " + known + "/" + eligible + " hóa đơn" +
+                (if (unknown > 0) " · $unknown chưa rõ" else ""),
+            Color.rgb(244, 250, 247))
+        parent.addView(totals)
+        label(parent, "Lợi nhuận là lãi gộp ước tính theo chiết khấu nhập 45%, " +
+            "chưa trừ phí giao và vận hành.", 10.5f, false, softInk, 6)
+        if (debtProfitChoice != 0 && report.invalidDateDebtCount > 0)
+            label(parent, report.invalidDateDebtCount.toString() +
+                " hóa đơn công nợ có ngày không hợp lệ nên không thuộc bộ lọc thời gian.",
+                10.5f, false, Color.rgb(175, 94, 0), 6)
         button(parent, "KẾ TOÁN PRO  ·  TỔNG HỢP CHỈ ĐỌC",
             false, R.drawable.ic_satori_debt) { showAccountingProPreview(data) }
         button(parent, "XEM CÔNG NỢ TỪNG HÓA ĐƠN",
             false, R.drawable.ic_satori_invoice) { showAccountingProInvoiceList(data) }
-        button(parent, "☷ Lọc hóa đơn") { showLedger(data) }
+        button(parent, "☷ Lọc danh sách hóa đơn") { showLedger(data) }
         label(parent, "Công nợ theo khách hàng", 15f, true, ink, 14)
-        data.invoices.filter { it.isOutstanding }.forEach { invoice ->
+        report.outstandingInvoices.forEach { invoice ->
             invoiceQuickCard(parent, invoice, fromDebt = true)
+            showProfitInsideInvoiceCard(parent, marginByInvoice[invoice])
         }
-        if (data.outstandingCount == 0)
-            section(parent, "Không có hóa đơn cần thu",
-                "Dữ liệu lấy từ sổ đã đồng bộ, không bao gồm bản 'Không Tính'.")
+        if (report.outstandingInvoices.isEmpty())
+            section(parent, "Không có hóa đơn cần thu trong kỳ",
+                "Không bao gồm hóa đơn đã thanh toán, đã hủy hoặc 'Không Tính'.")
         label(parent, "Lưu ý: Khách thanh toán và thanh toán cho Satori là hai trạng thái độc lập.",
             10.5f, false, softInk, 12)
     }
