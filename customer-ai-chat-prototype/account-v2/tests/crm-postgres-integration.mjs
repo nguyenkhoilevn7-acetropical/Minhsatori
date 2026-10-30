@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import {randomUUID,createHmac} from 'node:crypto';
 import pg from 'pg';
-import {readFileSync} from 'node:fs';
 import {ctvClientWrite,ctvClientList} from '../router.mjs';
 import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,
  adminLinkLead,adminCustomerList,registrationRead,adminEditRegisteredCustomer,
@@ -24,22 +23,16 @@ const form={
  requestedType:'agency',email:'oldagency@example.invalid'
 };
 try{
- // Verify migration rollback and FK preservation against an actual PostgreSQL DB.
- const migration=readFileSync(new URL('../migrations/20261030_legacy_multiple_delivery_leads.sql',import.meta.url),'utf8');
- const connection=await pool.connect();
- try{
-  await connection.query('ALTER TABLE satori_v2_customer_leads ADD CONSTRAINT satori_v2_customer_leads_linked_account_id_key UNIQUE(linked_account_id)');
-  await connection.query('BEGIN');
-  await connection.query(migration.replace(/^\s*(?:BEGIN|COMMIT)\s*;\s*$/gmi,''));
-  await connection.query('ROLLBACK');
-  const restored=await connection.query("SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass AND conname='satori_v2_customer_leads_linked_account_id_key'");
-  assert.equal(restored.rowCount,1,'transaction rollback restores original uniqueness');
-  await connection.query(migration);await connection.query(migration);
-  const removed=await connection.query("SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass AND conname='satori_v2_customer_leads_linked_account_id_key'");
-  assert.equal(removed.rowCount,0,'migration is idempotent');
-  const fk=await connection.query("SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass AND confrelid='satori_v2_accounts'::regclass AND contype='f'");
-  assert.equal(fk.rowCount,1,'Google account foreign key remains enforced');
- }finally{connection.release()}
+ // The CRM connection repair runs against the EXISTING database schema.
+ // Keep its UNIQUE linked account constraint, and prove the FK remains intact.
+ const constraint=await pool.query(
+  "SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass "+
+  "AND conname='satori_v2_customer_leads_linked_account_id_key'");
+ assert.equal(constraint.rowCount,1,'one canonical old lead FK must remain unique');
+ const fk=await pool.query(
+  "SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass "+
+  "AND confrelid='satori_v2_accounts'::regclass AND contype='f'");
+ assert.equal(fk.rowCount,1,'Google account FK stays intact');
  const owner=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
   "VALUES($1,'owner@demo.invalid','ACTIVE') RETURNING id,google_sub",
   ['ci-owner-'+randomUUID()]);
@@ -614,7 +607,7 @@ try{
   assert.equal(points.rowCount,5,'same normalized address is unique despite different phone');
   assert.equal(points.rows.find(x=>x.address==='42 Synthetic Road').recipient_phone,'0900000101');
   const links=await one('SELECT count(*)::int AS n FROM satori_v2_customer_leads WHERE linked_account_id=$1',[account.id]);
-  assert.equal(links.n,6,'preserve and link every approved source lead');
+  assert.equal(links.n,1,'one canonical FK plus five verified historical delivery points');
   const rate=await one('SELECT discount_bps,collaborator_bps FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[result.profileId]);
   assert.equal(rate.discount_bps,2000);assert.equal(rate.collaborator_bps,3500);
   const profiles=await one('SELECT count(*)::int AS n FROM satori_v2_profiles WHERE account_id=$1',[account.id]);
@@ -671,7 +664,7 @@ try{
  assert.equal(activeRates.collaborator_bps,3500);
  const activeLeadsReadback=await one(
   'SELECT count(*)::int AS n FROM satori_v2_customer_leads WHERE linked_account_id=$1',[existingAccount.id]);
- assert.equal(activeLeadsReadback.n,6);
+ assert.equal(activeLeadsReadback.n,1);
  const activeDestinations=await pool.query(
   'SELECT address,recipient_phone FROM satori_v2_addresses WHERE profile_id=$1 AND active=true',[existingProfile.id]);
  assert.equal(activeDestinations.rowCount,5,'six leads, five unique delivery addresses');
