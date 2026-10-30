@@ -413,11 +413,20 @@ class NativeMainActivity : AppCompatActivity() {
                 .putBoolean("google_drive_auto_read", true).apply()
         }
         render()
-        syncPreferredSource()
+        // The Accounting Pro emulator smoke test uses a synthetic in-memory
+        // snapshot. Release builds always perform their unchanged normal sync.
+        if (!(BuildConfig.DEBUG && intent?.getBooleanExtra(
+                "ACCOUNTING_PRO_HERMETIC_TEST", false) == true)) {
+            syncPreferredSource()
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        // Debug-only hermetic UI acceptance: no Google OAuth, Drive, Render,
+        // notification poll, order read or accounting writes during tests.
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra(
+                "ACCOUNTING_PRO_HERMETIC_TEST", false) == true) return
         foreground = true
         syncHandler.removeCallbacks(syncTick)
         syncHandler.postDelayed(syncTick, syncIntervalMs)
