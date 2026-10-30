@@ -534,6 +534,19 @@ body{font-size:14px;line-height:1.42}
  #legacyConsole .crm-ctv-client-row > .crm-client-options[open]{padding:10px}
 }
 
+
+/* Bulk duplicate cleanup is scoped to the old-CRM list, not the Google account. */
+#legacyConsole .crm-duplicate-cleanup{
+ display:flex;align-items:center;justify-content:space-between;gap:12px;
+ flex-wrap:wrap;border:1px solid #cce3df;border-radius:12px;
+ padding:12px;margin:12px 0;background:#f5faf9;
+}
+#legacyConsole .crm-duplicate-cleanup span{flex:1 1 230px;min-width:0;overflow-wrap:anywhere}
+#legacyConsole .crm-duplicate-cleanup button{max-width:100%;white-space:normal}
+@media(max-width:720px){
+ #legacyConsole .crm-duplicate-cleanup{flex-direction:column;align-items:stretch}
+ #legacyConsole .crm-duplicate-cleanup button{width:100%;min-height:44px}
+}
 </style></head>
 <body>
 <main>
@@ -1403,6 +1416,37 @@ function legacyBindingPanel(){
  syncRole();return panel;
 }
 
+
+/**
+ * Hide redundant pre-import CRM lead cards, not Google accounts, saved
+ * addresses, CTV client records, prices, invoices, or audit history.
+ * Server re-checks that each address exists on the same verified account.
+ */
+async function archiveImportedDuplicateLeads(account,items){
+ if(!isOwner||!account||!Array.isArray(items)||!items.length)return;
+ const email=String(account.email||'').trim().toLowerCase();
+ if(!email||account.accessStatus!=='ACTIVE')return;
+ const candidates=items.filter(x=>x.active&&!x.linkedAccountId&&
+  String(x.email||'').trim().toLowerCase()===email);
+ if(!candidates.length)return;
+ const message='Xóa khỏi danh sách '+candidates.length+' hồ sơ cũ có điểm giao ĐÃ NHẬP '+
+  'vào tài khoản '+email+'? Chỉ ẩn các hồ sơ trùng địa chỉ đã xác minh; '+
+  'không xóa tài khoản Google, khách riêng của CTV hoặc hóa đơn/công nợ. '+
+  'Hồ sơ lưu trữ có thể khôi phục.';
+ if(!confirm(message))return;
+ try{
+  const result=await api('/api/v2/admin/customer-leads/archive-imported','POST',{
+   confirmed:true,accountId:account.id,
+   leads:candidates.map(x=>({id:x.id,expectedRevision:x.revision}))
+  });
+  await loadCustomers();
+  const skipped=result.skipped?.length||0;
+  crmStatus('Đã xóa khỏi danh sách '+result.archivedCount+' hồ sơ dư của '+email+
+   (skipped?' · giữ lại '+skipped+' hồ sơ vì chưa khớp điểm giao đã nhập.':'')+
+   ' Tài khoản Google và hóa đơn giữ nguyên.','success');
+ }catch(e){crmStatus('Không xóa được hồ sơ trùng: '+e.message,'error')}
+}
+
 function drawCustomers(){
  if(!isOwner)return;
  resetCustomerInspector();
@@ -1415,7 +1459,7 @@ function drawCustomers(){
  const oldItems=[...registered.filter(a=>a.accessStatus==='ACTIVE'),
   ...leads.filter(l=>!l.linkedAccountId||
    registered.find(a=>a.id===l.linkedAccountId)?.accessStatus!=='ACTIVE')];
- byId('crmCountOld').textContent=String(oldItems.length);
+ byId('crmCountOld').textContent=String(oldItems.filter(x=>x.active!==false).length);
  const groups=[
   {label:'Chờ duyệt',state:'pending',items:registered.filter(x=>x.accessStatus==='PENDING'&&!x.approvedForPricing)},
   {label:'Chờ chiết khấu',state:'reviewed',items:registered.filter(x=>x.accessStatus==='PENDING'&&x.approvedForPricing)},
@@ -1518,10 +1562,11 @@ function drawCustomers(){
   }
  }
  const oldFilters=[
-  {value:'all',label:'Tất cả',items:oldItems},
+  {value:'all',label:'Tất cả',items:oldItems.filter(x=>x.active!==false)},
   {value:'active',label:'Đang lưu',items:oldItems.filter(x=>x.active||x.accessStatus==='ACTIVE')},
   {value:'paused',label:'Đã lưu trữ',items:oldItems.filter(x=>x.active===false)},
-  {value:'linked',label:'Đã liên kết',items:oldItems.filter(x=>!!x.linkedAccountId||x.accessStatus==='ACTIVE')}
+  {value:'linked',label:'Đã liên kết',items:oldItems.filter(x=>x.active!==false&&
+   (!!x.linkedAccountId||x.accessStatus==='ACTIVE'))}
  ];
  const oldRoot=byId('crmOldFilters');oldRoot.replaceChildren();
  for(const g of oldFilters){
@@ -1537,6 +1582,31 @@ function drawCustomers(){
    Number(b.requestedType==='agency')-Number(a.requestedType==='agency')||
    Number(b.accessStatus==='ACTIVE')-Number(a.accessStatus==='ACTIVE'));
  if(!matches.length)oldDest.append(make('p','Chưa có hồ sơ CRM đã lưu. Danh sách địa chỉ lịch sử từ sổ gốc nằm ngay bên dưới.','crm-stage-hint'));
+
+ // Only account-matched, unlinked, ACTIVE old CRM lead cards can be
+ // candidates; the backend checks exact normalized delivery addresses.
+ if(selectedOldFilter!=='paused'){
+  const indexed=new Map();
+  for(const x of matches){
+   if(!x.active||x.linkedAccountId||!x.email||x.accessStatus)continue;
+   const gmail=x.email.trim().toLowerCase();
+   const owners=registered.filter(a=>a.accessStatus==='ACTIVE'&&
+    String(a.email||'').trim().toLowerCase()===gmail);
+   if(owners.length!==1)continue;
+   if(!indexed.has(owners[0].id))indexed.set(owners[0].id,{account:owners[0],items:[]});
+   indexed.get(owners[0].id).items.push(x);
+  }
+  for(const {account,items} of indexed.values()){
+   const bar=make('div',null,'crm-duplicate-cleanup');
+   bar.append(make('span',items.length+' hồ sơ cũ cùng Gmail '+account.email+
+    '. Chỉ xóa khỏi danh sách các điểm giao đã có trong tài khoản Google.'));
+   const remove=make('button','Xóa hồ sơ trùng đã nhập');
+   remove.type='button';remove.className='danger';
+   remove.onclick=()=>archiveImportedDuplicateLeads(account,items);
+   bar.append(remove);oldDest.append(bar);
+  }
+ }
+
  // Do not hide independent CRM profiles behind a name-based duplicate picker.
  // Only shipping destinations are deduplicated, by normalized location.
  for(const x of matches){
@@ -1558,6 +1628,15 @@ function drawCustomers(){
     panel.scrollIntoView({behavior:'smooth',block:'start'});
    };
    actions.append(link);
+  }
+  if(!registeredAccount&&x.active&&!x.linkedAccountId&&x.email){
+   const candidates=registered.filter(a=>a.accessStatus==='ACTIVE'&&
+    String(a.email||'').trim().toLowerCase()===String(x.email).trim().toLowerCase());
+   if(candidates.length===1){
+    const remove=iconButton('Xóa hồ sơ trùng đã nhập','trash','danger');
+    remove.onclick=()=>archiveImportedDuplicateLeads(candidates[0],[x]);
+    actions.append(remove);
+   }
   }
   body.append(actions);
   if(registeredAccount){
