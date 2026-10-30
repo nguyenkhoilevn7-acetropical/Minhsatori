@@ -457,6 +457,7 @@ export async function adminCompleteNewRegistration(pool,owner,input){
   check(found.rowCount===1,'CUSTOMER_NOT_FOUND',404);
   const account=found.rows[0];
   check(account.google_sub&&account.email,'GOOGLE_ACCOUNT_NOT_VERIFIED',403);
+  check(!data.email||data.email===account.email.toLowerCase(),'VERIFIED_EMAIL_MISMATCH',403);
   check(account.access_status==='PENDING','CUSTOMER_NOT_PENDING',409);
   check(account.revision===input.expectedRevision,'CUSTOMER_REVISION_CONFLICT',409);
   const existing=await c.query('SELECT account_id FROM satori_v2_registrations '+
