@@ -268,3 +268,42 @@ assert.equal(readRows()[1].status,'Đã thanh toán','undo supplier must not era
 assert.equal(writes,correctionWrites+5,'exactly five new correction/payment commits from replay point');
 assert.equal(backs,correctionBackups+6,'every changed payment has a verified Drive prewrite backup');
 console.log('PASS — three-way payment-state commands, exact-ID, correction audit, HMAC, Drive backup/readback, idempotency');
+
+
+// Regression: excluded legacy bills retain historical payment evidence but must
+// never advertise an active paid state through the read-only Bot API.
+data={revision:60,updatedAt:'2026-10-31T00:00:00Z',values:{
+  satori_orders_v15:JSON.stringify([
+    {id:901,invoiceNo:901,name:'Fixture Excluded Cancelled',status:'Đã hủy',
+      total:100000,customerPaidAt:'2026-10-19T01:00:00Z',satoriPaidAt:'2026-10-20T01:00:00Z'},
+    {id:902,invoiceNo:902,name:'Fixture Excluded Noncounted',status:'Không Tính',
+      total:200000,customerPaidAt:'2026-10-19T01:00:00Z',satoriPaidAt:'2026-10-20T01:00:00Z'},
+    {id:903,invoiceNo:903,name:'Fixture Active Settled',status:'Đã TT Satori',
+      total:300000,customerPaidAt:'2026-10-19T01:00:00Z',satoriPaidAt:'2026-10-20T01:00:00Z'},
+    {id:904,invoiceNo:904,name:'Fixture Active Paid',status:'Đã thanh toán',
+      total:400000,customerPaidAt:'2026-10-19T01:00:00Z'}
+  ]),satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'
+}};
+const excludedBefore={revision:data.revision,backs,writes,raw:data.values.satori_orders_v15};
+const excludedRead=call('orders.list',{limit:10});
+assert.equal(excludedRead.ok,true);
+const byNo=new Map(excludedRead.data.orders.map(o=>[o.invoiceNo,o]));
+for(const n of [901,902]){
+  assert.equal(byNo.get(n).customerPaid,false,'excluded invoice must not appear customer-paid');
+  assert.equal(byNo.get(n).satoriPaid,false,'excluded invoice must not appear supplier-paid');
+  assert.ok(byNo.get(n).customerPaidAt,'historical customer timestamp retained');
+  assert.ok(byNo.get(n).satoriPaidAt,'historical supplier timestamp retained');
+}
+assert.equal(byNo.get(903).customerPaid,true);
+assert.equal(byNo.get(903).satoriPaid,true);
+assert.equal(byNo.get(904).customerPaid,true);
+assert.equal(byNo.get(904).satoriPaid,false);
+assert.equal(call('payments.markCustomerPaid',{expectedRevision:60,invoiceNo:901,id:901,
+  confirmed:true,amount:100000}).error.code,'INVALID_ORDER');
+assert.equal(call('payments.markCustomerPaid',{expectedRevision:60,invoiceNo:902,id:902,
+  confirmed:true,amount:200000}).error.code,'INVALID_ORDER');
+assert.equal(data.revision,excludedBefore.revision);
+assert.equal(data.values.satori_orders_v15,excludedBefore.raw);
+assert.equal(backs,excludedBefore.backs);
+assert.equal(writes,excludedBefore.writes);
+console.log('PASS — excluded payment flags are false, audit timestamps preserved, no write');
