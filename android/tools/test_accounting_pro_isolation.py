@@ -40,6 +40,26 @@ class AccountingProIsolationTest(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, source)
 
+    def test_bank_demo_is_synthetic_and_has_no_provider_api_or_payment_writes(self):
+        model = (KOTLIN / "AccountingProBankTriage.kt").read_text(encoding="utf-8")
+        for forbidden in ("HttpURLConnection", "Retrofit", "OkHttp",
+                          "payments.markCustomerPaid", "orders.create",
+                          "bank.sepay", "apiKey", "sendPayment("):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, model)
+        source = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
+        start = source.index("    private fun showAccountingProBankDemo()")
+        end = source.index("    /**", start + 1)
+        screen = source[start:end]
+        self.assertIn("DEMO-TX-1", screen)
+        self.assertIn("DEMO-BILL-A", screen)
+        self.assertIn("AccountingProBankTriage.preview(", screen)
+        for forbidden in ("refreshFromMobileApi(", "launchEditor(",
+                          "payments.mark", "startActivity(", "HttpURLConnection",
+                          "data.invoices", "snapshot?.invoices", "fetch("):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, screen)
+
     def test_profit_ctv_is_read_only_without_fabricated_profit(self):
         model = (KOTLIN / "AccountingProProfitAudit.kt").read_text(encoding="utf-8")
         self.assertIn("verifiedNetProfitVnd: Long? = null", model)
