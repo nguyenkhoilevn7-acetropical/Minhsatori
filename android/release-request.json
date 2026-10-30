@@ -1,9 +1,9 @@
 {
-  "purpose": "android-0.4.29-accounting-pro-margin-45percent-owner-acceptance",
+  "purpose": "android-v0.4.30-unified-debt-profit-period-owner-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.29",
-  "versionCode": 46,
-  "branch": "feature/android-accounting-pro-profit45-v0429-signed-20261030",
+  "version": "0.4.30",
+  "versionCode": 47,
+  "branch": "feature/android-debt-profit-unified-filter-20261030",
   "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
@@ -27,9 +27,11 @@
     298,
     299,
     301,
-    302
+    302,
+    303,
+    305
   ],
-  "scope": "Android owner-side profit report only: 45% supplier discount on list prices recorded in existing invoice lines, per-bill read-only estimated gross margin, all-time dashboard estimate, day/month/year/custom date filters, with CTV commission deducted only when documented. VAT and charged shipping excluded from goods revenue; real delivery cost, tax, overhead absent and therefore not represented as net profit. No changes to Gemini V2, ChatGPT, Website, backend or production financial writers.",
+  "scope": "Android-only owner accounting UI: concise Lợi nhuận caption inside invoice and outstanding-debt cards; adjacent Tổng công nợ cần thu / Tổng lợi nhuận with a shared all/day/month/year/custom invoice-date filter. Profit uses the existing historical supplier discount 45% gross estimate, not net profit. Outstanding debt includes unpaid bills only; profit includes eligible paid and unpaid sales. Unknown/untrusted data is flagged, never guessed. Protected order/edit/delete/payment and invoiceQuickCard methods, Gemini V2, ChatGPT, website, Render, PostgreSQL and production invoice writers unchanged.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -61,6 +63,7 @@
     "2026-10-30: Signed-release request re-submitted after enabling this isolated feature branch in the protected workflow push allowlist. Strict checks required for release certificate, package vn.minhsatori.app, v0.4.28 build 45, APK hash and no unintended changes. Only download and install on the owner's device; no automatic merge or deployment.",
     "2026-10-30: v0.4.29 build 46 is a staging-only same-certificate owner acceptance build after the v0.4.28 three-card removal. Must pass Gradle/Kotlin unit, emulator and signer checks; maintain all original invoice creation, payment, edit and Gemini routes untouched. Do NOT treat gross estimated margin as final settled net profit.",
     "2026-10-30: Signed v0.4.29 build46 owner acceptance requested AFTER GitHub Android unit+build and Keystore/emulator CI PASSED on this branch and source screenshot CI passed. Use pinned original release signing certificate, generate APK+verification JSON, never merge/deploy backend or publish until owner manually tests on Samsung.",
-    "2026-10-30: Owner explicitly requested v0.4.29 build 46 installable signed APK after Android CI on PR #303 and parent PR #302 passed. Re-submit protected same-signing-key acceptance build on this isolated branch only; strictly validate certificate fingerprint, version and APK, no merge, production deployment or monetary writes."
+    "2026-10-30: Owner explicitly requested v0.4.29 build 46 installable signed APK after Android CI on PR #303 and parent PR #302 passed. Re-submit protected same-signing-key acceptance build on this isolated branch only; strictly validate certificate fingerprint, version and APK, no merge, production deployment or monetary writes.",
+    "2026-10-30: Owner requested shared period filtering and profit figures on each outstanding debt card and beside aggregate debt, with only the short visible label Lợi nhuận. PR #305 isolated Android read-only UI + regression tests. Signed v0.4.30 code47 owner acceptance build only, same application ID and pinned signer, no auto merge/deploy. Confirm GitHub signed-release PASS and APK hash prior to installing over v0.4.29 without uninstalling."
   ]
 }

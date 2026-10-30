@@ -11,8 +11,8 @@ android {
         applicationId = "vn.minhsatori.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 46
-        versionName = "0.4.29"
+        versionCode = 47
+        versionName = "0.4.30"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

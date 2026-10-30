@@ -59,7 +59,22 @@ class AccountingProIsolationTest(unittest.TestCase):
         ui = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
         self.assertIn("TỔNG LÃI GỘP ƯỚC TÍNH", ui)
         self.assertIn("private fun showAccountingProMarginPeriod(data: SatoriSnapshot)", ui)
-        self.assertIn("Lãi gộp ước tính (CK nhập 45%)", ui)
+        self.assertIn('text = "Lợi nhuận: "', ui)
+        self.assertIn("showProfitInsideInvoiceCard(list, marginByInvoice[inv])", ui)
+        self.assertIn("showProfitInsideInvoiceCard(parent, marginByInvoice[invoice])", ui)
+        self.assertIn('totalCard("Tổng lợi nhuận"', ui)
+        self.assertIn("private fun showDebtProfitFilter()", ui)
+        self.assertIn("AccountingProDebtProfitPolicy.report(", ui)
+        self.assertNotIn("Lãi gộp ước tính (CK nhập 45%): ", ui)
+        # UI is projected from existing historical ledger; do not touch APIs.
+        period_model = (KOTLIN / "AccountingProDebtProfitPolicy.kt").read_text(
+            encoding="utf-8")
+        self.assertIn("period.includes(invoice)", period_model)
+        self.assertIn("invoice.isOutstanding", period_model)
+        self.assertIn("AccountingProMargin45.summarize(margins, period)", period_model)
+        for forbidden in ("HttpURLConnection", "orders.create", "payments.mark",
+                          "writeInvoice(", "sendEmail(", "SharedPreferences"):
+            self.assertNotIn(forbidden, period_model)
         self.assertIn("LÃI GỘP ƯỚC TÍNH", ui)
 
     def test_document_review_is_metadata_only_without_email_or_tax_writers(self):
