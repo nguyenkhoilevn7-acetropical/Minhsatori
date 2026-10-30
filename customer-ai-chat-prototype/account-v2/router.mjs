@@ -28,7 +28,7 @@ import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,ownerArchiveImportedDuplicateLeads,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
- adminApproveRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyAddressDirectory,legacyCustomerImport,
+ adminApproveRegistration,adminCompleteNewRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyAddressDirectory,legacyCustomerImport,
  legacyCustomerActivateLead,ownerActivateSavedGmail,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
  adminReconcileVerifiedLegacyPending,ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,
  adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
@@ -509,6 +509,10 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/register'&&req.method==='POST'){
    send(res,200,await registrationSave(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/customers/complete-new-registration'&&req.method==='POST'){
+   owner(actor);
+   send(res,200,await adminCompleteNewRegistration(pool,actor,await json(req)));return true;
   }
   if(pathname==='/api/v2/admin/customers/approve'&&req.method==='POST'){
    owner(actor);

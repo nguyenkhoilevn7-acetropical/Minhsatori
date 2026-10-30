@@ -441,6 +441,45 @@ export async function adminLinkLead(pool,owner,input){
 }
 
 /** Review identity/profile first; do NOT grant ordering or imply a 0% policy. */
+/**
+ * A new Google-authenticated customer has no old invoices or saved CRM lead.
+ * Owner can complete missing onboarding contact/role without binding legacy
+ * records. No approval or ordering privilege is granted in this step.
+ */
+export async function adminCompleteNewRegistration(pool,owner,input){
+ check(input?.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
+ check(isUuid(input?.accountId)&&isRev(input?.expectedRevision),'CUSTOMER_REVISION_REQUIRED');
+ check(input.accountId!==owner.id,'OWNER_CANNOT_BE_MODIFIED',403);
+ const data=checked(()=>validateCustomerProfile(input));
+ return tx(pool,async c=>{
+  const found=await c.query('SELECT id,email,google_sub,access_status,revision '+
+   'FROM satori_v2_accounts WHERE id=$1 FOR UPDATE',[input.accountId]);
+  check(found.rowCount===1,'CUSTOMER_NOT_FOUND',404);
+  const account=found.rows[0];
+  check(account.google_sub&&account.email,'GOOGLE_ACCOUNT_NOT_VERIFIED',403);
+  check(!data.email||data.email===account.email.toLowerCase(),'VERIFIED_EMAIL_MISMATCH',403);
+  check(account.access_status==='PENDING','CUSTOMER_NOT_PENDING',409);
+  check(account.revision===input.expectedRevision,'CUSTOMER_REVISION_CONFLICT',409);
+  const existing=await c.query('SELECT account_id FROM satori_v2_registrations '+
+   'WHERE account_id=$1 FOR UPDATE',[account.id]);
+  check(existing.rowCount===0,'CUSTOMER_REGISTRATION_ALREADY_EXISTS',409);
+  const insert=await c.query(
+   'INSERT INTO satori_v2_registrations(account_id,full_name,phone,address,'+
+   'company_name,tax_code,note,requested_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8) '+
+   'RETURNING revision',
+   [account.id,data.fullName,data.phone,data.address,data.companyName,
+    data.taxCode,data.note,data.requestedType]);
+  const updated=await c.query('UPDATE satori_v2_accounts SET display_name=$2,'+
+   'revision=revision+1,updated_at=now() WHERE id=$1 RETURNING revision',
+   [account.id,data.fullName]);
+  await audit(c,owner.id,'CUSTOMER_NEW_REGISTRATION_COMPLETED',account.id,
+   {registrationRevision:insert.rows[0].revision,role:data.requestedType,
+    legacyInvoiceLinksCreated:0,orderingEnabled:false});
+  return {ok:true,accessStatus:'PENDING',approvedForPricing:false,
+   registrationRevision:insert.rows[0].revision,revision:updated.rows[0].revision};
+ });
+}
+
 export async function adminApproveRegistration(pool,owner,input){
  check(input?.confirmed===true,'OWNER_CONFIRMATION_REQUIRED',403);
  check(isUuid(input.accountId)&&isRev(input.expectedRevision),'CUSTOMER_REVISION_REQUIRED');
