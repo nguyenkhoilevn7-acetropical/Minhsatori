@@ -1179,6 +1179,11 @@ class NativeMainActivity : AppCompatActivity() {
             }
             when (activeTab) {
                 0 -> {
+                    // New read-only Accounting Pro entry; all existing order/CRM/Gemini routes remain untouched.
+                    button(content, "KẾ TOÁN PRO  ·  XEM TỔNG HỢP (CHỈ ĐỌC)",
+                        false, R.drawable.ic_satori_debt) {
+                        showAccountingProPreview(data)
+                    }
                     renderMoneyMindRecent(content, data)
                     section(content, "Công cụ nâng cao",
                         if (showAdvancedOverview) "Chạm để thu gọn công cụ"
@@ -2785,6 +2790,70 @@ class NativeMainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Android-only milestone 1: a read-only view of the signed/selected ledger
+     * snapshot. The legacy customer-paid flag is NOT a cash allocation ledger;
+     * never present estimated status totals as actual partial payments.
+     */
+    private fun showAccountingProPreview(data: SatoriSnapshot) {
+        val totals = AccountingProReadOnly.summarize(data.invoices)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(20))
+            setBackgroundColor(night)
+        }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            addView(panel)
+        }
+        label(panel, "SỔ THANH TOÁN & CÔNG NỢ", 16f, true, ink)
+        label(panel, "GIAI ĐOẠN 1  •  CHỈ XEM  •  REVISION " + data.revision,
+            11f, true, cyan, 6)
+        label(panel, "Nguồn: " + dataSource +
+            ". Không ghi khoản thu, không sửa hóa đơn, không thay đổi đặt hàng.",
+            11.5f, false, softInk, 7)
+        section(panel, "Hóa đơn tính doanh thu: " + totals.activeInvoiceCount,
+            "Loại trừ: " + totals.excludedInvoiceCount +
+                " hóa đơn thử, hủy, không tính hoặc CTV nội bộ.")
+        section(panel, "Khách đã đánh dấu trả đủ: " + totals.customerPaidFlagCount,
+            "Khách chưa đánh dấu trả đủ: " + totals.customerUnpaidFlagCount +
+                ". Chưa có sổ phân bổ thanh toán từng phần.")
+        section(panel, "Đã đánh dấu trả Satori: " + totals.satoriPaidFlagCount,
+            "Chưa đánh dấu trả Satori: " + totals.satoriUnpaidFlagCount +
+                ". Đây là trạng thái riêng, không suy ra khách đã trả.")
+        if (totals.questionableInvoiceCount > 0) {
+            section(panel, "CẦN ĐỐI CHIẾU ID HÓA ĐƠN",
+                totals.questionableInvoiceCount.toString() +
+                    " bản ghi thiếu hoặc trùng định danh. Tạm ẩn tổng tiền để tránh cộng sai.")
+        } else {
+            label(panel, "TỔNG THEO CỜ TRẠNG THÁI CŨ", 12f, true, cyan, 16)
+            section(panel, "Tổng bill hợp lệ: " +
+                (totals.grossByLegacyFlags?.let(SatoriData::money) ?: "Chưa xác minh"),
+                "Chỉ cộng hóa đơn không bị loại trừ; chưa xác minh thu tiền ngân hàng.")
+            section(panel, "Cần thu theo trạng thái cũ: " +
+                (totals.unpaidByLegacyFlags?.let(SatoriData::money) ?: "Chưa xác minh"),
+                "Ước tính từ hóa đơn chưa đánh dấu trả đủ; KHÔNG phải số dư sau trả từng phần.")
+        }
+        if (totals.invalidDateCount > 0) {
+            section(panel, "Ngày hóa đơn cần kiểm tra: " + totals.invalidDateCount,
+                "Không tự suy ra hạn thanh toán hoặc tuổi nợ từ ngày không hợp lệ.")
+        }
+        label(panel, "BƯỚC TIẾP THEO — CHƯA KÍCH HOẠT", 12f, true, cyan, 17)
+        section(panel, "01  Thanh toán nhiều lần",
+            "Chờ backend có khoản thu, chứng từ và phân bổ bất biến theo invoice ID.")
+        section(panel, "02  Lợi nhuận & hoa hồng CTV",
+            "Chờ dữ liệu giá nhập thực và sổ quyết toán; không tính lãi từ giá niêm yết.")
+        section(panel, "03  Nhắc nợ, đối soát ngân hàng",
+            "Chưa kết nối ngân hàng và chưa tự gửi nhắc nợ.")
+        section(panel, "04  Email, PDF & hóa đơn điện tử",
+            "Chưa kích hoạt gửi email hoặc phát hành chứng từ thuế.")
+        AlertDialog.Builder(this)
+            .setTitle("Minh Satori · Accounting Pro")
+            .setView(scroll)
+            .setPositiveButton("Đóng", null)
+            .show()
+    }
+
     private fun renderDebt(parent: LinearLayout, data: SatoriSnapshot) {
         val summary = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -2796,6 +2865,8 @@ class NativeMainActivity : AppCompatActivity() {
         label(summary, data.outstandingCount.toString() +
             " hóa đơn khách chưa thanh toán", 11.5f, false, softInk, 5)
         parent.addView(summary)
+        button(parent, "KẾ TOÁN PRO  ·  TỔNG HỢP CHỈ ĐỌC",
+            false, R.drawable.ic_satori_debt) { showAccountingProPreview(data) }
         button(parent, "☷ Lọc hóa đơn") { showLedger(data) }
         label(parent, "Công nợ theo khách hàng", 15f, true, ink, 14)
         data.invoices.filter { it.isOutstanding }.forEach { invoice ->
