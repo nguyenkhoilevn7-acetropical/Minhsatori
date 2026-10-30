@@ -2335,25 +2335,41 @@ class NativeMainActivity : AppCompatActivity() {
         }
 
     /**
-     * Add a read-only profit caption INSIDE the last invoice card, above its
-     * existing actions. Keep invoiceQuickCard/openInvoice and all protected
-     * edit/payment/delete handlers unchanged.
+     * Read-only profit badge under the invoice amount, at the top-right of
+     * the same card. Both invoice and debt tabs call this shared layout.
+     * Does not change payment, edit, delete, or invoice write handlers.
      */
     private fun showProfitInsideInvoiceCard(parent: LinearLayout,
                                             row: AccountingProMargin45Row?) {
         val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
-        val caption = TextView(this).apply {
-            text = "Lợi nhuận: " +
-                (row?.estimatedOwnerMarginVnd?.let(SatoriData::money) ?: "Chưa đủ dữ liệu")
-            textSize = 12.5f
+        val header = card.getChildAt(0) as? LinearLayout ?: return
+        val amount = header.getChildAt(header.childCount - 1) as? TextView ?: return
+        header.removeView(amount)
+        val right = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.END
+        }
+        amount.gravity = Gravity.END
+        right.addView(amount, LinearLayout.LayoutParams(-1, -2))
+        val value = row?.estimatedOwnerMarginVnd?.let(SatoriData::money)
+        val badge = TextView(this).apply {
+            text = "Lợi nhuận  " + (value ?: "Chưa rõ")
+            textSize = 11f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(invoiceMoneyRed)
-            setPadding(0, dp(7), 0, dp(2))
+            setPadding(dp(8), dp(5), dp(8), dp(5))
+            gravity = Gravity.CENTER
             includeFontPadding = false
-            contentDescription = text
+            maxLines = 1
+            setAutoSizeTextTypeUniformWithConfiguration(9, 11, 1,
+                android.util.TypedValue.COMPLEX_UNIT_SP)
+            background = panelBackground(Color.rgb(255, 243, 241), 9)
+            contentDescription = "Lợi nhuận: " + (value ?: "Chưa đủ dữ liệu")
         }
-        // Position before the button row so it is unambiguously in the card.
-        card.addView(caption, (card.childCount - 1).coerceAtLeast(0))
+        right.addView(badge, LinearLayout.LayoutParams(-2, -2).apply {
+            topMargin = dp(6)
+        })
+        header.addView(right, LinearLayout.LayoutParams(-2, -2))
     }
 
     /**
@@ -2449,8 +2465,23 @@ class NativeMainActivity : AppCompatActivity() {
             Color.rgb(18, 128, 88))
         infoStrip(card, "📍  " + invoice.address.ifBlank { "Chưa có địa chỉ" },
             Color.rgb(25, 104, 181))
-        label(card, invoice.displayDate + "   •   " + invoice.status,
-            11f, false, if (fromDebt) Color.rgb(181, 95, 6) else softInk, 8)
+        // Dates remain neutral; payment statuses use the same semantic tint
+        // in Hóa đơn and Công nợ (unpaid amber, paid green).
+        val statusColor = when {
+            invoice.status.contains("chưa thanh toán", ignoreCase = true) ->
+                Color.rgb(181, 95, 6)
+            invoice.status.contains("đã thanh toán", ignoreCase = true) ->
+                Color.rgb(16, 122, 78)
+            else -> softInk
+        }
+        val statusLine = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        label(statusLine, invoice.displayDate + "   •   ", 11f, false, softInk)
+        label(statusLine, invoice.status, 11f, true, statusColor)
+        card.addView(statusLine)
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
