@@ -96,6 +96,41 @@ class SatoriModelsTest {
     }
 
     @Test
+    fun nonCountedInvoiceKeepsOriginalTotalButShowsZeroInAccounting() {
+        val invoice = JSONObject().put("id", 5916).put("invoiceNo", 5916)
+            .put("name", "CTV kiểm thử").put("status", "Không Tính")
+            .put("total", 1727996)
+            .put("items", JSONArray().put(JSONObject()
+                .put("product", "Nước ép ổi hồng").put("qty", 3)
+                .put("unitPrice", 266666).put("listPrice", 333333)))
+        val live = JSONObject().put("id", 5917).put("invoiceNo", 5917)
+            .put("name", "Khách trả tiền").put("status", "Chưa thanh toán")
+            .put("total", 950400)
+        val state = JSONObject().put("revision", 190).put("values",
+            JSONObject().put("satori_orders_v15",
+                JSONArray().put(invoice).put(live).toString()))
+        val data = SatoriData.fromDriveState(state.toString())
+        val excluded = data.invoices.single { it.number == "5916" }
+        assertTrue(excluded.isNonCounted)
+        assertTrue(excluded.isExcluded)
+        assertEquals("Không Tính", excluded.status)
+        assertEquals(1727996L, excluded.total)
+        assertEquals(0L, excluded.displayPayable)
+        assertEquals(0L, excluded.accountingValue)
+        assertFalse(excluded.canChangePayment)
+        assertFalse(excluded.canMarkCustomerPaid)
+        assertFalse(excluded.isOutstanding)
+        val ledger = SatoriLedger.totals(data.invoices)
+        assertEquals(950400L, ledger.revenue)
+        assertEquals(950400L, ledger.customerUnpaid)
+        assertEquals(1, ledger.excludedCount)
+        assertEquals("5916", SatoriLedger.query(data.invoices, "#5916",
+            "Không Tính").single().number)
+        assertEquals("5916", SatoriLedger.queryAdvanced(data.invoices,
+            SatoriLedgerFilter(sort = "revenue_asc")).first().number)
+    }
+
+    @Test
     fun cancelledInvoiceWithHistoricalPaymentStaysCancelledAndExcluded() {
         val source = JSONObject().put("id", 1).put("invoiceNo", 5914)
             .put("name", "Khách kiểm thử").put("status", "Đã hủy")
