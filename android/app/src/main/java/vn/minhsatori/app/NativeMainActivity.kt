@@ -4045,7 +4045,6 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    /** Fixed-size 48dp touch targets; never stretch on Fold's inner display. */
     private fun invoiceMiniAction(parent: LinearLayout, iconRes: Int, title: String,
                                   fill: Int, tint: Int? = null, click: () -> Unit) {
         val icon = ImageView(this).apply {
