@@ -2332,8 +2332,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
 
     private fun invoiceQuickCard(parent: LinearLayout, invoice: SatoriInvoice,
-                                 fromDebt: Boolean = false,
-                                 estimatedMargin: AccountingProMargin45Row? = null) {
+                                 fromDebt: Boolean = false) {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(12), dp(13), dp(12))
@@ -2367,16 +2366,6 @@ class NativeMainActivity : AppCompatActivity() {
             Color.rgb(25, 104, 181))
         label(card, invoice.displayDate + "   •   " + invoice.status,
             11f, false, if (fromDebt) Color.rgb(181, 95, 6) else softInk, 8)
-        if (!invoice.isExcluded) {
-            val profit = estimatedMargin ?: AccountingProMargin45.calculate(
-                snapshot?.invoices.orEmpty()).firstOrNull {
-                    it.invoice.id == invoice.id && it.invoice.number == invoice.number
-                }
-            label(card, "Lãi gộp ước tính (giá nhập CK 45%): " +
-                (profit?.estimatedOwnerMarginVnd?.let(SatoriData::money)
-                    ?: "Chưa đủ dữ liệu"),
-                12.5f, true, invoiceMoneyRed, 7)
-        }
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
@@ -2547,7 +2536,17 @@ class NativeMainActivity : AppCompatActivity() {
                 (if (status != "Tất cả") " • " + status else ""),
                 11.5f, true, cyan, 7)
             matching.take(120).forEach { inv ->
-                invoiceQuickCard(list, inv, estimatedMargin = marginById[inv.id])
+                // Do not modify the signed/protected invoiceQuickCard/openInvoice
+                // functions. Show the owner's 45%-basis margin as a separate,
+                // read-only line under each original invoice card.
+                invoiceQuickCard(list, inv)
+                if (!inv.isExcluded) {
+                    val profit=marginById[inv.id]
+                    label(list, "Lãi gộp ước tính (CK nhập 45%): " +
+                        (profit?.estimatedOwnerMarginVnd?.let(SatoriData::money)
+                            ?: "Chưa đủ dữ liệu"),
+                        12f, true, invoiceMoneyRed, 3)
+                }
             }
             // Filter/search callbacks build cards *after* render(); normalize
             // prices here as well so old green inline TextViews cannot reappear.
@@ -3798,18 +3797,6 @@ class NativeMainActivity : AppCompatActivity() {
         label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true, cyan, 7)
         label(heading, SatoriData.money(invoice.total), 20f, true,
             Color.rgb(17, 133, 91), 8)
-        if (!invoice.isExcluded) {
-            val calculated=AccountingProMargin45.calculate(snapshot?.invoices.orEmpty())
-                .firstOrNull { it.invoice.id == invoice.id &&
-                    it.invoice.number == invoice.number }
-            label(heading, "LÃI GỘP ƯỚC TÍNH (CK NHẬP 45%): " +
-                (calculated?.estimatedOwnerMarginVnd?.let(SatoriData::money)
-                    ?: "Chưa đủ dữ liệu"),
-                13f, true, invoiceMoneyRed, 9)
-            label(heading, "Tiền hàng trừ giá vốn giả định và hoa hồng CTV nếu đủ dữ liệu; " +
-                "chưa trừ phí giao thực, thuế và chi phí vận hành.",
-                10.5f, false, softInk, 5)
-        }
         content.addView(heading)
         if (invoice.isTest) label(content,
             "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ",
