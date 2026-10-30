@@ -27,6 +27,10 @@ var WRITE_ACTIONS=['orders.create','orders.update','orders.delete','orders.resto
  'payments.markCustomerPaid','payments.markCustomerUnpaid',
  'payments.markSatoriPaid','payments.markSatoriUnpaid'];
 var ALLOWED=READ_ACTIONS.concat(WRITE_ACTIONS);
+function ownerWriteReady(){
+ return typeof SatoriBotApi!=='undefined' && SatoriBotApi &&
+   typeof SatoriBotApi.ownerMobileWrite==='function';
+}
 // Owner ledger identity must be backed by the server-side STATE_FILE_ID property.
 // The Android app checks these fields before showing Production as synced.
 var PRODUCTION_FILE_ID='14XWSPrxLnKXATwmuHeXGZnCvjDbalghV';
@@ -115,8 +119,7 @@ function handle(e){
     // Reuse the identical production BotApi guards: expectedRevision, exact
     // invoice ID/name/total, protected paid invoices, shared lock, readback,
     // prewrite backup and 30-day soft-delete bin. No direct JSON PATCH.
-    need(typeof SatoriBotApi!=='undefined'&&
-      typeof SatoriBotApi.ownerMobileWrite==='function',
+    need(ownerWriteReady(),
       'API_NOT_READY','Bot API owner write bridge missing');
     var result=SatoriBotApi.ownerMobileWrite(action,req.payload,req.nonce);
     return json({ok:true,action:action,revision:result.revision,
@@ -142,7 +145,8 @@ function handle(e){
   return json({ok:true,action:action,revision:s.revision,
     data:{revision:s.revision,updatedAt:s.updatedAt,values:values,
       ledgerFileId:proof.ledgerFileId,ledgerKind:proof.ledgerKind,
-      allowedActions:READ_ACTIONS.concat(WRITE_ACTIONS),
+      // Never advertise payment/edit write permissions if Bot bridge is absent.
+      allowedActions:READ_ACTIONS.concat(ownerWriteReady()?WRITE_ACTIONS:[]),
       actorId:actor.actorId}});
  }catch(ex){
   var code=String(ex&&ex.code||'ERROR').slice(0,55);
