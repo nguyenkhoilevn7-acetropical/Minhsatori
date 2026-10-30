@@ -714,6 +714,8 @@ export async function handleAccountV2(req,res,pathname){
     'q.created_at AS "orderedAt",q.payload->>\'invoiceMode\' AS "invoiceMode", '+
     'q.payload->>\'totalVnd\' AS "totalVnd",q.payload->>\'currency\' AS currency, '+
     'q.payload->\'items\' AS items,q.payload->\'delivery\' AS delivery, '+
+    'q.payload->>\'goodsVnd\' AS "goodsVnd",q.payload->>\'shippingVnd\' AS "shippingVnd", '+
+    'q.payload->>\'vatVnd\' AS "vatVnd", '+
     'q.payload->\'deliveryRequest\' AS "deliveryRequest" '+
     'FROM satori_v2_order_requests r JOIN satori_v2_quotes q ON q.id=r.quote_id '+
     'WHERE r.account_id=$1 AND q.account_id=$1 '+
@@ -724,7 +726,13 @@ export async function handleAccountV2(req,res,pathname){
    // only by exact ledger-id/invoice-version/file-SHA readback.
    send(res,200,{ok:true,orders:data.rows.map(x=>{
     const receipt=canonicalReceiptForAccountOrder(x);
-    return {...x,verified:receipt!==null,receipt,
+    const items=Array.isArray(x.items)?x.items.map(line=>{
+     if(!line||typeof line!=='object'||Array.isArray(line))return {};
+     // Internal CTV price and margin never belong on a customer invoice.
+     const {internalUnitPrice,internalReference,collaboratorMarginVnd,...publicLine}=line;
+     return publicLine;
+    }):[];
+    return {...x,items,verified:receipt!==null,receipt,
      pdf:canonicalInvoiceDocumentStatus(x)};
    })});return true;
   }

@@ -153,6 +153,33 @@ header .satori-logo{width:31px;height:31px}
 .delivery-dialog .agent-address-popover{position:static;top:auto;right:auto;width:100%;max-height:none;overflow:visible;padding:5px 0 0;background:transparent;border:0;border-radius:0;box-shadow:none}
 .delivery-dialog .saved-address .address-round-icon svg{width:21px;height:21px}
 .delivery-dialog .agent-address-choice{min-height:72px;border-bottom:1px solid #eceff3;border-radius:10px}
+
+/* One account-scoped invoice document screen; never inject invoices into Gemini messages. */
+.invoice-document{max-width:800px;margin:0 auto;padding:18px}
+.invoice-detail-actions{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.invoice-back{background:#edf5f4;color:#0b7774;border:0;border-radius:12px;padding:10px 14px;font-weight:750;min-height:42px}
+.invoice-detail-heading{display:flex;align-items:center;gap:12px;border-bottom:1px solid #e4ebeb;padding-bottom:15px}
+.invoice-detail-heading .satori-logo{width:46px;height:46px;border-radius:12px}
+.invoice-detail-heading h2{font-size:22px;margin:0;color:#142d38}
+.invoice-detail-muted{color:#637782;font-size:13px;line-height:1.5}
+.invoice-detail-status{margin:14px 0;padding:11px 12px;border-radius:12px;background:#edf7f5;color:#17645c;font-weight:700;font-size:13px}
+.invoice-detail-section{margin:18px 0}
+.invoice-detail-section h3{margin:0 0 10px;font-size:16px;color:#173847}
+.invoice-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.invoice-detail-meta{padding:10px 12px;background:#f7fafb;border:1px solid #e4ecf0;border-radius:12px;min-width:0;overflow-wrap:anywhere}
+.invoice-detail-meta span{display:block;color:#5e7481;font-size:12px;margin-bottom:4px}
+.invoice-detail-meta strong{display:block;font-size:14px;color:#182f3d;line-height:1.45}
+.invoice-detail-item{padding:13px 0;border-bottom:1px solid #e6ecef}
+.invoice-detail-item-name{display:flex;justify-content:space-between;gap:10px;font-weight:750;color:#163443}
+.invoice-detail-item-name span:last-child{text-align:right;white-space:nowrap;color:#bf283b;font-variant-numeric:tabular-nums}
+.invoice-detail-item-meta{font-size:13px;color:#536b79;line-height:1.75;margin-top:5px}
+.invoice-detail-totals{padding:12px 15px;border-radius:15px;background:#f5faf9}
+.invoice-detail-total-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;align-items:center}
+.invoice-detail-total-row strong{font-variant-numeric:tabular-nums;text-align:right}
+.invoice-detail-final{border-top:1px solid #cadbdc;margin-top:8px;padding-top:14px;font-size:19px;font-weight:850}
+.invoice-detail-final strong{color:#bc2437}
+.invoice-detail-notice{font-size:13px;line-height:1.6;padding:12px 14px;border:1px solid #e9d6b8;border-radius:12px;background:#fff7ea;color:#795024}
+@media(max-width:540px){.invoice-document{padding:14px}.invoice-detail-grid{grid-template-columns:1fr}.invoice-detail-heading h2{font-size:19px}.invoice-detail-final{font-size:17px}}
 .invoice-masthead{display:flex;align-items:center;gap:9px;min-width:0}
 .invoice-masthead .satori-logo{height:35px;width:35px;border-radius:11px}
 .invoice-masthead h2{margin:0;font-size:16px}
@@ -783,6 +810,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <h3 class="invoice-section-subtitle">Đơn hàng V2</h3>
 <p class="notice">Chỉ hiển thị đơn V2 gắn với tài khoản Google đã xác minh. Hóa đơn cũ chưa được đối chiếu định danh, không tự động gộp. Đơn chưa được sổ Satori xác nhận không hiển thị như đã tạo hóa đơn.</p>
 <div id="orderRows" class="muted"></div></div></section>
+<section id="invoiceDetailView" class="view hidden" aria-label="Chi tiết hóa đơn">
+<div class="panel invoice-document"><div class="invoice-detail-actions"><button id="invoiceDetailBack" type="button" class="invoice-back">‹ Danh sách hóa đơn</button></div>
+<div id="invoiceDetailBody"></div></div></section>
 <section id="accountView" class="view hidden"><div class="screen-actions"><button class="screen-close back-to-chat" type="button" aria-label="Đóng màn hình và quay lại chat" title="Trở về chat">×</button></div><div class="panel"><h2>Tài khoản</h2><div id="accountDetails"></div></div>
 <section id="registrationBox" class="panel" hidden>
 <h2>Đăng ký tài khoản Minh Satori V2</h2>
@@ -870,7 +900,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
-const views=['chat','catalogue','cart','addresses','orders','account'];
+const views=['chat','catalogue','cart','addresses','orders','invoiceDetail','account'];
 const PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
 let crmRows={registered:[],leads:[]};
 let me=null,products=[],cart=[],cartRev=0,pilot=false,busy=false,savingCart=false;
@@ -1358,7 +1388,7 @@ function view(name){
  if(name!=='chat')$('message').blur();
  for(const n of views){$(n+'View').classList.toggle('hidden',name!==n)}
  updateComposerAction();
- for(const btn of document.querySelectorAll('[data-view]'))btn.classList.toggle('active',btn.dataset.view===name);
+ for(const btn of document.querySelectorAll('[data-view]'))btn.classList.toggle('active',btn.dataset.view===name||(name==='invoiceDetail'&&btn.dataset.view==='orders'));
  menu(false);
  if(name==='cart'){invalidateCartPricing();renderCart()}
  if(name==='chat'&&!selectedDeliveryAddress())requestAnimationFrame(openDeliveryDialog);
@@ -2102,39 +2132,104 @@ $('quickAgentProfile').onchange=async()=>{
  await changeProfile();
  if(!selectedDeliveryAddress())openDeliveryDialog();
 };
-// V1-style receipt presentation, sourced strictly from a COMMITTED,
- // account-scoped V2 ledger journal. PDF is unavailable until Drive file/hash
- // readback succeeds; never fabricate a receipt from a draft or test order.
+// Display a committed V2 receipt in a dedicated invoice screen, NEVER in chat.
+// Product and discount lines come from the stored account-scoped quote snapshot;
+// only the invoice number and total are reconciled with the canonical ledger.
 function showCommittedReceipt(order){
  const receipt=order?.receipt;
  if(order?.verified!==true||order.state!=='COMMITTED'||!receipt||
     !Number.isSafeInteger(receipt.invoiceNo)||receipt.invoiceNo<1||
     !Number.isSafeInteger(receipt.totalVnd)||receipt.totalVnd<0||
     receipt.currency!=='VND')return false;
- const card=node('div',undefined,'chat-canonical-receipt');
- card.setAttribute('role','group');
- card.setAttribute('aria-label','Biên nhận từ sổ Minh Satori đã xác minh');
- card.dataset.requestId=String(receipt.requestId||'');
- const head=node('div',undefined,'receipt-masthead');
+ const container=$('invoiceDetailBody');
+ container.replaceChildren();
+ const safeAmount=value=>{
+  if(value===undefined||value===null||value==='')return null;
+  const amount=Number(value);
+  return Number.isSafeInteger(amount)&&amount>=0&&amount<=100_000_000_000?amount:null;
+ };
+ const section=(title)=>{
+  const block=node('section',undefined,'invoice-detail-section');
+  block.append(node('h3',title));container.append(block);return block;
+ };
+ const field=(parent,label,value)=>{
+  if(value===undefined||value===null||value==='')return;
+  const card=node('div',undefined,'invoice-detail-meta');
+  card.append(node('span',label),node('strong',String(value)));parent.append(card);
+ };
+ const amountText=n=>n===null?'Chưa có dữ liệu':money(n);
+ const header=node('div',undefined,'invoice-detail-heading');
  const logo=document.querySelector('.brand .satori-logo');
- if(logo)head.append(logo.cloneNode(true));
- head.append(node('strong','MINH SATORI · HÓA ĐƠN #'+receipt.invoiceNo));
- card.append(head);
- const amount=node('div',undefined,'receipt-line');
- amount.append(node('span','Tổng hóa đơn'),
-  node('span',money(receipt.totalVnd),'receipt-amount'));
- card.append(amount);
+ if(logo)header.append(logo.cloneNode(true));
+ const intro=node('div');
+ intro.append(node('h2','HÓA ĐƠN #'+receipt.invoiceNo),
+  node('span','MINH SATORI · Đơn hàng V2','invoice-detail-muted'));
+ header.append(intro);container.append(header);
+ container.append(node('div','Đã đối soát mã hóa đơn và tổng tiền với sổ Minh Satori.','invoice-detail-status'));
+ const information=node('div',undefined,'invoice-detail-grid');
+ const dt=Date.parse(order.orderedAt||'');
+ const date=Number.isFinite(dt)?new Intl.DateTimeFormat('vi-VN',{
+  dateStyle:'short',timeStyle:'short',timeZone:'Asia/Ho_Chi_Minh'
+ }).format(new Date(dt)):'Chưa có thời gian';
+ field(information,'Thời gian đặt hàng V2',date);
+ field(information,'Mã yêu cầu',order.requestId);
+ field(information,'Người nhận',order.delivery?.recipientName);
+ field(information,'Số điện thoại',order.delivery?.recipientPhone);
+ field(information,'Địa chỉ giao hàng',order.delivery?.address);
+ field(information,'Điểm giao',order.delivery?.label);
+ if(information.childElementCount)section('Thông tin đơn hàng').append(information);
+ const items=Array.isArray(order.items)?order.items:[];
+ const lines=section('Sản phẩm đã đặt ('+items.length+')');
+ if(!items.length)lines.append(node('p','Chưa có dữ liệu mặt hàng từ báo giá đã lưu.','invoice-detail-notice'));
+ for(const [index,line] of items.entries()){
+  const item=node('div',undefined,'invoice-detail-item');
+  const itemTitle=node('div',undefined,'invoice-detail-item-name');
+  const quantity=Number.isSafeInteger(Number(line.qty))&&Number(line.qty)>0?Number(line.qty):null;
+  const unitPrice=safeAmount(line.unitPrice);
+  const lineTotal=safeAmount(line.lineTotal);
+  itemTitle.append(node('span',(index+1)+'. '+String(line.name||line.code||'Sản phẩm')),
+   node('span',amountText(lineTotal)));
+  item.append(itemTitle);
+  const meta=node('div',undefined,'invoice-detail-item-meta');
+  meta.append(node('div','Mã: '+String(line.code||'—')+
+   ' · SL: '+(quantity??'—')+' '+String(line.unit||'')));
+  const bps=Number(line.discountBps);
+  const discount=Number.isSafeInteger(bps)&&bps>=0&&bps<=10000?
+   new Intl.NumberFormat('vi-VN',{maximumFractionDigits:2}).format(bps/100)+'%':'Chưa xác định';
+  meta.append(node('div','Giá niêm yết: '+amountText(safeAmount(line.listPrice))+
+   ' · Chiết khấu: '+discount));
+  meta.append(node('div','Đơn giá sau chiết khấu: '+amountText(unitPrice)));
+  item.append(meta);lines.append(item);
+ }
+ container.append(node('p','Chi tiết sản phẩm và chiết khấu lấy từ báo giá V2 đã lưu tại thời điểm đặt.','invoice-detail-muted'));
+ const subtotal=safeAmount(order.goodsVnd),shipping=safeAmount(order.shippingVnd),
+  vat=safeAmount(order.vatVnd);
+ const totals=node('div',undefined,'invoice-detail-totals');
+ function totalRow(label,value,final=false){
+  const row=node('div',undefined,'invoice-detail-total-row'+(final?' invoice-detail-final':''));
+  row.append(node('span',label),node('strong',amountText(value)));
+  totals.append(row);
+ }
+ totalRow('Tiền hàng sau chiết khấu',subtotal);
+ totalRow('Phí giao hàng',shipping);
+ totalRow('VAT',vat);
+ totalRow('TỔNG THANH TOÁN',receipt.totalVnd,true);
+ section('Tổng kết thanh toán').append(totals);
+ if(subtotal!==null&&shipping!==null&&vat!==null&&
+    subtotal+shipping+vat!==receipt.totalVnd){
+  container.append(node('p','Tổng các khoản theo báo giá V2 khác tổng tiền đã đối soát; cần kiểm tra hóa đơn gốc trước khi thanh toán.','invoice-detail-notice'));
+ }
+ const deliveryNote=order.deliveryRequest?.deliveryNote;
+ if(deliveryNote)section('Ghi chú giao hàng').append(node('p',String(deliveryNote),'invoice-detail-muted'));
  const pdf=receipt.pdf;
  const note=pdf?.status==='AWAITING_VERIFIED_DRIVE_PDF'&&pdf.shareable===false?
   'PDF gốc đang chờ xác minh phiên bản và file trên Google Drive. Chưa có link tải chính thức.':
-  'Chưa xác nhận được PDF gốc trên Google Drive. Vui lòng xem sổ kế toán trước khi sử dụng.';
- card.append(node('p',note,'receipt-warning'));
- const same=$('messages').querySelectorAll('.chat-canonical-receipt');
- for(const previous of same)if(previous.dataset.requestId===card.dataset.requestId)previous.remove();
- $('messages').append(card);view('chat');
- $('messages').scrollTop=$('messages').scrollHeight;
+  'Chưa xác nhận được PDF gốc trên Google Drive. Chưa có link tải chính thức.';
+ container.append(node('p',note,'invoice-detail-notice'));
+ view('invoiceDetail');
  return true;
 }
+$('invoiceDetailBack').onclick=()=>view('orders');
 async function loadOrders(){
  const data=await call('/api/v2/orders',undefined,'GET');
  $('orderRows').replaceChildren();
@@ -2167,8 +2262,8 @@ async function loadOrders(){
    info.append(check);
   }
   if(verified&&o.receipt){
-   const open=node('button','Xem receipt','btn');
-   open.type='button';open.setAttribute('aria-label','Xem biên nhận hóa đơn #'+o.receipt.invoiceNo+' trong Gemini');
+   const open=node('button','Xem chi tiết hóa đơn','btn');
+   open.type='button';open.setAttribute('aria-label','Xem chi tiết hóa đơn #'+o.receipt.invoiceNo+' trên màn hình riêng');
    open.onclick=()=>showCommittedReceipt(o);
    info.append(open);
   }
