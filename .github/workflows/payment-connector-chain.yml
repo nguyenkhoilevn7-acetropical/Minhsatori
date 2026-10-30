@@ -4,6 +4,8 @@ on:
     paths:
       - 'connector/lib/satori.mjs'
       - 'connector/tests/payment-chain.mjs'
+      - 'connector/tests/three-payment-publication.mjs'
+      - 'connector/chatgpt-three-payment-tools.registration.json'
       - 'api/BotApi.gs'
       - 'accounting-core.js'
       - '.github/workflows/payment-connector-chain.yml'
@@ -20,4 +22,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test connector/tests/payment-chain.mjs
+      - run: node --test connector/tests/payment-chain.mjs connector/tests/three-payment-publication.mjs

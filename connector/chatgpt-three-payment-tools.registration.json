@@ -1,0 +1,169 @@
+{
+  "name": "Minh Satori Bot — payment corrections",
+  "source": "connector/lib/satori.mjs",
+  "publishMode": "UPDATE_EXISTING_PLUGIN_TOOLS_NOT_NEW_PLUGIN",
+  "existingEndpoint": "Use currently connected Minh Satori Bot HMAC backend; no new URLs or secrets.",
+  "scope": "payments:write",
+  "requirements": "Owner approval, exact bill identity + amount, revision, audit reason, unique requestId; never test against Production.",
+  "tools": [
+    {
+      "name": "satori_mark_customer_unpaid",
+      "action": "payments.markCustomerUnpaid",
+      "description": "Sửa xác nhận thu tiền từ khách về chưa thanh toán; yêu cầu ID, số bill, tên, tổng tiền, lý do và xác nhận. Giữ nguyên trạng thái trả Satori, ghi lịch sử.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "requestId": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "invoiceNo": {
+            "type": "integer"
+          },
+          "id": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "expectedName": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "expectedTotal": {
+            "type": "number",
+            "minimum": 0
+          },
+          "confirmed": {
+            "type": "boolean",
+            "const": true
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "requestId",
+          "invoiceNo",
+          "id",
+          "expectedName",
+          "expectedTotal",
+          "confirmed",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "satori_mark_satori_paid",
+      "action": "payments.markSatoriPaid",
+      "description": "Ghi nhận đơn này đã thanh toán cho Satori (không phải khách trả). Chỉ chủ sở hữu xác nhận khi đã đối chiếu tiền thật. Có lịch sử riêng.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "requestId": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "invoiceNo": {
+            "type": "integer"
+          },
+          "id": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "expectedName": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "expectedTotal": {
+            "type": "number",
+            "minimum": 0
+          },
+          "confirmed": {
+            "type": "boolean",
+            "const": true
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "requestId",
+          "invoiceNo",
+          "id",
+          "expectedName",
+          "expectedTotal",
+          "confirmed",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "satori_mark_satori_unpaid",
+      "action": "payments.markSatoriUnpaid",
+      "description": "Hoàn tác đánh dấu thanh toán cho Satori có lý do và lịch sử; không xóa trạng thái khách đã trả.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "requestId": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "invoiceNo": {
+            "type": "integer"
+          },
+          "id": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "expectedName": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "expectedTotal": {
+            "type": "number",
+            "minimum": 0
+          },
+          "confirmed": {
+            "type": "boolean",
+            "const": true
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "requestId",
+          "invoiceNo",
+          "id",
+          "expectedName",
+          "expectedTotal",
+          "confirmed",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
