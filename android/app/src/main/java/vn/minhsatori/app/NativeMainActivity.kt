@@ -2863,12 +2863,97 @@ class NativeMainActivity : AppCompatActivity() {
         }
         section(panel, "03  Nhắc nợ, đối soát ngân hàng",
             "Chưa kết nối ngân hàng thật và chưa tự gửi nhắc nợ.")
-        section(panel, "04  Email, PDF & hóa đơn điện tử",
-            "Chưa kích hoạt gửi email hoặc phát hành chứng từ thuế.")
+        button(panel, "EMAIL, PDF & HÓA ĐƠN ĐIỆN TỬ  ·  CHỈ ĐỌC",
+            false, R.drawable.ic_satori_invoice) {
+            showAccountingProDocuments(data)
+        }
         AlertDialog.Builder(this)
             .setTitle("Minh Satori · Accounting Pro")
             .setView(scroll)
             .setPositiveButton("Đóng", null)
+            .show()
+    }
+
+    /**
+     * No PDF creation or document service integration. The canonical V1
+     * snapshot cannot prove PDF archive, email delivery or legal tax issuance.
+     */
+    private fun showAccountingProDocuments(data: SatoriSnapshot) {
+        val audit=AccountingProDocumentAudit.summary(data.invoices)
+        val rows=AccountingProDocumentAudit.rows(data.invoices)
+        val panel=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(14),dp(12),dp(14),dp(16))
+        }
+        label(panel,"EMAIL · PDF · HÓA ĐƠN ĐIỆN TỬ",16f,true,ink)
+        label(panel,"CHỈ XEM · REVISION " + data.revision,
+            11.5f,true,cyan,7)
+        section(panel,"Hóa đơn bán hàng hợp lệ: " + audit.validSaleInvoices,
+            "Đã loại trừ: " + audit.excludedInvoices +
+                " hóa đơn thử, hủy hoặc CTV nội bộ.")
+        section(panel,"Có trường số tiền VAT: " + audit.rowsWithVatAmount,
+            "Có trường MST: " + audit.rowsWithTaxCode +
+                ". Những trường này KHÔNG chứng minh đã phát hành HĐĐT.")
+        section(panel,"PDF lưu Drive: CHƯA XÁC MINH",
+            "Snapshot Android không có định danh file PDF lưu trữ và checksum xác thực.")
+        section(panel,"Email đã gửi: CHƯA XÁC MINH",
+            "Chưa có email outbox, trạng thái gửi và nhật ký nhận trong dữ liệu này.")
+        section(panel,"Hóa đơn điện tử thuế: CHƯA XÁC MINH",
+            "Chưa có XML, mã chứng từ, provider tracking hoặc trạng thái phát hành.")
+        if (audit.unreliableInvoiceIds > 0)
+            section(panel,"ID hóa đơn cần rà soát: " + audit.unreliableInvoiceIds,
+                "Không gắn nhầm chứng từ vào hóa đơn thiếu hoặc trùng định danh.")
+        label(panel,"TRA CỨU METADATA CHỨNG TỪ",12f,true,cyan,14)
+        val search=EditText(this).apply {
+            hint="Tìm số HĐ, khách hàng…"
+            setSingleLine(true)
+            textSize=13f
+            setTextColor(ink)
+            setHintTextColor(softInk)
+            background=panelBackground(Color.WHITE,12)
+            setPadding(dp(12),0,dp(12),0)
+        }
+        panel.addView(search,LinearLayout.LayoutParams(-1,dp(44)))
+        val results=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(0,dp(4),0,dp(10))
+        }
+        val listScroll=ScrollView(this).apply { addView(results) }
+        panel.addView(listScroll,LinearLayout.LayoutParams(-1,
+            (resources.displayMetrics.heightPixels * 34 / 100).coerceAtLeast(dp(160))))
+        fun redraw() {
+            results.removeAllViews()
+            val filtered=rows.filter { SatoriData.search(it.invoice,
+                search.text.toString()) }
+            label(results,"Hiển thị " + minOf(filtered.size,45) + "/" +
+                filtered.size + " hóa đơn",11f,true,cyan,8)
+            filtered.take(45).forEach { item ->
+                section(results,"#" + item.invoice.number + " · " +
+                    item.invoice.customer,
+                    "Giá trị bill: " + SatoriData.money(item.invoice.total) +
+                        "\nCó VAT: " + (if(item.hasVatAmountField) "Có trường VAT" else "Không rõ") +
+                        " · MST: " + (if(item.hasTaxCodeField) "Có trường MST" else "Không rõ") +
+                        "\nPDF / Email / HĐĐT: Chưa xác minh")
+            }
+            if(filtered.isEmpty())
+                section(results,"Không có dữ liệu phù hợp","Hãy thay đổi từ khóa tìm kiếm.")
+            if(filtered.size>45)
+                label(results,"Chỉ hiển thị 45 dòng; tìm để thu hẹp.",
+                    11f,false,softInk,8)
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int,
+                count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int,
+                before: Int, count: Int) { redraw() }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        redraw()
+        val scroll=ScrollView(this).apply { addView(panel) }
+        AlertDialog.Builder(this)
+            .setTitle("Accounting Pro · Chứng từ")
+            .setView(scroll)
+            .setPositiveButton("Đóng",null)
             .show()
     }
 
