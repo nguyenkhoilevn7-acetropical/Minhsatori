@@ -5,7 +5,8 @@ const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').repl
 const number=v=>Number.isFinite(Number(v))?Number(v):0;
 const active=o=>!['Đã hủy','Không Tính'].includes(o.status);
 const statusClass=o=>({'Đã TT Satori':'text-emerald-400','Đã thanh toán':'text-emerald-400','Chưa thanh toán':'text-amber-400','Không Tính':'text-indigo-400','Đã hủy':'text-rose-400'}[o.status]||'text-slate-400')+' font-semibold';
-const paid=o=>o.status==='Đã thanh toán'||!!o.customerPaidAt;
+// Lifecycle status wins over historical receipt metadata on cancelled orders.
+const paid=o=>active(o)&&(o.status==='Đã thanh toán'||!!o.customerPaidAt);
 const items=o=>o.items?.length?o.items:[o];
 const goods=o=>items(o).reduce((s,i)=>s+number(i.qty)*number(i.unitPrice),0);
 const listed=o=>items(o).reduce((s,i)=>s+number(i.qty)*number(i.listPrice),0);

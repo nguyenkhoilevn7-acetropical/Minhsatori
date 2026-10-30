@@ -87,18 +87,20 @@ data class SatoriInvoice(
         else -> ""
     }
     // A CTV's settlement is a price reference, not a second physical sale.
+    // Cancellation is the authoritative lifecycle state. Retain historical
+    // payment timestamps only for audit; they must not revive a cancelled bill.
+    val isCancelled: Boolean get() = status.equals("Đã hủy", ignoreCase = true)
     val isExcluded: Boolean get() = isTest || isInternalCollaboratorBill ||
-        status.equals("Không Tính", ignoreCase = true) ||
-        status.equals("Đã hủy", ignoreCase = true)
-    val customerHasPaid: Boolean get() =
-        status.equals("Đã thanh toán", ignoreCase = true) || customerPaidAt.isNotBlank()
+        status.equals("Không Tính", ignoreCase = true) || isCancelled
+    val customerHasPaid: Boolean get() = !isCancelled &&
+        (status.equals("Đã thanh toán", ignoreCase = true) || customerPaidAt.isNotBlank())
     // "Đã TT Satori" reflects settlement with Satori, NOT payment by customer.
     // Keep edits/deletes protected but allow recording the customer's payment.
     // Editing/deleting only one half would corrupt a paired CTV delivery.
     val canEditOrDelete: Boolean get() = !isLinkedPairBill && !isExcluded && !customerHasPaid &&
         !status.equals("Đã TT Satori", ignoreCase = true)
-    val satoriHasPaid: Boolean get() =
-        status.equals("Đã TT Satori", ignoreCase = true) || satoriPaidAt.isNotBlank()
+    val satoriHasPaid: Boolean get() = !isCancelled &&
+        (status.equals("Đã TT Satori", ignoreCase = true) || satoriPaidAt.isNotBlank())
     val canChangePayment: Boolean get() = !isExcluded && total > 0L && id.isNotBlank()
     val canMarkCustomerPaid: Boolean get() = canChangePayment && !customerHasPaid
     val isOutstanding: Boolean get() = !isExcluded && !customerHasPaid && total > 0L

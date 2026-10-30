@@ -2471,6 +2471,7 @@ class NativeMainActivity : AppCompatActivity() {
         // Dates remain neutral; payment statuses use the same semantic tint
         // in Hóa đơn and Công nợ (unpaid amber, paid green).
         val statusColor = when {
+            invoice.isCancelled -> Color.rgb(190, 40, 48)
             invoice.status.contains("chưa thanh toán", ignoreCase = true) ->
                 Color.rgb(181, 95, 6)
             invoice.status.contains("đã thanh toán", ignoreCase = true) ->
@@ -2749,16 +2750,23 @@ class NativeMainActivity : AppCompatActivity() {
         })
         card.addView(headline)
         label(card, invoice.displayDate, 11.5f, false, softInk, 5)
-        val customerStatus = if (invoice.customerHasPaid) "✓ Khách đã thanh toán"
-                             else "● Khách chưa thanh toán"
-        label(card, customerStatus, 12f, true,
-            if (invoice.customerHasPaid) Color.rgb(16, 122, 78)
-            else Color.rgb(171, 95, 18), 7)
-        val satoriStatus = if (invoice.satoriHasPaid) "✓ Đã thanh toán Satori"
-                           else "○ Chưa thanh toán Satori"
-        label(card, satoriStatus, 11f, true,
-            if (invoice.satoriHasPaid) Color.rgb(16, 122, 78)
-            else softInk, 4)
+        if (invoice.isCancelled) {
+            label(card, "⊘ HÓA ĐƠN ĐÃ HỦY", 12f, true, Color.rgb(190, 40, 48), 7)
+            if (invoice.customerPaidAt.isNotBlank() || invoice.satoriPaidAt.isNotBlank())
+                label(card, "Có lịch sử thanh toán • cần đối soát", 11f, true,
+                    Color.rgb(155, 91, 30), 4)
+        } else {
+            val customerStatus = if (invoice.customerHasPaid) "✓ Khách đã thanh toán"
+                                 else "● Khách chưa thanh toán"
+            label(card, customerStatus, 12f, true,
+                if (invoice.customerHasPaid) Color.rgb(16, 122, 78)
+                else Color.rgb(171, 95, 18), 7)
+            val satoriStatus = if (invoice.satoriHasPaid) "✓ Đã thanh toán Satori"
+                               else "○ Chưa thanh toán Satori"
+            label(card, satoriStatus, 11f, true,
+                if (invoice.satoriHasPaid) Color.rgb(16, 122, 78)
+                else softInk, 4)
+        }
         if (invoice.isLinkedPairBill) {
             label(card, invoice.pairLabel, 11.5f, true, cyan, 7)
         }
@@ -2914,7 +2922,8 @@ class NativeMainActivity : AppCompatActivity() {
                         SatoriData.money(invoice.total), 13.5f, true, ink)
                     label(row, invoice.displayDate + "  •  " + invoice.status,
                         11.5f, true,
-                        if (invoice.customerHasPaid) Color.rgb(16, 122, 78)
+                        if (invoice.isCancelled) Color.rgb(190, 40, 48)
+                        else if (invoice.customerHasPaid) Color.rgb(16, 122, 78)
                         else Color.rgb(168, 91, 16), 5)
                     detail.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
                         topMargin = dp(7)
@@ -4148,7 +4157,8 @@ class NativeMainActivity : AppCompatActivity() {
             background = panelBackground(Color.rgb(248, 249, 252))
         }
         label(heading, "HÓA ĐƠN #" + invoice.number, 21f, true, white)
-        label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true, cyan, 7)
+        label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true,
+            if (invoice.isCancelled) Color.rgb(190, 40, 48) else cyan, 7)
         label(heading, SatoriData.money(invoice.total), 20f, true,
             Color.rgb(17, 133, 91), 8)
         content.addView(heading)
@@ -4246,6 +4256,14 @@ class NativeMainActivity : AppCompatActivity() {
         }
 
         // The two flags must never be merged: customer receipt != Satori settlement.
+        if (invoice.isCancelled) {
+            label(content, "ĐÃ HỦY • KHÔNG TÍNH DOANH THU / CÔNG NỢ", 12f, true,
+                Color.rgb(190, 40, 48), 14)
+            if (invoice.customerPaidAt.isNotBlank() || invoice.satoriPaidAt.isNotBlank())
+                label(content, "Có dấu thời gian thanh toán trước khi hủy. " +
+                    "Kiểm tra chứng từ đối soát / hoàn tiền; không tự ghi nhận đã thanh toán.",
+                    11f, false, softInk, 6)
+        } else {
         label(content, "THANH TOÁN", 12f, true, cyan, 14)
         val customerAction = if (invoice.customerHasPaid) "payments.markCustomerUnpaid"
                              else "payments.markCustomerPaid"
@@ -4264,6 +4282,7 @@ class NativeMainActivity : AppCompatActivity() {
         if (validInvoiceNumber == null) {
             label(content, "Số hóa đơn không hợp lệ • đã khóa thao tác ghi.",
                 11f, true, gold, 6)
+        }
         }
 
         fun confirmInternalShare(action: () -> Unit) {
