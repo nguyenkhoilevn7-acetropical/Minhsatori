@@ -15,6 +15,14 @@ class InvoiceBadgePolicyTest {
         assertTrue(update.fresh.isEmpty())
     }
 
+    @Test fun emptyVerifiedLedgerTracksFirstLiveInvoice() {
+        val initial = InvoiceBadgePolicy.reconcile(InvoiceBadgeState(), emptyList())
+        assertEquals(0L, initial.state.highWater)
+        val new = InvoiceBadgePolicy.reconcile(initial.state, listOf(row(1)))
+        assertEquals(setOf(1L), new.fresh)
+        assertEquals(1, new.state.count)
+    }
+
     @Test fun newRealGeminiInvoiceAppearsOnceAndSurvivesNewSnapshot() {
         val baseline = InvoiceBadgeState(5960L)
         val first = InvoiceBadgePolicy.reconcile(baseline, listOf(row(5960), row(5961)))
