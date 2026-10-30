@@ -2906,6 +2906,190 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     /**
+     * Date-filtered owner margin (company discount 45% against each product's
+     * stored ORIGINAL list price). Never changes ledger, checkout or payment.
+     * "Lãi hàng" is before delivery expense, unverified CTV payout, VAT/tax.
+     */
+    private fun showAccountingProProfit45Report(data: SatoriSnapshot) {
+        val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+        var picked = today
+        var rangeFrom = today.withDayOfMonth(1)
+        var rangeTo = today
+        val modes = listOf("Theo ngày", "Theo tháng", "Theo năm", "Khoảng ngày")
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(9), dp(13), dp(12))
+        }
+        label(panel, "THỐNG KÊ TIỀN LỜI · CK 45%", 16f, true, ink)
+        label(panel, "GIÁ NHẬP DỰ TÍNH = 55% GIÁ NIÊM YẾT GỐC",
+            11f, true, cyan, 6)
+        label(panel, "Lãi hàng trước CTV, phí giao thực tế và chi phí kinh doanh. " +
+            "Không phải lãi ròng; không suy ra tiền đã thanh toán.",
+            11.5f, false, softInk, 7)
+
+        val mode = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(this@NativeMainActivity,
+                android.R.layout.simple_spinner_dropdown_item, modes)
+            contentDescription = "Lọc lợi nhuận theo ngày tháng năm hoặc khoảng ngày"
+        }
+        panel.addView(mode, LinearLayout.LayoutParams(-1, dp(45)).apply {
+            topMargin = dp(10)
+        })
+        val periodText = label(panel, "", 12f, true, ink, 8)
+        val dateButtons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(3), 0, dp(5))
+        }
+        panel.addView(dateButtons)
+        val totalsBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(7), 0, dp(5))
+        }
+        panel.addView(totalsBox)
+        val search = EditText(this).apply {
+            hint = "Tìm số hóa đơn, khách hàng…"
+            setSingleLine(true)
+            textSize = 13f
+            setTextColor(ink)
+            setHintTextColor(softInk)
+            background = panelBackground(Color.WHITE, 12)
+            setPadding(dp(12), 0, dp(12), 0)
+            contentDescription = "Tìm hóa đơn trong báo cáo tiền lời"
+        }
+        panel.addView(search, LinearLayout.LayoutParams(-1, dp(45)).apply {
+            topMargin = dp(10)
+        })
+        val rows = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(5), 0, dp(12))
+        }
+        val inner = ScrollView(this).apply { addView(rows) }
+        panel.addView(inner, LinearLayout.LayoutParams(-1,
+            (resources.displayMetrics.heightPixels * 40 / 100).coerceAtLeast(dp(175))))
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Accounting Pro · Lợi nhuận 45%")
+            .setView(ScrollView(this).apply { addView(panel) })
+            .setPositiveButton("Đóng", null)
+            .create()
+
+        fun selectedPeriod(): Pair<java.time.LocalDate,java.time.LocalDate> =
+            when (mode.selectedItemPosition) {
+                0 -> AccountingProProfit45.day(picked)
+                1 -> AccountingProProfit45.month(java.time.YearMonth.from(picked))
+                2 -> AccountingProProfit45.year(picked.year)
+                else -> rangeFrom to rangeTo
+            }
+
+        fun redraw() {
+            totalsBox.removeAllViews()
+            rows.removeAllViews()
+            val (from, to) = selectedPeriod()
+            periodText.text = "Từ $from đến $to"
+            if (from.isAfter(to)) {
+                label(totalsBox, "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.",
+                    12f, true, Color.rgb(182, 74, 24))
+                return
+            }
+            val report = AccountingProProfit45.summarize(data.invoices, from, to)
+            label(totalsBox, "TỔNG LÃI HÀNG DỰ TÍNH (CK 45%)", 12f, true, cyan)
+            label(totalsBox, report.grossMerchandiseMarginVnd?.let(SatoriData::money)
+                ?: "Chưa xác minh", 23f, true, invoiceMoneyRed, 6)
+            label(totalsBox, "Tính được ${report.calculatedCount}/${report.invoiceCount} bill trong kỳ" +
+                (if (report.skippedCount > 0) " · ${report.skippedCount} bill thiếu dữ liệu" else ""),
+                11.5f, false, softInk, 6)
+            label(totalsBox, "Giá nhập 55%: " +
+                (report.purchaseCostEstimateVnd?.let(SatoriData::money) ?: "Chưa rõ") +
+                " · Tiền hàng: " +
+                (report.saleMerchandiseRevenueVnd?.let(SatoriData::money) ?: "Chưa rõ"),
+                11.5f, false, softInk, 5)
+            label(totalsBox, if (report.afterCtvMarginVnd != null)
+                "Lãi hàng sau CTV đã đối chiếu: " +
+                    SatoriData.money(report.afterCtvMarginVnd)
+                else "Lãi sau CTV: chưa đủ dữ liệu quyết toán; " +
+                    "${report.ctvUnverifiedCount} bill cần đối chiếu",
+                11.5f, true, if (report.afterCtvMarginVnd == null)
+                    Color.rgb(175, 94, 0) else invoiceMoneyRed, 6)
+            val filtered = report.records.filter {
+                SatoriData.search(it.invoice, search.text.toString())
+            }
+            label(rows, "HÓA ĐƠN TRONG KỲ (${filtered.size})", 12f, true, cyan, 9)
+            if (filtered.isEmpty()) {
+                section(rows, "Không có hóa đơn phù hợp",
+                    "Thử chọn khoảng ngày hoặc điều chỉnh từ khóa.")
+            }
+            filtered.take(80).forEach { entry ->
+                val inv = entry.invoice
+                val amount = entry.merchandiseMarginBeforeCtvVnd
+                val status = if (amount == null)
+                    "Chưa tính được · " + (entry.warning ?: "Thiếu dữ liệu")
+                else "Lãi hàng theo CK45%: " + SatoriData.money(amount) +
+                    (if (entry.marginAfterVerifiedLegacyCtvVnd != null &&
+                        (inv.collaboratorId.isNotBlank() || inv.isLinkedPairBill))
+                        "\nSau CTV cũ đã đối chiếu: " +
+                            SatoriData.money(entry.marginAfterVerifiedLegacyCtvVnd)
+                    else if (inv.collaboratorId.isNotBlank() || inv.isLinkedPairBill ||
+                        inv.pairDiscountPercent != null)
+                        "\nChưa xác minh hoa hồng CTV"
+                    else "")
+                section(rows, "#" + inv.number + " · " + inv.customer,
+                    inv.displayDate + " · " + status) {
+                    dialog.dismiss()
+                    openInvoice(inv)
+                }
+            }
+            if (filtered.size > 80)
+                label(rows, "Đang giới hạn 80 dòng; tìm theo số hóa đơn để thu hẹp.",
+                    11f, false, softInk, 8)
+            val invalidDates = data.invoices.count {
+                !it.isExcluded && !it.hasValidDate
+            }
+            if (invalidDates > 0)
+                label(rows, "$invalidDates hóa đơn có ngày không hợp lệ, " +
+                    "không được đưa vào kỳ tự động.",
+                    11f, false, Color.rgb(175, 94, 0), 10)
+        }
+
+        fun pickDate(which: Int) {
+            val initial = when (which) {
+                1 -> rangeFrom
+                2 -> rangeTo
+                else -> picked
+            }
+            android.app.DatePickerDialog(this, { _, year, month, day ->
+                val next = java.time.LocalDate.of(year, month + 1, day)
+                when (which) {
+                    1 -> { rangeFrom = next; mode.setSelection(3) }
+                    2 -> { rangeTo = next; mode.setSelection(3) }
+                    else -> picked = next
+                }
+                redraw()
+            }, initial.year, initial.monthValue - 1, initial.dayOfMonth).show()
+        }
+        button(dateButtons, "CHỌN NGÀY / THÁNG / NĂM",
+            false, R.drawable.ic_satori_invoice) { pickDate(0) }
+        button(dateButtons, "TỪ NGÀY", false,
+            R.drawable.ic_satori_invoice) { pickDate(1) }
+        button(dateButtons, "ĐẾN NGÀY", false,
+            R.drawable.ic_satori_invoice) { pickDate(2) }
+        mode.onItemSelectedListener = object :
+            android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
+                view: View?, position: Int, id: Long) { redraw() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int,
+                count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int,
+                before: Int, count: Int) { redraw() }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        mode.setSelection(1)
+        redraw()
+        dialog.show()
+    }
+
+    /**
      * No PDF creation or document service integration. The canonical V1
      * snapshot cannot prove PDF archive, email delivery or legal tax issuance.
      */
