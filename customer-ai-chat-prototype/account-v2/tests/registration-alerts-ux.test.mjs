@@ -30,12 +30,14 @@ test('website has badge, notification bell and opt-in sound, without duplicate i
  assert.match(script,/window\.setInterval/);
  assert.doesNotThrow(()=>new vm.Script(script));
 });
-test('one account-bound invoice selector uses exact source refs and never reimports',()=>{
+test('address-only importer uses signed source refs without stale one-tap binding UI',()=>{
  assert.doesNotMatch(html,/id="legacySelectAll"/);
- assert.match(html,/id="crmLegacyLink"/);
- assert.match(script,/checkbox\.dataset\.refs=JSON\.stringify\(group\.refs\)/);
- assert.match(script,/sourceRevision:source\.revision,refs:list/);
- assert.match(backend,/legacyPhoneCandidate\(o\.phone\)/);
+ assert.doesNotMatch(html,/id="crmLegacyLink"/);
+ assert.match(html,/id="crmImportDelivery"/);
+ assert.match(script,/invoiceNo:x\.group\.ref\.invoiceNo,sourceId:String\(x\.group\.ref\.sourceId\)/);
+ assert.match(script,/sourceRevision:source\.revision,selected:items/);
+ assert.match(script,/identityConfirmed:true/);
+ assert.match(backend,/legacyPhoneCandidate\(signed\.phone\)/);
 });
 
 test('CTV fields use separate client and partner rates and show margin',()=>{
