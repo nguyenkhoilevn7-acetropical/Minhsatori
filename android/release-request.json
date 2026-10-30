@@ -1,9 +1,9 @@
 {
-  "purpose": "android-v0.4.31-profit-debt-shared-period-and-guarded-edit-owner-acceptance",
+  "purpose": "android-v0.4.32-consistent-unpaid-amber-profit-badge-topright-signed-owner-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.31",
-  "versionCode": 48,
-  "branch": "feature/android-owner-invoice-edit-v0431-20261030",
+  "version": "0.4.32",
+  "versionCode": 49,
+  "branch": "feature/android-invoice-status-profit-badge-v0432-20261030",
   "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
@@ -30,9 +30,10 @@
     302,
     303,
     305,
-    306
+    306,
+    307
   ],
-  "scope": "Android only: shared day/month/year/custom period filter for debt and 45%-supplier discounted gross profit, margin labels on invoice and debt cards, and direct guarded owner Edit invoice. Preserve revision/id+invoiceNo verification, payment/CTV protection, pending write journal, backup/readback and Google Owner Mobile API authorization. No Gemini V2, ChatGPT, website or server production changes, and no automatic merge or deployment.",
+  "scope": "Android UI-only: use debt-tab amber (#B55F06) for Chưa thanh toán throughout Hóa đơn and Công nợ, retain neutral dates and green paid statuses; show 45%-supplier estimated gross profit as a subtle top-right badge under total on invoice cards in both tabs. Preserve owner Edit invoice/payment/delete guards, financial math, pending-write journal, source authentication, Gemini V2, website, ChatGPT bot and Apps Script Production. No auto merge/deploy.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -66,6 +67,7 @@
     "2026-10-30: Signed v0.4.29 build46 owner acceptance requested AFTER GitHub Android unit+build and Keystore/emulator CI PASSED on this branch and source screenshot CI passed. Use pinned original release signing certificate, generate APK+verification JSON, never merge/deploy backend or publish until owner manually tests on Samsung.",
     "2026-10-30: Owner explicitly requested v0.4.29 build 46 installable signed APK after Android CI on PR #303 and parent PR #302 passed. Re-submit protected same-signing-key acceptance build on this isolated branch only; strictly validate certificate fingerprint, version and APK, no merge, production deployment or monetary writes.",
     "2026-10-30: Owner requested shared period filtering and profit figures on each outstanding debt card and beside aggregate debt, with only the short visible label Lợi nhuận. PR #305 isolated Android read-only UI + regression tests. Signed v0.4.30 code47 owner acceptance build only, same application ID and pinned signer, no auto merge/deploy. Confirm GitHub signed-release PASS and APK hash prior to installing over v0.4.29 without uninstalling.",
-    "2026-10-30: Signed owner acceptance requested for Android v0.4.31 build48 stacked PR #306 after #305. Verify full tests, pinned original signing cert SHA-256, package identity and APK digest. The actual Android edit write requires deployed Apps Script owner Mobile API SatoriBotApi.ownerMobileWrite supporting orders.update, not just a successful APK build; prove live permissions before editing any invoice. No synthetic live writes, preserve previous APK until UAT."
+    "2026-10-30: Signed owner acceptance requested for Android v0.4.31 build48 stacked PR #306 after #305. Verify full tests, pinned original signing cert SHA-256, package identity and APK digest. The actual Android edit write requires deployed Apps Script owner Mobile API SatoriBotApi.ownerMobileWrite supporting orders.update, not just a successful APK build; prove live permissions before editing any invoice. No synthetic live writes, preserve previous APK until UAT.",
+    "2026-10-30: Owner requested unpaid status match Công nợ orange everywhere and profit be a top-right badge in each invoice card. v0.4.32 build49 Android-only acceptance build signed with the unchanged original release key; do not uninstall or delete local data. CI/emulator and signed artifact verification required before sharing. Server orders.update remains independently blocked until a verified owner Production Mobile API deployment."
   ]
 }
