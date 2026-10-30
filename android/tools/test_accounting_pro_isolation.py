@@ -40,6 +40,24 @@ class AccountingProIsolationTest(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, source)
 
+    def test_accounting_alerts_have_no_delivery_or_financial_writers(self):
+        policy = (KOTLIN / "AccountingProAlerts.kt").read_text(encoding="utf-8")
+        for prohibited in ("HttpURLConnection", "sendEmail(", "sendReminder(",
+            "postNotification(", "payments.markCustomerPaid", "orders.create",
+            "System.currentTimeMillis()", "LocalDate.now()"):
+            with self.subTest(prohibited=prohibited):
+                self.assertNotIn(prohibited, policy)
+        source = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
+        start = source.index("    private fun showAccountingProReviewAlerts(data: SatoriSnapshot)")
+        end = source.index("    /**", start + 1)
+        view = source[start:end]
+        self.assertIn("AccountingProAlertPolicy.fromSnapshot(data.invoices)", view)
+        self.assertIn("Không coi đây là nợ quá hạn", view)
+        for prohibited in ("sendPayment(", "sendEmail(", "sendReminder(",
+            "startActivity(", "launchEditor(", "Api", "payments.mark", "HttpURLConnection"):
+            with self.subTest(prohibited=prohibited):
+                self.assertNotIn(prohibited, view)
+
     def test_payment_demo_uses_only_synthetic_invoices_and_never_calls_writer(self):
         source = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
         start = source.index("    private fun showAccountingProAllocationDemo() {")

@@ -2846,6 +2846,10 @@ class NativeMainActivity : AppCompatActivity() {
             false, R.drawable.ic_satori_debt) {
             showAccountingProAllocationDemo()
         }
+        button(panel, "CẢNH BÁO DỮ LIỆU CẦN RÀ SOÁT  ·  CHỈ XEM",
+            false, R.drawable.ic_satori_invoice) {
+            showAccountingProReviewAlerts(data)
+        }
         label(panel, "BƯỚC TIẾP THEO — CHƯA KÍCH HOẠT", 12f, true, cyan, 17)
         section(panel, "01  Thanh toán nhiều lần",
             "Chờ backend có khoản thu, chứng từ và phân bổ bất biến theo invoice ID.")
@@ -2858,6 +2862,85 @@ class NativeMainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Minh Satori · Accounting Pro")
             .setView(scroll)
+            .setPositiveButton("Đóng", null)
+            .show()
+    }
+
+    /**
+     * No "overdue" label because the current canonical invoice snapshot has
+     * no verified due-date field. This list is not a reminder sender/scheduler.
+     */
+    private fun showAccountingProReviewAlerts(data: SatoriSnapshot) {
+        val alerts = AccountingProAlertPolicy.fromSnapshot(data.invoices)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(10), dp(13), dp(12))
+        }
+        label(panel, "CẢNH BÁO KẾ TOÁN  ·  CHỈ ĐỌC", 16f, true, ink)
+        label(panel, "Chưa gửi email, Zalo, thông báo đẩy hoặc thay đổi công nợ.",
+            11.5f, false, Color.rgb(175, 94, 0), 7)
+        section(panel, "Lỗi dữ liệu cần rà soát: " +
+            AccountingProAlertPolicy.countReviewIssues(alerts),
+            "Hóa đơn có thể có nhiều mục cần xử lý; không tự sửa bất kỳ bản ghi nào.")
+        section(panel, "Chưa đánh dấu trả đủ: " +
+            AccountingProAlertPolicy.countPendingFlagInvoices(alerts),
+            "Không coi đây là nợ quá hạn; chưa có hạn thanh toán hoặc khoản thu từng phần.")
+
+        val search = EditText(this).apply {
+            hint = "Tìm số hóa đơn, khách hàng…"
+            textSize = 13f
+            setSingleLine(true)
+            setTextColor(ink)
+            setHintTextColor(softInk)
+            background = panelBackground(Color.WHITE, 12)
+            setPadding(dp(12), 0, dp(12), 0)
+            contentDescription = "Tìm cảnh báo theo hóa đơn hoặc khách hàng"
+        }
+        panel.addView(search, LinearLayout.LayoutParams(-1, dp(46)).apply {
+            topMargin = dp(12)
+        })
+        val results = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(4), 0, dp(12))
+        }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            addView(results)
+        }
+        panel.addView(scroll, LinearLayout.LayoutParams(-1,
+            (resources.displayMetrics.heightPixels * 48 / 100).coerceAtLeast(dp(200))))
+
+        fun redraw() {
+            results.removeAllViews()
+            val selected = alerts.filter { SatoriData.search(it.invoice,
+                search.text.toString()) }
+            label(results, "Hiển thị " + minOf(60, selected.size) +
+                "/" + selected.size + " cảnh báo", 11.5f, true, cyan, 8)
+            if (selected.isEmpty()) {
+                section(results, "Không có cảnh báo phù hợp",
+                    "Không có nghĩa đã xác minh thanh toán ngân hàng.")
+            }
+            selected.take(60).forEach { alert ->
+                section(results, (if (alert.needsReview) "CẦN XỬ LÝ · " else "THEO DÕI · ") +
+                    alert.heading, "#" + alert.invoice.number + " · " +
+                    alert.invoice.customer + "\n" + alert.explanation)
+            }
+            if (selected.size > 60) {
+                label(results, "Đang giới hạn 60 cảnh báo, tìm để thu hẹp.",
+                    11f, false, softInk, 9)
+            }
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int,
+                count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int,
+                before: Int, count: Int) { redraw() }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        redraw()
+        AlertDialog.Builder(this)
+            .setTitle("Accounting Pro · Cảnh báo")
+            .setView(panel)
             .setPositiveButton("Đóng", null)
             .show()
     }
