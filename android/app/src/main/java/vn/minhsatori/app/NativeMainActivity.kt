@@ -2350,7 +2350,7 @@ class NativeMainActivity : AppCompatActivity() {
             gravity = Gravity.END
         }
         amount.gravity = Gravity.END
-        right.addView(amount, LinearLayout.LayoutParams(-1, -2))
+        right.addView(amount, LinearLayout.LayoutParams(-2, -2))
         val value = row?.estimatedOwnerMarginVnd?.let(SatoriData::money)
         val badge = TextView(this).apply {
             text = "Lợi nhuận  " + (value ?: "Chưa rõ")
