@@ -23,6 +23,20 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn('confirmInvoicePayment(invoice, action)', DETAIL)
         self.assertIn('val canEditPayment = validInvoiceNumber != null && invoice.canChangePayment', DETAIL)
 
+    def test_non_counted_invoice_displays_zero_without_wiping_source_amount(self):
+        self.assertIn("invoice.displayPayable", SRC)
+        self.assertIn('"KHÔNG TÍNH • GIÁ TRỊ 0 đ • KHÓA THANH TOÁN"', DETAIL)
+        self.assertIn('if (invoice.isNonCounted)', DETAIL)
+        self.assertIn('if (invoice.isNonCounted) {', SRC)
+        self.assertIn("Tổng tiền gốc lưu để đối chiếu", DETAIL)
+        self.assertIn("PDF lưu giữ giá gốc", DETAIL)
+        self.assertIn('Không tính doanh thu / công nợ', SRC)
+        self.assertIn("GIÁ TRỊ TÍNH: ", DETAIL)
+        self.assertIn('if (invoice.isNonCounted) Color.rgb(105, 74, 164)', SRC)
+        # Real payments and invoice mutations remain on the preexisting guarded paths.
+        self.assertIn('NativeInvoicePdf.preview(this, invoice)', DETAIL)
+        self.assertIn('if (!canAction("orders.update"))', DETAIL)
+
     def test_cancelled_takes_priority_over_historical_paid_at(self):
         # A cancelled invoice may retain an old receipt timestamp for audit.
         # The UI must not show it as either customer-paid or outstanding.
