@@ -1,9 +1,9 @@
 {
-  "purpose": "android-v0.4.28-accounting-pro-simplified-owner-acceptance",
+  "purpose": "android-v0.4.29-company45-profit-per-invoice-and-period-review",
   "package": "vn.minhsatori.app",
-  "version": "0.4.28",
-  "versionCode": 45,
-  "branch": "feature/android-accounting-pro-hide-three-cards-v0428-20261030",
+  "version": "0.4.29",
+  "versionCode": 46,
+  "branch": "feature/android-accounting-pro-profit45-perbill-period-v0429-20261030",
   "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
@@ -27,7 +27,7 @@
     298,
     299
   ],
-  "scope": "Android-only reduction of three redundant Accounting Pro overview cards (Satori paid flag, invalid/duplicate invoice IDs, invalid invoice dates). Preserve all underlying validation, independent payment states, other Accounting Pro sections, native order/edit/payment routes, Gemini V2, ChatGPT, Website, Render and databases. Owner same-certificate signed APK for manual Samsung acceptance only, no production backend changes.",
+  "scope": "Android owner-only: company 45% discount merchandise margin per canonical invoice and Overview, date/month/year/custom range reports, verified legacy CTV separate estimate. Never modifies Gemini V2, ChatGPT, Website, backend, accounting ledgers, orders, payments, bank, PDF issuance or tax. In-place same signer signed owner acceptance only.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -56,6 +56,7 @@
     "2026-10-30: Manual Samsung/ Z Fold verification and owner approval required before releasing to the installed app. Finance writes, partial payments, bank reconciliation, email sending, legal e-invoice issuance and real CTV commission settlement remain disabled.",
     "2026-10-30: Owner requested a real-device, official same-signer APK for acceptance. Submit release-request push ONLY on feature/android-accounting-pro-v0427-signed-acceptance-20261030 with branch-restricted signed artifact workflow; maintain protected signer pin, no merge, no production API changes, no automatic install. Check signed verification report before sharing.",
     "2026-10-30: Owner requested removing exactly three visible top cards from Accounting Pro overview: Satori payment status, ID reconciliation, invalid-date count. Data checks and drilldowns stay intact. v0.4.28 build 45 is a same-package, same-signing-certificate in-place update over v0.4.27 build 44; do not uninstall or clear data. No financial writes or backend changes.",
-    "2026-10-30: Signed-release request re-submitted after enabling this isolated feature branch in the protected workflow push allowlist. Strict checks required for release certificate, package vn.minhsatori.app, v0.4.28 build 45, APK hash and no unintended changes. Only download and install on the owner's device; no automatic merge or deployment."
+    "2026-10-30: Signed-release request re-submitted after enabling this isolated feature branch in the protected workflow push allowlist. Strict checks required for release certificate, package vn.minhsatori.app, v0.4.28 build 45, APK hash and no unintended changes. Only download and install on the owner's device; no automatic merge or deployment.",
+    "2026-10-30: Company negotiated 45% discount on original list price. Android read-only merchandise margin = sum(qty*actual unit selling price) minus sum(qty*round-half-up(listPrice*55%)). Excludes VAT/shipping and avoids internal CTV double-sales. Show gross merchandise margin only, CTV-adjusted margin only on verified historical pairs, not net profit; invalid/duplicate mismatched bills excluded and counted. Date/month/year/custom period filters with Vietnam day. Requires CI and same signer verification; do not merge automatically."
   ]
 }

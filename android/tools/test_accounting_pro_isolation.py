@@ -141,6 +141,24 @@ class AccountingProIsolationTest(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, demo)
 
+    def test_profit45_uses_original_list_price_and_never_writes_financial_state(self):
+        model = (KOTLIN / "AccountingProProfit45.kt").read_text(encoding="utf-8")
+        ui = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("COMPANY_DISCOUNT_PERCENT = 45", model)
+        self.assertIn("BigDecimal.valueOf(55)", model)
+        self.assertIn("line.listPrice", model)
+        self.assertIn("invoice.sortDate", model)
+        self.assertIn("AccountingProReadOnly.invoiceRows(invoices)", model)
+        self.assertIn("showAccountingProProfit45Report(data)", ui)
+        self.assertIn("AccountingProProfit45.invoice(", ui)
+        self.assertIn("AccountingProProfit45.summarize(", ui)
+        self.assertIn("Lãi hàng trước CTV/chi phí", ui)
+        for forbidden in ("HttpURLConnection", "Retrofit", "OkHttp",
+                          "orders.create", "orders.update", "payments.mark",
+                          "FileOutputStream", "sendEmail(", "postBank(", "writeInvoice("):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, model)
+
     def test_owner_requested_three_overview_cards_are_removed_without_dropping_validation(self):
         source = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
         start = source.index("    private fun showAccountingProPreview(data: SatoriSnapshot)")
