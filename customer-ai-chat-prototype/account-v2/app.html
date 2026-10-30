@@ -2428,6 +2428,17 @@ async function loadOrders(){
   }
   return true;
  });
+ if(legacy.length&&!filters.customer&&!filters.from&&!filters.to&&historical?.addresses?.length){
+  const addresses=node('details',undefined,'invoice-order-products');
+  addresses.append(node('summary','Điểm giao lịch sử ('+historical.addresses.length+' địa chỉ duy nhất)'));
+  for(const saved of historical.addresses||[]){
+   const item=node('div');
+   item.append(node('strong',String(saved.address||'Địa chỉ')),
+    node('span',' · Giao gần nhất: '+String(saved.date||'Không rõ ngày'),'invoice-order-meta'));
+   addresses.append(item);
+  }
+  rows.append(addresses);
+ }
  if(legacy.length){
   rows.append(node('h3','Hóa đơn lịch sử đã liên kết (chỉ xem)','invoice-legacy-heading'));
   for(const invoice of legacy)rows.append(invoiceCard(invoice,{historical:true}));
