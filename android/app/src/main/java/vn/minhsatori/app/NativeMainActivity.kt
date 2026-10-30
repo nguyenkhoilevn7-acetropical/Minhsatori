@@ -4011,14 +4011,14 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    /** Compact, accessible invoice actions: branded share icons instead of text buttons. */
     private fun invoiceMiniAction(parent: LinearLayout, iconRes: Int, title: String,
                                   fill: Int, tint: Int? = null, click: () -> Unit) {
         val icon = ImageView(this).apply {
             setImageResource(iconRes)
             if (tint != null) setColorFilter(tint)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(dp(13), dp(13), dp(13), dp(13))
+            val inset = if (tint == null) dp(9) else dp(13)
+            setPadding(inset, inset, inset, inset)
             background = GradientDrawable().apply {
                 setColor(fill)
                 cornerRadius = dp(14).toFloat()
