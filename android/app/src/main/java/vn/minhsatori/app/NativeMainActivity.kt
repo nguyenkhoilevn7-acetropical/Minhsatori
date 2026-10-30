@@ -2838,6 +2838,10 @@ class NativeMainActivity : AppCompatActivity() {
             section(panel, "Ngày hóa đơn cần kiểm tra: " + totals.invalidDateCount,
                 "Không tự suy ra hạn thanh toán hoặc tuổi nợ từ ngày không hợp lệ.")
         }
+        button(panel, "XEM DANH SÁCH HÓA ĐƠN CẦN ĐỐI SOÁT",
+            false, R.drawable.ic_satori_invoice) {
+            showAccountingProInvoiceList(data)
+        }
         label(panel, "BƯỚC TIẾP THEO — CHƯA KÍCH HOẠT", 12f, true, cyan, 17)
         section(panel, "01  Thanh toán nhiều lần",
             "Chờ backend có khoản thu, chứng từ và phân bổ bất biến theo invoice ID.")
@@ -2854,6 +2858,124 @@ class NativeMainActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * App-only invoice drilldown using existing, already synced owner snapshot.
+     * Never displays an inferred partial-payment amount or bank-matched result.
+     * Exactly one original immutable ID + invoice number is required to open.
+     */
+    private fun showAccountingProInvoiceList(data: SatoriSnapshot) {
+        val checked = AccountingProReadOnly.invoiceRows(data.invoices)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(9), dp(12), dp(12))
+        }
+        label(panel, "Hóa đơn từ snapshot revision " + data.revision,
+            11.5f, false, softInk)
+        label(panel, "Chỉ xem · 'Chưa trả đủ' là cờ cũ, không phải số dư sau thanh toán từng phần.",
+            11f, false, Color.rgb(175, 94, 0), 5)
+        val search = EditText(this).apply {
+            hint = "Tìm số HĐ, tên, SĐT, địa chỉ…"
+            setSingleLine(true)
+            textSize = 13f
+            setTextColor(ink)
+            setHintTextColor(softInk)
+            background = panelBackground(Color.rgb(247, 250, 252), 10)
+            setPadding(dp(12), 0, dp(12), 0)
+        }
+        panel.addView(search, LinearLayout.LayoutParams(-1, dp(45)).apply {
+            topMargin = dp(12)
+        })
+        val modes = listOf("Tất cả", "Khách chưa đánh dấu trả đủ",
+            "Khách đã đánh dấu trả đủ", "Cần kiểm tra")
+        val filter = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(this@NativeMainActivity,
+                android.R.layout.simple_spinner_dropdown_item, modes)
+            contentDescription = "Lọc trạng thái công nợ hóa đơn"
+        }
+        panel.addView(filter, LinearLayout.LayoutParams(-1, dp(46)).apply {
+            topMargin = dp(6)
+        })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+        }
+        val results = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(2), 0, dp(12))
+        }
+        scroll.addView(results)
+        val usableHeight = (resources.displayMetrics.heightPixels * 58 / 100)
+            .coerceAtLeast(dp(240))
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, usableHeight))
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Accounting Pro · Tra cứu công nợ")
+            .setView(panel)
+            .setPositiveButton("Đóng", null)
+            .create()
+        fun redraw() {
+            results.removeAllViews()
+            val query = search.text.toString()
+            val mode = filter.selectedItemPosition.coerceIn(0, modes.lastIndex)
+            val filtered = checked.filter { row ->
+                val matching = SatoriData.search(row.invoice, query)
+                matching && when (mode) {
+                    1 -> row.pendingCustomerFlag
+                    2 -> !row.pendingCustomerFlag
+                    3 -> row.needsIdentityReview || row.needsDateReview
+                    else -> true
+                }
+            }
+            label(results, "Đang hiển thị " + minOf(filtered.size, 75) +
+                "/" + filtered.size + " hóa đơn", 12f, true, cyan, 9)
+            if (filtered.isEmpty()) {
+                section(results, "Không có hóa đơn phù hợp",
+                    "Thử tìm theo số hóa đơn hoặc chọn bộ lọc khác.")
+            }
+            filtered.take(75).forEach { entry ->
+                val invoice = entry.invoice
+                val status = (if (entry.pendingCustomerFlag)
+                    "Khách: chưa đánh dấu trả đủ" else "Khách: đã đánh dấu trả đủ") +
+                    " · " + (if (entry.pendingSatoriFlag)
+                    "Satori: chưa đánh dấu trả" else "Satori: đã đánh dấu trả")
+                val review = when {
+                    entry.needsIdentityReview -> "CẦN KIỂM TRA: " + entry.reason
+                    entry.needsDateReview -> "CẦN KIỂM TRA NGÀY HÓA ĐƠN"
+                    else -> ""
+                }
+                section(results, "#" + invoice.number + " · " + invoice.customer,
+                    "Tổng bill gốc: " + SatoriData.money(invoice.total) +
+                        "\n" + status + "\n" + invoice.displayDate +
+                        (if (review.isBlank()) "" else "\n" + review)) {
+                    if (entry.identityReliable) {
+                        dialog.dismiss()
+                        openInvoice(invoice)
+                    } else {
+                        Toast.makeText(this,
+                            "ID hóa đơn chưa đáng tin cậy; không mở thao tác từ dòng trùng.",
+                            Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            if (filtered.size > 75) {
+                label(results, "Chỉ hiển thị 75 dòng; nhập từ khóa để thu hẹp.",
+                    11f, false, softInk, 10)
+            }
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int,
+                count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int,
+                before: Int, count: Int) { redraw() }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
+                view: View?, position: Int, id: Long) { redraw() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        redraw()
+        dialog.show()
+    }
+
     private fun renderDebt(parent: LinearLayout, data: SatoriSnapshot) {
         val summary = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -2867,6 +2989,8 @@ class NativeMainActivity : AppCompatActivity() {
         parent.addView(summary)
         button(parent, "KẾ TOÁN PRO  ·  TỔNG HỢP CHỈ ĐỌC",
             false, R.drawable.ic_satori_debt) { showAccountingProPreview(data) }
+        button(parent, "XEM CÔNG NỢ TỪNG HÓA ĐƠN",
+            false, R.drawable.ic_satori_invoice) { showAccountingProInvoiceList(data) }
         button(parent, "☷ Lọc hóa đơn") { showLedger(data) }
         label(parent, "Công nợ theo khách hàng", 15f, true, ink, 14)
         data.invoices.filter { it.isOutstanding }.forEach { invoice ->
