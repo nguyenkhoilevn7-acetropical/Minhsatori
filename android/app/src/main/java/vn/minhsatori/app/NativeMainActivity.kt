@@ -71,6 +71,7 @@ class NativeMainActivity : AppCompatActivity() {
     private val surface = Color.rgb(255, 255, 255)
     private val indigo = Color.rgb(226, 246, 243)
     private var activeTab = 0
+    private var activeInvoiceDialog: AlertDialog? = null
     private var showAdvancedOverview = false
     private var accessToken: String? = null
     private var snapshot: SatoriSnapshot? = null
@@ -877,6 +878,8 @@ class NativeMainActivity : AppCompatActivity() {
         // AndroidManifest handles screenSize changes to retain owner session,
         // but that requires an explicit responsive rerender after folding.
         if (previousScrollView != null) render()
+        // Keep an already-open invoice readable after fold/unfold without reloading data.
+        activeInvoiceDialog?.takeIf { it.isShowing }?.let(::resizeInvoiceDialog)
     }
 
     private fun render() {
@@ -4048,11 +4051,12 @@ class NativeMainActivity : AppCompatActivity() {
             setImageResource(iconRes)
             if (tint != null) setColorFilter(tint)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            val inset = if (tint == null) dp(9) else dp(13)
+            // The drawable stays small while the full 48dp square remains tappable.
+            val inset = if (tint == null) dp(10) else dp(13)
             setPadding(inset, inset, inset, inset)
             background = GradientDrawable().apply {
                 setColor(fill)
-                cornerRadius = dp(14).toFloat()
+                cornerRadius = dp(12).toFloat()
                 if (tint != null) setStroke(dp(1), Color.rgb(225, 233, 233))
             }
             contentDescription = title
@@ -4061,15 +4065,17 @@ class NativeMainActivity : AppCompatActivity() {
             isClickable = true
             setOnClickListener { click() }
         }
-        // Branded sharing actions stay compact. Edit/Delete retain their wide touch targets.
-        val shareIcon = iconRes == R.drawable.ic_brand_zalo ||
-            iconRes == R.drawable.ic_brand_messenger
-        val shareWidth = if (shareIcon) dp(48) else 0
-        val shareHeight = if (shareIcon) dp(48) else dp(51)
-        val weight = if (shareIcon) 0f else 1f
-        parent.addView(icon, LinearLayout.LayoutParams(shareWidth, shareHeight, weight).apply {
-            marginEnd = if (iconRes == R.drawable.ic_brand_messenger) 0 else dp(8)
+        parent.addView(icon, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+            marginStart = if (parent.childCount == 0) 0 else dp(7)
         })
+    }
+
+    /** The detail dialog follows the active cover/inner-screen window size. */
+    private fun resizeInvoiceDialog(dialog: AlertDialog) {
+        val viewportWidth = resources.configuration.screenWidthDp
+        val safeWidth = (viewportWidth - 24).coerceAtLeast(240).coerceAtMost(540)
+        val usableHeight = (resources.displayMetrics.heightPixels * 0.90f).toInt()
+        dialog.window?.setLayout(dp(safeWidth), usableHeight)
     }
 
     /** Two independent payment flags; tapping a row must still confirm via Mobile API. */
@@ -4271,11 +4277,11 @@ class NativeMainActivity : AppCompatActivity() {
                 .show()
         }
 
-        // Single-row icon toolbar: no repeated full-width text CTAs.
-        label(content, "THAO TÁC", 12f, true, cyan, 14)
+        // All 4 actions are identical 48dp squares. Fold: label and toolbar
+        // share a row; cover screens keep a separate label to avoid clipping.
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
         }
         if (invoice.canEditOrDelete && validInvoiceNumber != null) {
             invoiceMiniAction(actions, R.drawable.ic_satori_edit, "Sửa hóa đơn",
@@ -4320,19 +4326,41 @@ class NativeMainActivity : AppCompatActivity() {
                 }
             }
         }
-        content.addView(actions, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(7)
-        })
+        if (resources.configuration.screenWidthDp >= 420) {
+            val toolbar = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(13), 0, 0)
+            }
+            val caption = label(toolbar, "THAO TÁC", 12f, true, cyan)
+            caption.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))
+            content.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
+        } else {
+            label(content, "THAO TÁC", 12f, true, cyan, 13)
+            // Center compact actions on the Fold's narrow cover display.
+            actions.gravity = Gravity.CENTER
+            content.addView(actions, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(7)
+            })
+        }
         val dialog = AlertDialog.Builder(this)
             .setView(wrapper)
             .setNegativeButton("Đóng", null)
             .setPositiveButton("Chia sẻ", null)
             .create()
         invoiceDialog = dialog
+        activeInvoiceDialog = dialog
+        dialog.setOnDismissListener {
+            if (activeInvoiceDialog === dialog) activeInvoiceDialog = null
+        }
         dialog.setOnShowListener {
             dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(night))
+            resizeInvoiceDialog(dialog)
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(cyan)
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(cyan)
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).textSize = 12f
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).textSize = 12f
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 confirmInternalShare {
                     try {

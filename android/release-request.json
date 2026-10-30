@@ -1,9 +1,9 @@
 {
-  "purpose": "android-v0.4.34-zalo-logo-fix-compact-share-buttons-signed-owner-acceptance",
+  "purpose": "android-v0.4.35-samsung-fold-compact-invoice-actions-signed-owner-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.34",
-  "versionCode": 51,
-  "branch": "feature/android-zalo-icon-parse-fix-v0434-20261030",
+  "version": "0.4.35",
+  "versionCode": 52,
+  "branch": "feature/android-fold-responsive-invoice-actions-v0435-20261030",
   "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
@@ -33,9 +33,10 @@
     306,
     307,
     309,
-    310
+    310,
+    311
   ],
-  "scope": "Android native UI-only: fix blank Zalo logo via Android-compatible wordmark path and reduce Zalo/Messenger share tiles to 48x48dp, preserving accessible touch regions, established invoice PDF sharing, protected payment/edit/delete/CTV guards, profit/status badge, and all Gemini V2/backend workflows. Same package and pinned release certificate; no production merge.",
+  "scope": "Android native UI only: all four invoice action buttons fixed 48x48dp, responsive Fold cover/inner screen toolbar, capped-width invoice dialog, resize on fold/unfold. Preserve v0.4.34 Zalo/Messenger icon fix and all order PDF, edit, delete, payment and owner authentication protections. No API, Gemini V2, website, PostgreSQL or Production changes.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -73,6 +74,8 @@
     "2026-10-30: Owner requested unpaid status match Công nợ orange everywhere and profit be a top-right badge in each invoice card. v0.4.32 build49 Android-only acceptance build signed with the unchanged original release key; do not uninstall or delete local data. CI/emulator and signed artifact verification required before sharing. Server orders.update remains independently blocked until a verified owner Production Mobile API deployment.",
     "2026-10-30: PR #309 is correctly stacked on #307, preserving v0.4.32 profit badge/status colors. v0.4.33 build50 signed owner acceptance only, original pinned certificate and GitHub CI required. Invoice details use two independent payment rows and brand icon sharing with unchanged permission, PDF, delete and CTV safeguards; no live financial writes in tests.",
     "2026-10-30: v0.4.33 first CI caught one stale test literal after adding the stricter validInvoiceNumber Edit gate; assertion corrected without weakening authorization or modifying any payment/ledger function. Re-request signed owner acceptance build after new green test gate.",
-    "2026-10-30: User asked to fix empty Zalo logo and reduce both Zalo/Messenger icon buttons. PR #310 stacked on #309. Signed v0.4.34 code51 acceptance with original certificate; do not alter server invoice writers, Google OAuth, Gemini or financial transactions. Confirm all static tests, Android release build, certificate validation and artifact before sharing."
+    "2026-10-30: User asked to fix empty Zalo logo and reduce both Zalo/Messenger icon buttons. PR #310 stacked on #309. Signed v0.4.34 code51 acceptance with original certificate; do not alter server invoice writers, Google OAuth, Gemini or financial transactions. Confirm all static tests, Android release build, certificate validation and artifact before sharing.",
+    "2026-10-30: Owner requested all four oversized invoice action tiles be smaller and Galaxy Z Fold 8 Ultra fold/unfold adaptation. PR #311 stacked on #310. v0.4.35 build52 signed owner acceptance only, retained pinned signing cert; run full CI and inspect actual-device behavior before wider rollout. No real invoice writes in tests.",
+    "2026-10-30: Initial signed-gate static source check detected layout comment attached to preceding payment method; removed comment and verified all protected checksums unchanged (confirmInvoicePayment 7c1541e5). Request rebuilt signed APK after unchanged payment protections pass."
   ]
 }
