@@ -1,5 +1,7 @@
 """Native owner header: hamburger right of settings, drawer opens and closes on right."""
 from pathlib import Path
+import json
+import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,8 +44,15 @@ class RightEdgeDrawerContract(unittest.TestCase):
 
     def test_non_destructive_samsung_upgrade(self):
         self.assertIn('applicationId = "vn.minhsatori.app"', GRADLE)
-        self.assertIn('versionName = "0.4.26"', GRADLE)
-        self.assertIn("versionCode = 43", GRADLE)
+        request = json.loads((ROOT / "release-request.json").read_text(encoding="utf-8"))
+        self.assertEqual(request["package"], "vn.minhsatori.app")
+        name = re.search(r'\bversionName\s*=\s*"([^"]+)"', GRADLE)
+        code = re.search(r'\bversionCode\s*=\s*(\d+)', GRADLE)
+        self.assertIsNotNone(name)
+        self.assertIsNotNone(code)
+        self.assertEqual(request["version"], name.group(1))
+        self.assertEqual(request["versionCode"], int(code.group(1)))
+        self.assertGreater(int(code.group(1)), 43, "Must upgrade installed v0.4.26 build 43")
 
 if __name__ == "__main__":
     unittest.main()

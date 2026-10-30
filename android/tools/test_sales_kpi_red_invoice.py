@@ -1,5 +1,6 @@
 """Regression: total sold and red invoice figures are always visible to owner."""
 from pathlib import Path
+import json
 import re
 import unittest
 import struct
@@ -41,8 +42,14 @@ class SalesKpiAndRedAmounts(unittest.TestCase):
 
     def test_upgrades_existing_app_without_modifying_payment_or_pdf_routes(self):
         self.assertIn('applicationId = "vn.minhsatori.app"',GRADLE)
-        self.assertIn('versionCode = 43',GRADLE)
-        self.assertIn('versionName = "0.4.26"',GRADLE)
+        request = json.loads((ROOT/"release-request.json").read_text(encoding="utf-8"))
+        code = re.search(r'\bversionCode\s*=\s*(\d+)',GRADLE)
+        version = re.search(r'\bversionName\s*=\s*"([^"]+)"',GRADLE)
+        self.assertIsNotNone(code)
+        self.assertIsNotNone(version)
+        self.assertEqual(int(code.group(1)),request["versionCode"])
+        self.assertEqual(version.group(1),request["version"])
+        self.assertGreater(int(code.group(1)),43)
         for method in ['confirmInvoicePayment','confirmSoftDelete','executeWrite',
                        'launchEditor','recoverDriveAccessUsingOwnerApi',
                        'openInvoice','invoiceQuickCard']:
