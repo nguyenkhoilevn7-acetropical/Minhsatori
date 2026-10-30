@@ -14,7 +14,7 @@ BASELINE={
  'launchEditor':'a449a547',
  'recoverDriveAccessUsingOwnerApi':'4c0215f3',
  'openInvoice':'d6c87d15',
- 'invoiceQuickCard':'b24c8011',
+ 'invoiceQuickCard':'f4d0343c',
 }
 def method(name):
  token='    private fun '+name+'('
@@ -32,6 +32,20 @@ class ProductionLayoutContract(unittest.TestCase):
   for name,expected in BASELINE.items():
    with self.subTest(name=name):
     self.assertEqual(checksum(method(name)),expected,'No financial method changes in layout release')
+ def test_owner_card_edit_button_is_direct_and_still_server_guarded(self):
+  method_text=method('invoiceQuickCard')
+  self.assertIn('requestInvoiceEdit(invoice)',method_text)
+  self.assertIn('confirmSoftDelete(invoice)',method_text)
+  self.assertIn('openInvoice(invoice)',method_text)
+  edit=method('requestInvoiceEdit')
+  self.assertIn('canAction("orders.update")',edit)
+  self.assertIn('AccountingProReadOnly.invoiceRows(data.invoices)',edit)
+  self.assertIn('latest.canEditOrDelete',edit)
+  self.assertIn('latest != original',edit)
+  self.assertIn('launchEditor(editing = latest)',edit)
+  self.assertNotIn('executeWrite(',edit)
+  self.assertNotIn('MobileApiClient.request(',edit)
+
  def test_money_mind_native_routes_do_not_fake_invoices(self):
   for term in ('val bottomDestinations = listOf(', 'renderMoneyMindShortcuts(content)',
                'renderMoneyMindRecent(content, data)', 'renderMoneyMindOfflineState(content, activeTab)',
