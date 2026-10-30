@@ -547,6 +547,22 @@ body{font-size:14px;line-height:1.42}
  #legacyConsole .crm-duplicate-cleanup{flex-direction:column;align-items:stretch}
  #legacyConsole .crm-duplicate-cleanup button{width:100%;min-height:44px}
 }
+.crm-charge-policy{margin:14px 0;border:1px solid #c8e2dc;border-radius:15px;background:#f6fbf9;padding:10px 13px;color:#214652}
+.crm-charge-policy>summary{cursor:pointer;color:#187e77;font-weight:800;line-height:1.5;padding:4px 0}
+.crm-charge-body{padding-top:12px}
+.crm-charge-help{display:block;font-size:12px;line-height:1.5;color:#526b71;margin:4px 0 11px}
+.crm-charge-form{display:grid;gap:12px}
+.crm-charge-fieldset{border:1px solid #d8e5e2;border-radius:12px;background:white;padding:11px;min-width:0;display:grid;gap:10px}
+.crm-charge-fieldset legend{font-weight:800;font-size:14px;color:#214c56;padding:0 5px}
+.crm-charge-fieldset>label{display:grid;gap:5px;font-size:13px;font-weight:650;min-width:0}
+.crm-charge-fieldset input[type=number],.crm-charge-fieldset select{width:100%;max-width:100%;min-height:39px;padding:8px;border:1px solid #cddbd9;border-radius:9px;color:#183841;background:#fff;font-size:14px}
+.crm-charge-recipients{display:grid;gap:8px;max-height:180px;overflow:auto;padding:5px}
+.crm-charge-recipients[hidden]{display:none}
+.crm-charge-recipient{display:flex;gap:9px;align-items:flex-start;font-size:12px;font-weight:600;line-height:1.45;color:#344f58}
+.crm-charge-recipient input{flex:none;margin-top:3px;accent-color:#087f7e}
+.crm-charge-recipient span{overflow-wrap:anywhere}
+.crm-charge-form>button{justify-self:start;background:#087f7e;color:white;border:0;border-radius:10px;padding:10px 13px;font-size:13px;font-weight:800}
+@media(max-width:460px){.crm-charge-fieldset{padding:10px}.crm-charge-policy{padding:9px}}
 </style></head>
 <body>
 <main>
@@ -964,6 +980,106 @@ function crmRoleChoices(select){
  select.addEventListener('change',paint);paint();return bar;
 }
 
+/* Owner charges: all recipients of THIS profile or individually selected
+ * verified delivery points. Separate VAT/shipping scopes and amounts.
+ * No charge is applied until owner explicitly configures and saves it.
+ */
+function ownerInvoiceChargeEditor(profileId,addresses,refresh){
+ const panel=make('details',null,'crm-charge-policy');
+ panel.append(make('summary','VAT & phí giao hàng · tất cả hoặc khách chỉ định'));
+ const content=make('div','Đang đọc cấu hình phí…','crm-charge-body');
+ panel.append(content);
+ const accountAddresses=crmUniqueSavedAddressGroups(addresses.filter(x=>x.active));
+ void (async()=>{
+  const current=await api('/api/v2/admin/invoice-charge-policy?profileId='+encodeURIComponent(profileId));
+  if(!panel.isConnected)return;
+  const form=make('form',null,'crm-charge-form');
+  form.append(make('p','Thiết lập riêng cho hồ sơ này. “Tất cả” bao gồm khách mới của CTV/Đại lý; “Chỉ định” chỉ tính các điểm giao đã chọn.','crm-charge-help'));
+  function feeField(kind,label){
+   const config=current[kind];
+   const section=make('fieldset',null,'crm-charge-fieldset');
+   section.append(make('legend',label));
+   const selectLabel=make('label','Phạm vi áp dụng');
+   const select=document.createElement('select');
+   select.setAttribute('aria-label','Phạm vi '+label);
+   for(const [value,title] of [['none','Không áp dụng'],['all','Tất cả khách trong hồ sơ'],['selected','Chỉ khách được chỉ định']]){
+    const option=make('option',title);option.value=value;
+    if(value==='selected'&&!accountAddresses.length)option.disabled=true;
+    select.append(option);
+   }
+   select.value=config.scope;
+   selectLabel.append(select);section.append(selectLabel);
+   const amountLabel=make('label',kind==='vat'?'Thuế VAT (%)':'Tiền giao hàng (đồng/đơn)');
+   const amount=document.createElement('input');amount.type='number';
+   amount.min=kind==='vat'?'0.01':'1';amount.max=kind==='vat'?'100':'1000000000';
+   amount.step=kind==='vat'?'0.01':'1';amount.inputMode='decimal';
+   amount.value=config.scope==='none'?'':String(kind==='vat'?config.rateBps/100:config.amountVnd);
+   amount.placeholder=kind==='vat'?'Nhập % VAT được duyệt':'Nhập phí/đơn được duyệt';
+   amountLabel.append(amount);section.append(amountLabel);
+   const list=make('div',null,'crm-charge-recipients');
+   list.append(make('strong','Chọn khách nhận hàng'));
+   const boxes=[];
+   for(const members of accountAddresses){
+    const labelNode=make('label',null,'crm-charge-recipient');
+    const check=document.createElement('input');check.type='checkbox';
+    check.checked=members.some(x=>config.addressIds.includes(x.id));
+    labelNode.append(check,make('span',members[0].recipientName+' · '+members[0].address));
+    list.append(labelNode);boxes.push({check,ids:members.map(x=>x.id)});
+   }
+   if(!boxes.length)list.append(make('p','Chưa có khách nhận hàng đang hoạt động.'));
+   section.append(list);
+   const update=()=>{
+    amount.disabled=select.value==='none';
+    amount.required=select.value!=='none';
+    list.hidden=select.value!=='selected';
+   };
+   select.onchange=update;update();
+   form.append(section);
+   return ()=>{
+    const scope=select.value;
+    const input=scope==='none'?0:Number(amount.value);
+    const selectedIds=scope==='selected'?boxes.flatMap(x=>x.check.checked?x.ids:[]):[];
+    if(scope==='selected'&&!selectedIds.length)throw Error('Cần chọn ít nhất một khách cho '+label);
+    if(scope!=='none'&&(amount.value.trim()===''||!Number.isFinite(input)||input<=0))
+     throw Error('Cần nhập '+label+' hợp lệ');
+    if(kind==='vat'){
+     const rateBps=Math.round(input*100);
+     if(rateBps>10000||Math.abs(input*100-rateBps)>0.00001)
+      throw Error('VAT phải từ 0,01% đến 100%, tối đa hai chữ số lẻ.');
+     return {scope,rateBps,addressIds:selectedIds};
+    }
+    if(!Number.isSafeInteger(input)||input>1000000000)
+     throw Error('Phí giao hàng phải là số đồng nguyên từ 1 đến 1 tỷ.');
+    return {scope,amountVnd:input,addressIds:selectedIds};
+   };
+  }
+  const vat=feeField('vat','VAT');
+  const shipping=feeField('shipping','Phí giao hàng');
+  form.append(make('small','Chỉ áp dụng cho đơn đặt sau khi lưu. Hóa đơn cũ không thay đổi. VAT cần đúng tỷ lệ được duyệt; không tự phát hành hóa đơn thuế.','crm-charge-help'));
+  const save=iconButton('Lưu áp dụng VAT / shipping','check');save.type='submit';form.append(save);
+  form.onsubmit=async ev=>{
+   ev.preventDefault();
+   let rules;
+   try{rules={vat:vat(),shipping:shipping()}}
+   catch(e){return crmStatus(e.message,'error')}
+   const confirmText='Xác nhận VAT: '+(rules.vat.scope==='none'?'Không tính':rules.vat.rateBps/100+'% · '+(rules.vat.scope==='all'?'tất cả khách':'khách chỉ định'))+
+    ', shipping: '+(rules.shipping.scope==='none'?'Không tính':rules.shipping.amountVnd.toLocaleString('vi-VN')+'đ · '+(rules.shipping.scope==='all'?'tất cả khách':'khách chỉ định'))+
+    '? Chỉ áp dụng cho đơn mới; không sửa hóa đơn đã ghi.';
+   if(!confirm(confirmText))return;
+   save.disabled=true;
+   try{
+    await api('/api/v2/admin/invoice-charge-policy','PUT',{
+     confirmed:true,profileId,expectedRevision:current.revision,...rules
+    });
+    crmStatus('Đã lưu VAT / shipping theo phạm vi khách được chỉ định.','success');
+    await refresh();
+   }catch(e){crmStatus('Không lưu được VAT / shipping: '+e.message,'error');save.disabled=false}
+  };
+  content.replaceChildren(form);
+ })().catch(e=>{if(panel.isConnected)content.textContent='Chưa đọc được cấu hình VAT / shipping: '+e.message});
+ return panel;
+}
+
 async function renderOwnerCtvClientCards(account,wrap){
  if(!wrap.isConnected)return;
  wrap.replaceChildren(make('p','Đang tải người nhận theo tài khoản…','crm-client-banner'));
@@ -991,6 +1107,7 @@ async function renderOwnerCtvClientCards(account,wrap){
     ': vẫn hiển thị toàn bộ khách/địa chỉ đã lưu; chỉ khóa thao tác cấp CK.','crm-client-banner'));
   }
   const refresh=()=>renderOwnerCtvClientCards(account,wrap);
+  wrap.append(ownerInvoiceChargeEditor(profile.id,a.addresses,refresh));
   if(hasApprovedCap){
    const add=ownerCtvNewClient(profile.id,cap,main?.discountBps??0,customerEpoch,refresh,isCtv);
    add.classList.add('crm-client-add');
@@ -1869,6 +1986,7 @@ async function loadProfileDetails(profileId,epoch){
   const mainPolicy=activePolicies.filter(x=>!x.addressId).sort((x,y)=>y.version-x.version)[0];
   const ctvCap=isCtv?mainPolicy?.collaboratorBps:null;
   dest.append(make('h3',(isCtv?'Khách riêng của CTV':'Tất cả địa chỉ')+' ('+a.addresses.length+')'));
+  dest.append(ownerInvoiceChargeEditor(profileId,a.addresses,()=>loadProfileDetails(profileId,epoch)));
   if(isCtv)dest.append(make('p',ctvCap==null?
    'Chưa có CK CTV do Admin duyệt. Không được cấp CK khách riêng.':
    'CK CTV: '+pct(ctvCap)+' · CK khách mặc định: '+pct(mainPolicy.discountBps)+

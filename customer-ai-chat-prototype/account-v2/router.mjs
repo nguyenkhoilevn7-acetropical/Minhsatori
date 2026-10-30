@@ -21,6 +21,7 @@ import {acceptedSubjects} from './identity-rollout.mjs';
 import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
+import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
 import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
@@ -321,16 +322,18 @@ async function pricedCart(pool,actor,input){
   'product_code AS "productCode", discount_bps AS "discountBps",collaborator_bps AS "collaboratorBps", '+
   'invoice_mode AS "invoiceMode",enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
   'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[profile.id]);
+ const feePolicy=await readInvoiceFeePolicy(pool,profile.id);
+ const charges=calculateInvoiceFees(feePolicy,addressRow.rows[0].id);
  const priced=calculateQuote({accountId:actor.id,profile,address:addressRow.rows[0],cart:cartRow.rows[0].lines,
   catalogue:cat.rows.map(x=>({...x,listPrice:Number(x.listPrice)})),policies:policies.rows,
-  catalogueRevision:cat.rows[0].revision,vatBps:0,shippingVnd:0});
+  catalogueRevision:cat.rows[0].revision,...charges});
  return {priced,cartRevision:cartRow.rows[0].revision,catalogueRevision:cat.rows[0].revision};
 }
 function customerPricing(data){
  // The CTV internal reference is not a customer-facing sale price.
  const {internalReference,...shown}=data.priced;
  return {...shown,items:shown.items.map(({internalUnitPrice,...line})=>line),
-  cartRevision:data.cartRevision,chargesConfigured:false};
+  cartRevision:data.cartRevision,chargesConfigured:Number(shown.vatVnd)>0||Number(shown.shippingVnd)>0};
 }
 async function quote(pool,actor,input){
  const {priced,cartRevision,catalogueRevision}=await pricedCart(pool,actor,input);
@@ -442,10 +445,13 @@ async function verifyLiveLockedQuote(client,actor,q){
   'collaborator_bps AS "collaboratorBps",invoice_mode AS "invoiceMode",'+
   'enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
   'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[q.profile_id]);
+ await client.query('SELECT pg_advisory_xact_lock($1,hashtext($2))',[20261030,q.profile_id]);
+ const feeConfig=await readInvoiceFeePolicy(client,q.profile_id);
  assertCurrentQuote({snapshot:q.payload,accountId:actor.id,
   profile:profile.rows[0],address:addr.rows[0],cart:cart.rows[0].lines,
   catalogue:cat.rows.map(p=>({...p,listPrice:Number(p.listPrice)})),
-  policies:policies.rows,catalogueRevision:q.catalogue_revision});
+  policies:policies.rows,catalogueRevision:q.catalogue_revision,
+  ...calculateInvoiceFees(feeConfig,q.address_id)});
 }
 
 export async function handleAccountV2(req,res,pathname){
@@ -555,6 +561,19 @@ export async function handleAccountV2(req,res,pathname){
    const out=await reconcileVerifiedLegacySession(pool,found.rows[0],
     config().ownerGoogleSub,{dryRun:true});
    send(res,200,{ok:true,...out});return true;
+  }
+  if(pathname==='/api/v2/admin/invoice-charge-policy'&&req.method==='GET'){
+   owner(actor);
+   const profileId=new URL(req.url,'http://local').searchParams.get('profileId');
+   error(isUuid(profileId),'PROFILE_REQUIRED');
+   const exists=await pool.query('SELECT id FROM satori_v2_profiles WHERE id=$1',[profileId]);
+   error(exists.rows.length===1,'PROFILE_NOT_FOUND',404);
+   send(res,200,{ok:true,profileId,...await readInvoiceFeePolicy(pool,profileId)});return true;
+  }
+  if(pathname==='/api/v2/admin/invoice-charge-policy'&&req.method==='PUT'){
+   owner(actor);
+   const saved=await saveInvoiceFeePolicy(pool,actor,await json(req));
+   send(res,200,saved);return true;
   }
   if(pathname==='/api/v2/admin/ctv/profit'&&req.method==='GET'){
    owner(actor);
@@ -857,11 +876,14 @@ export async function handleAccountV2(req,res,pathname){
      'enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
      'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',
      [q.profile_id]);
+    await client.query('SELECT pg_advisory_xact_lock($1,hashtext($2))',[20261030,q.profile_id]);
+    const feeConfig=await readInvoiceFeePolicy(client,q.profile_id);
     assertCurrentQuote({
      snapshot:q.payload,accountId:actor.id,profile:checkedProfile.rows[0],
      address:checkedAddress.rows[0],cart:latest.rows[0].lines,
      catalogue:cat.rows.map(p=>({...p,listPrice:Number(p.listPrice)})),
-     policies:approvedPolicies.rows,catalogueRevision:q.catalogue_revision
+     policies:approvedPolicies.rows,catalogueRevision:q.catalogue_revision,
+     ...calculateInvoiceFees(feeConfig,q.address_id)
     });
     const recorded=await client.query(
      'INSERT INTO satori_v2_order_requests(quote_id,account_id,request_id,state) '+
