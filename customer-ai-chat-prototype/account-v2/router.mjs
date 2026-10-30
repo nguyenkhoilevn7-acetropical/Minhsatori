@@ -28,7 +28,7 @@ import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
  adminPatchLead,ownerArchiveImportedDuplicateLeads,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
- adminApproveRegistration,adminCompleteNewRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyAddressDirectory,legacyCustomerImport,
+ adminApproveRegistration,adminCompleteNewRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyAddressDirectory,legacyCustomerImport,ownerImportHistoricDeliveryPoints,
  legacyCustomerActivateLead,ownerActivateSavedGmail,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
  adminReconcileVerifiedLegacyPending,ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,
  adminRegistrationNotifications,adminCtvProfitSummary} from './customer-backend.mjs';
@@ -532,6 +532,11 @@ export async function handleAccountV2(req,res,pathname){
    owner(actor);
    const q=new URL(req.url,'http://local').searchParams.get('query');
    send(res,200,await legacyCustomerSearch(q));return true;
+  }
+  if(pathname==='/api/v2/admin/legacy/import-delivery-points'&&req.method==='POST'){
+   owner(actor);
+   send(res,200,await ownerImportHistoricDeliveryPoints(pool,actor,await json(req)));
+   return true;
   }
   if(pathname==='/api/v2/admin/legacy/import'&&req.method==='POST'){
    owner(actor);
