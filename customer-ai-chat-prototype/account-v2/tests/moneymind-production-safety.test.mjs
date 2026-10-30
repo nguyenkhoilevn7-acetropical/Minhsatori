@@ -22,11 +22,12 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // reviewed full-page business, CSS and non-script hashes to catch regressions.
  // Oct 29 reviewed CTV delivery customer pricing controls: two tabs,
  // address-scoped discount input and guarded client policy API.
- // Oct 29 reviewed CTV bottom sheet reuses saved-client writer and validates both rate tiers.\n // Oct 29 reviewed typography-only delta: 16px onboarding/body and 20px headings.\n // Oct 30 reviewed invoice controls: compact padding, smaller sums and customer fields,\n // compact date fields and consistent teal detail action. Receipt behavior unchanged.\n // Preserve full-page hashes after this scoped UX/API review.
+ // Oct 29 reviewed CTV bottom sheet reuses saved-client writer and validates both rate tiers.\n // Oct 29 reviewed typography-only delta: 16px onboarding/body and 20px headings.\n // Oct 30 reviewed delivery modal: compact spacing and neutral phone/address rows.
+ // Oct 30 reviewed invoice controls: compact padding, smaller sums and customer fields,\n // compact date fields and consistent teal detail action. Receipt behavior unchanged.\n // Preserve full-page hashes after this scoped UX/API review.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const fnvPart=x=>fnv32(x);
- assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'9ab458c4');
- assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'fa2d593c');
+ assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'f54a006c');
+ assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'36f5530e');
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-subtitle,/);
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-phone \{/);
  assert.match(v2,/background:#eaf4f3;\s*color:#205e61;/);
