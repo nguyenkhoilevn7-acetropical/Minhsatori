@@ -124,7 +124,13 @@ object AccountingProMargin45 {
                     invoice.pairDiscountPercent != null)) {
                 if(invoice.isCustomerPairBill) {
                     val partner=references.filter { other ->
-                        other.pairGroupId.isNotBlank() &&
+                        !other.isTest &&
+                            !other.status.equals("Đã hủy",ignoreCase=true) &&
+                            !other.status.equals("Không Tính",ignoreCase=true) &&
+                            other.total>0L &&
+                            references.count { it.number==other.number }==1 &&
+                            other.id!=invoice.id &&
+                            other.pairGroupId.isNotBlank() &&
                             other.pairGroupId==invoice.pairGroupId &&
                             other.pairInvoiceNo==invoice.number &&
                             invoice.pairInvoiceNo==other.number &&
@@ -140,6 +146,8 @@ object AccountingProMargin45 {
                         warning="Dữ liệu CTV cũ chưa đối chiếu được hoa hồng."
                     else commission=sale.subtract(partnerSold)
                 } else if(invoice.pairRole.isBlank() &&
+                    invoice.pairGroupId.isBlank() &&
+                    invoice.pairInvoiceNo.isBlank() &&
                     invoice.collaboratorId.isNotBlank() &&
                     invoice.pairDiscountPercent != null) {
                     val percent=invoice.pairDiscountPercent
