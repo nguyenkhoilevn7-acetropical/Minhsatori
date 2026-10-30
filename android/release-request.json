@@ -1,10 +1,10 @@
 {
-  "purpose": "android-0.4.25-horizontal-role-footer-buttons",
+  "purpose": "android-0.4.26-new-invoice-alert-badge",
   "package": "vn.minhsatori.app",
-  "version": "0.4.25",
-  "versionCode": 42,
-  "branch": "release/android-v0.4.20-native-v2-crm-20261029",
-  "requestedOn": "2026-10-29",
+  "version": "0.4.26",
+  "versionCode": 43,
+  "branch": "release/android-v0.4.26-new-invoice-badge-20261030",
+  "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
     241,
@@ -18,9 +18,10 @@
     259,
     260,
     263,
-    264
+    264,
+    292
   ],
-  "scope": "Signed Android update for real CRM grid-column bug. All three role chips and all three footer lifecycle buttons get independent grid-column:auto, so they render horizontally on Samsung/Fold; preserve CTV discount and original identity/payment logic. Requires merged live owner PR #263.",
+  "scope": "Signed Android 0.4.26: red unread counters on bottom Hóa đơn tab and Trang chủ Hóa đơn shortcut, prominent unviewed invoice banner and MỚI flags for newly synced canonical ledger invoices (including Gemini-confirmed orders), first-sync baseline, replay/edit/test/CTV exclusions, metadata-only persistent acknowledgements; no API/accounting/PDF changes.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -41,6 +42,9 @@
     "29/10/2026: owner screenshot #9102 compared against approved #9091. PR #256 web LIVE; PR #257 native typography and tab restoration. Native 0.4.23 is necessary because old signed APK v0.4.22 injects large !important CSS. New APK requires pinned certificate signature and same package, CI PASS before distribution.",
     "2026-10-29: approved screenshot #9091 requires inline roles, Lưu/Tạm dừng/Xóa quyền horizontally, percent and Lưu CK aligned. Duplicate name groups are view-only with individually selectable original phone/addresses; no ledger merge. Release must be signed with original pinned certificate.",
     "2026-10-29: Owner requested signed APK v0.4.24 build 41 now. Trigger the protected release-signing workflow for merged PRs #259-#261; require exact package/version, pinned certificate SHA-256 and release-verification.json before distribution. Debug APK is not a valid substitute.",
-    "2026-10-29: screenshot after signed 0.4.24 showed role chips stacked, save separated, pause/revoke each full-row. Root cause .crm-role-editor button {grid-column:1/-1} applied to nested buttons. Narrowed selector and overrode grid column per actual buttons in web and Android. VersionCode 42. Only release with pinned original signing cert."
+    "2026-10-29: screenshot after signed 0.4.24 showed role chips stacked, save separated, pause/revoke each full-row. Root cause .crm-role-editor button {grid-column:1/-1} applied to nested buttons. Narrowed selector and overrode grid column per actual buttons in web and Android. VersionCode 42. Only release with pinned original signing cert.",
+    "2026-10-30: Badge tracks new confirmed real invoices by monotonically assigned official invoice number in the authenticated canonical ledger; it is not a standalone Gemini submission queue and does not display unconfirmed drafts. Notifications while the app is open/foreground synced (20s version, 60s reconciliation); no guaranteed FCM push with the app terminated.",
+    "2026-10-30: Android 13+ OS notification requires the owner's permission and bell opt-in; in-app red badge works without OS permission. Acknowledgement requires explicit Đã xem on Hóa đơn tab. First verified sync is baseline to avoid 130 historical false alerts. No full invoice data stored.",
+    "2026-10-30: Keep pinned production signer and stable package vn.minhsatori.app; run signed release gates and APK certificate verification before giving installation link. Do not uninstall prior signed version or reset local state."
   ]
 }
