@@ -3763,7 +3763,7 @@ class NativeMainActivity : AppCompatActivity() {
             gravity = Gravity.TOP
         }
         fun totalCard(title: String, amount: String, detail: String, bg: Int,
-                      marginEnd: Int = 0) {
+                      gapRight: Int = 0) {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(11), dp(13), dp(11), dp(13))
@@ -3777,7 +3777,7 @@ class NativeMainActivity : AppCompatActivity() {
             }
             label(card, detail, 10.5f, false, softInk, 6)
             totals.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                marginEnd.let { this.marginEnd = dp(it) }
+                this.marginEnd = dp(gapRight)
             })
         }
         totalCard("Tổng công nợ cần thu",
