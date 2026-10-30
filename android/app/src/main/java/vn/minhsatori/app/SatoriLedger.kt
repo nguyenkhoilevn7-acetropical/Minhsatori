@@ -80,10 +80,10 @@ object SatoriLedger {
                 compareBy<SatoriInvoice> { !it.hasValidDate }
                     .thenBy { it.sortDate }.thenBy(invoiceNumber))
             "revenue_desc" -> filtered.sortedWith(
-                compareByDescending<SatoriInvoice> { it.total }
+                compareByDescending<SatoriInvoice> { it.accountingValue }
                     .thenByDescending { it.sortDate }.thenByDescending(invoiceNumber))
             "revenue_asc" -> filtered.sortedWith(
-                compareBy<SatoriInvoice> { it.total }
+                compareBy<SatoriInvoice> { it.accountingValue }
                     .thenByDescending { it.sortDate }.thenByDescending(invoiceNumber))
             "invoice_desc" -> filtered.sortedWith(
                 compareByDescending<SatoriInvoice>(invoiceNumber).thenByDescending { it.sortDate })
