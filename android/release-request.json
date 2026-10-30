@@ -1,9 +1,9 @@
 {
-  "purpose": "android-v0.4.37-cancelled-invoice-current-status-over-historical-payment",
+  "purpose": "android-v0.4.38-invoice-5916-khong-tinh-zero-accounting-display",
   "package": "vn.minhsatori.app",
-  "version": "0.4.37",
-  "versionCode": 54,
-  "branch": "feature/android-cancelled-invoice-status-precedence-v0437-20261030",
+  "version": "0.4.38",
+  "versionCode": 55,
+  "branch": "feature/android-noncounted-invoice-zero-display-v0438-20261030",
   "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
@@ -36,9 +36,10 @@
     310,
     311,
     312,
-    313
+    313,
+    314
   ],
-  "scope": "Android invoice status display precedence plus matching shared read-only accounting helpers: cancelled remains cancelled even when historical customerPaidAt exists. Do not alter live invoice, payment timestamp, Google Owner API, Gemini V2 or DB. In Android show cancelled status, non-interactive audit notice and excluded debt/revenue. Signed same-certificate owner acceptance only, no Production deployment.",
+  "scope": "Android native invoice model and UI only: mark Không Tính 0đ as non-payable/non-revenue/non-debt in list, history and detail. Preserve original 1,727,996đ for audit; Android PDF still original content with warning. Keep canChangePayment false and all guarded financial writers untouched. No Gemini V2, website, Bot API or live ledger mutation. Signed same-package same-certificate owner acceptance APK.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -80,6 +81,7 @@
     "2026-10-30: Owner requested all four oversized invoice action tiles be smaller and Galaxy Z Fold 8 Ultra fold/unfold adaptation. PR #311 stacked on #310. v0.4.35 build52 signed owner acceptance only, retained pinned signing cert; run full CI and inspect actual-device behavior before wider rollout. No real invoice writes in tests.",
     "2026-10-30: Initial signed-gate static source check detected layout comment attached to preceding payment method; removed comment and verified all protected checksums unchanged (confirmInvoicePayment 7c1541e5). Request rebuilt signed APK after unchanged payment protections pass.",
     "2026-10-30: PR #312 is stacked on #311. Owner explicitly requested right-aligned compact action icons with iOS light visual refinement. v0.4.36 code53 signed APK owner-only acceptance, original pinned signer; run CI tests and certificate verification; no financial writes, production backend changes or automatic merge.",
-    "2026-10-30: Authoritative read-only Bot API revision189 confirms #5914 Đã hủy and customerPaidAt 2026-10-19 (only one of 3 cancelled bills with prior paidAt). Preserve the historical timestamp, suppress false paid UI; immutable checked write-path hashes. PR #313 on #312. v0.4.37 code54 signed owner APK after tests and certificate verification, no real financial writes."
+    "2026-10-30: Authoritative read-only Bot API revision189 confirms #5914 Đã hủy and customerPaidAt 2026-10-19 (only one of 3 cancelled bills with prior paidAt). Preserve the historical timestamp, suppress false paid UI; immutable checked write-path hashes. PR #313 on #312. v0.4.37 code54 signed owner APK after tests and certificate verification, no real financial writes.",
+    "2026-10-30: Verified authoritative Bot API revision190 #5916 status Không Tính total1,727,996. Display-only Android fix PR #314 stacked on #313. Original bill total retained; accounting contribution/payable shown 0. v0.4.38 build55 signed owner acceptance only; CI + signer required. Production records untouched."
   ]
 }
