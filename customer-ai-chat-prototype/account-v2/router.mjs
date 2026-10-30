@@ -25,7 +25,7 @@ import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
- adminPatchLead,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
+ adminPatchLead,ownerArchiveImportedDuplicateLeads,adminChangeCustomerStatus,adminAssignCustomerRole,adminEditRegisteredCustomer,adminLinkLead,
  adminApproveRegistration,legacyCustomerSearch,legacyMonthlyCustomerPreview,legacyAddressDirectory,legacyCustomerImport,
  legacyCustomerActivateLead,ownerActivateSavedGmail,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
  adminReconcileVerifiedLegacyPending,ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,
@@ -580,6 +580,11 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/admin/customer-leads'&&req.method==='PATCH'){
    owner(actor);send(res,200,await adminPatchLead(pool,actor.id,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/customer-leads/archive-imported'&&req.method==='POST'){
+   owner(actor);
+   send(res,200,await ownerArchiveImportedDuplicateLeads(pool,actor,await json(req)));
+   return true;
   }
   if(pathname==='/api/v2/admin/customer-leads/link'&&req.method==='POST'){
    owner(actor);send(res,200,await adminLinkLead(pool,actor,await json(req)));return true;
