@@ -4011,6 +4011,86 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    /** Compact, accessible invoice actions: branded share icons instead of text buttons. */
+    private fun invoiceMiniAction(parent: LinearLayout, iconRes: Int, title: String,
+                                  fill: Int, tint: Int? = null, click: () -> Unit) {
+        val icon = ImageView(this).apply {
+            setImageResource(iconRes)
+            if (tint != null) setColorFilter(tint)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(13), dp(13), dp(13), dp(13))
+            background = GradientDrawable().apply {
+                setColor(fill)
+                cornerRadius = dp(14).toFloat()
+                if (tint != null) setStroke(dp(1), Color.rgb(225, 233, 233))
+            }
+            contentDescription = title
+            tooltipText = title
+            isFocusable = true
+            isClickable = true
+            setOnClickListener { click() }
+        }
+        parent.addView(icon, LinearLayout.LayoutParams(0, dp(51), 1f).apply {
+            marginEnd = dp(8)
+        })
+    }
+
+    /** Two independent payment flags; tapping a row must still confirm via Mobile API. */
+    private fun invoicePaymentRow(parent: LinearLayout, name: String, paid: Boolean,
+                                  paidText: String, unpaidText: String,
+                                  onTap: (() -> Unit)?) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(9), dp(10), dp(9))
+            background = panelBackground(surface, 13)
+            minimumHeight = dp(49)
+            if (onTap != null) {
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { onTap() }
+            }
+        }
+        val title = TextView(this).apply {
+            text = name
+            textSize = 13f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(ink)
+            includeFontPadding = false
+        }
+        row.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+        val state = TextView(this).apply {
+            text = if (paid) paidText else unpaidText
+            textSize = 12f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(if (paid) Color.rgb(15, 126, 83) else gold)
+            includeFontPadding = false
+            setPadding(dp(9), dp(5), dp(9), dp(5))
+            background = GradientDrawable().apply {
+                setColor(if (paid) Color.rgb(229, 247, 237)
+                         else Color.rgb(255, 246, 223))
+                cornerRadius = dp(10).toFloat()
+            }
+        }
+        row.addView(state)
+        if (onTap != null) {
+            val edit = ImageView(this).apply {
+                setImageResource(R.drawable.ic_satori_edit)
+                setColorFilter(softInk)
+                contentDescription = "Đổi trạng thái " + name
+                setPadding(dp(5), dp(5), dp(5), dp(5))
+            }
+            row.addView(edit, LinearLayout.LayoutParams(dp(25), dp(25)).apply {
+                marginStart = dp(6)
+            })
+            row.contentDescription = name + ": " +
+                (if (paid) paidText else unpaidText) + ". Chạm để cập nhật."
+        }
+        parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(6)
+        })
+    }
+
     private fun openInvoice(invoice: SatoriInvoice) {
         val wrapper = ScrollView(this).apply { setBackgroundColor(night) }
         val content = LinearLayout(this).apply {
@@ -4099,98 +4179,50 @@ class NativeMainActivity : AppCompatActivity() {
             label(content, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, cyan, 13)
             label(content, invoice.deliveryNote, 13f, false, white, 5)
         }
-        // The first invoice action must show the actual A4 PDF in this app.
-        // Never implicitly download when the user only chooses View.
-        button(content, "XEM HÓA ĐƠN PDF", true, R.drawable.ic_satori_eye) {
+        // View the authoritative A4 PDF; sharing remains an explicit action.
+        button(content, "XEM PDF", true, R.drawable.ic_satori_eye) {
             NativeInvoicePdf.preview(this, invoice)
         }
         var invoiceDialog: AlertDialog? = null
-        // Payment facts are independent; the legacy single status cannot convey both.
-        label(content, "TRẠNG THÁI THANH TOÁN", 13f, true, cyan, 15)
-        label(content, "Khách hàng: " +
-            (if (invoice.customerHasPaid) "ĐÃ THANH TOÁN" else "CHƯA THANH TOÁN"),
-            13f, true, if (invoice.customerHasPaid) Color.rgb(15, 126, 83) else gold, 7)
-        label(content, "Đối soát Satori: " +
-            (if (invoice.satoriHasPaid) "ĐÃ THANH TOÁN SATORI" else "CHƯA THANH TOÁN SATORI"),
-            13f, true, if (invoice.satoriHasPaid) Color.rgb(15, 126, 83) else gold, 6)
-
         val validInvoiceNumber = invoice.number.toIntOrNull()?.takeIf { it > 0 }
-        if (validInvoiceNumber == null) {
-            label(content, "Số hóa đơn không hợp lệ. Đã khóa ghi trạng thái.",
-                12f, true, gold, 10)
-        } else {
-            // Keep the Edit affordance visible even when the owner Mobile API
-            // has not yet been deployed. Never bypass the server permission.
-            if (invoice.canEditOrDelete)
-                button(content, "SỬA HÓA ĐƠN", iconRes = R.drawable.ic_satori_edit) {
-                    if (!canAction("orders.update")) {
-                        AlertDialog.Builder(this)
-                            .setTitle("Chưa được cấp quyền sửa hóa đơn")
-                            .setMessage("Sửa đơn cần Google Owner và Mobile API cấp " +
-                                "orders.update. Chế độ đọc Google Drive không được ghi. " +
-                                "Hãy kết nối API chủ tài khoản rồi đồng bộ lại.")
-                            .setNegativeButton("Đóng", null)
-                            .setPositiveButton("Kiểm tra kết nối") { _, _ ->
-                                showConnectionSettings()
-                            }.show()
-                    } else {
-                        invoiceDialog?.dismiss()
-                        launchEditor(editing = invoice)
-                    }
-                }
-            if (invoice.canChangePayment) {
-                // Show both independent owner payment controls even before the
-                // backend is connected. The click handler NEVER bypasses canAction.
-                label(content, "CẬP NHẬT THANH TOÁN", 12f, true, cyan, 14)
-                val paymentChoices = listOf(
-                    Triple(
-                        if (invoice.customerHasPaid) "payments.markCustomerUnpaid"
-                        else "payments.markCustomerPaid",
-                        if (invoice.customerHasPaid) "Khách: chuyển về CHƯA thanh toán"
-                        else "Khách: đánh dấu ĐÃ thanh toán",
-                        if (invoice.customerHasPaid) R.drawable.ic_satori_undo
-                        else R.drawable.ic_satori_check
-                    ),
-                    Triple(
-                        if (invoice.satoriHasPaid) "payments.markSatoriUnpaid"
-                        else "payments.markSatoriPaid",
-                        if (invoice.satoriHasPaid) "Satori: chuyển về CHƯA thanh toán"
-                        else "Satori: đánh dấu ĐÃ thanh toán",
-                        if (invoice.satoriHasPaid) R.drawable.ic_satori_undo
-                        else R.drawable.ic_satori_check
-                    )
-                )
-                paymentChoices.forEach { (action, title, icon) ->
-                    button(content, title, iconRes = icon) {
-                        if (!canAction(action)) {
-                            AlertDialog.Builder(this)
-                                .setTitle("Chưa kết nối quyền thanh toán")
-                                .setMessage("Chức năng này cần Google Owner và Mobile API " +
-                                    "được cấp quyền " + action + ". " +
-                                    "Đang đọc Google Drive hoặc thiếu API thì chỉ được xem. " +
-                                    "Không ghi nhận thanh toán khi chưa xác minh.")
-                                .setNegativeButton("Đóng", null)
-                                .setPositiveButton("Kiểm tra kết nối") { _, _ ->
-                                    showConnectionSettings()
-                                }.show()
-                        } else {
-                            confirmInvoicePayment(invoice, action) {
-                                invoiceDialog?.dismiss()
-                            }
-                        }
-                    }
-                }
-                if (paymentChoices.any { !canAction(it.first) })
-                    label(content, "Nút đã hiển thị để kiểm tra giao diện; " +
-                        "quyền ghi vẫn khóa đến khi Mobile API chủ tài khoản được xác minh.",
-                        11.5f, false, softInk, 8)
+        val canEditPayment = validInvoiceNumber != null && invoice.canChangePayment
+
+        fun requestPayment(action: String) {
+            if (!canAction(action)) {
+                AlertDialog.Builder(this)
+                    .setTitle("Chưa kết nối quyền thanh toán")
+                    .setMessage("Cần Google Owner và Mobile API cấp quyền " + action +
+                        ". Chế độ đọc Google Drive không được ghi thanh toán.")
+                    .setNegativeButton("Đóng", null)
+                    .setPositiveButton("Kiểm tra kết nối") { _, _ ->
+                        showConnectionSettings()
+                    }.show()
+            } else {
+                confirmInvoicePayment(invoice, action) { invoiceDialog?.dismiss() }
             }
-            if (invoice.canEditOrDelete)
-                button(content, "XÓA ĐƠN • THÙNG RÁC 30 NGÀY",
-                    iconRes = R.drawable.ic_satori_trash, danger = true) {
-                    confirmSoftDelete(invoice) { invoiceDialog?.dismiss() }
-                }
         }
+
+        // The two flags must never be merged: customer receipt != Satori settlement.
+        label(content, "THANH TOÁN", 12f, true, cyan, 14)
+        val customerAction = if (invoice.customerHasPaid) "payments.markCustomerUnpaid"
+                             else "payments.markCustomerPaid"
+        val satoriAction = if (invoice.satoriHasPaid) "payments.markSatoriUnpaid"
+                           else "payments.markSatoriPaid"
+        val customerClick: (() -> Unit)? = if (canEditPayment) {
+            { requestPayment(customerAction) }
+        } else null
+        val satoriClick: (() -> Unit)? = if (canEditPayment) {
+            { requestPayment(satoriAction) }
+        } else null
+        invoicePaymentRow(content, "Khách", invoice.customerHasPaid,
+            "Đã thanh toán", "Chưa thanh toán", customerClick)
+        invoicePaymentRow(content, "Satori", invoice.satoriHasPaid,
+            "Đã thanh toán", "Chưa thanh toán", satoriClick)
+        if (validInvoiceNumber == null) {
+            label(content, "Số hóa đơn không hợp lệ • đã khóa thao tác ghi.",
+                11f, true, gold, 6)
+        }
+
         fun confirmInternalShare(action: () -> Unit) {
             if (!invoice.isInternalCollaboratorBill) { action(); return }
             AlertDialog.Builder(this)
@@ -4201,28 +4233,63 @@ class NativeMainActivity : AppCompatActivity() {
                 .setPositiveButton("Đúng CTV, tiếp tục") { _, _ -> action() }
                 .show()
         }
-        button(content, "GỬI PDF QUA ZALO", iconRes = R.drawable.ic_satori_share) {
-            confirmInternalShare {
-            try { NativeInvoicePdf.shareZalo(this, invoice) }
-            catch (error: Exception) {
-                Toast.makeText(this, "Không chia sẻ được Zalo: " +
-                    (error.message ?: ""), Toast.LENGTH_LONG).show()
+
+        // Single-row icon toolbar: no repeated full-width text CTAs.
+        label(content, "THAO TÁC", 12f, true, cyan, 14)
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        if (invoice.canEditOrDelete && validInvoiceNumber != null) {
+            invoiceMiniAction(actions, R.drawable.ic_satori_edit, "Sửa hóa đơn",
+                Color.rgb(233, 248, 245), cyan) {
+                if (!canAction("orders.update")) {
+                    AlertDialog.Builder(this)
+                        .setTitle("Chưa được cấp quyền sửa hóa đơn")
+                        .setMessage("Cần Google Owner và Mobile API cấp orders.update. " +
+                            "Chế độ đọc Drive không được sửa hóa đơn.")
+                        .setNegativeButton("Đóng", null)
+                        .setPositiveButton("Kiểm tra kết nối") { _, _ ->
+                            showConnectionSettings()
+                        }.show()
+                } else {
+                    invoiceDialog?.dismiss()
+                    requestInvoiceEdit(invoice)
+                }
             }
+            invoiceMiniAction(actions, R.drawable.ic_satori_trash,
+                "Xóa hóa đơn • thùng rác 30 ngày", Color.rgb(255, 243, 243),
+                Color.rgb(207, 46, 46)) {
+                confirmSoftDelete(invoice) { invoiceDialog?.dismiss() }
             }
         }
-        button(content, "GỬI PDF QUA MESSENGER", iconRes = R.drawable.ic_satori_share) {
+        invoiceMiniAction(actions, R.drawable.ic_brand_zalo, "Gửi PDF qua Zalo",
+            Color.rgb(0, 104, 255)) {
             confirmInternalShare {
-            try { NativeInvoicePdf.shareMessenger(this, invoice) }
-            catch (error: Exception) {
-                Toast.makeText(this, "Không chia sẻ được Messenger: " +
-                    (error.message ?: ""), Toast.LENGTH_LONG).show()
-            }
+                try { NativeInvoicePdf.shareZalo(this, invoice) }
+                catch (error: Exception) {
+                    Toast.makeText(this, "Không chia sẻ được Zalo: " +
+                        (error.message ?: ""), Toast.LENGTH_LONG).show()
+                }
             }
         }
+        invoiceMiniAction(actions, R.drawable.ic_brand_messenger, "Gửi PDF qua Messenger",
+            Color.rgb(0, 132, 255)) {
+            confirmInternalShare {
+                try { NativeInvoicePdf.shareMessenger(this, invoice) }
+                catch (error: Exception) {
+                    Toast.makeText(this, "Không chia sẻ được Messenger: " +
+                        (error.message ?: ""), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        content.addView(actions, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(7)
+        })
         val dialog = AlertDialog.Builder(this)
             .setView(wrapper)
             .setNegativeButton("Đóng", null)
-            .setPositiveButton("Xuất / Chia sẻ PDF", null)
+            .setPositiveButton("Chia sẻ", null)
             .create()
         invoiceDialog = dialog
         dialog.setOnShowListener {
