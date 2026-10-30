@@ -193,6 +193,51 @@ header .satori-logo{width:31px;height:31px}
 .invoice-ledger-amount{font-weight:700;font-size:13px;text-align:right;white-space:nowrap}
 .original-invoice-link{display:block;margin:9px 0;font-size:12px;color:#007aff}
 .invoice-divider{border:0;border-top:1px solid #edf1f5;margin:15px 0}
+
+/* V2 invoice finder: readable editorial cards with focused search controls. */
+#ordersView .panel{width:100%;max-width:860px;margin-inline:auto;padding:20px;border-radius:22px}
+#ordersView .invoice-masthead h2{font-size:21px;font-weight:800;color:#183240;letter-spacing:-.3px}
+#ordersView .invoice-section-subtitle{font-size:17px;font-weight:800;color:#183240;margin:22px 0 12px}
+.invoice-list-help{font-size:13px;line-height:1.6;color:#536979;margin:12px 0}
+.invoice-list-help summary{font-weight:700;cursor:pointer;color:#316a77}
+.invoice-list-help p{margin:8px 0 0}
+.invoice-filters{padding:17px;margin:20px 0 6px;background:#f6faf9;border:1px solid #dae7e4;border-radius:18px}
+.invoice-filters h3{font-size:16px;margin:0 0 13px;color:#1e414b;font-weight:800}
+.invoice-search-field{display:flex;flex-direction:column;gap:7px;min-width:0}
+.invoice-search-field label{font-size:13px;font-weight:800;color:#334e5a}
+.invoice-search-field input{width:100%;border:1px solid #cbdadf;box-shadow:0 1px 3px #18394308;border-radius:12px;background:#fff;color:#163440;font-size:16px;font-weight:550;min-height:47px;padding:10px 12px}
+.invoice-search-field input::placeholder{color:#71838e;opacity:1}
+.invoice-search-field input:focus-visible{outline:3px solid #a5e2dc;outline-offset:1px}
+.invoice-date-range{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:14px}
+.invoice-filter-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px}
+.invoice-filter-actions button{border:0;border-radius:11px;min-height:45px;padding:11px 16px;font-size:14px;font-weight:800}
+.invoice-filter-apply{background:#087f7e;color:white;flex:1}
+.invoice-filter-clear{background:#e7f0ef;color:#235b60}
+.invoice-result-count{color:#405c68;font-size:13px;font-weight:700;line-height:1.5;margin:14px 2px 9px}
+.invoice-card-list{display:grid;gap:16px;align-items:stretch;font-size:15px;color:#1b3641}
+.invoice-order-card{display:flex;flex-direction:column;gap:17px;padding:18px;background:white;border:1px solid #d8e4e6;border-radius:18px;box-shadow:0 5px 18px rgba(14,54,68,.045)}
+.invoice-order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:13px;flex-wrap:wrap}
+.invoice-order-number-label{display:block;color:#587480;font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;margin-bottom:5px}
+.invoice-order-number{font-size:23px;font-weight:850;color:#193d4b;line-height:1.25;letter-spacing:.1px;font-variant-numeric:tabular-nums;margin:0}
+.invoice-order-status{max-width:100%;border-radius:20px;background:#edf6f4;color:#146b62;font-size:12px;line-height:1.45;font-weight:750;padding:7px 11px}
+.invoice-order-status.is-pending{background:#fff4e5;color:#955d22}
+.invoice-order-profile{display:flex;flex-direction:column;gap:13px}
+.invoice-order-kicker{display:block;color:#587380;font-size:11px;font-weight:850;letter-spacing:.6px;margin-bottom:5px}
+.invoice-order-customer{font-size:18px;font-weight:800;line-height:1.4;color:#193443;overflow-wrap:anywhere}
+.invoice-order-meta{font-size:14px;color:#425f6d;line-height:1.55;overflow-wrap:anywhere}
+.invoice-order-meta strong{color:#254555;font-weight:750}
+.invoice-order-footer{border-top:1px solid #e1eaeb;padding-top:14px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.invoice-order-total-label{font-size:12px;font-weight:750;color:#597581;margin-bottom:3px}
+.invoice-order-total{font-size:23px;font-weight:850;color:#bd253b;line-height:1.25;font-variant-numeric:tabular-nums}
+.invoice-order-open{border:0;min-height:43px;border-radius:11px;padding:11px 15px;background:#e5f4f3;color:#0c6e6d;font-size:14px;font-weight:850}
+.invoice-order-open:focus-visible{outline:3px solid #71c9c0;outline-offset:2px}
+.invoice-order-products{font-size:14px;color:#344f5c;line-height:1.6}
+.invoice-order-products summary{cursor:pointer;font-weight:750;color:#176d78;padding:5px 0}
+.invoice-order-products div{margin-top:7px}
+.invoice-legacy-heading{font-size:16px;font-weight:800;color:#294a56;margin:18px 0 0}
+.invoice-empty{padding:22px 18px;border:1px dashed #bfd4d7;border-radius:15px;color:#45636e;font-size:14px;line-height:1.6;background:#fafdfd}
+@media(max-width:560px){#ordersView{padding:12px}#ordersView .panel{padding:15px}#ordersView .invoice-masthead h2{font-size:19px}.invoice-filters{padding:13px}.invoice-date-range{gap:10px}.invoice-order-card{padding:16px;gap:15px}.invoice-order-footer{align-items:stretch}.invoice-order-open{width:100%}.invoice-order-total{font-size:22px}}
+@media(max-width:360px){.invoice-date-range{grid-template-columns:1fr}.invoice-filter-actions button{width:100%}}
 /* Owner CRM belongs to the Minh Satori native back office, not
    the customer ordering web UI; server-side owner authorization is unchanged. */
 #ownerPanel,#ownerOriginalInvoices{display:none!important}
@@ -807,9 +852,20 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <p class="muted">PDF chính thức vẫn được xuất từ website Minh Satori, không tạo bản PDF thay thế từ dữ liệu thử.</p>
 <a class="original-invoice-link" href="https://nguyenkhoilevn7-acetropical.github.io/Minhsatori/" rel="noopener noreferrer" target="_blank">Mở website Minh Satori để xem / xuất PDF chính thức</a>
 <hr class="invoice-divider"></section>
-<h3 class="invoice-section-subtitle">Đơn hàng V2</h3>
-<p class="notice">Chỉ hiển thị đơn V2 gắn với tài khoản Google đã xác minh. Hóa đơn cũ chưa được đối chiếu định danh, không tự động gộp. Đơn chưa được sổ Satori xác nhận không hiển thị như đã tạo hóa đơn.</p>
-<div id="orderRows" class="muted"></div></div></section>
+<h3 class="invoice-section-subtitle">Danh sách đơn hàng V2</h3>
+<div class="invoice-filters">
+<form id="invoiceFilters" role="search" aria-label="Lọc hóa đơn V2">
+<h3>Tìm kiếm hóa đơn</h3>
+<div class="invoice-search-field"><label for="invoiceCustomerSearch">Tên khách hàng / người nhận</label><input id="invoiceCustomerSearch" type="search" maxlength="100" autocomplete="off" placeholder="Nhập tên khách hàng"></div>
+<div class="invoice-date-range">
+<div class="invoice-search-field"><label for="invoiceFromDate">Từ ngày</label><input id="invoiceFromDate" type="date"></div>
+<div class="invoice-search-field"><label for="invoiceToDate">Đến ngày</label><input id="invoiceToDate" type="date"></div>
+</div>
+<div class="invoice-filter-actions"><button type="submit" id="invoiceApplyFilter" class="invoice-filter-apply">Lọc hóa đơn</button><button type="button" id="invoiceClearFilter" class="invoice-filter-clear">Xóa lọc</button></div>
+</form></div>
+<details class="invoice-list-help"><summary>Thông tin đối soát hóa đơn</summary><p>Chỉ hiện các đơn thuộc tài khoản Google đã xác minh. Hóa đơn lịch sử chỉ được liên kết khi đã xác minh định danh; đơn chưa xác nhận không được xem là hóa đơn đã phát hành.</p></details>
+<div id="invoiceResultCount" class="invoice-result-count" role="status" aria-live="polite">Đang tải danh sách hóa đơn…</div>
+<div id="orderRows" class="invoice-card-list"></div></div></section>
 <section id="invoiceDetailView" class="view hidden" aria-label="Chi tiết hóa đơn">
 <div class="panel invoice-document"><div class="invoice-detail-actions"><button id="invoiceDetailBack" type="button" class="invoice-back">‹ Danh sách hóa đơn</button></div>
 <div id="invoiceDetailBody"></div></div></section>
@@ -2230,84 +2286,167 @@ function showCommittedReceipt(order){
  return true;
 }
 $('invoiceDetailBack').onclick=()=>view('orders');
-async function loadOrders(){
- const data=await call('/api/v2/orders',undefined,'GET');
- $('orderRows').replaceChildren();
- for(const o of data.orders||[]){
-  const row=node('div',undefined,'address-line'),info=node('div');
-  const verified=o.verified===true;
-  const status=o.testOnly?'🧪 Đơn thử · không có hóa đơn thật':
-   verified?'Đã đối soát sổ thật':o.state==='REJECTED'?'Bị từ chối':
-   o.state==='UNCERTAIN'?'Đang kiểm tra giao dịch':'Chưa phát hành hóa đơn';
-  const id=verified?'#'+o.invoiceNo:'Yêu cầu '+String(o.requestId).slice(0,8);
-  info.append(node('strong',id),node('small',status+' · '+money(Number(o.totalVnd)||0)));
-  const details=node('details',undefined,'order-details');
-  const title=node('summary','Xem sản phẩm đã đặt');
-  details.append(title);
-  for(const line of Array.isArray(o.items)?o.items:[]){
-   details.append(node('div',String(line.name||line.code||'Sản phẩm')+
-    ' × '+String(line.qty||0)+' · '+money(Number(line.lineTotal)||0),'muted'));
-  }
-  if(o.delivery?.address)details.append(node('small',
-   'Giao: '+o.delivery.address,'muted'));
-  if(o.deliveryRequest?.deliveryNote)details.append(node('small',
-   'Ghi chú: '+o.deliveryRequest.deliveryNote,'muted'));
-  if(Array.isArray(o.items)&&o.items.length)info.append(details);
-  if(['UNCERTAIN','RELAY_PENDING'].includes(o.state)&&realCheckoutEnabled){
-   const check=node('button','Đối soát','btn');check.type='button';
-   check.onclick=async()=>{try{
-    await call('/api/v2/orders/reconcile',{requestId:o.requestId});
-    await loadOrders();
-   }catch(e){toast(e.message)}};
-   info.append(check);
-  }
-  if(verified&&o.receipt){
-   const open=node('button','Xem chi tiết hóa đơn','btn');
-   open.type='button';open.setAttribute('aria-label','Xem chi tiết hóa đơn #'+o.receipt.invoiceNo+' trên màn hình riêng');
-   open.onclick=()=>showCommittedReceipt(o);
-   info.append(open);
-  }
-  row.append(info);$('orderRows').append(row);
+
+let invoiceListEpoch=0;
+function invoiceDateLabel(value){
+ const date=new Date(value||'');
+ if(!Number.isFinite(date.valueOf()))return 'Chưa có ngày đặt';
+ return new Intl.DateTimeFormat('vi-VN',{
+  dateStyle:'short',timeStyle:'short',timeZone:'Asia/Ho_Chi_Minh'
+ }).format(date);
+}
+function invoiceLegacyDate(value){
+ const match=String(value||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+ if(!match)return null;
+ const year=Number(match[3]),month=Number(match[2]),day=Number(match[1]);
+ const iso=String(year).padStart(4,'0')+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+ const date=new Date(iso+'T00:00:00Z');
+ return Number.isFinite(date.valueOf())&&date.toISOString().slice(0,10)===iso?iso:null;
+}
+function activeInvoiceFilters(){
+ return {
+  customer:$('invoiceCustomerSearch').value.trim(),
+  from:$('invoiceFromDate').value,to:$('invoiceToDate').value
+ };
+}
+function invoiceCard(order,{historical=false}={}){
+ const verified=!historical&&order.verified===true;
+ const card=node('article',undefined,'invoice-order-card');
+ const heading=node('div',undefined,'invoice-order-head');
+ const idBox=node('div');
+ idBox.append(node('span',historical?'HÓA ĐƠN ĐÃ LIÊN KẾT':'MÃ ĐƠN HÀNG V2','invoice-order-number-label'));
+ const number=historical?'#'+order.invoiceNo:
+  verified?'#'+order.invoiceNo:'Yêu cầu '+String(order.requestId||'').slice(0,8);
+ idBox.append(node('h3',number,'invoice-order-number'));
+ heading.append(idBox);
+ const status=historical?(order.status||'Hóa đơn lịch sử'):
+  order.testOnly?'Đơn thử':
+  verified?'Đã đối soát sổ thật':
+  order.state==='REJECTED'?'Bị từ chối':
+  ['UNCERTAIN','RELAY_PENDING'].includes(order.state)?'Đang đối soát':
+  'Chưa phát hành hóa đơn';
+ heading.append(node('span',status,'invoice-order-status'+(verified||historical?'':' is-pending')));
+ card.append(heading);
+ const profile=node('div',undefined,'invoice-order-profile');
+ const buyer=node('div');
+ buyer.append(node('span','KHÁCH HÀNG / NGƯỜI NHẬN','invoice-order-kicker'));
+ const name=historical?String(order.name||order.customer||'Chưa rõ tên khách'):
+  String(order.delivery?.recipientName||'Chưa có tên người nhận');
+ buyer.append(node('div',name,'invoice-order-customer'));
+ profile.append(buyer);
+ const orderedAt=historical?String(order.date||'Chưa có ngày'):
+  invoiceDateLabel(order.orderedAt);
+ const when=node('div',undefined,'invoice-order-meta');
+ when.append(node('strong','Ngày đặt: '),document.createTextNode(orderedAt));profile.append(when);
+ const address=historical?order.location:order.delivery?.address;
+ if(address){
+  const location=node('div',undefined,'invoice-order-meta');
+  location.append(node('strong','Giao đến: '),document.createTextNode(String(address)));
+  profile.append(location);
  }
- // Historical invoices are linked by explicit owner-verified IDs only.
- // Show live signed totals/status; never infer invoice ownership from name/phone.
+ if(!historical&&order.delivery?.recipientPhone){
+  const phone=node('div',undefined,'invoice-order-meta');
+  phone.append(node('strong','Điện thoại: '),document.createTextNode(String(order.delivery.recipientPhone)));
+  profile.append(phone);
+ }
+ card.append(profile);
+ const details=node('details',undefined,'invoice-order-products');
+ details.append(node('summary','Xem nhanh sản phẩm đã đặt'));
+ for(const line of Array.isArray(order.items)?order.items:[]){
+  const itemName=historical?String(line.product||line.name||line.code||'Sản phẩm'):
+   String(line.name||line.code||'Sản phẩm');
+  const itemTotal=historical?null:Number(line.lineTotal);
+  const text=itemName+' × '+String(line.qty||0)+
+   (Number.isSafeInteger(itemTotal)&&itemTotal>=0?' · '+money(itemTotal):'');
+  details.append(node('div',text));
+ }
+ if(Array.isArray(order.items)&&order.items.length)card.append(details);
+ if(!historical&&order.deliveryRequest?.deliveryNote){
+  card.append(node('div','Ghi chú: '+String(order.deliveryRequest.deliveryNote),'invoice-order-meta'));
+ }
+ const footer=node('div',undefined,'invoice-order-footer');
+ const total=node('div');
+ total.append(node('div','TỔNG THANH TOÁN','invoice-order-total-label'),
+  node('div',money(Number(historical?order.totalVnd:verified?order.receipt?.totalVnd:order.totalVnd)||0),'invoice-order-total'));
+ footer.append(total);
+ if(!historical&&['UNCERTAIN','RELAY_PENDING'].includes(order.state)&&realCheckoutEnabled){
+  const reconcile=node('button','Đối soát','invoice-order-open');
+  reconcile.type='button';
+  reconcile.onclick=async()=>{try{
+   await call('/api/v2/orders/reconcile',{requestId:order.requestId});
+   await loadOrders();
+  }catch(e){toast(e.message)}};
+  footer.append(reconcile);
+ }
+ if(verified&&order.receipt){
+  const open=node('button','Xem chi tiết hóa đơn','invoice-order-open');
+  open.type='button';
+  open.setAttribute('aria-label','Xem chi tiết hóa đơn #'+order.receipt.invoiceNo+' trên màn hình riêng');
+  open.onclick=()=>showCommittedReceipt(order);
+  footer.append(open);
+ }
+ card.append(footer);return card;
+}
+async function loadOrders(){
+ const filters=activeInvoiceFilters();
+ if(filters.from&&filters.to&&filters.from>filters.to){
+  $('invoiceResultCount').textContent='Khoảng ngày không hợp lệ: Từ ngày phải trước hoặc bằng Đến ngày.';
+  return;
+ }
+ const token=++invoiceListEpoch;
+ const qs=new URLSearchParams();
+ if(filters.from)qs.set('from',filters.from);
+ if(filters.to)qs.set('to',filters.to);
+ if(filters.customer)qs.set('customer',filters.customer);
+ $('invoiceResultCount').textContent='Đang tìm hóa đơn…';
+ const data=await call('/api/v2/orders'+(qs.size?'?'+qs.toString():''),undefined,'GET');
+ if(token!==invoiceListEpoch)return;
+ const rows=$('orderRows');rows.replaceChildren();
+ const v2=data.orders||[];
+ for(const order of v2)rows.append(invoiceCard(order));
+ $('invoiceResultCount').textContent='Tìm thấy '+v2.length+' đơn V2'+
+  (v2.length>=100?' (hiển thị tối đa 100 đơn gần nhất)':'');
+ // Historical records are still scoped by verified stable account ID.
+ // Apply date/name filters in this display; never infer identity from phone.
  let historical=null;
  try{
   historical=PREVIEW?{orders:[],linkedCount:0,unavailableCount:0}:
    await call('/api/v2/legacy/history',undefined,'GET');
  }catch{
-  $('orderRows').append(node('p','Chưa kiểm tra được liên kết hóa đơn lịch sử.','muted'));
+  if(token!==invoiceListEpoch)return;
+  rows.append(node('p','Không tải được hóa đơn lịch sử đã liên kết.','invoice-empty'));
  }
- if(historical?.orders?.length){
-  $('orderRows').append(node('h3','Địa chỉ giao hàng lịch sử ('+
-   (historical.addresses||[]).length+' điểm duy nhất)'));
-  for(const a of historical.addresses||[]){
-   const line=node('div',undefined,'address-line');
-   line.append(node('strong',a.address),
-    node('small','Lần giao gần nhất: '+(a.date||'Chưa có ngày')+
-      (a.name?' · '+a.name:'')+' · '+(a.phoneCandidate||'Chưa có số điện thoại'),'muted'));
-   $('orderRows').append(line);
+ if(token!==invoiceListEpoch)return;
+ const legacy=(historical?.orders||[]).filter(inv=>{
+  const name=String(inv.name||inv.customer||'').toLocaleLowerCase('vi-VN');
+  if(filters.customer&&!name.includes(filters.customer.toLocaleLowerCase('vi-VN')))return false;
+  if(filters.from||filters.to){
+   const date=invoiceLegacyDate(inv.date);
+   if(!date||(filters.from&&date<filters.from)||(filters.to&&date>filters.to))return false;
   }
-  $('orderRows').append(node('h3','Hóa đơn lịch sử đã liên kết (chỉ xem)'));
-  for(const inv of historical.orders){
-   const row=node('div',undefined,'address-line'),info=node('div');
-   info.append(node('strong','#'+inv.invoiceNo+' · '+(inv.date||'')),
-    node('small',(inv.status||'Trạng thái chưa xác minh')+
-     ' · '+money(Number(inv.totalVnd)||0)+' · Sổ hóa đơn gốc'));
-   // Delivery locations are shown once above; invoices remain individually auditable.
-   const details=node('details',undefined,'order-details');
-   details.append(node('summary','Xem sản phẩm lịch sử'));
-   for(const line of inv.items||[])details.append(node('small',
-    String(line.product||line.code||'Sản phẩm')+' × '+String(line.qty||0)+
-    ' · '+money(Number(line.unitPrice)||0)+' / '+String(line.unit||''),'muted'));
-   info.append(details);row.append(info);$('orderRows').append(row);
-  }
+  return true;
+ });
+ if(legacy.length){
+  rows.append(node('h3','Hóa đơn lịch sử đã liên kết (chỉ xem)','invoice-legacy-heading'));
+  for(const invoice of legacy)rows.append(invoiceCard(invoice,{historical:true}));
  }
- if(historical?.unavailableCount) $('orderRows').append(node('p',
-  historical.unavailableCount+' hóa đơn đã liên kết hiện chưa tải được từ nguồn ký số. Không tự thay thế bằng dữ liệu phỏng đoán.','muted'));
- if(!(data.orders||[]).length&&!historical?.orders?.length)$('orderRows').append(node('p',
-  'Chưa có đơn V2 hoặc hóa đơn cũ được Admin liên kết bằng ID xác minh.','muted'));
+ if(historical?.unavailableCount)rows.append(node('p',
+  historical.unavailableCount+' hóa đơn lịch sử chưa tải được từ nguồn xác minh.','invoice-empty'));
+ if(!v2.length&&!legacy.length)rows.append(node('p',
+  filters.from||filters.to||filters.customer?
+   'Không tìm thấy hóa đơn khớp bộ lọc. Hãy thử thay đổi ngày hoặc tên khách hàng.':
+   'Chưa có đơn V2 hoặc hóa đơn lịch sử được liên kết bằng định danh xác minh.','invoice-empty'));
 }
+$('invoiceFilters').onsubmit=event=>{
+ event.preventDefault();
+ loadOrders().catch(e=>{$('invoiceResultCount').textContent='Không thể lọc hóa đơn. Vui lòng thử lại.';toast(e.message)});
+};
+$('invoiceClearFilter').onclick=()=>{
+ $('invoiceCustomerSearch').value='';
+ $('invoiceFromDate').value='';
+ $('invoiceToDate').value='';
+ loadOrders().catch(e=>toast(e.message));
+};
 $('refreshOrders').onclick=()=>loadOrders().catch(e=>toast(e.message));
 const originalInvoiceLogo=document.querySelector('.brand .satori-logo');
 if(originalInvoiceLogo)$('invoiceMasthead').prepend(originalInvoiceLogo.cloneNode(true));
