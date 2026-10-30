@@ -764,6 +764,59 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
  .delivery-dialog h2{margin-top:10px}
  .delivery-dialog #agentAddressChoices .agent-address-choice{padding:11px 12px}
 }
+
+/* Minh Satori delivery cards: concise receipt-style cards without financial metadata.
+ * The two contact strips are intentionally identical; selected state belongs to card only. */
+.delivery-dialog{width:min(450px,calc(100vw - 24px));max-height:min(85dvh,720px);padding:14px 15px;border-radius:21px}
+.delivery-dialog h2{font-size:19px;line-height:1.25;margin:11px 0 5px}
+.delivery-dialog #deliveryDialogDesc{margin:0 0 11px;font-size:13px;line-height:1.4}
+.delivery-dialog .delivery-profile-label{margin:8px 0 5px;font-size:13px;line-height:1.35}
+.delivery-dialog .delivery-profile-select{height:40px;min-height:40px;padding:7px 10px}
+.delivery-dialog #agentAddressMenu{margin-top:9px}
+.delivery-dialog #agentAddressMenu>summary{padding:7px 10px;min-height:37px}
+.delivery-dialog .agent-address-popover{padding-top:8px}
+.delivery-dialog #agentAddressChoices{gap:9px}
+.delivery-dialog #agentAddressChoices .agent-address-choice{
+ display:block;width:100%;padding:12px 13px;margin:0;
+ min-height:0;border:1px solid #dae4e6;border-radius:16px;
+ background:#fff;box-shadow:0 2px 9px #102c380b;transition:border-color .15s,background-color .15s
+}
+.delivery-dialog #agentAddressChoices .agent-address-choice[aria-pressed="true"]{
+ border-color:#40a7a2;background:#f7fbfa;box-shadow:0 0 0 1px #40a7a22a
+}
+.delivery-dialog #agentAddressChoices .agent-address-choice .address-meta{
+ display:flex;flex-direction:column;gap:7px;min-width:0
+}
+.delivery-dialog #agentAddressChoices .address-card-head{
+ display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin:0 0 2px
+}
+.delivery-dialog #agentAddressChoices .address-title{
+ display:block;color:#1e3542;font-size:16px;line-height:1.3;font-weight:770
+}
+.delivery-dialog #agentAddressChoices .address-recipient{
+ color:#60727a;font-size:13px;line-height:1.35;font-weight:550;overflow-wrap:anywhere
+}
+.delivery-dialog #agentAddressChoices .address-contact-row{
+ display:flex;align-items:center;gap:8px;width:100%;min-width:0;
+ padding:7px 9px;border:1px solid #e1e8eb;border-radius:10px;
+ background:#f6f8fa;color:#405e6b;line-height:1.38
+}
+.delivery-dialog #agentAddressChoices .address-contact-icon{
+ flex:none;width:17px;text-align:center;font-size:17px;line-height:1;color:#208e8b;font-weight:700
+}
+.delivery-dialog #agentAddressChoices .address-contact-text{
+ display:block;min-width:0;font-size:14px;line-height:1.4;
+ font-weight:530;color:#425d68;overflow-wrap:anywhere;white-space:normal
+}
+.delivery-dialog #agentAddressManage{min-height:40px;margin-top:9px;border-radius:11px;font-size:14px}
+@media(max-width:420px){
+ .delivery-dialog{width:calc(100vw - 24px);padding:13px 13px 14px}
+ .delivery-dialog #agentAddressChoices .agent-address-choice{padding:11px}
+ .delivery-dialog #agentAddressChoices .address-contact-row{padding:7px 8px}
+}
+@media(prefers-reduced-motion:reduce){
+ .delivery-dialog #agentAddressChoices .agent-address-choice{transition:none}
+}
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
@@ -2145,22 +2198,28 @@ function renderAddresses(){
  for(const address of active){
   const button=node('button',undefined,'agent-address-choice');button.type='button';
   button.setAttribute('aria-pressed',String(address.id===$('location').value));
-  // Each saved address is text-only: no repeated map pins or extra metadata.
-  // The group heading already carries the location icon.
+  // Delivery picker displays identity and contact only, never invoices, prices or CTV margin.
   const meta=node('span',undefined,'address-meta');
-  meta.append(node('span',address.label,'address-title'),
-   node('span',address.address,'address-subtitle'),
-   node('span',address.recipientPhone||'Chưa lưu số điện thoại','address-phone'));
-  const ctvClient=current?.type==='collaborator'&&ctvClientData?.profileId===current.id
-   ?ctvClientData.clients.find(client=>client.id===address.id):null;
-  if(ctvClient){
-   const ck=(ctvClient.discountBps/100).toLocaleString('vi-VN',{maximumFractionDigits:2});
-   meta.append(node('span','CK khách '+ck+'% · '+(ctvClient.ownerLocked?
-    'Admin quản lý':'CTV được chỉnh'),'address-ctv-discount'));
+  const heading=node('span',undefined,'address-card-head');
+  heading.append(node('span',address.label||'Điểm giao','address-title'));
+  const recipient=(address.recipientName||'').trim();
+  if(recipient&&recipient.toLocaleLowerCase('vi-VN')!==String(address.label||'').trim().toLocaleLowerCase('vi-VN')){
+   heading.append(node('span',recipient,'address-recipient'));
   }
+  meta.append(heading);
+  const phone=node('span',undefined,'address-contact-row');
+  const phoneIcon=node('span','☎','address-contact-icon');
+  phoneIcon.setAttribute('aria-hidden','true');
+  phone.append(phoneIcon,node('span',address.recipientPhone||'Chưa lưu số điện thoại','address-contact-text'));
+  const location=node('span',undefined,'address-contact-row');
+  const locationIcon=node('span','⌖','address-contact-icon');
+  locationIcon.setAttribute('aria-hidden','true');
+  location.append(locationIcon,node('span',address.address,'address-contact-text'));
+  meta.append(phone,location);
   button.append(meta);
   button.setAttribute('aria-label',
-   [address.label,address.address,address.recipientPhone||'Chưa lưu số điện thoại'].join(', '));
+   [address.label,recipient,address.recipientPhone||'Chưa lưu số điện thoại',address.address]
+    .filter(Boolean).join(', '));
   button.onclick=()=>{
    deliverySelectionProfileId=$('profile').value;
    $('location').value=address.id;
