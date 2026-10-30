@@ -1,6 +1,15 @@
 const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm');
 require('../accounting-core.js');const C=global.SatoriAccountingCore;
 const initial=[{id:1,invoiceNo:11,name:'Khách A',phone:'0901 234 567',customerCode:'KH001',date:'01/10/2026',status:'Chưa thanh toán',total:100},{id:1,invoiceNo:12,name:'Khách A',date:'02/10/2026',status:'Đã thanh toán',total:200},{id:3,invoiceNo:13,name:'Khách B',date:'03/10/2026',status:'Chưa thanh toán',total:300},{id:4,invoiceNo:14,status:'Đã hủy'}];
+const cancelledWithPastPayment={
+  id:5914,invoiceNo:5914,status:'Đã hủy',total:950400,
+  customerPaidAt:'2026-10-19T14:10:08Z',satoriPaidAt:'2026-10-20T14:10:08Z'
+};
+assert.equal(C.active(cancelledWithPastPayment),false);
+assert.equal(C.paid(cancelledWithPastPayment),false,
+  'cancellation must override a retained payment audit timestamp');
+assert.equal(cancelledWithPastPayment.customerPaidAt,'2026-10-19T14:10:08Z',
+  'historical payment metadata must not be erased');
 const keys=initial.slice(0,2).map(C.key),at='2026-10-17T15:45:00.000Z',receipt={id:'receipt-group-1',name:'Thanh toan',mime:'image/jpeg',data:'data:image/jpeg;base64,dGVzdA==',uploadedAt:at};
 let next=C.paymentGroup(initial,keys,{id:'group-1',target:'satori',receipt,at});assert.equal(next[0].status,'Đã TT Satori');assert(!C.paid(next[0]));assert(C.paid(next[1]));assert.equal(next[2],initial[2]);assert.equal(next.filter(o=>o.paymentReceipts?.[0].data).length,1);assert.equal(C.resolveReceipt(next[1].paymentReceipts[0],next).data,receipt.data);assert.equal(JSON.stringify(initial).includes('group-1'),false);
 next=C.paymentGroup(next,keys,{id:'group-2',target:'customer',at});assert.equal(next[0].status,'Đã TT Satori');assert(C.paid(next[0]));assert.equal(next[0].satoriPaidAt,at);
