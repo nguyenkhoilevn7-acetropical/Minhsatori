@@ -79,7 +79,7 @@ test('receipt button is inaccessible for unverified/test-only requests; PDF neve
  assert.match(router,/WHERE r.account_id=\$1 AND q.account_id=\$1/);
  assert.match(router,/canonicalReceiptForAccountOrder\(x\)/);
  assert.match(router,/verified:receipt!==null/);
- assert.match(html,/if\(verified&&o\.receipt\)/);
+ assert.match(html,/if\(verified&&order\.receipt\)/);
  assert.match(html,/function showCommittedReceipt\(order\)/);
  assert.match(html,/order\?\.verified!==true\|\|order\.state!=='COMMITTED'/);
  assert.match(html,/AWAITING_VERIFIED_DRIVE_PDF/);
