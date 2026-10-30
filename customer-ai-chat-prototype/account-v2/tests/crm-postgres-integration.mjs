@@ -8,7 +8,7 @@ import {registrationSave,adminCreateLead,adminPatchLead,adminChangeCustomerStatu
  adminApproveRegistration,legacyCustomerSearch,legacyCustomerImport,
  legacyCustomerActivateLead,autoActivateVerifiedLegacyGmail,reconcileVerifiedLegacySession,
  adminReconcileVerifiedLegacyPending,ownerActivateSavedGmail,
- ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,legacyAddressDirectory} from '../customer-backend.mjs';
+ ownerBindLegacyInvoices,linkedLegacyInvoiceHistory,legacyAddressDirectory,ownerArchiveImportedDuplicateLeads} from '../customer-backend.mjs';
 
 const url=process.env.SATORI_V2_CI_DATABASE_URL||'';
 assert.ok(url.includes('127.0.0.1')&&url.endsWith('/satori_v2_ci'),
