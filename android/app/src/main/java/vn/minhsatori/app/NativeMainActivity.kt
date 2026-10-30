@@ -154,15 +154,58 @@ class NativeMainActivity : AppCompatActivity() {
             }
     }
 
+    // Store only canonical invoice numbers, not addresses, customer names or OAuth tokens.
+    // The first verified ledger is a baseline, so old invoices never flood the badge.
+    private val invoiceKnownKey = "satori_invoice_alert_known_v1"
+    private val invoiceUnreadKey = "satori_invoice_alert_unread_v1"
+    private val invoiceBaselineKey = "satori_invoice_alert_baseline_v1"
+
+    private fun unreadInvoiceIds(): Set<String> =
+        getPreferences(MODE_PRIVATE).getStringSet(invoiceUnreadKey, emptySet())
+            ?.toSet() ?: emptySet()
+
+    private fun unreadInvoiceCount(): Int = unreadInvoiceIds().size
+
+    private fun markInvoiceSeen(invoice: SatoriInvoice) {
+        val unread = unreadInvoiceIds()
+        if (invoice.number !in unread) return
+        getPreferences(MODE_PRIVATE).edit()
+            .putStringSet(invoiceUnreadKey, unread - invoice.number).apply()
+        render()
+    }
+
+    private fun markAllInvoicesSeen() {
+        if (unreadInvoiceCount() == 0) return
+        getPreferences(MODE_PRIVATE).edit()
+            .putStringSet(invoiceUnreadKey, emptySet()).apply()
+        render()
+    }
+
     private fun notifyVerifiedNewInvoices(prior: SatoriSnapshot?, latest: SatoriSnapshot) {
-        if (prior == null || latest.revision <= prior.revision) return
-        val known = prior.invoices.map { it.number }.toSet()
-        val added = latest.invoices.filter { !it.isTest && it.number !in known }
+        if (prior != null && latest.revision < prior.revision) return
+        val prefs = getPreferences(MODE_PRIVATE)
+        // Never baseline a test-only fixture as the production ledger.
+        if (latest.invoices.isNotEmpty() && latest.invoices.all { it.isTest }) return
+        val allRealNumbers = latest.invoices
+            .filter { !it.isTest && !it.isInternalCollaboratorBill && it.number.isNotBlank() }
+            .map { it.number }.toSet()
+        if (!prefs.getBoolean(invoiceBaselineKey, false)) {
+            prefs.edit().putBoolean(invoiceBaselineKey, true)
+                .putStringSet(invoiceKnownKey, allRealNumbers)
+                .putStringSet(invoiceUnreadKey, emptySet()).apply()
+            return
+        }
+        val known = prefs.getStringSet(invoiceKnownKey, emptySet())?.toSet() ?: emptySet()
+        val added = latest.invoices.filter {
+            !it.isExcluded && it.number.isNotBlank() && it.number !in known
+        }.distinctBy { it.number }
+        val currentUnread = unreadInvoiceIds().intersect(allRealNumbers)
+        val unread = currentUnread + added.map { it.number }
+        prefs.edit().putStringSet(invoiceKnownKey, known + allRealNumbers)
+            .putStringSet(invoiceUnreadKey, unread).apply()
         if (added.isEmpty()) return
-        // A revisioned snapshot is authoritative; do not alert on demo orders,
-        // on first app launch, or on a stale/out-of-order response.
-        statusMessage = "🔔 " + added.size + " hóa đơn thật mới đã đồng bộ • revision " +
-            latest.revision
+        statusMessage = "🔔 " + added.size +
+            " hóa đơn mới đã ghi vào sổ • " + unread.size + " chưa xem"
         val notifications = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26)
             notifications.createNotificationChannel(NotificationChannel(newOrderChannelId,
@@ -170,7 +213,7 @@ class NativeMainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED) return
-        if (!getPreferences(MODE_PRIVATE).getBoolean("satori_live_notifications", false)) return
+        if (!prefs.getBoolean("satori_live_notifications", false)) return
         @Suppress("DEPRECATION")
         val notification = if (Build.VERSION.SDK_INT >= 26)
             Notification.Builder(this, newOrderChannelId)
@@ -683,7 +726,26 @@ class NativeMainActivity : AppCompatActivity() {
         shell.addView(brand, 0, LinearLayout.LayoutParams(-1, -2))
 
         val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn", "Quản trị hệ thống")
-        label(content, pages[activeTab], 22f, true, ink, 12)
+        label(content, pages[activeTab] + if (activeTab == 1 && unreadInvoiceCount() > 0)
+            "  🔴 " + unreadInvoiceCount() else "", 22f, true, ink, 12)
+        if (unreadInvoiceCount() > 0) {
+            val alert = TextView(this).apply {
+                text = "🔔  " + unreadInvoiceCount() + " HÓA ĐƠN MỚI CHƯA XEM   ›"
+                textSize = 14f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Color.rgb(179, 32, 45))
+                background = panelBackground(Color.rgb(255, 235, 237), 12)
+                setPadding(dp(14), dp(12), dp(12), dp(12))
+                isClickable = true
+                isFocusable = true
+                contentDescription = unreadInvoiceCount().toString() +
+                    " hóa đơn chưa xem, mở mục Hóa đơn"
+                setOnClickListener { activeTab = 1; render() }
+            }
+            content.addView(alert, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(8)
+            })
+        }
         label(content, "MINH SATORI  •  ANDROID " + BuildConfig.VERSION_NAME,
             10.5f, true, cyan, 6)
 
@@ -937,7 +999,8 @@ class NativeMainActivity : AppCompatActivity() {
         }
         destinations.forEachIndexed { index, item ->
             val destination = TextView(this).apply {
-                text = item.second
+                text = item.second + if (index == 1 && unreadInvoiceCount() > 0)
+                    "    🔴 " + unreadInvoiceCount() else ""
                 val glyph = androidx.core.content.ContextCompat.getDrawable(
                     this@NativeMainActivity, item.first)?.mutate()
                 glyph?.setTint(if (activeTab == index) cyan else ink)
@@ -1079,7 +1142,9 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(9), 0, 0)
         }
-        actionTile(row1, "Hóa đơn", data.invoices.size.toString() + " hóa đơn",
+        actionTile(row1, "Hóa đơn",
+            if (unreadInvoiceCount() > 0) "🔴 " + unreadInvoiceCount() + " đơn mới"
+            else data.invoices.size.toString() + " hóa đơn",
             Color.rgb(0, 122, 255)) {
             activeTab = 1
             render()
@@ -1710,11 +1775,15 @@ class NativeMainActivity : AppCompatActivity() {
 
     private fun invoiceQuickCard(parent: LinearLayout, invoice: SatoriInvoice,
                                  fromDebt: Boolean = false) {
+        val isUnread = invoice.number in unreadInvoiceIds()
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(12), dp(13), dp(12))
-            background = panelBackground(Color.rgb(255, 255, 255), 16)
+            background = panelBackground(if (isUnread) Color.rgb(255, 239, 241)
+                else Color.rgb(255, 255, 255), 16)
         }
+        if (isUnread) label(card, "🔴  ĐƠN MỚI • CHƯA XEM", 11.5f, true,
+            Color.rgb(179, 32, 45))
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -1813,6 +1882,11 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
+        if (unreadInvoiceCount() > 0) {
+            label(parent, "🔴 " + unreadInvoiceCount() +
+                " hóa đơn mới cần xem", 16f, true, Color.rgb(179, 32, 45), 10)
+            button(parent, "✓  ĐÁNH DẤU TẤT CẢ ĐÃ XEM") { markAllInvoicesSeen() }
+        }
         button(parent, "▤ SỔ KẾ TOÁN · LỌC TRẠNG THÁI") { showLedger(data) }
         if (canWrite) button(parent, "+ TẠO HÓA ĐƠN", true) { launchEditor() }
         if (canAction("mobile.trash") && canAction("orders.restore")) {
@@ -1858,7 +1932,8 @@ class NativeMainActivity : AppCompatActivity() {
             label(list, "Tìm thấy " + matching.size + " hóa đơn" +
                 (if (status != "Tất cả") " • " + status else ""),
                 11.5f, true, cyan, 7)
-            matching.take(120).forEach { inv ->
+            val unread = unreadInvoiceIds()
+            matching.sortedByDescending { it.number in unread }.take(120).forEach { inv ->
                 invoiceQuickCard(list, inv)
             }
         }
@@ -2084,6 +2159,8 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun openInvoice(invoice: SatoriInvoice) {
+        // Reading an actual invoice clears only its badge, never the whole tab.
+        markInvoiceSeen(invoice)
         val wrapper = ScrollView(this).apply { setBackgroundColor(night) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
