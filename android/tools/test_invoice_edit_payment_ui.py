@@ -17,10 +17,10 @@ class OwnerInvoiceEditPaymentContract(unittest.TestCase):
     def test_edit_button_is_visible_on_eligible_invoice_before_api_authorization(self):
         detail = UI.split("private fun openInvoice(", 1)[1].split("private fun configureMobileApi(", 1)[0]
         self.assertIn('if (invoice.canEditOrDelete)', detail)
-        self.assertIn('button(content, "SỬA HÓA ĐƠN"', detail)
+        self.assertIn('invoiceMiniAction(actions, R.drawable.ic_satori_edit', detail)
         self.assertIn('if (!canAction("orders.update"))', detail)
         self.assertIn('showConnectionSettings()', detail)
-        self.assertIn('launchEditor(editing = invoice)', detail)
+        self.assertIn('requestInvoiceEdit(invoice)', detail)
 
     def test_card_edit_opens_real_editor_only_after_server_authorization(self):
         card = UI.split("private fun invoiceQuickCard(", 1)[1].split(
@@ -53,8 +53,12 @@ class OwnerInvoiceEditPaymentContract(unittest.TestCase):
             self.assertIn(action, detail)
             self.assertIn(action, MOBILE)
         self.assertIn('if (!canAction(action))', detail)
+        self.assertIn('val customerAction = if (invoice.customerHasPaid)', detail)
+        self.assertIn('val satoriAction = if (invoice.satoriHasPaid)', detail)
         self.assertIn("confirmInvoicePayment(invoice, action)", detail)
-        self.assertIn('label(content, "CẬP NHẬT THANH TOÁN"', detail)
+        self.assertIn('label(content, "THANH TOÁN"', detail)
+        self.assertIn('invoicePaymentRow(content, "Khách"', detail)
+        self.assertIn('invoicePaymentRow(content, "Satori"', detail)
         self.assertIn('invoice.customerHasPaid', detail)
         self.assertIn('invoice.satoriHasPaid', detail)
 
