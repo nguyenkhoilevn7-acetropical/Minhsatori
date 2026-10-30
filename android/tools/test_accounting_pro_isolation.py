@@ -59,7 +59,7 @@ class AccountingProIsolationTest(unittest.TestCase):
         ui = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
         self.assertIn("TỔNG LÃI GỘP ƯỚC TÍNH", ui)
         self.assertIn("private fun showAccountingProMarginPeriod(data: SatoriSnapshot)", ui)
-        self.assertIn("Lãi gộp ước tính (giá nhập CK 45%)", ui)
+        self.assertIn("Lãi gộp ước tính (CK nhập 45%)", ui)
         self.assertIn("LÃI GỘP ƯỚC TÍNH (CK NHẬP 45%)", ui)
 
     def test_document_review_is_metadata_only_without_email_or_tax_writers(self):
