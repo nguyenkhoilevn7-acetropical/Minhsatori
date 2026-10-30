@@ -806,7 +806,7 @@ class NativeMainActivity : AppCompatActivity() {
                 contentDescription = "Mở " + title
                 setOnClickListener {
                     when (index) {
-                        0 -> { activeTab = 1; acknowledgeInvoiceBadge(); render() }
+                        0 -> { activeTab = 1; render() }
                         1 -> { activeTab = 2; render() }
                         2 -> { activeTab = 3; render() }
                         else -> startActivity(Intent(this@NativeMainActivity,
@@ -849,7 +849,11 @@ class NativeMainActivity : AppCompatActivity() {
             return
         }
         data.invoices.take(4).forEach { invoice ->
-            section(parent, "#" + invoice.number + "  ·  " + invoice.customer,
+            val isUnread = invoice.number.toLongOrNull()?.let {
+                it in currentInvoiceBadge().unread
+            } == true
+            section(parent, (if (isUnread) "🔴 MỚI · " else "") +
+                "#" + invoice.number + "  ·  " + invoice.customer,
                 invoice.displayDate + "  ·  " + SatoriData.money(invoice.total)) {
                 openInvoice(invoice)
             }
@@ -1088,7 +1092,7 @@ class NativeMainActivity : AppCompatActivity() {
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Mở tổng tiền bán và danh sách hóa đơn"
-                setOnClickListener { activeTab = 1; acknowledgeInvoiceBadge(); render() }
+                setOnClickListener { activeTab = 1; render() }
             }
             label(salesCard, "Tổng tiền bán", 11f, false, muted)
             label(salesCard, if (salesAmount == null) "—"
@@ -1247,8 +1251,7 @@ class NativeMainActivity : AppCompatActivity() {
                     "Mở Hóa đơn, có " + currentInvoiceBadge().count + " đơn mới"
                     else "Mở " + title
                 setOnClickListener {
-                    if (index == 1) acknowledgeInvoiceBadge()
-                    if (activeTab != index || index == 1) {
+                    if (activeTab != index) {
                         activeTab = index
                         render()
                     }
@@ -2410,14 +2413,18 @@ class NativeMainActivity : AppCompatActivity() {
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
         if (currentInvoiceBadge().count > 0) {
             val pending = currentInvoiceBadge().count
+            val freshNumbers = data.invoices.filter {
+                it.number.toLongOrNull()?.let { no -> no in currentInvoiceBadge().unread } == true
+            }.take(5).joinToString(" · ") { "#" + it.number }
             val banner = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(12), dp(9), dp(12), dp(9))
                 background = panelBackground(Color.rgb(255, 237, 237), 12)
             }
-            label(banner, "🔔  $pending hóa đơn mới chưa xem",
-                13f, true, Color.rgb(176, 35, 45))
+            val message = if (freshNumbers.isBlank()) "🔔  $pending hóa đơn mới chưa xem"
+                else "🔔  $pending đơn mới · $freshNumbers"
+            label(banner, message, 13f, true, Color.rgb(176, 35, 45))
             banner.addView(compactAction("Đã xem", teal) {
                 acknowledgeInvoiceBadge()
                 render()
