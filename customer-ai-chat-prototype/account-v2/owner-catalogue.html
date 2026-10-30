@@ -572,6 +572,14 @@ body{font-size:14px;line-height:1.42}
  border:1px solid #cfdfe0;border-radius:9px;background:#fff;color:#1c3844;font-size:15px}
 .crm-new-registration button{grid-column:1/-1;justify-self:start;min-height:41px}
 @media(max-width:540px){.crm-new-registration{grid-template-columns:1fr}}
+/* Read-only historic recipients have their own space, separate from Google registrations. */
+.crm-ledger-match-list{display:grid;gap:9px;margin:10px 0}
+.crm-ledger-match{border:1px solid #d7e7e4;background:#fff;border-radius:13px;
+ padding:12px;display:grid;gap:5px}
+.crm-ledger-name{font-size:15px;color:#173a45;font-weight:800}
+.crm-ledger-contact{font-size:13px;line-height:1.5;color:#506a75;overflow-wrap:anywhere}
+.crm-ledger-muted{font-size:12px;color:#657781}
+.crm-ledger-match button{justify-self:start;min-height:36px;border-radius:9px;font-size:12px;margin-top:5px}
 </style></head>
 <body>
 <main>
@@ -657,6 +665,9 @@ body{font-size:14px;line-height:1.42}
 </details>
 <section id="crmSignedHistory" class="crm-legacy-signed" aria-label="Khách cũ từ sổ hóa đơn gốc">
  <h3>Điểm giao từ hóa đơn gốc (chỉ đọc)</h3>
+ <p class="crm-readonly-note">Đây là địa chỉ giao hàng trong sổ Satori, kể cả của người chưa có tài khoản V2. Tìm theo tên, SĐT hoặc địa chỉ ở ô phía trên và bấm kính lúp để tra cứu trực tiếp. Không tự gắn địa chỉ vào Gmail.</p>
+ <p id="crmSignedHistoryExactStatus" class="crm-readonly-note" role="status" aria-live="polite"></p>
+ <div id="crmSignedHistoryExactRows" class="crm-ledger-match-list" aria-label="Kết quả tra cứu địa chỉ gốc"></div>
  <p id="crmSignedHistoryStatus">Chọn tab Khách cũ để tải địa chỉ lịch sử.</p>
  <div id="crmSignedHistoryRows"></div>
  <button id="crmSignedHistoryMore" class="secondary" type="button" hidden>Xem thêm lịch sử 24 tháng</button>
@@ -2157,7 +2168,59 @@ byId('crmOldFilter').addEventListener('input',()=>{
   }
  }
 });
-byId('crmOldSearch').addEventListener('click',()=>byId('crmOldFilter').focus());
+// The old-customer search button additionally queries the SIGNED original ledger.
+ // Unlike local CRM filtering, this finds recipients who have never registered a Google account.
+async function searchSignedOldCustomers(){
+ const query=byId('crmOldFilter').value.trim();
+ const results=byId('crmSignedHistoryExactRows'),status=byId('crmSignedHistoryExactStatus');
+ results.replaceChildren();
+ if(query.length<2){
+  status.textContent='Nhập ít nhất 2 ký tự để tìm khách hoặc địa chỉ lịch sử.';
+  return;
+ }
+ status.textContent='Đang tra sổ hóa đơn gốc cho “'+query+'”…';
+ const button=byId('crmOldSearch');button.disabled=true;
+ try{
+  const data=await api('/api/v2/admin/legacy/search?query='+encodeURIComponent(query));
+  if(!Array.isArray(data.addressGroups))throw Error('LEGACY_SEARCH_DATA_INVALID');
+  status.textContent='Sổ gốc: '+data.addressGroups.length+' điểm giao khớp “'+query+'”'+
+   (data.truncated?' · kết quả có giới hạn, hãy tìm bằng địa chỉ cụ thể hơn.':'.')+
+   ' Chưa liên kết với tài khoản Google.';
+  for(const group of data.addressGroups){
+   const row=make('article',null,'crm-ledger-match');
+   row.append(make('strong',group.name||'Người nhận chưa rõ','crm-ledger-name'));
+   if(group.phone)row.append(make('span','☎ '+group.phone,'crm-ledger-contact'));
+   row.append(make('span','⌖ '+group.address,'crm-ledger-contact'));
+   row.append(make('small',(group.invoiceCount||0)+' hóa đơn đã tìm thấy · '+
+    (group.date||'Chưa rõ lần giao cuối'),'crm-ledger-muted'));
+   const link=iconButton('Đối chiếu & liên kết khi xác nhận đúng chủ','mail','secondary');
+   link.onclick=()=>{
+    const panel=byId('crmLegacyLink').querySelector('details');
+    if(!panel)return crmStatus('Chức năng liên kết chưa tải.','error');
+    panel.open=true;
+    const input=byId('crmLegacyInvoiceQuery');
+    if(input)input.value=group.name||query;
+    const name=byId('crmLegacyProfileName');
+    if(name&&!name.value)name.value=group.name||'';
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+    byId('crmLegacyInvoiceFind')?.click();
+   };
+   row.append(link);results.append(row);
+  }
+  if(!data.addressGroups.length)results.append(make('p',
+   'Không có điểm giao khớp từ khóa trong sổ gốc. Hãy thử tên, số điện thoại hoặc địa chỉ khác.','crm-stage-hint'));
+  byId('crmSignedHistory').scrollIntoView({behavior:'smooth',block:'start'});
+ }catch(e){
+  status.textContent='Không tra cứu được sổ gốc: '+e.message+
+   '. Danh sách khách V2 vẫn được giữ nguyên.';
+ }finally{button.disabled=false}
+}
+byId('crmOldSearch').addEventListener('click',()=>{
+ void searchSignedOldCustomers();
+});
+byId('crmOldFilter').addEventListener('keydown',ev=>{
+ if(ev.key==='Enter'){ev.preventDefault();void searchSignedOldCustomers()}
+});
 byId('crmRefresh').addEventListener('click',loadCustomers);
 byId('crmAutoLinkPending').addEventListener('click',async()=>{
  const button=byId('crmAutoLinkPending');
