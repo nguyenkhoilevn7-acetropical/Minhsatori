@@ -723,7 +723,7 @@ export async function handleAccountV2(req,res,pathname){
     'WHERE r.account_id=$1 AND q.account_id=$1 '+
     'AND ($3::timestamp IS NULL OR q.created_at >= ($3::timestamp AT TIME ZONE $6)) '+
     'AND ($4::timestamp IS NULL OR q.created_at < ($4::timestamp AT TIME ZONE $6)) '+
-    'AND ($5::text IS NULL OR position(lower($5::text) in lower(COALESCE(q.payload->\\'delivery\\'->>\\'recipientName\\',\\'\\'))) > 0) '+
+    'AND ($5::text IS NULL OR position(lower($5::text) in lower(COALESCE(q.payload->\'delivery\'->>\'recipientName\',\'\'))) > 0) '+
     'ORDER BY q.created_at DESC LIMIT 100',
     [actor.id,'COMMITTED',filters.from,filters.toExclusive,filters.customer,'Asia/Ho_Chi_Minh']);
    // These rows remain scoped to the authenticated V2 account. Never present
