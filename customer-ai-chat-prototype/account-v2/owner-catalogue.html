@@ -474,6 +474,66 @@ body{font-size:14px;line-height:1.42}
  #legacyConsole .crm-recipient-directory .crm-recipient-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
  #legacyConsole .crm-recipient-directory .crm-recipient-fields>button{grid-column:1/-1}
 }
+
+/* CTV recipient edit: the ellipsis is the third grid item while collapsed,
+   but its edit form spans every column when expanded. Phone/Fold responsive. */
+#legacyConsole .crm-ctv-client-row > .crm-client-options{
+ grid-column:3;
+ width:100%;
+ min-width:0;
+ max-width:100%;
+ align-self:start;
+}
+#legacyConsole .crm-ctv-client-row > .crm-client-options[open]{
+ grid-column:1 / -1;
+ min-width:0;
+ width:100%;
+ border:1px solid #d4e9e5;
+ background:#f8fcfb;
+ border-radius:12px;
+ padding:12px;
+}
+#legacyConsole .crm-ctv-client-row > .crm-client-options[open] > summary{
+ text-align:left;
+ padding:0 2px 9px!important;
+}
+#legacyConsole .crm-ctv-client-row > .crm-client-options > form.field-grid{
+ display:grid!important;
+ grid-template-columns:repeat(2,minmax(0,1fr))!important;
+ align-items:stretch;
+ gap:12px;
+ width:100%;
+ min-width:0;
+ max-width:100%;
+ margin:0;
+}
+#legacyConsole .crm-ctv-client-row > .crm-client-options > form.field-grid > label{
+ min-width:0;
+ width:100%;
+ display:flex;
+ flex-direction:column;
+ align-items:stretch;
+ gap:5px;
+ overflow-wrap:anywhere;
+}
+#legacyConsole .crm-ctv-client-row > .crm-client-options > form.field-grid input:not([type="checkbox"]){
+ width:100%;
+ max-width:100%;
+ min-width:0;
+ box-sizing:border-box;
+}
+#legacyConsole .crm-ctv-client-row > .crm-client-options > form.field-grid > button[type="submit"]{
+ grid-column:1/-1;
+ width:100%;
+ min-height:44px;
+}
+@media (max-width:720px){
+ #legacyConsole .crm-ctv-client-row > .crm-client-options > form.field-grid{
+  grid-template-columns:minmax(0,1fr)!important;
+ }
+ #legacyConsole .crm-ctv-client-row > .crm-client-options[open]{padding:10px}
+}
+
 </style></head>
 <body>
 <main>
@@ -933,7 +993,9 @@ async function renderOwnerCtvClientCards(account,wrap){
    input.type='number';input.step='0.01';input.min='0';input.max=String(cap/100);input.required=true;
    const save=iconButton('Lưu CK','check','secondary');save.type='submit';
    form.append(input,make('span','%'),save);
-   const editorSlot=make('div');
+   // The editor MUST be a direct child of the row grid; a wrapper constrains
+   // the expanded form to the 30-42px ellipsis column.
+   let editorNode=null;
    const refreshCurrent=()=>{
     info.replaceChildren();
     info.append(make('strong',row.recipientName||row.label||'Khách'));
@@ -962,7 +1024,9 @@ async function renderOwnerCtvClientCards(account,wrap){
     editor.classList.add('crm-client-options');
     editor.querySelector('summary').textContent='⋯';
     editor.querySelector('summary').setAttribute('aria-label','Sửa khách '+row.recipientName);
-    editorSlot.replaceChildren(editor);
+    if(editorNode)editorNode.replaceWith(editor);
+    else card.append(editor);
+    editorNode=editor;
    };
    form.onsubmit=async event=>{
     event.preventDefault();
@@ -979,7 +1043,7 @@ async function renderOwnerCtvClientCards(account,wrap){
      await refresh();crmStatus('Đã lưu CK riêng của khách.','success');
     }catch(e){crmStatus('Không lưu được: '+e.message,'error');save.disabled=false}
    };
-   card.append(info,form,editorSlot);list.append(card);refreshCurrent();
+   card.append(info,form);list.append(card);refreshCurrent();
   }
   if(!a.addresses.length)list.append(make('p','Chưa có khách riêng được lưu.','crm-client-banner'));
   wrap.append(list);
