@@ -141,6 +141,32 @@ class AccountingProIsolationTest(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, demo)
 
+    def test_owner_requested_three_overview_cards_are_removed_without_dropping_validation(self):
+        source = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
+        start = source.index("    private fun showAccountingProPreview(data: SatoriSnapshot)")
+        end = source.index("    /**", start + 1)
+        overview = source[start:end]
+        for removed in (
+            'section(panel, "Đã đánh dấu trả Satori:',
+            'section(panel, "CẦN ĐỐI CHIẾU ID HÓA ĐƠN"',
+            'section(panel, "Ngày hóa đơn cần kiểm tra:'
+        ):
+            with self.subTest(removed=removed):
+                self.assertNotIn(removed, overview)
+        # Retain fail-closed invoice-money protection and all destination screens.
+        self.assertIn("AccountingProReadOnly.summarize(data.invoices)", overview)
+        self.assertIn("if (totals.questionableInvoiceCount == 0)", overview)
+        self.assertIn("showAccountingProInvoiceList(data)", overview)
+        self.assertIn("showAccountingProReviewAlerts(data)", overview)
+        self.assertIn("showAccountingProProfitAudit(data)", overview)
+        self.assertIn("showAccountingProBankDemo()", overview)
+        self.assertIn("showAccountingProDocuments(data)", overview)
+        self.assertIn("showAccountingProAllocationDemo()", overview)
+        model = (KOTLIN / "AccountingProReadOnly.kt").read_text(encoding="utf-8")
+        self.assertIn("satoriPaidFlagCount", model)
+        self.assertIn("questionableInvoiceCount", model)
+        self.assertIn("invalidDateCount", model)
+
     def test_new_ui_is_opt_in_and_uses_existing_snapshot_only(self):
         source = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
         self.assertIn("private fun showAccountingProPreview(data: SatoriSnapshot)", source)
