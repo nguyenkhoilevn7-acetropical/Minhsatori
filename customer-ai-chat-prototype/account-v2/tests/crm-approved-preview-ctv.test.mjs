@@ -12,39 +12,39 @@ const ownerScript=owner.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 const geminiScript=[...gemini.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
  .map(m=>m[1]).find(Boolean);
 
-test('three owner tabs remain, exactly one CRM Gmail/history linking panel',()=>{
+test('three owner tabs remain with address import, not one-click Gmail binding',()=>{
  assert.equal((owner.match(/id="ownerTabs"/g)||[]).length,1);
  for(const tab of ['new','old','catalogue'])
   assert.match(owner,new RegExp('data-owner-tab="'+tab+'"'));
  assert.match(ownerScript,/activateOwnerTab\(tab\)/);
- assert.match(ownerScript,/function legacyBindingPanel\(/);
- assert.equal((owner.match(/id="crmLegacyLink"/g)||[]).length,1);
- assert.match(ownerScript,/lead\.id='crmLegacyLeadSelect'/);
- assert.match(ownerScript,/byId\('crmLegacyLink'\)\.replaceChildren\(legacyBindingPanel\(\)\)/);
+ assert.match(ownerScript,/function renderHistoricAddressImporter\(/);
+ assert.equal((owner.match(/id="crmImportDelivery"/g)||[]).length,1);
+ assert.doesNotMatch(owner,/id="crmLegacyLink"/);
+ assert.doesNotMatch(ownerScript,/function legacyBindingPanel\(/);
+ assert.doesNotMatch(ownerScript,/byId\('crmLegacyLink'\)/);
  for(const removed of ['crmLedgerDiscovery','crmLedgerPreview','legacyLedgerDisclosure','legacySearchForm'])
   assert.doesNotMatch(owner,new RegExp('id="'+removed+'"'));
- assert.doesNotMatch(ownerScript,/renderLegacyRecipientDirectory\(/);
- assert.doesNotMatch(ownerScript,/submitLegacyImport\(/);
  assert.doesNotThrow(()=>new vm.Script(ownerScript));
 });
 
-test('owner-saved old lead stays visible even when same Gmail registered in Google V2',()=>{
+test('saved legacy CRM leads remain visible but one-tap linking is gone',()=>{
  assert.match(ownerScript,/leads\.filter\(l=>!l\.linkedAccountId\|\|/);
  assert.doesNotMatch(ownerScript,/!registered\.some\(a=>[\s\S]*a\.email&&l\.email/);
- assert.match(ownerScript,/select\.dispatchEvent\(new Event\('change'\)\)/);
- assert.match(ownerScript,/x\.email\?\.toLowerCase\(\)===item\.email\.toLowerCase\(\)/);
+ assert.doesNotMatch(ownerScript,/Liên kết Gmail & lịch sử/);
+ assert.match(ownerScript,/Hồ sơ khách cũ chưa có tài khoản Google V2/);
 });
 
-test('one owner action activates saved verified Gmail or attaches exact invoice history',()=>{
+test('legacy activation endpoints remain compatible, UI uses explicit address-only import',()=>{
  assert.match(router,/pathname==='\/api\/v2\/admin\/legacy\/activate-saved'/);
  assert.match(router,/ownerActivateSavedGmail\(pool,actor,await json\(req\)\)/);
  assert.match(backend,/export async function ownerActivateSavedGmail\(/);
  assert.match(backend,/CUSTOMER_LEAD_CREATED','LEGACY_CRM_STAGED'/);
  assert.match(backend,/EXISTING_POLICY_REQUIRES_OWNER/);
- assert.match(ownerScript,/\/api\/v2\/admin\/legacy\/activate-saved','POST'/);
- assert.match(ownerScript,/\/api\/v2\/admin\/legacy\/bind-history','POST'/);
- assert.match(ownerScript,/leadId:item\.id/);
- assert.doesNotMatch(ownerScript,/LEGACY_INVOICE_ALREADY_IMPORTED/);
+ assert.match(router,/pathname==='\/api\/v2\/admin\/legacy\/import-delivery-points'/);
+ assert.match(ownerScript,/\/api\/v2\/admin\/legacy\/import-delivery-points','POST'/);
+ assert.match(ownerScript,/identityConfirmed:true/);
+ assert.doesNotMatch(ownerScript,/\/api\/v2\/admin\/legacy\/bind-history','POST'/);
+ assert.doesNotMatch(ownerScript,/\/api\/v2\/admin\/legacy\/activate-saved','POST'/);
 });
 
 test('CTV role, discount and delivery editors still use account-scoped APIs',()=>{
@@ -62,9 +62,9 @@ test('CTV role, discount and delivery editors still use account-scoped APIs',()=
  assert.match(ownerScript,/changeAccountLifecycle\(account,'REMOVED'\)/);
 });
 
-test('historical source invoice ID remains distinct; addresses dedupe by location and latest time',()=>{
- assert.match(ownerScript,/checkbox\.dataset\.refs=JSON\.stringify\(group\.refs\)/);
- assert.match(ownerScript,/sourceRevision:source\.revision,refs:list/);
+test('historical address imports preserve provenance and deduplicate by location',()=>{
+ assert.match(ownerScript,/invoiceNo:x\.group\.ref\.invoiceNo,sourceId:String\(x\.group\.ref\.sourceId\)/);
+ assert.match(ownerScript,/sourceRevision:source\.revision,selected:items/);
  assert.match(backend,/LEGACY_INVOICE_ALREADY_OWNED/);
  assert.match(backend,/CRM_APPROVED_PROFILE_MISMATCH/);
  const invoices=Array.from({length:7},(_,i)=>({
