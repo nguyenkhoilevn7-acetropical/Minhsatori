@@ -23,6 +23,16 @@ const form={
  requestedType:'agency',email:'oldagency@example.invalid'
 };
 try{
+ // The CRM connection repair runs against the EXISTING database schema.
+ // Keep its UNIQUE linked account constraint, and prove the FK remains intact.
+ const constraint=await pool.query(
+  "SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass "+
+  "AND conname='satori_v2_customer_leads_linked_account_id_key'");
+ assert.equal(constraint.rowCount,1,'one canonical old lead FK must remain unique');
+ const fk=await pool.query(
+  "SELECT 1 FROM pg_constraint WHERE conrelid='satori_v2_customer_leads'::regclass "+
+  "AND confrelid='satori_v2_accounts'::regclass AND contype='f'");
+ assert.equal(fk.rowCount,1,'Google account FK stays intact');
  const owner=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
   "VALUES($1,'owner@demo.invalid','ACTIVE') RETURNING id,google_sub",
   ['ci-owner-'+randomUUID()]);
@@ -305,6 +315,52 @@ try{
    discountBps:2000,contactPhone:'0900000004'
   }),/LEGACY_INVOICE_ALREADY_OWNED/);
 
+
+  // Existing ACTIVE new-registration case with signed invoice checkboxes chosen:
+  // one owner action must reconcile same Google account AND bind exact source IDs.
+  invoices=[
+   {id:991001,invoiceNo:991001,date:'15/10/2026',name:'Existing CTV Recipient',
+    phone:'0900000221',location:'42 Existing Signed Road',total:60000},
+   {id:991002,invoiceNo:991002,date:'18/10/2026',name:'Existing CTV Recipient',
+    phone:'0900000222',location:'42 Existing Signed Road',total:70000}
+  ];
+  const signedEmail='active-signed-ctv@example.invalid';
+  const signedLeads=[];
+  for(let i=0;i<2;i++){
+   const r=await adminCreateLead(pool,owner.id,{
+    ...form,email:signedEmail,fullName:'Existing CTV Recipient',
+    phone:'090000022'+(i+1),address:'42 Existing Signed Road',
+    requestedType:'collaborator',discountBps:2000,collaboratorBps:3500,confirmed:true
+   });
+   signedLeads.push(r.lead);
+  }
+  const signedGoogle=await one(
+   "INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+   "VALUES($1,$2,'ACTIVE') RETURNING id,revision,email",
+   ['ci-active-signed-'+randomUUID(),signedEmail]);
+  const signedProfile=await one(
+   "INSERT INTO satori_v2_profiles(account_id,type,display_name) "+
+   "VALUES($1,'retail','New Buyer') RETURNING id",[signedGoogle.id]);
+  await pool.query("INSERT INTO satori_v2_policies(profile_id,discount_bps,version,approved_by) "+
+   "VALUES($1,0,1,$2)",[signedProfile.id,owner.google_sub]);
+  const signedResult=await ownerBindLegacyInvoices(pool,owner,{
+   confirmed:true,identityConfirmed:true,accountId:signedGoogle.id,
+   expectedAccountRevision:signedGoogle.revision,email:signedGoogle.email,
+   query:'Existing CTV Recipient',sourceRevision:42,leadId:signedLeads[0].id,
+   expectedLeadRevision:signedLeads[0].revision,
+   refs:invoices.map(x=>({invoiceNo:x.invoiceNo,sourceId:String(x.id)})),
+   profileName:'Existing CTV Recipient',contactPhone:'',requestedType:'collaborator',
+   discountBps:2000,collaboratorBps:3500
+  });
+  assert.equal(signedResult.linkedInvoices,2,'exact signed legacy invoice IDs bound');
+  assert.equal(signedResult.profileId,signedProfile.id,'no duplicate profile/account');
+  const signedHistory=await linkedLegacyInvoiceHistory(pool,{id:signedGoogle.id});
+  assert.equal(signedHistory.orders.length,2);
+  assert.equal(signedHistory.addresses.length,1);
+  const signedRates=await one("SELECT discount_bps,collaborator_bps FROM satori_v2_policies "+
+   "WHERE profile_id=$1 AND enabled=true AND address_id IS NULL",[signedProfile.id]);
+  assert.equal(signedRates.discount_bps,2000);
+  assert.equal(signedRates.collaborator_bps,3500);
  }finally{
   globalThis.fetch=prevFetch;
   for(const [k,v] of Object.entries(prevVars))if(v===undefined)delete process.env[k];
@@ -525,6 +581,123 @@ try{
  const missing=await reconcileVerifiedLegacySession(pool,noMatching,owner.google_sub,{dryRun:true});
  assert.equal(missing.state,'PENDING');
  assert.equal(missing.reason,'NO_UNIQUE_LEGACY_LEAD');
+
+ // Multiple approved delivery points with one verified Gmail are one account.
+ // Both OAuth reconciliation and manual linking use the same validation path.
+ for(const mode of ['automatic','manual']){
+  const email=mode+'-six-points@example.invalid',sub='ci-six-'+randomUUID();
+  const saved=[];
+  for(let i=0;i<6;i++){
+   const r=await adminCreateLead(pool,owner.id,{
+    ...form,email,fullName:'Synthetic CTV',phone:'090000010'+i,
+    address:i<2?'42 Synthetic Road':'Point '+i+' Synthetic Road',
+    requestedType:'collaborator',discountBps:2000,collaboratorBps:3500,confirmed:true
+   });saved.push(r.lead);
+   await pool.query("UPDATE satori_v2_customer_leads SET created_at=now()+($2 * interval '1 second') WHERE id=$1",
+    [r.lead.id,i]);
+  }
+  const account=await one("INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+   "VALUES($1,$2,'PENDING') RETURNING id,revision,email",[sub,email]);
+  const result=mode==='automatic'?await loginClaim(account,sub,email):
+   await ownerActivateSavedGmail(pool,owner,{confirmed:true,identityConfirmed:true,
+    leadId:saved[0].id,expectedLeadRevision:saved[0].revision,
+    accountId:account.id,expectedAccountRevision:account.revision});
+  assert.equal(result.state,'ACTIVE');
+  const points=await pool.query('SELECT address,recipient_phone FROM satori_v2_addresses WHERE profile_id=$1 AND active=true',[result.profileId]);
+  assert.equal(points.rowCount,5,'same normalized address is unique despite different phone');
+  assert.equal(points.rows.find(x=>x.address==='42 Synthetic Road').recipient_phone,'0900000101');
+  const links=await one('SELECT count(*)::int AS n FROM satori_v2_customer_leads WHERE linked_account_id=$1',[account.id]);
+  assert.equal(links.n,1,'one canonical FK plus five verified historical delivery points');
+  const rate=await one('SELECT discount_bps,collaborator_bps FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[result.profileId]);
+  assert.equal(rate.discount_bps,2000);assert.equal(rate.collaborator_bps,3500);
+  const profiles=await one('SELECT count(*)::int AS n FROM satori_v2_profiles WHERE account_id=$1',[account.id]);
+  assert.equal(profiles.n,1);
+ }
+
+
+ // An already APPROVED ACTIVE Google account must not be treated as a brand-new
+ // retail customer when owner-approved historical delivery leads arrive later.
+ const activeEmail='active-then-legacy@example.invalid';
+ const activeLeadIds=[];
+ for(let i=0;i<6;i++){
+  const lead=await adminCreateLead(pool,owner.id,{
+   ...form,email:activeEmail,fullName:'Existing CTV',
+   address:i<2?'42 Existing Delivery Road':'Other Existing '+i,
+   phone:'090000020'+i,requestedType:'collaborator',
+   discountBps:2000,collaboratorBps:3500,confirmed:true
+  });
+  activeLeadIds.push(lead.lead);
+  // Explicitly encode chronological source creation timestamps in CI.
+  await pool.query("UPDATE satori_v2_customer_leads SET created_at=now()+($2 * interval '1 second') WHERE id=$1",
+   [lead.lead.id,i]);
+ }
+ const activeGoogle='ci-already-active-'+randomUUID();
+ const existingAccount=await one(
+  "INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'ACTIVE') RETURNING id,revision,google_sub,email",
+  [activeGoogle,activeEmail]);
+ const existingProfile=await one(
+  "INSERT INTO satori_v2_profiles(account_id,type,display_name,phone) "+
+  "VALUES($1,'retail','Fresh customer','0900000200') RETURNING id",[existingAccount.id]);
+ await pool.query("INSERT INTO satori_v2_policies(profile_id,discount_bps,version,approved_by) "+
+  "VALUES($1,0,1,$2)",[existingProfile.id,owner.google_sub]);
+ await pool.query("INSERT INTO satori_v2_registrations(account_id,full_name,phone,address) "+
+  "VALUES($1,'Fresh customer','0900000200','42 Existing Delivery Road')",[existingAccount.id]);
+ const resumed=await ownerActivateSavedGmail(pool,owner,{
+  confirmed:true,identityConfirmed:true,accountId:existingAccount.id,
+  leadId:activeLeadIds[0].id,expectedLeadRevision:activeLeadIds[0].revision,
+  expectedAccountRevision:existingAccount.revision
+ });
+ assert.equal(resumed.state,'ACTIVE');
+ assert.equal(resumed.alreadyActive,true);
+ assert.equal(resumed.profileId,existingProfile.id,'preserve verified customer profile ID');
+ const activeAccountReadback=await one(
+  'SELECT google_sub,access_status FROM satori_v2_accounts WHERE id=$1',[existingAccount.id]);
+ assert.equal(activeAccountReadback.google_sub,activeGoogle);
+ assert.equal(activeAccountReadback.access_status,'ACTIVE');
+ const activeRole=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[existingProfile.id]);
+ assert.equal(activeRole.type,'collaborator');
+ const activeRates=await one('SELECT discount_bps,collaborator_bps FROM satori_v2_policies '+
+  'WHERE profile_id=$1 AND enabled=true AND address_id IS NULL AND product_code IS NULL',
+  [existingProfile.id]);
+ assert.equal(activeRates.discount_bps,2000);
+ assert.equal(activeRates.collaborator_bps,3500);
+ const activeLeadsReadback=await one(
+  'SELECT count(*)::int AS n FROM satori_v2_customer_leads WHERE linked_account_id=$1',[existingAccount.id]);
+ assert.equal(activeLeadsReadback.n,1);
+ const activeDestinations=await pool.query(
+  'SELECT address,recipient_phone FROM satori_v2_addresses WHERE profile_id=$1 AND active=true',[existingProfile.id]);
+ assert.equal(activeDestinations.rowCount,5,'six leads, five unique delivery addresses');
+ assert.equal(activeDestinations.rows.find(x=>x.address==='42 Existing Delivery Road').recipient_phone,
+  '0900000201','latest created contact is preferred');
+ // Active accounts with existing V2 ordering history cannot be silently
+ // reclassified with a different role or price, even by matching Gmail.
+ const usedEmail='active-has-orders@example.invalid',usedLead=await adminCreateLead(pool,owner.id,{
+  ...form,email:usedEmail,fullName:'Used Buyer',phone:'0900000901',
+  address:'Used Road 123',requestedType:'collaborator',
+  discountBps:2000,collaboratorBps:3500,confirmed:true
+ });
+ const usedAccount=await one(
+  "INSERT INTO satori_v2_accounts(google_sub,email,access_status) "+
+  "VALUES($1,$2,'ACTIVE') RETURNING id,revision",
+  ['ci-has-quote-'+randomUUID(),usedEmail]);
+ const usedProfile=await one("INSERT INTO satori_v2_profiles(account_id,type,display_name,phone) "+
+  "VALUES($1,'retail','Used Buyer','0900000901') RETURNING id",[usedAccount.id]);
+ await pool.query("INSERT INTO satori_v2_policies(profile_id,discount_bps,version,approved_by) "+
+  "VALUES($1,0,1,$2)",[usedProfile.id,owner.google_sub]);
+ const usedAddr=await one("INSERT INTO satori_v2_addresses(profile_id,label,recipient_name,recipient_phone,address) "+
+  "VALUES($1,'Test','Used Buyer','0900000901','Used Road 123') RETURNING id",[usedProfile.id]);
+ await pool.query("INSERT INTO satori_v2_quotes(account_id,profile_id,address_id,payload,"+
+  "cart_revision,catalogue_revision,expires_at) "+
+  "VALUES($1,$2,$3,'{}',1,1,now()+interval '10 minutes')",
+  [usedAccount.id,usedProfile.id,usedAddr.id]);
+ await assert.rejects(()=>ownerActivateSavedGmail(pool,owner,{
+  confirmed:true,identityConfirmed:true,leadId:usedLead.lead.id,
+  expectedLeadRevision:usedLead.lead.revision,
+  accountId:usedAccount.id,expectedAccountRevision:usedAccount.revision
+ }),/ACTIVE_ACCOUNT_HAS_ORDER_HISTORY/);
+ const unchangedActiveProfile=await one('SELECT type FROM satori_v2_profiles WHERE id=$1',[usedProfile.id]);
+ assert.equal(unchangedActiveProfile.type,'retail');
 
  // Duplicate old records with the SAME Gmail: fail closed instead of assigning one partner.
  const duplicateEmail='ambiguous@example.invalid';
