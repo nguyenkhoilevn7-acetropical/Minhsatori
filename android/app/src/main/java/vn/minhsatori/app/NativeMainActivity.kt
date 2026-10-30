@@ -1179,6 +1179,11 @@ class NativeMainActivity : AppCompatActivity() {
             }
             when (activeTab) {
                 0 -> {
+                    // New read-only Accounting Pro entry; all existing order/CRM/Gemini routes remain untouched.
+                    button(content, "KẾ TOÁN PRO  ·  XEM TỔNG HỢP (CHỈ ĐỌC)",
+                        false, R.drawable.ic_satori_debt) {
+                        showAccountingProPreview(data)
+                    }
                     renderMoneyMindRecent(content, data)
                     section(content, "Công cụ nâng cao",
                         if (showAdvancedOverview) "Chạm để thu gọn công cụ"
@@ -2785,6 +2790,308 @@ class NativeMainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Android-only milestone 1: a read-only view of the signed/selected ledger
+     * snapshot. The legacy customer-paid flag is NOT a cash allocation ledger;
+     * never present estimated status totals as actual partial payments.
+     */
+    private fun showAccountingProPreview(data: SatoriSnapshot) {
+        val totals = AccountingProReadOnly.summarize(data.invoices)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(20))
+            setBackgroundColor(night)
+        }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            addView(panel)
+        }
+        label(panel, "SỔ THANH TOÁN & CÔNG NỢ", 16f, true, ink)
+        label(panel, "GIAI ĐOẠN 1  •  CHỈ XEM  •  REVISION " + data.revision,
+            11f, true, cyan, 6)
+        label(panel, "Nguồn: " + dataSource +
+            ". Không ghi khoản thu, không sửa hóa đơn, không thay đổi đặt hàng.",
+            11.5f, false, softInk, 7)
+        section(panel, "Hóa đơn tính doanh thu: " + totals.activeInvoiceCount,
+            "Loại trừ: " + totals.excludedInvoiceCount +
+                " hóa đơn thử, hủy, không tính hoặc CTV nội bộ.")
+        section(panel, "Khách đã đánh dấu trả đủ: " + totals.customerPaidFlagCount,
+            "Khách chưa đánh dấu trả đủ: " + totals.customerUnpaidFlagCount +
+                ". Chưa có sổ phân bổ thanh toán từng phần.")
+        section(panel, "Đã đánh dấu trả Satori: " + totals.satoriPaidFlagCount,
+            "Chưa đánh dấu trả Satori: " + totals.satoriUnpaidFlagCount +
+                ". Đây là trạng thái riêng, không suy ra khách đã trả.")
+        if (totals.questionableInvoiceCount > 0) {
+            section(panel, "CẦN ĐỐI CHIẾU ID HÓA ĐƠN",
+                totals.questionableInvoiceCount.toString() +
+                    " bản ghi thiếu hoặc trùng định danh. Tạm ẩn tổng tiền để tránh cộng sai.")
+        } else {
+            label(panel, "TỔNG THEO CỜ TRẠNG THÁI CŨ", 12f, true, cyan, 16)
+            section(panel, "Tổng bill hợp lệ: " +
+                (totals.grossByLegacyFlags?.let(SatoriData::money) ?: "Chưa xác minh"),
+                "Chỉ cộng hóa đơn không bị loại trừ; chưa xác minh thu tiền ngân hàng.")
+            section(panel, "Cần thu theo trạng thái cũ: " +
+                (totals.unpaidByLegacyFlags?.let(SatoriData::money) ?: "Chưa xác minh"),
+                "Ước tính từ hóa đơn chưa đánh dấu trả đủ; KHÔNG phải số dư sau trả từng phần.")
+        }
+        if (totals.invalidDateCount > 0) {
+            section(panel, "Ngày hóa đơn cần kiểm tra: " + totals.invalidDateCount,
+                "Không tự suy ra hạn thanh toán hoặc tuổi nợ từ ngày không hợp lệ.")
+        }
+        button(panel, "XEM DANH SÁCH HÓA ĐƠN CẦN ĐỐI SOÁT",
+            false, R.drawable.ic_satori_invoice) {
+            showAccountingProInvoiceList(data)
+        }
+        button(panel, "TÍNH THỬ THANH TOÁN TỪNG PHẦN  ·  DEMO",
+            false, R.drawable.ic_satori_debt) {
+            showAccountingProAllocationDemo()
+        }
+        label(panel, "BƯỚC TIẾP THEO — CHƯA KÍCH HOẠT", 12f, true, cyan, 17)
+        section(panel, "01  Thanh toán nhiều lần",
+            "Chờ backend có khoản thu, chứng từ và phân bổ bất biến theo invoice ID.")
+        section(panel, "02  Lợi nhuận & hoa hồng CTV",
+            "Chờ dữ liệu giá nhập thực và sổ quyết toán; không tính lãi từ giá niêm yết.")
+        section(panel, "03  Nhắc nợ, đối soát ngân hàng",
+            "Chưa kết nối ngân hàng và chưa tự gửi nhắc nợ.")
+        section(panel, "04  Email, PDF & hóa đơn điện tử",
+            "Chưa kích hoạt gửi email hoặc phát hành chứng từ thuế.")
+        AlertDialog.Builder(this)
+            .setTitle("Minh Satori · Accounting Pro")
+            .setView(scroll)
+            .setPositiveButton("Đóng", null)
+            .show()
+    }
+
+    /**
+     * Deliberately isolated training calculator with TWO synthetic example bills.
+     * It NEVER consumes the actual owner invoice snapshot or calls a payment API.
+     * Real partial-payment confirmation remains disabled until server-side ledger,
+     * immutable allocation events and signed readback are accepted.
+     */
+    private fun showAccountingProAllocationDemo() {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(20))
+        }
+        label(panel, "MÔ PHỎNG PHÂN BỔ THANH TOÁN", 16f, true, ink)
+        label(panel, "DỮ LIỆU GIẢ LẬP · KHÔNG LƯU · KHÔNG CHUYỂN TIỀN",
+            11.5f, true, Color.rgb(175, 94, 0), 7)
+        label(panel, "Nhập số tiền VND nguyên để thử một khoản thu phân bổ cho " +
+            "hai hóa đơn DEMO-A và DEMO-B. Không đọc hoặc sửa hóa đơn khách thật.",
+            11.5f, false, softInk, 8)
+
+        fun amountField(title: String, initial: String): EditText {
+            label(panel, title, 12f, true, ink, 12)
+            val field = EditText(this).apply {
+                hint = "0"
+                setText(initial)
+                textSize = 15f
+                setSingleLine(true)
+                inputType = InputType.TYPE_CLASS_NUMBER
+                filters = arrayOf<android.text.InputFilter>(android.text.InputFilter.LengthFilter(16))
+                setTextColor(ink)
+                setHintTextColor(softInk)
+                setPadding(dp(12), 0, dp(12), 0)
+                background = panelBackground(Color.WHITE, 10)
+                contentDescription = title
+            }
+            panel.addView(field, LinearLayout.LayoutParams(-1, dp(46)).apply {
+                topMargin = dp(5)
+            })
+            return field
+        }
+
+        val receipt = amountField("Số tiền khách chuyển (VND)", "650000")
+        val dueA = amountField("DEMO-A · Dư nợ giả định", "350000")
+        val paidA = amountField("DEMO-A · Muốn phân bổ", "350000")
+        val dueB = amountField("DEMO-B · Dư nợ giả định", "500000")
+        val paidB = amountField("DEMO-B · Muốn phân bổ", "300000")
+        val results = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(12), 0, 0)
+        }
+        panel.addView(results)
+
+        fun positiveVnd(field: EditText, allowZero: Boolean = false): Long {
+            val raw = field.text.toString().trim()
+            val value = raw.toLongOrNull()
+                ?: throw IllegalArgumentException("Chỉ nhập số nguyên VND hợp lệ.")
+            require(value >= 0L && (allowZero || value > 0L)) {
+                "Số tiền phải lớn hơn 0."
+            }
+            return value
+        }
+
+        button(panel, "TÍNH THỬ — KHÔNG GHI SỔ", true,
+            R.drawable.ic_satori_debt) {
+            results.removeAllViews()
+            try {
+                val received = positiveVnd(receipt)
+                val aOpen = positiveVnd(dueA, allowZero = true)
+                val bOpen = positiveVnd(dueB, allowZero = true)
+                val aAllocation = positiveVnd(paidA, allowZero = true)
+                val bAllocation = positiveVnd(paidB, allowZero = true)
+                val allocations = buildList {
+                    if (aAllocation > 0L) add(AccountingProAllocationLine(
+                        "DEMO-LEDGER-A", 990001L, aAllocation))
+                    if (bAllocation > 0L) add(AccountingProAllocationLine(
+                        "DEMO-LEDGER-B", 990002L, bAllocation))
+                }
+                val preview = AccountingProPaymentAllocation.preview(
+                    receiptVnd = received, expectedLedgerRevision = 1L,
+                    verifiedOpenBalances = listOf(
+                        AccountingProVerifiedOpenBalance(
+                            "DEMO-LEDGER-A", 990001L, 1L, aOpen),
+                        AccountingProVerifiedOpenBalance(
+                            "DEMO-LEDGER-B", 990002L, 1L, bOpen)
+                    ),
+                    intendedAllocations = allocations
+                )
+                section(results, "Tổng phân bổ: " +
+                    SatoriData.money(preview.allocatedVnd),
+                    "Tiền chưa phân bổ: " + SatoriData.money(preview.unallocatedVnd))
+                section(results, "DEMO-A · Còn lại: " +
+                    SatoriData.money(preview.remainingByLedgerId["DEMO-LEDGER-A"] ?: 0L),
+                    "DEMO-B · Còn lại: " +
+                        SatoriData.money(preview.remainingByLedgerId["DEMO-LEDGER-B"] ?: 0L))
+                label(results, "CHỈ LÀ PHÉP TÍNH THỬ. Không cập nhật " +
+                    "trạng thái khách trả, Satori, công nợ thật hoặc ngân hàng.",
+                    11.5f, true, Color.rgb(175, 94, 0), 12)
+            } catch (e: IllegalArgumentException) {
+                label(results, "KHÔNG HỢP LỆ · " + (e.message ?: "Kiểm tra số tiền."),
+                    12f, true, Color.rgb(203, 48, 48), 5)
+            }
+        }
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            addView(panel)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Accounting Pro · DEMO")
+            .setView(scroll)
+            .setPositiveButton("Đóng", null)
+            .show()
+    }
+
+    /**
+     * App-only invoice drilldown using existing, already synced owner snapshot.
+     * Never displays an inferred partial-payment amount or bank-matched result.
+     * Exactly one original immutable ID + invoice number is required to open.
+     */
+    private fun showAccountingProInvoiceList(data: SatoriSnapshot) {
+        val checked = AccountingProReadOnly.invoiceRows(data.invoices)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(9), dp(12), dp(12))
+        }
+        label(panel, "Hóa đơn từ snapshot revision " + data.revision,
+            11.5f, false, softInk)
+        label(panel, "Chỉ xem · 'Chưa trả đủ' là cờ cũ, không phải số dư sau thanh toán từng phần.",
+            11f, false, Color.rgb(175, 94, 0), 5)
+        val search = EditText(this).apply {
+            hint = "Tìm số HĐ, tên, SĐT, địa chỉ…"
+            setSingleLine(true)
+            textSize = 13f
+            setTextColor(ink)
+            setHintTextColor(softInk)
+            background = panelBackground(Color.rgb(247, 250, 252), 10)
+            setPadding(dp(12), 0, dp(12), 0)
+        }
+        panel.addView(search, LinearLayout.LayoutParams(-1, dp(45)).apply {
+            topMargin = dp(12)
+        })
+        val modes = listOf("Tất cả", "Khách chưa đánh dấu trả đủ",
+            "Khách đã đánh dấu trả đủ", "Cần kiểm tra")
+        val filter = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(this@NativeMainActivity,
+                android.R.layout.simple_spinner_dropdown_item, modes)
+            contentDescription = "Lọc trạng thái công nợ hóa đơn"
+        }
+        panel.addView(filter, LinearLayout.LayoutParams(-1, dp(46)).apply {
+            topMargin = dp(6)
+        })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+        }
+        val results = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(2), 0, dp(12))
+        }
+        scroll.addView(results)
+        val usableHeight = (resources.displayMetrics.heightPixels * 58 / 100)
+            .coerceAtLeast(dp(240))
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, usableHeight))
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Accounting Pro · Tra cứu công nợ")
+            .setView(panel)
+            .setPositiveButton("Đóng", null)
+            .create()
+        fun redraw() {
+            results.removeAllViews()
+            val query = search.text.toString()
+            val mode = filter.selectedItemPosition.coerceIn(0, modes.lastIndex)
+            val filtered = checked.filter { row ->
+                val matching = SatoriData.search(row.invoice, query)
+                matching && when (mode) {
+                    1 -> row.pendingCustomerFlag
+                    2 -> !row.pendingCustomerFlag
+                    3 -> row.needsIdentityReview || row.needsDateReview
+                    else -> true
+                }
+            }
+            label(results, "Đang hiển thị " + minOf(filtered.size, 75) +
+                "/" + filtered.size + " hóa đơn", 12f, true, cyan, 9)
+            if (filtered.isEmpty()) {
+                section(results, "Không có hóa đơn phù hợp",
+                    "Thử tìm theo số hóa đơn hoặc chọn bộ lọc khác.")
+            }
+            filtered.take(75).forEach { entry ->
+                val invoice = entry.invoice
+                val status = (if (entry.pendingCustomerFlag)
+                    "Khách: chưa đánh dấu trả đủ" else "Khách: đã đánh dấu trả đủ") +
+                    " · " + (if (entry.pendingSatoriFlag)
+                    "Satori: chưa đánh dấu trả" else "Satori: đã đánh dấu trả")
+                val review = when {
+                    entry.needsIdentityReview -> "CẦN KIỂM TRA: " + entry.reason
+                    entry.needsDateReview -> "CẦN KIỂM TRA NGÀY HÓA ĐƠN"
+                    else -> ""
+                }
+                section(results, "#" + invoice.number + " · " + invoice.customer,
+                    "Tổng bill gốc: " + SatoriData.money(invoice.total) +
+                        "\n" + status + "\n" + invoice.displayDate +
+                        (if (review.isBlank()) "" else "\n" + review)) {
+                    if (entry.identityReliable) {
+                        dialog.dismiss()
+                        openInvoice(invoice)
+                    } else {
+                        Toast.makeText(this,
+                            "ID hóa đơn chưa đáng tin cậy; không mở thao tác từ dòng trùng.",
+                            Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            if (filtered.size > 75) {
+                label(results, "Chỉ hiển thị 75 dòng; nhập từ khóa để thu hẹp.",
+                    11f, false, softInk, 10)
+            }
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int,
+                count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int,
+                before: Int, count: Int) { redraw() }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
+                view: View?, position: Int, id: Long) { redraw() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        redraw()
+        dialog.show()
+    }
+
     private fun renderDebt(parent: LinearLayout, data: SatoriSnapshot) {
         val summary = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -2796,6 +3103,10 @@ class NativeMainActivity : AppCompatActivity() {
         label(summary, data.outstandingCount.toString() +
             " hóa đơn khách chưa thanh toán", 11.5f, false, softInk, 5)
         parent.addView(summary)
+        button(parent, "KẾ TOÁN PRO  ·  TỔNG HỢP CHỈ ĐỌC",
+            false, R.drawable.ic_satori_debt) { showAccountingProPreview(data) }
+        button(parent, "XEM CÔNG NỢ TỪNG HÓA ĐƠN",
+            false, R.drawable.ic_satori_invoice) { showAccountingProInvoiceList(data) }
         button(parent, "☷ Lọc hóa đơn") { showLedger(data) }
         label(parent, "Công nợ theo khách hàng", 15f, true, ink, 14)
         data.invoices.filter { it.isOutstanding }.forEach { invoice ->
