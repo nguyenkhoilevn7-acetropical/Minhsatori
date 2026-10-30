@@ -27,7 +27,8 @@ test('signed historical search only reads original ledger, with explicit owner l
  assert.match(backend,/readMinhSatori\('orders\.list',\{query:q,limit:100\}\)/);
  const match=script.split('async function searchSignedOldCustomers(){')[1]
   ?.split("byId('crmOldSearch').addEventListener")[0]||'';
- assert.match(match,/Đối chiếu & liên kết khi xác nhận đúng chủ/);
+ assert.match(match,/Kết quả chỉ đọc/);
+ assert.doesNotMatch(match,/Đối chiếu & liên kết khi xác nhận đúng chủ/);
  assert.doesNotMatch(match,/\/api\/v2\/admin\/legacy\/(?:bind-history|activate)|\/api\/v2\/admin\/customers','PATCH'/);
  assert.doesNotMatch(match,/INSERT INTO|UPDATE satori_v2/);
 });
