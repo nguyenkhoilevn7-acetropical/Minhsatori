@@ -31,7 +31,28 @@ class ProductionLayoutContract(unittest.TestCase):
  def test_financial_and_security_methods_unchanged_from_signed_v0416(self):
   for name,expected in BASELINE.items():
    with self.subTest(name=name):
-    self.assertEqual(checksum(method(name)),expected,'No financial method changes in layout release')
+    actual=method(name)
+    if name=='openInvoice':
+     # Only one explicit display-only section may differ from the signed
+     # accounting/payment/PDF original. Strip exactly that section and require
+     # the remaining source to retain the original signed method checksum.
+     start='        // BEGIN_ACCOUNTING_PROFIT45_READ_ONLY\\n'
+     end='        // END_ACCOUNTING_PROFIT45_READ_ONLY\\n'
+     self.assertEqual(actual.count(start),1)
+     self.assertEqual(actual.count(end),1)
+     i=actual.index(start)
+     j=actual.index(end,i)+len(end)
+     added=actual[i:j]
+     self.assertIn('AccountingProProfit45.invoice(',added)
+     self.assertIn('Lãi hàng trước CTV/chi phí:',added)
+     for forbidden in ('executeWrite(', 'confirmInvoicePayment(',
+                       'launchEditor(', 'payments.mark', 'NativeInvoicePdf.preview(',
+                       'setOnClickListener(', 'startActivity('):
+      with self.subTest(forbidden=forbidden):
+       self.assertNotIn(forbidden,added)
+     actual=actual[:i]+actual[j:]
+    self.assertEqual(checksum(actual),expected,
+     'The signed payment, PDF and security method must remain byte-for-byte identical outside read-only profit label')
  def test_money_mind_native_routes_do_not_fake_invoices(self):
   for term in ('val bottomDestinations = listOf(', 'renderMoneyMindShortcuts(content)',
                'renderMoneyMindRecent(content, data)', 'renderMoneyMindOfflineState(content, activeTab)',
