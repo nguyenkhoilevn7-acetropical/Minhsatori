@@ -1,9 +1,9 @@
 {
-  "purpose": "android-0.4.27-accounting-pro-owner-acceptance-only",
+  "purpose": "android-v0.4.28-accounting-pro-simplified-owner-acceptance",
   "package": "vn.minhsatori.app",
-  "version": "0.4.27",
-  "versionCode": 44,
-  "branch": "feature/android-accounting-pro-v0427-signed-acceptance-20261030",
+  "version": "0.4.28",
+  "versionCode": 45,
+  "branch": "feature/android-accounting-pro-hide-three-cards-v0428-20261030",
   "requestedOn": "2026-10-30",
   "sourcePRs": [
     240,
@@ -27,7 +27,7 @@
     298,
     299
   ],
-  "scope": "Android owner-only Accounting Pro read-only invoice/debt flags, alerts, CTV profit data-readiness, synthetic partial-payment and bank triage demos, PDF/email/e-invoice metadata audit, and emulator-only UI acceptance. No financial writes, no Gemini V2, ChatGPT, Website, backend, database or service change. Signed owner acceptance artifact only; not production deployment.",
+  "scope": "Android-only reduction of three redundant Accounting Pro overview cards (Satori paid flag, invalid/duplicate invoice IDs, invalid invoice dates). Preserve all underlying validation, independent payment states, other Accounting Pro sections, native order/edit/payment routes, Gemini V2, ChatGPT, Website, Render and databases. Owner same-certificate signed APK for manual Samsung acceptance only, no production backend changes.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -54,6 +54,7 @@
     "2026-10-30: Keep pinned production signer and stable package vn.minhsatori.app; run signed release gates and APK certificate verification before giving installation link. Do not uninstall prior signed version or reset local state.",
     "2026-10-30: This release request lives ONLY on a separate feature branch; it does not automatically run the protected signed release workflow, merge source PRs or publish a production release. Signed acceptance build must use the existing original pinned certificate SHA-256 and valid protected GitHub Secrets. Never substitute debug APK.",
     "2026-10-30: Manual Samsung/ Z Fold verification and owner approval required before releasing to the installed app. Finance writes, partial payments, bank reconciliation, email sending, legal e-invoice issuance and real CTV commission settlement remain disabled.",
-    "2026-10-30: Owner requested a real-device, official same-signer APK for acceptance. Submit release-request push ONLY on feature/android-accounting-pro-v0427-signed-acceptance-20261030 with branch-restricted signed artifact workflow; maintain protected signer pin, no merge, no production API changes, no automatic install. Check signed verification report before sharing."
+    "2026-10-30: Owner requested a real-device, official same-signer APK for acceptance. Submit release-request push ONLY on feature/android-accounting-pro-v0427-signed-acceptance-20261030 with branch-restricted signed artifact workflow; maintain protected signer pin, no merge, no production API changes, no automatic install. Check signed verification report before sharing.",
+    "2026-10-30: Owner requested removing exactly three visible top cards from Accounting Pro overview: Satori payment status, ID reconciliation, invalid-date count. Data checks and drilldowns stay intact. v0.4.28 build 45 is a same-package, same-signing-certificate in-place update over v0.4.27 build 44; do not uninstall or clear data. No financial writes or backend changes."
   ]
 }
