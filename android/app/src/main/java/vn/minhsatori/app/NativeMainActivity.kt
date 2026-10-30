@@ -4066,7 +4066,7 @@ class NativeMainActivity : AppCompatActivity() {
             setOnClickListener { click() }
         }
         parent.addView(icon, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
-            marginStart = if (parent.childCount == 0) 0 else dp(7)
+            marginStart = if (parent.childCount == 0) 0 else dp(6)
         })
     }
 
@@ -4326,21 +4326,37 @@ class NativeMainActivity : AppCompatActivity() {
                 }
             }
         }
-        if (resources.configuration.screenWidthDp >= 420) {
+        // Right-align actions on both the Fold's cover and inner displays.
+        // Keep the title on the left where the actual dialog width permits.
+        val dialogWidthDp = (resources.configuration.screenWidthDp - 24)
+            .coerceAtLeast(240).coerceAtMost(540)
+        val usableContentDp = dialogWidthDp - 34 // invoice content horizontal padding
+        val actionsWidthDp = actions.childCount * 48 +
+            (actions.childCount - 1).coerceAtLeast(0) * 6
+        val inlineActions = usableContentDp >= actionsWidthDp + 90 &&
+            resources.configuration.fontScale <= 1.2f
+        actions.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+        if (inlineActions) {
             val toolbar = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(0, dp(13), 0, 0)
             }
-            val caption = label(toolbar, "THAO TÁC", 12f, true, cyan)
+            val caption = label(toolbar, "THAO TÁC", 11.5f, true, cyan)
+            caption.maxLines = 1
+            caption.ellipsize = android.text.TextUtils.TruncateAt.END
+            caption.setPadding(0, 0, dp(8), 0)
             caption.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
             toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))
             content.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
         } else {
-            label(content, "THAO TÁC", 12f, true, cyan, 13)
-            // Center compact actions on the Fold's narrow cover display.
-            actions.gravity = Gravity.CENTER
-            content.addView(actions, LinearLayout.LayoutParams(-1, -2).apply {
+            label(content, "THAO TÁC", 11.5f, true, cyan, 13)
+            val actionRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            }
+            actionRow.addView(actions, LinearLayout.LayoutParams(-2, -2))
+            content.addView(actionRow, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(7)
             })
         }

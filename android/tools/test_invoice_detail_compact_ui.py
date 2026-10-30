@@ -53,7 +53,7 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn('LinearLayout.LayoutParams(dp(48), dp(48))', helper)
         self.assertNotIn('LayoutParams(0, dp(51), 1f)', helper)
         self.assertNotIn('shareWidth =', helper)
-        self.assertIn('if (parent.childCount == 0) 0 else dp(7)', helper)
+        self.assertIn('if (parent.childCount == 0) 0 else dp(6)', helper)
         for name in ("zalo", "messenger"):
             vector = (DRAWABLE / f"ic_brand_{name}.xml").read_text(encoding="utf-8")
             self.assertIn('<vector', vector)
@@ -67,9 +67,15 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn(".coerceAtMost(540)", helper)
         self.assertIn("dialog.window?.setLayout(dp(safeWidth), usableHeight)", helper)
         self.assertIn("activeInvoiceDialog?.takeIf { it.isShowing }?.let(::resizeInvoiceDialog)", SRC)
-        self.assertIn("if (resources.configuration.screenWidthDp >= 420)", DETAIL)
+        self.assertIn("val dialogWidthDp = (resources.configuration.screenWidthDp - 24)", DETAIL)
+        self.assertIn("val actionsWidthDp = actions.childCount * 48", DETAIL)
+        self.assertIn("val inlineActions = usableContentDp >= actionsWidthDp + 90", DETAIL)
+        self.assertIn("resources.configuration.fontScale <= 1.2f", DETAIL)
+        self.assertIn("actions.gravity = Gravity.END or Gravity.CENTER_VERTICAL", DETAIL)
         self.assertIn('toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))', DETAIL)
-        self.assertIn('actions.gravity = Gravity.CENTER', DETAIL)
+        self.assertIn('actionRow.addView(actions, LinearLayout.LayoutParams(-2, -2))', DETAIL)
+        self.assertIn('gravity = Gravity.END or Gravity.CENTER_VERTICAL', DETAIL)
+        self.assertNotIn("actions.gravity = Gravity.CENTER\n", DETAIL)
         self.assertIn("resizeInvoiceDialog(dialog)", DETAIL)
 
     def test_zalo_vector_uses_android_safe_polygon_not_svg_arc_flags(self):

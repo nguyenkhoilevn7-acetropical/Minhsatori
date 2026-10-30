@@ -32,6 +32,7 @@ on:
       - 'feature/android-invoice-compact-icons-v0433-20261030'
       - 'feature/android-zalo-icon-parse-fix-v0434-20261030'
       - 'feature/android-fold-responsive-invoice-actions-v0435-20261030'
+      - 'feature/android-invoice-actions-right-aligned-v0436-20261030'
       - 'release/android-v0.4.20-native-v2-crm-20261029'
       - 'release/android-v0.4.13-customer-info-20261027'
       - 'release/android-v0.4.14-owner-edit-payment-20261027'
