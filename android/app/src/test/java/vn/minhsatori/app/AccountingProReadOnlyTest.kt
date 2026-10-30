@@ -87,4 +87,69 @@ class AccountingProReadOnlyTest {
         assertEquals(1_000_000L,s.unpaidByLegacyFlags)
         assertTrue(s.questionableInvoiceCount == 0)
     }
+
+    @Test fun detailRowsRetainEveryDistinctCanonicalInvoice() {
+        val rows = AccountingProReadOnly.invoiceRows(listOf(
+            bill(id="id-a",no="5901").copy(customer="Cùng khách",address="Điểm A"),
+            bill(id="id-b",no="5902").copy(customer="Cùng khách",address="Điểm B")
+        ))
+        assertEquals(2, rows.size)
+        assertTrue(rows.all { it.identityReliable })
+        assertEquals(setOf("id-a","id-b"),rows.map { it.invoice.id }.toSet())
+    }
+
+    @Test fun customerSatoriFlagsRemainIndependentInEachDetailRow() {
+        val rows = AccountingProReadOnly.invoiceRows(listOf(
+            bill(id="id-a",no="5901",status="Đã TT Satori"),
+            bill(id="id-b",no="5902",status="Đã thanh toán")
+        ))
+        assertTrue(rows.first { it.invoice.id=="id-a" }.pendingCustomerFlag)
+        assertTrue(!rows.first { it.invoice.id=="id-a" }.pendingSatoriFlag)
+        assertTrue(!rows.first { it.invoice.id=="id-b" }.pendingCustomerFlag)
+        assertTrue(rows.first { it.invoice.id=="id-b" }.pendingSatoriFlag)
+    }
+
+    @Test fun sameNumberIsFlaggedEvenWhenBothNamesAndAmountsDiffer() {
+        val rows = AccountingProReadOnly.invoiceRows(listOf(
+            bill(id="id-a",no="5991"),
+            bill(id="id-b",no="5991",total=1200L).copy(customer="Khác khách")
+        ))
+        assertEquals(2,rows.count { it.needsIdentityReview })
+        assertTrue(rows.all { it.reason.contains("Số hóa đơn trùng") })
+    }
+
+    @Test fun duplicateIdsAreFlaggedEvenWhenNumbersAreDistinct() {
+        val rows = AccountingProReadOnly.invoiceRows(listOf(
+            bill(id="same",no="5901"), bill(id="same",no="5902")
+        ))
+        assertEquals(2,rows.count { it.needsIdentityReview })
+        assertTrue(rows.all { it.reason.contains("ID hóa đơn") })
+    }
+
+    @Test fun invalidDatesAreDisplayedAsReviewNotFakeDebtAging() {
+        val row=AccountingProReadOnly.invoiceRows(listOf(bill(date="unknown"))).single()
+        assertTrue(row.needsDateReview)
+        assertTrue(row.identityReliable)
+    }
+
+    @Test fun excludedInvoicesCannotAppearInDebtDrilldown() {
+        val rows=AccountingProReadOnly.invoiceRows(listOf(
+            bill(id="real",no="5901"),
+            bill(id="fake",no="5902",isTest=true),
+            bill(id="ctv",no="5903",pairRole="collaborator"),
+            bill(id="void",no="5904",status="Đã hủy")
+        ))
+        assertEquals(listOf("real"),rows.map { it.invoice.id })
+    }
+
+    @Test fun pendingFlagDoesNotPretendToKnowPartialPayments() {
+        val row=AccountingProReadOnly.invoiceRows(listOf(
+            bill(total=1_000_000L, status="Chưa thanh toán")
+        )).single()
+        assertTrue(row.pendingCustomerFlag)
+        assertEquals(1_000_000L,row.invoice.total)
+        // No paidAmount, remainingAfterAllocation or bankValidated amount
+        // is calculated by the read-only projection.
+    }
+
 }
