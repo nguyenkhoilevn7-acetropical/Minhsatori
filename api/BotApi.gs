@@ -46,7 +46,7 @@ function state(){
 }
 function rows(s){var x=JSON.parse(s.values[ORDER_KEY]);need(Array.isArray(x),'INVALID_STATE','Dữ liệu hóa đơn hỏng');return x;}
 function version(s,p){need(Number.isInteger(p.expectedRevision),'REVISION_REQUIRED','Thiếu expectedRevision');need(s.revision===p.expectedRevision,'REVISION_CONFLICT','Dữ liệu vừa được cập nhật, hãy đọc lại');}
-function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCommissionAmount:o.pairCommissionAmount??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,satoriPaidAt:o.satoriPaidAt||null,customerPaid:paid(o),satoriPaid:o.status==='Đã TT Satori'||!!o.satoriPaidAt,customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
+function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCommissionAmount:o.pairCommissionAmount??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,satoriPaidAt:o.satoriPaidAt||null,customerPaid:paid(o),satoriPaid:active(o)&&(o.status==='Đã TT Satori'||!!o.satoriPaidAt),customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
 function iso(date){
  var m=String(date||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
  var d=new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
@@ -63,7 +63,7 @@ function select(all,p){
  });
 }
 function active(o){return !['Đã hủy','Không Tính'].includes(o.status);}
-function paid(o){return o.status==='Đã thanh toán'||!!o.customerPaidAt;}
+function paid(o){return active(o)&&(o.status==='Đã thanh toán'||!!o.customerPaidAt);}
 
 function locKey(o){
  return [norm(o.name),norm(o.location).replace(/[^a-z0-9]+/g,' ').trim(),String(o.phone||'').replace(/\D/g,'').slice(-9)].join('|');
