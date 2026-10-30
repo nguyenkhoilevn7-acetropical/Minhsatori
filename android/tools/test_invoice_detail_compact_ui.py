@@ -23,6 +23,20 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn('confirmInvoicePayment(invoice, action)', DETAIL)
         self.assertIn('val canEditPayment = validInvoiceNumber != null && invoice.canChangePayment', DETAIL)
 
+    def test_cancelled_takes_priority_over_historical_paid_at(self):
+        # A cancelled invoice may retain an old receipt timestamp for audit.
+        # The UI must not show it as either customer-paid or outstanding.
+        activity = SRC.split("private fun ledgerInvoiceCard(", 1)[1].split(
+            "private fun customerQuickCard(", 1)[0]
+        self.assertIn("if (invoice.isCancelled)", activity)
+        self.assertIn('"⊘ HÓA ĐƠN ĐÃ HỦY"', activity)
+        self.assertIn('"Có lịch sử thanh toán • cần đối soát"', activity)
+        self.assertIn("if (invoice.isCancelled)", DETAIL)
+        self.assertIn('"ĐÃ HỦY • KHÔNG TÍNH DOANH THU / CÔNG NỢ"', DETAIL)
+        self.assertIn("Kiểm tra chứng từ đối soát / hoàn tiền", DETAIL)
+        self.assertIn("invoice.isCancelled -> Color.rgb(190, 40, 48)", SRC)
+        self.assertIn("if (invoice.isCancelled) Color.rgb(190, 40, 48)", SRC)
+
     def test_compact_toolbar_branded_icons_not_long_button_labels(self):
         self.assertIn('invoiceMiniAction(actions, R.drawable.ic_satori_edit', DETAIL)
         self.assertIn('invoiceMiniAction(actions, R.drawable.ic_satori_trash', DETAIL)
