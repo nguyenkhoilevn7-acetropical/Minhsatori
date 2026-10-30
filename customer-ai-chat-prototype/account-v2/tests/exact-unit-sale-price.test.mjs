@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import {discountFromUnitPrice,unitPriceFromDiscount,validateExactUnitPrice} from '../unit-sale-price.mjs';
 import {calculateQuote} from '../domain.mjs';
 
@@ -70,5 +72,7 @@ test('server persists exact price in immutable audit and retrieves it for quote/
  assert.equal((router.match(/unitPriceVnd",/g)||[]).length,4);
  assert.match(domain,/const unitPrice=exactPrice\?\?percentPrice/);
  assert.match(domain,/ensure\(internalUnitPrice===null\|\|unitPrice>=internalUnitPrice,'CTV_MARGIN_NEGATIVE'\)/);
- assert.doesNotThrow(()=>new vm.Script(router.replace(/^(?:import|export)\s[^\n]*\n/gm,'')));
+ const syntax=spawnSync(process.execPath,['--check',
+  fileURLToPath(new URL('../router.mjs',import.meta.url))],{encoding:'utf8'});
+ assert.equal(syntax.status,0,syntax.stderr);
 });
