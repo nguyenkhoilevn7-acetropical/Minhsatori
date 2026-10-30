@@ -95,6 +95,7 @@ class AccountingProScreensInstrumentedTest {
                 Triple("showAccountingProInvoiceList", "Accounting Pro · Tra cứu công nợ", true),
                 Triple("showAccountingProReviewAlerts", "Accounting Pro · Cảnh báo", true),
                 Triple("showAccountingProProfitAudit", "Accounting Pro · CTV", true),
+                Triple("showAccountingProMarginPeriod", "Accounting Pro · Lãi gộp theo kỳ", true),
                 Triple("showAccountingProBankDemo", "Accounting Pro · Bank DEMO", false),
                 Triple("showAccountingProDocuments", "Accounting Pro · Chứng từ", true),
                 Triple("showAccountingProAllocationDemo", "Accounting Pro · DEMO", false)
