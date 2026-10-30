@@ -40,6 +40,27 @@ class AccountingProIsolationTest(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, source)
 
+    def test_profit_ctv_is_read_only_without_fabricated_profit(self):
+        model = (KOTLIN / "AccountingProProfitAudit.kt").read_text(encoding="utf-8")
+        self.assertIn("verifiedNetProfitVnd: Long? = null", model)
+        self.assertIn("verifiedCommissionLiabilityVnd: Long? = null", model)
+        self.assertIn("AccountingProReadOnly.invoiceRows(invoices)", model)
+        for forbidden in ("HttpURLConnection", "OkHttp", "Retrofit",
+                          "payments.markCustomerPaid", "orders.create",
+                          "writeInvoice(", "sendEmail("):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, model)
+        ui = (KOTLIN / "NativeMainActivity.kt").read_text(encoding="utf-8")
+        start = ui.index("    private fun showAccountingProProfitAudit(data: SatoriSnapshot)")
+        end = ui.index("    /**", start + 1)
+        screen = ui[start:end]
+        self.assertIn("AccountingProProfitAudit.summary(data.invoices)", screen)
+        self.assertIn("Chưa đủ dữ liệu", screen)
+        for forbidden in ("performWrite(", "launchEditor(", "HttpURLConnection",
+                          "payments.mark", "startActivity(", "createInvoice("):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, screen)
+
     def test_accounting_alerts_have_no_delivery_or_financial_writers(self):
         policy = (KOTLIN / "AccountingProAlerts.kt").read_text(encoding="utf-8")
         for prohibited in ("HttpURLConnection", "sendEmail(", "sendReminder(",
