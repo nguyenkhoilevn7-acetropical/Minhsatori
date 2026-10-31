@@ -75,7 +75,7 @@ class OwnerInvoiceEditPaymentContract(unittest.TestCase):
         self.assertIn('val satoriAction = if (invoice.satoriHasPaid)', detail)
         self.assertIn("confirmInvoicePayment(invoice, action)", detail)
         self.assertIn('label(content, "THANH TOÁN"', detail)
-        self.assertIn('invoicePaymentRow(content, "Khách"', detail)
+        self.assertIn('invoicePaymentRow(content, "Khách hàng"', detail)
         self.assertIn('invoicePaymentRow(content, "Satori"', detail)
         self.assertIn('invoice.customerHasPaid', detail)
         self.assertIn('invoice.satoriHasPaid', detail)

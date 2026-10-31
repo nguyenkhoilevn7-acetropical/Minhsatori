@@ -196,8 +196,8 @@ assert.equal(mixed[0].satoriPaidAt,null);
 assert.equal(mixed[0].status,'Chưa thanh toán');
 assert.equal(mixed[1].total,45000,'duplicate invoice number remains untouched');
 assert.equal(JSON.parse(data.values.satori_orders_v15)[2].status,'Đã thanh toán');
-assert.equal(mixed[0].paymentAudit.length,3,
- 'three corrective payment entries must be recorded');
+assert.equal(mixed[0].paymentAudit.length,4,
+ 'all four payment entries must be recorded');
 const paymentsSnapshot=req('mobile.snapshot',{});
 const paymentRead=JSON.parse(paymentsSnapshot.data.values.satori_orders_v15);
 assert.equal(paymentRead[0].status,'Chưa thanh toán',

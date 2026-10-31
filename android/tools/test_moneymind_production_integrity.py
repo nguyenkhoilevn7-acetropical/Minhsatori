@@ -8,12 +8,13 @@ SOURCE=(ROOT/'app/src/main/java/vn/minhsatori/app/NativeMainActivity.kt').read_t
 MANIFEST=(ROOT/'app/src/main/AndroidManifest.xml').read_text(encoding='utf-8')
 PORTAL=(ROOT/'app/src/main/java/vn/minhsatori/app/AiCustomerPortalActivity.kt').read_text(encoding='utf-8')
 BASELINE={
- 'confirmInvoicePayment':'7c1541e5',
+ # Payment completion: explicit current/next status; write path unchanged.
+        'confirmInvoicePayment':'104b6584',
  'confirmSoftDelete':'6717c467',
  'executeWrite':'a513026e',
  'launchEditor':'a449a547',
  'recoverDriveAccessUsingOwnerApi':'4c0215f3',
- 'openInvoice':'cb0f31d3',
+ 'openInvoice':'2ff405bc',
  'invoiceQuickCard':'88bb9544',
 }
 def method(name):
