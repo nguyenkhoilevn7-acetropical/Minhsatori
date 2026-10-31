@@ -1,10 +1,10 @@
 {
-  "purpose": "android-v0.4.38-invoice-5916-khong-tinh-zero-accounting-display",
+  "purpose": "android-v0.4.39-remove-accounting-pro-preserve-core-ledger",
   "package": "vn.minhsatori.app",
-  "version": "0.4.38",
-  "versionCode": 55,
-  "branch": "feature/android-noncounted-invoice-zero-display-v0438-20261030",
-  "requestedOn": "2026-10-30",
+  "version": "0.4.39",
+  "versionCode": 56,
+  "branch": "feature/remove-accounting-pro-android-20261031",
+  "requestedOn": "2026-10-31",
   "sourcePRs": [
     240,
     241,
@@ -20,15 +20,6 @@
     263,
     264,
     292,
-    294,
-    295,
-    296,
-    297,
-    298,
-    299,
-    301,
-    302,
-    303,
     305,
     306,
     307,
@@ -37,9 +28,10 @@
     311,
     312,
     313,
-    314
+    314,
+    318
   ],
-  "scope": "Android native invoice model and UI only: mark Không Tính 0đ as non-payable/non-revenue/non-debt in list, history and detail. Preserve original 1,727,996đ for audit; Android PDF still original content with warning. Keep canChangePayment false and all guarded financial writers untouched. No Gemini V2, website, Bot API or live ledger mutation. Signed same-package same-certificate owner acceptance APK.",
+  "scope": "Android-only acceptance release removing the optional Accounting Pro read-only screens, payment-allocation demo, alerts, CTV-audit demo, bank demo and document demo. Preserve core invoice editing, separate customer/Satori payment states, debts, 45% supplier-discount gross profit, period filters, Gemini V2, ChatGPT Bot, cancelled/noncounted zero policy, OAuth and local user data. Build signed APK with original pinned certificate only; no website/Render/Apps Script/Production ledger changes.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -82,6 +74,7 @@
     "2026-10-30: Initial signed-gate static source check detected layout comment attached to preceding payment method; removed comment and verified all protected checksums unchanged (confirmInvoicePayment 7c1541e5). Request rebuilt signed APK after unchanged payment protections pass.",
     "2026-10-30: PR #312 is stacked on #311. Owner explicitly requested right-aligned compact action icons with iOS light visual refinement. v0.4.36 code53 signed APK owner-only acceptance, original pinned signer; run CI tests and certificate verification; no financial writes, production backend changes or automatic merge.",
     "2026-10-30: Authoritative read-only Bot API revision189 confirms #5914 Đã hủy and customerPaidAt 2026-10-19 (only one of 3 cancelled bills with prior paidAt). Preserve the historical timestamp, suppress false paid UI; immutable checked write-path hashes. PR #313 on #312. v0.4.37 code54 signed owner APK after tests and certificate verification, no real financial writes.",
-    "2026-10-30: Verified authoritative Bot API revision190 #5916 status Không Tính total1,727,996. Display-only Android fix PR #314 stacked on #313. Original bill total retained; accounting contribution/payable shown 0. v0.4.38 build55 signed owner acceptance only; CI + signer required. Production records untouched."
+    "2026-10-30: Verified authoritative Bot API revision190 #5916 status Không Tính total1,727,996. Display-only Android fix PR #314 stacked on #313. Original bill total retained; accounting contribution/payable shown 0. v0.4.38 build55 signed owner acceptance only; CI + signer required. Production records untouched.",
+    "2026-10-31: Explicit owner request to remove Accounting Pro. PR #318 implements removal and passes Android debug CI and UI screenshot. Prepare signed owner acceptance APK v0.4.39 build56 with exact existing signer. Do not merge, silently deploy, send debug APK, reinstall/uninstall, or mutate Production orders."
   ]
 }
