@@ -13,7 +13,7 @@ DRAWABLE = ANDROID / "app/src/main/res/drawable"
 
 class CompactInvoiceDetailContract(unittest.TestCase):
     def test_two_payment_facts_remain_independent_and_visible(self):
-        self.assertIn('invoicePaymentRow(content, "Khách", invoice.customerHasPaid', DETAIL)
+        self.assertIn('invoicePaymentRow(content, "Khách hàng", invoice.customerHasPaid', DETAIL)
         self.assertIn('invoicePaymentRow(content, "Satori", invoice.satoriHasPaid', DETAIL)
         self.assertIn('payments.markCustomerPaid', DETAIL)
         self.assertIn('payments.markCustomerUnpaid', DETAIL)

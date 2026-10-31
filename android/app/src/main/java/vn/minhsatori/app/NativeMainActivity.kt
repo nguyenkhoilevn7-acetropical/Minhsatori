@@ -3355,8 +3355,17 @@ class NativeMainActivity : AppCompatActivity() {
             else -> return
         }
         val isCorrection = action != "payments.markCustomerPaid"
+        val customerTarget = action.startsWith("payments.markCustomer")
+        val currentPaid = if (customerTarget) invoice.customerHasPaid else invoice.satoriHasPaid
+        val targetPaid = action.endsWith("Paid")
+        val group = if (customerTarget) "Khách hàng" else "Satori"
+        val currentStatus = if (currentPaid) "Đã thanh toán" else "Chưa thanh toán"
+        val nextStatus = if (targetPaid) "Đã thanh toán" else "Chưa thanh toán"
         val confirmation = "Hóa đơn #" + no + "\nKhách: " + invoice.customer +
             "\nTổng: " + SatoriData.money(invoice.total) +
+            "\nNhóm: " + group +
+            "\nHiện tại: " + currentStatus +
+            "\nChuyển sang: " + nextStatus +
             "\n\nTrạng thái KHÁCH và SATORI là hai khoản ghi nhận độc lập. " +
             "Chỉ xác nhận sau khi đã đối chiếu thanh toán thật."
         val reason = EditText(this).apply {
@@ -3632,7 +3641,7 @@ class NativeMainActivity : AppCompatActivity() {
         val satoriClick: (() -> Unit)? = if (canEditPayment) {
             { requestPayment(satoriAction) }
         } else null
-        invoicePaymentRow(content, "Khách", invoice.customerHasPaid,
+        invoicePaymentRow(content, "Khách hàng", invoice.customerHasPaid,
             "Đã thanh toán", "Chưa thanh toán", customerClick)
         invoicePaymentRow(content, "Satori", invoice.satoriHasPaid,
             "Đã thanh toán", "Chưa thanh toán", satoriClick)

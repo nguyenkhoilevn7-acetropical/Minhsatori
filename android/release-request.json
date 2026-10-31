@@ -1,9 +1,9 @@
 {
-  "purpose": "android-v0.4.39-remove-accounting-pro-preserve-core-ledger",
+  "purpose": "android-payment-confirmation-and-owner-write-safety",
   "package": "vn.minhsatori.app",
-  "version": "0.4.39",
-  "versionCode": 56,
-  "branch": "feature/remove-accounting-pro-android-20261031",
+  "version": "0.4.40",
+  "versionCode": 57,
+  "branch": "fix/android-payment-completion-20261031",
   "requestedOn": "2026-10-31",
   "sourcePRs": [
     240,
@@ -29,9 +29,12 @@
     312,
     313,
     314,
-    318
+    318,
+    315,
+    316,
+    317
   ],
-  "scope": "Android-only acceptance release removing the optional Accounting Pro read-only screens, payment-allocation demo, alerts, CTV-audit demo, bank demo and document demo. Preserve core invoice editing, separate customer/Satori payment states, debts, 45% supplier-discount gross profit, period filters, Gemini V2, ChatGPT Bot, cancelled/noncounted zero policy, OAuth and local user data. Build signed APK with original pinned certificate only; no website/Render/Apps Script/Production ledger changes.",
+  "scope": "Owner payment completion on PR318; explicit before/after confirmation, independent payment facts, audit and replay safety. Original signer only. Production acceptance and physical Fold tests remain required.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -75,6 +78,7 @@
     "2026-10-30: PR #312 is stacked on #311. Owner explicitly requested right-aligned compact action icons with iOS light visual refinement. v0.4.36 code53 signed APK owner-only acceptance, original pinned signer; run CI tests and certificate verification; no financial writes, production backend changes or automatic merge.",
     "2026-10-30: Authoritative read-only Bot API revision189 confirms #5914 Đã hủy and customerPaidAt 2026-10-19 (only one of 3 cancelled bills with prior paidAt). Preserve the historical timestamp, suppress false paid UI; immutable checked write-path hashes. PR #313 on #312. v0.4.37 code54 signed owner APK after tests and certificate verification, no real financial writes.",
     "2026-10-30: Verified authoritative Bot API revision190 #5916 status Không Tính total1,727,996. Display-only Android fix PR #314 stacked on #313. Original bill total retained; accounting contribution/payable shown 0. v0.4.38 build55 signed owner acceptance only; CI + signer required. Production records untouched.",
-    "2026-10-31: Explicit owner request to remove Accounting Pro. PR #318 implements removal and passes Android debug CI and UI screenshot. Prepare signed owner acceptance APK v0.4.39 build56 with exact existing signer. Do not merge, silently deploy, send debug APK, reinstall/uninstall, or mutate Production orders."
+    "2026-10-31: Explicit owner request to remove Accounting Pro. PR #318 implements removal and passes Android debug CI and UI screenshot. Prepare signed owner acceptance APK v0.4.39 build56 with exact existing signer. Do not merge, silently deploy, send debug APK, reinstall/uninstall, or mutate Production orders.",
+    "2026-10-31: Payment completion candidate. No real payment test writes; do not declare production/device acceptance from offline tests."
   ]
 }

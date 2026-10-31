@@ -6,6 +6,7 @@ on:
       - 'api/BotApi.gs'
       - 'tests/android-owner-mobile-production.test.cjs'
       - 'tests/owner-payment-connector-parity.test.cjs'
+      - 'tests/android-payment-completion.test.cjs'
       - 'connector/lib/satori.mjs'
       - 'tests/android-owner-invoice-edit.test.cjs'
       - '.github/workflows/android-owner-mobile-fake.yml'
@@ -28,4 +29,4 @@ jobs:
         with:
           node-version: '22'
       - name: Test private OAuth owner mobile API with fake only
-        run: node tests/android-owner-mobile-production.test.cjs && node tests/android-owner-invoice-edit.test.cjs && node tests/owner-payment-connector-parity.test.cjs
+        run: node tests/android-owner-mobile-production.test.cjs && node tests/android-owner-invoice-edit.test.cjs && node tests/owner-payment-connector-parity.test.cjs && node tests/android-payment-completion.test.cjs
