@@ -35,6 +35,7 @@ on:
       - 'feature/android-invoice-actions-right-aligned-v0436-20261030'
       - 'feature/android-cancelled-invoice-status-precedence-v0437-20261030'
       - 'feature/android-noncounted-invoice-zero-display-v0438-20261030'
+      - 'feature/remove-accounting-pro-android-20261031'
       - 'release/android-v0.4.20-native-v2-crm-20261029'
       - 'release/android-v0.4.13-customer-info-20261027'
       - 'release/android-v0.4.14-owner-edit-payment-20261027'
