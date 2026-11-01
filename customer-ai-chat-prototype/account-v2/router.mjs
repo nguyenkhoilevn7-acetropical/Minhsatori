@@ -21,6 +21,7 @@ import {acceptedSubjects} from './identity-rollout.mjs';
 import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
+import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
@@ -758,6 +759,46 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/legacy/history'&&req.method==='GET'){
    send(res,200,await linkedLegacyInvoiceHistory(pool,actor));return true;
+  }
+  // Authenticated binary read of the ORIGINAL PDF. The logged-in account
+  // must own both the canonical request and its originating quote.
+  // Browser input supplies an order UUID only, never Drive IDs or credentials.
+  const pdfMatch=/^\/api\/v2\/orders\/([a-f0-9-]{36})\/pdf$/i.exec(pathname);
+  if(pdfMatch&&req.method==='GET'){
+   error(isUuid(pdfMatch[1]),'PDF_ORDER_NOT_FOUND',404);
+   const matches=await pool.query(
+    'SELECT r.ledger_invoice_no AS "invoiceNo",r.ledger_invoice_id AS "ledgerId",'+
+    'r.ledger_invoice_total AS "total" FROM satori_v2_order_requests r '+
+    'JOIN satori_v2_quotes q ON q.id=r.quote_id '+
+    "WHERE r.id=$1 AND r.account_id=$2 AND q.account_id=$2 AND r.state='COMMITTED'",
+    [pdfMatch[1],actor.id]);
+   error(matches.rows.length===1,'PDF_ORDER_NOT_FOUND',404);
+   const row=matches.rows[0];
+   error(Number.isSafeInteger(Number(row.invoiceNo))&&
+    Number.isSafeInteger(Number(row.total))&&
+    typeof row.ledgerId==='string'&&row.ledgerId.length>0,
+    'PDF_NOT_READY',404);
+   let pdf;
+   try{
+    pdf=await readArchivedInvoicePdf({
+     invoiceNo:Number(row.invoiceNo),ledgerId:row.ledgerId,expectedTotal:Number(row.total)
+    });
+   }catch(e){
+    if(e.code==='PDF_NOT_READY')throw new ApiError('PDF_NOT_READY',404);
+    if(e.code==='PDF_READ_DISABLED')throw new ApiError('PDF_READ_DISABLED',503);
+    throw new ApiError('PDF_ARCHIVE_UNAVAILABLE',503);
+   }
+   const disposition=new URL(req.url,'https://v2.local').searchParams.get('download')==='1'?
+    'attachment':'inline';
+   res.writeHead(200,{
+    'content-type':'application/pdf','content-length':String(pdf.bytes.length),
+    'content-disposition':disposition+'; filename="MinhSatori_HD'+pdf.invoiceNo+'.pdf"',
+    'cache-control':'private, no-store, max-age=0','x-content-type-options':'nosniff',
+    'x-frame-options':'DENY','referrer-policy':'no-referrer',
+    'x-satori-pdf-sha256':pdf.sha256
+   });
+   res.end(pdf.bytes);
+   return true;
   }
   if(pathname==='/api/v2/orders'&&req.method==='GET'){
    // No broad legacy-ledger search. Only independently authored V2 orders

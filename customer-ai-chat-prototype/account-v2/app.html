@@ -2295,6 +2295,45 @@ $('quickAgentProfile').onchange=async()=>{
 // Display a committed V2 receipt in a dedicated invoice screen, NEVER in chat.
 // Product and discount lines come from the stored account-scoped quote snapshot;
 // only the invoice number and total are reconciled with the canonical ledger.
+function attachVerifiedPdfUi(order){
+ const box=document.getElementById('invoiceDetailBody');
+ if(!box||order?.verified!==true||order.state!=='COMMITTED'||!/^[0-9a-f-]{36}$/i.test(order.id||''))return;
+ const previousPdfNote=box.lastElementChild;
+ if(previousPdfNote?.classList.contains('invoice-detail-notice'))previousPdfNote.hidden=true;
+ const row=document.createElement('div');
+ row.className='invoice-pdf-actions';
+ const status=node('p','Đang xác minh PDF gốc trên Google Drive…','invoice-detail-notice');
+ box.append(status,row);
+ const buttons=['👁 Xem PDF','⬇ Tải PDF','↗ Chia sẻ PDF'].map(label=>{
+  const b=document.createElement('button');b.type='button';b.className='btn';
+  b.textContent=label;b.disabled=true;row.append(b);return b;
+ });
+ const url='/api/v2/orders/'+encodeURIComponent(order.id)+'/pdf';
+ fetch(url,{credentials:'same-origin',cache:'no-store'}).then(async r=>{
+  if(!r.ok||!r.headers.get('content-type')?.startsWith('application/pdf'))throw Error('UNAVAILABLE');
+  const blob=await r.blob();if(blob.size<100||blob.size>3*1024*1024)throw Error('INVALID');
+  return blob;
+ }).then(blob=>{
+  if(!row.isConnected)return;
+  const name='MinhSatori_HD'+order.receipt.invoiceNo+'.pdf';
+  const file=new File([blob],name,{type:'application/pdf'});
+  const [view,download,share]=buttons;
+  buttons.forEach(b=>b.disabled=false);
+  status.textContent='PDF gốc đã được xác minh. Có thể xem, tải và chia sẻ.';
+  view.onclick=()=>window.open(url,'_blank','noopener');
+  download.onclick=()=>{
+   const a=document.createElement('a');a.href=url+'?download=1';a.download=name;
+   document.body.append(a);a.click();a.remove();
+  };
+  share.onclick=()=>{
+   if(navigator.canShare?.({files:[file]})&&navigator.share){
+    navigator.share({files:[file],title:'Hóa đơn Minh Satori #'+order.receipt.invoiceNo})
+     .catch(e=>{if(e?.name!=='AbortError')toast('Chia sẻ lỗi. Hãy tải PDF và gửi qua Zalo.');});
+   }else toast('Trình duyệt không hỗ trợ chia sẻ PDF. Hãy tải file và gửi qua Zalo.');
+  };
+ }).catch(()=>{if(row.isConnected)status.textContent='PDF chính thức chưa sẵn sàng. Vui lòng thử lại sau.';});
+}
+
 function showCommittedReceipt(order){
  const receipt=order?.receipt;
  if(order?.verified!==true||order.state!=='COMMITTED'||!receipt||
@@ -2386,6 +2425,7 @@ function showCommittedReceipt(order){
   'Chưa xác nhận được PDF gốc trên Google Drive. Chưa có link tải chính thức.';
  container.append(node('p',note,'invoice-detail-notice'));
  view('invoiceDetail');
+ attachVerifiedPdfUi(order);
  return true;
 }
 $('invoiceDetailBack').onclick=()=>view('orders');
