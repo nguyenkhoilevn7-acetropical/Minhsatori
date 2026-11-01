@@ -681,6 +681,14 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .ctv-client-entry button{min-height:43px;background:#e8f6f4;color:#0c7771;border-radius:10px}
 #ctvCustomerDiscountField{background:#eaf7f5;border-radius:13px;padding:12px}
 #ctvClientStatus{font-size:14px}
+.ctv-fees{margin-top:12px;padding:12px;border-radius:14px;border:1px solid #cce5e1;background:#f6fbfa}
+.ctv-fees summary{cursor:pointer;font-weight:750;color:#146c69}
+.ctv-fees .ctv-charge-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
+.ctv-fees .ctv-charge-options label{display:flex;gap:7px;align-items:center;padding:10px;background:white;border-radius:10px}
+.ctv-fees select,.ctv-fees input[type=number]{width:100%;min-height:43px;font-size:16px}
+.ctv-fees button{width:100%;min-height:44px;border-radius:10px;margin-top:12px;background:#009c99;color:white}
+.ctv-fees .ctv-fee-recipient{display:flex;gap:8px;padding:9px 0;align-items:flex-start}
+.ctv-fees .ctv-fee-recipient input{width:20px;height:20px;flex-shrink:0}
 @media(max-width:420px){.ctv-client-entry form{display:grid;grid-template-columns:1fr auto}}
 
 /* Approved CTV new/existing client bottom sheet. One working editor, moved into dialog. */
@@ -928,6 +936,34 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 </div>
 <div id="ctvClientList" hidden></div>
 <p id="ctvClientStatus" role="status" class="muted"></p>
+<details id="ctvChargePanel" class="ctv-fees">
+<summary>🧾 Tùy chỉnh VAT 8% / phí giao hàng</summary>
+<form id="ctvChargeForm">
+<p class="muted">Bắt buộc chọn đúng một: nhập VAT 8% hoặc Shipping 8%. Loại không chọn để trống. Cả hai đều tính theo tiền hàng sau chiết khấu.</p>
+<div class="ctv-charge-options" role="group" aria-label="Loại phí">
+<label><input type="radio" name="ctvChargeChoice" value="vat" required> VAT 8%</label>
+<label><input type="radio" name="ctvChargeChoice" value="shipping" required> Shipping 8%</label>
+</div>
+<div class="field" id="ctvVatField" hidden>
+<label for="ctvVatPercent">VAT (%)</label>
+<input id="ctvVatPercent" type="number" min="8" max="8" step="1" inputmode="decimal" placeholder="Nhập 8">
+</div>
+<div class="field" id="ctvShippingField" hidden>
+<label for="ctvShippingPercent">Shipping (%)</label>
+<input id="ctvShippingPercent" type="number" min="8" max="8" step="1" inputmode="decimal" placeholder="Nhập 8">
+</div>
+<div class="field">
+<label for="ctvChargeScope">Phạm vi áp dụng</label>
+<select id="ctvChargeScope">
+<option value="all">Tất cả khách/điểm giao của CTV</option>
+<option value="selected">Chỉ các khách được chọn</option>
+</select>
+</div>
+<div id="ctvChargeRecipients" hidden></div>
+<p id="ctvChargeStatus" role="status" class="muted">Đang tải cấu hình…</p>
+<button id="ctvChargeSave" type="submit" disabled>Lưu loại phí đã chọn</button>
+</form>
+</details>
 </section>
 <form id="addressForm" class="panel"><h2 id="addressFormTitle">Thông tin khách nhận hàng</h2>
 <div class="field"><label>Nhãn</label><input name="label" required maxlength="70" placeholder="Nhà / Công ty"></div>
@@ -1117,6 +1153,91 @@ function renderCtvSavedClients(data){
   row.append(form);root.append(row);
  }
 }
+
+let ctvChargeEpoch=0,ctvChargePolicy=null;
+const ctvChargeChoice=()=>
+ document.querySelector('input[name="ctvChargeChoice"]:checked')?.value||null;
+function paintCtvCharges(){
+ const choice=ctvChargeChoice(),shipping=choice==='shipping',vat=choice==='vat';
+ const selected=$('ctvChargeScope').value==='selected';
+ $('ctvVatField').hidden=!vat;
+ $('ctvVatPercent').required=vat;
+ $('ctvShippingField').hidden=!shipping;
+ $('ctvShippingPercent').required=shipping;
+ $('ctvChargeRecipients').hidden=!selected;
+}
+for(const el of document.querySelectorAll('input[name="ctvChargeChoice"]'))
+ el.addEventListener('change',paintCtvCharges);
+$('ctvChargeScope').onchange=paintCtvCharges;
+async function refreshCtvCharges(profile,clients){
+ const epoch=++ctvChargeEpoch,root=$('ctvChargeRecipients');
+ ctvChargePolicy=null;
+ $('ctvChargeSave').disabled=true;
+ $('ctvChargeStatus').textContent='Đang tải VAT / Shipping…';
+ for(const option of document.querySelectorAll('input[name="ctvChargeChoice"]'))option.checked=false;
+ root.replaceChildren();
+ for(const client of clients.filter(x=>x.active)){
+  const label=document.createElement('label');label.className='ctv-fee-recipient';
+  const check=document.createElement('input');check.type='checkbox';check.value=client.id;
+  label.append(check,node('span',(client.recipientName||client.label||'Khách')+' · '+client.address));
+  root.append(label);
+ }
+ try{
+  const policy=await call('/api/v2/ctv/invoice-charge-policy?profileId='+encodeURIComponent(profile.id),undefined,'GET');
+  if(epoch!==ctvChargeEpoch||currentCtvProfile()?.id!==profile.id)return;
+  ctvChargePolicy=policy;
+  const hasVat=policy.vat.scope!=='none',hasShipping=policy.shipping.scope!=='none';
+  // Existing admin policies might have both charges. Never silently choose one.
+  const choice=hasVat&&!hasShipping&&policy.vat.rateBps===800?'vat':
+   hasShipping&&!hasVat&&policy.shipping.rateBps===800?'shipping':null;
+  if(choice){
+   document.querySelector('input[name="ctvChargeChoice"][value="'+choice+'"]').checked=true;
+   const config=policy[choice];
+   $('ctvChargeScope').value=config.scope;
+   for(const checkbox of root.querySelectorAll('input[type="checkbox"]'))
+    checkbox.checked=config.addressIds.includes(checkbox.value);
+  }else{
+   $('ctvChargeScope').value='all';
+  }
+  $('ctvVatPercent').value=choice==='vat'?'8':'';
+  $('ctvShippingPercent').value=choice==='shipping'?'8':'';
+  $('ctvChargeStatus').textContent=choice?
+   'Đang áp dụng '+(choice==='vat'?'VAT 8%':'Shipping 8%')+
+   '. Thay đổi chỉ ảnh hưởng đơn mới.':
+   'Chưa chọn chính sách CTV hợp lệ. Hãy chọn VAT 8% hoặc Shipping rồi lưu.';
+  $('ctvChargeSave').disabled=false;
+  paintCtvCharges();
+ }catch(e){
+  if(epoch===ctvChargeEpoch)$('ctvChargeStatus').textContent='Không tải được phí CTV: '+e.message;
+ }
+}
+$('ctvChargeForm').onsubmit=async ev=>{
+ ev.preventDefault();
+ const profile=currentCtvProfile(),policy=ctvChargePolicy,choice=ctvChargeChoice();
+ if(!profile||!policy||!choice)return toast('CTV phải chọn VAT 8% hoặc Shipping.');
+ const scope=$('ctvChargeScope').value;
+ const ids=scope==='selected'?[...$('ctvChargeRecipients').querySelectorAll('input:checked')].map(x=>x.value):[];
+ if(scope==='selected'&&!ids.length)return toast('Chọn ít nhất một khách nhận hàng.');
+ const typed=choice==='vat'?$('ctvVatPercent').value.trim():$('ctvShippingPercent').value.trim();
+ if(typed===''||Number(typed)!==8)return toast('Loại được chọn phải nhập đúng 8%.');
+ if(!confirm('Áp dụng '+(choice==='vat'?'VAT 8%':'Shipping 8%')+
+  ' cho '+(scope==='all'?'tất cả khách':'các khách đã chọn')+
+  '? Loại phí còn lại sẽ bằng 0. Chỉ tính cho đơn mới.'))return;
+ $('ctvChargeSave').disabled=true;
+ try{
+  await call('/api/v2/ctv/invoice-charge-policy',{
+   profileId:profile.id,confirmed:true,expectedRevision:policy.revision,
+   choice,scope,addressIds:ids,...(choice==='shipping'?{shippingBps:800}:{vatBps:800})
+  },'PUT');
+  resetTestQuote();invalidateCartPricing();
+  toast('Đã lưu '+(choice==='vat'?'VAT 8%':'phí Shipping')+'; không thay đổi hóa đơn cũ.');
+  await refreshCtvCharges(profile,ctvClientData?.clients||[]);
+ }catch(e){
+  $('ctvChargeSave').disabled=false;
+  toast('Không lưu được VAT/Shipping: '+e.message);
+ }
+};
+
 async function refreshCtvClients(){
  const profile=currentCtvProfile(),epoch=++ctvClientEpoch;
  $('ctvClientPanel').hidden=!profile;
@@ -1124,13 +1245,14 @@ async function refreshCtvClients(){
  $('ctvDeliveryNoteField').hidden=!profile;
  $('ctvCustomerDiscount').required=!!profile;
  $('addressFormTitle').textContent=profile?'Thêm khách nhận hàng mới':'Thêm địa chỉ';
- if(!profile){ctvClientData=null;$('addressForm').hidden=false;
-  $('saveNewAddress').disabled=false;return}
+ if(!profile){ctvClientData=null;ctvChargePolicy=null;++ctvChargeEpoch;
+  $('addressForm').hidden=false;$('saveNewAddress').disabled=false;return}
  $('ctvClientStatus').textContent='Đang tải chiết khấu CTV…';
  try{
   const data=await call('/api/v2/ctv/clients?profileId='+encodeURIComponent(profile.id),undefined,'GET');
   if(epoch!==ctvClientEpoch||!currentCtvProfile()||$('profile').value!==profile.id)return;
   ctvClientData=data;
+  void refreshCtvCharges(profile,data.clients);
   $('ctvClientRates').textContent='CK CTV được duyệt: '+data.collaboratorBps/100+
    '% · CK khách mặc định: '+data.defaultCustomerBps/100+'%';
   $('ctvCustomerDiscount').max=String(data.collaboratorBps/100);
@@ -1142,7 +1264,8 @@ async function refreshCtvClients(){
   renderAddresses();
  }catch(e){
   if(epoch!==ctvClientEpoch)return;
-  ctvClientData=null;$('ctvCustomerDiscount').value='';
+  ctvClientData=null;ctvChargePolicy=null;++ctvChargeEpoch;
+  $('ctvCustomerDiscount').value='';
   $('ctvClientStatus').textContent='Không đọc được chính sách CTV: '+e.message;
   $('saveNewAddress').disabled=true;
   $('ctvClientList').replaceChildren();

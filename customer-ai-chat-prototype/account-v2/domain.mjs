@@ -85,7 +85,7 @@ function percentPrice(price,discountBps){
  return Math.round(price*(10_000-discountBps)/10_000);
 }
 export function calculateQuote({accountId,profile,address,catalogue,cart,policies=[],catalogueRevision,vatBps=0,
- shippingVnd=0,at=Date.now()}){
+ shippingVnd=0,shippingBps=0,at=Date.now()}){
  ensure(isUuid(accountId)&&profile&&isUuid(profile.id)&&isUuid(profile.accountId)&&
   profile.accountId===accountId&&['retail','agency','collaborator'].includes(profile.type),'PROFILE_FORBIDDEN');
  ensure(address&&isUuid(address.id)&&address.profileId===profile.id&&address.active===true,'ADDRESS_FORBIDDEN');
@@ -97,7 +97,8 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
  });
  const delivery=Object.freeze({addressId:address.id,...deliveryInput});
  ensure(Number.isSafeInteger(catalogueRevision)&&catalogueRevision>=1,'CATALOGUE_NOT_AUTHORITATIVE');
- ensure(bps(vatBps)&&isMoney(shippingVnd),'CHARGES_INVALID');
+ ensure(bps(vatBps)&&bps(shippingBps)&&isMoney(shippingVnd)&&
+  (shippingBps===0||shippingVnd===0),'CHARGES_INVALID');
  ensure(Array.isArray(catalogue)&&catalogue.length>0,'CATALOGUE_NOT_READY');
  const products=new Map();
  for(const product of catalogue){
@@ -145,10 +146,12 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
     policyId:policy.policyId,policyVersion:policy.version,internalUnitPrice};
  });
  ensure(Number.isSafeInteger(goods)&&goods<=100_000_000_000,'ORDER_TOTAL_TOO_LARGE');
- const vatVnd=Math.round(goods*vatBps/10_000),total=goods+shippingVnd+vatVnd;
+ // Both VAT and percentage Shipping use the post-discount goods subtotal.
+ const chargedShipping=shippingBps>0?Math.round(goods*shippingBps/10_000):shippingVnd;
+ const vatVnd=Math.round(goods*vatBps/10_000),total=goods+chargedShipping+vatVnd;
  ensure(Number.isSafeInteger(total)&&total<=100_000_000_000,'ORDER_TOTAL_TOO_LARGE');
  const summary={currency:'VND',catalogueRevision,policyVersion,addressId:address.id,profileId:profile.id,
-  delivery,items:priced,goodsVnd:goods,shippingVnd,vatVnd,totalVnd:total,
+  delivery,items:priced,goodsVnd:goods,shippingVnd:chargedShipping,vatVnd,totalVnd:total,
   invoiceMode:pair?'pair':'single'};
  if(ctvRated&&!pair){
   ensure(Number.isSafeInteger(ctvMargin)&&ctvMargin>=0,'CTV_MARGIN_INVALID');
@@ -159,7 +162,7 @@ export function calculateQuote({accountId,profile,address,catalogue,cart,policie
  if(pair){
   const internalVatVnd=Math.round(collabGoods*vatBps/10_000);
   summary.internalReference={goodsVnd:collabGoods,vatVnd:internalVatVnd,
-    shippingVnd,totalVnd:collabGoods+shippingVnd+internalVatVnd,
+    shippingVnd:chargedShipping,totalVnd:collabGoods+chargedShipping+internalVatVnd,
     note:'Reference CTV bill only; never double-count revenue'};
  }
  return Object.freeze(summary);

@@ -59,6 +59,20 @@ test('other address uses base discount, not discount for a different address',()
  policies:[policy(2000),policy(3500,{id:'policy-2',addressId,version:2})]});
  assert.equal(q.totalVnd,784000);
 });
+test('CTV shipping 8% is calculated on discounted goods, not fixed VND',()=>{
+ const priced=calculateQuote({...base,policies:[policy(2000)],shippingBps:800});
+ assert.equal(priced.goodsVnd,784000);
+ assert.equal(priced.shippingVnd,62720);
+ assert.equal(priced.vatVnd,0);
+ assert.equal(priced.totalVnd,846720);
+ const taxed=calculateQuote({...base,policies:[policy(2000)],vatBps:800});
+ assert.equal(taxed.shippingVnd,0);
+ assert.equal(taxed.vatVnd,62720);
+ assert.equal(taxed.totalVnd,846720);
+ assert.equal(code(()=>calculateQuote({...base,shippingBps:800,shippingVnd:2000})),
+  'CHARGES_INVALID');
+});
+
 test('discount 100% is valid and totals zero',()=>{
  const q=calculateQuote({...base,policies:[policy(10000)]});
  assert.equal(q.totalVnd,0);
