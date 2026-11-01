@@ -2416,8 +2416,7 @@ $('quickAgentProfile').onchange=async()=>{
  if(!selectedDeliveryAddress())openDeliveryDialog();
 };
 // Display a committed V2 receipt in a dedicated invoice screen, NEVER in chat.
-// Product and discount lines come from the stored account-scoped quote snapshot;
-// only the invoice number and total are reconciled with the canonical ledger.
+// Render current verified invoice items, not a stale quote after owner edits.
 function attachVerifiedPdfUi(order){
  const box=document.getElementById('invoiceDetailBody');
  if(!box||order?.verified!==true||order.state!=='COMMITTED'||!/^[0-9a-f-]{36}$/i.test(order.id||''))return;
@@ -2425,7 +2424,7 @@ function attachVerifiedPdfUi(order){
  if(previousPdfNote?.classList.contains('invoice-detail-notice'))previousPdfNote.hidden=true;
  const row=document.createElement('div');
  row.className='invoice-pdf-actions';
- const status=node('p','Đang xác minh PDF gốc trên Google Drive…','invoice-detail-notice');
+ const status=node('p','Đang tạo PDF theo mẫu hóa đơn website Minh Satori…','invoice-detail-notice');
  box.append(status,row);
  const buttons=['👁 Xem PDF','⬇ Tải PDF','↗ Chia sẻ PDF'].map(label=>{
   const b=document.createElement('button');b.type='button';b.className='btn';
@@ -2442,7 +2441,7 @@ function attachVerifiedPdfUi(order){
   const file=new File([blob],name,{type:'application/pdf'});
   const [view,download,share]=buttons;
   buttons.forEach(b=>b.disabled=false);
-  status.textContent='PDF gốc đã được xác minh. Có thể xem, tải và chia sẻ.';
+  status.textContent='PDF chuẩn mẫu website đã sẵn sàng. Có thể xem, tải và chia sẻ.';
   view.onclick=()=>window.open(url,'_blank','noopener');
   download.onclick=()=>{
    const a=document.createElement('a');a.href=url+'?download=1';a.download=name;
@@ -2454,7 +2453,7 @@ function attachVerifiedPdfUi(order){
      .catch(e=>{if(e?.name!=='AbortError')toast('Chia sẻ lỗi. Hãy tải PDF và gửi qua Zalo.');});
    }else toast('Trình duyệt không hỗ trợ chia sẻ PDF. Hãy tải file và gửi qua Zalo.');
   };
- }).catch(()=>{if(row.isConnected)status.textContent='PDF chính thức chưa sẵn sàng. Vui lòng thử lại sau.';});
+ }).catch(()=>{if(row.isConnected)status.textContent='PDF chưa sẵn sàng. Hãy đồng bộ hóa đơn rồi thử lại.';});
 }
 
 let selectedCanonicalInvoiceId=null;
@@ -2550,8 +2549,8 @@ function showCommittedReceipt(order){
  if(deliveryNote)section('Ghi chú giao hàng').append(node('p',String(deliveryNote),'invoice-detail-muted'));
  const pdf=receipt.pdf;
  const note=pdf?.status==='AWAITING_VERIFIED_DRIVE_PDF'&&pdf.shareable===false?
-  'PDF gốc đang chờ xác minh phiên bản và file trên Google Drive. Chưa có link tải chính thức.':
-  'Chưa xác nhận được PDF gốc trên Google Drive. Chưa có link tải chính thức.';
+  'PDF được V2 tạo theo mẫu website khi mở hóa đơn đã xác nhận.':
+  'PDF V2 chỉ được tạo khi đơn đã xác nhận trên sổ Minh Satori.';
  container.append(node('p',note,'invoice-detail-notice'));
  view('invoiceDetail');
  attachVerifiedPdfUi(order);
