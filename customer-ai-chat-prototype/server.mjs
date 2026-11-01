@@ -13,6 +13,7 @@ import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {parseOrder,parseRules,parseComplexOrderWithGemini,geminiConfigured,identityChange} from './free-parser.mjs';
 import {handleAccountV2} from './account-v2/router.mjs';
+import {startOwnerFcmRelay} from './account-v2/owner-fcm-relay.mjs';
 import {makeDraftStore,contextualDraftEdit} from './unified-draft.mjs';
 import {chatBasketChanges,applyCartChanges} from './cart-semantics.mjs';
 import {customerSuggestions} from './customer-suggestions.mjs';
@@ -2046,6 +2047,8 @@ server.listen(PORT,HOST,()=>{
   'configured='+Number(pilot.enabled===true),
   'reason='+(pilot.reason||'CONFIGURED'));
  console.info('SATORI_OWNER_LIVE_READONLY_CONFIGURED',Number(readOnlyReady()));
+ // Default OFF. Never block customer checkout/order confirmation on push.
+ void startOwnerFcmRelay().catch(()=>console.warn('SATORI_OWNER_FCM_NOT_STARTED'));
  console.log('Minh Satori Customer AI Chat SANDBOX http://'+HOST+':'+PORT+'/c/demo-a | provider Gemini Free + rules | production untouched');
  // One test with fake words only, no customer data, no stored orders, no API key printed.
  // This is intentionally an actual Gemini API call, and consumes at most one Free Tier request per deployment.
