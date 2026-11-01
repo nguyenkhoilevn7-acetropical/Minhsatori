@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {currentInvoiceForWebsitePdf,renderCurrentV2Pdf} from '../local-invoice-pdf.mjs';
-import {exactCurrentInvoiceFromOrdersList} from '../local-invoice-read.mjs';
+import {exactCurrentInvoiceFromOrdersList,exactCurrentInvoiceFromRequestId} from '../local-invoice-read.mjs';
 import {canonicalPdfVersion,PDF_TEMPLATE_VERSION} from '../../original-website-pdf.mjs';
 
 const current={id:'1793512177336',invoiceNo:5965,date:'01/11/2026',
@@ -84,9 +84,51 @@ test('Customer PDF route requires V2 account-owned committed request and latest 
  const chunk=r.split('const pdfMatch=')[1].split("if(pathname==='/api/v2/orders'&&req.method==='GET')")[0];
  assert.match(chunk,/r\.account_id=\$2 AND q\.account_id=\$2/);
  assert.match(chunk,/r\.state='COMMITTED'/);
- assert.match(chunk,/exactCurrentInvoiceFromOrdersList/);
+ assert.match(chunk,/exactCurrentInvoiceFromRequestId/);
  assert.match(chunk,/renderCurrentV2Pdf/);
  assert.match(chunk,/SATORI_V2_LOCAL_PDFMAKE_ENABLED/);
  assert.match(chunk,/cache-control':'private, no-store/);
  assert.doesNotMatch(chunk,/DriveApp|setSharing|orders\.create|payments\.mark/);
+});
+
+test('V2 confirmed PDF uses signed immutable requestId; ignores stale saved ledger ID',async()=>{
+ const requestId='ccfc0399-1b84-4d80-8100-8b729610712b';
+ let called;
+ const x=await exactCurrentInvoiceFromRequestId({
+  ...ref,ledgerId:'old-snapshot-source-id',requestId
+ },{reader:async(action,payload)=>{
+  called={action,payload};
+  return {revision:202,data:{found:true,state:'COMMITTED',order:raw}};
+ }});
+ assert.deepEqual(called,{action:'orders.findByRequestId',payload:{requestId}});
+ assert.equal(x.current.id,String(raw.id));
+ assert.equal(x.current.invoiceNo,5965);
+ assert.equal(x.current.totalVnd,846720);
+ const pdf=await renderCurrentV2Pdf(x.current,{invoiceNo:5965,ledgerId:String(raw.id)});
+ assert.equal(pdf.bytes.subarray(0,5).toString('ascii'),'%PDF-');
+});
+test('V2 PDF blocks deleted request, wrong original invoice and forged authorizations',async()=>{
+ const requestId='ccfc0399-1b84-4d80-8100-8b729610712b';
+ const input={...ref,requestId};
+ for(const value of [
+  {found:true,state:'DELETED',order:raw},
+  {found:true,state:'COMMITTED',order:{...raw,invoiceNo:999}},
+  {found:true,state:'COMMITTED',order:{...raw,id:'../bad'}},
+  {found:true,state:'UNCERTAIN',order:raw}
+ ])await assert.rejects(exactCurrentInvoiceFromRequestId(input,{
+  reader:async()=>({revision:202,data:value})
+ }),/V2_PDF_LEDGER_(NOT_ACTIVE|ID_CONFLICT)/);
+});
+test('V2 PDF falls back to original strict ledger list for pre-requestId older orders',async()=>{
+ let calls=0;
+ const x=await exactCurrentInvoiceFromRequestId({...ref,requestId:'a'.repeat(36)},{
+  reader:async(action)=>{
+   calls++;
+   return action==='orders.findByRequestId'?
+    {revision:202,data:{found:false,state:'NOT_FOUND'}}:
+    {revision:202,data:{totalMatches:1,orders:[raw]}};
+  }
+ });
+ assert.equal(calls,2);
+ assert.equal(x.current.id,String(raw.id));
 });
