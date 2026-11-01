@@ -141,12 +141,19 @@ object AccountingProMargin45 {
             val sale=pair?.first
             var commission=BigInteger.ZERO
             val matched = candidates(invoice)
+            val nameMatched = collaborators.any {
+                SatoriData.normalized(it.name) == SatoriData.normalized(invoice.customer) &&
+                    SatoriData.normalized(invoice.customer).isNotBlank()
+            }
             val ambiguous = !invoice.isLinkedPairBill && invoice.collaboratorId.isBlank() &&
                 matched.size > 1
             val partner = if (invoice.collaboratorId.isNotBlank())
                 partnersById[invoice.collaboratorId]?.singleOrNull()
                 else matched.singleOrNull()
             if (warning == null && ambiguous) warning = "Trùng hồ sơ CTV, chưa xác minh hoa hồng."
+            if (warning == null && nameMatched && matched.isEmpty() &&
+                invoice.collaboratorId.isBlank() && !invoice.isLinkedPairBill)
+                warning = "Hồ sơ CTV trùng tên nhưng SĐT không khớp."
             if(warning==null && (invoice.isLinkedPairBill ||
                     invoice.collaboratorId.isNotBlank() ||
                     invoice.pairDiscountPercent != null || partner != null)) {
