@@ -2543,7 +2543,9 @@ $('location').onchange=()=>{
  void suggestReorderForSelectedAddress();
 };
 async function changeProfile(forceDuringWrite=false){
- discardReorderSuggestion();
+ // Isolated profile-cart tests evaluate this function without the optional
+ // suggestion UI; only invalidate if that helper is installed.
+ if(typeof discardReorderSuggestion==='function')discardReorderSuggestion();
  const requestedProfileId=$('profile').value;
  // A customer switching profiles while a cart PUT is unresolved must not
  // replace another profile's visible cart or confirmation pricing.
