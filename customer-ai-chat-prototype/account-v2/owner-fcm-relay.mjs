@@ -135,6 +135,7 @@ async function queueDeliveries(pool){
         'SELECT e.id,d.device_id FROM satori_v2_owner_push_events e '+
         'CROSS JOIN satori_v2_owner_push_devices d '+
         'JOIN satori_v2_accounts a ON a.id=d.account_id '+
+        'JOIN satori_v2_sessions sess ON sess.token_hash=d.session_hash AND sess.expires_at>now() '+
         'WHERE e.eligible=true AND d.enabled=true AND a.access_status=\'ACTIVE\' '+
         'AND a.google_sub=$1 AND d.registered_at<=e.created_at '+
         'AND e.created_at>now()-interval \'7 days\' '+
