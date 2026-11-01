@@ -59,7 +59,7 @@ class AccountingProRemovalTest(unittest.TestCase):
             "private fun showDebtProfitFilter(",
             "showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],",
             'totalCard("Tổng lợi nhuận"',
-            "TỔNG LÃI GỘP ƯỚC TÍNH",
+            "TỔNG LÃI GỘP · CHƯA ĐỐI CHIẾU CTV", 
             "☷ Lọc danh sách hóa đơn",
         ):
             with self.subTest(essential=essential):
