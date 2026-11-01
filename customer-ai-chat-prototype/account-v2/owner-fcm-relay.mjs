@@ -133,9 +133,11 @@ async function queueDeliveries(pool){
     await pool.query('INSERT INTO satori_v2_owner_push_deliveries(event_id,device_id) '+
         'SELECT e.id,d.device_id FROM satori_v2_owner_push_events e '+
         'CROSS JOIN satori_v2_owner_push_devices d '+
-        'WHERE e.eligible=true AND d.enabled=true AND d.registered_at<=e.created_at '+
+        'JOIN satori_v2_accounts a ON a.id=d.account_id '+
+        'WHERE e.eligible=true AND d.enabled=true AND a.access_status=\'ACTIVE\' '+
+        'AND a.google_sub=$1 AND d.registered_at<=e.created_at '+
         'AND e.created_at>now()-interval \'7 days\' '+
-        'ON CONFLICT DO NOTHING');
+        'ON CONFLICT DO NOTHING',[process.env.SATORI_ACCOUNT_V2_OWNER_SUB]);
 }
 async function claimDeliveries(pool){
     const r=await pool.query(
@@ -153,7 +155,72 @@ async function claimDeliveries(pool){
         'SELECT e.id,e.kind,e.invoice_no,d.device_id,d.token FROM '+
         'satori_v2_owner_push_events e JOIN satori_v2_owner_push_deliveries p ON p.event_id=e.id '+
         'JOIN satori_v2_owner_push_devices d ON p.device_id=d.device_id '+
-        'WHERE (e.id,d.device_id) IN ('+ids+') AND d.enabled=true',keys);
+        'JOIN satori_v2_accounts a ON a.id=d.account_id '+
+        'WHERE (e.id,d.device_id) IN ('+ids+') AND d.enabled=true '+
+        'AND a.access_status=\'ACTIVE\' AND a.google_sub=
+    return records.rows;
+}
+async function makeSender(env){
+    const credentials=JSON.parse(env.SATORI_OWNER_FCM_SERVICE_ACCOUNT_JSON);
+    if(!credentials || credentials.type!=='service_account' ||
+       credentials.project_id!==env.SATORI_OWNER_FCM_PROJECT_ID)
+        throw Error('PUSH_FIREBASE_CREDENTIALS_MISMATCH');
+    const [{initializeApp,cert,getApps},{getMessaging}]=await Promise.all([
+        import('firebase-admin/app'),import('firebase-admin/messaging')]);
+    const app=getApps().find(x=>x.name==='satori-owner-fcm') ||
+        initializeApp({credential:cert(credentials)},'satori-owner-fcm');
+    const messaging=getMessaging(app);
+    return async(row)=>messaging.send({
+        token:row.token,
+        data:{type:row.kind,eventId:String(row.id),
+              ...(row.invoice_no?{invoiceNo:String(row.invoice_no)}:{})},
+        android:{priority:'high',ttl:300000}
+    });
+}
+async function dispatch(pool,send){
+    for(const row of await claimDeliveries(pool)){
+        try{
+            await send(row);
+            await pool.query('UPDATE satori_v2_owner_push_deliveries SET delivered_at=now(),'+
+                'last_error_code=NULL WHERE event_id=$1 AND device_id=$2',
+                [row.id,row.device_id]);
+        }catch(e){
+            const code=String(e?.code||'FCM_SEND_FAILED');
+            const invalid=['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(code);
+            if(invalid)await pool.query('UPDATE satori_v2_owner_push_devices SET enabled=false WHERE device_id=$1',[row.device_id]);
+            await pool.query('UPDATE satori_v2_owner_push_deliveries SET last_error_code=$3 WHERE event_id=$1 AND device_id=$2',
+                [row.id,row.device_id,invalid?'INVALID_TOKEN':'SEND_FAILED']);
+        }
+    }
+}
+
+/** Explicit flag prevents any network/send on normal production deploy. */
+export async function startOwnerFcmRelay(env=process.env) {
+    if(!ownerFcmConfigured(env) || !readOnlyReady())return {enabled:false};
+    if(!env.SATORI_ACCOUNT_V2_DATABASE_URL) return {enabled:false};
+    const [{default:pg},send]=await Promise.all([import('pg'),makeSender(env)]);
+    const pool=new pg.Pool({connectionString:env.SATORI_ACCOUNT_V2_DATABASE_URL,
+        max:2,connectionTimeoutMillis:5000,
+        ssl:env.SATORI_ACCOUNT_V2_PG_SSL==='1'?{rejectUnauthorized:true}:undefined});
+    let running=false;
+    const tick=async()=>{
+        if(running)return;
+        running=true;
+        try{
+            // Independent feeds: one failed canonical read does not block registrations.
+            await scanInvoices(pool).catch(()=>{console.warn('SATORI_FCM_INVOICE_SCAN_FAILED')});
+            await scanRegistrations(pool).catch(()=>{console.warn('SATORI_FCM_REGISTRATION_SCAN_FAILED')});
+            await queueDeliveries(pool);
+            await dispatch(pool,send);
+        }catch{console.warn('SATORI_FCM_RELAY_RETRY')}finally{running=false}
+    };
+    const timer=setInterval(()=>{void tick()},INTERVAL_MS);
+    timer.unref();
+    setTimeout(()=>{void tick()},3000).unref();
+    return {enabled:true,stop:async()=>{clearInterval(timer);await pool.end()}};
+}
++(keys.length+1),
+        [...keys,process.env.SATORI_ACCOUNT_V2_OWNER_SUB]);
     return records.rows;
 }
 async function makeSender(env){
