@@ -49,3 +49,43 @@ export async function exactCurrentInvoiceFromOrdersList({invoiceNo,ledgerId},{re
    deliveryNote:String(x.deliveryNote||''),items}
  });
 }
+
+/**
+ * First-class V2 readback by the same immutable request ID used for actual
+ * checkout. A valid signed COMMITTED response gives the CURRENT source
+ * invoice even if the old V2 journal stored a stale/different ledger ID.
+ * This is stronger than a name/phone/invoice-number search, and cannot
+ * retrieve another account's invoice because the caller retrieves the
+ * requestId from an account-scoped, committed PostgreSQL row.
+ */
+export async function exactCurrentInvoiceFromRequestId({
+ invoiceNo,ledgerId,requestId
+},{reader=readMinhSatori}={}){
+ if(!Number.isSafeInteger(invoiceNo)||invoiceNo<=0||
+    !/^[A-Za-z0-9_-]{1,80}$/.test(String(ledgerId??''))||
+    !/^[A-Za-z0-9_-]{8,100}$/.test(String(requestId??'')))
+   refuse('V2_PDF_LEDGER_REF_INVALID');
+ const response=await reader('orders.findByRequestId',{requestId});
+ if(!Number.isSafeInteger(response?.revision)||!response?.data||
+    typeof response.data!=='object')refuse('V2_PDF_LEDGER_READ_INCOMPLETE');
+ const data=response.data;
+ if(data.found===true){
+  if(data.state!=='COMMITTED')refuse('V2_PDF_LEDGER_NOT_ACTIVE');
+  if(!data.order||Number(data.order.invoiceNo)!==invoiceNo||
+     !/^[A-Za-z0-9_-]{1,80}$/.test(String(data.order.id??'')))
+   refuse('V2_PDF_LEDGER_ID_CONFLICT');
+  // Signed exact-request lookup is authoritative. A stale journal ledger ID
+  // must not override a verified original order belonging to this request.
+  return exactCurrentInvoiceFromOrdersList({
+   invoiceNo,ledgerId:String(data.order.id)
+  },{reader:async()=>({
+    revision:response.revision,
+    data:{totalMatches:1,orders:[data.order]}
+  })});
+ }
+ if(data.found!==false||data.state!=='NOT_FOUND')
+  refuse('V2_PDF_LEDGER_READ_INCOMPLETE');
+ // Older committed records may have been created before the request-id
+ // index was introduced; keep the strict exact-ID fallback for those.
+ return exactCurrentInvoiceFromOrdersList({invoiceNo,ledgerId},{reader});
+}
