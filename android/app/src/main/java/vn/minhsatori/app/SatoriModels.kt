@@ -33,6 +33,13 @@ data class SatoriCustomerMemory(
     val receivers: List<SatoriReceiver>
 )
 
+data class SatoriCollaborator(
+    val id: String,
+    val name: String,
+    val phone: String,
+    val discountPercent: Double?
+)
+
 data class SatoriLine(
     val description: String,
     val quantity: Int,
@@ -75,7 +82,8 @@ data class SatoriInvoice(
     val pairDiscountPercent: Double? = null,
     val satoriPaidAt: String = "",
     // Only audit identifiers, never payment proofs/secrets, are retained in memory.
-    val paymentAuditKeys: Set<String> = emptySet()
+    val paymentAuditKeys: Set<String> = emptySet(),
+    val creationTimestampMillis: Long? = null
 ) {
     val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
     val isCustomerPairBill: Boolean get() = pairRole == "customer"
@@ -126,6 +134,13 @@ data class SatoriInvoice(
             "00000000"
         }
     }
+    val creationTimeLabel: String get() = creationTimestampMillis
+        ?.takeIf { it in 946684800000L..4102444799999L }
+        ?.let { millis ->
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+                .withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+                .format(java.time.Instant.ofEpochMilli(millis))
+        } ?: ""
     val hasValidDate: Boolean get() = sortDate != "00000000"
     val displayDate: String get() =
         if (hasValidDate) date else "⚠ Ngày cần kiểm tra: " + date.ifBlank { "(trống)" }
@@ -136,7 +151,8 @@ data class SatoriSnapshot(
     val updatedAt: String,
     val invoices: List<SatoriInvoice>,
     val products: List<SatoriProduct> = emptyList(),
-    val customerMemory: List<SatoriCustomerMemory> = emptyList()
+    val customerMemory: List<SatoriCustomerMemory> = emptyList(),
+    val collaborators: List<SatoriCollaborator> = emptyList()
 ) {
     val activeCount: Int get() = invoices.count { !it.isExcluded }
     val outstandingCount: Int get() = invoices.count { it.isOutstanding }
@@ -273,7 +289,9 @@ object SatoriData {
                 pairCollaboratorName = string(x, "pairCollaboratorName"),
                 pairDiscountPercent = if (x.has("pairDiscountPercent") &&
                     !x.isNull("pairDiscountPercent"))
-                    x.optDouble("pairDiscountPercent").takeIf { it.isFinite() } else null
+                    x.optDouble("pairDiscountPercent").takeIf { it.isFinite() } else null,
+                creationTimestampMillis = x.optLong("timestamp", 0L)
+                    .takeIf { it in 946684800000L..4102444799999L }
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
@@ -326,7 +344,22 @@ object SatoriData {
                 receivers = receivers
             )
         }
-        return SatoriSnapshot(revision, string(root, "updatedAt"), invoices, products, memory)
+        // Source-approved CTV registry is read-only. Never infer a discount from an order name alone.
+        val partnerArray = try {
+            JSONArray(values.optString("satori_collaborators_v1", "[]"))
+        } catch (_: Exception) { JSONArray() }
+        require(partnerArray.length() <= 5000) { "Danh sách CTV vượt giới hạn an toàn." }
+        val partners = (0 until partnerArray.length()).mapNotNull { i ->
+            val row = partnerArray.optJSONObject(i) ?: return@mapNotNull null
+            val id = string(row, "id")
+            val name = string(row, "name")
+            if (id.isBlank() || name.isBlank()) return@mapNotNull null
+            val discount = if (row.has("discountPercent") && !row.isNull("discountPercent"))
+                row.optDouble("discountPercent").takeIf { it.isFinite() && it in 0.0..100.0 }
+                else null
+            SatoriCollaborator(id, name, string(row, "phone"), discount)
+        }
+        return SatoriSnapshot(revision, string(root, "updatedAt"), invoices, products, memory, partners)
     }
 
     // Presentation separators do not change the recipient's phone number.

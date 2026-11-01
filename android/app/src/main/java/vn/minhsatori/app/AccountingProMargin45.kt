@@ -105,7 +105,28 @@ object AccountingProMargin45 {
         return a.lines.isNotEmpty() && b.lines.isNotEmpty() && basket(a)==basket(b)
     }
 
-    fun calculate(invoices: List<SatoriInvoice>): List<AccountingProMargin45Row> {
+    fun calculate(invoices: List<SatoriInvoice>,
+                  collaborators: List<SatoriCollaborator> = emptyList()): List<AccountingProMargin45Row> {
+        // Match ONLY the exact unique registered CTV, and refuse conflicting phones.
+        // A CTV's name on an invoice alone is not a commission policy.
+        fun phone(v: String): String {
+            val digits = v.filter(Char::isDigit)
+            return when {
+                digits.startsWith("84") -> "0" + digits.drop(2)
+                digits.length == 9 -> "0" + digits
+                else -> digits
+            }
+        }
+        fun candidates(inv: SatoriInvoice): List<SatoriCollaborator> {
+            if (inv.isLinkedPairBill) return emptyList()
+            val name = SatoriData.normalized(inv.customer)
+            return collaborators.filter { partner ->
+                SatoriData.normalized(partner.name) == name && name.isNotBlank() &&
+                    (phone(partner.phone).isBlank() || phone(inv.phone).isBlank() ||
+                        phone(partner.phone) == phone(inv.phone))
+            }
+        }
+        val partnersById = collaborators.filter { it.id.isNotBlank() }.groupBy { it.id }
         val references=invoices.filter { it.isInternalCollaboratorBill }
         val checkedIdentity=AccountingProReadOnly.invoiceRows(invoices)
             .associate { it.invoice.id to it.identityReliable }
@@ -119,9 +140,23 @@ object AccountingProMargin45 {
                 else null
             val sale=pair?.first
             var commission=BigInteger.ZERO
+            val matched = candidates(invoice)
+            val nameMatched = collaborators.any {
+                SatoriData.normalized(it.name) == SatoriData.normalized(invoice.customer) &&
+                    SatoriData.normalized(invoice.customer).isNotBlank()
+            }
+            val ambiguous = !invoice.isLinkedPairBill && invoice.collaboratorId.isBlank() &&
+                matched.size > 1
+            val partner = if (invoice.collaboratorId.isNotBlank())
+                partnersById[invoice.collaboratorId]?.singleOrNull()
+                else matched.singleOrNull()
+            if (warning == null && ambiguous) warning = "Trùng hồ sơ CTV, chưa xác minh hoa hồng."
+            if (warning == null && nameMatched && matched.isEmpty() &&
+                invoice.collaboratorId.isBlank() && !invoice.isLinkedPairBill)
+                warning = "Hồ sơ CTV trùng tên nhưng SĐT không khớp."
             if(warning==null && (invoice.isLinkedPairBill ||
                     invoice.collaboratorId.isNotBlank() ||
-                    invoice.pairDiscountPercent != null)) {
+                    invoice.pairDiscountPercent != null || partner != null)) {
                 if(invoice.isCustomerPairBill) {
                     val partner=references.filter { other ->
                         !other.isTest &&
@@ -148,9 +183,8 @@ object AccountingProMargin45 {
                 } else if(invoice.pairRole.isBlank() &&
                     invoice.pairGroupId.isBlank() &&
                     invoice.pairInvoiceNo.isBlank() &&
-                    invoice.collaboratorId.isNotBlank() &&
-                    invoice.pairDiscountPercent != null) {
-                    val percent=invoice.pairDiscountPercent
+                    (invoice.collaboratorId.isNotBlank() || partner != null)) {
+                    val percent=invoice.pairDiscountPercent ?: partner?.discountPercent
                     if(percent==null || !percent.isFinite() || percent<0.0 ||
                         percent>100.0 || sale==null || pair==null)
                         warning="Chiết khấu CTV không hợp lệ."

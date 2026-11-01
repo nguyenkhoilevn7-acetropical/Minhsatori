@@ -53,13 +53,13 @@ class AccountingProRemovalTest(unittest.TestCase):
 
     def test_45_percent_core_profit_and_debt_filters_still_work_as_ui(self):
         for essential in (
-            "AccountingProMargin45.calculate(data.invoices)",
+            "AccountingProMargin45.calculate(data.invoices, data.collaborators)",
             "AccountingProDebtProfitPolicy.report(",
             "private fun showMarginPeriod(",
             "private fun showDebtProfitFilter(",
-            "showProfitInsideInvoiceCard(parent, marginByInvoice[invoice])",
-            'totalCard("Tổng lợi nhuận"',
-            "TỔNG LÃI GỘP ƯỚC TÍNH",
+            "showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],",
+            'totalCard(if (data.collaborators.isNotEmpty()) "Tổng lợi nhuận sau CTV"',
+            "TỔNG LÃI GỘP · CHƯA ĐỐI CHIẾU CTV",
             "☷ Lọc danh sách hóa đơn",
         ):
             with self.subTest(essential=essential):
