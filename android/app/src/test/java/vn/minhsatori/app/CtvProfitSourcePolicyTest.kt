@@ -71,6 +71,15 @@ class CtvProfitSourcePolicyTest {
         } catch (_: IllegalArgumentException) { }
     }
 
+    @Test fun emptyRegistryFromOutdatedApiCannotMislabelGrossProfit() {
+        val staleApi=snapshot(true).copy(collaborators=emptyList())
+        assertNull(CtvProfitSourcePolicy.profitRows(staleApi)
+            .single().estimatedOwnerMarginVnd)
+        val recovered=CtvProfitSourcePolicy.recover(staleApi,snapshot(true))
+        assertEquals(333_333L,CtvProfitSourcePolicy.profitRows(recovered!!)
+            .single().estimatedOwnerMarginVnd)
+    }
+
     @Test fun callerCannotOverwriteAlreadyVerifiedRegistryFromUntrustedSecondSource() {
         val trusted=snapshot(true)
         val replacement=snapshot(false)
