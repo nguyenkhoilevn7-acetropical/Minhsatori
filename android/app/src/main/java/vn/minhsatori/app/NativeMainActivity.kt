@@ -1741,7 +1741,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
-        val marginRows = AccountingProMargin45.calculate(data.invoices)
+        val marginRows = AccountingProMargin45.calculate(data.invoices, data.collaborators)
         val marginAll = AccountingProMargin45.summarize(
             marginRows, AccountingProMargin45Period.all())
         section(parent,
@@ -2534,6 +2534,8 @@ class NativeMainActivity : AppCompatActivity() {
         label(statusLine, invoice.displayDate + "   •   ", 11f, false, softInk)
         label(statusLine, invoice.status, 11f, true, statusColor)
         card.addView(statusLine)
+        if (invoice.creationTimeLabel.isNotBlank()) label(card,
+            "Tạo lúc: " + invoice.creationTimeLabel, 11f, false, softInk, 4)
         if (invoice.isNonCounted) {
             label(card, "Không tính doanh thu / công nợ • Giá gốc: " +
                 SatoriData.money(invoice.total), 11f, false, softInk, 5)
@@ -2697,7 +2699,7 @@ class NativeMainActivity : AppCompatActivity() {
         parent.addView(list)
         val marginByInvoice =
             java.util.IdentityHashMap<SatoriInvoice, AccountingProMargin45Row>().apply {
-                AccountingProMargin45.calculate(data.invoices).forEach {
+                AccountingProMargin45.calculate(data.invoices, data.collaborators).forEach {
                     put(it.invoice, it)
                 }
             }
@@ -2803,6 +2805,8 @@ class NativeMainActivity : AppCompatActivity() {
         })
         card.addView(headline)
         label(card, invoice.displayDate, 11.5f, false, softInk, 5)
+        if (invoice.creationTimeLabel.isNotBlank()) label(card,
+            "Tạo lúc: " + invoice.creationTimeLabel, 11f, false, softInk, 4)
         if (invoice.isNonCounted) {
             label(card, "KHÔNG TÍNH • GIÁ TRỊ 0 đ", 12f, true,
                 Color.rgb(105, 74, 164), 7)
@@ -3016,7 +3020,7 @@ class NativeMainActivity : AppCompatActivity() {
      * lines; excluded / unsafe invoices are never silently assigned zero profit.
      */
     private fun showMarginPeriod(data: SatoriSnapshot) {
-        val marginRows=AccountingProMargin45.calculate(data.invoices)
+        val marginRows=AccountingProMargin45.calculate(data.invoices, data.collaborators)
         val panel=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
             setPadding(dp(14),dp(12),dp(14),dp(16))
@@ -3259,7 +3263,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderDebt(parent: LinearLayout, data: SatoriSnapshot) {
-        val margins = AccountingProMargin45.calculate(data.invoices)
+        val margins = AccountingProMargin45.calculate(data.invoices, data.collaborators)
         val report = AccountingProDebtProfitPolicy.report(
             data.invoices, margins, debtProfitPeriod)
         val marginByInvoice =
@@ -3572,6 +3576,8 @@ class NativeMainActivity : AppCompatActivity() {
         label(heading, "HÓA ĐƠN #" + invoice.number, 21f, true, white)
         label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true,
             if (invoice.isCancelled) Color.rgb(190, 40, 48) else cyan, 7)
+        if (invoice.creationTimeLabel.isNotBlank()) label(heading,
+            "Khách đặt lúc: " + invoice.creationTimeLabel, 12f, false, cyan, 7)
         label(heading, SatoriData.money(invoice.displayPayable), 20f, true,
             if (invoice.isNonCounted) Color.rgb(105, 74, 164)
             else Color.rgb(17, 133, 91), 8)
