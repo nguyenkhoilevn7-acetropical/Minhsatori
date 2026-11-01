@@ -79,13 +79,13 @@ function pairOrders(all){
 }
 function calculate(all,partners){
  const pairing=pairOrders(all),partnersById=new Map(partners.map(p=>[String(p.id),p]));
- // An unlinked order addressed to a registered CTV must not hide commission.
- // Resolve only a unique, exact CTV name; reject conflicting phone numbers.
- const phone=v=>{const d=String(v??'').replace(/\D/g,'');return d.startsWith('84')?'0'+d.slice(2):d.length===9?'0'+d:d;};
+ // Legacy invoice phone is the delivery receiver's phone, not the
+ // registered collaborator account phone. Resolve only a unique, exact
+ // owner-registered CTV name. Third-party buyers require collaboratorId;
+ // never infer ownership from delivery address, phone or product discounts.
  const inferredPartner=o=>{
   if(o.collaboratorId||o.pairGroupId||o.pairRole||!norm(o.name))return null;
-  const matches=partners.filter(p=>norm(p.name)===norm(o.name)&&
-   (!phone(p.phone)||!phone(o.phone)||phone(p.phone)===phone(o.phone)));
+  const matches=partners.filter(p=>norm(p.name)===norm(o.name));
   return matches.length===1?matches[0]:null;
  };
  const uncertain=new Set(pairing.review.flatMap(x=>x.orders.map(o=>key(o))));
@@ -94,7 +94,16 @@ function calculate(all,partners){
   const partnerId=pair?.collaboratorId||o.collaboratorId||inferredPartner(o)?.id||'',partner=partnersById.get(String(partnerId));
   const discount=number(o.collaboratorDiscountPercent??partner?.discountPercent);
   const base=Math.round(listed(o)*(1-discount/100));
-  const raw=pair?(secondary?0:pair.profit):partnerId?Math.round(goods(o)-base):0;
+  const candidate=pair?(secondary?0:pair.profit):partnerId?Math.round(goods(o)-base):0;
+  // A historical CTV bill can store 35%-off prices rounded per UNIT while
+  // the global 65% base rounds a few dong higher. In that precisely verified
+  // case, commission is zero, not a phantom negative amount.
+  const unitPriceAtCtvRate=!pair&&!!partnerId&&discount>=0&&discount<=100&&
+   items(o).length>0&&items(o).every(i=>
+    Number(i.listPrice)>0&&Number(i.qty)>0&&
+    Math.round(Number(i.discountPercent)*100)===Math.round(discount*100)&&
+    Number(i.unitPrice)===Math.round(Number(i.listPrice)*(1-discount/100)));
+  const raw=candidate<0&&unitPriceAtCtvRate?0:candidate;
   const eligible=active(o)&&!secondary&&!uncertain.has(key(o));
   const profit=eligible?raw:0,settled=number(o.collaboratorPaid);
   return {order:o,pair,secondary,partnerId,partner,discount,base,eligible,review:uncertain.has(key(o)),profit,settled,due:eligible?Math.max(0,profit-settled):0,customerPaid:paid(o),satoriPaid:o.status==='Đã TT Satori'||!!o.satoriPaidAt,basis:pair?pair.basis:partnerId?'Tiền hàng bán − giá niêm yết × (1 − CK CTV); không gồm VAT/ship':'Chưa gắn cộng tác viên'};

@@ -18,7 +18,7 @@ vm.createContext(ctx);
 vm.runInContext(core,ctx);
 vm.runInContext(html.slice(from,to),ctx);
 const C=ctx.SatoriAccountingCore;
-const ctv={id:'ctv-nguyet',name:'Hà Minh Nguyệt',phone:'0919989887',active:true,discountPercent:35};
+const ctv={id:'ctv-nguyet',name:'Hà Minh Nguyệt',phone:'0988888888',active:true,discountPercent:35};
 const invoice=(overrides={})=>({
  id:1793526598728,invoiceNo:5966,date:'01/11/2026',
  name:'Hà Minh Nguyệt',phone:'919989887',status:'Chưa thanh toán',
@@ -47,11 +47,20 @@ test('regular customers do not inherit CTV discount',()=>{
  const o=invoice({name:'Khách thường',phone:'0900000000'});
  assert.equal(net([o],[ctv]),833328);
 });
-test('conflicting phone or ambiguous CTV name never auto-matches',()=>{
+test('registered CTV name resolves despite delivery phone; ambiguous names fail closed',()=>{
  const o=invoice({phone:'0900000011'});
- assert.equal(C.calculate([o],[ctv]).rows[0].partnerId,'');
- assert.equal(net([o],[ctv]),833328);
+ assert.equal(C.calculate([o],[ctv]).rows[0].partnerId,ctv.id);
+ assert.equal(net([o],[ctv]),333333);
  assert.equal(C.calculate([invoice()],[ctv,{...ctv,id:'ctv-duplicate'}]).rows[0].partnerId,'');
+ // Ordinary customer with non-CTV name is never assigned by matching a discount.
+ assert.equal(net([invoice({name:'Ordinary Customer',phone:'0900000011'})],[ctv]),833328);
+});
+test('CTV at its own 35% unit price has zero commission despite rounding',()=>{
+ const o=invoice({invoiceNo:5917,vatAmount:0,shippingAmount:104000,
+  total:1403996,items:[{qty:6,unitPrice:216666,listPrice:333333,discountPercent:35}]});
+ const row=C.calculate([o],[ctv]).rows[0];
+ assert.equal(row.profit,0);
+ assert.equal(net([o],[ctv]),199997);
 });
 test('explicit collaborator assignment works for third-party recipient',()=>{
  const o=invoice({name:'Khách của Nguyệt',phone:'0900000011',collaboratorId:ctv.id,collaboratorDiscountPercent:35});
