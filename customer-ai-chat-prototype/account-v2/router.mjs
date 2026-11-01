@@ -27,7 +27,7 @@ import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {renderCurrentV2Pdf} from './local-invoice-pdf.mjs';
 import {exactCurrentInvoiceFromRequestId} from './local-invoice-read.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
-import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
+import {readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
  saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
 import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
@@ -349,7 +349,7 @@ async function pricedCart(pool,actor,input){
   'product_code AS "productCode", discount_bps AS "discountBps",collaborator_bps AS "collaboratorBps", '+
   'invoice_mode AS "invoiceMode",enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
   'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[profile.id]);
- const feePolicy=await readInvoiceFeePolicy(pool,profile.id);
+ const feePolicy=await readEffectiveInvoiceFeePolicy(pool,profile.type,profile.id);
  requireCtvChargeForAddress(profile.type,feePolicy,addressRow.rows[0].id);
  const charges=calculateInvoiceFees(feePolicy,addressRow.rows[0].id);
  const priced=calculateQuote({accountId:actor.id,profile,address:addressRow.rows[0],cart:cartRow.rows[0].lines,
@@ -478,7 +478,7 @@ async function verifyLiveLockedQuote(client,actor,q){
   'enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
   'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[q.profile_id]);
  await client.query('SELECT pg_advisory_xact_lock($1,hashtext($2))',[20261030,q.profile_id]);
- const feeConfig=await readInvoiceFeePolicy(client,q.profile_id);
+ const feeConfig=await readEffectiveInvoiceFeePolicy(client,profile.rows[0].type,q.profile_id);
  requireCtvChargeForAddress(profile.rows[0].type,feeConfig,q.address_id);
  assertCurrentQuote({snapshot:q.payload,accountId:actor.id,
   profile:profile.rows[0],address:addr.rows[0],cart:cart.rows[0].lines,
@@ -679,7 +679,7 @@ export async function handleAccountV2(req,res,pathname){
    const id=new URL(req.url,'http://local').searchParams.get('profileId');
    const profile=await profileFor(pool,actor,id);
    error(profile.type==='collaborator','CTV_PROFILE_FORBIDDEN',403);
-   send(res,200,{ok:true,profileId:id,...await readInvoiceFeePolicy(pool,id)});return true;
+   send(res,200,{ok:true,profileId:id,...await readEffectiveInvoiceFeePolicy(pool,profile.type,id)});return true;
   }
   if(pathname==='/api/v2/ctv/invoice-charge-policy'&&req.method==='PUT'){
    const saved=await saveCtvInvoiceFeeChoice(pool,actor,await json(req));
@@ -1093,7 +1093,8 @@ export async function handleAccountV2(req,res,pathname){
      'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',
      [q.profile_id]);
     await client.query('SELECT pg_advisory_xact_lock($1,hashtext($2))',[20261030,q.profile_id]);
-    const feeConfig=await readInvoiceFeePolicy(client,q.profile_id);
+    const feeConfig=await readEffectiveInvoiceFeePolicy(client,checkedProfile.rows[0].type,q.profile_id);
+    requireCtvChargeForAddress(checkedProfile.rows[0].type,feeConfig,q.address_id);
     assertCurrentQuote({
      snapshot:q.payload,accountId:actor.id,profile:checkedProfile.rows[0],
      address:checkedAddress.rows[0],cart:latest.rows[0].lines,
