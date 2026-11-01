@@ -28,7 +28,7 @@ test('only committed account-scoped invoices show detail, never invent PDF link'
  assert.match(receipt,/Number\.isSafeInteger\(receipt\.invoiceNo\)/);
  assert.match(receipt,/receipt\.currency!=='VND'/);
  assert.match(receipt,/AWAITING_VERIFIED_DRIVE_PDF/);
- assert.match(receipt,/Chưa có link tải chính thức/);
+ assert.match(receipt,/PDF V2 chỉ được tạo khi đơn đã xác nhận trên sổ Minh Satori/);
  assert.doesNotMatch(receipt,/window\.open|drive\.google\.com\/file|createObjectURL|\.pdf\s*=/);
 });
 
