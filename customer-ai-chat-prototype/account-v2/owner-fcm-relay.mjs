@@ -8,6 +8,7 @@
  */
 import {readMinhSatori,readOnlyReady} from '../satori-readonly.mjs';
 import {ownerFcmConfigured} from './owner-fcm-devices.mjs';
+import crypto from 'node:crypto';
 
 const TZ = 'Asia/Ho_Chi_Minh';
 const MAX_BATCH = 20;
@@ -152,7 +153,7 @@ async function claimDeliveries(pool){
     const ids=r.rows.map((x,i)=>'($'+(i*2+1)+'::uuid,$'+(i*2+2)+'::uuid)').join(',');
     const keys=r.rows.flatMap(x=>[x.event_id,x.device_id]);
     const records=await pool.query(
-        'SELECT e.id,e.kind,e.invoice_no,d.device_id,d.token FROM '+
+        'SELECT e.id,e.kind,e.source_key,e.invoice_no,d.device_id,d.token FROM '+
         'satori_v2_owner_push_events e JOIN satori_v2_owner_push_deliveries p ON p.event_id=e.id '+
         'JOIN satori_v2_owner_push_devices d ON p.device_id=d.device_id '+
         'JOIN satori_v2_accounts a ON a.id=d.account_id '+
@@ -174,7 +175,10 @@ async function makeSender(env){
     return async(row)=>messaging.send({
         token:row.token,
         data:{type:row.kind,eventId:String(row.id),
-              ...(row.invoice_no?{invoiceNo:String(row.invoice_no)}:{})},
+              ...(row.invoice_no?{invoiceNo:String(row.invoice_no)}:{}),
+              ...(row.kind==='owner_registration_pending'
+                ?{registrationDigest:crypto.createHash('sha256').update(row.source_key).digest('hex')}
+                :{})},
         android:{priority:'high',ttl:300000}
     });
 }
