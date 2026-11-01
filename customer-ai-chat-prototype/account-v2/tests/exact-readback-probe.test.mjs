@@ -75,10 +75,10 @@ test('fixed auth/action categories do not leak signed request data',async()=>{
 test('read-only action whitelist permits exact IDs but not wildcard/private search or writes',()=>{
  const transport=fs.readFileSync(new URL('../../satori-readonly.mjs',import.meta.url),'utf8');
  const server=fs.readFileSync(new URL('../standalone.mjs',import.meta.url),'utf8');
- assert.match(transport,/const permitted=new Set\(\[[^\]]*'orders.findByRequestId'\]/);
+ assert.match(transport,/const permitted=new Set\(\[[^\]]*'orders.findByRequestId','orders.getExactBatch'\]/);
  assert.match(transport,/keys\.length!==1\|\|keys\[0\]!=='requestId'/);
  assert.match(transport,/throw Error\('EXACT_REQUEST_ID_REQUIRED'\)/);
- assert.match(transport,/action!=='orders.findByRequestId'\)/);
+ assert.match(transport,/action!=='orders.findByRequestId'&&action!=='orders.getExactBatch'\)/);
  assert.doesNotMatch(transport,/const permitted=new Set\(\[[^\]]*'orders.create'/);
  assert.match(server,/SATORI_V2_HMAC_EXACT_REQUESTID_PROBE/);
  assert.doesNotMatch(server,/console\.info\(.*requestId/);
