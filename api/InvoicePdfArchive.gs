@@ -11,7 +11,7 @@ var SatoriInvoicePdfArchive=(function(){
   function canonical(o){
     return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,
       o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,
-      o.vat,o.vatAmount,o.shippingAmount])+'\n'+suffix;
+      o.vat,o.vatAmount,o.shippingAmount,o.timestamp])+'\n'+suffix;
   }
   function digest(bytes){
     return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
@@ -96,7 +96,7 @@ function pending(s,p){
       // unrelated customers, user tokens, HMAC keys or ledger backup content.
       var fields=['id','invoiceNo','date','name','phone','location','deliveryNote',
         'taxCode','status','items','product','qty','listPrice','unitPrice',
-        'vat','vatAmount','shippingAmount','total'];
+        'vat','vatAmount','shippingAmount','total','timestamp'];
       var order={};fields.forEach(function(k){if(o[k]!==undefined)order[k]=o[k]});
       found.push({order:order,versionKey:key});
     }
