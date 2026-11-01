@@ -683,7 +683,7 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/logout'&&req.method==='POST'){
    // Owner sign-out revokes all device pushes; a prior session cannot keep
    // receiving private account activity after explicit logout.
-   if(isOwner&&ownerFcmConfigured())await revokeAllOwnerDevices(pool,actor.id);
+   if(isOwner&&ownerFcmConfigured())await revokeAllOwnerDevices(pool,actor.id).catch(()=>{});
    await pool.query('DELETE FROM satori_v2_sessions WHERE token_hash=$1',[sha(cookies(req).satori_v2_session)]);
    send(res,200,{ok:true},{'set-cookie':clearCookies()});return true;
   }
