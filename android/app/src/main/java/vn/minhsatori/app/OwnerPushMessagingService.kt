@@ -31,6 +31,9 @@ class OwnerPushMessagingService : FirebaseMessagingService() {
         if (!OwnerPushPolicy.valid(kind, eventId, invoiceNumber)) return
         val prefs = getSharedPreferences("satori_owner_fcm", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("owner_armed", false)) return
+        // Reuse the existing explicit owner notification opt-in.
+        val nativePrefs = getSharedPreferences("NativeMainActivity", Context.MODE_PRIVATE)
+        if (!nativePrefs.getBoolean("satori_live_notifications", false)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED) return
@@ -68,6 +71,14 @@ class OwnerPushMessagingService : FirebaseMessagingService() {
                 .setAutoCancel(true).build()
             try {
                 manager.notify(eventId.hashCode(), notification)
+                if (invoice && invoiceNumber != null) {
+                    // The foreground canonical-ledger fallback must not post a
+                    // second OS notification for this same verified invoice.
+                    val existing = nativePrefs.getStringSet("invoice_alert_delivered_v1",
+                        emptySet())?.toSet().orEmpty()
+                    nativePrefs.edit().putStringSet("invoice_alert_delivered_v1",
+                        (existing + invoiceNumber.toString()).toSet()).apply()
+                }
                 // Persist only opaque delivery IDs, never invoice or customer data.
                 prefs.edit().putStringSet("posted_event_ids",
                     (seen + eventId).toList().takeLast(300).toSet()).apply()
