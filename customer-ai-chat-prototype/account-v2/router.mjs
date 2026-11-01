@@ -22,6 +22,7 @@ import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
 import {readExactCurrentInvoices,currentCustomerOrder,currentLinkedHistory} from './canonical-history-read.mjs';
+import {selectLatestReorderSuggestion} from './reorder-suggestion.mjs';
 import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {renderCurrentV2Pdf} from './local-invoice-pdf.mjs';
 import {exactCurrentInvoiceFromRequestId} from './local-invoice-read.mjs';
@@ -879,6 +880,39 @@ export async function handleAccountV2(req,res,pathname){
    res.end(pdf.bytes);
    pdfStage=null;
    return true;
+  }
+  if(pathname==='/api/v2/reorder-suggestion'&&req.method==='GET'){
+   // Read-only, account/profile/address isolated; never infer identity by phone.
+   const params=new URL(req.url,'https://v2.local').searchParams;
+   const profileId=params.get('profileId'),addressId=params.get('addressId');
+   error(isUuid(profileId)&&isUuid(addressId),'DELIVERY_ADDRESS_REQUIRED',400);
+   const profile=await profileFor(pool,actor,profileId);
+   const address=await pool.query(
+    'SELECT id FROM satori_v2_addresses WHERE id=$1 AND profile_id=$2 AND active=true',
+    [addressId,profile.id]);
+   error(address.rowCount===1,'ADDRESS_FORBIDDEN',403);
+   // No suggestion from an unverifiable or canceled ledger record.
+   if(process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED!=='1'){
+    send(res,200,{ok:true,suggestion:null,unavailable:true});return true;
+   }
+   const history=await pool.query(
+    'SELECT r.state,r.ledger_invoice_no AS "invoiceNo", '+
+    'r.ledger_invoice_id AS "ledgerId",q.created_at AS "orderedAt" '+
+    'FROM satori_v2_order_requests r JOIN satori_v2_quotes q ON q.id=r.quote_id '+
+    "WHERE r.account_id=$1 AND q.account_id=$1 AND q.profile_id=$2 AND q.address_id=$3 AND r.state='COMMITTED' "+
+    'ORDER BY q.created_at DESC LIMIT 6',[actor.id,profile.id,addressId]);
+   const refs=history.rows.filter(row=>
+    Number.isSafeInteger(Number(row.invoiceNo))&&Number(row.invoiceNo)>0&&
+    /^[A-Za-z0-9_-]{1,80}$/.test(String(row.ledgerId||'')))
+    .map(row=>({invoiceNo:Number(row.invoiceNo),id:row.ledgerId}));
+   if(!refs.length){send(res,200,{ok:true,suggestion:null});return true}
+   let current;
+   try{current=await readExactCurrentInvoices(refs)}
+   catch{throw new ApiError('REORDER_HISTORY_UNAVAILABLE',503)}
+   const catalogue=await pool.query(
+    'SELECT code,name,unit,active FROM satori_v2_catalogue WHERE active=true');
+   const suggestion=selectLatestReorderSuggestion(history.rows,current.orders,catalogue.rows);
+   send(res,200,{ok:true,suggestion});return true;
   }
   if(pathname==='/api/v2/orders'&&req.method==='GET'){
    // No broad legacy-ledger search. Only independently authored V2 orders
