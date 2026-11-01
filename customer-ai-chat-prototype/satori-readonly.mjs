@@ -5,7 +5,7 @@
  * No writes, no bulk customer export and never to the browser/Gemini.
  */
 import crypto from 'node:crypto';
-const permitted=new Set(['system.status','catalogue.list','orders.list','customers.search','orders.findByRequestId']);
+const permitted=new Set(['system.status','catalogue.list','orders.list','customers.search','orders.findByRequestId','orders.getExactBatch']);
 export function readOnlyReady(){
  return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(String(process.env.SATORI_READ_ENDPOINT||'').trim()) &&
  /^[A-Za-z0-9_-]{3,64}$/.test(String(process.env.SATORI_READ_KEY_ID||'')) &&
@@ -38,8 +38,22 @@ export async function readMinhSatori(action,payload={}){
   if(!validDate(from)||!validDate(to)||from>to||from.slice(0,7)!==to.slice(0,7))
    throw Error('BULK_ORDER_EXPORT_DENIED');
  }
+ if(action==='orders.getExactBatch'){
+  if(!Array.isArray(payload.refs)||payload.refs.length<1||payload.refs.length>20)
+   throw Error('EXACT_BATCH_INVALID');
+  const seen=new Set();
+  for(const ref of payload.refs){
+   if(!ref||!Number.isSafeInteger(ref.invoiceNo)||ref.invoiceNo<=0||
+     !/^[A-Za-z0-9_-]{1,80}$/.test(String(ref.id||'')))
+    throw Error('EXACT_BATCH_INVALID');
+   const key=ref.invoiceNo+'|'+String(ref.id);
+   if(seen.has(key))throw Error('EXACT_BATCH_DUPLICATE');
+   seen.add(key);
+  }
+  if(Object.keys(payload).length!==1)throw Error('EXACT_BATCH_INVALID');
+ }
  const safePayload={...payload};
- if(action!=='system.status'&&action!=='catalogue.list'&&action!=='orders.findByRequestId')
+ if(action!=='system.status'&&action!=='catalogue.list'&&action!=='orders.findByRequestId'&&action!=='orders.getExactBatch')
   safePayload.limit=Math.min(action==='orders.list'?100:20,Math.max(1,Number(payload.limit)||10));
  const keyId=String(process.env.SATORI_READ_KEY_ID),secret=String(process.env.SATORI_READ_HMAC_SECRET);
  const timestamp=Date.now(),nonce=crypto.randomBytes(18).toString('hex');
