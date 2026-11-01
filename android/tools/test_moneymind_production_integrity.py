@@ -14,7 +14,7 @@ BASELINE={
  'executeWrite':'a513026e',
  'launchEditor':'a449a547',
  'recoverDriveAccessUsingOwnerApi':'4c0215f3',
- 'openInvoice':'2ff405bc',
+ 'openInvoice':'336d9258',
  'invoiceQuickCard':'88bb9544',
 }
 def method(name):
