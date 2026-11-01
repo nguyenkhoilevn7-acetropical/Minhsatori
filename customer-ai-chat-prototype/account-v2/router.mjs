@@ -21,6 +21,8 @@ import {acceptedSubjects} from './identity-rollout.mjs';
 import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
+import {readExactCurrentInvoices,currentCustomerOrder,currentLinkedHistory} from './canonical-history-read.mjs';
+import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
  saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
@@ -771,7 +773,75 @@ export async function handleAccountV2(req,res,pathname){
    send(res,200,{ok:true,configured:true,...safeLegacyInvoiceIndex(result)});return true;
   }
   if(pathname==='/api/v2/legacy/history'&&req.method==='GET'){
-   send(res,200,await linkedLegacyInvoiceHistory(pool,actor));return true;
+   // Only owner-verified, immutable source invoice bindings authorize history.
+   const audit=await pool.query('SELECT details FROM satori_v2_audit '+
+    "WHERE account_id=$1 AND event_type='LEGACY_INVOICE_ACCOUNT_BOUND' "+
+    'ORDER BY id DESC LIMIT 300',[actor.id]);
+   const refs=new Map();
+   for(const record of audit.rows){
+    const d=record.details||{};
+    if(!Number.isSafeInteger(d.invoiceNo)||d.invoiceNo<1||
+       !/^[A-Za-z0-9_-]{1,80}$/.test(String(d.sourceId||'')))continue;
+    const key=d.invoiceNo+'|'+d.sourceId;
+    if(!refs.has(key)&&refs.size<100)
+     refs.set(key,{invoiceNo:d.invoiceNo,sourceId:String(d.sourceId)});
+   }
+   if(!refs.size){
+    send(res,200,{ok:true,orders:[],linkedCount:0,unavailableCount:0,
+     syncStatus:'CURRENT'});return true;
+   }
+   const all=[...refs.values()];
+   const fresh=await readExactCurrentInvoices(all.map(x=>({
+    invoiceNo:x.invoiceNo,id:x.sourceId
+   })));
+   send(res,200,{ok:true,...currentLinkedHistory(all,fresh)});return true;
+  }
+  // Authenticated binary read of the ORIGINAL PDF. The logged-in account
+  // must own both the canonical request and its originating quote.
+  // Browser input supplies an order UUID only, never Drive IDs or credentials.
+  const pdfMatch=/^\/api\/v2\/orders\/([a-f0-9-]{36})\/pdf$/i.exec(pathname);
+  if(pdfMatch&&req.method==='GET'){
+   error(isUuid(pdfMatch[1]),'PDF_ORDER_NOT_FOUND',404);
+   const matches=await pool.query(
+    'SELECT r.ledger_invoice_no AS "invoiceNo",r.ledger_invoice_id AS "ledgerId",'+
+    'r.ledger_invoice_total AS "total" FROM satori_v2_order_requests r '+
+    'JOIN satori_v2_quotes q ON q.id=r.quote_id '+
+    "WHERE r.id=$1 AND r.account_id=$2 AND q.account_id=$2 AND r.state='COMMITTED'",
+    [pdfMatch[1],actor.id]);
+   error(matches.rows.length===1,'PDF_ORDER_NOT_FOUND',404);
+   const row=matches.rows[0];
+   error(Number.isSafeInteger(Number(row.invoiceNo))&&
+    Number.isSafeInteger(Number(row.total))&&
+    typeof row.ledgerId==='string'&&row.ledgerId.length>0,
+    'PDF_NOT_READY',404);
+   // Do not use stale PostgreSQL quote totals after website/Android edits.
+   const check=await readExactCurrentInvoices([{
+    invoiceNo:Number(row.invoiceNo),id:row.ledgerId
+   }]);
+   const latest=check.orders.get(Number(row.invoiceNo)+'|'+String(row.ledgerId));
+   error(latest&&!latest.missing&&!latest.excluded,'PDF_NOT_READY',404);
+   let pdf;
+   try{
+    pdf=await readArchivedInvoicePdf({
+     invoiceNo:Number(row.invoiceNo),ledgerId:row.ledgerId,
+     expectedTotal:Number(latest.totalVnd)
+    });
+   }catch(e){
+    if(e.code==='PDF_NOT_READY')throw new ApiError('PDF_NOT_READY',404);
+    if(e.code==='PDF_READ_DISABLED')throw new ApiError('PDF_READ_DISABLED',503);
+    throw new ApiError('PDF_ARCHIVE_UNAVAILABLE',503);
+   }
+   const disposition=new URL(req.url,'https://v2.local').searchParams.get('download')==='1'?
+    'attachment':'inline';
+   res.writeHead(200,{
+    'content-type':'application/pdf','content-length':String(pdf.bytes.length),
+    'content-disposition':disposition+'; filename="MinhSatori_HD'+pdf.invoiceNo+'.pdf"',
+    'cache-control':'private, no-store, max-age=0','x-content-type-options':'nosniff',
+    'x-frame-options':'DENY','referrer-policy':'no-referrer',
+    'x-satori-pdf-sha256':pdf.sha256
+   });
+   res.end(pdf.bytes);
+   return true;
   }
   if(pathname==='/api/v2/orders'&&req.method==='GET'){
    // No broad legacy-ledger search. Only independently authored V2 orders
@@ -779,6 +849,7 @@ export async function handleAccountV2(req,res,pathname){
    const filters=invoiceOrderFilters(new URL(req.url,'https://v2.local').searchParams);
    const data=await pool.query(
     'SELECT r.id,r.request_id AS "requestId",r.state, '+
+    'r.ledger_invoice_id AS "ledgerId",r.ledger_invoice_total AS "ledgerTotal", '+
     'CASE WHEN r.state=$2 THEN r.ledger_invoice_no ELSE NULL END AS "invoiceNo", '+
     'q.created_at AS "orderedAt",q.payload->>\'invoiceMode\' AS "invoiceMode", '+
     'q.payload->>\'totalVnd\' AS "totalVnd",q.payload->>\'currency\' AS currency, '+
@@ -797,17 +868,25 @@ export async function handleAccountV2(req,res,pathname){
    // a locally generated PDF as the original website PDF or invent a Drive URL.
    // Once the signed Drive archive bridge is deployed, this can be replaced
    // only by exact ledger-id/invoice-version/file-SHA readback.
-   send(res,200,{ok:true,orders:data.rows.map(x=>{
-    const receipt=canonicalReceiptForAccountOrder(x);
-    const items=Array.isArray(x.items)?x.items.map(line=>{
-     if(!line||typeof line!=='object'||Array.isArray(line))return {};
-     // Internal CTV price and margin never belong on a customer invoice.
-     const {internalUnitPrice,internalReference,collaboratorMarginVnd,...publicLine}=line;
-     return publicLine;
-    }):[];
-    return {...x,items,verified:receipt!==null,receipt,
-     pdf:canonicalInvoiceDocumentStatus(x)};
-   })});return true;
+   // Current canonical ledger takes precedence over stale saved V2 quotes.
+   const confirmed=data.rows.filter(x=>x.state==='COMMITTED');
+   const fresh=await readExactCurrentInvoices(confirmed.map(x=>({
+    invoiceNo:Number(x.invoiceNo),id:x.ledgerId
+   })));
+   send(res,200,{ok:true,syncStatus:'CURRENT',ledgerRevision:fresh.revision,
+    orders:data.rows.map(x=>{
+     if(x.state==='COMMITTED'){
+      const latest=fresh.orders.get(Number(x.invoiceNo)+'|'+String(x.ledgerId));
+      return currentCustomerOrder(x,latest,fresh.revision);
+     }
+     const items=Array.isArray(x.items)?x.items.map(line=>{
+      if(!line||typeof line!=='object'||Array.isArray(line))return {};
+      const {internalUnitPrice,internalReference,collaboratorMarginVnd,...publicLine}=line;
+      return publicLine;
+     }):[];
+     return {...x,items,verified:false,receipt:null,
+      pdf:canonicalInvoiceDocumentStatus(x)};
+    })});return true;
   }
   if(pathname==='/api/v2/admin/catalogue/readiness'&&req.method==='GET'){
    // Owner-only, aggregate-only diagnostic. Never exposes HMAC credentials,
