@@ -7,6 +7,8 @@ on:
       - 'tests/accounting-invoice-figures.test.cjs'
       - 'accounting-core.js'
       - 'tests/collaborator-pair-web.test.cjs'
+      - 'tests/ctv-net-profit.test.cjs'
+      - 'api/AccountingCore.gs'
       - '.github/workflows/ctv-pair-web-fake.yml'
   workflow_dispatch:
 permissions:
@@ -26,3 +28,5 @@ jobs:
         run: node tests/collaborator-twin-invoice.test.js
       - name: Verify invoice totals and profit UI (FAKE only)
         run: node --test tests/accounting-invoice-figures.test.cjs
+      - name: Verify CTV-net owner margin and bill 5966 regression (FAKE only)
+        run: node --test tests/ctv-net-profit.test.cjs
