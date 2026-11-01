@@ -9,5 +9,5 @@ test('failed API request preserves draft, unlocks composer, and allows manual re
  assert.match(inline,/if\(!input\.value\.trim\(\)\)input\.value=message/);
  assert.match(inline,/busy=false;input\.disabled=false;updateDeliveryGate\(\);updateComposerAction\(\)/);
  assert.match(inline,/Kiểm tra giỏ trước khi gửi lại/);
- assert.match(inline,/if\(!message\|\|busy\)return/);
+ assert.match(inline,/if\(!message\|\|busy\|\|voiceListening\)return/); // Preserve retry guard; recording cannot submit.
 });
