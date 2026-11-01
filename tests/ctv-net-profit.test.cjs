@@ -11,8 +11,9 @@ const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const from=html.indexOf('function getOrderGoodsTotal(o) {');
 const to=html.indexOf('function syncPaymentStatusStyle(',from);
 assert.ok(from>=0&&to>from,'Profit helpers must remain available');
-const ctx={window:{},aiPercent:n=>Number.isFinite(Number(n))?Number(n):null,
+const ctx={aiPercent:n=>Number.isFinite(Number(n))?Number(n):null,
  getSystemDefaultCostDiscount:()=>45};
+ctx.window=ctx;
 vm.createContext(ctx);
 vm.runInContext(core,ctx);
 vm.runInContext(html.slice(from,to),ctx);
