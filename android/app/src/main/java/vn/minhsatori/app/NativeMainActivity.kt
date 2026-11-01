@@ -3308,15 +3308,18 @@ class NativeMainActivity : AppCompatActivity() {
         val known = report.margin.computedInvoiceCount
         val eligible = report.margin.totalInvoiceCount
         val unknown = report.margin.missingInvoiceCount
-        totalCard("Tổng lợi nhuận",
+        totalCard(if (data.collaborators.isNotEmpty()) "Tổng lợi nhuận sau CTV" else "Tổng lãi gộp",
             report.margin.estimatedMarginKnownVnd?.let(SatoriData::money)
                 ?: "Chưa đủ dữ liệu",
             "Ước tính · " + known + "/" + eligible + " hóa đơn" +
                 (if (unknown > 0) " · $unknown chưa rõ" else ""),
             Color.rgb(244, 250, 247))
         parent.addView(totals)
-        label(parent, "Lợi nhuận là lãi gộp ước tính theo chiết khấu nhập 45%, " +
-            "chưa trừ phí giao và vận hành.", 10.5f, false, softInk, 6)
+        label(parent, (if (data.collaborators.isNotEmpty())
+            "Lợi nhuận sau hoa hồng CTV được xác minh từ hồ sơ đăng ký; "
+            else "Chưa có hồ sơ CTV được xác minh: chỉ hiển thị lãi gộp; ") +
+            "ước tính theo giá nhập chiết khấu 45%, chưa trừ phí giao và vận hành.",
+            10.5f, false, softInk, 6)
         if (debtProfitChoice != 0 && report.invalidDateDebtCount > 0)
             label(parent, report.invalidDateDebtCount.toString() +
                 " hóa đơn công nợ có ngày không hợp lệ nên không thuộc bộ lọc thời gian.",
