@@ -1,9 +1,9 @@
 {
-  "purpose": "android-v0.4.41-new-invoice-card-read-auto-ack",
+  "purpose": "android-notification-tap-opens-invoice-details-20261101",
   "package": "vn.minhsatori.app",
-  "version": "0.4.41",
-  "versionCode": 58,
-  "branch": "fix/android-unread-invoice-card-ack-20261101",
+  "version": "0.4.42",
+  "versionCode": 59,
+  "branch": "fix/android-invoice-notification-open-20261101",
   "requestedOn": "2026-11-01",
   "sourcePRs": [
     240,
@@ -34,9 +34,10 @@
     316,
     317,
     319,
-    320
+    320,
+    321
   ],
-  "scope": "Android owner UI only: dismissing a viewed invoice detail card marks just that invoice number as read, removing its red new-order marker and updating Home and Invoice navigation badge counts; other unread invoices and later new orders retain their alerts. Preserve all payment code, Gemini, ChatGPT, V2, PDF, production ledger, and original signer; owner-only acceptance, no production write.",
+  "scope": "Android notification-only fix: add immutable explicit PendingIntent to owner native invoice alert; open app on tap and show exact verified invoice on cold/warm start. Preserve per-invoice read acknowledgment, other unread badges, subsequent alerts. No billing changes, backend change or app reset. Signed with pinned original certificate for owner-only Samsung acceptance.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -83,6 +84,7 @@
     "2026-10-31: Explicit owner request to remove Accounting Pro. PR #318 implements removal and passes Android debug CI and UI screenshot. Prepare signed owner acceptance APK v0.4.39 build56 with exact existing signer. Do not merge, silently deploy, send debug APK, reinstall/uninstall, or mutate Production orders.",
     "2026-10-31: Payment completion candidate. No real payment test writes; do not declare production/device acceptance from offline tests.",
     "2026-11-01: Owner requested new-order badge disappear after viewing a card. PR #320 implements per-invoice acknowledge on detail dismiss; offline tests required. Signed owner APK v0.4.41 build58, same original cert. No Android data clearing or web/backend changes.",
-    "2026-11-01: Retry signed release after replacing only the reviewed openInvoice static checksum; original financial writers untouched. New per-invoice read badge regression passes; existing 100 other Python checks passed."
+    "2026-11-01: Retry signed release after replacing only the reviewed openInvoice static checksum; original financial writers untouched. New per-invoice read badge regression passes; existing 100 other Python checks passed.",
+    "2026-11-01: Owner reports tapping new-invoice system notification does not open app. Root cause missing Notification.Builder.setContentIntent; PR #321 fixes with safe explicit activity PendingIntent, verifies snapshot before opening detail. Original signing certificate; no Production writes. Device acceptance still pending."
   ]
 }
