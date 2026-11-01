@@ -1,0 +1,21 @@
+name: Original Invoice PDF Archive Read — FAKE ONLY
+on:
+  pull_request:
+    paths:
+      - 'api/InvoicePdfCustomerRead.gs'
+      - 'api/BotApi.gs'
+      - 'tests/pdf-original-gas-reader.test.cjs'
+      - '.github/workflows/pdf-original-reader-fake.yml'
+  workflow_dispatch:
+jobs:
+  fake-pdf-read:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify original archive PDF under isolated fake Drive
+        run: node --test tests/pdf-original-gas-reader.test.cjs
