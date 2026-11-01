@@ -24,7 +24,7 @@ import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './
 import {readExactCurrentInvoices,currentCustomerOrder,currentLinkedHistory} from './canonical-history-read.mjs';
 import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {renderCurrentV2Pdf} from './local-invoice-pdf.mjs';
-import {exactCurrentInvoiceFromOrdersList} from './local-invoice-read.mjs';
+import {exactCurrentInvoiceFromRequestId} from './local-invoice-read.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
  saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
@@ -817,8 +817,9 @@ export async function handleAccountV2(req,res,pathname){
     throw new ApiError('PDF_READ_DISABLED',503);
    error(isUuid(pdfMatch[1]),'PDF_ORDER_NOT_FOUND',404);
    const matches=await pool.query(
-    'SELECT r.ledger_invoice_no AS "invoiceNo",r.ledger_invoice_id AS "ledgerId",'+
-    'r.ledger_invoice_total AS "total" FROM satori_v2_order_requests r '+
+    'SELECT r.request_id AS "requestId",r.ledger_invoice_no AS "invoiceNo",'+
+    'r.ledger_invoice_id AS "ledgerId",r.ledger_invoice_total AS "total" '+
+    'FROM satori_v2_order_requests r '+
     'JOIN satori_v2_quotes q ON q.id=r.quote_id '+
     "WHERE r.id=$1 AND r.account_id=$2 AND q.account_id=$2 AND r.state='COMMITTED'",
     [pdfMatch[1],actor.id]);
@@ -833,8 +834,9 @@ export async function handleAccountV2(req,res,pathname){
    // pdfmake uses the already-deployed Bot orders.list: no extra GAS PDF
    // module, PDF renderer service, or Drive file is needed.
    const current=localPdf?
-    (await exactCurrentInvoiceFromOrdersList({
-     invoiceNo:Number(row.invoiceNo),ledgerId:String(row.ledgerId)
+    (await exactCurrentInvoiceFromRequestId({
+     invoiceNo:Number(row.invoiceNo),ledgerId:String(row.ledgerId),
+     requestId:String(row.requestId)
     })).current:null;
    const check=localPdf?null:await readExactCurrentInvoices([{
     invoiceNo:Number(row.invoiceNo),id:row.ledgerId
@@ -846,7 +848,7 @@ export async function handleAccountV2(req,res,pathname){
    let pdf;
    try{
     pdf=localPdf?await renderCurrentV2Pdf(latest,{
-     invoiceNo:Number(row.invoiceNo),ledgerId:String(row.ledgerId)
+     invoiceNo:Number(row.invoiceNo),ledgerId:String(latest.id)
     }):await readArchivedInvoicePdf({
      invoiceNo:Number(row.invoiceNo),ledgerId:String(row.ledgerId),
      expectedTotal:Number(latest.totalVnd)
