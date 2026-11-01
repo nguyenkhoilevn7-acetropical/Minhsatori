@@ -833,23 +833,27 @@ export async function handleAccountV2(req,res,pathname){
    // Read the CURRENT invoice after verifying the signed-in account. Local V2
    // pdfmake uses the already-deployed Bot orders.list: no extra GAS PDF
    // module, PDF renderer service, or Drive file is needed.
-   const current=localPdf?
-    (await exactCurrentInvoiceFromRequestId({
-     invoiceNo:Number(row.invoiceNo),ledgerId:String(row.ledgerId),
-     requestId:String(row.requestId)
-    })).current:null;
+   const source=localPdf?await exactCurrentInvoiceFromRequestId({
+    invoiceNo:Number(row.invoiceNo),ledgerId:String(row.ledgerId),
+    requestId:String(row.requestId)
+   }):null;
+   const current=source?.current||null;
    const check=localPdf?null:await readExactCurrentInvoices([{
     invoiceNo:Number(row.invoiceNo),id:row.ledgerId
    }]);
    const latest=localPdf?current:
     check.orders.get(Number(row.invoiceNo)+'|'+String(row.ledgerId));
-   error(latest&&!latest.missing&&!latest.excluded,'PDF_NOT_READY',404);
+   // A soft-deleted bill may be viewed ONLY as a non-payable archival copy.
+   // Other excluded states are still blocked, including missing/forged bills.
+   error(latest&&!latest.missing&&
+    (!latest.excluded||(localPdf&&source?.archived===true&&
+     latest.status==='Đã hủy')),'PDF_NOT_READY',404);
    pdfStage='PDFMAKE_RENDER';
    let pdf;
    try{
     pdf=localPdf?await renderCurrentV2Pdf(latest,{
      invoiceNo:Number(row.invoiceNo),ledgerId:String(latest.id)
-    }):await readArchivedInvoicePdf({
+    },{allowArchived:source?.archived===true}):await readArchivedInvoicePdf({
      invoiceNo:Number(row.invoiceNo),ledgerId:String(row.ledgerId),
      expectedTotal:Number(latest.totalVnd)
     });
@@ -862,12 +866,15 @@ export async function handleAccountV2(req,res,pathname){
    }
    const disposition=new URL(req.url,'https://v2.local').searchParams.get('download')==='1'?
     'attachment':'inline';
+   const pdfCancelled=localPdf&&source?.archived===true;
    res.writeHead(200,{
     'content-type':'application/pdf','content-length':String(pdf.bytes.length),
-    'content-disposition':disposition+'; filename="MinhSatori_HD'+pdf.invoiceNo+'.pdf"',
+    'content-disposition':disposition+'; filename="MinhSatori_HD'+pdf.invoiceNo+
+      (pdfCancelled?'_DA_HUY':'')+'.pdf"',
     'cache-control':'private, no-store, max-age=0','x-content-type-options':'nosniff',
     'x-frame-options':'DENY','referrer-policy':'no-referrer',
-    'x-satori-pdf-sha256':pdf.sha256
+    'x-satori-pdf-sha256':pdf.sha256,
+    'x-satori-pdf-status':pdfCancelled?'CANCELLED':'CURRENT'
    });
    res.end(pdf.bytes);
    pdfStage=null;
