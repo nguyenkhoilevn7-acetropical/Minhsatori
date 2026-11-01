@@ -43,7 +43,10 @@ export async function exactCurrentInvoiceFromOrdersList({invoiceNo,ledgerId},{re
   current:{id:String(x.id),invoiceNo,status:String(x.status||'Chưa thanh toán'),
    excluded:['Đã hủy','Không Tính'].includes(x.status),
    totalVnd:total,goodsVnd:goods,shippingVnd:shipping,vatVnd:vat,
-   date:String(x.date||''),updatedAt:x.updatedAt||null,
+   date:String(x.date||''),
+   timestamp:Number.isSafeInteger(x.timestamp)&&x.timestamp>=946684800000&&
+    x.timestamp<4102444800000?x.timestamp:null,
+   updatedAt:x.updatedAt||null,
    delivery:{recipientName:String(x.name||''),recipientPhone:String(x.phone||''),
     address:String(x.location||'')},
    deliveryNote:String(x.deliveryNote||''),items}
