@@ -8,12 +8,12 @@ import {isDeepStrictEqual} from 'node:util';
 import {calculateQuote,DomainError} from './domain.mjs';
 import {validatedV2QuoteDelivery} from './old-gemini-delivery-note.mjs';
 
-export function assertCurrentQuote({snapshot,accountId,profile,address,cart,catalogue,policies,catalogueRevision,vatBps=0,shippingVnd=0}){
+export function assertCurrentQuote({snapshot,accountId,profile,address,cart,catalogue,policies,catalogueRevision,vatBps=0,shippingVnd=0,shippingBps=0}){
  if(!snapshot||typeof snapshot!=='object'||Array.isArray(snapshot))
   throw new DomainError('QUOTE_SNAPSHOT_INVALID');
  let current;
  try{
-  current=calculateQuote({accountId,profile,address,cart,catalogue,policies,catalogueRevision,vatBps,shippingVnd});
+  current=calculateQuote({accountId,profile,address,cart,catalogue,policies,catalogueRevision,vatBps,shippingVnd,shippingBps});
  }catch(e){
   // Detailed object/price errors should not reveal customer or commercial policy.
   if(e instanceof DomainError)throw new DomainError('QUOTE_CHANGED_REQUOTE_REQUIRED');
