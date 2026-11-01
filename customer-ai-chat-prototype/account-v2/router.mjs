@@ -773,6 +773,9 @@ export async function handleAccountV2(req,res,pathname){
    send(res,200,{ok:true,configured:true,...safeLegacyInvoiceIndex(result)});return true;
   }
   if(pathname==='/api/v2/legacy/history'&&req.method==='GET'){
+   if(process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED!=='1'){
+    send(res,200,await linkedLegacyInvoiceHistory(pool,actor));return true;
+   }
    // Only owner-verified, immutable source invoice bindings authorize history.
    const audit=await pool.query('SELECT details FROM satori_v2_audit '+
     "WHERE account_id=$1 AND event_type='LEGACY_INVOICE_ACCOUNT_BOUND' "+
@@ -801,6 +804,10 @@ export async function handleAccountV2(req,res,pathname){
   // Browser input supplies an order UUID only, never Drive IDs or credentials.
   const pdfMatch=/^\/api\/v2\/orders\/([a-f0-9-]{36})\/pdf$/i.exec(pathname);
   if(pdfMatch&&req.method==='GET'){
+   // Feature remains read-only and inaccessible until exact ledger and PDF
+   // credentials are authorized and owner has verified current archive files.
+   if(process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED!=='1')
+    throw new ApiError('PDF_READ_DISABLED',503);
    error(isUuid(pdfMatch[1]),'PDF_ORDER_NOT_FOUND',404);
    const matches=await pool.query(
     'SELECT r.ledger_invoice_no AS "invoiceNo",r.ledger_invoice_id AS "ledgerId",'+
@@ -868,6 +875,20 @@ export async function handleAccountV2(req,res,pathname){
    // a locally generated PDF as the original website PDF or invent a Drive URL.
    // Once the signed Drive archive bridge is deployed, this can be replaced
    // only by exact ledger-id/invoice-version/file-SHA readback.
+   if(process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED!=='1'){
+    // Safe rollback-compatible behavior while the signed GAS API is not yet
+    // live; never break customer invoice history on a speculative deploy.
+    send(res,200,{ok:true,orders:data.rows.map(x=>{
+     const receipt=canonicalReceiptForAccountOrder(x);
+     const items=Array.isArray(x.items)?x.items.map(line=>{
+      if(!line||typeof line!=='object'||Array.isArray(line))return {};
+      const {internalUnitPrice,internalReference,collaboratorMarginVnd,...publicLine}=line;
+      return publicLine;
+     }):[];
+     return {...x,items,verified:receipt!==null,receipt,
+      pdf:canonicalInvoiceDocumentStatus(x)};
+    })});return true;
+   }
    // Current canonical ledger takes precedence over stale saved V2 quotes.
    const confirmed=data.rows.filter(x=>x.state==='COMMITTED');
    const fresh=await readExactCurrentInvoices(confirmed.map(x=>({
