@@ -140,6 +140,13 @@ class NativeMainActivity : AppCompatActivity() {
         if (current.count > 0) saveInvoiceBadge(InvoiceBadgePolicy.acknowledgeAll(current))
     }
 
+    /** Reading one invoice clears only its own unread marker, not other new orders. */
+    private fun acknowledgeInvoiceBadge(number: Long) {
+        val current = currentInvoiceBadge()
+        if (number in current.unread)
+            saveInvoiceBadge(InvoiceBadgePolicy.acknowledgeOne(current, number))
+    }
+
     private fun badgePill(count: Int): TextView = TextView(this).apply {
         text = if (count > 99) "99+" else count.toString()
         textSize = 10f
@@ -3753,7 +3760,16 @@ class NativeMainActivity : AppCompatActivity() {
         invoiceDialog = dialog
         activeInvoiceDialog = dialog
         dialog.setOnDismissListener {
-            if (activeInvoiceDialog === dialog) activeInvoiceDialog = null
+            if (activeInvoiceDialog === dialog) {
+                activeInvoiceDialog = null
+                // Mark as read only after the user closes this invoice's detail card.
+                val number = invoice.number.toLongOrNull()
+                if (number != null && number in currentInvoiceBadge().unread) {
+                    acknowledgeInvoiceBadge(number)
+                    // Refresh both Home and Invoice badges, including the recent-card "MỚI" label.
+                    if (!isFinishing && !isDestroyed) render()
+                }
+            }
         }
         dialog.setOnShowListener {
             dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(night))
