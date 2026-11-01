@@ -107,23 +107,17 @@ object AccountingProMargin45 {
 
     fun calculate(invoices: List<SatoriInvoice>,
                   collaborators: List<SatoriCollaborator> = emptyList()): List<AccountingProMargin45Row> {
-        // Match ONLY the exact unique registered CTV, and refuse conflicting phones.
-        // A CTV's name on an invoice alone is not a commission policy.
-        fun phone(v: String): String {
-            val digits = v.filter(Char::isDigit)
-            return when {
-                digits.startsWith("84") -> "0" + digits.drop(2)
-                digits.length == 9 -> "0" + digits
-                else -> digits
-            }
-        }
+        // The invoice phone belongs to the DELIVERY RECIPIENT and can differ from
+        // the registered CTV account phone. For historical single bills, allow
+        // ONLY a unique, exact name in the owner-controlled CTV registry.
+        // Third-party recipient names still need an explicit collaboratorId;
+        // never guess CTV ownership from product, address or discount alone.
         fun candidates(inv: SatoriInvoice): List<SatoriCollaborator> {
-            if (inv.isLinkedPairBill) return emptyList()
+            if (inv.isLinkedPairBill || inv.collaboratorId.isNotBlank()) return emptyList()
             val name = SatoriData.normalized(inv.customer)
+            if (name.isBlank()) return emptyList()
             return collaborators.filter { partner ->
-                SatoriData.normalized(partner.name) == name && name.isNotBlank() &&
-                    (phone(partner.phone).isBlank() || phone(inv.phone).isBlank() ||
-                        phone(partner.phone) == phone(inv.phone))
+                SatoriData.normalized(partner.name) == name
             }
         }
         val partnersById = collaborators.filter { it.id.isNotBlank() }.groupBy { it.id }
@@ -141,19 +135,12 @@ object AccountingProMargin45 {
             val sale=pair?.first
             var commission=BigInteger.ZERO
             val matched = candidates(invoice)
-            val nameMatched = collaborators.any {
-                SatoriData.normalized(it.name) == SatoriData.normalized(invoice.customer) &&
-                    SatoriData.normalized(invoice.customer).isNotBlank()
-            }
             val ambiguous = !invoice.isLinkedPairBill && invoice.collaboratorId.isBlank() &&
                 matched.size > 1
             val partner = if (invoice.collaboratorId.isNotBlank())
                 partnersById[invoice.collaboratorId]?.singleOrNull()
                 else matched.singleOrNull()
             if (warning == null && ambiguous) warning = "Trùng hồ sơ CTV, chưa xác minh hoa hồng."
-            if (warning == null && nameMatched && matched.isEmpty() &&
-                invoice.collaboratorId.isBlank() && !invoice.isLinkedPairBill)
-                warning = "Hồ sơ CTV trùng tên nhưng SĐT không khớp."
             if(warning==null && (invoice.isLinkedPairBill ||
                     invoice.collaboratorId.isNotBlank() ||
                     invoice.pairDiscountPercent != null || partner != null)) {
