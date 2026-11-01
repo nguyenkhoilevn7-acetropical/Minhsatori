@@ -12,8 +12,9 @@ package vn.minhsatori.app
  */
 internal object CtvProfitSourcePolicy {
     fun recover(api: SatoriSnapshot, drive: SatoriSnapshot): SatoriSnapshot? {
-        if (api.collaboratorRegistryLoaded) return api
-        if (!drive.collaboratorRegistryLoaded || api.revision != drive.revision ||
+        if (api.collaboratorRegistryLoaded && api.collaborators.isNotEmpty()) return api
+        if (!drive.collaboratorRegistryLoaded || drive.collaborators.isEmpty() ||
+            api.revision != drive.revision ||
             api.invoices != drive.invoices || api.products != drive.products) return null
         return api.copy(collaborators = drive.collaborators,
             collaboratorRegistryLoaded = true)
@@ -22,7 +23,8 @@ internal object CtvProfitSourcePolicy {
     fun profitRows(snapshot: SatoriSnapshot): List<AccountingProMargin45Row> {
         val rows = AccountingProMargin45.calculate(
             snapshot.invoices, snapshot.collaborators)
-        if (snapshot.collaboratorRegistryLoaded) return rows
+        if (snapshot.collaboratorRegistryLoaded && snapshot.collaborators.isNotEmpty())
+            return rows
         return rows.map { row ->
             row.copy(estimatedCtvCommissionVnd = null,
                 estimatedOwnerMarginVnd = null,
