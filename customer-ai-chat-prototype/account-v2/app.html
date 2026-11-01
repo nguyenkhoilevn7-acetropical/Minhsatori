@@ -312,6 +312,18 @@ header .satori-logo{width:31px;height:31px}
 .composer{position:relative;bottom:auto;flex:0 0 auto;background:#fff;border-top:1px solid var(--edge);padding:7px 12px;padding-bottom:max(7px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:8px}
 .composer textarea{flex:1;width:100%;min-height:42px;max-height:104px;border:1px solid #dce5ec;border-radius:15px;outline:none;padding:10px 12px;resize:vertical;background:#f6f8fb;color:var(--ink)}
 .composer textarea:focus{border-color:#6abbff}
+
+/* Voice input is only a local editable chat draft, never a checkout trigger. */
+#chatView .voice-input{display:grid;place-items:center;flex:none;width:43px;height:43px;min-width:43px;padding:0;
+ border:1px solid #d2e4e6;border-radius:14px;background:#eef7f7;color:#087f80}
+#chatView .voice-input svg{width:21px;height:21px}
+#chatView .voice-input[hidden],#chatView .voice-status[hidden]{display:none}
+#chatView .voice-input:disabled{opacity:.45;cursor:not-allowed}
+#chatView .voice-input.is-listening{background:#fff0f0;border-color:#f3b4b4;color:#c62828}
+#chatView .voice-input:focus-visible{outline:3px solid #8bd4d1;outline-offset:2px}
+#chatView .voice-status{flex:none;padding:4px 15px 8px;background:#fff;color:#396372;
+ font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+
 .send{border:0;border-radius:50%;background:var(--blue);color:white;width:42px;height:42px;flex:none;font-size:23px}
 .composer-action{position:relative;display:grid;place-items:center;isolation:isolate;overflow:visible;
  transition:background-color .24s ease,transform .28s cubic-bezier(.16,.85,.26,1),box-shadow .24s ease;
@@ -892,7 +904,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 </div>
 </details></div>
 <button id="deliveryPrompt" class="delivery-prompt" type="button" hidden>Chọn điểm giao để bắt đầu</button><div id="chatStatus" class="chat-status" role="status" aria-live="polite"></div>
-<div class="composer"><textarea id="message" rows="1" disabled placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" type="button" class="send composer-action" aria-label="Mở giỏ hàng" title="Mở giỏ hàng"><svg class="action-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M2 3h2l2.3 12.5a2 2 0 0 0 2 1.6H20a2 2 0 0 0 2-1.6L23 7H5"/></svg><svg class="action-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16"/><path d="m13 5 7 7-7 7"/></svg><b id="cartCount" class="composer-cart-count">0</b></button></div>
+<div class="composer"><button id="voiceInput" class="voice-input" type="button" aria-label="Nhập tin nhắn bằng giọng nói" title="Đọc để nhập tin nhắn" aria-pressed="false" disabled hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg></button><textarea id="message" rows="1" disabled placeholder="Ví dụ: 10 thùng Satori 500ml, 5 thùng ổi hồng"></textarea><button id="send" type="button" class="send composer-action" aria-label="Mở giỏ hàng" title="Mở giỏ hàng"><svg class="action-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M2 3h2l2.3 12.5a2 2 0 0 0 2 1.6H20a2 2 0 0 0 2-1.6L23 7H5"/></svg><svg class="action-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16"/><path d="m13 5 7 7-7 7"/></svg><b id="cartCount" class="composer-cart-count">0</b></button></div><div id="voiceStatus" class="voice-status" role="status" aria-live="polite" hidden></div>
 </section>
 <section id="catalogueView" class="view hidden"><div class="screen-actions"><button class="screen-close back-to-chat" type="button" aria-label="Đóng màn hình và quay lại chat" title="Trở về chat">×</button></div><div class="panel"><h2>Danh mục sản phẩm</h2>
 <div class="field"><label for="catalogueSearch">Tìm tên hoặc mã sản phẩm</label><input id="catalogueSearch" type="search" maxlength="100" autocomplete="off" placeholder="Ví dụ: 500ml, 350ml, Satori"></div>
@@ -1662,7 +1674,7 @@ $('scrim').onclick=()=>menu(false);
 function view(name){
  if(!views.includes(name)||!me)return;
  if(me?.account?.accessStatus==='PENDING'&&!me.account.isAdmin)name='account';
- if(name!=='chat')$('message').blur();
+ if(name!=='chat'){cancelVoiceInput();$('message').blur();}
  for(const n of views){$(n+'View').classList.toggle('hidden',name!==n)}
  updateComposerAction();
  for(const btn of document.querySelectorAll('[data-view]'))btn.classList.toggle('active',btn.dataset.view===name||(name==='invoiceDetail'&&btn.dataset.view==='orders'));
@@ -1676,13 +1688,92 @@ function view(name){
 }
 document.querySelectorAll('[data-view]').forEach(btn=>btn.onclick=()=>view(btn.dataset.view));
 document.querySelectorAll('.back-to-chat').forEach(btn=>btn.onclick=()=>view('chat'));
+
+/* Speech recognition is a browser input method: no audio/order API or automatic send. */
+const SpeechRecognitionCtor=window.SpeechRecognition||window.webkitSpeechRecognition;
+let activeVoiceRecognition=null,voiceListening=false,voiceRecognized=false;
+function voiceNotice(message){
+ const status=$('voiceStatus');status.textContent=message||'';status.hidden=!message;
+}
+function syncVoiceButton(){
+ const button=$('voiceInput');
+ button.hidden=!SpeechRecognitionCtor;
+ button.disabled=!SpeechRecognitionCtor||(!voiceListening&&
+  ($('message').disabled||busy||savingCart||profileLoading));
+ button.classList.toggle('is-listening',voiceListening);
+ button.setAttribute('aria-pressed',String(voiceListening));
+ button.setAttribute('aria-label',voiceListening?'Kết thúc ghi âm':'Nhập tin nhắn bằng giọng nói');
+ button.title=voiceListening?'Kết thúc đọc':'Đọc để nhập tin nhắn';
+}
+function cancelVoiceInput(){
+ const recognition=activeVoiceRecognition;
+ activeVoiceRecognition=null;voiceListening=false;
+ $('message').readOnly=false;
+ if(recognition){try{recognition.abort()}catch{}}
+ voiceNotice('');syncVoiceButton();updateComposerAction();
+}
+$('voiceInput').onclick=()=>{
+ if(voiceListening){
+  if(activeVoiceRecognition){try{activeVoiceRecognition.stop()}catch{cancelVoiceInput()}}
+  return;
+ }
+ if(!SpeechRecognitionCtor||$('message').disabled||busy||!requireDeliverySelection())return;
+ const input=$('message'),recognition=new SpeechRecognitionCtor();
+ const originalText=input.value.trim();
+ activeVoiceRecognition=recognition;voiceListening=true;voiceRecognized=false;
+ recognition.lang='vi-VN';recognition.continuous=false;
+ recognition.interimResults=false;recognition.maxAlternatives=1;
+ input.readOnly=true;
+ voiceNotice('Đang nghe… Bấm mic lần nữa để kết thúc. Chưa gửi tin nhắn.');
+ syncVoiceButton();updateComposerAction();
+ recognition.onresult=event=>{
+  if(activeVoiceRecognition!==recognition)return;
+  const transcript=Array.from(event.results||[])
+   .filter(result=>result.isFinal).map(result=>result[0]?.transcript||'')
+   .join(' ').trim();
+  if(!transcript)return;
+  voiceRecognized=true;
+  input.value=[originalText,transcript].filter(Boolean).join(' ').trim();
+  input.dispatchEvent(new Event('input',{bubbles:true}));
+  voiceNotice('Đã nhận chữ. Kiểm tra và chỉnh sửa trước khi bấm Gửi.');
+ };
+ recognition.onerror=event=>{
+  if(activeVoiceRecognition!==recognition)return;
+  const errors={
+   'not-allowed':'Chưa được cấp quyền micro. Hãy cho phép micro trong trình duyệt.',
+   'service-not-allowed':'Trình duyệt không cho phép nhận dạng giọng nói.',
+   'no-speech':'Không nghe rõ giọng nói. Hãy thử lại.',
+   'audio-capture':'Không tìm thấy micro khả dụng.',
+   'network':'Nhận dạng giọng nói gặp lỗi mạng. Hãy thử lại.'
+  };
+  voiceNotice(errors[event.error]||'Không nhận dạng được giọng nói. Hãy thử lại.');
+ };
+ recognition.onend=()=>{
+  if(activeVoiceRecognition!==recognition)return;
+  activeVoiceRecognition=null;voiceListening=false;input.readOnly=false;
+  syncVoiceButton();updateComposerAction();
+  if(voiceRecognized){
+   voiceNotice('Văn bản đã sẵn sàng. Vui lòng kiểm tra, sửa nếu cần, rồi bấm Gửi.');
+  }else if(!$('voiceStatus').textContent||
+          $('voiceStatus').textContent.startsWith('Đang nghe')){
+   voiceNotice('Chưa có văn bản. Hãy thử nói lại.');
+  }
+ };
+ try{recognition.start()}catch{
+  cancelVoiceInput();
+  voiceNotice('Không thể mở micro. Vui lòng kiểm tra quyền truy cập và thử lại.');
+ }
+};
+window.addEventListener('pagehide',cancelVoiceInput);
+
 function updateComposerAction(){
  const isTyping=document.activeElement===$('message')||Boolean($('message').value.trim());
  const button=$('send');
  button.classList.toggle('is-send',isTyping);
  const label=isTyping?'Gửi tin nhắn':'Mở giỏ hàng';
  button.setAttribute('aria-label',label);button.title=label;
- button.disabled=busy||savingCart||profileLoading||(isTyping&&!selectedDeliveryAddress());
+ button.disabled=voiceListening||busy||savingCart||profileLoading||(isTyping&&!selectedDeliveryAddress());
+ syncVoiceButton();
 }
 $('message').addEventListener('focus',updateComposerAction);
 $('message').addEventListener('blur',e=>{
@@ -3101,9 +3192,10 @@ async function addChatOrderReceipt(selection){
 $('send').onclick=async()=>{
  if(!$('send').classList.contains('is-send')){view('cart');return}
  const input=$('message'),message=input.value.trim();
- if(!message||busy)return;
+ if(!message||busy||voiceListening)return;
  if(!requireDeliverySelection())return;
  if(message.length>500){toast('Tin nhắn tối đa 500 ký tự');return}
+ voiceNotice('');
  input.blur(); // Never reopen the mobile keyboard after async chat completion.
  if($('chatHelp'))$('chatHelp').open=false;
  busy=true;$('send').disabled=true;input.disabled=true;
