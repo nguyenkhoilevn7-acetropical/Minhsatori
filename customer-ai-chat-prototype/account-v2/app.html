@@ -1845,6 +1845,78 @@ function bubble(text,kind='ai'){
  const item=node('div',text,'bubble '+kind);$('messages').append(item);
  $('messages').scrollTop=$('messages').scrollHeight;return item;
 }
+// Optional reorder prompt: no Gemini message, cart mutation, quote or checkout
+// until the signed-in customer deliberately accepts a verified suggestion.
+let reorderSuggestionEpoch=0;
+const seenReorderSuggestions=new Set();
+function discardReorderSuggestion(){
+ reorderSuggestionEpoch++;
+ $('messages').querySelectorAll('.reorder-suggestion').forEach(card=>card.remove());
+}
+async function suggestReorderForSelectedAddress(){
+ const address=selectedDeliveryAddress(),profileId=$('profile').value;
+ discardReorderSuggestion();
+ if(PREVIEW||!address||!me||!products.length||profileLoading)return;
+ const key=profileId+'|'+address.id;
+ if(seenReorderSuggestions.has(key))return;
+ const epoch=reorderSuggestionEpoch;
+ let result;
+ try{
+  const params=new URLSearchParams({profileId,addressId:address.id});
+  result=await call('/api/v2/reorder-suggestion?'+params,undefined,'GET');
+ }catch{return} // Optional prompt must never block ordering.
+ if(epoch!==reorderSuggestionEpoch||selectedDeliveryAddress()?.id!==address.id||
+    $('profile').value!==profileId||!Array.isArray(result?.suggestion?.items))return;
+ const source=result.suggestion.items;
+ // Old prices/discounts never enter the new cart. All codes and units must
+ // match the current catalogue before offering a one-click cart draft.
+ const matches=source.length>0&&source.length<=40&&source.every(line=>
+  typeof line.code==='string'&&Number.isSafeInteger(line.qty)&&
+  line.qty>0&&line.qty<=500&&products.some(p=>p.code===line.code&&
+   foldProductSearch(p.unit)===foldProductSearch(line.unit)));
+ if(!matches||source.reduce((n,x)=>n+x.qty,0)>500)return;
+ const lines=source.map(({code,qty})=>({code,qty}));
+ seenReorderSuggestions.add(key);
+ if($('chatHelp'))$('chatHelp').open=false;
+ const card=bubble(undefined,'ai');card.classList.add('reorder-suggestion');
+ const date=new Date(result.suggestion.orderedAt);
+ const when=Number.isFinite(date.getTime())?date.toLocaleDateString('vi-VN'):'lần trước';
+ card.append(node('strong','🔁 Gemini gợi ý đặt lại'),
+  node('p','Ở điểm giao '+address.label+', đơn gần nhất ngày '+when+' gồm:'));
+ const list=node('div',undefined,'reorder-suggestion-lines');
+ for(const line of source){
+  const product=products.find(p=>p.code===line.code);
+  list.append(node('div','• '+line.qty+' '+product.unit+' '+product.name));
+ }
+ card.append(list,node('p','Anh/chị muốn đặt lại đúng các món và số lượng này không?'));
+ const actions=node('div',undefined,'reorder-suggestion-actions');
+ actions.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:10px';
+ const yes=node('button','Đặt lại đơn này','btn primary');
+ const no=node('button','Không cần','btn');
+ for(const button of [yes,no])button.type='button';
+ no.onclick=()=>card.remove();
+ yes.onclick=async()=>{
+  if(epoch!==reorderSuggestionEpoch||selectedDeliveryAddress()?.id!==address.id||
+     $('profile').value!==profileId){card.remove();return}
+  if(busy||savingCart||profileLoading||quantityFlushActive||pendingCartQuantities.size){
+   toast('Giỏ đang cập nhật. Vui lòng thử lại.');return;
+  }
+  if(cart.length&&!sameCartLines(cart,lines)&&
+     !confirm('Thay giỏ hàng hiện tại bằng đúng sản phẩm và số lượng của đơn trước?'))return;
+  yes.disabled=true;no.disabled=true;
+  try{
+   if(!sameCartLines(cart,lines))await saveCart(lines);
+   card.remove();
+   bubble('✓ Đã chuẩn bị lại giỏ theo đơn gần nhất. Vui lòng kiểm tra giá, số lượng và xác nhận Submit order khi sẵn sàng.','ai');
+   view('cart'); // Checkout still requires user confirmation.
+  }catch(e){
+   toast('Chưa thể chuẩn bị giỏ: '+e.message);
+   yes.disabled=false;no.disabled=false;
+  }
+ };
+ actions.append(yes,no);card.append(actions);
+ $('messages').scrollTop=$('messages').scrollHeight;
+}
 const GEMINI_TYPING_MIN_MS=220;
 function geminiTypingBubble(){
  const reply=bubble(undefined,'ai typing');
@@ -2456,6 +2528,7 @@ function renderAddresses(){
    renderAddresses();
    closeDeliveryDialog();
    if(!$('cartView').classList.contains('hidden'))renderCart();
+   void suggestReorderForSelectedAddress();
   };
   choices.append(button);
  }
@@ -2467,8 +2540,10 @@ $('location').onchange=()=>{
  pendingDeliveryRequest=null;
  $('messages')?.querySelectorAll?.('.chat-order-receipt')?.forEach(card=>card.remove());
  resetTestQuote();invalidateCartPricing();renderAddresses();renderCart();
+ void suggestReorderForSelectedAddress();
 };
 async function changeProfile(forceDuringWrite=false){
+ discardReorderSuggestion();
  const requestedProfileId=$('profile').value;
  // A customer switching profiles while a cart PUT is unresolved must not
  // replace another profile's visible cart or confirmation pricing.
@@ -3381,6 +3456,7 @@ $('ctvSheetSave').onclick=()=>{
  pendingDeliveryRequest=null;
  resetTestQuote();invalidateCartPricing();renderAddresses();
  closeCtvSheet();view('chat');
+ void suggestReorderForSelectedAddress();
 };
 
 $('agentAddressManage').onclick=()=>{const ctv=currentCtvProfile();
