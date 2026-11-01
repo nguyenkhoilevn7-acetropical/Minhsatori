@@ -22,9 +22,19 @@ function rule(input,kind){
  const amount=kind==='vat'?input.rateBps:input.amountVnd;
  requireThat(Number.isSafeInteger(amount)&&amount>=0&&
   amount<=(kind==='vat'?10000:1_000_000_000),'CHARGE_AMOUNT_INVALID');
- if(scope==='none')requireThat(amount===0,'CHARGE_INACTIVE_AMOUNT');
- else requireThat(amount>0,'CHARGE_AMOUNT_REQUIRED');
- return kind==='vat'?{scope,rateBps:amount,addressIds:[...addressIds]}:
+ if(kind==='vat'){
+  if(scope==='none')requireThat(amount===0,'CHARGE_INACTIVE_AMOUNT');
+  else requireThat(amount>0,'CHARGE_AMOUNT_REQUIRED');
+  return {scope,rateBps:amount,addressIds:[...addressIds]};
+ }
+ // Shipping is normally owner-approved flat VND. CTV may instead use an
+ // explicitly approved 8% of the discounted goods subtotal, never both.
+ const rateBps=input.rateBps??0;
+ requireThat(Number.isSafeInteger(rateBps)&&rateBps>=0&&rateBps<=10_000,
+  'CHARGE_AMOUNT_INVALID');
+ if(scope==='none')requireThat(amount===0&&rateBps===0,'CHARGE_INACTIVE_AMOUNT');
+ else requireThat((amount>0)!==(rateBps>0),'CHARGE_AMOUNT_REQUIRED');
+ return rateBps>0?{scope,amountVnd:0,rateBps,addressIds:[...addressIds]}:
   {scope,amountVnd:amount,addressIds:[...addressIds]};
 }
 export function validateInvoiceFeePolicy(input){
@@ -39,8 +49,10 @@ export function calculateInvoiceFees(policy,addressId){
  requireThat(isUuid(addressId),'ADDRESS_REQUIRED');
  const p=policy||empty();
  const applies=r=>r?.scope==='all'||r?.scope==='selected'&&r.addressIds.includes(addressId);
- return {vatBps:applies(p.vat)?p.vat.rateBps:0,
-  shippingVnd:applies(p.shipping)?p.shipping.amountVnd:0};
+ const vatBps=applies(p.vat)?p.vat.rateBps:0;
+ const shippingVnd=applies(p.shipping)?p.shipping.amountVnd:0;
+ const shippingBps=applies(p.shipping)?p.shipping.rateBps??0:0;
+ return shippingBps>0?{vatBps,shippingVnd,shippingBps}:{vatBps,shippingVnd};
 }
 /**
  * A collaborator cannot quote/submit an order without ONE applicable owner/CTV
@@ -49,9 +61,9 @@ export function calculateInvoiceFees(policy,addressId){
  */
 export function requireCtvChargeForAddress(profileType,policy,addressId){
  if(profileType!=='collaborator')return;
- const {vatBps,shippingVnd}=calculateInvoiceFees(policy,addressId);
- requireThat((vatBps===800&&shippingVnd===0)||
-  (vatBps===0&&Number.isSafeInteger(shippingVnd)&&shippingVnd>0),
+ const {vatBps,shippingVnd,shippingBps=0}=calculateInvoiceFees(policy,addressId);
+ requireThat((vatBps===800&&shippingVnd===0&&shippingBps===0)||
+  (vatBps===0&&shippingVnd===0&&shippingBps===800),
   'CTV_VAT_OR_SHIPPING_REQUIRED');
 }
 export async function readInvoiceFeePolicy(db,profileId){
@@ -97,7 +109,7 @@ export async function saveInvoiceFeePolicy(pool,owner,input){
 }
 
 /**
- * CTV can pick EXACTLY ONE of VAT (fixed 8%) or a positive VND shipping fee.
+ * CTV MUST enter EXACTLY 8% for either VAT or Shipping, never both.
  * Existing owner policies remain independent, and only future quotes read edits.
  * Never trust a client-supplied VAT percentage or a different account's profile.
  */
@@ -109,20 +121,19 @@ export function validateCtvInvoiceFeeChoice(input){
  requireThat(['vat','shipping'].includes(input.choice),'CTV_CHARGE_CHOICE_REQUIRED');
  requireThat(['all','selected'].includes(input.scope),'CTV_CHARGE_SCOPE_REQUIRED');
  requireThat(input.vat==null&&input.shipping==null,'CTV_CHARGE_RAW_POLICY_FORBIDDEN');
- requireThat(input.vatBps==null||input.vatBps===800,'CTV_VAT_MUST_BE_8_PERCENT');
+ requireThat(input.shippingAmountVnd==null||input.shippingAmountVnd===0,
+  'CTV_SHIPPING_FLAT_AMOUNT_FORBIDDEN');
  const ids=input.addressIds??[];
  requireThat(Array.isArray(ids)&&ids.length<=250&&ids.every(isUuid)&&
   new Set(ids).size===ids.length,'CTV_CHARGE_ADDRESSES_INVALID');
  const selected=input.scope==='selected'?ids:[];
  requireThat(input.scope==='selected'||ids.length===0,'CTV_CHARGE_ADDRESSES_SCOPE_MISMATCH');
  if(input.choice==='vat'){
-  requireThat(input.shippingAmountVnd==null||input.shippingAmountVnd===0,
-   'CTV_CANNOT_CHARGE_BOTH');
+  requireThat(input.vatBps===800,'CTV_VAT_MUST_BE_8_PERCENT');
+  requireThat(input.shippingBps==null,'CTV_CANNOT_CHARGE_BOTH');
  }else{
+  requireThat(input.shippingBps===800,'CTV_SHIPPING_MUST_BE_8_PERCENT');
   requireThat(input.vatBps==null,'CTV_CANNOT_CHARGE_BOTH');
-  requireThat(Number.isSafeInteger(input.shippingAmountVnd)&&
-   input.shippingAmountVnd>0&&input.shippingAmountVnd<=1_000_000_000,
-   'CTV_SHIPPING_AMOUNT_INVALID');
  }
  const noneVat={scope:'none',rateBps:0,addressIds:[]};
  const noneShipping={scope:'none',amountVnd:0,addressIds:[]};
@@ -130,7 +141,7 @@ export function validateCtvInvoiceFeeChoice(input){
   profileId:input.profileId,confirmed:true,expectedRevision:input.expectedRevision,
   vat:input.choice==='vat'?{scope:input.scope,rateBps:800,addressIds:selected}:noneVat,
   shipping:input.choice==='shipping'?{scope:input.scope,
-   amountVnd:input.shippingAmountVnd,addressIds:selected}:noneShipping
+   amountVnd:0,rateBps:800,addressIds:selected}:noneShipping
  });
  return {...policy,choice:input.choice};
 }
