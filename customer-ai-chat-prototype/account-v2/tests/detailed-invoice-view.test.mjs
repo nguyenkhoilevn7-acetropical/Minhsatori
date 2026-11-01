@@ -19,7 +19,7 @@ test('itemized invoice is a separate accessible V2 screen, not a Gemini chat car
  assert.match(receipt,/\$\('invoiceDetailBody'\)/);
  assert.doesNotMatch(receipt,/\$\('messages'\)|chat-canonical-receipt|view\('chat'\)/);
  assert.match(inline,/Xem chi tiết hóa đơn/);
- assert.match(inline,/invoiceDetailBack'\)\.onclick=\(\)=>view\('orders'\)/);
+ assert.match(inline,/invoiceDetailBack'\)\.onclick=\(\)=>\{selectedCanonicalInvoiceId=null;view\('orders'\)\}/);
  assert.doesNotThrow(()=>new vm.Script(inline));
 });
 
@@ -38,7 +38,7 @@ test('saved quote breakdown and delivery are displayed without internal CTV marg
   'order.delivery','order.deliveryRequest','order.orderedAt'])
   assert.ok(receipt.includes(field),'missing invoice field: '+field);
  assert.match(receipt,/subtotal\+shipping\+vat!==receipt\.totalVnd/);
- assert.match(receipt,/báo giá V2 đã lưu/);
+ assert.match(receipt,/báo giá ban đầu được giữ để đối soát/);
  assert.doesNotMatch(receipt,/internalUnitPrice|collaboratorMarginVnd|internalReference/);
  assert.match(router,/q\.payload->>\\'goodsVnd\\' AS "goodsVnd"/);
  assert.match(router,/q\.payload->>\\'shippingVnd\\' AS "shippingVnd"/);
