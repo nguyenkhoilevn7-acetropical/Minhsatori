@@ -50,11 +50,11 @@ class OwnerInvoiceEditPaymentContract(unittest.TestCase):
             "private fun requestInvoiceEdit(", 1)[0]
         self.assertIn("header.removeView(amount)", badge)
         self.assertIn("header.addView(right", badge)
-        self.assertIn('text = "Lợi nhuận  " +', badge)
+        self.assertIn('text = labelName + "  " +', badge)
         self.assertIn('contentDescription = "Lợi nhuận: "', badge)
         self.assertIn('Color.rgb(255, 243, 241)', badge)
-        self.assertIn("showProfitInsideInvoiceCard(list, marginByInvoice[inv])", UI)
-        self.assertIn("showProfitInsideInvoiceCard(parent, marginByInvoice[invoice])", UI)
+        self.assertIn("showProfitInsideInvoiceCard(list, marginByInvoice[inv],", UI)
+        self.assertIn("showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],", UI)
 
     def test_edit_confirmation_preserves_original_invoice_and_checks_catalogue(self):
         self.assertIn("Tổng bill trước sửa:", EDITOR)
