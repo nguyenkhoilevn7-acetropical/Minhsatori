@@ -2,6 +2,7 @@ package vn.minhsatori.app
 
 import android.app.Activity
 import android.app.Notification
+import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.Manifest
@@ -112,6 +113,33 @@ class NativeMainActivity : AppCompatActivity() {
     private var lastOAuthRecoveryAt = 0L
     private val oauthRetryBackoffMs = 300_000L
     private val newOrderChannelId = "minh_satori_live_orders"
+    private val newOrderNotificationId = 52001
+    private val newInvoiceTapAction = "vn.minhsatori.app.OPEN_NEW_INVOICE"
+    private val newInvoiceTapExtra = "invoice_no"
+    private var pendingNotificationInvoiceNo: Long? = null
+
+    /** Notification opens may carry an invoice number but never private ledger content. */
+    private fun queueInvoiceFromNotification(source: Intent?) {
+        if (source?.action != newInvoiceTapAction) return
+        val no = source.getLongExtra(newInvoiceTapExtra, -1L)
+        if (no > 0L) {
+            pendingNotificationInvoiceNo = no
+            activeTab = 1
+        }
+    }
+
+    /** A cold start defers navigation until the canonical invoice snapshot is loaded. */
+    private fun openPendingNotificationInvoiceIfReady() {
+        val no = pendingNotificationInvoiceNo ?: return
+        if (activeInvoiceDialog?.isShowing == true) return
+        val invoice = snapshot?.invoices?.firstOrNull { it.number.toLongOrNull() == no }
+            ?: return
+        pendingNotificationInvoiceNo = null
+        previousScrollView?.post {
+            if (!isFinishing && !isDestroyed && activeTab == 1 &&
+                activeInvoiceDialog?.isShowing != true) openInvoice(invoice)
+        }
+    }
     // Persist only invoice sequence IDs, never customer information or order contents.
     private var invoiceBadgeState = InvoiceBadgeState()
     private var invoiceBadgeLoaded = false
@@ -143,8 +171,13 @@ class NativeMainActivity : AppCompatActivity() {
     /** Reading one invoice clears only its own unread marker, not other new orders. */
     private fun acknowledgeInvoiceBadge(number: Long) {
         val current = currentInvoiceBadge()
-        if (number in current.unread)
-            saveInvoiceBadge(InvoiceBadgePolicy.acknowledgeOne(current, number))
+        if (number in current.unread) {
+            val next = InvoiceBadgePolicy.acknowledgeOne(current, number)
+            saveInvoiceBadge(next)
+            if (next.count == 0)
+                (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
+                    .cancel(newOrderNotificationId)
+        }
     }
 
     private fun badgePill(count: Int): TextView = TextView(this).apply {
@@ -272,9 +305,16 @@ class NativeMainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= 26)
             notifications.createNotificationChannel(NotificationChannel(newOrderChannelId,
                 "Đơn hàng thật Minh Satori", NotificationManager.IMPORTANCE_HIGH))
-        val invoice = latest.invoices.firstOrNull { row ->
-            row.number.toLongOrNull()?.let { it in update.fresh } == true
+        val newestNo = update.fresh.maxOrNull() ?: return
+        val invoice = latest.invoices.firstOrNull {
+            it.number.toLongOrNull() == newestNo
         } ?: return
+        val destination = Intent(this, NativeMainActivity::class.java)
+            .setAction(newInvoiceTapAction)
+            .putExtra(newInvoiceTapExtra, newestNo)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val openInvoiceIntent = PendingIntent.getActivity(this, newOrderNotificationId,
+            destination, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         @Suppress("DEPRECATION")
         val notification = if (Build.VERSION.SDK_INT >= 26)
             Notification.Builder(this, newOrderChannelId)
@@ -283,8 +323,9 @@ class NativeMainActivity : AppCompatActivity() {
             .setContentTitle("Minh Satori • " + update.state.count + " hóa đơn chưa xem")
             .setContentText("Mới nhất #" + invoice.number + " • " +
                 SatoriData.money(invoice.total))
+            .setContentIntent(openInvoiceIntent)
             .setAutoCancel(true)
-        notifications.notify(52001, notification.build())
+        notifications.notify(newOrderNotificationId, notification.build())
     }
 
     private fun hasServerAction(action: String): Boolean =
@@ -389,6 +430,7 @@ class NativeMainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        queueInvoiceFromNotification(intent)
         pendingStore = PendingWriteStore(this)
         runCatching { pendingStore.load() }.fold(
             onSuccess = { pendingWrite = it },
@@ -425,6 +467,17 @@ class NativeMainActivity : AppCompatActivity() {
         }
         render()
         syncPreferredSource()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action != newInvoiceTapAction) return
+        queueInvoiceFromNotification(intent)
+        if (pendingNotificationInvoiceNo != null) {
+            activeInvoiceDialog?.dismiss()
+            render()
+        }
     }
 
     override fun onResume() {
@@ -1474,6 +1527,7 @@ class NativeMainActivity : AppCompatActivity() {
                 .setInterpolator(DecelerateInterpolator()).start()
         }
         dashboardMode = false
+        openPendingNotificationInvoiceIfReady()
     }
 
 
