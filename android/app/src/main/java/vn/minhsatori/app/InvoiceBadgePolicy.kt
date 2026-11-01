@@ -35,3 +35,17 @@ object InvoiceBadgePolicy {
     fun acknowledgeOne(state: InvoiceBadgeState, number: Long): InvoiceBadgeState =
         state.copy(unread = state.unread - number)
 }
+
+/**
+ * OS notification delivery bookkeeping is deliberately distinct from unread badges.
+ * A new official invoice stays eligible when the user has notifications disabled,
+ * when Android denies permission, or when NotificationManager rejects a post.
+ * Only the successfully submitted notification is acknowledged.
+ */
+object InvoiceNotificationDeliveryPolicy {
+    fun pending(unread: Set<Long>, accepted: Set<Long>): Set<Long> =
+        (unread - accepted).filter { it > 0L }.toSet()
+
+    fun afterAccepted(unread: Set<Long>): Set<Long> =
+        unread.filter { it > 0L }.toSet()
+}

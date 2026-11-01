@@ -98,18 +98,28 @@ object V2RegistrationAlerts {
   val previous=prefs.getStringSet("seen_hashes",emptySet())?.toSet().orEmpty()
   val initialized=prefs.getBoolean("initialized",false)
   val fresh=if(initialized)feed.items.filter{it.first !in previous}else emptyList()
-  val latest=(previous+feed.items.map{it.first}).toList().takeLast(250).toSet()
+  // Never acknowledge a new registration before Android has accepted its alert.
+  // When notifications are blocked, keep new hashes pending for the next sync.
+  // The initial authenticated sync is deliberately quiet: no historical flood.
+  val posted=fresh.isNotEmpty()&&notify(context,feed.pendingCount,fresh[0].second)
+  val acknowledged=when{
+   !initialized || posted -> feed.items.map{it.first}
+   else -> feed.items.map{it.first}.filter{it in previous}
+  }
+  val latest=(previous+acknowledged).toList().takeLast(250).toSet()
   prefs.edit().putStringSet("seen_hashes",latest).putBoolean("initialized",true)
    .putInt("pending_count",feed.pendingCount).apply()
-  if(fresh.isNotEmpty())notify(context,feed.pendingCount,fresh[0].second)
   return feed.pendingCount
  }
 
- private fun notify(context:Context,count:Int,name:String){
+ private fun notify(context:Context,count:Int,name:String):Boolean{
   if(Build.VERSION.SDK_INT>=33&&context.checkSelfPermission(
-   Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return
-  createChannel(context)
+   Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return false
   val mgr=context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+  if(!mgr.areNotificationsEnabled())return false
+  createChannel(context)
+  if(mgr.getNotificationChannel(CHANNEL)?.importance==
+    NotificationManager.IMPORTANCE_NONE)return false
   val intent=Intent(context,V2OwnerCrmActivity::class.java).apply{
    flags=Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
   }
@@ -122,7 +132,7 @@ object V2RegistrationAlerts {
    .setNumber(count).setContentIntent(pending).setAutoCancel(true)
    .setCategory(Notification.CATEGORY_STATUS)
    .setVisibility(Notification.VISIBILITY_PRIVATE).build()
-  mgr.notify(JOB,notification)
+  return try{mgr.notify(JOB,notification);true}catch(_:RuntimeException){false}
  }
 }
 

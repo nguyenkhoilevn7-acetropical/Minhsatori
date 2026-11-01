@@ -198,6 +198,9 @@ class NativeMainActivity : AppCompatActivity() {
     // owner WebView session; never borrow a Google Drive OAuth scope.
     private val v2AlertHandler=Handler(Looper.getMainLooper())
     private val v2AlertExecutor=java.util.concurrent.Executors.newSingleThreadExecutor()
+    // Installed only after the server has verified an owner notification feed.
+    // Previously this job was scheduled only after manually opening CRM.
+    private var v2AlertJobScheduled = false
     private var v2SignupBadge:TextView?=null
     private val v2AlertTick=object:Runnable{
         override fun run(){
@@ -209,6 +212,10 @@ class NativeMainActivity : AppCompatActivity() {
                         try{
                             val feed=V2RegistrationAlerts.fetch(cookie)
                             if(feed!=null){
+                                if(!v2AlertJobScheduled){
+                                    V2RegistrationAlerts.schedule(applicationContext)
+                                    v2AlertJobScheduled=true
+                                }
                                 val count=V2RegistrationAlerts.process(applicationContext,feed)
                                 runOnUiThread{
                                     if(!isFinishing&&!isDestroyed)updateNativeV2Badge(count)
@@ -290,22 +297,32 @@ class NativeMainActivity : AppCompatActivity() {
         }
         val update = InvoiceBadgePolicy.reconcile(currentInvoiceBadge(), entries)
         saveInvoiceBadge(update.state)
-        if (update.fresh.isEmpty()) return
-        statusMessage = "🔔 Có " + update.state.count +
-            " hóa đơn mới chưa xem • dữ liệu thật Rev " + latest.revision
-        // In-app badge is ALWAYS visible, even if Android 13 notification
-        // permission is denied or the owner disabled audible notifications.
-        Toast.makeText(this, "🔔 " + update.fresh.size +
-            " hóa đơn mới đã được ghi vào sổ Minh Satori", Toast.LENGTH_LONG).show()
-        if (!getPreferences(MODE_PRIVATE).getBoolean("satori_live_notifications", false)) return
+        if (update.fresh.isNotEmpty()) {
+            statusMessage = "🔔 Có " + update.state.count +
+                " hóa đơn mới chưa xem • dữ liệu thật Rev " + latest.revision
+            Toast.makeText(this, "🔔 " + update.fresh.size +
+                " hóa đơn mới đã được ghi vào sổ Minh Satori", Toast.LENGTH_LONG).show()
+        }
+        // Do not confuse badge/high-water reconciliation with OS notification
+        // delivery. Disabled or rejected notifications must remain pending.
+        val prefs = getPreferences(MODE_PRIVATE)
+        val accepted = prefs.getStringSet("invoice_alert_delivered_v1", emptySet())
+            .orEmpty().mapNotNull { it.toLongOrNull() }.toSet()
+        val pending = InvoiceNotificationDeliveryPolicy.pending(update.state.unread, accepted)
+        if (pending.isEmpty() || !prefs.getBoolean("satori_live_notifications", false)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED) return
         val notifications = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26)
+        if (!notifications.areNotificationsEnabled()) return
+        if (Build.VERSION.SDK_INT >= 26) {
             notifications.createNotificationChannel(NotificationChannel(newOrderChannelId,
                 "Đơn hàng thật Minh Satori", NotificationManager.IMPORTANCE_HIGH))
-        val newestNo = update.fresh.maxOrNull() ?: return
+            if (notifications.getNotificationChannel(newOrderChannelId)?.importance ==
+                NotificationManager.IMPORTANCE_NONE) return
+        }
+        val newestNo = update.fresh.maxOrNull()?.takeIf { it in pending }
+            ?: pending.maxOrNull() ?: return
         val invoice = latest.invoices.firstOrNull {
             it.number.toLongOrNull() == newestNo
         } ?: return
@@ -325,7 +342,16 @@ class NativeMainActivity : AppCompatActivity() {
                 SatoriData.money(invoice.total))
             .setContentIntent(openInvoiceIntent)
             .setAutoCancel(true)
-        notifications.notify(newOrderNotificationId, notification.build())
+        // Only after Android accepts the post do we mark this batch delivered.
+        // No customer details, token or full invoice is persisted in this marker.
+        try {
+            notifications.notify(newOrderNotificationId, notification.build())
+        } catch (_: RuntimeException) {
+            return
+        }
+        prefs.edit().putStringSet("invoice_alert_delivered_v1",
+            InvoiceNotificationDeliveryPolicy.afterAccepted(update.state.unread)
+                .map { it.toString() }.toSet()).apply()
     }
 
     private fun hasServerAction(action: String): Boolean =
@@ -483,6 +509,8 @@ class NativeMainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         foreground = true
+        // Retry any verified unread alert suppressed while notifications were off.
+        snapshot?.let { notifyVerifiedNewInvoices(it, it) }
         syncHandler.removeCallbacks(syncTick)
         syncHandler.postDelayed(syncTick, syncIntervalMs)
         v2AlertHandler.removeCallbacks(v2AlertTick)
@@ -1040,6 +1068,7 @@ class NativeMainActivity : AppCompatActivity() {
                 Toast.makeText(this@NativeMainActivity, if (next)
                     "Đã bật thông báo đơn thật khi dữ liệu đồng bộ được." else
                     "Đã tắt thông báo đơn mới.", Toast.LENGTH_SHORT).show()
+                if (next) snapshot?.let { notifyVerifiedNewInvoices(it, it) }
                 render()
             }
         }
