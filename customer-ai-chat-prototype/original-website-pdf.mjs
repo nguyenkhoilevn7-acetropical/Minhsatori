@@ -108,19 +108,23 @@ function invoicePdfDefinition(o, qrImage=null, logoImage=null) {
             if(!items.length)throw new Error('Hóa đơn chưa có mặt hàng.');
             const money=n=>Number(n || 0).toLocaleString('vi-VN')+' đ';
             const {goods,vat,ship,total,memo}=invoicePaymentDetails(o);
+            const cancelled=['Đã hủy','Không Tính'].includes(String(o.status||''));
             const head=['STT','Tên sản phẩm','ĐVT','SL','Giá niêm yết','CK (%)','Đơn giá','Thành tiền'].map(text=>({text,bold:true,color:'#ffffff',fillColor:'#0369a1',alignment:'center',fontSize:8}));
             const rows=items.map((it,i)=>{
                 const lp=Number(it.listPrice || 0),up=Number(it.unitPrice || 0),pct=it.discountPercent ?? (lp?(lp-up)/lp*100:0);
                 return [String(i+1),String(it.product || ''),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
             });
-            const bank=total>0?
+            const bank=!cancelled&&total>0?
                 [{text:'THÔNG TIN THANH TOÁN',bold:true,color:'#0369a1',margin:[0,8,0,6]},'Ngân hàng: VPBank','Số tài khoản: 658489418','Chủ tài khoản: HKD MINH SATORI',{text:'Nội dung: '+memo,margin:[0,4,0,0]}]:
-                [{text:'HÓA ĐƠN NỘI BỘ — KHÔNG CẦN THANH TOÁN',bold:true,color:'#92400e',margin:[0,8,0,6]}];
+                [{text:cancelled?'HÓA ĐƠN ĐÃ HỦY — KHÔNG CÓ GIÁ TRỊ THANH TOÁN':'HÓA ĐƠN NỘI BỘ — KHÔNG CẦN THANH TOÁN',bold:true,color:'#92400e',margin:[0,8,0,6]}];
             // Paid invoices always contain an amount-specific VietQR. Zero-value bills have no payment QR.
-            if(total>0)bank.push({qr:invoiceVietQrPayload(o),fit:100,foreground:'#0f172a',background:'#ffffff',margin:[0,8,0,0]});
+            if(!cancelled&&total>0)bank.push({qr:invoiceVietQrPayload(o),fit:100,foreground:'#0f172a',background:'#ffffff',margin:[0,8,0,0]});
             return {pageSize:'A4',pageMargins:[30,30,30,35],defaultStyle:{font:'Roboto',fontSize:9,color:'#0f172a'},info:{title:'Hóa đơn #'+o.invoiceNo+' - '+(o.name || ''),author:'HKD Minh Satori'},
                 footer:(page,count)=>({text:page+' / '+count,alignment:'right',fontSize:8,margin:[30,8,30,0],color:'#64748b'}),
                 content:[
+                    ...(cancelled?[{text:'BẢN LƯU ĐÃ HỦY — KHÔNG ĐƯỢC SỬ DỤNG ĐỂ THANH TOÁN',
+                      bold:true,color:'#991b1b',fontSize:12,alignment:'center',
+                      fillColor:'#fee2e2',margin:[0,0,0,12]}]:[]),
                     {columns:[...(logoImage?[{width:62,image:logoImage,fit:[50,50],margin:[0,0,10,0]}]:[]),{width:'*',stack:[{text:'HỘ KINH DOANH MINH SATORI',bold:true,fontSize:15,color:'#0369a1'},'Mã số thuế: 075087004222','Hotline: 0903 772 980',{text:'Địa chỉ: Số 96/41 Tôn Đản, Phường Khánh Hội, TP. Hồ Chí Minh',fontSize:8}]},{width:145,alignment:'right',stack:[{text:'PHIẾU XUẤT HÓA ĐƠN',bold:true,fontSize:13},{text:'#'+o.invoiceNo,bold:true,fontSize:14,color:'#b45309'},String(o.date || ''),String(o.status || 'Chưa thanh toán')]}]},
                     {canvas:[{type:'line',x1:0,y1:0,x2:535,y2:0,lineWidth:1,lineColor:'#0284c7'}],margin:[0,12,0,12]},
                     {text:'THÔNG TIN KHÁCH HÀNG',bold:true,color:'#0369a1',margin:[0,0,0,6]},
