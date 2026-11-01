@@ -79,10 +79,19 @@ function pairOrders(all){
 }
 function calculate(all,partners){
  const pairing=pairOrders(all),partnersById=new Map(partners.map(p=>[String(p.id),p]));
+ // An unlinked order addressed to a registered CTV must not hide commission.
+ // Resolve only a unique, exact CTV name; reject conflicting phone numbers.
+ const phone=v=>{const d=String(v??'').replace(/\D/g,'');return d.startsWith('84')?'0'+d.slice(2):d.length===9?'0'+d:d;};
+ const inferredPartner=o=>{
+  if(o.collaboratorId||o.pairGroupId||o.pairRole||!norm(o.name))return null;
+  const matches=partners.filter(p=>norm(p.name)===norm(o.name)&&
+   (!phone(p.phone)||!phone(o.phone)||phone(p.phone)===phone(o.phone)));
+  return matches.length===1?matches[0]:null;
+ };
  const uncertain=new Set(pairing.review.flatMap(x=>x.orders.map(o=>key(o))));
  const rows=all.map(o=>{
   const pair=pairing.byId.get(key(o)),secondary=pair?.low===o;
-  const partnerId=pair?.collaboratorId||o.collaboratorId||'',partner=partnersById.get(String(partnerId));
+  const partnerId=pair?.collaboratorId||o.collaboratorId||inferredPartner(o)?.id||'',partner=partnersById.get(String(partnerId));
   const discount=number(o.collaboratorDiscountPercent??partner?.discountPercent);
   const base=Math.round(listed(o)*(1-discount/100));
   const raw=pair?(secondary?0:pair.profit):partnerId?Math.round(goods(o)-base):0;

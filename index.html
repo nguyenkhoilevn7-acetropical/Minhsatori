@@ -2778,7 +2778,7 @@ document.documentElement.classList.add('satori-light-review');
                 </div>
                 <div class="flex items-center gap-1.5">
                     <span class="hidden sm:inline-flex bg-purple-950/80 text-purple-300 border border-purple-500/40 text-[10px] px-2.5 py-1 rounded-lg font-bold items-center gap-1" title="Lợi nhuận nội bộ của đơn này">
-                        <i class="fa-solid fa-lock text-purple-400"></i> Lời: ${getOrderProfit(o) >= 0 ? "+" : ""}${getOrderProfit(o).toLocaleString('vi-VN')} đ (${o.costDiscountPercent || 25}% CK)
+                        <i class="fa-solid fa-lock text-purple-400"></i> Lời: ${getOrderNetProfit(o) >= 0 ? "+" : ""}${getOrderNetProfit(o).toLocaleString('vi-VN')} đ (${o.costDiscountPercent || 25}% CK)
                     </span>
                     <button type="button" onclick="downloadModalInvoicePDF()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2.5 py-1.5 rounded-lg transition font-bold flex items-center gap-1 shadow" title="Tải PDF vào thư mục Satori Order">
                         <i class="fa-solid fa-file-pdf"></i> Tải PDF
@@ -4147,6 +4147,19 @@ document.documentElement.classList.add('satori-light-review');
             return Math.round(goods - Math.round(list * (1 - pct / 100)));
         }
 
+        // Owner-facing margin: merchandise revenue minus factory cost minus CTV commission.
+        // Never include VAT / delivery fees or internal CTV mirror invoices in owner profit.
+        function getOrderNetProfit(o, row=null) {
+            const gross=getOrderProfit(o);
+            if (!o || ['Đã hủy','Không Tính'].includes(o.status)) return 0;
+            if (!row && window.Acct?.model) {
+                const rows=window.Acct.model().rows;
+                row=rows.find(r=>SatoriAccountingCore.key(r.order)===SatoriAccountingCore.key(o));
+            }
+            if(row?.secondary||o.pairRole==='collaborator')return 0;
+            return Math.round(gross-(row?.eligible?row.profit:0));
+        }
+
         function syncPaymentStatusStyle(select=document.getElementById('paymentStatus')) {
             if(!select)return;
             select.classList.remove('text-white','text-emerald-400','text-amber-400','text-indigo-400','text-rose-400','text-slate-400');
@@ -4266,8 +4279,15 @@ document.documentElement.classList.add('satori-light-review');
             // Giá vốn nhập hàng từ nhà máy = Tổng giá niêm yết * (1 - % chiết khấu có sẵn / 100)
             const costTotal = Math.round(listPriceTotal * (1 - costDiscountPercent / 100));
             
-            // Lợi nhuận gộp tiền hàng, chưa gồm chi phí vận hành khác.
-            const profit = Math.round(goodsTotal - costTotal);
+            // CTV commission is a separate expense, not VAT or delivery.
+            const partnerRows=JSON.parse(localStorage.getItem('satori_collaborators_v1')||'[]');
+            const previewCTVOrder={id:'preview-ctv-order',invoiceNo:invNo,
+                name:busName,phone:document.getElementById('busPhone')?.value||'',
+                status:'Chưa thanh toán',items:currentItems,
+                collaboratorId:document.getElementById('acct-form-partner')?.value||''};
+            const previewCTV=SatoriAccountingCore.calculate([previewCTVOrder],partnerRows).rows[0];
+            const commission=previewCTV?.eligible?previewCTV.profit:0;
+            const profit = Math.round(goodsTotal - costTotal - commission);
             const profitInput = document.getElementById('orderProfitInput');
             if (profitInput) profitInput.value = profit;
 
@@ -4925,7 +4945,7 @@ document.documentElement.classList.add('satori-light-review');
                     const statusBadge = `<span class="bg-slate-950 border border-slate-700 text-[10px] px-2 py-0.5 rounded-full ${SatoriAccountingCore.statusClass(o)}">${aiEscape(o.status||'Chưa thanh toán')}${o.status==='Không Tính'?' (0đ DT)':''}</span>${o.status==='Đã TT Satori'?'<small class="block text-slate-300">'+(SatoriAccountingCore.paid(o)?'Khách đã TT':'Khách chưa TT')+'</small>':''}`;
                     const pairBadge=o.pairRole==='customer'||o.pairRole==='collaborator'?
                         `<span class="bg-blue-950 text-blue-200 border border-blue-800 text-[10px] px-2 py-0.5 rounded-full">${o.pairRole==='customer'?'Bill khách':'Bill CTV nội bộ'} · CK ${Number(o.pairDiscountPercent||0).toLocaleString('vi-VN')}% · liên kết #${aiEscape(String(o.pairInvoiceNo||''))}</span>`:'';
-                    const profitValArchive = getOrderProfit(o);
+                    const profitValArchive = getOrderNetProfit(o);
                     const profitBadgeArchive = `<span class="ms-money bg-rose-50 border border-rose-100 text-[10px] px-2 py-0.5 rounded-full font-bold" title="Lợi nhuận nội bộ">Lời: ${profitValArchive >= 0 ? "+" : ""}${profitValArchive.toLocaleString('vi-VN')} đ</span>`;
 
                     let itemsHtml = '';
@@ -7046,8 +7066,8 @@ document.documentElement.classList.add('satori-light-review');
                 }
                 if (sortOrder === 'revenue_desc') return (b.total || 0) - (a.total || 0);
                 if (sortOrder === 'revenue_asc') return (a.total || 0) - (b.total || 0);
-                if (sortOrder === 'profit_desc') return getOrderProfit(b) - getOrderProfit(a);
-                if (sortOrder === 'profit_asc') return getOrderProfit(a) - getOrderProfit(b);
+                if (sortOrder === 'profit_desc') return getOrderNetProfit(b) - getOrderNetProfit(a);
+                if (sortOrder === 'profit_asc') return getOrderNetProfit(a) - getOrderNetProfit(b);
                 if (sortOrder === 'invoice_desc') return (b.invoiceNo || 0) - (a.invoiceNo || 0);
                 if (sortOrder === 'invoice_asc') return (a.invoiceNo || 0) - (b.invoiceNo || 0);
                 return 0;
@@ -7064,7 +7084,7 @@ document.documentElement.classList.add('satori-light-review');
                 if(row?.secondary||o.pairRole==='collaborator')return;
                 if (o.status !== 'Đã hủy' && o.status !== 'Không Tính') {
                     globalTotalRev += (o.total || 0);
-                    globalTotalProfit += getOrderProfit(o);
+                    globalTotalProfit += getOrderNetProfit(o,row);
                     if (SatoriAccountingCore.paid(o)) globalPaidRev += (o.total || 0);
                     else globalUnpaidRev += (o.total || 0);
                 }
@@ -7092,7 +7112,7 @@ document.documentElement.classList.add('satori-light-review');
               !financialModel.rows.find(r=>SatoriAccountingCore.key(r.order)===SatoriAccountingCore.key(o))?.secondary);
             const subCount=financialRows.length;
             const subRevenue = financialRows.filter(o => o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + (o.total || 0), 0);
-            const subProfit = financialRows.filter(o => o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + getOrderProfit(o) - (financialModel.rows.find(r=>SatoriAccountingCore.key(r.order)===SatoriAccountingCore.key(o))?.profit||0), 0);
+            const subProfit = financialRows.filter(o => o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + getOrderNetProfit(o, financialModel.rows.find(r=>SatoriAccountingCore.key(r.order)===SatoriAccountingCore.key(o))), 0);
             const subPaid = financialRows.filter(o => SatoriAccountingCore.paid(o)).reduce((s, o) => s + (o.total || 0), 0);
             const subUnpaid = financialRows.filter(o => !SatoriAccountingCore.paid(o) && o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + (o.total || 0), 0);
 
@@ -7163,7 +7183,7 @@ document.documentElement.classList.add('satori-light-review');
                     <td class="p-3 text-center">${o.vat === 'yes' ? '<span class="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px]">8%</span>' : '0%'}</td>
                     <td class="p-3 text-right font-bold text-white font-mono">${(o.total || 0).toLocaleString('vi-VN')}</td>
                     <td class="p-3 text-right font-black text-emerald-400 font-mono bg-emerald-950/20" title="Mức CK đại lý: ${o.costDiscountPercent || 25}%">
-                        ${getOrderProfit(o) >= 0 ? "+" : ""}${getOrderProfit(o).toLocaleString('vi-VN')} đ
+                        ${getOrderNetProfit(o) >= 0 ? "+" : ""}${getOrderNetProfit(o).toLocaleString('vi-VN')} đ
                         <span class="block text-[9px] text-emerald-400/60 font-normal">(${getOrderGoodsTotal(o) > 0 ? ((getOrderProfit(o) / getOrderGoodsTotal(o)) * 100).toFixed(1) : 0}%)</span>
                     </td>
                     <td class="p-3 text-center">
@@ -7699,8 +7719,8 @@ document.documentElement.classList.add('satori-light-review');
                 if (sortOrder === 'date_asc') return (da.timestamp !== db.timestamp) ? da.timestamp - db.timestamp : (a.invoiceNo || 0) - (b.invoiceNo || 0);
                 if (sortOrder === 'revenue_desc') return (b.total || 0) - (a.total || 0);
                 if (sortOrder === 'revenue_asc') return (a.total || 0) - (b.total || 0);
-                if (sortOrder === 'profit_desc') return getOrderProfit(b) - getOrderProfit(a);
-                if (sortOrder === 'profit_asc') return getOrderProfit(a) - getOrderProfit(b);
+                if (sortOrder === 'profit_desc') return getOrderNetProfit(b) - getOrderNetProfit(a);
+                if (sortOrder === 'profit_asc') return getOrderNetProfit(a) - getOrderNetProfit(b);
                 if (sortOrder === 'invoice_desc') return (b.invoiceNo || 0) - (a.invoiceNo || 0);
                 if (sortOrder === 'invoice_asc') return (a.invoiceNo || 0) - (b.invoiceNo || 0);
                 return 0;
@@ -7723,7 +7743,7 @@ document.documentElement.classList.add('satori-light-review');
                 const totVal = o.total || 0;
                 const statClean = `"${(o.status || '').replace(/"/g, '""')}"`;
 
-                const profitVal = getOrderProfit(o);
+                const profitVal = getOrderNetProfit(o);
                 const costPctVal = o.costDiscountPercent !== undefined ? o.costDiscountPercent : 25;
 
                 totalQty += qtyVal;
@@ -7736,7 +7756,7 @@ document.documentElement.classList.add('satori-light-review');
 
             // Summary row at bottom
             let totalProfitCsv = 0;
-            filtered.forEach(o => { if (o.status !== 'Không Tính' && o.status !== 'Đã hủy') totalProfitCsv += getOrderProfit(o); });
+            filtered.forEach(o => { if (o.status !== 'Không Tính' && o.status !== 'Đã hủy') totalProfitCsv += getOrderNetProfit(o); });
             csvContent += `"TỔNG CỘNG (${filtered.length} ĐƠN)","","","","","",${totalQty},"","",${totalRev},${totalProfitCsv},"",""\n`;
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -7814,7 +7834,7 @@ document.documentElement.classList.add('satori-light-review');
                         totalOrders: orders.length,
                         totalProducts: catalogue.length,
                         totalRevenue: orders.filter(o => o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + (o.total || 0), 0),
-                        totalProfit: orders.filter(o => o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + getOrderProfit(o), 0)
+                        totalProfit: orders.filter(o => o.status !== 'Đã hủy' && o.status !== 'Không Tính').reduce((s, o) => s + getOrderNetProfit(o), 0)
                     },
                     data: {
                         orders: orders,

@@ -14,11 +14,13 @@ function fnSource(name){
  const next=regex.exec(sub);
  return sub.slice(0,next?next.index:20000);
 }
-test('all protected accounting and payment entrypoints remain byte-identical to V18.3',()=>{
+test('payment & invoice writes remain V18.3-identical; approved net-margin renderers are regression-locked',()=>{
  for(const [name,fingerprint] of Object.entries({
-  renderTable:'99dcafd5',
+  // Approved business rule: display after-CTV profit, without mutating customer bills.
+  renderTable:'43d29ba6',
   handleSaveAndGenerate:'c34b724e',
-  calculateTotals:'8bea3861',
+  // Approved preview rule: show net margin after registered CTV commission.
+  calculateTotals:'b5859de0',
   syncLiveFromGoogleDrive:'4e21c7aa',
   updateStatus:'967b3133',
   downloadInvoiceById:'f5da17da',
