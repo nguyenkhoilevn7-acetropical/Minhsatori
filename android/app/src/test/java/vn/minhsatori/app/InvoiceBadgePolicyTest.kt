@@ -59,6 +59,22 @@ class InvoiceBadgePolicyTest {
         assertEquals(1,new.state.count)
     }
 
+    @Test fun readingOneCardClearsOnlyItsBadgeAndFutureOrdersStillAlert() {
+        val starting = InvoiceBadgeState(5962L, setOf(5961L, 5962L))
+        val read = InvoiceBadgePolicy.acknowledgeOne(starting, 5962L)
+        assertEquals(setOf(5961L), read.unread)
+        assertEquals(5962L, read.highWater)
+        val refreshed = InvoiceBadgePolicy.reconcile(
+            read, listOf(row(5961), row(5962)))
+        assertEquals(setOf(5961L), refreshed.state.unread)
+        assertTrue(refreshed.fresh.isEmpty())
+        val another = InvoiceBadgePolicy.reconcile(
+            refreshed.state, listOf(row(5961), row(5962), row(5963)))
+        assertEquals(setOf(5961L, 5963L), another.state.unread)
+        val last = InvoiceBadgePolicy.acknowledgeOne(another.state, 5961L)
+        assertEquals(setOf(5963L), last.unread)
+    }
+
     @Test fun paymentOrEditingSameNumberCannotGenerateFalseNewInvoice() {
         val old=InvoiceBadgeState(5967L)
         val result=InvoiceBadgePolicy.reconcile(old,listOf(row(5967),row(5966)))
