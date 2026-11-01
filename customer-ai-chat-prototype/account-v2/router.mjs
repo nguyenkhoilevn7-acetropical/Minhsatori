@@ -23,7 +23,7 @@ import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
- saveCtvInvoiceFeeChoice} from './invoice-fee-scopes.mjs';
+ saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
 import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
@@ -345,6 +345,7 @@ async function pricedCart(pool,actor,input){
   'invoice_mode AS "invoiceMode",enabled,version,valid_from AS "validFrom",valid_until AS "validUntil" '+
   'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[profile.id]);
  const feePolicy=await readInvoiceFeePolicy(pool,profile.id);
+ requireCtvChargeForAddress(profile.type,feePolicy,addressRow.rows[0].id);
  const charges=calculateInvoiceFees(feePolicy,addressRow.rows[0].id);
  const priced=calculateQuote({accountId:actor.id,profile,address:addressRow.rows[0],cart:cartRow.rows[0].lines,
   catalogue:cat.rows.map(x=>({...x,listPrice:Number(x.listPrice)})),policies:policies.rows,
@@ -473,6 +474,7 @@ async function verifyLiveLockedQuote(client,actor,q){
   'FROM satori_v2_policies WHERE profile_id=$1 AND enabled=true',[q.profile_id]);
  await client.query('SELECT pg_advisory_xact_lock($1,hashtext($2))',[20261030,q.profile_id]);
  const feeConfig=await readInvoiceFeePolicy(client,q.profile_id);
+ requireCtvChargeForAddress(profile.rows[0].type,feeConfig,q.address_id);
  assertCurrentQuote({snapshot:q.payload,accountId:actor.id,
   profile:profile.rows[0],address:addr.rows[0],cart:cart.rows[0].lines,
   catalogue:cat.rows.map(p=>({...p,listPrice:Number(p.listPrice)})),
