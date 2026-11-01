@@ -21,10 +21,13 @@ const identity=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(v);
  * Map current signed ledger projection to the exact original website
  * document definition. Trust NO customer/browser-supplied money or recipient.
  */
-export function currentInvoiceForWebsitePdf(current,{invoiceNo,ledgerId}){
+export function currentInvoiceForWebsitePdf(current,{invoiceNo,ledgerId},{allowArchived=false}={}){
  if(!Number.isSafeInteger(invoiceNo)||invoiceNo<1||!identity(String(ledgerId))||
-    !current||current.missing||current.excluded===true||
-    current.status==='Đã hủy'||current.status==='Không Tính'||
+    !current||current.missing||
+    ((current.excluded===true||current.status==='Đã hủy'||
+      current.status==='Không Tính')&&
+      !(allowArchived===true&&current.excluded===true&&
+        current.status==='Đã hủy'))||
     Number(current.invoiceNo)!==invoiceNo||String(current.id)!==String(ledgerId))
   fail('V2_PDF_CURRENT_INVOICE_REQUIRED');
  if(!current.delivery||!Array.isArray(current.items)||
@@ -67,9 +70,9 @@ export function currentInvoiceForWebsitePdf(current,{invoiceNo,ledgerId}){
 
 /** Includes a content-addressed versionKey for edit/readback verification. */
 export async function renderCurrentV2Pdf(current,expected,{
- render=renderOriginalWebsitePdf
+ render=renderOriginalWebsitePdf,allowArchived=false
 }={}){
- const doc=currentInvoiceForWebsitePdf(current,expected);
+ const doc=currentInvoiceForWebsitePdf(current,expected,{allowArchived});
  const output=await render(doc);
  if(!output||!Buffer.isBuffer(output.bytes)||output.bytes.length<100||
     output.bytes.length>3*1024*1024||
@@ -80,6 +83,7 @@ export async function renderCurrentV2Pdf(current,expected,{
   fail('V2_PDF_RENDER_VERIFICATION_FAILED');
  return Object.freeze({
   bytes:output.bytes,sha256:output.sha256,versionKey:output.versionKey,
-  template:PDF_TEMPLATE_VERSION,invoiceNo:doc.invoiceNo,ledgerId:doc.id
+  template:PDF_TEMPLATE_VERSION,invoiceNo:doc.invoiceNo,ledgerId:doc.id,
+  cancelled:allowArchived===true
  });
 }

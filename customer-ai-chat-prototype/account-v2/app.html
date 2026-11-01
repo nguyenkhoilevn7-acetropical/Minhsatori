@@ -2440,14 +2440,16 @@ function attachVerifiedPdfUi(order){
   }
   if(!r.headers.get('content-type')?.startsWith('application/pdf'))throw Error('PDF_INVALID_MIME');
   const blob=await r.blob();if(blob.size<100||blob.size>3*1024*1024)throw Error('INVALID');
-  return blob;
- }).then(blob=>{
+  return {blob,cancelled:r.headers.get('x-satori-pdf-status')==='CANCELLED'};
+ }).then(({blob,cancelled})=>{
   if(!row.isConnected)return;
-  const name='MinhSatori_HD'+order.receipt.invoiceNo+'.pdf';
+  const name='MinhSatori_HD'+order.receipt.invoiceNo+(cancelled?'_DA_HUY':'')+'.pdf';
   const file=new File([blob],name,{type:'application/pdf'});
   const [view,download,share]=buttons;
   buttons.forEach(b=>b.disabled=false);
-  status.textContent='PDF chuẩn mẫu website đã sẵn sàng. Có thể xem, tải và chia sẻ.';
+  status.textContent=cancelled?
+   '⚠️ Hóa đơn đã bị xóa trong sổ Minh Satori. Đây chỉ là BẢN LƯU ĐÃ HỦY, không có giá trị thanh toán và không có mã QR.':
+   'PDF chuẩn mẫu website đã sẵn sàng. Có thể xem, tải và chia sẻ.';
   view.onclick=()=>window.open(url,'_blank','noopener');
   download.onclick=()=>{
    const a=document.createElement('a');a.href=url+'?download=1';a.download=name;

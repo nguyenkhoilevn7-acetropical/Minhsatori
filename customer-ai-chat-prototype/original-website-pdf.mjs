@@ -162,6 +162,24 @@ export async function renderOriginalWebsitePdf(order) {
    logo=await fs.readFile(path.join(HERE,'..','logo-satori-3394.jpg'));}
   const dataUrl='data:image/jpeg;base64,'+logo.toString('base64');
   const doc=invoicePdfDefinition(order,null,dataUrl);
+  // Preserve byte-for-byte website invoicePdfDefinition parity. Archived
+  // invoices are converted to NONPAYABLE documents only *after* the exact
+  // website definition is produced, before any PDF bytes exist.
+  if(['Đã hủy','Không Tính'].includes(String(order.status||''))){
+    const payment=doc.content.find(part=>Array.isArray(part?.columns)&&
+      Array.isArray(part.columns[0]?.stack)&&
+      part.columns[1]?.table?.body);
+    if(!payment)throw Error('CANCELLED_PDF_PAYMENT_SECTION_MISSING');
+    payment.columns[0].stack=[{
+      text:'HÓA ĐƠN ĐÃ HỦY — KHÔNG CÓ GIÁ TRỊ THANH TOÁN',
+      bold:true,color:'#991b1b',margin:[0,8,0,6]
+    }];
+    doc.content.unshift({
+      text:'BẢN LƯU ĐÃ HỦY — KHÔNG ĐƯỢC SỬ DỤNG ĐỂ THANH TOÁN',
+      bold:true,color:'#991b1b',fontSize:12,alignment:'center',
+      fillColor:'#fee2e2',margin:[0,0,0,12]
+    });
+  }
   const bytes=await new Promise((resolve,reject)=>{
     const handle=setTimeout(()=>reject(Error('PDF_RENDER_TIMEOUT')),25000);
     try{pdfMake.createPdf(doc).getBuffer(x=>{clearTimeout(handle);resolve(Buffer.from(x));});}

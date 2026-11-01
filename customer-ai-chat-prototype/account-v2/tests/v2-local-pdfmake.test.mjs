@@ -107,11 +107,31 @@ test('V2 confirmed PDF uses signed immutable requestId; ignores stale saved ledg
  const pdf=await renderCurrentV2Pdf(x.current,{invoiceNo:5965,ledgerId:String(raw.id)});
  assert.equal(pdf.bytes.subarray(0,5).toString('ascii'),'%PDF-');
 });
+test('Deleted canonical invoice creates CANCELLED nonpayable archival copy; no new bill',async()=>{
+ const requestId='ccfc0399-1b84-4d80-8100-8b729610712b';
+ const reply=await exactCurrentInvoiceFromRequestId({...ref,requestId},{
+  reader:async()=>({revision:202,data:{found:true,state:'DELETED',order:raw}})
+ });
+ assert.equal(reply.archived,true);
+ assert.equal(reply.current.excluded,true);
+ assert.equal(reply.current.status,'Đã hủy');
+ assert.equal(reply.current.totalVnd,current.totalVnd); // historical only
+ assert.throws(()=>currentInvoiceForWebsitePdf(reply.current,ref),
+  /V2_PDF_CURRENT_INVOICE_REQUIRED/);
+ const doc=currentInvoiceForWebsitePdf(reply.current,ref,{allowArchived:true});
+ assert.equal(doc.status,'Đã hủy');
+ const pdf=await renderCurrentV2Pdf(reply.current,ref,{allowArchived:true});
+ assert.equal(pdf.cancelled,true);
+ assert.equal(pdf.bytes.subarray(0,5).toString('ascii'),'%PDF-');
+ assert.notEqual(pdf.versionKey,canonicalPdfVersion(currentInvoiceForWebsitePdf(current,ref)));
+ const source=readFileSync(new URL('../../original-website-pdf.mjs',import.meta.url),'utf8');
+ assert.match(source,/payment\.columns\[0\]\.stack=\[\{/);
+ assert.match(source,/KHÔNG ĐƯỢC SỬ DỤNG ĐỂ THANH TOÁN/);
+});
 test('V2 PDF blocks deleted request, wrong original invoice and forged authorizations',async()=>{
  const requestId='ccfc0399-1b84-4d80-8100-8b729610712b';
  const input={...ref,requestId};
  for(const value of [
-  {found:true,state:'DELETED',order:raw},
   {found:true,state:'COMMITTED',order:{...raw,invoiceNo:999}},
   {found:true,state:'COMMITTED',order:{...raw,id:'../bad'}},
   {found:true,state:'UNCERTAIN',order:raw}

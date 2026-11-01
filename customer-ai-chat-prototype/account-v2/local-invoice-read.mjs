@@ -70,18 +70,29 @@ export async function exactCurrentInvoiceFromRequestId({
     typeof response.data!=='object')refuse('V2_PDF_LEDGER_READ_INCOMPLETE');
  const data=response.data;
  if(data.found===true){
-  if(data.state!=='COMMITTED')refuse('V2_PDF_LEDGER_NOT_ACTIVE');
+  // A deleted canonical invoice is still the customer's same original order.
+  // Offer only an explicitly cancelled, non-payable archival copy: NEVER
+  // silently turn the deleted invoice into a new payable invoice.
+  if(data.state!=='COMMITTED'&&data.state!=='DELETED')
+   refuse('V2_PDF_LEDGER_NOT_ACTIVE');
   if(!data.order||Number(data.order.invoiceNo)!==invoiceNo||
      !/^[A-Za-z0-9_-]{1,80}$/.test(String(data.order.id??'')))
    refuse('V2_PDF_LEDGER_ID_CONFLICT');
-  // Signed exact-request lookup is authoritative. A stale journal ledger ID
-  // must not override a verified original order belonging to this request.
-  return exactCurrentInvoiceFromOrdersList({
+  const latest=await exactCurrentInvoiceFromOrdersList({
    invoiceNo,ledgerId:String(data.order.id)
   },{reader:async()=>({
     revision:response.revision,
     data:{totalMatches:1,orders:[data.order]}
   })});
+  if(data.state==='DELETED'){
+   return Object.freeze({
+    revision:latest.revision,
+    archived:true,
+    current:Object.freeze({...latest.current,status:'Đã hủy',
+     excluded:true,customerPaid:false})
+   });
+  }
+  return Object.freeze({...latest,archived:false});
  }
  if(data.found!==false||data.state!=='NOT_FOUND')
   refuse('V2_PDF_LEDGER_READ_INCOMPLETE');
