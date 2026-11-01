@@ -216,6 +216,10 @@ class NativeMainActivity : AppCompatActivity() {
                                     V2RegistrationAlerts.schedule(applicationContext)
                                     v2AlertJobScheduled=true
                                 }
+                                // Only a fresh server-verified OWNER session may register FCM.
+                                OwnerPushRegistration.bindVerifiedOwner(
+                                    applicationContext, cookie,
+                                    getPreferences(MODE_PRIVATE).getBoolean("satori_live_notifications", false))
                                 val count=V2RegistrationAlerts.process(applicationContext,feed)
                                 runOnUiThread{
                                     if(!isFinishing&&!isDestroyed)updateNativeV2Badge(count)
@@ -224,6 +228,8 @@ class NativeMainActivity : AppCompatActivity() {
                         }catch(_:Exception){}
                     }
                 }catch(_:java.util.concurrent.RejectedExecutionException){}
+            } else {
+                OwnerPushRegistration.disarm(applicationContext)
             }
             v2AlertHandler.postDelayed(this,25_000L)
         }
