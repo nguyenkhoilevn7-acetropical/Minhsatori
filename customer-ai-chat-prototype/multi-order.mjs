@@ -73,8 +73,11 @@ export function parseWaterClarificationBasket(message,profile={}){
  const text=fold(message);
  const chunks=text.split(/\s*[,;\n]\s*|\s+va\s+/u).map(x=>x.trim()).filter(Boolean);
  if(chunks.length>6||!chunks.length)return null;
- // Bare 'nước'/'nc' identifies the water category but not a particular size.
- // Never choose 350ml/500ml/1500ml based on a guess.
+ // Bare 'nước'/'nc' identifies a category, not an arbitrary water size.
+ // Preserve a sandbox customer's uniquely VERIFIED favourite (existing behavior),
+ // but V2's unaffiliated requests and uncertain histories must ask for size.
+ if(chunks.length===1&&!/\bsuoi\b/.test(text)&&profile.uniqueFavourite===true&&
+    productFor(profile.favourite)&&/\b(?:nuoc|nc)\b/.test(text))return null;
  const items=[];let missing=null;
  for(const chunk of chunks){
   const simplified=chunk.replace(/^(?:(?:cho|lay|dat|mua|them|can)\s+(?:(?:toi|anh|chi|em|minh)\s+)?|(?:anh|chi|em|minh|toi)\s+(?:lay|dat|mua|cho|can)\s+)/,'');
