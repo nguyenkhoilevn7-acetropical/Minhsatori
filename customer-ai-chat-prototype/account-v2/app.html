@@ -2432,7 +2432,13 @@ function attachVerifiedPdfUi(order){
  });
  const url='/api/v2/orders/'+encodeURIComponent(order.id)+'/pdf';
  fetch(url,{credentials:'same-origin',cache:'no-store'}).then(async r=>{
-  if(!r.ok||!r.headers.get('content-type')?.startsWith('application/pdf'))throw Error('UNAVAILABLE');
+  if(!r.ok){
+   const reply=await r.json().catch(()=>({}));
+   const code=/^PDF_[A-Z0-9_]{1,80}$/.test(String(reply?.error||''))
+    ?String(reply.error):'PDF_UNAVAILABLE';
+   throw Error(code);
+  }
+  if(!r.headers.get('content-type')?.startsWith('application/pdf'))throw Error('PDF_INVALID_MIME');
   const blob=await r.blob();if(blob.size<100||blob.size>3*1024*1024)throw Error('INVALID');
   return blob;
  }).then(blob=>{
@@ -2453,7 +2459,13 @@ function attachVerifiedPdfUi(order){
      .catch(e=>{if(e?.name!=='AbortError')toast('Chia sẻ lỗi. Hãy tải PDF và gửi qua Zalo.');});
    }else toast('Trình duyệt không hỗ trợ chia sẻ PDF. Hãy tải file và gửi qua Zalo.');
   };
- }).catch(()=>{if(row.isConnected)status.textContent='PDF chưa sẵn sàng. Hãy đồng bộ hóa đơn rồi thử lại.';});
+ }).catch(e=>{
+  if(row.isConnected){
+   const code=/^PDF_[A-Z0-9_]{1,80}$/.test(String(e?.message||''))
+    ?e.message:'PDF_UNAVAILABLE';
+   status.textContent='Không tạo được PDF. Mã lỗi: '+code+'. Đơn hàng không bị thay đổi.';
+  }
+ });
 }
 
 let selectedCanonicalInvoiceId=null;
