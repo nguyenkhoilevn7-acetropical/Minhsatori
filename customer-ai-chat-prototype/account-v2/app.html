@@ -2417,6 +2417,132 @@ $('quickAgentProfile').onchange=async()=>{
 };
 // Display a committed V2 receipt in a dedicated invoice screen, NEVER in chat.
 // Render current verified invoice items, not a stale quote after owner edits.
+// Shows the SAME authenticated PDF bytes in an in-app canvas viewer.
+// Samsung Internet may download an application/pdf navigation; never navigate to it for View.
+async function showV2PdfPreview(blob,filename){
+ const overlay=document.createElement('div');
+ Object.assign(overlay.style,{position:'fixed',inset:'0',zIndex:'2147483000',
+  background:'rgba(10,22,35,.78)',display:'flex',flexDirection:'column',
+  alignItems:'center',padding:'max(10px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom))'});
+ overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');
+ overlay.setAttribute('aria-label','Xem hóa đơn PDF');
+ const frame=document.createElement('div');
+ Object.assign(frame.style,{background:'#f5f7fa',borderRadius:'12px',
+  width:'min(100%,820px)',height:'100%',display:'flex',flexDirection:'column',
+  overflow:'hidden',boxShadow:'0 12px 45px rgba(0,0,0,.3)'});
+ const header=document.createElement('div');
+ Object.assign(header.style,{display:'flex',alignItems:'center',gap:'8px',
+  padding:'10px 12px',background:'#fff',borderBottom:'1px solid #dce5e9'});
+ const title=document.createElement('strong');title.textContent=filename;
+ Object.assign(title.style,{flex:'1',overflow:'hidden',textOverflow:'ellipsis',
+  whiteSpace:'nowrap',fontSize:'13px'});
+ const close=document.createElement('button');close.type='button';
+ close.textContent='✕ Đóng';close.setAttribute('aria-label','Đóng trình xem PDF');
+ const content=document.createElement('div');
+ Object.assign(content.style,{flex:'1',minHeight:'0',overflow:'auto',padding:'12px 6px',
+  display:'flex',alignItems:'flex-start',justifyContent:'center'});
+ const canvas=document.createElement('canvas');
+ Object.assign(canvas.style,{maxWidth:'100%',height:'auto',background:'white',
+  boxShadow:'0 3px 20px rgba(0,0,0,.13)'});
+ content.append(canvas);
+ const footer=document.createElement('div');
+ Object.assign(footer.style,{display:'flex',alignItems:'center',justifyContent:'center',
+  gap:'12px',padding:'8px',background:'#fff',borderTop:'1px solid #dce5e9'});
+ const prev=document.createElement('button');prev.type='button';prev.textContent='‹ Trước';
+ const next=document.createElement('button');next.type='button';next.textContent='Sau ›';
+ const status=document.createElement('span');status.textContent='Đang mở PDF…';
+ status.setAttribute('role','status');
+ Object.assign(status.style,{fontSize:'13px',minWidth:'100px',textAlign:'center'});
+ footer.append(prev,status,next);header.append(title,close);
+ frame.append(header,content,footer);overlay.append(frame);
+ let closed=false,documentRef=null,drawEpoch=0,renderTask=null,pageNo=1;
+ const priorOverflow=document.body.style.overflow;
+ function dismiss(){
+  if(closed)return;closed=true;drawEpoch++;
+  try{renderTask?.cancel()}catch{}
+  documentRef?.destroy().catch(()=>{});
+  overlay.remove();document.body.style.overflow=priorOverflow;
+  document.removeEventListener('keydown',onEscape);
+ }
+ function onEscape(event){if(event.key==='Escape')dismiss()}
+ close.onclick=dismiss;
+ overlay.onclick=e=>{if(e.target===overlay)dismiss()};
+ document.body.append(overlay);document.body.style.overflow='hidden';
+ document.addEventListener('keydown',onEscape);
+ close.focus();
+ try{
+  const pdfjs=await import('/api/v2/pdfjs/pdf.mjs');
+  if(closed)return;
+  pdfjs.GlobalWorkerOptions.workerSrc='/api/v2/pdfjs/pdf.worker.mjs';
+  documentRef=await pdfjs.getDocument({data:new Uint8Array(await blob.arrayBuffer()),
+   useSystemFonts:true}).promise;
+  if(closed){await documentRef.destroy();return}
+  async function draw(n){
+   if(closed||!documentRef||n<1||n>documentRef.numPages)return;
+   const epoch=++drawEpoch;
+   try{renderTask?.cancel()}catch{}
+   pageNo=n;prev.disabled=n===1;next.disabled=n===documentRef.numPages;
+   status.textContent='Đang hiển thị trang '+n+'…';
+   const page=await documentRef.getPage(n);
+   if(closed||epoch!==drawEpoch)return;
+   const base=page.getViewport({scale:1});
+   const width=Math.min(740,Math.max(280,content.clientWidth-16));
+   const pixelRatio=Math.min(window.devicePixelRatio||1,1.5);
+   // Bound backing bitmap on folding phones: ~2.6 MP maximum.
+   const scale=Math.min(width*pixelRatio/base.width,
+     Math.sqrt(2600000/(base.width*base.height)));
+   const viewport=page.getViewport({scale});
+   const ctx=canvas.getContext('2d',{alpha:false});
+   canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+   canvas.style.width=width+'px';canvas.style.height=(width*base.height/base.width)+'px';
+   renderTask=page.render({canvasContext:ctx,viewport});
+   await renderTask.promise;
+   if(!closed&&epoch===drawEpoch){
+    status.textContent='Trang '+n+' / '+documentRef.numPages;
+    content.scrollTop=0;
+   }
+   page.cleanup();
+  }
+  prev.onclick=()=>void draw(pageNo-1).catch(e=>{if(!closed&&e?.name!=='RenderingCancelledException')status.textContent='Không hiển thị được trang.'});
+  next.onclick=()=>void draw(pageNo+1).catch(e=>{if(!closed&&e?.name!=='RenderingCancelledException')status.textContent='Không hiển thị được trang.'});
+  await draw(1);
+ }catch(e){
+  if(!closed&&e?.name!=='RenderingCancelledException'){
+   status.textContent='Không mở được bản xem. Có thể dùng Tải PDF.';
+  }
+ }
+}
+
+function appendVerifiedInvoicePaymentInfo(order,anchor){
+ const receipt=order?.receipt||{};
+ const total=Number(receipt.totalVnd);
+ if(!Number.isSafeInteger(total)||total<=0||
+    ['Đã hủy','Không Tính'].includes(String(order.invoiceStatus||'')))return;
+ const box=document.getElementById('invoiceDetailBody');
+ if(!box||!anchor.isConnected)return;
+ const memo=('HD'+receipt.invoiceNo+' '+String(order.delivery?.recipientName||'')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d')
+  .replace(/Đ/g,'D').replace(/[^a-zA-Z0-9 ]/g,'')).slice(0,25);
+ const block=node('section',undefined,'invoice-detail-section');
+ block.append(node('h3','Thông tin thanh toán'));
+ const fields=[
+  ['Ngân hàng','VPBank'],
+  ['Số tài khoản','658489418'],
+  ['Chủ tài khoản','HKD MINH SATORI'],
+  ['Nội dung chuyển khoản',memo],
+  ['Tổng hóa đơn',new Intl.NumberFormat('vi-VN').format(total)+' đ']
+ ];
+ for(const [label,value] of fields){
+  const line=node('div',undefined,'invoice-detail-meta');
+  line.append(node('span',label),node('strong',value));
+  block.append(line);
+ }
+ block.append(node('p',
+  'Mã VietQR và thông tin chuyển khoản tương ứng được in trong PDF chuẩn của website.',
+  'invoice-detail-muted'));
+ box.insertBefore(block,anchor);
+}
+
 function attachVerifiedPdfUi(order){
  const box=document.getElementById('invoiceDetailBody');
  if(!box||order?.verified!==true||order.state!=='COMMITTED'||!/^[0-9a-f-]{36}$/i.test(order.id||''))return;
@@ -2450,16 +2576,29 @@ function attachVerifiedPdfUi(order){
   status.textContent=cancelled?
    '⚠️ Hóa đơn đã bị xóa trong sổ Minh Satori. Đây chỉ là BẢN LƯU ĐÃ HỦY, không có giá trị thanh toán và không có mã QR.':
    'PDF chuẩn mẫu website đã sẵn sàng. Có thể xem, tải và chia sẻ.';
-  view.onclick=()=>window.open(url,'_blank','noopener');
+  if(!cancelled)appendVerifiedInvoicePaymentInfo(order,status);
+  view.onclick=()=>void showV2PdfPreview(blob,name);
   download.onclick=()=>{
    const a=document.createElement('a');a.href=url+'?download=1';a.download=name;
    document.body.append(a);a.click();a.remove();
   };
   share.onclick=()=>{
-   if(navigator.canShare?.({files:[file]})&&navigator.share){
+   // File is already fetched privately; Web Share must run in the original
+   // button gesture, not after another async fetch or forced download.
+   if(typeof navigator.share!=='function'){
+    toast('Trình duyệt này không hỗ trợ chia sẻ tệp trực tiếp. Hãy mở V2 bằng Chrome hoặc dùng Tải PDF.');
+    return;
+   }
+   try{
+    if(navigator.canShare&&!navigator.canShare({files:[file]})){
+     toast('Trình duyệt này không hỗ trợ chia sẻ file PDF. Hãy mở V2 bằng Chrome hoặc dùng Tải PDF.');
+     return;
+    }
     navigator.share({files:[file],title:'Hóa đơn Minh Satori #'+order.receipt.invoiceNo})
-     .catch(e=>{if(e?.name!=='AbortError')toast('Chia sẻ lỗi. Hãy tải PDF và gửi qua Zalo.');});
-   }else toast('Trình duyệt không hỗ trợ chia sẻ PDF. Hãy tải file và gửi qua Zalo.');
+     .catch(e=>{if(e?.name!=='AbortError')toast('Không thể chia sẻ PDF trực tiếp trên trình duyệt này. Thử Chrome hoặc Tải PDF.');});
+   }catch{
+    toast('Trình duyệt không thể chia sẻ tệp PDF. Thử Chrome hoặc Tải PDF.');
+   }
   };
  }).catch(e=>{
   if(row.isConnected){
