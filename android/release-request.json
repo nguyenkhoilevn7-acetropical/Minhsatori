@@ -1,9 +1,9 @@
 {
-  "purpose": "android-notification-tap-opens-invoice-details-20261101",
+  "purpose": "android-original-order-created-time-ctv-verified-net-profit-20261101",
   "package": "vn.minhsatori.app",
-  "version": "0.4.42",
-  "versionCode": 59,
-  "branch": "fix/android-invoice-notification-open-20261101",
+  "version": "0.4.43",
+  "versionCode": 60,
+  "branch": "fix/android-v043-invoice-created-time-ctv-net-20261101",
   "requestedOn": "2026-11-01",
   "sourcePRs": [
     240,
@@ -35,7 +35,8 @@
     317,
     319,
     320,
-    321
+    321,
+    341
   ],
   "scope": "Android notification-only fix: add immutable explicit PendingIntent to owner native invoice alert; open app on tap and show exact verified invoice on cold/warm start. Preserve per-invoice read acknowledgment, other unread badges, subsequent alerts. No billing changes, backend change or app reset. Signed with pinned original certificate for owner-only Samsung acceptance.",
   "notes": [
@@ -86,6 +87,7 @@
     "2026-11-01: Owner requested new-order badge disappear after viewing a card. PR #320 implements per-invoice acknowledge on detail dismiss; offline tests required. Signed owner APK v0.4.41 build58, same original cert. No Android data clearing or web/backend changes.",
     "2026-11-01: Retry signed release after replacing only the reviewed openInvoice static checksum; original financial writers untouched. New per-invoice read badge regression passes; existing 100 other Python checks passed.",
     "2026-11-01: Owner reports tapping new-invoice system notification does not open app. Root cause missing Notification.Builder.setContentIntent; PR #321 fixes with safe explicit activity PendingIntent, verifies snapshot before opening detail. Original signing certificate; no Production writes. Device acceptance still pending.",
-    "2026-11-01: Owner explicitly requested latest installable Android APK v0.4.42 build59. Request isolated signed Samsung acceptance build on the original pinned certificate, with exact package/version/certificate/APK SHA-256 verification. No production API deployment, invoice/payment writes, or debug APK substitution. Timestamp enhancement PR336 remains separate and is not included in this candidate."
+    "2026-11-01: Owner explicitly requested latest installable Android APK v0.4.42 build59. Request isolated signed Samsung acceptance build on the original pinned certificate, with exact package/version/certificate/APK SHA-256 verification. No production API deployment, invoice/payment writes, or debug APK substitution. Timestamp enhancement PR336 remains separate and is not included in this candidate.",
+    "2026-11-01: staged source-only v0.4.43 build60: original immutable invoice timestamp + owner net-profit-after-verified-CTV commission. Companion owner-only API PR #342 needed for CTV read. No signed release request, no production changes or live financial writes. Existing v0.4.42 signed owner APK remains current."
   ]
 }
