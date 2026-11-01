@@ -68,9 +68,9 @@ test('admin-only routes and server quote freshness use approved VAT and shipping
  const owner=readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
  const app=readFileSync(new URL('../app.html',import.meta.url),'utf8');
  assert.match(router,/if\(pathname==='\/api\/v2\/admin\/invoice-charge-policy'&&req.method==='PUT'\)\{\s*owner\(actor\)/);
- assert.match(router,/readInvoiceFeePolicy\(pool,profile.id\)/);
+ assert.match(router,/readEffectiveInvoiceFeePolicy\(pool,profile.type,profile.id\)/);
  assert.match(router,/calculateInvoiceFees\(feePolicy,addressRow.rows\[0\].id\)/);
- assert.match(router,/readInvoiceFeePolicy\(client,q.profile_id\)/);
+ assert.match(router,/readEffectiveInvoiceFeePolicy\(client,profile.rows\[0\].type,q.profile_id\)/);
  assert.match(router,/calculateInvoiceFees\(feeConfig,q.address_id\)/);
  assert.match(freshness,/vatBps=0,shippingVnd=0/);
  assert.match(freshness,/catalogueRevision,vatBps,shippingVnd/);
