@@ -58,7 +58,7 @@ class AccountingProRemovalTest(unittest.TestCase):
             "private fun showMarginPeriod(",
             "private fun showDebtProfitFilter(",
             "showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],",
-            'totalCard(if (data.collaboratorRegistryLoaded) "Tổng lợi nhuận sau CTV"',
+            'totalCard(if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) "Tổng lợi nhuận sau CTV"',
             "TỔNG LỢI NHUẬN · THIẾU HỒ SƠ CTV",
             "☷ Lọc danh sách hóa đơn",
         ):
