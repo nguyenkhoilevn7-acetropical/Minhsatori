@@ -2418,12 +2418,53 @@ $('quickAgentProfile').onchange=async()=>{
 // Display a committed V2 receipt in a dedicated invoice screen, NEVER in chat.
 // Product and discount lines come from the stored account-scoped quote snapshot;
 // only the invoice number and total are reconciled with the canonical ledger.
+function attachVerifiedPdfUi(order){
+ const box=document.getElementById('invoiceDetailBody');
+ if(!box||order?.verified!==true||order.state!=='COMMITTED'||!/^[0-9a-f-]{36}$/i.test(order.id||''))return;
+ const previousPdfNote=box.lastElementChild;
+ if(previousPdfNote?.classList.contains('invoice-detail-notice'))previousPdfNote.hidden=true;
+ const row=document.createElement('div');
+ row.className='invoice-pdf-actions';
+ const status=node('p','Đang xác minh PDF gốc trên Google Drive…','invoice-detail-notice');
+ box.append(status,row);
+ const buttons=['👁 Xem PDF','⬇ Tải PDF','↗ Chia sẻ PDF'].map(label=>{
+  const b=document.createElement('button');b.type='button';b.className='btn';
+  b.textContent=label;b.disabled=true;row.append(b);return b;
+ });
+ const url='/api/v2/orders/'+encodeURIComponent(order.id)+'/pdf';
+ fetch(url,{credentials:'same-origin',cache:'no-store'}).then(async r=>{
+  if(!r.ok||!r.headers.get('content-type')?.startsWith('application/pdf'))throw Error('UNAVAILABLE');
+  const blob=await r.blob();if(blob.size<100||blob.size>3*1024*1024)throw Error('INVALID');
+  return blob;
+ }).then(blob=>{
+  if(!row.isConnected)return;
+  const name='MinhSatori_HD'+order.receipt.invoiceNo+'.pdf';
+  const file=new File([blob],name,{type:'application/pdf'});
+  const [view,download,share]=buttons;
+  buttons.forEach(b=>b.disabled=false);
+  status.textContent='PDF gốc đã được xác minh. Có thể xem, tải và chia sẻ.';
+  view.onclick=()=>window.open(url,'_blank','noopener');
+  download.onclick=()=>{
+   const a=document.createElement('a');a.href=url+'?download=1';a.download=name;
+   document.body.append(a);a.click();a.remove();
+  };
+  share.onclick=()=>{
+   if(navigator.canShare?.({files:[file]})&&navigator.share){
+    navigator.share({files:[file],title:'Hóa đơn Minh Satori #'+order.receipt.invoiceNo})
+     .catch(e=>{if(e?.name!=='AbortError')toast('Chia sẻ lỗi. Hãy tải PDF và gửi qua Zalo.');});
+   }else toast('Trình duyệt không hỗ trợ chia sẻ PDF. Hãy tải file và gửi qua Zalo.');
+  };
+ }).catch(()=>{if(row.isConnected)status.textContent='PDF chính thức chưa sẵn sàng. Vui lòng thử lại sau.';});
+}
+
+let selectedCanonicalInvoiceId=null;
 function showCommittedReceipt(order){
  const receipt=order?.receipt;
  if(order?.verified!==true||order.state!=='COMMITTED'||!receipt||
     !Number.isSafeInteger(receipt.invoiceNo)||receipt.invoiceNo<1||
     !Number.isSafeInteger(receipt.totalVnd)||receipt.totalVnd<0||
     receipt.currency!=='VND')return false;
+ selectedCanonicalInvoiceId=order.id;
  const container=$('invoiceDetailBody');
  container.replaceChildren();
  const safeAmount=value=>{
@@ -2448,13 +2489,17 @@ function showCommittedReceipt(order){
  intro.append(node('h2','HÓA ĐƠN #'+receipt.invoiceNo),
   node('span','MINH SATORI · Đơn hàng V2','invoice-detail-muted'));
  header.append(intro);container.append(header);
- container.append(node('div','Đã đối soát mã hóa đơn và tổng tiền với sổ Minh Satori.','invoice-detail-status'));
+ container.append(node('div',
+  'Trạng thái: '+String(order.invoiceStatus||'Đang xác minh')+
+  ' · Đã đồng bộ sổ Minh Satori · Rev '+String(order.ledgerRevision??'—'),
+  'invoice-detail-status'));
  const information=node('div',undefined,'invoice-detail-grid');
  const dt=Date.parse(order.orderedAt||'');
  const date=Number.isFinite(dt)?new Intl.DateTimeFormat('vi-VN',{
   dateStyle:'short',timeStyle:'short',timeZone:'Asia/Ho_Chi_Minh'
  }).format(new Date(dt)):'Chưa có thời gian';
  field(information,'Thời gian đặt hàng V2',date);
+ field(information,'Ngày hóa đơn chính thức',order.invoiceDate);
  field(information,'Người nhận',order.delivery?.recipientName);
  field(information,'Số điện thoại',order.delivery?.recipientPhone);
  field(information,'Địa chỉ giao hàng',order.delivery?.address);
@@ -2483,7 +2528,7 @@ function showCommittedReceipt(order){
   meta.append(node('div','Đơn giá sau chiết khấu: '+amountText(unitPrice)));
   item.append(meta);lines.append(item);
  }
- container.append(node('p','Chi tiết sản phẩm và chiết khấu lấy từ báo giá V2 đã lưu tại thời điểm đặt.','invoice-detail-muted'));
+ container.append(node('p','Sản phẩm và chiết khấu đã đồng bộ với hóa đơn hiện tại; báo giá ban đầu được giữ để đối soát.','invoice-detail-muted'));
  const subtotal=safeAmount(order.goodsVnd),shipping=safeAmount(order.shippingVnd),
   vat=safeAmount(order.vatVnd);
  const totals=node('div',undefined,'invoice-detail-totals');
@@ -2509,9 +2554,10 @@ function showCommittedReceipt(order){
   'Chưa xác nhận được PDF gốc trên Google Drive. Chưa có link tải chính thức.';
  container.append(node('p',note,'invoice-detail-notice'));
  view('invoiceDetail');
+ attachVerifiedPdfUi(order);
  return true;
 }
-$('invoiceDetailBack').onclick=()=>view('orders');
+$('invoiceDetailBack').onclick=()=>{selectedCanonicalInvoiceId=null;view('orders')};
 
 let invoiceListEpoch=0;
 function invoiceDateLabel(value){
@@ -2549,7 +2595,7 @@ function invoiceCard(order,{historical=false}={}){
  heading.append(idBox);
  const status=historical?(order.status||'Hóa đơn lịch sử'):
   order.testOnly?'Đơn thử':
-  verified?'Đã đối soát sổ thật':
+  verified?String(order.invoiceStatus||'Đã đối soát sổ thật'):
   order.state==='REJECTED'?'Bị từ chối':
   ['UNCERTAIN','RELAY_PENDING'].includes(order.state)?'Đang đối soát':
   'Chưa phát hành hóa đơn';
@@ -2565,7 +2611,9 @@ function invoiceCard(order,{historical=false}={}){
  const orderedAt=historical?String(order.date||'Chưa có ngày'):
   invoiceDateLabel(order.orderedAt);
  const when=node('div',undefined,'invoice-order-meta');
- when.append(node('strong','Ngày đặt: '),document.createTextNode(orderedAt));profile.append(when);
+ when.append(node('strong','Ngày đặt: '),document.createTextNode(orderedAt));
+ if(!historical&&order.invoiceDate)when.append(document.createTextNode(' · Ngày hóa đơn: '+order.invoiceDate));
+ profile.append(when);
  const address=historical?order.address:order.delivery?.address;
  if(address){
   const location=node('div',undefined,'invoice-order-meta');
@@ -2632,6 +2680,10 @@ async function loadOrders(){
  const rows=$('orderRows');rows.replaceChildren();
  const v2=data.orders||[];
  for(const order of v2)rows.append(invoiceCard(order));
+ if(selectedCanonicalInvoiceId&&!$('invoiceDetailView').classList.contains('hidden')){
+  const latest=v2.find(x=>x.id===selectedCanonicalInvoiceId);
+  if(latest?.verified)showCommittedReceipt(latest);
+ }
  $('invoiceResultCount').textContent='Tìm thấy '+v2.length+' đơn V2'+
   (v2.length>=100?' (hiển thị tối đa 100 đơn gần nhất)':'');
  // Historical records are still scoped by verified stable account ID.
@@ -2687,6 +2739,18 @@ $('invoiceClearFilter').onclick=()=>{
  loadOrders().catch(e=>toast(e.message));
 };
 $('refreshOrders').onclick=()=>loadOrders().catch(e=>toast(e.message));
+ let lastInvoiceForegroundCheck=0;
+ document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible'||!me||
+    ($('ordersView').classList.contains('hidden')&&
+     $('invoiceDetailView').classList.contains('hidden')))return;
+  const now=Date.now();if(now-lastInvoiceForegroundCheck<15000)return;
+  lastInvoiceForegroundCheck=now;
+  loadOrders().catch(e=>{
+   $('invoiceResultCount').textContent='Chưa thể đồng bộ hóa đơn mới nhất. Hãy tải lại.';
+   toast(e.message);
+  });
+ });
 const originalInvoiceLogo=document.querySelector('.brand .satori-logo');
 if(originalInvoiceLogo)$('invoiceMasthead').prepend(originalInvoiceLogo.cloneNode(true));
 function currentInvoiceMonth(){

@@ -77,8 +77,8 @@ test('receipt button is inaccessible for unverified/test-only requests; PDF neve
  const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
  const html=readFileSync(new URL('../app.html',import.meta.url),'utf8');
  assert.match(router,/WHERE r.account_id=\$1 AND q.account_id=\$1/);
- assert.match(router,/canonicalReceiptForAccountOrder\(x\)/);
- assert.match(router,/verified:receipt!==null/);
+ assert.match(router,/currentCustomerOrder\(x,latest,fresh\.revision\)/);
+ assert.match(router,/readExactCurrentInvoices\(confirmed\.map/);
  assert.match(html,/if\(verified&&order\.receipt\)/);
  assert.match(html,/function showCommittedReceipt\(order\)/);
  assert.match(html,/order\?\.verified!==true\|\|order\.state!=='COMMITTED'/);
