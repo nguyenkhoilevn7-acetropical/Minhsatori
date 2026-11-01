@@ -295,7 +295,11 @@ internal object WebsiteInvoicePdf {
             true, amber, Paint.Align.RIGHT)
         val dateHeight = w.boxText(invoice.displayDate, 410f, 68f, 155f, 8f,
             false, black, Paint.Align.RIGHT)
-        val statusTop = 70f + dateHeight
+        val createdTop = 70f + dateHeight
+        val createdHeight = if (invoice.creationTimeLabel.isNotBlank())
+            w.boxText("Khách đặt lúc: " + invoice.creationTimeLabel,
+                410f, createdTop, 155f, 8f, false, black, Paint.Align.RIGHT) else 0f
+        val statusTop = createdTop + createdHeight
         val statusHeight = w.boxText(invoice.status, 410f, statusTop, 155f, 8f,
             false, black, Paint.Align.RIGHT)
         logo?.recycle()
