@@ -152,7 +152,10 @@ data class SatoriSnapshot(
     val invoices: List<SatoriInvoice>,
     val products: List<SatoriProduct> = emptyList(),
     val customerMemory: List<SatoriCustomerMemory> = emptyList(),
-    val collaborators: List<SatoriCollaborator> = emptyList()
+    val collaborators: List<SatoriCollaborator> = emptyList(),
+    // True only when a verified source actually supplied the owner CTV registry.
+    // Missing key is NOT the same as an empty list of registered collaborators.
+    val collaboratorRegistryLoaded: Boolean = false
 ) {
     val activeCount: Int get() = invoices.count { !it.isExcluded }
     val outstandingCount: Int get() = invoices.count { it.isOutstanding }
@@ -345,9 +348,16 @@ object SatoriData {
             )
         }
         // Source-approved CTV registry is read-only. Never infer a discount from an order name alone.
-        val partnerArray = try {
-            JSONArray(values.optString("satori_collaborators_v1", "[]"))
-        } catch (_: Exception) { JSONArray() }
+        val registryLoaded = values.has("satori_collaborators_v1") &&
+            !values.isNull("satori_collaborators_v1")
+        val partnerArray = if (registryLoaded) {
+            try {
+                JSONArray(values.getString("satori_collaborators_v1"))
+            } catch (_: Exception) {
+                throw IllegalArgumentException(
+                    "Dữ liệu hồ sơ CTV bị lỗi, không thể tính lợi nhuận.")
+            }
+        } else JSONArray()
         require(partnerArray.length() <= 5000) { "Danh sách CTV vượt giới hạn an toàn." }
         val partners = (0 until partnerArray.length()).mapNotNull { i ->
             val row = partnerArray.optJSONObject(i) ?: return@mapNotNull null
@@ -359,7 +369,8 @@ object SatoriData {
                 else null
             SatoriCollaborator(id, name, string(row, "phone"), discount)
         }
-        return SatoriSnapshot(revision, string(root, "updatedAt"), invoices, products, memory, partners)
+        return SatoriSnapshot(revision, string(root, "updatedAt"),
+            invoices, products, memory, partners, registryLoaded)
     }
 
     // Presentation separators do not change the recipient's phone number.
