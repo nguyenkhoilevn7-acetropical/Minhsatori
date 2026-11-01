@@ -76,6 +76,10 @@ class NativeMainActivity : AppCompatActivity() {
     private var showAdvancedOverview = false
     private var accessToken: String? = null
     private var snapshot: SatoriSnapshot? = null
+    // Owner-only, in-memory read bridge. Never persist tokens or CTV policies.
+    private var ctvBridgeRevision: Long? = null
+    private var ctvBridgeToken: String? = null
+    private var ctvBridgeSnapshot: SatoriSnapshot? = null
     private var statusMessage = "Chưa liên kết dữ liệu Google Drive. Bấm KẾT NỐI DỮ LIỆU để bắt đầu."
     private var searchText = ""
     // UI-only filters: no ledger mutation and no new data permissions.
@@ -546,6 +550,8 @@ class NativeMainActivity : AppCompatActivity() {
             statusMessage = "Đang chuyển sang Google Drive live; file thủ công không tự cập nhật."
         }
         lastSyncAttemptElapsedMs = 0L
+        // Manual refresh also retries the approved CTV read when GAS is outdated.
+        ctvBridgeRevision = null
         if (accessToken == null) connectGoogle() else syncPreferredSource()
     }
 
@@ -568,6 +574,8 @@ class NativeMainActivity : AppCompatActivity() {
         // OAuth tokens/snapshots stay in memory; only the encrypted pending write survives.
         accessToken = null
         snapshot = null
+        ctvBridgeToken = null
+        ctvBridgeSnapshot = null
         super.onDestroy()
     }
 
@@ -1741,12 +1749,12 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
-        val marginRows = AccountingProMargin45.calculate(data.invoices, data.collaborators)
+        val marginRows = CtvProfitSourcePolicy.profitRows(data)
         val marginAll = AccountingProMargin45.summarize(
             marginRows, AccountingProMargin45Period.all())
         section(parent,
-            (if (data.collaborators.isNotEmpty()) "TỔNG LỢI NHUẬN SAU CTV (ƯỚC TÍNH): "
-                else "TỔNG LÃI GỘP · CHƯA ĐỐI CHIẾU CTV: ") +
+            (if (data.collaboratorRegistryLoaded) "TỔNG LỢI NHUẬN SAU CTV (ƯỚC TÍNH): "
+                else "TỔNG LỢI NHUẬN · THIẾU HỒ SƠ CTV: ") +
                 (marginAll.estimatedMarginKnownVnd?.let(SatoriData::money)
                     ?: "Chưa đủ dữ liệu"),
             "Tính được " + marginAll.computedInvoiceCount + "/" +
@@ -2404,9 +2412,10 @@ class NativeMainActivity : AppCompatActivity() {
         amount.gravity = Gravity.END
         right.addView(amount, LinearLayout.LayoutParams(-2, -2))
         val value = row?.estimatedOwnerMarginVnd?.let(SatoriData::money)
-        val labelName = if (hasCtvRegistry) "Lợi nhuận" else "Lãi gộp"
+        val labelName = "Lợi nhuận"
         val badge = TextView(this).apply {
-            text = labelName + "  " + (value ?: "Chưa rõ")
+            text = labelName + "  " +
+                (if (hasCtvRegistry) (value ?: "Chưa rõ") else "Chờ dữ liệu CTV")
             textSize = 11f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(invoiceMoneyRed)
@@ -2417,7 +2426,9 @@ class NativeMainActivity : AppCompatActivity() {
             setAutoSizeTextTypeUniformWithConfiguration(9, 11, 1,
                 android.util.TypedValue.COMPLEX_UNIT_SP)
             background = panelBackground(Color.rgb(255, 243, 241), 9)
-            contentDescription = labelName + ": " + (value ?: "Chưa đủ dữ liệu")
+            contentDescription = labelName + ": " +
+                (if (hasCtvRegistry) (value ?: "Chưa đủ dữ liệu")
+                    else "Mobile API chưa trả hồ sơ CTV. Đồng bộ Google Drive hoặc cập nhật Mobile API.")
         }
         right.addView(badge, LinearLayout.LayoutParams(-2, -2).apply {
             topMargin = dp(6)
@@ -2702,10 +2713,15 @@ class NativeMainActivity : AppCompatActivity() {
         parent.addView(list)
         val marginByInvoice =
             java.util.IdentityHashMap<SatoriInvoice, AccountingProMargin45Row>().apply {
-                AccountingProMargin45.calculate(data.invoices, data.collaborators).forEach {
+                CtvProfitSourcePolicy.profitRows(data).forEach {
                     put(it.invoice, it)
                 }
             }
+        if (!data.collaboratorRegistryLoaded) {
+            label(parent, "⚠ Chưa có hồ sơ CTV từ " + dataSource +
+                ". Lợi nhuận chưa được tính; kết nối Drive chỉ đọc hoặc cập nhật Mobile API.",
+                11.5f, true, invoiceMoneyRed, 7)
+        }
         fun updateList() {
             list.removeAllViews()
             val status = statuses[filter.selectedItemPosition.coerceIn(0, statuses.lastIndex)]
@@ -2720,7 +2736,7 @@ class NativeMainActivity : AppCompatActivity() {
                 invoiceQuickCard(list, inv)
                 if (!inv.isExcluded)
                     showProfitInsideInvoiceCard(list, marginByInvoice[inv],
-                        data.collaborators.isNotEmpty())
+                        data.collaboratorRegistryLoaded)
             }
             // Filter/search callbacks build cards *after* render(); normalize
             // prices here as well so old green inline TextViews cannot reappear.
@@ -3024,14 +3040,14 @@ class NativeMainActivity : AppCompatActivity() {
      * lines; excluded / unsafe invoices are never silently assigned zero profit.
      */
     private fun showMarginPeriod(data: SatoriSnapshot) {
-        val marginRows=AccountingProMargin45.calculate(data.invoices, data.collaborators)
+        val marginRows=CtvProfitSourcePolicy.profitRows(data)
         val panel=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
             setPadding(dp(14),dp(12),dp(14),dp(16))
         }
-        label(panel,if(data.collaborators.isNotEmpty())
+        label(panel,if(data.collaboratorRegistryLoaded)
                 "LỢI NHUẬN SAU CTV (ƯỚC TÍNH)"
-            else "LÃI GỘP · CHƯA ĐỐI CHIẾU CTV",
+            else "THIẾU HỒ SƠ CTV · CHƯA TÍNH LỢI NHUẬN",
             15f,true,ink)
         label(panel,"Chỉ xem · Theo ngày lập hóa đơn · Chưa trừ chi phí vận hành",
             11f,false,softInk,6)
@@ -3074,7 +3090,7 @@ class NativeMainActivity : AppCompatActivity() {
                 return
             }
             val summary=AccountingProMargin45.summarize(marginRows,range)
-            section(results,"TỔNG LÃI GỘP ƯỚC TÍNH: " +
+            section(results,"TỔNG LỢI NHUẬN ƯỚC TÍNH: " +
                 (summary.estimatedMarginKnownVnd?.let(SatoriData::money)
                     ?: "Chưa đủ dữ liệu"),
                 range.title + " · Tính được " + summary.computedInvoiceCount +
@@ -3095,7 +3111,7 @@ class NativeMainActivity : AppCompatActivity() {
                     "\nHoa hồng CTV: " +
                     (row.estimatedCtvCommissionVnd?.let(SatoriData::money)
                         ?: "Chưa xác minh") +
-                    "\nLãi gộp ước tính: " +
+                    "\nLợi nhuận sau CTV ước tính: " +
                     (row.estimatedOwnerMarginVnd?.let(SatoriData::money)
                         ?: "Chưa đủ dữ liệu") +
                     (row.reason?.let { "\nCần rà soát: " + it } ?: ""))
@@ -3269,7 +3285,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderDebt(parent: LinearLayout, data: SatoriSnapshot) {
-        val margins = AccountingProMargin45.calculate(data.invoices, data.collaborators)
+        val margins = CtvProfitSourcePolicy.profitRows(data)
         val report = AccountingProDebtProfitPolicy.report(
             data.invoices, margins, debtProfitPeriod)
         val marginByInvoice =
@@ -3308,16 +3324,17 @@ class NativeMainActivity : AppCompatActivity() {
         val known = report.margin.computedInvoiceCount
         val eligible = report.margin.totalInvoiceCount
         val unknown = report.margin.missingInvoiceCount
-        totalCard(if (data.collaborators.isNotEmpty()) "Tổng lợi nhuận sau CTV" else "Tổng lãi gộp",
+        totalCard(if (data.collaboratorRegistryLoaded) "Tổng lợi nhuận sau CTV"
+            else "Lợi nhuận · thiếu hồ sơ CTV",
             report.margin.estimatedMarginKnownVnd?.let(SatoriData::money)
                 ?: "Chưa đủ dữ liệu",
             "Ước tính · " + known + "/" + eligible + " hóa đơn" +
                 (if (unknown > 0) " · $unknown chưa rõ" else ""),
             Color.rgb(244, 250, 247))
         parent.addView(totals)
-        label(parent, (if (data.collaborators.isNotEmpty())
-            "Lợi nhuận sau hoa hồng CTV được xác minh từ hồ sơ đăng ký; "
-            else "Chưa có hồ sơ CTV được xác minh: chỉ hiển thị lãi gộp; ") +
+        label(parent, (if (data.collaboratorRegistryLoaded)
+            "Lợi nhuận sau hoa hồng CTV được đối chiếu từ hồ sơ đăng ký; "
+            else "⚠ Mobile API chưa gửi hồ sơ CTV. Không hiển thị lãi gộp thành lợi nhuận; ") +
             "ước tính theo giá nhập chiết khấu 45%, chưa trừ phí giao và vận hành.",
             10.5f, false, softInk, 6)
         if (debtProfitChoice != 0 && report.invalidDateDebtCount > 0)
@@ -3329,7 +3346,7 @@ class NativeMainActivity : AppCompatActivity() {
         report.outstandingInvoices.forEach { invoice ->
             invoiceQuickCard(parent, invoice, fromDebt = true)
             showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],
-                data.collaborators.isNotEmpty())
+                data.collaboratorRegistryLoaded)
         }
         if (report.outstandingInvoices.isEmpty())
             section(parent, "Không có hóa đơn cần thu trong kỳ",
