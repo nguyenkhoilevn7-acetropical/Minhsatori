@@ -93,10 +93,10 @@ test('owner may leave VAT and shipping blank or zero without blocking save',()=>
  const end=owner.indexOf(suffix,start);
  assert.ok(start>0&&end>start,'Fee editor validation function missing');
  const body=owner.slice(start,end+'\n   };'.length);
- const makeRule=new Function('select','amount','boxes','kind','label',body);
- const rule=(kind,scope,value,selected=false)=>makeRule(
+ const makeRule=new Function('select','amount','boxes','kind','label','config',body);
+ const rule=(kind,scope,value,selected=false,config={rateBps:0,scope:'none'})=>makeRule(
   {value:scope},{value:String(value)},
-  [{check:{checked:selected},ids:[a]}],kind,kind
+  [{check:{checked:selected},ids:[a]}],kind,kind,config
  )();
  const offVat={scope:'none',rateBps:0,addressIds:[]};
  const offShipping={scope:'none',amountVnd:0,addressIds:[]};
@@ -110,6 +110,9 @@ test('owner may leave VAT and shipping blank or zero without blocking save',()=>
  assert.deepEqual(rule('shipping','all','25000'),{scope:'all',amountVnd:25000,addressIds:[]});
  assert.deepEqual(rule('vat','selected','8',true),
   {scope:'selected',rateBps:800,addressIds:[a]});
+ assert.deepEqual(rule('shipping','all','',false,{scope:'all',rateBps:800}),
+  {scope:'all',rateBps:800,amountVnd:0,addressIds:[]});
+ assert.deepEqual(rule('shipping','all','0',false,{scope:'all',rateBps:800}),offShipping);
  assert.throws(()=>rule('shipping','selected','10000'),/Cần chọn ít nhất một khách/);
  assert.throws(()=>rule('shipping','all','1.5'),/số đồng nguyên/);
  assert.throws(()=>rule('vat','all','100.01'),/VAT phải từ/);
