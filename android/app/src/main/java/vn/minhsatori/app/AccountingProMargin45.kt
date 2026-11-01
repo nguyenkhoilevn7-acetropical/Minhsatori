@@ -180,8 +180,27 @@ object AccountingProMargin45 {
                         val ctvBase=pair.second.multiply(BigInteger.valueOf(10000-cents))
                             .add(BigInteger.valueOf(5000L))
                             .divide(BigInteger.valueOf(10000L))
-                        if(ctvBase>sale) warning="Giá CTV cao hơn giá khách, cần rà soát."
-                        else commission=sale.subtract(ctvBase)
+                        if(ctvBase>sale) {
+                            // Historical CTV invoices sometimes store a rounded
+                            // price PER UNIT (e.g. 333333 x 65% -> 216666).
+                            // Applying 35% to the aggregated list price adds
+                            // a few phantom đồng and makes commission negative.
+                            // Only accept ZERO commission if every line proves
+                            // it was already sold at the registered CTV rate.
+                            val alreadyAtCtvPrice = invoice.lines.all { item ->
+                                val discountBps=item.discountPercent
+                                    ?.takeIf { it.isFinite() }
+                                    ?.let { Math.round(it*100) }
+                                val perUnit=BigInteger.valueOf(item.listPrice)
+                                    .multiply(BigInteger.valueOf(10000-cents))
+                                    .add(BigInteger.valueOf(5000))
+                                    .divide(BigInteger.valueOf(10000))
+                                discountBps==cents && BigInteger.valueOf(item.unitPrice)==perUnit
+                            }
+                            if (!alreadyAtCtvPrice)
+                                warning="Giá CTV cao hơn giá khách, cần rà soát."
+                            else commission=BigInteger.ZERO
+                        } else commission=sale.subtract(ctvBase)
                     }
                 } else warning="Thiếu chính sách hoa hồng CTV đã xác minh."
             }
