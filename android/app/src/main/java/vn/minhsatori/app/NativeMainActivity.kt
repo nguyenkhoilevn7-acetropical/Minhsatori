@@ -1812,6 +1812,8 @@ class NativeMainActivity : AppCompatActivity() {
             Color.rgb(25, 104, 181))
         label(card, invoice.displayDate + "   •   " + invoice.status,
             11f, false, if (fromDebt) Color.rgb(181, 95, 6) else softInk, 8)
+        if (invoice.creationTimeLabel.isNotBlank()) label(card,
+            "Tạo lúc: " + invoice.creationTimeLabel, 11f, false, softInk, 4)
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
@@ -2175,6 +2177,8 @@ class NativeMainActivity : AppCompatActivity() {
         }
         label(heading, "HÓA ĐƠN #" + invoice.number, 21f, true, white)
         label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true, cyan, 7)
+        if (invoice.creationTimeLabel.isNotBlank()) label(heading,
+            "Tạo lúc: " + invoice.creationTimeLabel, 12f, false, cyan, 7)
         label(heading, SatoriData.money(invoice.total), 20f, true,
             Color.rgb(17, 133, 91), 8)
         content.addView(heading)
