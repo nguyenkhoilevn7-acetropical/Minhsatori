@@ -43,7 +43,7 @@ test('SQL search stays account-scoped and uses Asia/Ho_Chi_Minh day boundaries',
  assert.match(route,/Asia\/Ho_Chi_Minh/);
  assert.match(route,/recipientName/);
  assert.match(route,/filters\.toExclusive/);
- assert.match(route,/canonicalReceiptForAccountOrder\(x\)/);
+ assert.match(route,/currentCustomerOrder\(x,latest,fresh\.revision\)/);
  assert.doesNotMatch(route,/INSERT INTO|UPDATE satori|DELETE FROM|public invoice/i);
 });
 
