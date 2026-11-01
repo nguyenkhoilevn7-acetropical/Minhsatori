@@ -202,6 +202,8 @@ export async function saveCtvInvoiceFeeChoice(pool,actor,input){
   }
   const addresses=requested.choice&&input.scope==='all'?{}:{...before.addresses};
   for(const id of ids)addresses[id]=requested.choice;
+  // Never persist an override record that a later read would reject as corrupt.
+  requireThat(Object.keys(addresses).length<=250,'CTV_CHARGE_ADDRESSES_LIMIT');
   // "All" changes CTV's default for its own destinations; "selected"
   // modifies only the chosen destinations and inherits admin for others.
   const saved={revision:before.revision+1,
