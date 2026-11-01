@@ -32,6 +32,11 @@ assert.equal(exact.data.state,'COMMITTED');
 assert.equal(exact.data.order.id,JSON.parse(data.values.satori_orders_v15)[0].id);
 assert.equal(exact.data.order.invoiceNo,1);
 assert.equal(exact.data.order.total,20000);
+const savedCreationTimestamp=JSON.parse(data.values.satori_orders_v15)[0].timestamp;
+assert.equal(exact.data.order.timestamp,savedCreationTimestamp);
+assert.equal(call('orders.list',{query:'Test Customer'}).data.orders[0].timestamp,savedCreationTimestamp);
+assert(Number.isSafeInteger(savedCreationTimestamp));
+
 assert.equal(call('orders.findByRequestId',{requestId:'create-unknown-00001'}).data.state,'NOT_FOUND');
 assert.equal(call('orders.findByRequestId',{requestId:'bad id'}).error.code,'INVALID_REQUEST');
 assert.equal(data.revision,beforeExactRead.revision);

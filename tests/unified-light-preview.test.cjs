@@ -24,7 +24,7 @@ test('payment & invoice writes remain V18.3-identical; approved net-margin rende
   syncLiveFromGoogleDrive:'4e21c7aa',
   updateStatus:'967b3133',
   downloadInvoiceById:'f5da17da',
-  viewInvoiceDetailModal:'887fb9a0',
+  viewInvoiceDetailModal:'bcf1bd37',
   deleteArchiveInvoice:'165f6985'
  })){
   assert.equal(fnv32(fnSource(name)),fingerprint,'Business method changed: '+name);

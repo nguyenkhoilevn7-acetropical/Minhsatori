@@ -11,6 +11,7 @@ function fn(name,next){
 }
 const source=fn('invoicePaymentDetails','invoiceVietQrPayload')+
  fn('invoiceVietQrPayload','invoicePdfShareMessage')+
+ fn('invoiceCreatedAtLabel','invoicePdfDefinition')+
  fn('invoicePdfDefinition','invoiceQrImage');
 const ctx={getOrderGoodsTotal:o=>o.items.reduce((n,i)=>n+i.qty*i.unitPrice,0),
  aiDisplayPercent:n=>Number(n).toFixed(2).replace(/0+$/,'').replace(/\.$/,''),
@@ -37,6 +38,17 @@ const order={id:123,invoiceNo:5928,name:'Traky Sài Gòn',phone:'0931325049',
  date:'21/10/2026',location:'159 Calmette, Quận 1',status:'Chưa thanh toán',
  items:[{product:'Nước tinh khiết Satori 350ml',unit:'Thùng',qty:20,listPrice:88000,unitPrice:65000}],
  shippingAmount:0,vatAmount:104000,vat:'yes'};
+// Source timestamp is immutable: never fall back to updatedAt/PDF open time.
+const saved = {...order,timestamp:Date.parse('2026-11-01T04:12:34Z')};
+const savedDoc = ctx.invoicePdfDefinition(saved);
+const saveText = JSON.stringify(savedDoc);
+assert.match(saveText,/Tạo lúc: /);
+assert.match(saveText,/11:12:34/); // Asia/Ho_Chi_Minh
+assert.equal(ctx.invoiceCreatedAtLabel({...saved,updatedAt:Date.now()}),
+ ctx.invoiceCreatedAtLabel(saved));
+assert.equal(ctx.invoiceCreatedAtLabel({...saved,timestamp:null}), '');
+assert.equal(ctx.invoiceCreatedAtLabel({...saved,timestamp:Date.now()/1000}), '');
+assert.doesNotMatch(JSON.stringify(ctx.invoicePdfDefinition({...order,timestamp:null})),/Tạo lúc:/);
 const code1=verify(order,1404000,104000);
 const code2=verify({...order,items:[{...order.items[0],qty:10}],vatAmount:52000},702000,52000);
 assert.notEqual(code1,code2,'changing amount must update QR');
