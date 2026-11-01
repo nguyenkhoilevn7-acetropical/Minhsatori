@@ -298,7 +298,7 @@ internal object WebsiteInvoicePdf {
         val createdTop = 70f + dateHeight
         val createdHeight = if (invoice.creationTimeLabel.isNotBlank())
             w.boxText("Tạo lúc: " + invoice.creationTimeLabel,
-                410f, createdTop, 155f, 8f, color = "#0f172a") else 0f
+                410f, createdTop, 155f, 8f, false, black, Paint.Align.RIGHT) else 0f
         val statusTop = createdTop + createdHeight
         val statusHeight = w.boxText(invoice.status, 410f, statusTop, 155f, 8f,
             false, black, Paint.Align.RIGHT)
