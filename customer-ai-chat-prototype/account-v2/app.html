@@ -3224,7 +3224,11 @@ $('submitTestOrder').onclick=async()=>{
    ' · Không tạo hóa đơn thật hay phát sinh thanh toán.';
   lastQuote=null;
   if(live&&Number.isSafeInteger(result.invoiceNo))openPdfInvoiceAfterSubmit=result.invoiceNo;
-  await loadOrders();
+  // The canonical /confirm response is authoritative. A slow READ-ONLY
+  // history/PDF refresh cannot extend successful checkout or mislabel it failed.
+  void loadOrders().catch(()=>{
+   $('invoiceResultCount').textContent='Đơn đã xác nhận. Chưa làm mới được lịch sử; hãy mở Hóa đơn và tải lại.';
+  });
   toast(live?'Đơn hàng đã xác nhận trên sổ Minh Satori.':'Đã gửi đơn thử; chưa tạo hóa đơn thật.');
  }catch(e){
   $('testOrderResult').textContent=(live?'Chưa xác minh đơn thật: ':'Chưa lưu được đơn thử: ')+e.message+
