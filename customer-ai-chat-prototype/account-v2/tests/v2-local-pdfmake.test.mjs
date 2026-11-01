@@ -152,3 +152,27 @@ test('V2 PDF falls back to original strict ledger list for pre-requestId older o
  assert.equal(calls,2);
  assert.equal(x.current.id,String(raw.id));
 });
+
+
+test('V2 PDF creation time uses immutable ledger timestamp, never updatedAt or PDF open time',async()=>{
+ const saved=Date.parse('2026-11-01T04:12:34Z');
+ const signed={...raw,timestamp:saved,updatedAt:Date.now()};
+ const read=await exactCurrentInvoiceFromOrdersList(ref,{
+  reader:async()=>({revision:203,data:{totalMatches:1,orders:[signed]}})
+ });
+ assert.equal(read.current.timestamp,saved);
+ const sourceDoc=currentInvoiceForWebsitePdf(read.current,ref);
+ assert.equal(sourceDoc.timestamp,saved);
+ const noClockDoc=currentInvoiceForWebsitePdf({...read.current,timestamp:null},ref);
+ assert.equal(noClockDoc.timestamp,null);
+ assert.notEqual(canonicalPdfVersion(sourceDoc),canonicalPdfVersion(noClockDoc));
+ assert.equal(currentInvoiceForWebsitePdf({
+  ...read.current,timestamp:0,updatedAt:Date.now()+100000
+ },ref).timestamp,null);
+ const pdf=await renderCurrentV2Pdf(read.current,ref);
+ assert.equal(pdf.versionKey,canonicalPdfVersion(sourceDoc));
+ assert.equal(pdf.bytes.subarray(0,5).toString('ascii'),'%PDF-');
+ const source=readFileSync(new URL('../../original-website-pdf.mjs',import.meta.url),'utf8');
+ assert.match(source,/Tạo lúc: /);
+ assert.ok(source.includes('Asia/Ho_Chi_Minh'));
+});

@@ -58,6 +58,9 @@ export function currentInvoiceForWebsitePdf(current,{invoiceNo,ledgerId},{allowA
   fail('V2_PDF_TOTAL_CONFLICT');
  const o={
   id:String(current.id),invoiceNo,date:boundText(current.date,30),
+  timestamp:Number.isSafeInteger(current.timestamp)&&
+   current.timestamp>=946684800000&&current.timestamp<4102444800000?
+   current.timestamp:null,
   name:boundText(current.delivery.recipientName,120),
   phone:boundText(current.delivery.recipientPhone,30),
   location:boundText(current.delivery.address,400),
