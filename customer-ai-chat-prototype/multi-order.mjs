@@ -5,8 +5,8 @@ import {resolveProduct,productFor,fold} from './catalogue.mjs';
 
 const WORDS={mot:1,hai:2,ba:3,bon:4,tu:4,nam:5,lam:5,sau:6,bay:7,tam:8,chin:9,muoi:10};
 const COUNT=String.raw`(?:\d{1,3}|muoi\s+(?:mot|hai|ba|bon|nam|lam|sau|bay|tam|chin)|(?:hai|ba|bon)\s+muoi(?:\s+(?:mot|hai|ba|bon|nam|lam|sau|bay|tam|chin))?|mot|hai|ba|bon|tu|nam|lam|sau|bay|tam|chin|muoi)`;
-const UNIT=String.raw`(?:thung|thg|binh|loc|chai|lon|ly)`;
-const PRODUCT_START=String.raw`(?:nuoc\b|suoi\b|satori\b|hikari\b|juice\b|ep\b|oi\b|mang\b|man\b|me\b|premium\b|5\s*l\b|19\s*l\b|20\s*l\b|(?:350|500|1500)\s*ml\b|tp[- ]?\d{5}\b)`;
+const UNIT=String.raw`(?:thung|thg|t|binh|loc|chai|lon|ly)`;
+const PRODUCT_START=String.raw`(?:nuoc\b|suoi\b|nc\b|hong\b|mc\b|satori\b|hikari\b|juice\b|ep\b|oi\b|mang\b|man\b|me\b|premium\b|5\s*l\b|19\s*l\b|20\s*l\b|(?:350|500|1500)\s*ml\b|tp[- ]?\d{5}\b)`;
 // Anchors require a plausible PRODUCT after a number, not a delivery hour or a price.
 // The optional unit is captured separately to prevent turning loose bottles into cartons.
 const ANCHORS=new RegExp('(^|[^a-z0-9-])('+COUNT+')\\s*(?:('+UNIT+')\\s+)?(?='+PRODUCT_START+')','giu');
@@ -30,8 +30,14 @@ function resolution(text,profile){
  const term=cleanDescription(text);
  if(!term||term.length>160)return null;
  // Brand-specific food shorthand only in QUANTITY+PRODUCT order context.
- const canonical=/^(?:oi hong|oi|mang cau|man cau|me)(?:\s+(?:satori|juice))?$/.test(term)
-  ? 'nuoc ep '+term.replace(/\s+(?:satori|juice)$/,'') : term;
+ // Interpret abbreviations ONLY within an anchored product description.
+ // Never replace customer names, addresses, or unquantified chat messages.
+ const alias=term.replace(/^(?:nuoc ep|ep)\s+hong(?=\s|$)/,'nuoc ep oi hong')
+  .replace(/^hong(?=\s|$)/,'oi hong')
+  .replace(/^(?:mc|mang|man)(?=\s|$)/,'mang cau')
+  .replace(/^nc(?=\s|$)/,'nuoc');
+ const canonical=/^(?:oi hong|oi|mang cau|man cau|me)(?:\s+(?:satori|juice))?$/.test(alias)
+  ? 'nuoc ep '+alias.replace(/\s+(?:satori|juice)$/,'') : alias;
  const water=/^(?:(?:nuoc|suoi|nuoc suoi|satori|nuoc tinh khiet)\s+)+(350|500|1500)$/.test(canonical);
  const expanded=water?canonical+'ml':canonical;
  const match=resolveProduct(expanded,profile);
@@ -48,7 +54,7 @@ function needsMore(description,resolved){
 export function parseOneClause(message,profile={}){
  const n=fold(message),matches=[...n.matchAll(ANCHORS)];
  if(matches.length!==1)return null;
- const m=matches[0],quantity=countOf(m[2]),spoken=m[3]==='thg'?'thung':m[3];
+ const m=matches[0],quantity=countOf(m[2]),spoken=['thg','t'].includes(m[3])?'thung':m[3];
  if(!Number.isSafeInteger(quantity)||quantity<1||quantity>500)return null;
  const description=cleanDescription(withoutDelivery(n.slice(m.index+m[0].length)));
  const product=resolution(description,profile);
@@ -67,23 +73,21 @@ export function parseWaterClarificationBasket(message,profile={}){
  const text=fold(message);
  const chunks=text.split(/\s*[,;\n]\s*|\s+va\s+/u).map(x=>x.trim()).filter(Boolean);
  if(chunks.length>6||!chunks.length)return null;
- // A single vague 'nước' may resolve from an established confirmed favourite;
- // a spoken 'suối' without brand must never be guessed from favourites.
- if(chunks.length===1&&!/\bsuoi\b/.test(text))return null;
+ // Bare 'nước'/'nc' identifies the water category but not a particular size.
+ // Never choose 350ml/500ml/1500ml based on a guess.
  const items=[];let missing=null;
  for(const chunk of chunks){
   const simplified=chunk.replace(/^(?:(?:cho|lay|dat|mua|them|can)\s+(?:(?:toi|anh|chi|em|minh)\s+)?|(?:anh|chi|em|minh|toi)\s+(?:lay|dat|mua|cho|can)\s+)/,'');
-  const m=simplified.match(/^(\d{1,3})\s*(?:(thung|thg|binh|loc|chai|lon|ly)\s+)?(.+?)\s*[.!?]*$/u);
+  const m=simplified.match(/^(\d{1,3})\s*(?:(thung|thg|t|binh|loc|chai|lon|ly)\s+)?(.+?)\s*[.!?]*$/u);
   if(!m)return null;
-  const qty=Number(m[1]),unit=m[2]==='thg'?'thung':(m[2]||null),name=m[3].trim();
+  const qty=Number(m[1]),unit=['thg','t'].includes(m[2])?'thung':(m[2]||null),name=m[3].trim();
   if(!Number.isSafeInteger(qty)||qty<1||qty>500)return null;
-  const water=name.match(/^(?:(?:nuoc\s+)?suoi|nuoc\s+tinh\s+khiet|nuoc)(?:\s+(350|500|1500)(?:\s*ml)?)?$/u);
+  const water=name.match(/^(?:(?:nuoc\s+)?suoi|nuoc\s+tinh\s+khiet|nuoc|nc)(?:\s+(350|500|1500)(?:\s*ml)?)?$/u);
   // Satori is the default when brand is omitted. 500ml/350ml/1500ml
   // are complete water SKUs; only missing capacity requires clarification.
   if(water&&!water[1]){
    if(unit&&unit!=='thung')return null; // Do not reinterpret bottles or litres as cartons.
    // '5 suối' is five thùng; brand and capacity still require clarification.
-   if(!unit&&!water[1]&&!/\bsuoi\b/.test(name))return null;
    if(missing)return null; // Multiple ambiguous waters must be specified individually.
    missing={qty,unit:'thung',brand:'satori',size:null};
    continue;
@@ -97,6 +101,7 @@ export function parseWaterClarificationBasket(message,profile={}){
  if(total>500)return {needMoreDetails:true,reason:'CART_LIMIT',
   message:'Đơn tối đa 500 đơn vị. Anh/chị vui lòng điều chỉnh số lượng.'};
  return {needMoreDetails:true,reason:'WATER_REQUIRES_BRAND_OR_SIZE',
+  message:'Em hiểu là nước suối Satori, nhưng cần biết dung tích (350ml, 500ml hay 1500ml). Giỏ hàng chưa thay đổi.',
   pending:{items,water:missing},source:'clarify-water-with-full-basket'};
 }
 
@@ -129,7 +134,7 @@ export function parseColloquialBasket(message,profile={}){
  for(const part of chunks){
   const clause=part.replace(intro,'').trim();
   const m=clause.match(numeric);
-  const qty=m?countOf(m[1]):null,spoken=m?.[2]==='thg'?'thung':m?.[2]||null;
+  const qty=m?countOf(m[1]):null,spoken=['thg','t'].includes(m?.[2])?'thung':m?.[2]||null;
   const name=m?m[3].trim():clause;
   // Do not infer Satori from "suối 500": Hikari 500ml also exists.
   // Defer this specific two-brand ambiguity to the brand-clarification flow.
@@ -258,7 +263,7 @@ export function parseMultiOrder(message,profile={}){
  ));
  // Catch ALL explicit quantity+unit phrases, including unrecognized products.
  // Otherwise "10 Satori 500ml, 3 trà sữa" could silently create only a partial order.
- const broad=[...text.matchAll(/(?:^|[^a-z0-9-])(\d{1,3}|muoi|mot|hai|ba|bon|nam)\s*(?:thung|thg|binh|loc|chai|lon|ly)\s+(?=[a-z])/g)];
+ const broad=[...text.matchAll(/(?:^|[^a-z0-9-])(\d{1,3}|muoi|mot|hai|ba|bon|nam)\s*(?:thung|thg|t|binh|loc|chai|lon|ly)\s+(?=[a-z])/g)];
  if(matches.length<2){
   if(matches.length&&broad.length>matches.length)
    return needsMore('món chưa có trong danh mục / chưa rõ quy cách',[]);
@@ -278,7 +283,7 @@ export function parseMultiOrder(message,profile={}){
    return needsMore(description,items);
   const product=resolution(description,profile);
   if(!product)return needsMore(description||'món chưa rõ',items);
-  const given=m.unit==='thg'?'thung':m.unit;
+  const given=['thg','t'].includes(m.unit)?'thung':m.unit;
   if(given&&given!==fold(product.unit))return needsMore(description+' ('+given+')',items);
   // An omitted unit is safe only when the SKU is locally unambiguous.
   items.push({sku:product.code,qty:m.quantity});
