@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {validateCtvInvoiceFeeChoice,saveCtvInvoiceFeeChoice,calculateInvoiceFees,
- readInvoiceFeePolicy} from '../invoice-fee-scopes.mjs';
+ readInvoiceFeePolicy,requireCtvChargeForAddress} from '../invoice-fee-scopes.mjs';
 
 const profile='d0000000-1111-4111-8111-000000000011';
 const address='d0000000-1111-4111-8111-000000000012';
@@ -94,4 +94,29 @@ test('CTV routes use verified session, not owner admin API or caller-provided ac
  assert.match(app,/name="ctvChargeChoice" value="shipping"/);
  assert.match(app,/\/api\/v2\/ctv\/invoice-charge-policy/);
  assert.doesNotThrow(()=>new vm.Script(app.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]||''));
+});
+
+test('CTV MUST configure exactly one applicable charge before quote and checkout',()=>{
+ const off={vat:{scope:'none',rateBps:0,addressIds:[]},
+  shipping:{scope:'none',amountVnd:0,addressIds:[]}};
+ assert.throws(()=>requireCtvChargeForAddress('collaborator',off,address),
+  {message:'CTV_VAT_OR_SHIPPING_REQUIRED'});
+ assert.doesNotThrow(()=>requireCtvChargeForAddress('retail',off,address));
+ assert.doesNotThrow(()=>requireCtvChargeForAddress('agency',off,address));
+ const validVat=validateCtvInvoiceFeeChoice(vat());
+ assert.doesNotThrow(()=>requireCtvChargeForAddress('collaborator',validVat,address));
+ const validShipping=validateCtvInvoiceFeeChoice(shipping());
+ assert.doesNotThrow(()=>requireCtvChargeForAddress('collaborator',validShipping,address));
+ const selected=validateCtvInvoiceFeeChoice(vat({scope:'selected',addressIds:[address]}));
+ assert.throws(()=>requireCtvChargeForAddress('collaborator',selected,foreign),
+  {message:'CTV_VAT_OR_SHIPPING_REQUIRED'});
+ const invalidVat={vat:{scope:'all',rateBps:700,addressIds:[]},shipping:off.shipping};
+ assert.throws(()=>requireCtvChargeForAddress('collaborator',invalidVat,address),
+  {message:'CTV_VAT_OR_SHIPPING_REQUIRED'});
+ const both={vat:validVat.vat,shipping:validShipping.shipping};
+ assert.throws(()=>requireCtvChargeForAddress('collaborator',both,address),
+  {message:'CTV_VAT_OR_SHIPPING_REQUIRED'});
+ const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
+ assert.match(router,/requireCtvChargeForAddress\(profile.type,feePolicy,addressRow.rows\[0\].id\)/);
+ assert.match(router,/requireCtvChargeForAddress\(profile.rows\[0\].type,feeConfig,q.address_id\)/);
 });
