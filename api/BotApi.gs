@@ -7,7 +7,7 @@
 var SatoriBotApi=(function(){
 'use strict';
 var ORDER_KEY='satori_orders_v15', PRICE_APPROVAL_KEY='satori_ai_pricing_approvals_v1';
-var SCOPES={'system.status':'orders:read','orders.list':'orders:read','orders.findByRequestId':'orders:read',
+var SCOPES={'pdf.get':'pdf:read','system.status':'orders:read','orders.list':'orders:read','orders.findByRequestId':'orders:read',
  'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write',
  'orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','pricing.eligibility':'orders:ai:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
@@ -994,6 +994,10 @@ function linkList(s,p){
   items:data.slice(offset,offset+limit)};
 }
 function read(s,action,p){
+ if(action==='pdf.get'){
+  need(typeof SatoriCustomerPdfRead!=='undefined','PDF_READ_NOT_INSTALLED','Thiếu module đọc PDF');
+  return SatoriCustomerPdfRead.read(s,p);
+ }
  var all=rows(s);
  if(action==='links.list')return linkList(s,p);
  if(action==='collaborators.pair.list'){
