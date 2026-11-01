@@ -125,7 +125,7 @@ test('Deleted canonical invoice creates CANCELLED nonpayable archival copy; no n
  assert.equal(pdf.bytes.subarray(0,5).toString('ascii'),'%PDF-');
  assert.notEqual(pdf.versionKey,canonicalPdfVersion(currentInvoiceForWebsitePdf(current,ref)));
  const source=readFileSync(new URL('../../original-website-pdf.mjs',import.meta.url),'utf8');
- assert.match(source,/if\(!cancelled&&total>0\)bank\.push\(\{qr:/);
+ assert.match(source,/payment\.columns\[0\]\.stack=\[\{/);
  assert.match(source,/KHÔNG ĐƯỢC SỬ DỤNG ĐỂ THANH TOÁN/);
 });
 test('V2 PDF blocks deleted request, wrong original invoice and forged authorizations',async()=>{
