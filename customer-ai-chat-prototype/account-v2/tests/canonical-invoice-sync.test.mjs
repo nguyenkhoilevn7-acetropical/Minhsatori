@@ -83,7 +83,7 @@ test('receipt button is inaccessible for unverified/test-only requests; PDF neve
  assert.match(html,/function showCommittedReceipt\(order\)/);
  assert.match(html,/order\?\.verified!==true\|\|order\.state!=='COMMITTED'/);
  assert.match(html,/AWAITING_VERIFIED_DRIVE_PDF/);
- assert.match(html,/Chưa có link tải chính thức/);
+ assert.match(html,/PDF V2 chỉ được tạo khi đơn đã xác nhận trên sổ Minh Satori/);
  assert.doesNotMatch(html,/window\.open\(.*driveFileId/);
  assert.match(router,/REAL_CHECKOUT_GATE_NOT_VERIFIED/);
 });
