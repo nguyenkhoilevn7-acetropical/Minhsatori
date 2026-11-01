@@ -59,6 +59,45 @@ test('voice recognition is Vietnamese and only updates a reviewable draft',()=>{
  assert.equal(h.attrs['aria-pressed'],'false');
  assert.match(voiceStatus.textContent,/bấm Gửi/);
 });
+test('Samsung STT ủi Hồng is corrected to ổi hồng for customer review only',()=>{
+ const h=harness(),{message,voiceInput,voiceStatus}=h.elements;
+ voiceInput.onclick();
+ const speech=h.Recognition.latest;
+ speech.onresult(result('cho anh thêm hai thùng ủi Hồng'));
+ assert.equal(message.value,'cho anh thêm hai thùng ổi hồng');
+ assert.match(voiceStatus.textContent,/hiệu chỉnh.*ổi hồng/);
+ assert.equal(h.dispatched,1);
+ assert.equal(h.submitted,0);
+ speech.onend();
+ assert.equal(message.readOnly,false);
+ assert.match(voiceStatus.textContent,/ổi hồng/);
+ assert.match(voiceStatus.textContent,/bấm Gửi/);
+});
+test('voice correction is confined to the exact standalone product homophone',()=>{
+ for(const [spoken,expected] of [
+  ['ủi Hồng','ổi hồng'],
+  ['Cho thêm 2 thùng ủi hồng nhé','Cho thêm 2 thùng ổi hồng nhé'],
+  ['Tôi muốn ổi hồng','Tôi muốn ổi hồng'],
+  ['Tôi cần ủi quần áo','Tôi cần ủi quần áo'],
+  ['Bộ đồ ủi-hồng','Bộ đồ ủi-hồng'],
+  ['Sản phẩm ủihồng','Sản phẩm ủihồng']
+ ]){
+  const h=harness();
+  h.elements.voiceInput.onclick();
+  h.Recognition.latest.onresult(result(spoken));
+  assert.equal(h.elements.message.value,expected,spoken);
+  assert.equal(h.submitted,0);
+ }
+});
+test('existing typed draft is not rewritten by voice homophone correction',()=>{
+ const h=harness();
+ h.elements.message.value='Đơn ghi chú: ủi Hồng';
+ h.elements.voiceInput.onclick();
+ h.Recognition.latest.onresult(result('2 thùng ủi Hồng'));
+ assert.equal(h.elements.message.value,'Đơn ghi chú: ủi Hồng 2 thùng ổi hồng');
+ assert.equal(h.submitted,0);
+});
+
 test('tapping mic twice stops speech without sending a message',()=>{
  const h=harness();
  h.elements.voiceInput.onclick();

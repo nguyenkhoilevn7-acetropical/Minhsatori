@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const files=[
- ['account-v2/app.html','08e03e5f','mm-bottom-nav'],
+ ['account-v2/app.html','3d3b0b38','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const fnv32=s=>{let h=0x811c9dc5;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),0x01000193);return (h>>>0).toString(16).padStart(8,'0')};
@@ -27,6 +27,7 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // Updated reviewed hashes cover new CTV-only UI, while all original navigation,
  // cart, checkout, Gemini delivery-note and invoice assertions remain intact.
  // Nov 1 reviewed PDF+canonical invoice read-only customer screen on top of current 8% CTV VAT/shipping UI.\n // Preserve full-page hashes after this scoped UX/API review.
+ // Nov 1 reviewed Samsung Vietnamese STT product homophone correction (microphone only).
  // Nov 1 voice-only composer review: one mic control and live status, unchanged
  // Gemini submit/cart/API flow. Lock new CSS, non-script and business snapshots.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');

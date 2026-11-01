@@ -1691,7 +1691,16 @@ document.querySelectorAll('.back-to-chat').forEach(btn=>btn.onclick=()=>view('ch
 
 /* Speech recognition is a browser input method: no audio/order API or automatic send. */
 const SpeechRecognitionCtor=window.SpeechRecognition||window.webkitSpeechRecognition;
-let activeVoiceRecognition=null,voiceListening=false,voiceRecognized=false;
+let activeVoiceRecognition=null,voiceListening=false,voiceRecognized=false,voiceNameCorrected=false;
+// Correct only a confirmed browser STT homophone for a known catalogue term.
+// Typed messages remain unchanged; customers review the transcript before Send.
+function normalizeVoiceProductTranscript(raw){
+ const text=String(raw||'');
+ const corrected=text.replace(
+  /(^|[^\p{L}\p{N}])ủi\s+hồng(?=$|[^\p{L}\p{N}])/giu,
+  (_,prefix)=>prefix+'ổi hồng');
+ return {text:corrected,corrected:corrected!==text};
+}
 function voiceNotice(message){
  const status=$('voiceStatus');status.textContent=message||'';status.hidden=!message;
 }
@@ -1720,7 +1729,7 @@ $('voiceInput').onclick=()=>{
  if(!SpeechRecognitionCtor||$('message').disabled||busy||!requireDeliverySelection())return;
  const input=$('message'),recognition=new SpeechRecognitionCtor();
  const originalText=input.value.trim();
- activeVoiceRecognition=recognition;voiceListening=true;voiceRecognized=false;
+ activeVoiceRecognition=recognition;voiceListening=true;voiceRecognized=false;voiceNameCorrected=false;
  recognition.lang='vi-VN';recognition.continuous=false;
  recognition.interimResults=false;recognition.maxAlternatives=1;
  input.readOnly=true;
@@ -1733,9 +1742,13 @@ $('voiceInput').onclick=()=>{
    .join(' ').trim();
   if(!transcript)return;
   voiceRecognized=true;
-  input.value=[originalText,transcript].filter(Boolean).join(' ').trim();
+  const normalized=normalizeVoiceProductTranscript(transcript);
+  voiceNameCorrected=normalized.corrected;
+  input.value=[originalText,normalized.text].filter(Boolean).join(' ').trim();
   input.dispatchEvent(new Event('input',{bubbles:true}));
-  voiceNotice('Đã nhận chữ. Kiểm tra và chỉnh sửa trước khi bấm Gửi.');
+  voiceNotice(voiceNameCorrected?
+   'Đã hiệu chỉnh “ủi Hồng” thành “ổi hồng”. Vui lòng kiểm tra trước khi bấm Gửi.':
+   'Đã nhận chữ. Kiểm tra và chỉnh sửa trước khi bấm Gửi.');
  };
  recognition.onerror=event=>{
   if(activeVoiceRecognition!==recognition)return;
@@ -1753,7 +1766,9 @@ $('voiceInput').onclick=()=>{
   activeVoiceRecognition=null;voiceListening=false;input.readOnly=false;
   syncVoiceButton();updateComposerAction();
   if(voiceRecognized){
-   voiceNotice('Văn bản đã sẵn sàng. Vui lòng kiểm tra, sửa nếu cần, rồi bấm Gửi.');
+   voiceNotice(voiceNameCorrected?
+    'Đã hiệu chỉnh “ủi Hồng” thành “ổi hồng”. Vui lòng kiểm tra, sửa nếu cần, rồi bấm Gửi.':
+    'Văn bản đã sẵn sàng. Vui lòng kiểm tra, sửa nếu cần, rồi bấm Gửi.');
   }else if(!$('voiceStatus').textContent||
           $('voiceStatus').textContent.startsWith('Đang nghe')){
    voiceNotice('Chưa có văn bản. Hãy thử nói lại.');
