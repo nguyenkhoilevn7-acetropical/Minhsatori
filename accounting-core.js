@@ -81,7 +81,7 @@ function calculate(all,partners){
  const pairing=pairOrders(all),partnersById=new Map(partners.map(p=>[String(p.id),p]));
  // An unlinked order addressed to a registered CTV must not hide commission.
  // Resolve only a unique, exact CTV name; reject conflicting phone numbers.
- const phone=v=>{const d=String(v??'').replace(/\\D/g,'');return d.startsWith('84')?'0'+d.slice(2):d.length===9?'0'+d:d;};
+ const phone=v=>{const d=String(v??'').replace(/\D/g,'');return d.startsWith('84')?'0'+d.slice(2):d.length===9?'0'+d:d;};
  const inferredPartner=o=>{
   if(o.collaboratorId||o.pairGroupId||o.pairRole||!norm(o.name))return null;
   const matches=partners.filter(p=>norm(p.name)===norm(o.name)&&
