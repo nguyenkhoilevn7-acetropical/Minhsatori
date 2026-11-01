@@ -27,7 +27,7 @@ for(const invalid of [
 ])assert.throws(()=>ownerLiveLookup(params(invalid)));
 
 const api=readFileSync(path.join(root,'satori-readonly.mjs'),'utf8');
-assert.match(api,/permitted=new Set\(\['system.status','catalogue.list','orders.list','customers.search','orders.findByRequestId'\]\)/);
+assert.match(api,/permitted=new Set\(\['system.status','catalogue.list','orders.list','customers.search','orders.findByRequestId','orders.getExactBatch'\]\)/);
 assert.match(api,/EXACT_REQUEST_ID_REQUIRED/);
 assert.doesNotMatch(api,/const permitted=new Set\(\[[^\]]*'orders.create'/);
 assert.match(api,/BULK_ORDER_EXPORT_DENIED/);
