@@ -2298,6 +2298,8 @@ $('quickAgentProfile').onchange=async()=>{
 function attachVerifiedPdfUi(order){
  const box=document.getElementById('invoiceDetailBody');
  if(!box||order?.verified!==true||order.state!=='COMMITTED'||!/^[0-9a-f-]{36}$/i.test(order.id||''))return;
+ const previousPdfNote=box.lastElementChild;
+ if(previousPdfNote?.classList.contains('invoice-detail-notice'))previousPdfNote.hidden=true;
  const row=document.createElement('div');
  row.className='invoice-pdf-actions';
  const status=node('p','Đang xác minh PDF gốc trên Google Drive…','invoice-detail-notice');
