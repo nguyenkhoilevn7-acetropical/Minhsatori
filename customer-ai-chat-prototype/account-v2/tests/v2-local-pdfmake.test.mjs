@@ -174,5 +174,5 @@ test('V2 PDF creation time uses immutable ledger timestamp, never updatedAt or P
  assert.equal(pdf.bytes.subarray(0,5).toString('ascii'),'%PDF-');
  const source=readFileSync(new URL('../../original-website-pdf.mjs',import.meta.url),'utf8');
  assert.match(source,/Tạo lúc: /);
- assert.match(source,/Asia\\/Ho_Chi_Minh/);
+ assert.ok(source.includes('Asia/Ho_Chi_Minh'));
 });
