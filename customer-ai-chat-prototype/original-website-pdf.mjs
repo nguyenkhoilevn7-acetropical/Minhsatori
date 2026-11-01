@@ -153,7 +153,13 @@ export async function renderOriginalWebsitePdf(order) {
   const total=goods+Number(order.vatAmount||0)+Number(order.shippingAmount||0);
   if(!Number.isSafeInteger(total)||total!==Number(order.total))
     throw Error('PDF_ORDER_TOTAL_MISMATCH');
-  const logo=await fs.readFile(path.join(HERE,'assets','logo-satori.jpg'));
+  // The verified website logo lives at the repository root in source builds;
+  // Docker copies that same file into /app/assets for the dedicated V2 service.
+  // Never silently generate an unbranded PDF.
+  let logo;
+  try{logo=await fs.readFile(path.join(HERE,'assets','logo-satori.jpg'))}
+  catch(e){if(e?.code!=='ENOENT')throw e;
+   logo=await fs.readFile(path.join(HERE,'..','logo-satori-3394.jpg'));}
   const dataUrl='data:image/jpeg;base64,'+logo.toString('base64');
   const doc=invoicePdfDefinition(order,null,dataUrl);
   const bytes=await new Promise((resolve,reject)=>{
