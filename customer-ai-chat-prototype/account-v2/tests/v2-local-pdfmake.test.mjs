@@ -48,6 +48,31 @@ test('Original website pdfmake renders a REAL V2 PDF with logo/VietQR from saved
  const rendered=pdf.bytes.toString('latin1');
  assert.match(rendered,/\/Type\s*\/Page/);
 });
+test('Private V2 PDF preview uses PDF.js canvas and native Web Share file, not URL navigation',()=>{
+ const ui=readFileSync(new URL('../app.html',import.meta.url),'utf8');
+ const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
+ assert.match(ui,/async function showV2PdfPreview\(blob,filename\)/);
+ assert.match(ui,/import\('\/api\/v2\/pdfjs\/pdf\.mjs'\)/);
+ assert.match(ui,/pdfjs\.getDocument\(\{data:new Uint8Array\(await blob\.arrayBuffer\(\)\)/);
+ assert.match(ui,/page\.render\(\{canvasContext:ctx,viewport\}\)/);
+ assert.match(ui,/view\.onclick=\(\)=>void showV2PdfPreview\(blob,name\)/);
+ assert.doesNotMatch(ui,/view\.onclick=\(\)=>window\.open\(url/);
+ assert.match(ui,/navigator\.share\(\{files:\[file\],title:/);
+ assert.match(ui,/if\(!cancelled\)appendVerifiedInvoicePaymentInfo\(order,status\)/);
+ assert.match(ui,/\['Ngân hàng','VPBank'\]/);
+ assert.match(ui,/\['Số tài khoản','658489418'\]/);
+ assert.match(ui,/\['Chủ tài khoản','HKD MINH SATORI'\]/);
+ assert.match(ui,/\['Nội dung chuyển khoản',memo\]/);
+ assert.match(router,/pathname==='\/api\/v2\/pdfjs\/pdf\.worker\.mjs'/);
+ assert.match(router,/worker-src 'self' blob:/);
+ assert.match(router,/script-src 'self' 'unsafe-inline'/);
+ const original=readFileSync(new URL('../../original-website-pdf.mjs',import.meta.url),'utf8');
+ assert.match(original,/Ngân hàng: VPBank/);
+ assert.match(original,/Số tài khoản: 658489418/);
+ assert.match(original,/Chủ tài khoản: HKD MINH SATORI/);
+ assert.match(original,/if\(total>0\)bank\.push\(\{qr:invoiceVietQrPayload\(o\)/);
+ assert.match(original,/payment\.columns\[0\]\.stack=\[\{/);
+});
 test('Owner edits change PDF canonical version and customer line amounts without second invoice',async()=>{
  const edited={...current,status:'Đã thanh toán',goodsVnd:1568000,vatVnd:125440,
  totalVnd:1693440,delivery:{...current.delivery,address:'Địa chỉ đã được sửa'},

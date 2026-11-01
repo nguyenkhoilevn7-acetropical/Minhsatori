@@ -500,8 +500,20 @@ export async function handleAccountV2(req,res,pathname){
    const html=fs.readFileSync(path.join(HERE,ownerPage?'owner-catalogue.html':'app.html'),'utf8');
    res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store',
     'x-frame-options':'DENY','referrer-policy':'no-referrer','x-content-type-options':'nosniff',
-    'content-security-policy':"default-src 'none'; style-src 'unsafe-inline' https://accounts.google.com/gsi/style; script-src 'unsafe-inline' https://accounts.google.com/gsi/client; connect-src 'self' https://accounts.google.com/gsi/; img-src 'self' data:; frame-src https://accounts.google.com/gsi/; frame-ancestors 'none'; form-action 'none'; base-uri 'none'"});
+    'content-security-policy':"default-src 'none'; style-src 'unsafe-inline' https://accounts.google.com/gsi/style; script-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/client; worker-src 'self' blob:; connect-src 'self' https://accounts.google.com/gsi/; img-src 'self' data:; frame-src https://accounts.google.com/gsi/; frame-ancestors 'none'; form-action 'none'; base-uri 'none'"});
    res.end(html);return true;
+  }
+  // Pinned, same-origin PDF.js distribution files; no invoice or auth data.
+  // Public static modules only; all customer PDF bytes remain account-scoped.
+  if(req.method==='GET'&&(pathname==='/api/v2/pdfjs/pdf.mjs'||
+      pathname==='/api/v2/pdfjs/pdf.worker.mjs')){
+   const filename=pathname.endsWith('/pdf.worker.mjs')?'pdf.worker.mjs':'pdf.mjs';
+   const asset=path.join(HERE,'..','node_modules','pdfjs-dist','build',filename);
+   const source=fs.readFileSync(asset);
+   res.writeHead(200,{'content-type':'text/javascript; charset=utf-8',
+    'cache-control':'public, max-age=86400','x-content-type-options':'nosniff',
+    'referrer-policy':'no-referrer'});
+   res.end(source);return true;
   }
   if(pathname==='/api/v2/storage-readiness'&&req.method==='GET'){
    const configured=!!config().databaseUrl;
