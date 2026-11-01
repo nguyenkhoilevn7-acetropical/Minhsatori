@@ -65,6 +65,7 @@ export function currentCustomerOrder(row,current,revision){
    lineTotal:it.lineTotal};
  });
  const latest={...row,state:'COMMITTED',invoiceStatus:current.status,
+  invoiceDate:String(current.date||'').slice(0,30),
   excluded,customerPaid:current.customerPaid===true,
   totalVnd:total,goodsVnd:goods,shippingVnd:ship,vatVnd:vat,
   items,delivery:{...row.delivery,...current.delivery},
