@@ -103,11 +103,24 @@ function invoiceVietQrPayload(o) {
             return unsealed+crc.toString(16).toUpperCase().padStart(4,'0');
         }
 
+function invoiceCreatedAtLabel(o) {
+            // Creation timestamp comes from the saved original ledger ONLY.
+            // Do not use updatedAt, current clock, PDF export time, or invoice open time.
+            const stamp = Number(o?.timestamp);
+            if (!Number.isSafeInteger(stamp) || stamp < 946684800000 || stamp >= 4102444800000) return '';
+            return new Intl.DateTimeFormat('vi-VN', {
+                timeZone:'Asia/Ho_Chi_Minh', day:'2-digit', month:'2-digit',
+                year:'numeric', hour:'2-digit', minute:'2-digit',
+                second:'2-digit', hour12:false
+            }).format(new Date(stamp));
+        }
+
 function invoicePdfDefinition(o, qrImage=null, logoImage=null) {
             const items=o.items?.length?o.items:[{product:o.product,unit:o.unit || 'Thùng',qty:o.qty,listPrice:o.listPrice,unitPrice:o.unitPrice}];
             if(!items.length)throw new Error('Hóa đơn chưa có mặt hàng.');
             const money=n=>Number(n || 0).toLocaleString('vi-VN')+' đ';
             const {goods,vat,ship,total,memo}=invoicePaymentDetails(o);
+            const createdAtText=invoiceCreatedAtLabel(o);
             const head=['STT','Tên sản phẩm','ĐVT','SL','Giá niêm yết','CK (%)','Đơn giá','Thành tiền'].map(text=>({text,bold:true,color:'#ffffff',fillColor:'#0369a1',alignment:'center',fontSize:8}));
             const rows=items.map((it,i)=>{
                 const lp=Number(it.listPrice || 0),up=Number(it.unitPrice || 0),pct=it.discountPercent ?? (lp?(lp-up)/lp*100:0);
@@ -121,7 +134,7 @@ function invoicePdfDefinition(o, qrImage=null, logoImage=null) {
             return {pageSize:'A4',pageMargins:[30,30,30,35],defaultStyle:{font:'Roboto',fontSize:9,color:'#0f172a'},info:{title:'Hóa đơn #'+o.invoiceNo+' - '+(o.name || ''),author:'HKD Minh Satori'},
                 footer:(page,count)=>({text:page+' / '+count,alignment:'right',fontSize:8,margin:[30,8,30,0],color:'#64748b'}),
                 content:[
-                    {columns:[...(logoImage?[{width:62,image:logoImage,fit:[50,50],margin:[0,0,10,0]}]:[]),{width:'*',stack:[{text:'HỘ KINH DOANH MINH SATORI',bold:true,fontSize:15,color:'#0369a1'},'Mã số thuế: 075087004222','Hotline: 0903 772 980',{text:'Địa chỉ: Số 96/41 Tôn Đản, Phường Khánh Hội, TP. Hồ Chí Minh',fontSize:8}]},{width:145,alignment:'right',stack:[{text:'PHIẾU XUẤT HÓA ĐƠN',bold:true,fontSize:13},{text:'#'+o.invoiceNo,bold:true,fontSize:14,color:'#b45309'},String(o.date || ''),String(o.status || 'Chưa thanh toán')]}]},
+                    {columns:[...(logoImage?[{width:62,image:logoImage,fit:[50,50],margin:[0,0,10,0]}]:[]),{width:'*',stack:[{text:'HỘ KINH DOANH MINH SATORI',bold:true,fontSize:15,color:'#0369a1'},'Mã số thuế: 075087004222','Hotline: 0903 772 980',{text:'Địa chỉ: Số 96/41 Tôn Đản, Phường Khánh Hội, TP. Hồ Chí Minh',fontSize:8}]},{width:145,alignment:'right',stack:[{text:'PHIẾU XUẤT HÓA ĐƠN',bold:true,fontSize:13},{text:'#'+o.invoiceNo,bold:true,fontSize:14,color:'#b45309'},String(o.date || ''),...(createdAtText?[{text:'Tạo lúc: '+createdAtText,fontSize:8}]:[]),String(o.status || 'Chưa thanh toán')]}]},
                     {canvas:[{type:'line',x1:0,y1:0,x2:535,y2:0,lineWidth:1,lineColor:'#0284c7'}],margin:[0,12,0,12]},
                     {text:'THÔNG TIN KHÁCH HÀNG',bold:true,color:'#0369a1',margin:[0,0,0,6]},
                     {text:'Khách hàng: '+(o.name || 'Khách vãng lai')},
@@ -137,7 +150,7 @@ function invoicePdfDefinition(o, qrImage=null, logoImage=null) {
         }
 
 function invoicePdfKey(o) {
-            return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount]);
+            return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount,o.timestamp]);
         }
 
 
