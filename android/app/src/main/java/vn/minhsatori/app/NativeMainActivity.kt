@@ -3959,6 +3959,31 @@ class NativeMainActivity : AppCompatActivity() {
         }.start()
     }
 
+    /**
+     * A still-deployed old Mobile API can provide real invoices but OMIT the
+     * registered CTV key. Do not show gross profit in that case.
+     * Recover from the verified canonical Drive file only when the OAuth token
+     * has read permission and both snapshots are the SAME revision and orders.
+     * The API remains authoritative for write permissions, never Drive.
+     */
+    private fun reconcileMobileCtvRegistry(remote: MobileSnapshot,
+                                           token: String): MobileSnapshot {
+        val api = remote.snapshot
+        if (api.collaboratorRegistryLoaded) return remote
+        val cached = if (ctvBridgeToken == token)
+            ctvBridgeSnapshot?.let { CtvProfitSourcePolicy.recover(api, it) }
+            else null
+        if (cached != null) return remote.copy(snapshot = cached)
+        if (ctvBridgeRevision == api.revision && ctvBridgeToken == token) return remote
+        ctvBridgeToken = token
+        ctvBridgeRevision = api.revision
+        val direct = runCatching { DriveReadClient.loadWithToken(token) }.getOrNull()
+            ?: return remote
+        val recovered = CtvProfitSourcePolicy.recover(api, direct) ?: return remote
+        ctvBridgeSnapshot = direct
+        return remote.copy(snapshot = recovered)
+    }
+
     private fun refreshFromMobileApi() {
         lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
         val endpoint = apiEndpoint ?: run {
@@ -3972,7 +3997,9 @@ class NativeMainActivity : AppCompatActivity() {
         statusMessage = "Đang xác thực chủ sở hữu và đồng bộ hóa đơn…"
         render()
         Thread {
-            val outcome = runCatching { MobileApiClient.snapshot(endpoint, token) }
+            val outcome = runCatching {
+                reconcileMobileCtvRegistry(MobileApiClient.snapshot(endpoint, token), token)
+            }
             val pending = pendingWrite
             val trash = if (outcome.isSuccess && pending != null &&
                 pending.belongsTo(endpoint, outcome.getOrThrow().actorId) &&
@@ -4003,7 +4030,11 @@ class NativeMainActivity : AppCompatActivity() {
                         dataSource = "Minh Satori API"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
-                        statusMessage = "Đã kết nối quyền lên đơn."
+                        statusMessage = if (it.snapshot.collaboratorRegistryLoaded)
+                            "Đã đồng bộ hóa đơn và hồ sơ CTV (" +
+                                it.snapshot.collaborators.size + " hồ sơ)."
+                        else "⚠ Mobile API chưa gửi hồ sơ CTV và Drive chưa cấp quyền đọc. " +
+                            "Lợi nhuận đang khóa; cần kết nối Drive hoặc cập nhật Apps Script."
                         notifyVerifiedNewInvoices(prior, it.snapshot)
                         if (pending != null && pending.belongsTo(endpoint, it.actorId)) {
                             if (pending.confirmedIn(it.snapshot, trash)) finishPendingWrite(pending)
@@ -4266,12 +4297,13 @@ class NativeMainActivity : AppCompatActivity() {
         if (!automatic) authorizationDeclined = false
         authorizationPending = true
         lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
-        // The secured Mobile API only needs verified email identity.
-        // Avoid requesting restricted Drive access when the server reads Drive.
-        // Direct Drive reads always require drive.readonly, even when a
-        // sandbox API endpoint is still stored. API-only mode needs email only.
+        // Ask owner for read-only Drive in API mode as well. Older deployed
+        // Mobile API versions may omit the CTV registry, so only the owner
+        // canonical Drive source can safely reconcile the profit calculation.
+        // If Drive consent is restricted, retain existing email-only API login
+        // but fail closed on profit rather than showing a gross-margin number.
         val scopes = mutableListOf(Scope("https://www.googleapis.com/auth/userinfo.email"))
-        if (!emailOnlyFallback && (apiEndpoint == null || preferGoogleDrive())) {
+        if (!emailOnlyFallback) {
             scopes.add(Scope("https://www.googleapis.com/auth/drive.readonly"))
         }
         val builder = AuthorizationRequest.builder().setRequestedScopes(scopes)
