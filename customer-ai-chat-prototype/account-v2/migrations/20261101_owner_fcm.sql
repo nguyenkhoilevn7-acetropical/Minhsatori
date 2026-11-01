@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS satori_v2_owner_push_devices (
  device_id uuid PRIMARY KEY,
  account_id uuid NOT NULL REFERENCES satori_v2_accounts(id) ON DELETE CASCADE,
+ session_hash char(64) NOT NULL REFERENCES satori_v2_sessions(token_hash) ON DELETE CASCADE,
  token text NOT NULL CHECK(length(token) BETWEEN 40 AND 4096),
  token_hash char(64) NOT NULL UNIQUE,
  enabled boolean NOT NULL DEFAULT true,
