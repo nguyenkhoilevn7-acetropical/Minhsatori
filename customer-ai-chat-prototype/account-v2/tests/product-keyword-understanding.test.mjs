@@ -47,3 +47,10 @@ test('unverified or wrong-unit orders never create a partial cart',async()=>{
   assert.equal(result.suggestedItems,undefined,text);
  }
 });
+
+test('an explicitly verified unique favourite keeps existing reorder behavior',async()=>{
+ const profile={uniqueFavourite:true,favourite:'S5L'};
+ const result=await interpretLegacyOrder('10 thùng nước',profile);
+ assert.equal(result.needsClarification,undefined,result.message);
+ assert.deepEqual(result.suggestedItems,[{code:'TP-00136',qty:10}]);
+});
