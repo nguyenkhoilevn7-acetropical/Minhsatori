@@ -11,20 +11,21 @@ const foreign='d0000000-1111-4111-8111-000000000013';
 const account='d0000000-1111-4111-8111-000000000014';
 const actor={id:account,google_sub:'ctv-test-identity'};
 const vat=(extra={})=>({profileId:profile,confirmed:true,expectedRevision:0,
- choice:'vat',scope:'all',addressIds:[],...extra});
+ choice:'vat',scope:'all',addressIds:[],vatBps:800,...extra});
 const shipping=(extra={})=>({profileId:profile,confirmed:true,expectedRevision:0,
- choice:'shipping',scope:'all',addressIds:[],shippingAmountVnd:25000,...extra});
+ choice:'shipping',scope:'all',addressIds:[],shippingBps:800,...extra});
 
-test('CTV has exactly one choice: 8% VAT OR positive shipping, not both',()=>{
+test('CTV has exactly one choice: entered VAT 8% OR Shipping 8%, not both',()=>{
  const one=validateCtvInvoiceFeeChoice(vat());
  assert.deepEqual(calculateInvoiceFees(one,address),{vatBps:800,shippingVnd:0});
  const two=validateCtvInvoiceFeeChoice(shipping());
- assert.deepEqual(calculateInvoiceFees(two,address),{vatBps:0,shippingVnd:25000});
- const bad=[vat({vatBps:799}),vat({vatBps:801}),vat({shippingAmountVnd:1}),
+ assert.deepEqual(calculateInvoiceFees(two,address),{vatBps:0,shippingVnd:0,shippingBps:800});
+ const bad=[vat({vatBps:799}),vat({vatBps:801}),vat({vatBps:null}),
+  vat({shippingAmountVnd:1}),vat({shippingBps:800}),
   vat({shipping:{scope:'all',amountVnd:500,addressIds:[]}}),
-  shipping({vatBps:800}),shipping({shippingAmountVnd:0}),
-  shipping({shippingAmountVnd:1.5}),shipping({shippingAmountVnd:-1}),
-  shipping({shippingAmountVnd:1_000_000_001}),
+  shipping({vatBps:800}),shipping({shippingBps:0}),shipping({shippingBps:799}),
+  shipping({shippingBps:801}),shipping({shippingBps:null}),
+  shipping({shippingAmountVnd:1000}),
   vat({choice:'none'}),vat({choice:'both'}),vat({confirmed:false}),
   vat({scope:'selected',addressIds:[]}),vat({scope:'all',addressIds:[address]}),
   vat({scope:'selected',addressIds:[address,address]})];
@@ -72,7 +73,7 @@ test('CTV write is account/profile scoped, verified addresses, revisioned and au
   shipping({expectedRevision:1,scope:'all'}));
  assert.equal(second.revision,2);
  assert.deepEqual(calculateInvoiceFees(await readInvoiceFeePolicy(client,profile),address),
-  {vatBps:0,shippingVnd:25000});
+  {vatBps:0,shippingVnd:0,shippingBps:800});
  assert.equal(journal.length,2);
  assert.ok(journal.every(x=>x.actor==='ctv'&&x.accountId===actor.id));
  allowProfile=false;
@@ -92,6 +93,9 @@ test('CTV routes use verified session, not owner admin API or caller-provided ac
  assert.match(app,/id="ctvChargePanel"/);
  assert.match(app,/name="ctvChargeChoice" value="vat"/);
  assert.match(app,/name="ctvChargeChoice" value="shipping"/);
+ assert.match(app,/id="ctvVatPercent"/);
+ assert.match(app,/id="ctvShippingPercent"/);
+ assert.match(app,/typed===''\|\|Number\(typed\)!==8/);
  assert.match(app,/\/api\/v2\/ctv\/invoice-charge-policy/);
  assert.doesNotThrow(()=>new vm.Script(app.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]||''));
 });
