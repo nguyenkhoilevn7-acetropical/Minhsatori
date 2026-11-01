@@ -42,6 +42,18 @@ export function calculateInvoiceFees(policy,addressId){
  return {vatBps:applies(p.vat)?p.vat.rateBps:0,
   shippingVnd:applies(p.shipping)?p.shipping.amountVnd:0};
 }
+/**
+ * A collaborator cannot quote/submit an order without ONE applicable owner/CTV
+ * approved charge for its selected delivery address.
+ * Owner/retail/agency fee policies stay optional and independent.
+ */
+export function requireCtvChargeForAddress(profileType,policy,addressId){
+ if(profileType!=='collaborator')return;
+ const {vatBps,shippingVnd}=calculateInvoiceFees(policy,addressId);
+ requireThat((vatBps===800&&shippingVnd===0)||
+  (vatBps===0&&Number.isSafeInteger(shippingVnd)&&shippingVnd>0),
+  'CTV_VAT_OR_SHIPPING_REQUIRED');
+}
 export async function readInvoiceFeePolicy(db,profileId){
  requireThat(isUuid(profileId),'PROFILE_REQUIRED');
  const result=await db.query('SELECT details FROM satori_v2_audit '+
