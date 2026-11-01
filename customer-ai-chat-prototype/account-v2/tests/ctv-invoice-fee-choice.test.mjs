@@ -101,6 +101,38 @@ test('CTV write is account/profile scoped, verified addresses, revisioned and au
  assert.equal(journal.length,2);
 });
 
+
+test('CTV cannot persist more than 250 address overrides into audit',async()=>{
+ const id=n=>'d0000000-1111-4111-8111-'+String(1000+n).padStart(12,'0');
+ const existing=Object.fromEntries(Array.from({length:250},(_,i)=>[id(i),'vat']));
+ let committed=false,inserted=false,rolledBack=false;
+ const client={
+  async query(sql,args=[]){
+   if(sql==='BEGIN')return {rows:[]};
+   if(sql==='COMMIT'){committed=true;return {rows:[]}}
+   if(sql==='ROLLBACK'){rolledBack=true;return {rows:[]}}
+   if(sql.includes('pg_advisory_xact_lock'))return {rows:[]};
+   if(sql.includes('WHERE id=$1 AND account_id=$2 AND type=$3 FOR UPDATE'))
+    return {rows:[{id:profile}]};
+   if(sql.startsWith('SELECT details FROM satori_v2_audit'))
+    return {rows:[{details:{revision:1,defaultChoice:null,addresses:existing}}]};
+   if(sql.startsWith('SELECT id FROM satori_v2_addresses'))
+    return {rows:args[1].map(id=>({id}))};
+   if(sql.startsWith('INSERT INTO satori_v2_audit')){
+    inserted=true;return {rows:[]};
+   }
+   throw Error('unexpected query '+sql);
+  },release(){}
+ };
+ await assert.rejects(
+  ()=>saveCtvInvoiceFeeChoice({async connect(){return client}},actor,
+   shipping({expectedRevision:1,scope:'selected',addressIds:[id(250)]})),
+  {message:'CTV_CHARGE_ADDRESSES_LIMIT'});
+ assert.equal(inserted,false);
+ assert.equal(committed,false);
+ assert.equal(rolledBack,true);
+});
+
 test('CTV routes use verified session, not owner admin API or caller-provided account ID',()=>{
  const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
  const app=readFileSync(new URL('../app.html',import.meta.url),'utf8');
