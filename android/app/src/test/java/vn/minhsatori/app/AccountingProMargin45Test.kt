@@ -206,6 +206,27 @@ class AccountingProMargin45Test {
             .single().estimatedOwnerMarginVnd) // Gross only if registry unavailable
     }
 
+    @Test fun alreadyAtCtvUnitPriceRoundingDoesNotMakePhantomNegativeCommission() {
+        // Legacy #5917-shaped data: six units priced individually at 35% off.
+        // The aggregate 65% base rounds a few dong above the summed unit prices.
+        val invoice = invoice(no="5917",qty=6,unitPrice=216_666L,
+            listPrice=333_333L,total=1_403_996L,shipping=104_000L)
+        val priced = invoice.copy(lines=invoice.lines.map {
+            it.copy(discountPercent=35.0)
+        })
+        val registered=SatoriCollaborator("ctv1","DEMO","0988888888",35.0)
+        val result=AccountingProMargin45.calculate(listOf(priced),listOf(registered)).single()
+        assertEquals(0L,result.estimatedCtvCommissionVnd)
+        assertEquals(199_997L,result.estimatedOwnerMarginVnd)
+        // A lower, unverified price must continue to fail closed.
+        val priceConflict=priced.copy(lines=priced.lines.map {
+            it.copy(unitPrice=210_000L)
+        },total=1_364_000L)
+        val blocked=AccountingProMargin45.calculate(listOf(priceConflict),listOf(registered)).single()
+        assertNull(blocked.estimatedOwnerMarginVnd)
+        assertNotNull(blocked.reason)
+    }
+
     @Test fun originalInvoiceObjectsAreNeverMutated() {
         val original=listOf(invoice(),invoice(id="b",no="5902"))
         val before=original.toList()
