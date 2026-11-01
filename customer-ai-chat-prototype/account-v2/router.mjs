@@ -31,6 +31,7 @@ import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
  saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
 import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
+import {ownerFcmConfigured,registerOwnerDevice,revokeOwnerDevice,revokeAllOwnerDevices} from './owner-fcm-devices.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
@@ -629,6 +630,16 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/admin/notifications'&&req.method==='GET'){
    owner(actor);send(res,200,await adminRegistrationNotifications(pool));return true;
   }
+  if(pathname==='/api/v2/admin/push-devices' &&
+     (req.method==='POST'||req.method==='DELETE')){
+   owner(actor);
+   error(ownerFcmConfigured(),'OWNER_PUSH_DISABLED',503);
+   const input=await json(req);
+   const out=req.method==='POST'
+    ?await registerOwnerDevice(pool,actor.id,input)
+    :await revokeOwnerDevice(pool,actor.id,input);
+   send(res,200,out);return true;
+  }
   if(pathname==='/api/v2/admin/customers'&&req.method==='GET'){
    owner(actor);send(res,200,await adminCustomerList(pool));return true;
   }
@@ -670,6 +681,9 @@ export async function handleAccountV2(req,res,pathname){
    send(res,200,{ok:true,account:publicUser(actor),profiles:profiles.rows,addresses:addresses.rows});return true;
   }
   if(pathname==='/api/v2/logout'&&req.method==='POST'){
+   // Owner sign-out revokes all device pushes; a prior session cannot keep
+   // receiving private account activity after explicit logout.
+   if(isOwner&&ownerFcmConfigured())await revokeAllOwnerDevices(pool,actor.id);
    await pool.query('DELETE FROM satori_v2_sessions WHERE token_hash=$1',[sha(cookies(req).satori_v2_session)]);
    send(res,200,{ok:true},{'set-cookie':clearCookies()});return true;
   }
