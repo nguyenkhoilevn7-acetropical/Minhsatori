@@ -5726,7 +5726,11 @@ document.documentElement.classList.add('satori-light-review');
             const totals = {goodsTotal:getOrderGoodsTotal(o)};
 
             document.getElementById('printInvNo').innerText = `#${o.invoiceNo}`;
-            document.getElementById('printDate').innerText = o.date || '11/10/2026';
+            const printTime = invoiceCreatedAtLabel(o);
+            const printDate = document.getElementById('printDate');
+            printDate.style.whiteSpace = 'pre-line';
+            printDate.textContent = (o.date || 'Chưa có ngày hóa đơn') +
+                (printTime ? '\nTạo lúc: ' + printTime : '');
             document.getElementById('printStatusText').innerText = o.status || 'Chưa thanh toán';
 
             document.getElementById('printBuyerName').innerText = o.name || 'Khách vãng lai';
