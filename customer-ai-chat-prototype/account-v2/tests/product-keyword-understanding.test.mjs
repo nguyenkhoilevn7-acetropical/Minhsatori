@@ -23,10 +23,11 @@ test('isolated Vietnamese product keywords resolve only verified catalogue SKUs'
 test('keyword aliases preserve all multi-product lines in the same basket',async()=>{
  const result=await interpretLegacyOrder('3 hồng, 2 mc, 10t nước 500');
  assert.equal(result.needsClarification,undefined,result.message);
+ // normalizeCart returns canonical code order, independent of the spoken order.
  assert.deepEqual(result.suggestedItems,[
-  {code:'TP-00058',qty:3},
+  {code:'TP-00003',qty:10},
   {code:'TP-00056',qty:2},
-  {code:'TP-00003',qty:10}
+  {code:'TP-00058',qty:3}
  ]);
 });
 
