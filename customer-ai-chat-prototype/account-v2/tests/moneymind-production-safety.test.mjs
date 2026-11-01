@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const files=[
- ['account-v2/app.html','255fdcf9','mm-bottom-nav'],
+ ['account-v2/app.html','74f0c567','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const fnv32=s=>{let h=0x811c9dc5;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),0x01000193);return (h>>>0).toString(16).padStart(8,'0')};
@@ -23,14 +23,14 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // Oct 29 reviewed CTV delivery customer pricing controls: two tabs,
  // address-scoped discount input and guarded client policy API.
  // Oct 29 reviewed CTV bottom sheet reuses saved-client writer and validates both rate tiers.\n // Oct 29 reviewed typography-only delta: 16px onboarding/body and 20px headings.\n // Oct 30 reviewed delivery modal: compact spacing and neutral phone/address rows.
- // Oct 30 reviewed invoice controls: compact padding, smaller sums and customer fields,\n // compact date fields and consistent teal detail action. Receipt behavior unchanged.\n // Nov 1 scoped CTV VAT 8% / Shipping editor: exactly one charge, owner legacy untouched.
+ // Oct 30 reviewed invoice controls: compact padding, smaller sums and customer fields,\n // compact date fields and consistent teal detail action. Receipt behavior unchanged.\n // Nov 1 reviewed CTV charge selection: only entered VAT 8% or Shipping 8%, other input omitted.
  // Updated reviewed hashes cover new CTV-only UI, while all original navigation,
  // cart, checkout, Gemini delivery-note and invoice assertions remain intact.
  // Preserve full-page hashes after this scoped UX/API review.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const fnvPart=x=>fnv32(x);
  assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'c17f6be2');
- assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'865071d6');
+ assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'1616e96e');
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-subtitle,/);
  assert.match(v2,/\.delivery-dialog #agentAddressChoices \.agent-address-choice \.address-phone \{/);
  assert.match(v2,/background:#eaf4f3;\s*color:#205e61;/);
