@@ -81,4 +81,38 @@ class InvoiceBadgePolicyTest {
         assertTrue(result.fresh.isEmpty())
         assertEquals(0,result.state.count)
     }
+
+    @Test fun blockedAndroidNotificationLeavesOfficialInvoicePending() {
+        val verified = InvoiceBadgePolicy.reconcile(InvoiceBadgeState(5960L),
+            listOf(row(5960L), row(5961L)))
+        // OS permission was denied: do not call afterAccepted.
+        assertEquals(setOf(5961L),
+            InvoiceNotificationDeliveryPolicy.pending(verified.state.unread, emptySet()))
+        // Subsequent verified sync has no new high-water, but the missed alert
+        // must still be eligible after the owner enables notifications.
+        val replay = InvoiceBadgePolicy.reconcile(verified.state,
+            listOf(row(5960L), row(5961L)))
+        assertTrue(replay.fresh.isEmpty())
+        assertEquals(setOf(5961L),
+            InvoiceNotificationDeliveryPolicy.pending(replay.state.unread, emptySet()))
+    }
+
+    @Test fun successfulPostCannotNotifyTheSameInvoiceTwice() {
+        val unread = setOf(5961L, 5962L)
+        val accepted = InvoiceNotificationDeliveryPolicy.afterAccepted(unread)
+        assertTrue(InvoiceNotificationDeliveryPolicy.pending(unread, accepted).isEmpty())
+        assertEquals(setOf(5963L),
+            InvoiceNotificationDeliveryPolicy.pending(unread + 5963L, accepted))
+    }
+
+    @Test fun readingOneInvoiceDoesNotAcknowledgeOtherUndeliveredOrder() {
+        val unread = setOf(5961L, 5962L)
+        val next = InvoiceBadgePolicy.acknowledgeOne(
+            InvoiceBadgeState(5962L, unread), 5961L)
+        assertEquals(setOf(5962L), InvoiceNotificationDeliveryPolicy.pending(
+            next.unread, emptySet()))
+        assertTrue(InvoiceNotificationDeliveryPolicy.pending(
+            InvoiceBadgePolicy.acknowledgeAll(next).unread, emptySet()).isEmpty())
+    }
+
 }
