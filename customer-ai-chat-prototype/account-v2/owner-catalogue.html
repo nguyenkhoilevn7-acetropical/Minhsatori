@@ -1082,10 +1082,10 @@ function ownerInvoiceChargeEditor(profileId,addresses,refresh){
    selectLabel.append(select);section.append(selectLabel);
    const amountLabel=make('label',kind==='vat'?'Thuế VAT (%)':'Tiền giao hàng (đồng/đơn)');
    const amount=document.createElement('input');amount.type='number';
-   amount.min=kind==='vat'?'0.01':'1';amount.max=kind==='vat'?'100':'1000000000';
+   amount.min='0';amount.max=kind==='vat'?'100':'1000000000';
    amount.step=kind==='vat'?'0.01':'1';amount.inputMode='decimal';
    amount.value=config.scope==='none'?'':String(kind==='vat'?config.rateBps/100:config.amountVnd);
-   amount.placeholder=kind==='vat'?'Nhập % VAT được duyệt':'Nhập phí/đơn được duyệt';
+   amount.placeholder=kind==='vat'?'Để trống hoặc 0 = không tính VAT':'Để trống hoặc 0 = miễn phí giao hàng';
    amountLabel.append(amount);section.append(amountLabel);
    const list=make('div',null,'crm-charge-recipients');
    list.append(make('strong','Chọn khách nhận hàng'));
@@ -1101,18 +1101,21 @@ function ownerInvoiceChargeEditor(profileId,addresses,refresh){
    section.append(list);
    const update=()=>{
     amount.disabled=select.value==='none';
-    amount.required=select.value!=='none';
+    amount.required=false; // Owner may omit VAT / shipping: blank and zero both mean no charge.
     list.hidden=select.value!=='selected';
    };
    select.onchange=update;update();
    form.append(section);
    return ()=>{
     const scope=select.value;
-    const input=scope==='none'?0:Number(amount.value);
+    const raw=amount.value.trim();
+    const input=scope==='none'||raw===''?0:Number(raw);
+    if(!Number.isFinite(input)||input<0)throw Error(label+' phải bằng 0 hoặc số dương hợp lệ.');
+    // Canonical disabled policy for an empty/zero amount: never charge silently.
+    if(input===0)return kind==='vat'?{scope:'none',rateBps:0,addressIds:[]}:
+     {scope:'none',amountVnd:0,addressIds:[]};
     const selectedIds=scope==='selected'?boxes.flatMap(x=>x.check.checked?x.ids:[]):[];
     if(scope==='selected'&&!selectedIds.length)throw Error('Cần chọn ít nhất một khách cho '+label);
-    if(scope!=='none'&&(amount.value.trim()===''||!Number.isFinite(input)||input<=0))
-     throw Error('Cần nhập '+label+' hợp lệ');
     if(kind==='vat'){
      const rateBps=Math.round(input*100);
      if(rateBps>10000||Math.abs(input*100-rateBps)>0.00001)
@@ -1126,7 +1129,7 @@ function ownerInvoiceChargeEditor(profileId,addresses,refresh){
   }
   const vat=feeField('vat','VAT');
   const shipping=feeField('shipping','Phí giao hàng');
-  form.append(make('small','Chỉ áp dụng cho đơn đặt sau khi lưu. Hóa đơn cũ không thay đổi. VAT cần đúng tỷ lệ được duyệt; không tự phát hành hóa đơn thuế.','crm-charge-help'));
+  form.append(make('small','Để trống hoặc nhập 0 = không áp dụng VAT/phí giao hàng. Chỉ số dương do chủ tài khoản lưu mới được tính cho đơn mới; hóa đơn cũ không thay đổi. VAT phải đúng tỷ lệ được duyệt; không tự phát hành hóa đơn thuế.','crm-charge-help'));
   const save=iconButton('Lưu áp dụng VAT / shipping','check');save.type='submit';form.append(save);
   form.onsubmit=async ev=>{
    ev.preventDefault();
