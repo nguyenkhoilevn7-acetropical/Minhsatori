@@ -7,7 +7,7 @@
 var SatoriBotApi=(function(){
 'use strict';
 var ORDER_KEY='satori_orders_v15', PRICE_APPROVAL_KEY='satori_ai_pricing_approvals_v1';
-var SCOPES={'pdf.get':'pdf:read','system.status':'orders:read','orders.list':'orders:read','orders.findByRequestId':'orders:read',
+var SCOPES={'pdf.get':'pdf:read','orders.getExactBatch':'orders:read','system.status':'orders:read','orders.list':'orders:read','orders.findByRequestId':'orders:read',
  'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write',
  'orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','pricing.eligibility':'orders:ai:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
@@ -993,7 +993,60 @@ function linkList(s,p){
  return {total:data.length,offset:offset,hasMore:offset+limit<data.length,
   items:data.slice(offset,offset+limit)};
 }
+function customerInvoiceCurrentView(o){
+ var inactive=o.status==='Đã hủy'||o.status==='Không Tính';
+ var lines=Array.isArray(o.items)&&o.items.length?o.items:[{
+  product:o.product,qty:o.qty,unit:o.unit,listPrice:o.listPrice,unitPrice:o.unitPrice
+ }];
+ need(lines.length>=1&&lines.length<=40,'CANONICAL_LINES_INVALID','Dữ liệu mặt hàng không hợp lệ');
+ var items=lines.map(function(line){
+  var qty=Number(line.qty),unitPrice=Number(line.unitPrice);
+  need(Number.isSafeInteger(qty)&&qty>=0&&
+   Number.isSafeInteger(unitPrice)&&unitPrice>=0,'CANONICAL_PRICE_INVALID','Giá hóa đơn không hợp lệ');
+  return {name:String(line.product||line.name||'').slice(0,200),
+   code:String(line.code||'').slice(0,40),unit:String(line.unit||'Thùng').slice(0,30),
+   qty:qty,unitPrice:unitPrice,
+   listPrice:Number.isSafeInteger(Number(line.listPrice))?Number(line.listPrice):unitPrice,
+   discountPercent:Number.isFinite(Number(line.discountPercent))?Number(line.discountPercent):0,
+   lineTotal:qty*unitPrice};
+ });
+ var goods=items.reduce(function(v,it){return v+it.lineTotal},0);
+ var shipping=Number(o.shippingAmount||0),vat=Number(o.vatAmount||0);
+ var total=Number(o.total);
+ need([goods,shipping,vat,total].every(function(x){return Number.isSafeInteger(x)&&x>=0&&x<=100000000000}),
+  'CANONICAL_TOTAL_INVALID','Tổng hóa đơn không hợp lệ');
+ need(inactive||goods+shipping+vat===total,'CANONICAL_TOTAL_CONFLICT','Hóa đơn chưa đối soát tổng tiền');
+ return {id:String(o.id),invoiceNo:Number(o.invoiceNo),
+  status:String(o.status||'Chưa thanh toán').slice(0,45),
+  totalVnd:inactive?0:total,goodsVnd:inactive?0:goods,
+  shippingVnd:inactive?0:shipping,vatVnd:inactive?0:vat,
+  items:items,customerPaid:!inactive&&paid(o),
+  delivery:{recipientName:String(o.name||'').slice(0,120),
+   recipientPhone:String(o.phone||'').slice(0,30),
+   address:String(o.location||'').slice(0,400)},
+  deliveryNote:String(o.deliveryNote||'').slice(0,500),
+  date:String(o.date||'').slice(0,30),
+  updatedAt:o.updatedAt||null,excluded:inactive};
+}
+function getExactBatch(s,all,p){
+ need(p&&Array.isArray(p.refs)&&p.refs.length>=1&&p.refs.length<=20,
+  'EXACT_BATCH_INVALID','Cần tối đa 20 hóa đơn xác thực');
+ var unique={};
+ var result=p.refs.map(function(ref){
+  var no=ref&&Number(ref.invoiceNo),id=ref&&String(ref.id||'');
+  need(Number.isSafeInteger(no)&&no>0&&/^[A-Za-z0-9_-]{1,80}$/.test(id),
+   'EXACT_BATCH_INVALID','Sai mã hóa đơn hoặc ID');
+  var key=no+'|'+id;
+  need(!unique[key],'EXACT_BATCH_DUPLICATE','Hóa đơn bị lặp');
+  unique[key]=true;
+  var matches=all.filter(function(o){return Number(o.invoiceNo)===no&&String(o.id)===id});
+  need(matches.length<=1,'EXACT_BATCH_AMBIGUOUS','Trùng định danh hóa đơn');
+  return matches.length?customerInvoiceCurrentView(matches[0]):{id:id,invoiceNo:no,missing:true};
+ });
+ return {revision:s.revision,orders:result};
+}
 function read(s,action,p){
+ if(action==='orders.getExactBatch')return getExactBatch(s,rows(s),p);
  if(action==='pdf.get'){
   need(typeof SatoriCustomerPdfRead!=='undefined','PDF_READ_NOT_INSTALLED','Thiếu module đọc PDF');
   return SatoriCustomerPdfRead.read(s,p);
