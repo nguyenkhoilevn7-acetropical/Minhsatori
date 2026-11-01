@@ -7,7 +7,7 @@
 var SatoriBotApi=(function(){
 'use strict';
 var ORDER_KEY='satori_orders_v15';
-var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
+var SCOPES={'pdf.get':'pdf:read','system.status':'orders:read','orders.list':'orders:read',
  'customers.list':'customers:read','customers.upsert':'customers:write',
  'debt.summary':'debt:read','customers.search':'customers:read','orders.create':'orders:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
@@ -225,6 +225,10 @@ function saveCustomer(s,p){
   result:{profile:profile,created:true}};
 }
 function read(s,action,p){
+ if(action==='pdf.get'){
+  need(typeof SatoriCustomerPdfRead!=='undefined','PDF_READ_NOT_INSTALLED','Thiếu module đọc PDF');
+  return SatoriCustomerPdfRead.read(s,p);
+ }
  var all=rows(s);
  if(action==='trash.list'){
   var now=Date.now(),bin=JSON.parse(s.values.satori_trash_bin_v15||'[]');
