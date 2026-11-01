@@ -24,6 +24,7 @@ import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './
 import {readExactCurrentInvoices,currentCustomerOrder,currentLinkedHistory} from './canonical-history-read.mjs';
 import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {renderCurrentV2Pdf} from './local-invoice-pdf.mjs';
+import {exactCurrentInvoiceFromOrdersList} from './local-invoice-read.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
  saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
@@ -823,11 +824,18 @@ export async function handleAccountV2(req,res,pathname){
     Number(row.invoiceNo)>0&&Number.isSafeInteger(Number(row.total))&&
     row.ledgerId!=null&&/^[A-Za-z0-9_-]{1,80}$/.test(String(row.ledgerId)),
     'PDF_NOT_READY',404);
-   // Do not use stale PostgreSQL quote totals after website/Android edits.
-   const check=await readExactCurrentInvoices([{
+   // Read the CURRENT invoice after verifying the signed-in account. Local V2
+   // pdfmake uses the already-deployed Bot orders.list: no extra GAS PDF
+   // module, PDF renderer service, or Drive file is needed.
+   const current=localPdf?
+    (await exactCurrentInvoiceFromOrdersList({
+     invoiceNo:Number(row.invoiceNo),ledgerId:String(row.ledgerId)
+    })).current:null;
+   const check=localPdf?null:await readExactCurrentInvoices([{
     invoiceNo:Number(row.invoiceNo),id:row.ledgerId
    }]);
-   const latest=check.orders.get(Number(row.invoiceNo)+'|'+String(row.ledgerId));
+   const latest=localPdf?current:
+    check.orders.get(Number(row.invoiceNo)+'|'+String(row.ledgerId));
    error(latest&&!latest.missing&&!latest.excluded,'PDF_NOT_READY',404);
    let pdf;
    try{
