@@ -951,7 +951,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <details id="ctvChargePanel" class="ctv-fees">
 <summary>🧾 Tùy chỉnh VAT 8% / phí giao hàng</summary>
 <form id="ctvChargeForm">
-<p class="muted">Bắt buộc chọn đúng một: nhập VAT 8% hoặc Shipping 8%. Loại không chọn để trống. Cả hai đều tính theo tiền hàng sau chiết khấu.</p>
+<p class="muted">Mặc định do admin đặt vẫn giữ nguyên. CTV có thể chọn VAT 8% hoặc Shipping 8% cho tất cả, hoặc chỉ một số khách; khách còn lại giữ mặc định. Chỉ tính một loại phí 8% cho mỗi điểm giao và không đổi hóa đơn cũ.</p>
 <div class="ctv-charge-options" role="group" aria-label="Loại phí">
 <label><input type="radio" name="ctvChargeChoice" value="vat" required> VAT 8%</label>
 <label><input type="radio" name="ctvChargeChoice" value="shipping" required> Shipping 8%</label>
@@ -1198,25 +1198,33 @@ async function refreshCtvCharges(profile,clients){
   const policy=await call('/api/v2/ctv/invoice-charge-policy?profileId='+encodeURIComponent(profile.id),undefined,'GET');
   if(epoch!==ctvChargeEpoch||currentCtvProfile()?.id!==profile.id)return;
   ctvChargePolicy=policy;
+  const overrides=policy.ctvOverrides||{revision:0,defaultChoice:null,addresses:{}};
   const hasVat=policy.vat.scope!=='none',hasShipping=policy.shipping.scope!=='none';
-  // Existing admin policies might have both charges. Never silently choose one.
-  const choice=hasVat&&!hasShipping&&policy.vat.rateBps===800?'vat':
+  const adminChoice=hasVat&&!hasShipping&&policy.vat.rateBps===800?'vat':
    hasShipping&&!hasVat&&policy.shipping.rateBps===800?'shipping':null;
-  if(choice){
-   document.querySelector('input[name="ctvChargeChoice"][value="'+choice+'"]').checked=true;
-   const config=policy[choice];
-   $('ctvChargeScope').value=config.scope;
-   for(const checkbox of root.querySelectorAll('input[type="checkbox"]'))
-    checkbox.checked=config.addressIds.includes(checkbox.value);
-  }else{
-   $('ctvChargeScope').value='all';
+  const choice=overrides.defaultChoice||adminChoice;
+  // Admin retains ownership of the base policy. The current CTV's choices
+  // are displayed individually and never leak into another CTV's account.
+  if(choice)document.querySelector('input[name="ctvChargeChoice"][value="'+choice+'"]').checked=true;
+  $('ctvChargeScope').value=Object.keys(overrides.addresses).length?'selected':'all';
+  for(const checkbox of root.querySelectorAll('input[type="checkbox"]')){
+   const id=checkbox.value,chosen=overrides.addresses[id]||overrides.defaultChoice;
+   const inScope=p=>p?.scope==='all'||p?.scope==='selected'&&p.addressIds.includes(id);
+   const adminVat=inScope(policy.vat)&&policy.vat.rateBps===800;
+   const adminShipping=inScope(policy.shipping)&&policy.shipping.rateBps===800;
+   const inherited=adminVat&&!adminShipping?'vat':adminShipping&&!adminVat?'shipping':null;
+   const effective=chosen||inherited,explicit=Boolean(overrides.addresses[id]);
+   checkbox.checked=false;
+   checkbox.parentElement.append(node('small',
+    ' · '+(effective==='vat'?'VAT 8%':effective==='shipping'?'Shipping 8%':'Chưa có phí 8% hợp lệ')+
+    (explicit?' (CTV đã chọn riêng)':chosen?' (CTV chọn tất cả)':' (mặc định admin)')));
   }
   $('ctvVatPercent').value=choice==='vat'?'8':'';
   $('ctvShippingPercent').value=choice==='shipping'?'8':'';
-  $('ctvChargeStatus').textContent=choice?
-   'Đang áp dụng '+(choice==='vat'?'VAT 8%':'Shipping 8%')+
-   '. Thay đổi chỉ ảnh hưởng đơn mới.':
-   'Chưa chọn chính sách CTV hợp lệ. Hãy chọn VAT 8% hoặc Shipping rồi lưu.';
+  $('ctvChargeStatus').textContent='Mặc định admin: '+
+   (adminChoice==='vat'?'VAT 8%':adminChoice==='shipping'?'Shipping 8%':'chưa có đúng một khoản 8%')+
+   '. CTV chọn riêng: '+Object.keys(overrides.addresses).length+
+   ' điểm giao. Các chỉnh sửa chỉ áp dụng cho đơn mới.';
   $('ctvChargeSave').disabled=false;
   paintCtvCharges();
  }catch(e){
@@ -1234,15 +1242,15 @@ $('ctvChargeForm').onsubmit=async ev=>{
  if(typed===''||Number(typed)!==8)return toast('Loại được chọn phải nhập đúng 8%.');
  if(!confirm('Áp dụng '+(choice==='vat'?'VAT 8%':'Shipping 8%')+
   ' cho '+(scope==='all'?'tất cả khách':'các khách đã chọn')+
-  '? Loại phí còn lại sẽ bằng 0. Chỉ tính cho đơn mới.'))return;
+  '? Loại phí còn lại sẽ bằng 0 cho các khách này; không thay đổi mặc định admin hoặc hóa đơn cũ.'))return;
  $('ctvChargeSave').disabled=true;
  try{
   await call('/api/v2/ctv/invoice-charge-policy',{
-   profileId:profile.id,confirmed:true,expectedRevision:policy.revision,
+   profileId:profile.id,confirmed:true,expectedRevision:policy.ctvOverrides?.revision??0,
    choice,scope,addressIds:ids,...(choice==='shipping'?{shippingBps:800}:{vatBps:800})
   },'PUT');
   resetTestQuote();invalidateCartPricing();
-  toast('Đã lưu '+(choice==='vat'?'VAT 8%':'phí Shipping')+'; không thay đổi hóa đơn cũ.');
+  toast('Đã lưu '+(choice==='vat'?'VAT 8%':'phí Shipping')+'; giữ nguyên mặc định admin và hóa đơn cũ.');
   await refreshCtvCharges(profile,ctvClientData?.clients||[]);
  }catch(e){
   $('ctvChargeSave').disabled=false;

@@ -7,6 +7,7 @@
  */
 import {isUuid} from './domain.mjs';
 const EVENT='V2_INVOICE_CHARGE_POLICY_UPDATED';
+const CTV_EVENT='V2_CTV_INVOICE_CHARGE_OVERRIDES_UPDATED';
 const err=code=>{const e=new Error(code);e.code=code;throw e};
 const requireThat=(ok,code)=>{if(!ok)err(code)};
 const empty=()=>Object.freeze({revision:0,vat:{scope:'none',rateBps:0,addressIds:[]},
@@ -47,6 +48,12 @@ export function validateInvoiceFeePolicy(input){
 }
 export function calculateInvoiceFees(policy,addressId){
  requireThat(isUuid(addressId),'ADDRESS_REQUIRED');
+ const choice=policy?.ctvOverrides?.addresses?.[addressId] ??
+  policy?.ctvOverrides?.defaultChoice;
+ // CTV overrides take priority for this delivery address, without changing
+ // the admin's owner-only default or any previously saved invoice.
+ if(choice==='vat')return {vatBps:800,shippingVnd:0};
+ if(choice==='shipping')return {vatBps:0,shippingVnd:0,shippingBps:800};
  const p=policy||empty();
  const applies=r=>r?.scope==='all'||r?.scope==='selected'&&r.addressIds.includes(addressId);
  const vatBps=applies(p.vat)?p.vat.rateBps:0;
@@ -145,6 +152,33 @@ export function validateCtvInvoiceFeeChoice(input){
  });
  return {...policy,choice:input.choice};
 }
+/**
+ * CTV preferences are separate from owner policy. Admin "all VAT 8%" remains
+ * the inherited default even when one recipient gets a Shipping 8% override.
+ * One audit record per edit, no migration or mutation of historical invoices.
+ */
+export async function readCtvFeeOverrides(db,profileId){
+ requireThat(isUuid(profileId),'PROFILE_REQUIRED');
+ const found=await db.query('SELECT details FROM satori_v2_audit '+
+  'WHERE event_type=$1 AND resource_id=$2 ORDER BY id DESC LIMIT 1',
+  [CTV_EVENT,profileId]);
+ if(!found.rows.length)return {revision:0,defaultChoice:null,addresses:{}};
+ const saved=found.rows[0].details;
+ requireThat(saved&&Number.isSafeInteger(saved.revision)&&saved.revision>=1&&
+  (saved.defaultChoice===null||['vat','shipping'].includes(saved.defaultChoice))&&
+  saved.addresses&&typeof saved.addresses==='object'&&!Array.isArray(saved.addresses)&&
+  Object.keys(saved.addresses).length<=250&&
+  Object.entries(saved.addresses).every(([id,choice])=>
+   isUuid(id)&&['vat','shipping'].includes(choice)),
+  'CTV_CHARGE_OVERRIDES_CORRUPT');
+ return {revision:saved.revision,defaultChoice:saved.defaultChoice,
+  addresses:{...saved.addresses}};
+}
+export async function readEffectiveInvoiceFeePolicy(db,profileType,profileId){
+ const base=await readInvoiceFeePolicy(db,profileId);
+ if(profileType!=='collaborator')return base;
+ return {...base,ctvOverrides:await readCtvFeeOverrides(db,profileId)};
+}
 export async function saveCtvInvoiceFeeChoice(pool,actor,input){
  const requested=validateCtvInvoiceFeeChoice(input),client=await pool.connect();
  try{
@@ -155,21 +189,32 @@ export async function saveCtvInvoiceFeeChoice(pool,actor,input){
    'WHERE id=$1 AND account_id=$2 AND type=$3 FOR UPDATE',
    [requested.profileId,actor.id,'collaborator']);
   requireThat(profile.rows.length===1,'CTV_CHARGE_PROFILE_FORBIDDEN');
-  const before=await readInvoiceFeePolicy(client,requested.profileId);
-  requireThat(before.revision===requested.expectedRevision,'CHARGE_POLICY_REVISION_CONFLICT');
-  const ids=requested.choice==='vat'?requested.vat.addressIds:requested.shipping.addressIds;
+  const before=await readCtvFeeOverrides(client,requested.profileId);
+  requireThat(before.revision===requested.expectedRevision,
+   'CHARGE_POLICY_REVISION_CONFLICT');
+  const ids=requested.choice==='vat'?requested.vat.addressIds:
+   requested.shipping.addressIds;
   if(ids.length){
    const verified=await client.query('SELECT id FROM satori_v2_addresses '+
     'WHERE profile_id=$1 AND id=ANY($2::uuid[]) AND active=true',
     [requested.profileId,ids]);
    requireThat(verified.rows.length===ids.length,'CHARGE_ADDRESS_NOT_OWNED');
   }
-  const saved={revision:before.revision+1,vat:requested.vat,shipping:requested.shipping};
+  const addresses=requested.choice&&input.scope==='all'?{}:{...before.addresses};
+  for(const id of ids)addresses[id]=requested.choice;
+  // Never persist an override record that a later read would reject as corrupt.
+  requireThat(Object.keys(addresses).length<=250,'CTV_CHARGE_ADDRESSES_LIMIT');
+  // "All" changes CTV's default for its own destinations; "selected"
+  // modifies only the chosen destinations and inherits admin for others.
+  const saved={revision:before.revision+1,
+   defaultChoice:input.scope==='all'?requested.choice:before.defaultChoice,
+   addresses};
   await client.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
    'VALUES($1,$2,$3,$4,$5)',
-   [actor.id,'ctv',EVENT,requested.profileId,JSON.stringify(saved)]);
+   [actor.id,'ctv',CTV_EVENT,requested.profileId,JSON.stringify(saved)]);
   await client.query('COMMIT');
-  return {ok:true,profileId:requested.profileId,...saved};
+  return {ok:true,profileId:requested.profileId,revision:saved.revision,
+   ctvOverrides:saved};
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
  finally{client.release()}
 }

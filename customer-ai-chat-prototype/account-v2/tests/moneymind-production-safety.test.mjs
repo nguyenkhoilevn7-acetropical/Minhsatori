@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const files=[
- ['account-v2/app.html','c5c788db','mm-bottom-nav'],
+ ['account-v2/app.html','74e58f28','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const fnv32=s=>{let h=0x811c9dc5;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),0x01000193);return (h>>>0).toString(16).padStart(8,'0')};
@@ -38,7 +38,7 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const fnvPart=x=>fnv32(x);
  assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'96dc8bc7');
- assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'06f5a69b');
+ assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'723010e3');
  const composer=v2.match(/<div class="composer">([\s\S]*?)<\/div>/)?.[1]||'';
  assert.match(composer,/<textarea id="message"[\s\S]*?<button id="voiceInput"[\s\S]*?<button id="send"/);
  assert.equal((composer.match(/id="voiceInput"/g)||[]).length,1);
