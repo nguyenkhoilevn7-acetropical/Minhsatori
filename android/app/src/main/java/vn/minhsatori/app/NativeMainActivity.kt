@@ -1745,7 +1745,8 @@ class NativeMainActivity : AppCompatActivity() {
         val marginAll = AccountingProMargin45.summarize(
             marginRows, AccountingProMargin45Period.all())
         section(parent,
-            "TỔNG LÃI GỘP ƯỚC TÍNH · NHẬP CHIẾT KHẤU 45%: " +
+            (if (data.collaborators.isNotEmpty()) "TỔNG LỢI NHUẬN SAU CTV (ƯỚC TÍNH): "
+                else "TỔNG LÃI GỘP · CHƯA ĐỐI CHIẾU CTV: ") +
                 (marginAll.estimatedMarginKnownVnd?.let(SatoriData::money)
                     ?: "Chưa đủ dữ liệu"),
             "Tính được " + marginAll.computedInvoiceCount + "/" +
@@ -2390,7 +2391,8 @@ class NativeMainActivity : AppCompatActivity() {
      * Does not change payment, edit, delete, or invoice write handlers.
      */
     private fun showProfitInsideInvoiceCard(parent: LinearLayout,
-                                            row: AccountingProMargin45Row?) {
+                                            row: AccountingProMargin45Row?,
+                                            hasCtvRegistry: Boolean) {
         val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
         val header = card.getChildAt(0) as? LinearLayout ?: return
         val amount = header.getChildAt(header.childCount - 1) as? TextView ?: return
@@ -2402,8 +2404,9 @@ class NativeMainActivity : AppCompatActivity() {
         amount.gravity = Gravity.END
         right.addView(amount, LinearLayout.LayoutParams(-2, -2))
         val value = row?.estimatedOwnerMarginVnd?.let(SatoriData::money)
+        val labelName = if (hasCtvRegistry) "Lợi nhuận" else "Lãi gộp"
         val badge = TextView(this).apply {
-            text = "Lợi nhuận  " + (value ?: "Chưa rõ")
+            text = labelName + "  " + (value ?: "Chưa rõ")
             textSize = 11f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(invoiceMoneyRed)
@@ -2414,7 +2417,7 @@ class NativeMainActivity : AppCompatActivity() {
             setAutoSizeTextTypeUniformWithConfiguration(9, 11, 1,
                 android.util.TypedValue.COMPLEX_UNIT_SP)
             background = panelBackground(Color.rgb(255, 243, 241), 9)
-            contentDescription = "Lợi nhuận: " + (value ?: "Chưa đủ dữ liệu")
+            contentDescription = labelName + ": " + (value ?: "Chưa đủ dữ liệu")
         }
         right.addView(badge, LinearLayout.LayoutParams(-2, -2).apply {
             topMargin = dp(6)
@@ -2716,7 +2719,8 @@ class NativeMainActivity : AppCompatActivity() {
             matching.take(120).forEach { inv ->
                 invoiceQuickCard(list, inv)
                 if (!inv.isExcluded)
-                    showProfitInsideInvoiceCard(list, marginByInvoice[inv])
+                    showProfitInsideInvoiceCard(list, marginByInvoice[inv],
+                        data.collaborators.isNotEmpty())
             }
             // Filter/search callbacks build cards *after* render(); normalize
             // prices here as well so old green inline TextViews cannot reappear.
@@ -3025,7 +3029,9 @@ class NativeMainActivity : AppCompatActivity() {
             orientation=LinearLayout.VERTICAL
             setPadding(dp(14),dp(12),dp(14),dp(16))
         }
-        label(panel,"LÃI GỘP ƯỚC TÍNH · CHIẾT KHẤU NHẬP 45%",
+        label(panel,if(data.collaborators.isNotEmpty())
+                "LỢI NHUẬN SAU CTV (ƯỚC TÍNH)"
+            else "LÃI GỘP · CHƯA ĐỐI CHIẾU CTV",
             15f,true,ink)
         label(panel,"Chỉ xem · Theo ngày lập hóa đơn · Chưa trừ chi phí vận hành",
             11f,false,softInk,6)
@@ -3319,7 +3325,8 @@ class NativeMainActivity : AppCompatActivity() {
         label(parent, "Công nợ theo khách hàng", 15f, true, ink, 14)
         report.outstandingInvoices.forEach { invoice ->
             invoiceQuickCard(parent, invoice, fromDebt = true)
-            showProfitInsideInvoiceCard(parent, marginByInvoice[invoice])
+            showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],
+                data.collaborators.isNotEmpty())
         }
         if (report.outstandingInvoices.isEmpty())
             section(parent, "Không có hóa đơn cần thu trong kỳ",
