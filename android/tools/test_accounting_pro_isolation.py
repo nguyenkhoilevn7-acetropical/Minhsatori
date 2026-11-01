@@ -53,17 +53,20 @@ class AccountingProRemovalTest(unittest.TestCase):
 
     def test_45_percent_core_profit_and_debt_filters_still_work_as_ui(self):
         for essential in (
-            "AccountingProMargin45.calculate(data.invoices, data.collaborators)",
+            "CtvProfitSourcePolicy.profitRows(data)",
             "AccountingProDebtProfitPolicy.report(",
             "private fun showMarginPeriod(",
             "private fun showDebtProfitFilter(",
             "showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],",
-            'totalCard(if (data.collaborators.isNotEmpty()) "Tổng lợi nhuận sau CTV"',
-            "TỔNG LÃI GỘP · CHƯA ĐỐI CHIẾU CTV",
+            'totalCard(if (data.collaboratorRegistryLoaded) "Tổng lợi nhuận sau CTV"',
+            "TỔNG LỢI NHUẬN · THIẾU HỒ SƠ CTV",
             "☷ Lọc danh sách hóa đơn",
         ):
             with self.subTest(essential=essential):
                 self.assertIn(essential, UI)
+        self.assertIn("reconcileMobileCtvRegistry(MobileApiClient.snapshot(endpoint, token), token)", UI)
+        self.assertIn("Mobile API chưa gửi hồ sơ CTV", UI)
+        self.assertIn("CtvProfitSourcePolicy.recover(api, direct)", UI)
         model = (SOURCE_ROOT / "AccountingProMargin45.kt").read_text(encoding="utf-8")
         self.assertIn("SUPPLIER_DISCOUNT_PERCENT = 45", model)
         for forbidden in ("orders.create", "payments.mark", "sendEmail("):
