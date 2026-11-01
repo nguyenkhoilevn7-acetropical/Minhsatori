@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {validateCtvInvoiceFeeChoice,saveCtvInvoiceFeeChoice,calculateInvoiceFees,
- readInvoiceFeePolicy,requireCtvChargeForAddress} from '../invoice-fee-scopes.mjs';
+ readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,requireCtvChargeForAddress} from '../invoice-fee-scopes.mjs';
 
 const profile='d0000000-1111-4111-8111-000000000011';
 const address='d0000000-1111-4111-8111-000000000012';
@@ -38,6 +38,8 @@ test('CTV has exactly one choice: entered VAT 8% OR Shipping 8%, not both',()=>{
 
 test('CTV write is account/profile scoped, verified addresses, revisioned and audited',async()=>{
  const journal=[];
+ const ownerPolicy={revision:1,vat:{scope:'all',rateBps:800,addressIds:[]},
+  shipping:{scope:'none',amountVnd:0,addressIds:[]}};
  let allowProfile=true;
  const client={
   async query(sql,args=[]){
@@ -47,8 +49,12 @@ test('CTV write is account/profile scoped, verified addresses, revisioned and au
     assert.deepEqual(args,[profile,actor.id,'collaborator']);
     return {rows:allowProfile?[{id:profile}]:[]};
    }
-   if(sql.startsWith('SELECT details FROM satori_v2_audit'))
+   if(sql.startsWith('SELECT details FROM satori_v2_audit')){
+    if(args[0]==='V2_INVOICE_CHARGE_POLICY_UPDATED')
+     return {rows:[{details:ownerPolicy}]};
+    assert.equal(args[0],'V2_CTV_INVOICE_CHARGE_OVERRIDES_UPDATED');
     return {rows:journal.length?[{details:journal.at(-1).details}]:[]};
+   }
    if(sql.startsWith('SELECT id FROM satori_v2_addresses')){
     return {rows:args[1].filter(id=>id===address).map(id=>({id}))};
    }
@@ -60,20 +66,33 @@ test('CTV write is account/profile scoped, verified addresses, revisioned and au
   },release(){}
  };
  const pool={async connect(){return client}};
- const first=await saveCtvInvoiceFeeChoice(pool,actor,vat({scope:'selected',addressIds:[address]}));
+ // Owner sets VAT 8% for every client. CTV overrides only this address.
+ const first=await saveCtvInvoiceFeeChoice(pool,actor,
+  shipping({scope:'selected',addressIds:[address]}));
  assert.equal(first.revision,1);
  assert.deepEqual(calculateInvoiceFees(await readInvoiceFeePolicy(client,profile),address),
-  {vatBps:800,shippingVnd:0});
+  {vatBps:800,shippingVnd:0}); // Owner's default remains untouched.
+ const effective=await readEffectiveInvoiceFeePolicy(client,'collaborator',profile);
+ assert.deepEqual(calculateInvoiceFees(effective,address),
+  {vatBps:0,shippingVnd:0,shippingBps:800});
+ assert.deepEqual(calculateInvoiceFees(effective,foreign),
+  {vatBps:800,shippingVnd:0}); // Other addresses inherit admin.
+ assert.doesNotThrow(()=>requireCtvChargeForAddress('collaborator',effective,address));
+ assert.doesNotThrow(()=>requireCtvChargeForAddress('collaborator',effective,foreign));
  await assert.rejects(()=>saveCtvInvoiceFeeChoice(pool,actor,shipping()),
   {message:'CHARGE_POLICY_REVISION_CONFLICT'});
  await assert.rejects(()=>saveCtvInvoiceFeeChoice(pool,actor,
   shipping({expectedRevision:1,scope:'selected',addressIds:[foreign]})),
   {message:'CHARGE_ADDRESS_NOT_OWNED'});
  const second=await saveCtvInvoiceFeeChoice(pool,actor,
-  shipping({expectedRevision:1,scope:'all'}));
+  vat({expectedRevision:1,scope:'all'}));
  assert.equal(second.revision,2);
+ const after=await readEffectiveInvoiceFeePolicy(client,'collaborator',profile);
+ assert.deepEqual(calculateInvoiceFees(after,address),{vatBps:800,shippingVnd:0});
+ assert.deepEqual(after.ctvOverrides.addresses,{});
+ assert.equal(after.ctvOverrides.defaultChoice,'vat');
  assert.deepEqual(calculateInvoiceFees(await readInvoiceFeePolicy(client,profile),address),
-  {vatBps:0,shippingVnd:0,shippingBps:800});
+  {vatBps:800,shippingVnd:0}); // Recheck admin ownership unchanged.
  assert.equal(journal.length,2);
  assert.ok(journal.every(x=>x.actor==='ctv'&&x.accountId===actor.id));
  allowProfile=false;
@@ -90,6 +109,8 @@ test('CTV routes use verified session, not owner admin API or caller-provided ac
  assert.match(router,/profile.type==='collaborator'/);
  assert.match(router,/pathname==='\/api\/v2\/ctv\/invoice-charge-policy'&&req.method==='PUT'/);
  assert.match(router,/saveCtvInvoiceFeeChoice\(pool,actor,await json\(req\)\)/);
+ assert.match(router,/readEffectiveInvoiceFeePolicy\(pool,profile.type,id\)/);
+ assert.match(router,/readEffectiveInvoiceFeePolicy\(client,checkedProfile.rows\[0\].type,q.profile_id\)/);
  assert.match(app,/id="ctvChargePanel"/);
  assert.match(app,/name="ctvChargeChoice" value="vat"/);
  assert.match(app,/name="ctvChargeChoice" value="shipping"/);
@@ -97,6 +118,7 @@ test('CTV routes use verified session, not owner admin API or caller-provided ac
  assert.match(app,/id="ctvShippingPercent"/);
  assert.match(app,/typed===''\|\|Number\(typed\)!==8/);
  assert.match(app,/\/api\/v2\/ctv\/invoice-charge-policy/);
+ assert.match(app,/expectedRevision:policy.ctvOverrides\?\.revision\?\?0/);
  assert.doesNotThrow(()=>new vm.Script(app.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]||''));
 });
 
@@ -117,6 +139,13 @@ test('CTV MUST configure exactly one applicable charge before quote and checkout
  const invalidVat={vat:{scope:'all',rateBps:700,addressIds:[]},shipping:off.shipping};
  assert.throws(()=>requireCtvChargeForAddress('collaborator',invalidVat,address),
   {message:'CTV_VAT_OR_SHIPPING_REQUIRED'});
+ const inherited={vat:{scope:'all',rateBps:800,addressIds:[]},
+  shipping:{scope:'none',amountVnd:0,addressIds:[]},
+  ctvOverrides:{revision:1,defaultChoice:null,addresses:{[address]:'shipping'}}};
+ assert.deepEqual(calculateInvoiceFees(inherited,address),
+  {vatBps:0,shippingVnd:0,shippingBps:800});
+ assert.deepEqual(calculateInvoiceFees(inherited,foreign),
+  {vatBps:800,shippingVnd:0});
  const both={vat:validVat.vat,shipping:validShipping.shipping};
  assert.throws(()=>requireCtvChargeForAddress('collaborator',both,address),
   {message:'CTV_VAT_OR_SHIPPING_REQUIRED'});
