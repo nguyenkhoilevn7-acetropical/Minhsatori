@@ -164,6 +164,33 @@ class AccountingProMargin45Test {
         assertNull(row.estimatedOwnerMarginVnd)
     }
 
+    @Test fun registeredCtvNetMarginExcludesCommissionAndVat() {
+        // Synthetic #5966-shaped order: 10 cases at 266,666 VND, 8% VAT,
+        // factory 45% discount and registered collaborator 35% discount.
+        val bill = invoice(no="5966", unitPrice=266_666L, listPrice=333_333L,
+            qty=10, total=2_879_993L, vat=213_333L)
+        val ctv = SatoriCollaborator("ctv-verified", "DEMO", "0900000000", 35.0)
+        val result = AccountingProMargin45.calculate(listOf(bill), listOf(ctv)).single()
+        assertEquals(833_328L, result.saleGoodsVnd!! - result.estimatedPurchaseVnd!!)
+        assertEquals(499_995L, result.estimatedCtvCommissionVnd)
+        assertEquals(333_333L, result.estimatedOwnerMarginVnd)
+        assertEquals(0L, bill.shipping)
+        assertEquals(213_333L, bill.vat)
+    }
+
+    @Test fun mismatchedOrDuplicateCtvIdentityCannotInventNetProfit() {
+        val bill = invoice()
+        val wrongPhone = SatoriCollaborator("ctv1", "DEMO", "0988888888", 35.0)
+        val conflicting = AccountingProMargin45.calculate(listOf(bill),
+            listOf(wrongPhone)).single()
+        assertNull(conflicting.estimatedOwnerMarginVnd)
+        val valid = SatoriCollaborator("ctv2", "DEMO", "0900000000", 35.0)
+        assertNull(AccountingProMargin45.calculate(listOf(bill),
+            listOf(valid, valid.copy(id="ctv3"))).single().estimatedOwnerMarginVnd)
+        assertEquals(250_000L, AccountingProMargin45.calculate(listOf(bill))
+            .single().estimatedOwnerMarginVnd) // Gross, UI must label it gross
+    }
+
     @Test fun originalInvoiceObjectsAreNeverMutated() {
         val original=listOf(invoice(),invoice(id="b",no="5902"))
         val before=original.toList()
