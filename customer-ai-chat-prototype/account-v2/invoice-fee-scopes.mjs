@@ -83,3 +83,70 @@ export async function saveInvoiceFeePolicy(pool,owner,input){
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
  finally{client.release()}
 }
+
+/**
+ * CTV can pick EXACTLY ONE of VAT (fixed 8%) or a positive VND shipping fee.
+ * Existing owner policies remain independent, and only future quotes read edits.
+ * Never trust a client-supplied VAT percentage or a different account's profile.
+ */
+export function validateCtvInvoiceFeeChoice(input){
+ requireThat(input&&typeof input==='object'&&!Array.isArray(input)&&
+  isUuid(input.profileId)&&input.confirmed===true&&
+  Number.isSafeInteger(input.expectedRevision)&&input.expectedRevision>=0,
+  'CTV_CHARGE_UPDATE_INVALID');
+ requireThat(['vat','shipping'].includes(input.choice),'CTV_CHARGE_CHOICE_REQUIRED');
+ requireThat(['all','selected'].includes(input.scope),'CTV_CHARGE_SCOPE_REQUIRED');
+ requireThat(input.vat==null&&input.shipping==null,'CTV_CHARGE_RAW_POLICY_FORBIDDEN');
+ requireThat(input.vatBps==null||input.vatBps===800,'CTV_VAT_MUST_BE_8_PERCENT');
+ const ids=input.addressIds??[];
+ requireThat(Array.isArray(ids)&&ids.length<=250&&ids.every(isUuid)&&
+  new Set(ids).size===ids.length,'CTV_CHARGE_ADDRESSES_INVALID');
+ const selected=input.scope==='selected'?ids:[];
+ requireThat(input.scope==='selected'||ids.length===0,'CTV_CHARGE_ADDRESSES_SCOPE_MISMATCH');
+ if(input.choice==='vat'){
+  requireThat(input.shippingAmountVnd==null||input.shippingAmountVnd===0,
+   'CTV_CANNOT_CHARGE_BOTH');
+ }else{
+  requireThat(input.vatBps==null,'CTV_CANNOT_CHARGE_BOTH');
+  requireThat(Number.isSafeInteger(input.shippingAmountVnd)&&
+   input.shippingAmountVnd>0&&input.shippingAmountVnd<=1_000_000_000,
+   'CTV_SHIPPING_AMOUNT_INVALID');
+ }
+ const noneVat={scope:'none',rateBps:0,addressIds:[]};
+ const noneShipping={scope:'none',amountVnd:0,addressIds:[]};
+ const policy=validateInvoiceFeePolicy({
+  profileId:input.profileId,confirmed:true,expectedRevision:input.expectedRevision,
+  vat:input.choice==='vat'?{scope:input.scope,rateBps:800,addressIds:selected}:noneVat,
+  shipping:input.choice==='shipping'?{scope:input.scope,
+   amountVnd:input.shippingAmountVnd,addressIds:selected}:noneShipping
+ });
+ return {...policy,choice:input.choice};
+}
+export async function saveCtvInvoiceFeeChoice(pool,actor,input){
+ const requested=validateCtvInvoiceFeeChoice(input),client=await pool.connect();
+ try{
+  await client.query('BEGIN');
+  await client.query('SELECT pg_advisory_xact_lock($1,hashtext($2))',
+   [20261030,requested.profileId]);
+  const profile=await client.query('SELECT id FROM satori_v2_profiles '+
+   'WHERE id=$1 AND account_id=$2 AND type=$3 FOR UPDATE',
+   [requested.profileId,actor.id,'collaborator']);
+  requireThat(profile.rows.length===1,'CTV_CHARGE_PROFILE_FORBIDDEN');
+  const before=await readInvoiceFeePolicy(client,requested.profileId);
+  requireThat(before.revision===requested.expectedRevision,'CHARGE_POLICY_REVISION_CONFLICT');
+  const ids=requested.choice==='vat'?requested.vat.addressIds:requested.shipping.addressIds;
+  if(ids.length){
+   const verified=await client.query('SELECT id FROM satori_v2_addresses '+
+    'WHERE profile_id=$1 AND id=ANY($2::uuid[]) AND active=true',
+    [requested.profileId,ids]);
+   requireThat(verified.rows.length===ids.length,'CHARGE_ADDRESS_NOT_OWNED');
+  }
+  const saved={revision:before.revision+1,vat:requested.vat,shipping:requested.shipping};
+  await client.query('INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
+   'VALUES($1,$2,$3,$4,$5)',
+   [actor.id,'ctv',EVENT,requested.profileId,JSON.stringify(saved)]);
+  await client.query('COMMIT');
+  return {ok:true,profileId:requested.profileId,...saved};
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
+ finally{client.release()}
+}
