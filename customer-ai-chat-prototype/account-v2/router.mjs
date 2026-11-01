@@ -491,6 +491,10 @@ export async function handleAccountV2(req,res,pathname){
  const ownerPage=pathname==='/owner-v2'||pathname==='/owner-v2/';
  const api=pathname.startsWith('/api/v2/');
  if(!page&&!ownerPage&&!api)return false;
+ // Low-cardinality PDF stage only. No invoice number, account, source data,
+ // request body, keys, IP or customer information in diagnostic logs.
+ const pdfRoute=/^\/api\/v2\/orders\/[a-f0-9-]{36}\/pdf$/i.test(pathname);
+ let pdfStage=pdfRoute?'AUTH':null;
  try{
   if(page||ownerPage){
    const html=fs.readFileSync(path.join(HERE,ownerPage?'owner-catalogue.html':'app.html'),'utf8');
@@ -824,6 +828,7 @@ export async function handleAccountV2(req,res,pathname){
     Number(row.invoiceNo)>0&&Number.isSafeInteger(Number(row.total))&&
     row.ledgerId!=null&&/^[A-Za-z0-9_-]{1,80}$/.test(String(row.ledgerId)),
     'PDF_NOT_READY',404);
+   pdfStage='SIGNED_LEDGER';
    // Read the CURRENT invoice after verifying the signed-in account. Local V2
    // pdfmake uses the already-deployed Bot orders.list: no extra GAS PDF
    // module, PDF renderer service, or Drive file is needed.
@@ -837,6 +842,7 @@ export async function handleAccountV2(req,res,pathname){
    const latest=localPdf?current:
     check.orders.get(Number(row.invoiceNo)+'|'+String(row.ledgerId));
    error(latest&&!latest.missing&&!latest.excluded,'PDF_NOT_READY',404);
+   pdfStage='PDFMAKE_RENDER';
    let pdf;
    try{
     pdf=localPdf?await renderCurrentV2Pdf(latest,{
@@ -862,6 +868,7 @@ export async function handleAccountV2(req,res,pathname){
     'x-satori-pdf-sha256':pdf.sha256
    });
    res.end(pdf.bytes);
+   pdfStage=null;
    return true;
   }
   if(pathname==='/api/v2/orders'&&req.method==='GET'){
@@ -1310,6 +1317,19 @@ export async function handleAccountV2(req,res,pathname){
   }
   send(res,404,{ok:false,error:'NOT_FOUND'});return true;
  }catch(e){
+  if(pdfRoute){
+   const source=String(e?.code||e?.message||'');
+   const reason=/^(?:V2_PDF_|PDF_|READ_ONLY_|CANONICAL_)[A-Z0-9_]{0,80}$/.test(source)
+    ?source:'UNCLASSIFIED';
+   console.warn('SATORI_V2_PDF_FAILURE',JSON.stringify({
+    stage:pdfStage||'UNKNOWN',reason
+   }));
+   // Public response is a fixed category; private logs show only a safe
+   // reason code, never a source invoice or account identifier.
+   if(!(e instanceof ApiError))
+    e=new ApiError(pdfStage==='SIGNED_LEDGER'?'PDF_LEDGER_READ_FAILED':
+     'PDF_RENDER_FAILED',503);
+  }
   const known=e instanceof ApiError||e instanceof DomainError||e instanceof CrmError;
   if(!known&&pathname.startsWith('/api/v2/admin/legacy/')){
    const failure=classifyCrmFailure(e),requestId=crypto.randomUUID();
