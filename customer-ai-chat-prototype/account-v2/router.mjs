@@ -22,7 +22,8 @@ import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
-import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees} from './invoice-fee-scopes.mjs';
+import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
+ saveCtvInvoiceFeeChoice} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
 import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
@@ -662,6 +663,17 @@ export async function handleAccountV2(req,res,pathname){
    send(res,200,{ok:true},{'set-cookie':clearCookies()});return true;
   }
 
+  // CTV may modify only its OWN collaborator profile, never admin/global pricing.
+  if(pathname==='/api/v2/ctv/invoice-charge-policy'&&req.method==='GET'){
+   const id=new URL(req.url,'http://local').searchParams.get('profileId');
+   const profile=await profileFor(pool,actor,id);
+   error(profile.type==='collaborator','CTV_PROFILE_FORBIDDEN',403);
+   send(res,200,{ok:true,profileId:id,...await readInvoiceFeePolicy(pool,id)});return true;
+  }
+  if(pathname==='/api/v2/ctv/invoice-charge-policy'&&req.method==='PUT'){
+   const saved=await saveCtvInvoiceFeeChoice(pool,actor,await json(req));
+   send(res,200,saved);return true;
+  }
   if(pathname==='/api/v2/ctv/clients'&&req.method==='GET'){
    const id=new URL(req.url,'http://local').searchParams.get('profileId');
    send(res,200,await ctvClientList(pool,actor,id));return true;
