@@ -2457,6 +2457,7 @@ function attachVerifiedPdfUi(order){
 }
 
 let selectedCanonicalInvoiceId=null;
+let openPdfInvoiceAfterSubmit=null;
 function showCommittedReceipt(order){
  const receipt=order?.receipt;
  if(order?.verified!==true||order.state!=='COMMITTED'||!receipt||
@@ -2679,6 +2680,14 @@ async function loadOrders(){
  const rows=$('orderRows');rows.replaceChildren();
  const v2=data.orders||[];
  for(const order of v2)rows.append(invoiceCard(order));
+ if(openPdfInvoiceAfterSubmit!==null){
+  const justConfirmed=v2.find(x=>x.verified===true&&x.state==='COMMITTED'&&
+   Number(x.invoiceNo)===openPdfInvoiceAfterSubmit);
+  if(justConfirmed){
+   openPdfInvoiceAfterSubmit=null;
+   showCommittedReceipt(justConfirmed);
+  }
+ }
  if(selectedCanonicalInvoiceId&&!$('invoiceDetailView').classList.contains('hidden')){
   const latest=v2.find(x=>x.id===selectedCanonicalInvoiceId);
   if(latest?.verified)showCommittedReceipt(latest);
@@ -3017,6 +3026,7 @@ $('submitTestOrder').onclick=async()=>{
    '✓ Đã nhận ĐƠN THỬ '+String(result.orderId).slice(0,8)+
    ' · Không tạo hóa đơn thật hay phát sinh thanh toán.';
   lastQuote=null;
+  if(live&&Number.isSafeInteger(result.invoiceNo))openPdfInvoiceAfterSubmit=result.invoiceNo;
   await loadOrders();
   toast(live?'Đơn hàng đã xác nhận trên sổ Minh Satori.':'Đã gửi đơn thử; chưa tạo hóa đơn thật.');
  }catch(e){
