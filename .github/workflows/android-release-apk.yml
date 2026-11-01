@@ -98,6 +98,10 @@ jobs:
           SATORI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.SATORI_ANDROID_KEYSTORE_PASSWORD }}
           SATORI_ANDROID_KEY_ALIAS: ${{ secrets.SATORI_ANDROID_KEY_ALIAS }}
           SATORI_ANDROID_KEY_PASSWORD: ${{ secrets.SATORI_ANDROID_KEY_PASSWORD }}
+          SATORI_FCM_APP_ID: ${{ vars.SATORI_FCM_APP_ID }}
+          SATORI_FCM_PROJECT_ID: ${{ vars.SATORI_FCM_PROJECT_ID }}
+          SATORI_FCM_SENDER_ID: ${{ vars.SATORI_FCM_SENDER_ID }}
+          SATORI_FCM_API_KEY: ${{ vars.SATORI_FCM_API_KEY }}
         run: gradle -p android :app:testDebugUnitTest :app:testReleaseUnitTest :app:assembleRelease --no-daemon
       - name: Validate release package, version and signing certificate
         shell: bash

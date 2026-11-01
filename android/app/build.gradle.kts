@@ -17,6 +17,23 @@ android {
     }
 
     buildFeatures { buildConfig = true }
+    // Firebase app configuration identifiers are public; credentials remain server-side.
+    // Without these values, push is disabled and ordinary Android builds still work.
+    val fcmFields = mapOf(
+        "SATORI_FCM_APP_ID" to "SATORI_FCM_APP_ID",
+        "SATORI_FCM_PROJECT_ID" to "SATORI_FCM_PROJECT_ID",
+        "SATORI_FCM_SENDER_ID" to "SATORI_FCM_SENDER_ID",
+        "SATORI_FCM_API_KEY" to "SATORI_FCM_API_KEY"
+    )
+    fcmFields.forEach { (field, env) ->
+        val value = System.getenv(env).orEmpty()
+        require(value.length <= 256 && value.all { it.isLetterOrDigit() || it in "._:-" }) {
+            "Invalid public Firebase configuration: $env"
+        }
+        buildTypes.all {
+            buildConfigField("String", field, "\"" + value + "\"")
+        }
+    }
 
     signingConfigs {
         create("satoriRelease") {
@@ -59,6 +76,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("com.google.android.gms:play-services-auth:22.0.0")
+    implementation("com.google.firebase:firebase-messaging:24.1.2")
     implementation("androidx.credentials:credentials:1.6.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
