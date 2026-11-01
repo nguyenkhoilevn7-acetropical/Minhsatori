@@ -46,6 +46,15 @@ class NotificationDeliveryRecoveryTest(unittest.TestCase):
         self.assertIn("return try{mgr.notify(JOB,notification);true}", notifier)
         self.assertIn("POST_NOTIFICATIONS", notifier)
 
+    def test_native_owner_session_schedules_registration_background_job(self):
+        section = NATIVE.split("private val v2AlertTick=", 1)[1].split(
+            "private fun updateNativeV2Badge(", 1)[0]
+        self.assertIn("if(feed!=null)", section)
+        self.assertIn("V2RegistrationAlerts.schedule(applicationContext)", section)
+        self.assertLess(section.index("if(feed!=null)"),
+                        section.index("V2RegistrationAlerts.schedule(applicationContext)"))
+        self.assertIn("v2AlertJobScheduled=true", section)
+
     def test_background_limit_is_explicit_not_fake_push(self):
         self.assertIn("setPeriodic(15*60*1000L)", REG)
         self.assertIn("True instant background push would require FCM", REG)
