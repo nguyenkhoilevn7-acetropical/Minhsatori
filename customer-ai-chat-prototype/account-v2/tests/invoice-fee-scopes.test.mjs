@@ -82,3 +82,36 @@ test('admin-only routes and server quote freshness use approved VAT and shipping
  assert.doesNotThrow(()=>new vm.Script(owner.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]||''));
  assert.doesNotThrow(()=>new vm.Script(app.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]||''));
 });
+
+
+test('owner may leave VAT and shipping blank or zero without blocking save',()=>{
+ const owner=readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
+ assert.match(owner,/amount\.min='0';amount\.max=/);
+ assert.match(owner,/amount\.required=false;/);
+ const start=owner.indexOf('   return ()=>{\n    const scope=select.value;',owner.indexOf('function ownerInvoiceChargeEditor'));
+ const suffix='\n   };\n  }\n  const vat=feeField';
+ const end=owner.indexOf(suffix,start);
+ assert.ok(start>0&&end>start,'Fee editor validation function missing');
+ const body=owner.slice(start,end+'\n   };'.length);
+ const makeRule=new Function('select','amount','boxes','kind','label',body);
+ const rule=(kind,scope,value,selected=false)=>makeRule(
+  {value:scope},{value:String(value)},
+  [{check:{checked:selected},ids:[a]}],kind,kind
+ )();
+ const offVat={scope:'none',rateBps:0,addressIds:[]};
+ const offShipping={scope:'none',amountVnd:0,addressIds:[]};
+ for(const scope of ['none','all','selected']){
+  for(const value of ['',0,'0']){
+   assert.deepEqual(rule('vat',scope,value),offVat);
+   assert.deepEqual(rule('shipping',scope,value),offShipping);
+  }
+ }
+ assert.deepEqual(rule('vat','all','8'),{scope:'all',rateBps:800,addressIds:[]});
+ assert.deepEqual(rule('shipping','all','25000'),{scope:'all',amountVnd:25000,addressIds:[]});
+ assert.deepEqual(rule('vat','selected','8',true),
+  {scope:'selected',rateBps:800,addressIds:[a]});
+ assert.throws(()=>rule('shipping','selected','10000'),/Cần chọn ít nhất một khách/);
+ assert.throws(()=>rule('shipping','all','1.5'),/số đồng nguyên/);
+ assert.throws(()=>rule('vat','all','100.01'),/VAT phải từ/);
+ assert.throws(()=>rule('shipping','all','-1'),/bằng 0 hoặc số dương/);
+});
