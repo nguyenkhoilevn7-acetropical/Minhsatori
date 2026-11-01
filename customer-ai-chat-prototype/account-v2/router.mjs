@@ -636,7 +636,7 @@ export async function handleAccountV2(req,res,pathname){
    error(ownerFcmConfigured(),'OWNER_PUSH_DISABLED',503);
    const input=await json(req);
    const out=req.method==='POST'
-    ?await registerOwnerDevice(pool,actor.id,input)
+    ?await registerOwnerDevice(pool,actor.id,sha(cookies(req).satori_v2_session),input)
     :await revokeOwnerDevice(pool,actor.id,input);
    send(res,200,out);return true;
   }
