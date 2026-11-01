@@ -5,6 +5,7 @@ on:
       - 'api/InvoicePdfCustomerRead.gs'
       - 'api/BotApi.gs'
       - 'tests/pdf-original-gas-reader.test.cjs'
+      - 'tests/canonical-customer-batch-read.test.cjs'
       - '.github/workflows/pdf-original-reader-fake.yml'
   workflow_dispatch:
 jobs:
@@ -18,4 +19,4 @@ jobs:
         with:
           node-version: '22'
       - name: Verify original archive PDF under isolated fake Drive
-        run: node --test tests/pdf-original-gas-reader.test.cjs
+        run: node --test tests/pdf-original-gas-reader.test.cjs tests/canonical-customer-batch-read.test.cjs
