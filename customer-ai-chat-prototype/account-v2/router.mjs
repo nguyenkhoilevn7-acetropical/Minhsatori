@@ -23,6 +23,7 @@ import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
 import {readExactCurrentInvoices,currentCustomerOrder,currentLinkedHistory} from './canonical-history-read.mjs';
 import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
+import {renderCurrentV2Pdf} from './local-invoice-pdf.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
  saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
@@ -804,9 +805,10 @@ export async function handleAccountV2(req,res,pathname){
   // Browser input supplies an order UUID only, never Drive IDs or credentials.
   const pdfMatch=/^\/api\/v2\/orders\/([a-f0-9-]{36})\/pdf$/i.exec(pathname);
   if(pdfMatch&&req.method==='GET'){
-   // Feature remains read-only and inaccessible until exact ledger and PDF
-   // credentials are authorized and owner has verified current archive files.
-   if(process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED!=='1')
+   // Direct pdfmake runs solely inside the V2 process; the legacy Drive-PDF
+   // path stays available only as an explicit rollback, never both at once.
+   const localPdf=process.env.SATORI_V2_LOCAL_PDFMAKE_ENABLED==='1';
+   if(!localPdf&&process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED!=='1')
     throw new ApiError('PDF_READ_DISABLED',503);
    error(isUuid(pdfMatch[1]),'PDF_ORDER_NOT_FOUND',404);
    const matches=await pool.query(
@@ -818,8 +820,8 @@ export async function handleAccountV2(req,res,pathname){
    error(matches.rows.length===1,'PDF_ORDER_NOT_FOUND',404);
    const row=matches.rows[0];
    error(Number.isSafeInteger(Number(row.invoiceNo))&&
-    Number.isSafeInteger(Number(row.total))&&
-    typeof row.ledgerId==='string'&&row.ledgerId.length>0,
+    Number(row.invoiceNo)>0&&Number.isSafeInteger(Number(row.total))&&
+    row.ledgerId!=null&&/^[A-Za-z0-9_-]{1,80}$/.test(String(row.ledgerId)),
     'PDF_NOT_READY',404);
    // Do not use stale PostgreSQL quote totals after website/Android edits.
    const check=await readExactCurrentInvoices([{
@@ -829,14 +831,18 @@ export async function handleAccountV2(req,res,pathname){
    error(latest&&!latest.missing&&!latest.excluded,'PDF_NOT_READY',404);
    let pdf;
    try{
-    pdf=await readArchivedInvoicePdf({
-     invoiceNo:Number(row.invoiceNo),ledgerId:row.ledgerId,
+    pdf=localPdf?await renderCurrentV2Pdf(latest,{
+     invoiceNo:Number(row.invoiceNo),ledgerId:String(row.ledgerId)
+    }):await readArchivedInvoicePdf({
+     invoiceNo:Number(row.invoiceNo),ledgerId:String(row.ledgerId),
      expectedTotal:Number(latest.totalVnd)
     });
    }catch(e){
     if(e.code==='PDF_NOT_READY')throw new ApiError('PDF_NOT_READY',404);
     if(e.code==='PDF_READ_DISABLED')throw new ApiError('PDF_READ_DISABLED',503);
-    throw new ApiError('PDF_ARCHIVE_UNAVAILABLE',503);
+    if(e.code==='V2_PDF_CURRENT_INVOICE_REQUIRED')throw new ApiError('PDF_NOT_READY',404);
+    // Never return a previously cached or stale PDF on any mismatch.
+    throw new ApiError(localPdf?'PDF_V2_RENDER_UNAVAILABLE':'PDF_ARCHIVE_UNAVAILABLE',503);
    }
    const disposition=new URL(req.url,'https://v2.local').searchParams.get('download')==='1'?
     'attachment':'inline';
