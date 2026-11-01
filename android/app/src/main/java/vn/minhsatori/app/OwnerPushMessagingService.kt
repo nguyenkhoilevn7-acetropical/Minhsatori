@@ -71,6 +71,20 @@ class OwnerPushMessagingService : FirebaseMessagingService() {
                 .setAutoCancel(true).build()
             try {
                 manager.notify(eventId.hashCode(), notification)
+                if (!invoice) {
+                    // The existing V2 foreground registration poll uses
+                    // SHA-256(account UUID) hashes. A successful FCM OS post
+                    // must not create a second registration notification.
+                    val digest = data["registrationDigest"]
+                    if (digest != null && digest.matches(Regex("^[a-f0-9]{64}$"))) {
+                        val registrationPrefs = getSharedPreferences(
+                            "satori_v2_registration_alerts", Context.MODE_PRIVATE)
+                        val existing = registrationPrefs.getStringSet("seen_hashes",
+                            emptySet())?.toSet().orEmpty()
+                        registrationPrefs.edit().putStringSet("seen_hashes",
+                            (existing + digest).toList().takeLast(250).toSet()).apply()
+                    }
+                }
                 if (invoice && invoiceNumber != null) {
                     // The foreground canonical-ledger fallback must not post a
                     // second OS notification for this same verified invoice.
@@ -91,7 +105,7 @@ class OwnerPushMessagingService : FirebaseMessagingService() {
 
 /** Pure policy; covered by JVM tests without Android/network dependencies. */
 object OwnerPushPolicy {
-    private val identifier = Regex("^[0-9a-fA-F-]{36}$")
+    private val identifier = Regex("^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
     fun valid(type: String, eventId: String, invoiceNo: Long?): Boolean {
         if (!identifier.matches(eventId)) return false
         return when (type) {
