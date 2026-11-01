@@ -1,10 +1,10 @@
 {
-  "purpose": "android-payment-confirmation-and-owner-write-safety",
+  "purpose": "android-v0.4.41-new-invoice-card-read-auto-ack",
   "package": "vn.minhsatori.app",
-  "version": "0.4.40",
-  "versionCode": 57,
-  "branch": "fix/android-payment-completion-20261031",
-  "requestedOn": "2026-10-31",
+  "version": "0.4.41",
+  "versionCode": 58,
+  "branch": "fix/android-unread-invoice-card-ack-20261101",
+  "requestedOn": "2026-11-01",
   "sourcePRs": [
     240,
     241,
@@ -32,9 +32,11 @@
     318,
     315,
     316,
-    317
+    317,
+    319,
+    320
   ],
-  "scope": "Owner payment completion on PR318; explicit before/after confirmation, independent payment facts, audit and replay safety. Original signer only. Production acceptance and physical Fold tests remain required.",
+  "scope": "Android owner UI only: dismissing a viewed invoice detail card marks just that invoice number as read, removing its red new-order marker and updating Home and Invoice navigation badge counts; other unread invoices and later new orders retain their alerts. Preserve all payment code, Gemini, ChatGPT, V2, PDF, production ledger, and original signer; owner-only acceptance, no production write.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -79,6 +81,7 @@
     "2026-10-30: Authoritative read-only Bot API revision189 confirms #5914 Đã hủy and customerPaidAt 2026-10-19 (only one of 3 cancelled bills with prior paidAt). Preserve the historical timestamp, suppress false paid UI; immutable checked write-path hashes. PR #313 on #312. v0.4.37 code54 signed owner APK after tests and certificate verification, no real financial writes.",
     "2026-10-30: Verified authoritative Bot API revision190 #5916 status Không Tính total1,727,996. Display-only Android fix PR #314 stacked on #313. Original bill total retained; accounting contribution/payable shown 0. v0.4.38 build55 signed owner acceptance only; CI + signer required. Production records untouched.",
     "2026-10-31: Explicit owner request to remove Accounting Pro. PR #318 implements removal and passes Android debug CI and UI screenshot. Prepare signed owner acceptance APK v0.4.39 build56 with exact existing signer. Do not merge, silently deploy, send debug APK, reinstall/uninstall, or mutate Production orders.",
-    "2026-10-31: Payment completion candidate. No real payment test writes; do not declare production/device acceptance from offline tests."
+    "2026-10-31: Payment completion candidate. No real payment test writes; do not declare production/device acceptance from offline tests.",
+    "2026-11-01: Owner requested new-order badge disappear after viewing a card. PR #320 implements per-invoice acknowledge on detail dismiss; offline tests required. Signed owner APK v0.4.41 build58, same original cert. No Android data clearing or web/backend changes."
   ]
 }
