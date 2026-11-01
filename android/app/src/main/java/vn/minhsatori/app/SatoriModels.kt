@@ -75,7 +75,8 @@ data class SatoriInvoice(
     val pairDiscountPercent: Double? = null,
     val satoriPaidAt: String = "",
     // Only audit identifiers, never payment proofs/secrets, are retained in memory.
-    val paymentAuditKeys: Set<String> = emptySet()
+    val paymentAuditKeys: Set<String> = emptySet(),
+    val creationTimestampMillis: Long? = null
 ) {
     val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
     val isCustomerPairBill: Boolean get() = pairRole == "customer"
@@ -126,6 +127,13 @@ data class SatoriInvoice(
             "00000000"
         }
     }
+    val creationTimeLabel: String get() = creationTimestampMillis
+        ?.takeIf { it in 946684800000L..4102444799999L }
+        ?.let { millis ->
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+                .withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+                .format(java.time.Instant.ofEpochMilli(millis))
+        } ?: ""
     val hasValidDate: Boolean get() = sortDate != "00000000"
     val displayDate: String get() =
         if (hasValidDate) date else "⚠ Ngày cần kiểm tra: " + date.ifBlank { "(trống)" }
@@ -273,7 +281,10 @@ object SatoriData {
                 pairCollaboratorName = string(x, "pairCollaboratorName"),
                 pairDiscountPercent = if (x.has("pairDiscountPercent") &&
                     !x.isNull("pairDiscountPercent"))
-                    x.optDouble("pairDiscountPercent").takeIf { it.isFinite() } else null
+                    x.optDouble("pairDiscountPercent").takeIf { it.isFinite() } else null,
+                // Source creation time ONLY: never updatedAt, refresh time or preview time.
+                creationTimestampMillis = x.optLong("timestamp", 0L)
+                    .takeIf { it in 946684800000L..4102444799999L }
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
