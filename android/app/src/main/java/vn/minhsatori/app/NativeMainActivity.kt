@@ -1753,7 +1753,7 @@ class NativeMainActivity : AppCompatActivity() {
         val marginAll = AccountingProMargin45.summarize(
             marginRows, AccountingProMargin45Period.all())
         section(parent,
-            (if (data.collaboratorRegistryLoaded) "TỔNG LỢI NHUẬN SAU CTV (ƯỚC TÍNH): "
+            (if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) "TỔNG LỢI NHUẬN SAU CTV (ƯỚC TÍNH): "
                 else "TỔNG LỢI NHUẬN · THIẾU HỒ SƠ CTV: ") +
                 (marginAll.estimatedMarginKnownVnd?.let(SatoriData::money)
                     ?: "Chưa đủ dữ liệu"),
@@ -2717,7 +2717,7 @@ class NativeMainActivity : AppCompatActivity() {
                     put(it.invoice, it)
                 }
             }
-        if (!data.collaboratorRegistryLoaded) {
+        if (!(data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) {
             label(parent, "⚠ Chưa có hồ sơ CTV từ " + dataSource +
                 ". Lợi nhuận chưa được tính; kết nối Drive chỉ đọc hoặc cập nhật Mobile API.",
                 11.5f, true, invoiceMoneyRed, 7)
@@ -2736,7 +2736,7 @@ class NativeMainActivity : AppCompatActivity() {
                 invoiceQuickCard(list, inv)
                 if (!inv.isExcluded)
                     showProfitInsideInvoiceCard(list, marginByInvoice[inv],
-                        data.collaboratorRegistryLoaded)
+                        (data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
             }
             // Filter/search callbacks build cards *after* render(); normalize
             // prices here as well so old green inline TextViews cannot reappear.
@@ -3045,7 +3045,7 @@ class NativeMainActivity : AppCompatActivity() {
             orientation=LinearLayout.VERTICAL
             setPadding(dp(14),dp(12),dp(14),dp(16))
         }
-        label(panel,if(data.collaboratorRegistryLoaded)
+        label(panel,if((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
                 "LỢI NHUẬN SAU CTV (ƯỚC TÍNH)"
             else "THIẾU HỒ SƠ CTV · CHƯA TÍNH LỢI NHUẬN",
             15f,true,ink)
@@ -3324,7 +3324,7 @@ class NativeMainActivity : AppCompatActivity() {
         val known = report.margin.computedInvoiceCount
         val eligible = report.margin.totalInvoiceCount
         val unknown = report.margin.missingInvoiceCount
-        totalCard(if (data.collaboratorRegistryLoaded) "Tổng lợi nhuận sau CTV"
+        totalCard(if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) "Tổng lợi nhuận sau CTV"
             else "Lợi nhuận · thiếu hồ sơ CTV",
             report.margin.estimatedMarginKnownVnd?.let(SatoriData::money)
                 ?: "Chưa đủ dữ liệu",
@@ -3332,7 +3332,7 @@ class NativeMainActivity : AppCompatActivity() {
                 (if (unknown > 0) " · $unknown chưa rõ" else ""),
             Color.rgb(244, 250, 247))
         parent.addView(totals)
-        label(parent, (if (data.collaboratorRegistryLoaded)
+        label(parent, (if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
             "Lợi nhuận sau hoa hồng CTV được đối chiếu từ hồ sơ đăng ký; "
             else "⚠ Mobile API chưa gửi hồ sơ CTV. Không hiển thị lãi gộp thành lợi nhuận; ") +
             "ước tính theo giá nhập chiết khấu 45%, chưa trừ phí giao và vận hành.",
@@ -3346,7 +3346,7 @@ class NativeMainActivity : AppCompatActivity() {
         report.outstandingInvoices.forEach { invoice ->
             invoiceQuickCard(parent, invoice, fromDebt = true)
             showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],
-                data.collaboratorRegistryLoaded)
+                (data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
         }
         if (report.outstandingInvoices.isEmpty())
             section(parent, "Không có hóa đơn cần thu trong kỳ",
@@ -3969,7 +3969,7 @@ class NativeMainActivity : AppCompatActivity() {
     private fun reconcileMobileCtvRegistry(remote: MobileSnapshot,
                                            token: String): MobileSnapshot {
         val api = remote.snapshot
-        if (api.collaboratorRegistryLoaded) return remote
+        if (api.collaboratorRegistryLoaded && api.collaborators.isNotEmpty()) return remote
         val cached = if (ctvBridgeToken == token)
             ctvBridgeSnapshot?.let { CtvProfitSourcePolicy.recover(api, it) }
             else null
@@ -4030,7 +4030,7 @@ class NativeMainActivity : AppCompatActivity() {
                         dataSource = "Minh Satori API"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
-                        statusMessage = if (it.snapshot.collaboratorRegistryLoaded)
+                        statusMessage = if (it.snapshot.collaboratorRegistryLoaded && it.snapshot.collaborators.isNotEmpty())
                             "Đã đồng bộ hóa đơn và hồ sơ CTV (" +
                                 it.snapshot.collaborators.size + " hồ sơ)."
                         else "⚠ Mobile API chưa gửi hồ sơ CTV và Drive chưa cấp quyền đọc. " +
