@@ -40,6 +40,11 @@ if(process.env.SATORI_ACCOUNT_V2_MIGRATION_APPROVED==='1'){
  console.info('V2_MIGRATION_SCHEMA_READBACK_PASSED');
 }
 await import('./standalone.mjs');
+ // This is the actual Render V2 entry point (not legacy server.mjs).
+ // The relay remains fully disabled without explicit protected configuration.
+ void import('./owner-fcm-relay.mjs')
+  .then(({startOwnerFcmRelay})=>startOwnerFcmRelay())
+  .catch(()=>console.warn('SATORI_OWNER_FCM_NOT_STARTED'));
 // Async read-only catalogue coverage; never block service availability.
 import('./catalogue-readiness-log.mjs').then(({logCatalogueSnapshot})=>logCatalogueSnapshot()).catch(()=>{});
 
