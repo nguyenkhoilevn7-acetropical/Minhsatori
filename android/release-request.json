@@ -82,6 +82,7 @@
     "2026-10-30: Verified authoritative Bot API revision190 #5916 status Không Tính total1,727,996. Display-only Android fix PR #314 stacked on #313. Original bill total retained; accounting contribution/payable shown 0. v0.4.38 build55 signed owner acceptance only; CI + signer required. Production records untouched.",
     "2026-10-31: Explicit owner request to remove Accounting Pro. PR #318 implements removal and passes Android debug CI and UI screenshot. Prepare signed owner acceptance APK v0.4.39 build56 with exact existing signer. Do not merge, silently deploy, send debug APK, reinstall/uninstall, or mutate Production orders.",
     "2026-10-31: Payment completion candidate. No real payment test writes; do not declare production/device acceptance from offline tests.",
-    "2026-11-01: Owner requested new-order badge disappear after viewing a card. PR #320 implements per-invoice acknowledge on detail dismiss; offline tests required. Signed owner APK v0.4.41 build58, same original cert. No Android data clearing or web/backend changes."
+    "2026-11-01: Owner requested new-order badge disappear after viewing a card. PR #320 implements per-invoice acknowledge on detail dismiss; offline tests required. Signed owner APK v0.4.41 build58, same original cert. No Android data clearing or web/backend changes.",
+    "2026-11-01: Retry signed release after replacing only the reviewed openInvoice static checksum; original financial writers untouched. New per-invoice read badge regression passes; existing 100 other Python checks passed."
   ]
 }
