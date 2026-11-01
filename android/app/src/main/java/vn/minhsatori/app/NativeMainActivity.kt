@@ -198,6 +198,9 @@ class NativeMainActivity : AppCompatActivity() {
     // owner WebView session; never borrow a Google Drive OAuth scope.
     private val v2AlertHandler=Handler(Looper.getMainLooper())
     private val v2AlertExecutor=java.util.concurrent.Executors.newSingleThreadExecutor()
+    // Installed only after the server has verified an owner notification feed.
+    // Previously this job was scheduled only after manually opening CRM.
+    private var v2AlertJobScheduled = false
     private var v2SignupBadge:TextView?=null
     private val v2AlertTick=object:Runnable{
         override fun run(){
@@ -209,6 +212,10 @@ class NativeMainActivity : AppCompatActivity() {
                         try{
                             val feed=V2RegistrationAlerts.fetch(cookie)
                             if(feed!=null){
+                                if(!v2AlertJobScheduled){
+                                    V2RegistrationAlerts.schedule(applicationContext)
+                                    v2AlertJobScheduled=true
+                                }
                                 val count=V2RegistrationAlerts.process(applicationContext,feed)
                                 runOnUiThread{
                                     if(!isFinishing&&!isDestroyed)updateNativeV2Badge(count)
