@@ -85,6 +85,7 @@
     "2026-10-31: Payment completion candidate. No real payment test writes; do not declare production/device acceptance from offline tests.",
     "2026-11-01: Owner requested new-order badge disappear after viewing a card. PR #320 implements per-invoice acknowledge on detail dismiss; offline tests required. Signed owner APK v0.4.41 build58, same original cert. No Android data clearing or web/backend changes.",
     "2026-11-01: Retry signed release after replacing only the reviewed openInvoice static checksum; original financial writers untouched. New per-invoice read badge regression passes; existing 100 other Python checks passed.",
-    "2026-11-01: Owner reports tapping new-invoice system notification does not open app. Root cause missing Notification.Builder.setContentIntent; PR #321 fixes with safe explicit activity PendingIntent, verifies snapshot before opening detail. Original signing certificate; no Production writes. Device acceptance still pending."
+    "2026-11-01: Owner reports tapping new-invoice system notification does not open app. Root cause missing Notification.Builder.setContentIntent; PR #321 fixes with safe explicit activity PendingIntent, verifies snapshot before opening detail. Original signing certificate; no Production writes. Device acceptance still pending.",
+    "2026-11-01: Owner explicitly requested latest installable Android APK v0.4.42 build59. Request isolated signed Samsung acceptance build on the original pinned certificate, with exact package/version/certificate/APK SHA-256 verification. No production API deployment, invoice/payment writes, or debug APK substitution. Timestamp enhancement PR336 remains separate and is not included in this candidate."
   ]
 }
