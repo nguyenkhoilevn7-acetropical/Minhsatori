@@ -1084,9 +1084,12 @@ function ownerInvoiceChargeEditor(profileId,addresses,refresh){
    const amount=document.createElement('input');amount.type='number';
    amount.min='0';amount.max=kind==='vat'?'100':'1000000000';
    amount.step=kind==='vat'?'0.01':'1';amount.inputMode='decimal';
-   amount.value=config.scope==='none'?'':String(kind==='vat'?config.rateBps/100:config.amountVnd);
+   amount.value=config.scope==='none'||(kind==='shipping'&&config.rateBps>0)?'':String(kind==='vat'?config.rateBps/100:config.amountVnd);
    amount.placeholder=kind==='vat'?'Để trống hoặc 0 = không tính VAT':'Để trống hoặc 0 = miễn phí giao hàng';
    amountLabel.append(amount);section.append(amountLabel);
+   if(kind==='shipping'&&config.rateBps>0)section.append(make('small',
+    'CTV đang áp dụng Shipping '+config.rateBps/100+'%. Để trống để giữ nguyên tỷ lệ; nhập 0 để tắt, hoặc nhập số đồng để thay thế.',
+    'crm-charge-help'));
    const list=make('div',null,'crm-charge-recipients');
    list.append(make('strong','Chọn khách nhận hàng'));
    const boxes=[];
@@ -1111,7 +1114,13 @@ function ownerInvoiceChargeEditor(profileId,addresses,refresh){
     const raw=amount.value.trim();
     const input=scope==='none'||raw===''?0:Number(raw);
     if(!Number.isFinite(input)||input<0)throw Error(label+' phải bằng 0 hoặc số dương hợp lệ.');
-    // Canonical disabled policy for an empty/zero amount: never charge silently.
+    // Preserve existing CTV percentage shipping unless owner explicitly overrides.
+    if(kind==='shipping'&&config.rateBps>0&&scope!=='none'&&raw===''){
+     const selectedIds=scope==='selected'?boxes.flatMap(x=>x.check.checked?x.ids:[]):[];
+     if(scope==='selected'&&!selectedIds.length)throw Error('Cần chọn ít nhất một khách cho '+label);
+     return {scope,amountVnd:0,rateBps:config.rateBps,addressIds:selectedIds};
+    }
+    // Canonical disabled policy for a blank/zero owner amount: no charge.
     if(input===0)return kind==='vat'?{scope:'none',rateBps:0,addressIds:[]}:
      {scope:'none',amountVnd:0,addressIds:[]};
     const selectedIds=scope==='selected'?boxes.flatMap(x=>x.check.checked?x.ids:[]):[];
