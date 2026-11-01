@@ -135,8 +135,9 @@ function handle(e){
     data:trash(s),revision:s.revision});
   // No privileged owner secrets, state-file IDs, payment keys, PDF bytes or
   // entire Script Properties may be returned to the Android device.
+  // Owner-authenticated, read-only CTV registry for accurate owner net profit.
   var keys=['satori_orders_v15','satori_catalogue_v15',
-    'satori_ai_customer_memory'];
+    'satori_ai_customer_memory','satori_collaborators_v1'];
   var values={};keys.forEach(function(k){if(typeof s.values[k]==='string')
     values[k]=s.values[k]});
   return json({ok:true,action:action,revision:s.revision,
