@@ -169,7 +169,8 @@ class AccountingProMargin45Test {
         // factory 45% discount and registered collaborator 35% discount.
         val bill = invoice(no="5966", unitPrice=266_666L, listPrice=333_333L,
             qty=10, total=2_879_993L, vat=213_333L)
-        val ctv = SatoriCollaborator("ctv-verified", "DEMO", "0900000000", 35.0)
+        // Real legacy orders use the receiver phone, NOT the registered CTV phone.
+        val ctv = SatoriCollaborator("ctv-verified", "DEMO", "0988888888", 35.0)
         val result = AccountingProMargin45.calculate(listOf(bill), listOf(ctv)).single()
         assertEquals(833_328L, result.saleGoodsVnd!! - result.estimatedPurchaseVnd!!)
         assertEquals(499_995L, result.estimatedCtvCommissionVnd)
@@ -178,17 +179,52 @@ class AccountingProMargin45Test {
         assertEquals(213_333L, bill.vat)
     }
 
-    @Test fun mismatchedOrDuplicateCtvIdentityCannotInventNetProfit() {
+    @Test fun recipientPhoneDoesNotDetermineCtvOwnershipButNameMustBeUnique() {
         val bill = invoice()
-        val wrongPhone = SatoriCollaborator("ctv1", "DEMO", "0988888888", 35.0)
-        val conflicting = AccountingProMargin45.calculate(listOf(bill),
-            listOf(wrongPhone)).single()
-        assertNull(conflicting.estimatedOwnerMarginVnd)
-        val valid = SatoriCollaborator("ctv2", "DEMO", "0900000000", 35.0)
-        assertNull(AccountingProMargin45.calculate(listOf(bill),
-            listOf(valid, valid.copy(id="ctv3"))).single().estimatedOwnerMarginVnd)
+        val registered = SatoriCollaborator("ctv1", "DEMO", "0988888888", 35.0)
+        // 80% customer sale, 65% registered CTV base, 55% supplier basis.
+        // Different recipient phone MUST NOT suppress 15% CTV commission.
+        val correct = AccountingProMargin45.calculate(listOf(bill),
+            listOf(registered)).single()
+        assertEquals(150_000L, correct.estimatedCtvCommissionVnd)
+        assertEquals(100_000L, correct.estimatedOwnerMarginVnd)
+        // A regular customer with a different name must not inherit CTV rates.
+        val unrelated = registered.copy(name="OTHER")
+        assertEquals(250_000L, AccountingProMargin45.calculate(listOf(bill),
+            listOf(unrelated)).single().estimatedOwnerMarginVnd)
+        // Same-name duplicates are ambiguous even with different registered phones.
+        val duplicate = registered.copy(id="ctv2",phone="0900000000")
+        val unresolved = AccountingProMargin45.calculate(listOf(bill),
+            listOf(registered,duplicate)).single()
+        assertNull(unresolved.estimatedOwnerMarginVnd)
+        assertNotNull(unresolved.reason)
+        // An explicit, verified CTV ID continues to support third-party buyers.
+        val assigned = bill.copy(customer="CUSTOMER",collaboratorId=registered.id)
+        assertEquals(100_000L, AccountingProMargin45.calculate(listOf(assigned),
+            listOf(registered)).single().estimatedOwnerMarginVnd)
         assertEquals(250_000L, AccountingProMargin45.calculate(listOf(bill))
-            .single().estimatedOwnerMarginVnd) // Gross, UI must label it gross
+            .single().estimatedOwnerMarginVnd) // Gross only if registry unavailable
+    }
+
+    @Test fun alreadyAtCtvUnitPriceRoundingDoesNotMakePhantomNegativeCommission() {
+        // Legacy #5917-shaped data: six units priced individually at 35% off.
+        // The aggregate 65% base rounds a few dong above the summed unit prices.
+        val invoice = invoice(no="5917",qty=6,unitPrice=216_666L,
+            listPrice=333_333L,total=1_403_996L,shipping=104_000L)
+        val priced = invoice.copy(lines=invoice.lines.map {
+            it.copy(discountPercent=35.0)
+        })
+        val registered=SatoriCollaborator("ctv1","DEMO","0988888888",35.0)
+        val result=AccountingProMargin45.calculate(listOf(priced),listOf(registered)).single()
+        assertEquals(0L,result.estimatedCtvCommissionVnd)
+        assertEquals(199_997L,result.estimatedOwnerMarginVnd)
+        // A lower, unverified price must continue to fail closed.
+        val priceConflict=priced.copy(lines=priced.lines.map {
+            it.copy(unitPrice=210_000L)
+        },total=1_364_000L)
+        val blocked=AccountingProMargin45.calculate(listOf(priceConflict),listOf(registered)).single()
+        assertNull(blocked.estimatedOwnerMarginVnd)
+        assertNotNull(blocked.reason)
     }
 
     @Test fun originalInvoiceObjectsAreNeverMutated() {
