@@ -44,7 +44,7 @@ class FullscreenInvoiceVisualTest {
         SystemClock.sleep(650)
         val shot = inst.uiAutomation.takeScreenshot()
         assertTrue("Fullscreen screenshot unavailable", shot != null)
-        val folder = context.getExternalFilesDir(null)!!
+        val folder = context.filesDir
         val out = File(folder, "ui25d-invoice-fullscreen.png")
         FileOutputStream(out).use { stream ->
             assertTrue(shot.compress(Bitmap.CompressFormat.PNG, 100, stream))
