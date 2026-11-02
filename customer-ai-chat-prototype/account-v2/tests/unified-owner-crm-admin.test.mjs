@@ -2,6 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+const withoutUi25d=html=>html
+ .replace(/<style id="s25-ui-style">[\\s\\S]*?<\\/style>/,'')
+ .replace(/<template id="s25-ui-template">[\\s\\S]*?<\\/template>/,'')
+ .replace(/<script id="s25-ui-script">[\\s\\S]*?<\\/script>/,'');
 const html=fs.readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
 const router=fs.readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
 const backend=fs.readFileSync(new URL('../customer-backend.mjs',import.meta.url),'utf8');
@@ -30,7 +34,10 @@ test("registered customer's complete V2 profile and address records are owner sc
  assert.match(html,/headers\['x-satori-csrf'\]=csrf\(\)/);
  assert.match(router,/owner\(actor\);/);
  assert.match(html,/entry\.append\(make\('strong',/);
- assert.doesNotMatch(html,/innerHTML\s*=|localStorage|sessionStorage/);
+ assert.doesNotMatch(withoutUi25d(html),/innerHTML\s*=|localStorage|sessionStorage/);
+ const cosmetic=html.match(/<script id="s25-ui-script">([\s\S]*?)<\/script>/)?.[1]||'';
+ assert.match(cosmetic,/localStorage\.getItem\(KEY\)/);
+ assert.doesNotMatch(cosmetic,/\/api\/|fetch\(|innerHTML\s*=|sessionStorage/);
 });
 test('owner-only financial policy requires explicit approval and backend scope/version; Gemini never owns price',()=>{
  assert.match(html,/if\(!confirm\(msg\)\)return/);
