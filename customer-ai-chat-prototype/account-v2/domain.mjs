@@ -20,8 +20,8 @@ export function validateAddress(input){
  ensure(/^\+?[0-9]{9,15}$/.test(phone),'PHONE_INVALID');
  return {label:input.label.trim(),recipientName:input.recipientName.trim(),recipientPhone:phone,address:input.address.trim()};
 }
-// Changes to an approved delivery point are owner-only and versioned.
-// A previous quote never changes its historical delivery snapshot.
+// The current saved address can be edited by its verified account owner.
+// Submitted invoice delivery remains in the independent signed quote snapshot.
 export function validateAdminProfileEdit(input){
  ensure(input&&typeof input==='object'&&!Array.isArray(input),'PROFILE_UPDATE_INVALID');
  ensure(isUuid(input.profileId),'PROFILE_REQUIRED');
@@ -33,15 +33,23 @@ export function validateAdminProfileEdit(input){
  ensure(!phone||/^\+?[0-9]{9,15}$/.test(phone),'PHONE_INVALID');
  return {profileId:input.profileId,name:input.name.trim(),phone,expectedRevision:input.expectedRevision};
 }
-export function validateAdminAddressEdit(input){
+function validateAddressRevisionEdit(input,confirmationCode){
  ensure(input&&typeof input==='object'&&!Array.isArray(input),'ADDRESS_UPDATE_INVALID');
  ensure(isUuid(input.profileId)&&isUuid(input.addressId),'ADDRESS_ID_REQUIRED');
- ensure(input.confirmed===true,'OWNER_CONFIRMATION_REQUIRED');
+ ensure(input.confirmed===true,confirmationCode);
  ensure(Number.isSafeInteger(input.expectedRevision)&&input.expectedRevision>=1&&
   input.expectedRevision<2_147_483_647,'ADDRESS_REVISION_REQUIRED');
  ensure(typeof input.active==='boolean','ADDRESS_ACTIVE_REQUIRED');
  return {...validateAddress(input),profileId:input.profileId,addressId:input.addressId,
   active:input.active,expectedRevision:input.expectedRevision};
+}
+export function validateAdminAddressEdit(input){
+ return validateAddressRevisionEdit(input,'OWNER_CONFIRMATION_REQUIRED');
+}
+// Same revision/field validation, without granting any owner-only privileges.
+// The server PATCH additionally checks exact address + profile + account ownership.
+export function validateCustomerAddressEdit(input){
+ return validateAddressRevisionEdit(input,'CUSTOMER_CONFIRMATION_REQUIRED');
 }
 export function normalizeCart(input){
  ensure(Array.isArray(input)&&input.length>0&&input.length<=40,'CART_INVALID');
