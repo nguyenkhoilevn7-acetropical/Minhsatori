@@ -1601,6 +1601,7 @@ class NativeMainActivity : AppCompatActivity() {
         tile.addView(pictogram, LinearLayout.LayoutParams(dp(31), dp(31)))
         label(tile, title, 12f, true, ink, 5)
         label(tile, subtitle, 10f, false, softInk, 3)
+        tile.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
@@ -2524,7 +2525,8 @@ class NativeMainActivity : AppCompatActivity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(12), dp(13), dp(12))
-            background = panelBackground(Color.rgb(255, 255, 255), 16)
+            background = panelBackground(Color.rgb(255, 255, 255), 20)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(4).toFloat() else 0f
         }
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -2915,7 +2917,8 @@ class NativeMainActivity : AppCompatActivity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(13), dp(13), dp(12))
-            background = panelBackground(surface, 16)
+            background = panelBackground(surface, 20)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(4).toFloat() else 0f
             isClickable = true
             isFocusable = true
             contentDescription = "Xem khách " + customer.customer + ", " + count + " hóa đơn"
