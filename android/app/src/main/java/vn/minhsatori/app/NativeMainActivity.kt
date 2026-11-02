@@ -922,7 +922,66 @@ class NativeMainActivity : AppCompatActivity() {
             }
         }
 
-        // A single hamburger keeps all tasks accessible without five permanent tabs.
+        // Five compact bottom destinations match the approved 2.5D mobile preview.
+        // The owner-only back office is represented by the last destination; advanced
+        // activities stay in the hidden hamburger drawer on every width, including Fold.
+        val primaryTabs = listOf(
+            Triple(0, "Trang chủ", R.drawable.ic_satori_dashboard),
+            Triple(1, "Hóa đơn", R.drawable.ic_satori_invoice),
+            Triple(4, "Lên đơn", R.drawable.ic_satori_plus),
+            Triple(3, "Công nợ", R.drawable.ic_satori_debt),
+            Triple(5, "Quản trị", R.drawable.ic_satori_settings)
+        )
+        val bottomNav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(5), dp(7), dp(5), dp(6))
+            background = panelBackground(surface, 20)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(9).toFloat() else dp(2).toFloat()
+            contentDescription = "Điều hướng Minh Satori"
+        }
+        primaryTabs.forEach { (target, title, image) ->
+            val selected = activeTab == target
+            val entry = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(2), dp(5), dp(2), dp(4))
+                background = background(
+                    if (selected) SatoriUiTheme.soft(this@NativeMainActivity)
+                    else Color.TRANSPARENT, 15)
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Mở " + title
+                if (selected) isSelected = true
+                setOnClickListener {
+                    if (activeTab != target) {
+                        activeTab = target
+                        render()
+                    }
+                }
+            }
+            val picture = ImageView(this).apply {
+                setImageResource(image)
+                setColorFilter(if (selected) cyan else softInk)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setPadding(dp(4), dp(4), dp(4), dp(4))
+            }
+            entry.addView(picture, LinearLayout.LayoutParams(dp(32), dp(31)))
+            val caption = TextView(this).apply {
+                text = title
+                gravity = Gravity.CENTER
+                setTextColor(if (selected) cyan else softInk)
+                textSize = 10f
+                includeFontPadding = false
+                if (selected) setTypeface(typeface, Typeface.BOLD)
+                maxLines = 1
+            }
+            entry.addView(caption, LinearLayout.LayoutParams(-1, dp(21)))
+            bottomNav.addView(entry, LinearLayout.LayoutParams(0, dp(61), 1f))
+        }
+        shell.addView(bottomNav, LinearLayout.LayoutParams(-1, dp(77)))
+
+        // Hamburger actions are always collapsed and reveal only after a tap.
         // Pure native Android animation: no webview, no new dependencies.
         val scrim = View(this).apply {
             setBackgroundColor(Color.argb(115, 10, 16, 28))
