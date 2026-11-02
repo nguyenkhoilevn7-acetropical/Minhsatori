@@ -13,9 +13,10 @@ import java.util.zip.ZipOutputStream
 internal object OwnerExcelExport {
     private const val NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
     private data class Cell(val text: String? = null, val amount: Long? = null,
-                            val formula: String? = null)
+                            val formula: String? = null, val currency: Boolean = true)
     private fun text(s: String?) = Cell(text = s.orEmpty())
     private fun money(n: Long?) = Cell(amount = n)
+    private fun number(n: Long?) = Cell(amount = n, currency = false)
 
     fun write(snapshot: SatoriSnapshot, selected: List<SatoriInvoice>, output: OutputStream) {
         require(selected.isNotEmpty()) { "Không có hóa đơn trong bộ lọc." }
@@ -33,7 +34,9 @@ internal object OwnerExcelExport {
                     "Thiếu chứng cứ giá vốn hoặc chính sách CTV.")
         }
         val known = profit.mapNotNull { it.estimatedOwnerMarginVnd }
-        val knownTotal = known.fold(0L, Math::addExact)
+        // Do not print zero margin when no invoice had verifiable CTV / cost data.
+        val knownTotal = known.takeIf { it.isNotEmpty() }
+            ?.fold(0L, Math::addExact)
         ZipOutputStream(output.buffered()).use { zip ->
             zip.setLevel(6)
             part(zip, "[Content_Types].xml", types())
@@ -78,10 +81,10 @@ internal object OwnerExcelExport {
                         text(if (inv.satoriHasPaid) "Đã TT Satori" else "Chưa TT Satori"))
                 })
             sheet(zip, 3, listOf("Chỉ số", "Số liệu", "Giải thích"), sequenceOf(
-                listOf(text("Revision"), money(snapshot.revision), text("Bản dữ liệu đã xác thực")),
-                listOf(text("Số hóa đơn đã lọc"), money(totals.recordCount.toLong()), text("Tính cả bill loại trừ")),
-                listOf(text("Hóa đơn hợp lệ"), money(totals.countedCount.toLong()), text("Không gồm TEST / hủy / Không Tính / bill CTV nội bộ")),
-                listOf(text("Hóa đơn loại trừ"), money(totals.excludedCount.toLong()), text("Không cộng trùng doanh thu")),
+                listOf(text("Revision"), number(snapshot.revision), text("Bản dữ liệu đã xác thực")),
+                listOf(text("Số hóa đơn đã lọc"), number(totals.recordCount.toLong()), text("Tính cả bill loại trừ")),
+                listOf(text("Hóa đơn hợp lệ"), number(totals.countedCount.toLong()), text("Không gồm TEST / hủy / Không Tính / bill CTV nội bộ")),
+                listOf(text("Hóa đơn loại trừ"), number(totals.excludedCount.toLong()), text("Không cộng trùng doanh thu")),
                 listOf(text("Doanh thu"), Cell(amount = totals.revenue,
                     formula = "SUM('Hoa don'!H2:H" + (selected.size + 1) + ")"), text("Chỉ các bill hợp lệ")),
                 listOf(text("Khách đã thanh toán"), Cell(amount = totals.customerPaid,
@@ -89,15 +92,16 @@ internal object OwnerExcelExport {
                 listOf(text("Công nợ còn lại"), Cell(amount = totals.customerUnpaid,
                     formula = "SUM('Cong no'!H2:H" + (totals.countedCount + 1) + ")"), text("Khách chưa thanh toán đủ")),
                 listOf(text("Lợi nhuận ước tính đã tính được"), Cell(amount = knownTotal,
-                    formula = "SUM('Loi nhuan'!G2:G" + (profit.size + 1) + ")"),
+                    formula = if (knownTotal == null) null else
+                        "SUM('Loi nhuan'!G2:G" + (profit.size + 1) + ")"),
                     text("CHƯA phải lợi nhuận ròng, không thay thế báo cáo thuế")),
-                listOf(text("Số bill đủ dữ liệu lợi nhuận"), money(known.size.toLong()), text("Không suy đoán giá vốn hoặc CTV")),
-                listOf(text("Số bill thiếu dữ liệu"), money((profit.size - known.size).toLong()),
+                listOf(text("Số bill đủ dữ liệu lợi nhuận"), number(known.size.toLong()), text("Không suy đoán giá vốn hoặc CTV")),
+                listOf(text("Số bill thiếu dữ liệu"), number((profit.size - known.size).toLong()),
                     text("Lợi nhuận để TRỐNG, không gán 0")),
                 listOf(text("Cách tính giá vốn"), text("55% giá niêm yết"), text("Ước tính theo chiết khấu nhà cung cấp 45%")),
                 listOf(text("Hoa hồng CTV"), text("Chỉ dữ liệu đã xác minh"), text("Bảo vệ bill cặp và đơn CTV một hóa đơn")),
                 listOf(text("Chi phí chưa trừ"), text("Overhead, thực chi shipping, thuế, hoàn trả"), text("Không sử dụng như báo cáo lợi nhuận ròng")),
-                listOf(text("Bill sai ngày"), money(totals.invalidDateCount.toLong()), text("Không tự đoán ngày hóa đơn"))
+                listOf(text("Bill sai ngày"), number(totals.invalidDateCount.toLong()), text("Không tự đoán ngày hóa đơn"))
             ))
             sheet(zip, 4, listOf("Số HĐ", "Ngày", "Khách hàng", "Tiền hàng",
                 "Giá vốn ước tính", "Hoa hồng CTV", "Lợi nhuận ước tính",
@@ -183,10 +187,10 @@ internal object OwnerExcelExport {
             values.forEachIndexed { i, value ->
                 val ref = col(i) + index
                 if (value.formula != null && value.amount != null) {
-                    put("<c r=\"$ref\" s=\"2\"><f>" + xml(value.formula) +
+                    put("<c r=\"$ref\" s=\"" + (if (value.currency) 2 else 0) + "\"><f>" + xml(value.formula) +
                         "</f><v>" + value.amount + "</v></c>")
                 } else if (value.amount != null) {
-                    put("<c r=\"$ref\" s=\"2\"><v>" + value.amount + "</v></c>")
+                    put("<c r=\"$ref\" s=\"" + (if (value.currency) 2 else 0) + "\"><v>" + value.amount + "</v></c>")
                 } else if (value.text != null) {
                     put("<c r=\"$ref\"" + (if (header) " s=\"1\"" else "") +
                         " t=\"inlineStr\"><is><t xml:space=\"preserve\">" +
