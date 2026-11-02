@@ -64,7 +64,8 @@ test('removed address disables write and clears original draft metadata',()=>{
 test('server CAS uses originally edited revision, and explicit successful or conflict readback clears draft',()=>{
  assert.match(html,/expectedRevision:userAddressDraftDirty&&userAddressDraftId===old\.id&&/);
  assert.match(html,/userAddressDraftProfileId===old\.profileId\?userAddressDraftRevision:old\.revision/);
- assert.match(html,/clearUserAddressDraft\(\);renderAddresses\(\);toast\('Đã cập nhật địa chỉ giao hàng'\)/);
+ assert.match(html,/clearUserAddressDraft\(\);resetTestQuote\(\);invalidateCartPricing\(\)/);
+ assert.match(html,/renderAddresses\(\);renderCart\(\);toast\('Đã lưu cho bill mới\. Bill cũ không thay đổi\.'\)/);
  assert.match(html,/if\(e\.message==='ADDRESS_REVISION_CONFLICT'\)\{\s*me=await call\('\/api\/v2\/me'/);
  assert.doesNotMatch(source,/localStorage|sessionStorage|fetch\(/);
 });
