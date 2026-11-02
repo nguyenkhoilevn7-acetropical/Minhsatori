@@ -26,9 +26,23 @@ internal object CtvProfitSourcePolicy {
         if (snapshot.collaboratorRegistryLoaded && snapshot.collaborators.isNotEmpty())
             return rows
         return rows.map { row ->
-            row.copy(estimatedCtvCommissionVnd = null,
+            // A new single bill can carry its own immutable CTV identity AND
+            // explicitly approved discount snapshot. That self-contained proof
+            // suffices for this bill alone, even when a legacy Mobile API omits
+            // the registry. Never assume unlinked retail/CTV bills have zero
+            // commission, and never backfill a missing CTV policy by guessing.
+            val selfContainedCtvPolicy = row.invoice.collaboratorId.isNotBlank() &&
+                row.invoice.pairDiscountPercent != null &&
+                row.invoice.pairRole.isBlank() &&
+                row.invoice.pairGroupId.isBlank() &&
+                row.invoice.pairInvoiceNo.isBlank() &&
+                row.reason == null &&
+                row.estimatedOwnerMarginVnd != null &&
+                row.estimatedCtvCommissionVnd != null
+            if (selfContainedCtvPolicy) row else row.copy(
+                estimatedCtvCommissionVnd = null,
                 estimatedOwnerMarginVnd = null,
-                reason = "Nguồn đồng bộ thiếu hồ sơ CTV; không được hiển thị lãi gộp như lợi nhuận.")
+                reason = "Thiếu hồ sơ CTV hoặc chiết khấu đã xác minh cho hóa đơn này.")
         }
     }
 }
