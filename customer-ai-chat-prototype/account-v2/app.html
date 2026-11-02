@@ -2236,7 +2236,9 @@ function renderProducts(){
    try{
     await saveCart(mergeCartItems(cart,[{code:p.code,qty}]));
     catalogueQtyDraft.set(p.code,1);input.value='1';
-    animateCatalogueProductToCart(thumbnail,sourceRect);
+    // Animation is strictly best-effort; a browser rendering failure must
+    // never turn a successfully saved cart into an apparent API error.
+    try{animateCatalogueProductToCart(thumbnail,sourceRect)}catch{}
     toast('Đã thêm '+qty+' '+p.unit+' '+p.name+' vào giỏ');
    }catch(e){toast(e.message)}
    finally{button.disabled=!selectedDeliveryAddress()||savingCart||busy}
