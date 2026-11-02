@@ -20,9 +20,10 @@ class HomeProfitPeriodUiTest(unittest.TestCase):
  def test_no_guessing_gross_as_net(self):
   self.assertIn('CtvProfitSourcePolicy::profitRows',HOME)
   self.assertIn('AccountingProMargin45.summarize(it, homeProfitPeriod)',HOME)
-  self.assertIn('verifiedRegistry && profitSummary != null',HOME)
-  self.assertIn('profitSummary.missingInvoiceCount == 0',HOME)
-  self.assertIn('profitSummary.excludedInvalidDates == 0',HOME)
+  self.assertIn('profitSummary.computedInvoiceCount > 0',HOME)
+  self.assertIn('profitSummary.estimatedMarginKnownVnd',HOME)
+  self.assertIn('Đã tính ',HOME)
+  self.assertIn('bỏ qua bill thiếu dữ liệu',HOME)
   self.assertIn('Thiếu hồ sơ CTV từ nguồn đồng bộ',HOME)
   self.assertIn('showConnectionSettings()',HOME)
   self.assertIn('estimatedOwnerMarginVnd = null',SOURCE_POLICY)
@@ -31,8 +32,9 @@ class HomeProfitPeriodUiTest(unittest.TestCase):
  def test_drilldown_inherits_home_scope_and_cannot_show_partial_as_total(self):
   self.assertIn('periodChoice.setSelection(homeProfitChoice.coerceIn(0, 3))',SOURCE)
   self.assertIn('val homeDate=homeProfitPeriod.from ?: today',SOURCE)
-  self.assertIn('summary.missingInvoiceCount == 0',SOURCE)
-  self.assertIn('complete && summary.excludedInvalidDates == 0',SOURCE)
+  self.assertIn('summary.computedInvoiceCount > 0',SOURCE)
+  self.assertIn('it.estimatedOwnerMarginVnd != null',SOURCE)
+  self.assertIn('Bỏ qua ',SOURCE)
   self.assertIn('homeProfitPeriod.title',HOME)
   self.assertNotIn('confirmedProfit ?: "Chờ đồng bộ"',HOME)
 
