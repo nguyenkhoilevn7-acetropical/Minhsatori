@@ -16,7 +16,10 @@ MANIFEST = (ROOT / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8
 class OwnerCrmVisualParity(unittest.TestCase):
     def test_native_palette_and_embedded_crm_match(self):
         # Primary teal (#009c99), ink (#102b38), soft background (#f1f4f5).
-        self.assertIn("private val cyan = Color.rgb(0, 156, 153)", NATIVE)
+        self.assertIn("private val cyan get() = SatoriUiTheme.accent(this)", NATIVE)
+        THEME = (ROOT / "app/src/main/java/vn/minhsatori/app/SatoriUiTheme.kt").read_text(encoding="utf-8")
+        self.assertIn('private const val DEFAULT = "#008E8C"', THEME)
+        self.assertIn('SatoriUiTheme.picker(', NATIVE)
         self.assertIn("private val ink = Color.rgb(16, 43, 56)", NATIVE)
         self.assertIn("private val night = Color.rgb(241, 244, 245)", NATIVE)
         self.assertIn("--blue:#009c99", PORTAL)

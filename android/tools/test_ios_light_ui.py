@@ -29,7 +29,7 @@ class IOSLightThemeTests(unittest.TestCase):
     def test_ios_light_palette_is_not_dark_legacy(self):
         self.assertIn("private val night = Color.rgb(241, 244, 245)", self.source)
         self.assertIn("private val surface = Color.rgb(255, 255, 255)", self.source)
-        self.assertIn("private val cyan = Color.rgb(0, 156, 153)", self.source)
+        self.assertIn("private val cyan get() = SatoriUiTheme.accent(this)", self.source)
         self.assertIn("private val ink = Color.rgb(16, 43, 56)", self.source)
         self.assertIn("white, dark -> ink", self.source)
         self.assertIn("Color.rgb(225, 233, 233)", self.source)

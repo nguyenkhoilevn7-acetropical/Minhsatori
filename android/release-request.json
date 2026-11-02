@@ -1,10 +1,10 @@
 {
-  "purpose": "android-verified-ctv-registry-source-recovery-20261101",
+  "purpose": "ui25d-all-screens-on-v045-source-20261102",
   "package": "vn.minhsatori.app",
-  "version": "0.4.45",
-  "versionCode": 62,
+  "version": "0.4.46",
+  "versionCode": 63,
   "branch": "fix/android-invoice-notification-open-20261101",
-  "requestedOn": "2026-11-01",
+  "requestedOn": "2026-11-02",
   "sourcePRs": [
     240,
     241,
@@ -39,9 +39,10 @@
     341,
     351,
     352,
-    353
+    353,
+    363
   ],
-  "scope": "Owner-signed Samsung acceptance: fail closed when owner CTV registry missing from Mobile API, request verified Google Drive read-only consent and bridge ONLY same-revision identical canonical ledger invoice and product data to calculate CTV net profit. Preserve all previous payment, order, Gemini, PDF and notification flows.",
+  "scope": "Presentation-only 2.5D theme and persistent custom colors on Android 0.4.45 latest branch. Preserve owner notification, CTV registered-profit, invoice timestamp/PDF and 4 payment actions; Fold drawer remains hidden until hamburger opens it.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -93,6 +94,8 @@
     "2026-11-01: Owner explicitly requested latest installable Android APK v0.4.42 build59. Request isolated signed Samsung acceptance build on the original pinned certificate, with exact package/version/certificate/APK SHA-256 verification. No production API deployment, invoice/payment writes, or debug APK substitution. Timestamp enhancement PR336 remains separate and is not included in this candidate.",
     "2026-11-01: staged source-only v0.4.43 build60: original immutable invoice timestamp + owner net-profit-after-verified-CTV commission. Companion owner-only API PR #342 needed for CTV read. No signed release request, no production changes or live financial writes. Existing v0.4.42 signed owner APK remains current.",
     "2026-11-01: Verified Drive revision205 contains CTV 35% registry; 17 active named CTV invoices have different delivery phone. PR #351 addresses missing CTV net commission and safe unit-price rounding; full CI + same pinned signing cert required. Release v0.4.44 build61 only after PR merge. No real invoices changed.",
-    "2026-11-01: owner screenshot v0.4.44 shows gross 833,328 on invoice #5966 because Android Mobile API response lacks CTV registry. PR #353 adds source integrity check, same-ledger Drive read recovery with scope fallback, and removes misleading gross-only profit badge. Stage v0.4.45 build62 after complete Android CI and verify pinned signing certificate; no real financial writes."
+    "2026-11-01: owner screenshot v0.4.44 shows gross 833,328 on invoice #5966 because Android Mobile API response lacks CTV registry. PR #353 adds source integrity check, same-ledger Drive read recovery with scope fallback, and removes misleading gross-only profit badge. Stage v0.4.45 build62 after complete Android CI and verify pinned signing certificate; no real financial writes.",
+    "2026-11-02: UI25D 0.4.46 build 63 candidate based on 0.4.45 code 62, no downgrade, signed release only after CI and registered signer verified.",
+    "Signed build 0.4.46 must be created from fix/android-invoice-notification-open-20261101 after PR #363 merge; retains release signer from 0.4.45."
   ]
 }
