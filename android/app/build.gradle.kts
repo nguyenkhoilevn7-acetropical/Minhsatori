@@ -18,19 +18,17 @@ android {
 
     buildFeatures { buildConfig = true }
 
-    // Public Firebase client identifiers; no service-account key in an APK.
-    // A project that has not been provisioned keeps true push disabled.
+    // Public project settings only. A missing Firebase project disables FCM.
     defaultConfig {
         fun fcmValue(name: String): String =
             System.getenv(name).orEmpty().takeIf {
-                it.matches(Regex("[A-Za-z0-9_:.\\-]{0,220}"))
+                it.matches(Regex("[A-Za-z0-9_:.-]{0,220}"))
             } ?: ""
-        buildConfigField("String", "SATORI_FCM_APP_ID",
-            "\\\"" + fcmValue("SATORI_FCM_APP_ID") + "\\\"")
-        buildConfigField("String", "SATORI_FCM_API_KEY",
-            "\\\"" + fcmValue("SATORI_FCM_API_KEY") + "\\\"")
-        buildConfigField("String", "SATORI_FCM_PROJECT_ID",
-            "\\\"" + fcmValue("SATORI_FCM_PROJECT_ID") + "\\\"")
+        fun quotedFcmValue(name: String): String =
+            listOf('"', fcmValue(name), '"').joinToString("")
+        buildConfigField("String", "SATORI_FCM_APP_ID", quotedFcmValue("SATORI_FCM_APP_ID"))
+        buildConfigField("String", "SATORI_FCM_API_KEY", quotedFcmValue("SATORI_FCM_API_KEY"))
+        buildConfigField("String", "SATORI_FCM_PROJECT_ID", quotedFcmValue("SATORI_FCM_PROJECT_ID"))
     }
 
     signingConfigs {
