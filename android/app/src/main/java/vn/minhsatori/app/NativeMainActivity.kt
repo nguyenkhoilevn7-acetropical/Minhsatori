@@ -1120,11 +1120,11 @@ class NativeMainActivity : AppCompatActivity() {
         val first = kpi("Tổng tiền bán",
             if (sales == null) "—" else SatoriData.money(sales),
             if (salesCount == null) "Chưa đồng bộ" else "$salesCount hóa đơn hợp lệ",
-            tealAccent, R.drawable.ic_satori_invoice, 1
+            tealAccent, R.drawable.ic_satori_invoice, 1)
         val second = kpi("Công nợ phải thu",
             if (data == null) "—" else SatoriData.money(data.outstandingAmount),
             if (data == null) "Chưa đồng bộ" else "${data.outstandingCount} hóa đơn chưa thu",
-            Color.rgb(209, 77, 91), R.drawable.ic_satori_debt, 3
+            Color.rgb(209, 77, 91), R.drawable.ic_satori_debt, 3)
         val grid = LinearLayout(this).apply {
             orientation = if (resources.configuration.screenWidthDp >= 350)
                 LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
