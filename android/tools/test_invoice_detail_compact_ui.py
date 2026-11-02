@@ -70,7 +70,8 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn('confirmSoftDelete(invoice)', DETAIL)
         self.assertIn('if (!canAction("orders.update"))', DETAIL)
         self.assertIn('requestInvoiceEdit(invoice)', DETAIL)
-        self.assertIn('.setPositiveButton("Chia sẻ", null)', DETAIL)
+        self.assertIn('button(content, "CHIA SẺ PDF"', DETAIL)
+        self.assertNotIn('.setPositiveButton("Chia sẻ", null)', DETAIL)
 
     def test_accessibility_and_vector_brand_sources(self):
         helper = SRC.split("private fun invoiceMiniAction(", 1)[1].split(
@@ -91,20 +92,20 @@ class CompactInvoiceDetailContract(unittest.TestCase):
     def test_fold_cover_and_inner_display_layout(self):
         helper = SRC.split("private fun resizeInvoiceDialog(", 1)[1].split(
             "private fun invoicePaymentRow(", 1)[0]
-        self.assertIn("viewportWidth - 24", helper)
-        self.assertIn(".coerceAtMost(540)", helper)
-        self.assertIn("dialog.window?.setLayout(dp(safeWidth), usableHeight)", helper)
-        self.assertIn("activeInvoiceDialog?.takeIf { it.isShowing }?.let(::resizeInvoiceDialog)", SRC)
-        self.assertIn("val dialogWidthDp = (resources.configuration.screenWidthDp - 24)", DETAIL)
-        self.assertIn("val actionsWidthDp = actions.childCount * 48", DETAIL)
-        self.assertIn("val inlineActions = usableContentDp >= actionsWidthDp + 90", DETAIL)
-        self.assertIn("resources.configuration.fontScale <= 1.2f", DETAIL)
-        self.assertIn("actions.gravity = Gravity.END or Gravity.CENTER_VERTICAL", DETAIL)
-        self.assertIn('toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))', DETAIL)
-        self.assertIn('actionRow.addView(actions, LinearLayout.LayoutParams(-2, -2))', DETAIL)
-        self.assertIn('gravity = Gravity.END or Gravity.CENTER_VERTICAL', DETAIL)
-        self.assertNotIn("actions.gravity = Gravity.CENTER\n", DETAIL)
-        self.assertIn("resizeInvoiceDialog(dialog)", DETAIL)
+        self.assertIn('android.view.WindowManager.LayoutParams.MATCH_PARENT', helper)
+        self.assertNotIn('.coerceAtMost(540)', helper)
+        self.assertIn('findViewWithTag<LinearLayout>("satori_invoice_detail_grid")',helper)
+        self.assertIn('grid.orientation = if (expanded) LinearLayout.HORIZONTAL',helper)
+        self.assertIn('customer.layoutParams = if (expanded)',helper)
+        self.assertIn('products.layoutParams = if (expanded)',helper)
+        self.assertIn('activeInvoiceDialog?.takeIf { it.isShowing }?.let(::resizeInvoiceDialog)', SRC)
+        self.assertIn('resizeInvoiceDialog(dialog)', DETAIL)
+        self.assertIn('val closePage = ImageView(this)',DETAIL)
+        self.assertIn('setOnClickListener { invoiceDialog?.dismiss() }',DETAIL)
+        self.assertIn('setView(page)',DETAIL)
+        self.assertNotIn('setView(wrapper)',DETAIL)
+        self.assertNotIn('.setPositiveButton("Chia sẻ", null)',DETAIL)
+        self.assertIn('actions.gravity = Gravity.END or Gravity.CENTER_VERTICAL',DETAIL)
 
     def test_zalo_vector_uses_android_safe_polygon_not_svg_arc_flags(self):
         import re
