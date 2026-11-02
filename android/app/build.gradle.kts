@@ -18,6 +18,21 @@ android {
 
     buildFeatures { buildConfig = true }
 
+    // Public Firebase client identifiers; no service-account key in an APK.
+    // A project that has not been provisioned keeps true push disabled.
+    defaultConfig {
+        fun fcmValue(name: String): String =
+            System.getenv(name).orEmpty().takeIf {
+                it.matches(Regex("[A-Za-z0-9_:.\\-]{0,220}"))
+            } ?: ""
+        buildConfigField("String", "SATORI_FCM_APP_ID",
+            "\\\"" + fcmValue("SATORI_FCM_APP_ID") + "\\\"")
+        buildConfigField("String", "SATORI_FCM_API_KEY",
+            "\\\"" + fcmValue("SATORI_FCM_API_KEY") + "\\\"")
+        buildConfigField("String", "SATORI_FCM_PROJECT_ID",
+            "\\\"" + fcmValue("SATORI_FCM_PROJECT_ID") + "\\\"")
+    }
+
     signingConfigs {
         create("satoriRelease") {
             // A stable keystore must be supplied by protected CI secrets or a secure
@@ -59,6 +74,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("com.google.android.gms:play-services-auth:22.0.0")
+    implementation("com.google.firebase:firebase-messaging:24.1.2")
     implementation("androidx.credentials:credentials:1.6.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
