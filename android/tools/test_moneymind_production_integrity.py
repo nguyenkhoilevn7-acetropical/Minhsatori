@@ -14,7 +14,7 @@ BASELINE={
  'executeWrite':'a513026e',
  'launchEditor':'a449a547',
  'recoverDriveAccessUsingOwnerApi':'4c0215f3',
- 'openInvoice':'b9c64f88',
+ # Invoice is now a fullscreen UI; payment/share/edit subflows are individually hash-locked.
  'invoiceQuickCard':'ee818810',
 }
 def method(name):
@@ -33,6 +33,32 @@ class ProductionLayoutContract(unittest.TestCase):
   for name,expected in BASELINE.items():
    with self.subTest(name=name):
     self.assertEqual(checksum(method(name)),expected,'No financial method changes in layout release')
+ def test_fullscreen_invoice_preserves_critical_actions_byte_exact(self):
+  source=method('openInvoice')
+  def between(start,end):
+   return source.split(start,1)[1].split(end,1)[0]
+  self.assertEqual(checksum('        fun requestPayment(action: String) {'+
+    between('        fun requestPayment(action: String) {',
+            '        fun confirmInternalShare(action: () -> Unit) {')),
+    'ef398f20')
+  self.assertEqual(checksum('        fun confirmInternalShare(action: () -> Unit) {'+
+    between('        fun confirmInternalShare(action: () -> Unit) {',
+            "        // Right-align actions on both the Fold's cover and inner displays.")),
+    '15c0247b')
+  for marker in ('payments.markCustomerPaid','payments.markCustomerUnpaid',
+                 'payments.markSatoriPaid','payments.markSatoriUnpaid',
+                 'confirmInvoicePayment(invoice, action)', 'confirmSoftDelete(invoice)',
+                 'requestInvoiceEdit(invoice)', 'NativeInvoicePdf.shareZalo',
+                 'NativeInvoicePdf.shareMessenger', 'NativeInvoicePdf.preview'):
+   self.assertIn(marker, source)
+  self.assertIn('setView(page)',source)
+  self.assertIn('resizeInvoiceDialog(dialog)',source)
+  self.assertIn('android.view.WindowManager.LayoutParams.MATCH_PARENT',
+                method('resizeInvoiceDialog'))
+  self.assertIn('setOnClickListener { invoiceDialog?.dismiss() }',source)
+  self.assertNotIn('.setPositiveButton("Chia sẻ", null)',source)
+  self.assertNotIn('.setView(wrapper)',source)
+
  def test_owner_card_edit_button_is_direct_and_still_server_guarded(self):
   method_text=method('invoiceQuickCard')
   self.assertIn('requestInvoiceEdit(invoice)',method_text)
