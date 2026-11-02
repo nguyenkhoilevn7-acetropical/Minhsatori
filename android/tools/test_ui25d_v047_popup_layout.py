@@ -29,7 +29,7 @@ class ApprovedUi25dSurface(unittest.TestCase):
 
     def test_native_order_modal_is_rounded_and_preserves_authorized_submit(self):
         for token in (
-            "cornerRadius = dp(a,21).toFloat()",
+            "cornerRadius=dp(a,21).toFloat()",
             "cornerRadius = dp(a,20).toFloat()",
             "SatoriUiTheme.deep(a)",
             "SatoriUiTheme.raised(a)",
