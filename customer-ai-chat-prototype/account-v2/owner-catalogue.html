@@ -638,6 +638,66 @@ body{font-size:14px;line-height:1.42}
  .crm-product-price-grid label:first-child{grid-column:1/-1}}
 @media(max-width:390px){.crm-product-price-grid{grid-template-columns:1fr}
  .crm-product-price-grid label:first-child{grid-column:auto}}
+
+
+/* SATORI UI25D • presentation only: chat/order/accounting JS and invoice documents untouched. */
+@media screen {
+ :root{
+  --s25-a:#008e8c;--s25-bright:#25c6ad;--s25-dark:#006d70;
+  --s25-soft:#e0f5f1;--s25-ink-on:#ffffff;--s25-glow:rgba(0,142,140,.18);
+  --s25-shadow:0 7px 0 rgba(20,65,83,.035),0 16px 28px rgba(20,65,83,.10);
+  --s25-raised:0 17px 32px rgba(20,65,83,.14);
+  --blue:var(--s25-a);--blueSoft:var(--s25-soft);--bg:#eff4f5;--edge:#dce8eb;
+ }
+ html[data-s25-depth="flat"]{--s25-shadow:0 2px 6px rgba(20,65,83,.055);--s25-raised:0 4px 12px rgba(20,65,83,.07)}
+ html,body{background:radial-gradient(circle at 0 0,#fff 0%,transparent 45%),#eff4f5}
+ #app{background:#f6f9fa;box-shadow:0 10px 38px rgba(27,67,85,.11)}
+ #app>header,header.owner-header,.owner-header{
+  background:linear-gradient(118deg,var(--s25-dark),var(--s25-a) 65%,var(--s25-bright))!important;
+  color:var(--s25-ink-on)!important;
+  border:0!important;
+  box-shadow:0 9px 20px var(--s25-glow)!important;
+ }
+ #app>header .brand :is(strong,small){color:var(--s25-ink-on)!important}
+ #app>header :is(.hamburger,.round,.header-icon){background:#ffffff1e!important;color:var(--s25-ink-on)!important;border:1px solid #ffffff55!important;border-radius:12px!important}
+ #app>header .hamburger span{background:var(--s25-ink-on)!important}
+ :is(.panel,.card,.metric,.stat,.cart-panel,.delivery-panel,.chat-canonical-receipt,.chat-order-receipt,.invoice-document,.invoice-filters,.crm-panel,.crm-card,.customer-card,.product-card){
+  border-radius:20px!important;box-shadow:var(--s25-shadow)!important;
+  border-color:#e1ebee!important;
+ }
+ :is(.nav,.btn,.secondary,.icon-button,.round,.owner-tabs button,.mm-bottom-tab,.quick-buttons button,.actions button){
+  transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease;
+ }
+ :is(.nav,.btn,.secondary,.icon-button,.round,.owner-tabs button,.mm-bottom-tab,.actions button):active{transform:translateY(2px) scale(.985)}
+ :is(.nav,.btn,.secondary,.owner-tabs button,.mm-bottom-tab,.actions button):hover{box-shadow:var(--s25-shadow)}
+ .nav.active,.owner-tabs button[aria-selected="true"],.mm-bottom-tab.active{
+  background:var(--s25-soft)!important;color:var(--s25-dark)!important;
+  box-shadow:inset 0 0 0 1px var(--s25-glow)!important;
+ }
+ .btn.primary,.actions button:not(.secondary){background:linear-gradient(125deg,var(--s25-dark),var(--s25-a))!important;color:var(--s25-ink-on)!important;box-shadow:0 8px 15px var(--s25-glow)}
+ :is(input:not([type=checkbox]):not([type=radio]),textarea,select){border-radius:13px}
+ :is(input,textarea,select,button):focus-visible{outline:2px solid var(--s25-a)!important;outline-offset:2px}
+ .drawer{background:#f9fbfb!important;box-shadow:14px 0 34px rgba(15,45,64,.18)!important}
+ body:not(.menu-open) .drawer{transform:translateX(-105%)!important}
+ body.menu-open .drawer{transform:translateX(0)!important}
+ .s25-picker-button{border:1px solid #dce8eb;background:#fff;color:#1b3c4b;border-radius:13px;padding:10px 12px;font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px;box-shadow:var(--s25-shadow)}
+ .s25-picker-button.in-header{margin-left:auto;flex:none;background:#ffffff22;border-color:#ffffff55;color:#fff}
+ .s25-picker-button.in-drawer{width:100%;margin:8px 0 12px}
+ .s25-panel{position:fixed;z-index:100000;right:max(12px,env(safe-area-inset-right));top:76px;width:min(320px,calc(100vw - 24px));background:#fff;color:#173241;padding:17px;border:1px solid #dfe8ec;border-radius:20px;box-shadow:0 25px 65px rgba(13,47,62,.25)}
+ .s25-panel[hidden]{display:none!important}
+ .s25-panel h3{font-size:16px;margin:0 0 6px}.s25-panel p{font-size:12px;color:#657d87;margin:0 0 12px}
+ .s25-swatches{display:flex;gap:9px;align-items:center}
+ .s25-swatch{height:34px;width:34px;border-radius:11px;border:2px solid white;box-shadow:0 0 0 1px #d9e3e8}
+ .s25-swatch[aria-pressed=true]{outline:2px solid #324c59}
+ .s25-depth{display:flex;gap:6px;margin-top:14px}
+ .s25-depth button{flex:1;border:1px solid #dbe6e9;background:#f3f6f8;padding:9px;border-radius:11px;font-weight:750;color:#29495b}
+ .s25-depth button[aria-pressed=true]{background:var(--s25-soft);border-color:var(--s25-a);color:var(--s25-dark)}
+ .s25-color-input{height:34px;width:42px;background:none;border:0;padding:0;cursor:pointer}
+ @media (min-width:650px){#app{max-width:1050px} .drawer{width:min(320px,38vw)!important}}
+ @media (max-width:420px){.s25-picker-button.in-header{padding:8px;font-size:0}.s25-picker-button.in-header span{font-size:17px}}
+ @media (prefers-reduced-motion:reduce){.s25-picker-button,.s25-depth button,.nav,.btn,.owner-tabs button,.mm-bottom-tab{transition:none!important}}
+}
+
 </style></head>
 <body>
 <main>
@@ -2652,4 +2712,47 @@ for(const [id,iconName] of [
 }
 
 </script>
-</body></html>
+<script>
+// UI25D local theme preferences. Never reads or modifies invoices, auth, cart, chat, or API.
+(() => {
+ const KEY='satori.ui.v25d',ROOT=document.documentElement;
+ const PRESETS={teal:'#008e8c',indigo:'#5266c8',coral:'#c96370'};
+ const safe=s=>/^#[0-9a-fA-F]{6}$/.test(s||'');
+ const mix=(a,b,t)=>'#'+[1,3,5].map(i=>Math.round(parseInt(a.slice(i,i+2),16)*(1-t)+parseInt(b.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('');
+ const rgb=a=>[1,3,5].map(i=>parseInt(a.slice(i,i+2),16));
+ let cfg={theme:'teal',color:PRESETS.teal,depth:'raised'};
+ try {const saved=JSON.parse(localStorage.getItem(KEY)||'{}');if(saved&&typeof saved==='object'){if(PRESETS[saved.theme]||saved.theme==='custom')cfg.theme=saved.theme;if(safe(saved.color))cfg.color=saved.color;if(['flat','raised'].includes(saved.depth))cfg.depth=saved.depth}}catch(e){}
+ const apply=()=>{
+  const a=cfg.theme==='custom'?cfg.color:PRESETS[cfg.theme];
+  const [r,g,b]=rgb(a);const glow='rgba('+r+','+g+','+b+',.20)';
+  const lum=.2126*r+.7152*g+.0722*b;const foreground=lum>174?'#152e3c':'#ffffff';
+  const vars={'--s25-a':a,'--s25-bright':mix(a,'#ffffff',.26),'--s25-dark':mix(a,'#052936',.24),'--s25-soft':mix(a,'#ffffff',.87),'--s25-glow':glow,'--s25-ink-on':foreground};
+  for(const [k,v] of Object.entries(vars))ROOT.style.setProperty(k,v);
+  ROOT.dataset.s25Depth=cfg.depth;
+  document.querySelectorAll('[data-s25-swatch]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s25Swatch===cfg.theme)));
+  document.querySelectorAll('[data-s25-depth]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s25Depth===cfg.depth)));
+  const picker=document.getElementById('s25-custom');if(picker)picker.value=cfg.theme==='custom'?cfg.color:a;
+  try{localStorage.setItem(KEY,JSON.stringify(cfg))}catch(e){}
+ };
+ function install(){
+  const host=document.getElementById('drawerBrand')||document.querySelector('.owner-header')||document.querySelector('header');
+  if(!host||document.getElementById('s25-trigger'))return;
+  const btn=document.createElement('button');btn.type='button';btn.id='s25-trigger';btn.className='s25-picker-button '+(host.id==='drawerBrand'?'in-drawer':'in-header');
+  btn.innerHTML='<span aria-hidden="true">🎨</span> Tùy chỉnh giao diện';btn.setAttribute('aria-controls','s25-panel');btn.setAttribute('aria-expanded','false');
+  const panel=document.createElement('section');panel.id='s25-panel';panel.className='s25-panel';panel.hidden=true;panel.setAttribute('aria-label','Tùy chỉnh giao diện Minh Satori');
+  panel.innerHTML='<h3>Giao diện Minh Satori</h3><p>Màu sắc và độ nổi áp dụng cho tất cả màn hình V2.</p><div class="s25-swatches"><button type="button" class="s25-swatch" data-s25-swatch="teal" aria-label="Màu Teal" style="background:#008e8c"></button><button type="button" class="s25-swatch" data-s25-swatch="indigo" aria-label="Màu Indigo" style="background:#5266c8"></button><button type="button" class="s25-swatch" data-s25-swatch="coral" aria-label="Màu Coral" style="background:#c96370"></button><label style="display:flex;align-items:center;gap:4px;font-size:11px" for="s25-custom">Tự chọn <input class="s25-color-input" id="s25-custom" type="color" aria-label="Màu tùy chỉnh"></label></div><div class="s25-depth"><button type="button" data-s25-depth="flat">2D</button><button type="button" data-s25-depth="raised">2.5D</button></div>';
+  host.append(btn);document.body.append(panel);apply();
+  btn.addEventListener('click',()=>{panel.hidden=!panel.hidden;btn.setAttribute('aria-expanded',String(!panel.hidden))});
+  panel.addEventListener('click',e=>{
+   const t=e.target.closest('button');if(!t)return;
+   if(t.dataset.s25Swatch){cfg.theme=t.dataset.s25Swatch;apply()}
+   if(t.dataset.s25Depth){cfg.depth=t.dataset.s25Depth;apply()}
+  });
+  panel.querySelector('input').addEventListener('input',e=>{if(!safe(e.target.value))return;cfg.theme='custom';cfg.color=e.target.value;apply()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){panel.hidden=true;btn.setAttribute('aria-expanded','false')}});
+  document.addEventListener('pointerdown',e=>{if(!panel.hidden&&!panel.contains(e.target)&&!btn.contains(e.target)){panel.hidden=true;btn.setAttribute('aria-expanded','false')}});
+ }
+ apply();
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
+</script></body></html>
