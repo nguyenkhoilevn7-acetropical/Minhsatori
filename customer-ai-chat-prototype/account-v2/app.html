@@ -2045,7 +2045,7 @@ function displayedCartCount(){
 }
 /* CART FLY FEEDBACK — called only after an authenticated, confirmed cart save.
    No extra floating cart: the existing "Lên đơn" bottom tab is the destination. */
-function animateCatalogueProductToCart(source,origin){
+function animateCatalogueProductToCart(source,origin,delay=0){
  const target=document.querySelector('.mm-bottom-nav [data-view="cart"] .mm-bottom-icon');
  if(!target||!origin||!origin.width||!origin.height||
     (typeof window.matchMedia==='function' &&
@@ -2072,7 +2072,7 @@ function animateCatalogueProductToCart(source,origin){
   {transform:'translate3d(0,0,0) scale(1)',opacity:1,offset:0},
   {transform:`translate3d(${dx*.5}px,${dy*.5-arc}px,0) scale(1.1)`,opacity:1,offset:.48},
   {transform:`translate3d(${dx}px,${dy}px,0) scale(.24)`,opacity:.25,offset:1}
- ],{duration:640,easing:'cubic-bezier(.22,.68,.2,1)',fill:'forwards'});
+ ],{duration:640,delay,easing:'cubic-bezier(.22,.68,.2,1)',fill:'forwards'});
  flying.oncancel=()=>token.remove();
  flying.onfinish=()=>{
   token.remove();
@@ -2082,6 +2082,29 @@ function animateCatalogueProductToCart(source,origin){
    ],{duration:330,easing:'ease-out'});
   }
  };
+}
+/* Chat Gemini uses the SAME bottom-cart target as the catalogue.
+   A flight is visual confirmation only: never run before a verified cart write,
+   and never for FAQs, delivery notes, failed writes, or quantity reductions. */
+function animateChatProductsToCart(beforeLines,sentBubble){
+ const previous=new Map(beforeLines.map(line=>[line.code,line.qty]));
+ const added=cart.filter(line=>
+  line.qty>(previous.get(line.code)||0) &&
+  products.some(product=>product.code===line.code));
+ if(!added.length)return;
+ const source=document.querySelector('.mm-bottom-nav [data-view="catalogue"] .mm-bottom-icon');
+ if(!source)return;
+ const bubbleRect=sentBubble?.getBoundingClientRect();
+ const messagesRect=$('messages')?.getBoundingClientRect();
+ // Use the actual sent message when visible; otherwise use the Send control.
+ // The keyboard may have folded while the server confirmed the cart.
+ const bubbleVisible=bubbleRect&&messagesRect&&bubbleRect.width>0&&
+  bubbleRect.top>=messagesRect.top&&bubbleRect.bottom<=messagesRect.bottom;
+ const origin=bubbleVisible?bubbleRect:$('send').getBoundingClientRect();
+ // One token per newly added SKU, max three staggered flights to avoid
+ // overwhelming a narrow phone. The existing count badge reports full qty.
+ added.slice(0,3).forEach((line,index)=>
+  animateCatalogueProductToCart(source,origin,index*120));
 }
 /* END CART FLY FEEDBACK */
 function renderBadge(){
@@ -3379,7 +3402,8 @@ $('send').onclick=async()=>{
  busy=true;$('send').disabled=true;input.disabled=true;
  $('chatStatus').textContent='';
  $('chatView').setAttribute('aria-busy','true');
- bubble(message,'me');
+ const cartBeforeSend=cart.map(line=>({code:line.code,qty:line.qty}));
+ const sentBubble=bubble(message,'me');
  const reply=geminiTypingBubble(),typingStartedAt=Date.now();
  try{
   const destination=selectedDeliveryAddress();
@@ -3394,6 +3418,7 @@ $('send').onclick=async()=>{
     }
     const selection=[{code:followUp.code,qty:followUp.qty}];
     await saveCart(mergeCartItems(cart,selection));
+    try{animateChatProductsToCart(cartBeforeSend,sentBubble)}catch{}
     input.value='';updateComposerAction();
     await revealGeminiReply(reply,'✓ Đã thêm '+followUp.qty+' vào giỏ chung',typingStartedAt);
     await addChatOrderReceipt(selection).catch(()=>toast('Giỏ đã cập nhật; chưa hiển thị được phiếu tóm tắt.'));
@@ -3416,6 +3441,7 @@ $('send').onclick=async()=>{
     }
     const revised=[{code:cart[0].code,qty:amount}];
     await saveCart(revised); // Server validates SKU, address, revision and amount.
+    try{animateChatProductsToCart(cartBeforeSend,sentBubble)}catch{}
     input.value='';updateComposerAction();
     await revealGeminiReply(reply,'✓ Đã cập nhật số lượng thành '+amount+' thùng',typingStartedAt);
     await addChatOrderReceipt(revised).catch(()=>toast('Giỏ đã cập nhật; chưa hiển thị được phiếu tóm tắt.'));
@@ -3458,6 +3484,7 @@ $('send').onclick=async()=>{
    merged=result.proposedCart.map(x=>({code:x.code,qty:x.qty}));
   }
   await saveCart(merged);
+  try{animateChatProductsToCart(cartBeforeSend,sentBubble)}catch{}
   if(result.deliveryRequest)rememberDeliveryRequest(result.deliveryRequest);
   input.value='';updateComposerAction();
   await revealGeminiReply(reply,'✓ Đã cập nhật giỏ hàng chung',typingStartedAt);
