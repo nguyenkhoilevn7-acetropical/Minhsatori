@@ -33,9 +33,10 @@ class FullscreenInvoiceContract(unittest.TestCase):
             "content.addView(detailGrid",
             "dialog.setCanceledOnTouchOutside(false)",
             "setView(page)",
-            "android.view.WindowManager.LayoutParams.MATCH_PARENT",
+            "resizeInvoiceDialog(dialog)",
         ):
             with self.subTest(marker=marker): self.assertIn(marker,DETAIL)
+        self.assertIn("android.view.WindowManager.LayoutParams.MATCH_PARENT",KT)
         self.assertNotIn(".setView(wrapper)",DETAIL)
         self.assertNotIn('.setPositiveButton("Chia sẻ", null)',DETAIL)
         self.assertNotIn('.setNegativeButton("Đóng", null)\n            .setPositiveButton("Chia sẻ"',DETAIL)
