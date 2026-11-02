@@ -756,6 +756,12 @@ body{font-size:14px;line-height:1.42}
  @media(max-width:420px){#crmConsole,#legacyConsole,#console{padding:12px!important;border-radius:18px!important}#crmStageFilters.crm-filter-row{gap:8px}#crmStageFilters .crm-filter-button{font-size:12px!important;min-height:78px}#crmConsole .crm-registration-time{font-size:11px!important}}
  @media(prefers-reduced-motion:reduce){:is(#crmConsole,#legacyConsole,#console) button{transition:none!important}}
 }
+.owner-header .owner-brand{min-width:0;flex:1}
+.owner-header #refresh{flex:none;display:grid;place-items:center;width:46px;height:46px;padding:0;border:1px solid rgba(255,255,255,.45)!important;border-radius:14px;background:rgba(255,255,255,.12)!important;color:var(--s25-ink-on,#fff)!important;box-shadow:0 4px 12px rgba(0,0,0,.08)!important}
+.owner-header #refresh .ico{width:23px;height:23px;stroke:currentColor}
+.owner-header #refresh[hidden]{display:none!important}
+.owner-header #refresh:disabled{opacity:.55;cursor:wait}
+@media(max-width:420px){.owner-header #refresh{width:40px;height:40px}}
 </style></head>
 <body>
 <main>
@@ -763,6 +769,7 @@ body{font-size:14px;line-height:1.42}
  <a href="/app-v2" class="owner-back" aria-label="Quay về ứng dụng đặt hàng">‹</a>
  <span class="owner-mark"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
  <div class="owner-brand"><h1>MINH SATORI</h1><small>QUẢN TRỊ · KHÁCH HÀNG V2</small></div>
+ <button id="refresh" class="secondary owner-refresh" type="button" aria-label="Làm mới mục quản trị hiện tại" title="Làm mới" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11a9 9 0 0 0-15-6L3 8M3 3v5h5M3 13a9 9 0 0 0 15 6l3-3m0 5v-5h-5"/></svg></button>
 </header>
 <nav id="ownerTabs" class="owner-tabs" hidden role="tablist" aria-label="Khu vực quản trị">
  <button type="button" data-owner-tab="new" role="tab" aria-selected="true" aria-controls="crmConsole"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2M19 8v8M15 12h8"/></svg><span>Khách mới</span></button>
@@ -785,7 +792,6 @@ body{font-size:14px;line-height:1.42}
  <p id="gateway">Đang kiểm tra kết nối đọc…</p>
  <div id="notice" role="status" aria-live="polite">Đang tải thông tin danh mục.</div>
  <div class="actions">
-  <button id="refresh" class="secondary" type="button">↻ Kiểm tra lại</button>
   <button id="sync" type="button" disabled>Đồng bộ từ Satori chính thức</button>
  </div>
  <details><summary>Điều kiện đồng bộ an toàn</summary>
@@ -796,7 +802,7 @@ body{font-size:14px;line-height:1.42}
 <section class="card" id="crmConsole" hidden aria-label="Quản trị khách hàng V2">
  <div class="crm-panel-head">
  <div class="crm-panel-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2M19 8v8M15 12h8"/></svg><div><h2>Khách hàng mới</h2><p>Đăng ký Google · Duyệt hồ sơ · Quản lý chiết khấu</p></div></div>
- <div class="crm-panel-search"><input id="crmFilter" type="search" maxlength="90" aria-label="Tìm khách mới" placeholder="Tìm tên, điện thoại hoặc Gmail"><button id="crmRefresh" class="secondary" type="button" aria-label="Tải lại danh sách"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11a9 9 0 0 0-15-6L3 8M3 3v5h5M3 13a9 9 0 0 0 15 6l3-3m0 5v-5h-5"/></svg></button></div>
+ <div class="crm-panel-search"><input id="crmFilter" type="search" maxlength="90" aria-label="Tìm khách mới" placeholder="Tìm tên, điện thoại hoặc Gmail"></div>
  </div>
  <div class="crm-alerts" role="status" aria-live="polite">
   <button id="crmBell" class="secondary crm-bell" type="button" aria-label="Bật thông báo đăng ký mới">
@@ -894,7 +900,17 @@ async function reload(){
  }catch(e){sourceReady=false;state('Không đọc được trạng thái: '+e.message,'error')}
  finally{busy=false;byId('refresh').disabled=false;byId('sync').disabled=!sourceReady}
 }
-byId('refresh').addEventListener('click',reload);
+byId('refresh').addEventListener('click',async()=>{
+ if(!isOwner)return;
+ const tab=document.querySelector('[data-owner-tab][aria-selected="true"]')?.dataset.ownerTab;
+ if(tab==='catalogue'){await reload();return;}
+ const button=byId('refresh');button.disabled=true;
+ try{
+  await loadCustomers();
+  if(tab==='old')await loadLedgerMonthCustomers();
+  else await refreshRegistrationAlerts();
+ }finally{button.disabled=false}
+});
 byId('sync').addEventListener('click',async()=>{
  if(!isOwner||busy||!sourceReady)return;
  if(!confirm('Xác nhận đọc danh mục chính thức và cập nhật RIÊNG danh mục V2? Không tạo hay sửa hóa đơn thật.'))return;
@@ -2181,7 +2197,7 @@ async function loadCustomers(){
  byId('crmPolicyForm').hidden=true;
  byId('crmInspector').hidden=true;
  byId('crmDetails').textContent='Chọn một khách hàng đã đăng ký để xem.';
- byId('crmRefresh').disabled=true;crmStatus('Đang tải hồ sơ xác thực…');
+ byId('refresh').disabled=true;crmStatus('Đang tải hồ sơ xác thực…');
  try{
   const data=await api('/api/v2/admin/customers');
   if(generation!==customerEpoch)return;
@@ -2192,7 +2208,7 @@ async function loadCustomers(){
   renderHistoricAddressImporter();
   crmStatus('Đã tải '+data.registered.length+' tài khoản và '+data.leads.length+' khách cũ.','success');
  }catch(e){if(generation===customerEpoch)crmStatus('Không đọc được danh sách: '+e.message,'error')}
- finally{byId('crmRefresh').disabled=false}
+ finally{byId('refresh').disabled=false}
 }
 async function approveCustomer(x){
  if(!isOwner||x.accessStatus!=='PENDING'||x.approvedForPricing)return;
@@ -2508,7 +2524,6 @@ byId('crmOldSearch').addEventListener('click',()=>{
 byId('crmOldFilter').addEventListener('keydown',ev=>{
  if(ev.key==='Enter'){ev.preventDefault();void searchSignedOldCustomers()}
 });
-byId('crmRefresh').addEventListener('click',loadCustomers);
 byId('crmAutoLinkPending').addEventListener('click',async()=>{
  const button=byId('crmAutoLinkPending');
  if(!isOwner||!confirm('Đối chiếu Gmail Google đã xác minh với hồ sơ khách cũ được Admin duyệt? '+
@@ -2588,6 +2603,7 @@ byId('crmPolicyForm').addEventListener('submit',async e=>{
 });
 async function initCrm(){
  byId('ownerTabs').hidden=false;
+ byId('refresh').hidden=false;
  activateOwnerTab('new');
  try{
   const data=await api('/api/v2/catalogue');
@@ -2778,7 +2794,7 @@ function ownerContactEditor(rec){
 
 /* Small consistent icons also on existing backoffice actions. */
 for(const [id,iconName] of [
- ['refresh','refresh'],['sync','refresh'],['crmRefresh','refresh'],
+ ['sync','refresh'],
  ['crmPolicySubmit','percent'],['crmAutoLinkPending','mail']]){
  const b=byId(id);if(b)b.prepend(ownerIcon(iconName));
 }
