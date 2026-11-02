@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs';
 const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
 const html=readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
 const withoutUi25d=html=>html
- .replace(/<style id="s25-ui-style">[\\s\\S]*?<\\/style>/,'')
- .replace(/<template id="s25-ui-template">[\\s\\S]*?<\\/template>/,'')
- .replace(/<script id="s25-ui-script">[\\s\\S]*?<\\/script>/,'');
+ .replace(/<style id="s25-ui-style">[\s\S]*?<\/style>/,'')
+ .replace(/<template id="s25-ui-template">[\s\S]*?<\/template>/,'')
+ .replace(/<script id="s25-ui-script">[\s\S]*?<\/script>/,'');
 const block=router.slice(router.indexOf("if(pathname==='/api/v2/admin/catalogue/readiness'"),
  router.indexOf("if(pathname==='/api/v2/catalogue'"));
 
