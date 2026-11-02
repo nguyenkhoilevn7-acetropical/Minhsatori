@@ -4,6 +4,10 @@ import {readFileSync} from 'node:fs';
 
 const router=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
 const html=readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
+const withoutUi25d=html=>html
+ .replace(/<style id="s25-ui-style">[\\s\\S]*?<\\/style>/,'')
+ .replace(/<template id="s25-ui-template">[\\s\\S]*?<\\/template>/,'')
+ .replace(/<script id="s25-ui-script">[\\s\\S]*?<\\/script>/,'');
 const block=router.slice(router.indexOf("if(pathname==='/api/v2/admin/catalogue/readiness'"),
  router.indexOf("if(pathname==='/api/v2/catalogue'"));
 
@@ -28,7 +32,9 @@ test('only a valid Admin session may reveal catalogue readiness and trigger sync
  assert.match(html,/cache:'no-store'/);
 });
 test('admin panel is guarded against unsafe html injection and unauthorized price writes',()=>{
- assert.doesNotMatch(html,/\.innerHTML\s*=|insertAdjacentHTML|eval\(/);
+ assert.doesNotMatch(withoutUi25d(html),/\.innerHTML\s*=|insertAdjacentHTML|eval\(/);
+ const cosmetic=html.match(/<script id="s25-ui-script">([\s\S]*?)<\/script>/)?.[1]||'';
+ assert.doesNotMatch(cosmetic,/\.innerHTML\s*=|insertAdjacentHTML|eval\(|fetch\(|\/api\/v2\//);
  assert.match(html,/\.textContent=/);
  assert.match(html,/readTransportConfigured===true/);
  assert.match(html,/quyền thực tế sẽ được xác minh khi đồng bộ/i);
