@@ -78,9 +78,12 @@ export async function notifyConfirmedInvoice(pool,invoiceNo,ownerId,
   throw new Error('CANONICAL_INVOICE_NUMBER_INVALID');
  await pool.query('INSERT INTO satori_v2_owner_push_events(invoice_no) VALUES($1) '+
   'ON CONFLICT(invoice_no) DO NOTHING',[number]);
- const due=await pool.query('SELECT delivered_at FROM satori_v2_owner_push_events '+
-  'WHERE invoice_no=$1',[number]);
- if(due.rows[0]?.delivered_at)return {sent:0,duplicate:true};
+ // Atomic lease: repeated /confirm/reconcile calls cannot send twice at once.
+ const due=await pool.query('UPDATE satori_v2_owner_push_events SET '+
+  "leased_until=now()+interval '60 seconds',attempts=attempts+1 "+
+  'WHERE invoice_no=$1 AND delivered_at IS NULL AND '+
+  '(leased_until IS NULL OR leased_until<now()) RETURNING invoice_no',[number]);
+ if(!due.rows.length)return {sent:0,duplicateOrInFlight:true};
  const devices=await pool.query('SELECT fcm_token FROM satori_v2_owner_push_devices '+
   'WHERE account_id=$1 AND last_seen_at>now()-interval \'90 days\' LIMIT 10',
   [ownerId]);
@@ -90,8 +93,8 @@ export async function notifyConfirmedInvoice(pool,invoiceNo,ownerId,
   try{if(await sendFcm(device.fcm_token,number,env,fetcher))sent++}
   catch{ /* no raw token, no customer PII, retry on next confirmed event */ }
  }
- await pool.query('UPDATE satori_v2_owner_push_events SET attempts=attempts+1,'+
-  'delivered_at=CASE WHEN $2>0 THEN now() ELSE delivered_at END WHERE invoice_no=$1',
-  [number,sent]);
+ await pool.query('UPDATE satori_v2_owner_push_events SET '+
+  'delivered_at=CASE WHEN $2>0 THEN now() ELSE delivered_at END, '+
+  'leased_until=NULL WHERE invoice_no=$1',[number,sent]);
  return {sent};
 }
