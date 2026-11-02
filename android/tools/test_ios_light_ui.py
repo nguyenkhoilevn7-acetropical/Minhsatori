@@ -29,10 +29,11 @@ class IOSLightThemeTests(unittest.TestCase):
     def test_ios_light_palette_is_not_dark_legacy(self):
         self.assertIn("private val night = Color.rgb(242, 242, 247)", self.source)
         self.assertIn("private val surface = Color.rgb(255, 255, 255)", self.source)
-        self.assertIn("private val cyan = Color.rgb(0, 122, 255)", self.source)
+        self.assertIn("private val cyan get() = SatoriUiTheme.accent(this)", self.source)
         self.assertIn("private val ink = Color.rgb(28, 28, 30)", self.source)
         self.assertIn("white, dark -> ink", self.source)
-        self.assertIn("Color.rgb(227, 229, 234)", self.source)
+        self.assertIn("Color.rgb(222, 234, 235)", self.source)
+        self.assertIn("SatoriUiTheme.raised(this)", self.source)
 
     def test_existing_live_capabilities_still_present(self):
         for text in ("fun invoiceQuickCard(", "fun customerQuickCard(", 
