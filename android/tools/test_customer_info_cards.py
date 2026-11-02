@@ -36,9 +36,9 @@ class CustomerCardContract(unittest.TestCase):
 
     def test_invoice_uses_same_labeled_customer_details(self):
         block = SRC.split("private fun openInvoice(", 1)[1]
-        self.assertIn("customerInfoRow(customerBlock, R.drawable.ic_satori_phone", block)
-        self.assertIn("customerInfoRow(customerBlock, R.drawable.ic_satori_map_pin", block)
-        self.assertIn('"THÔNG TIN KHÁCH HÀNG"', block)
+        self.assertIn("invoiceContact(customerCard, R.drawable.ic_satori_phone", block)
+        self.assertIn("invoiceContact(customerCard, R.drawable.ic_satori_map_pin", block)
+        self.assertIn('"Thông tin khách hàng"', block)
         self.assertIn("R.drawable.ic_satori_users", block)
 
     def test_accounting_ledger_filter_has_distinct_customer_details(self):
