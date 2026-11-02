@@ -1077,8 +1077,18 @@ class NativeMainActivity : AppCompatActivity() {
             grid.addView(second, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
         }
         parent.addView(grid, LinearLayout.LayoutParams(-1, -2))
-        val profit = kpi("Lợi nhuận", "Chờ đồng bộ",
-            "Chỉ hiện khi có số liệu đã xác minh", Color.rgb(120, 87, 199), "▤", 0)
+        val confirmedProfit = if (data != null &&
+            data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()) {
+            val margins = CtvProfitSourcePolicy.profitRows(data)
+            val report = AccountingProDebtProfitPolicy.report(
+                data.invoices, margins, debtProfitPeriod)
+            if (report.margin.missingInvoiceCount == 0)
+                report.margin.estimatedMarginKnownVnd?.let(SatoriData::money)
+            else null
+        } else null
+        val profit = kpi("Lợi nhuận", confirmedProfit ?: "Chờ đồng bộ",
+            if (confirmedProfit != null) "Ước tính · đã đối chiếu CTV" else
+                "Chưa đủ dữ liệu xác minh", Color.rgb(120, 87, 199), "▤", 0)
         // On Fold the third card aligns with the two-column dashboard.
         val width = if (resources.configuration.screenWidthDp >= 350)
             (resources.displayMetrics.widthPixels / 2 - dp(23)) else -1
@@ -1712,7 +1722,8 @@ class NativeMainActivity : AppCompatActivity() {
         val title = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(15), dp(14), dp(15))
-            background = panelBackground(Color.WHITE, 17)
+            background = panelBackground(Color.WHITE, 21)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
         }
         label(title, "CÁ NHÂN & QUẢN TRỊ", 19f, true, ink)
         label(title, "Tài khoản quản trị Minh Satori • các tác vụ được phân quyền",
@@ -1724,7 +1735,8 @@ class NativeMainActivity : AppCompatActivity() {
         val modules = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(11), dp(8), dp(11), dp(8))
-            background = panelBackground(Color.WHITE, 17)
+            background = panelBackground(Color.WHITE, 21)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
         }
         // MoneyMind personal/settings hierarchy: small colored icon, label and
         // chevron. Routes still target their original native Owner pages.
@@ -2798,7 +2810,8 @@ class NativeMainActivity : AppCompatActivity() {
         val salesSummary = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(11), dp(14), dp(11))
-            background = panelBackground(Color.rgb(245, 251, 250), 14)
+            background = panelBackground(Color.WHITE, 21)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
         }
         label(salesSummary, "TỔNG TIỀN BÁN · HÓA ĐƠN HỢP LỆ", 11f, true, softInk)
         label(salesSummary, SatoriData.money(salesTotal),
@@ -3421,7 +3434,9 @@ class NativeMainActivity : AppCompatActivity() {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(11), dp(13), dp(11), dp(13))
-                background = panelBackground(bg, 15)
+                background = panelBackground(Color.WHITE, 21)
+                elevation = if (SatoriUiTheme.raised(this@NativeMainActivity))
+                    dp(5).toFloat() else 0f
             }
             label(card, title, 11.5f, true, Color.rgb(20, 103, 104))
             label(card, amount, 17.5f, true, invoiceMoneyRed, 7).apply {
