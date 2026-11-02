@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const files=[
- ['account-v2/app.html','b1c4b47a','mm-bottom-nav'],
+ ['account-v2/app.html','fcac7dbd','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const fnv32=s=>{let h=0x811c9dc5;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),0x01000193);return (h>>>0).toString(16).padStart(8,'0')};
@@ -27,6 +27,8 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // Updated reviewed hashes cover new CTV-only UI, while all original navigation,
  // cart, checkout, Gemini delivery-note and invoice assertions remain intact.
  // Nov 1 reviewed PDF+canonical invoice read-only customer screen on top of current 8% CTV VAT/shipping UI.\n // Preserve full-page hashes after this scoped UX/API review.
+ // Nov 2 checkout Location bottom navigation and direct inline customer delivery editor;
+ // verified no change to submitted invoices, signed checkout or admin menu.
  // Nov 2 customer delivery self-service: per-address edit card, next-order-only notice,
  // quote invalidation and account-scoped optimistic concurrency. Existing submitted
  // invoice bytes and payment/order logic are not modified.
@@ -45,8 +47,8 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // strictly after authenticated positive cart deltas. No API, quote or order changes.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const fnvPart=x=>fnv32(x);
- assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'00b15a28');
- assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'72b8ac75');
+ assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'62df041d');
+ assert.equal(fnvPart(v2.replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'d7c3f789');
  const composer=v2.match(/<div class="composer">([\s\S]*?)<\/div>/)?.[1]||'';
  assert.match(composer,/<textarea id="message"[\s\S]*?<button id="voiceInput"[\s\S]*?<button id="send"/);
  assert.equal((composer.match(/id="voiceInput"/g)||[]).length,1);
@@ -68,7 +70,11 @@ test('V2 navigation only targets original authorized views and never bypasses lo
  const html=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const nav=html.match(/<nav class="mm-bottom-nav"[\s\S]*?<\/nav>/)?.[0]||'';
  assert.deepEqual([...nav.matchAll(/data-view="([^"]+)"/g)].map(m=>m[1]),
-   ['chat','catalogue','cart','orders','account']);
+   ['chat','catalogue','cart','orders']);
+ assert.match(nav,/id="bottomDelivery"/);
+ assert.match(nav,/aria-label="Chọn hoặc sửa địa chỉ giao hàng"/);
+ assert.doesNotMatch(nav,/data-view="account"/);
+ assert.match(html,/data-view="account">👤 Tài khoản/);
  assert.match(html,/#app:has\(#gate:not\(\.hidden\)\) \.mm-bottom-nav\{display:none\}/);
  assert.match(html,/document\.querySelectorAll\('\[data-view\]'\)/);
 });
