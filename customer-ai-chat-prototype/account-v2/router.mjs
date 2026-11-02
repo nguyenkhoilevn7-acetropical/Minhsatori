@@ -30,6 +30,7 @@ import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
  saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
+import {ownerPushReady,registerOwnerDevice,notifyConfirmedInvoice} from './owner-fcm-push.mjs';
 import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
@@ -546,6 +547,10 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/register'&&req.method==='POST'){
    send(res,200,await registrationSave(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/push/device'&&req.method==='POST'){
+   owner(actor);
+   send(res,200,await registerOwnerDevice(pool,actor,await json(req)));return true;
   }
   if(pathname==='/api/v2/admin/customers/complete-new-registration'&&req.method==='POST'){
    owner(actor);
@@ -1165,7 +1170,20 @@ export async function handleAccountV2(req,res,pathname){
     message:committed?'Đơn hàng đã ghi và đối soát với sổ Minh Satori.':
      receipt.state==='REJECTED'?'Đơn bị từ chối; vui lòng kiểm tra lại báo giá.':
      'Chưa xác minh được hóa đơn. Không gửi đơn mới; hãy đối soát cùng mã yêu cầu.'
-   });return true;
+   });
+   // Only a canonical COMMITTED invoice can trigger a notification.
+   // Push is best-effort, never part of the invoice write transaction.
+   if(committed&&ownerPushReady()&&Number.isSafeInteger(Number(receipt.invoiceNo))){
+    queueMicrotask(async()=>{
+     try{
+      const admins=await pool.query('SELECT id FROM satori_v2_accounts '+
+       'WHERE google_sub=$1 LIMIT 1',[config().ownerGoogleSub]);
+      if(admins.rows.length)
+       await notifyConfirmedInvoice(pool,receipt.invoiceNo,admins.rows[0].id);
+     }catch{ /* no financial retries or sensitive logging */ }
+    });
+   }
+   return true;
   }
   if(pathname==='/api/v2/orders/reconcile'&&req.method==='POST'){
    error(realCheckoutConfigured(),'REAL_CHECKOUT_GATE_NOT_VERIFIED',503);
