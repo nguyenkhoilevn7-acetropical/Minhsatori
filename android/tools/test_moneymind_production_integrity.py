@@ -52,7 +52,9 @@ class ProductionLayoutContract(unittest.TestCase):
                  'NativeInvoicePdf.shareMessenger', 'NativeInvoicePdf.preview'):
    self.assertIn(marker, source)
   self.assertIn('setView(page)',source)
-  self.assertIn('android.view.WindowManager.LayoutParams.MATCH_PARENT',source)
+  self.assertIn('resizeInvoiceDialog(dialog)',source)
+  self.assertIn('android.view.WindowManager.LayoutParams.MATCH_PARENT',
+                method('resizeInvoiceDialog'))
   self.assertIn('setOnClickListener { invoiceDialog?.dismiss() }',source)
   self.assertNotIn('.setPositiveButton("Chia sẻ", null)',source)
   self.assertNotIn('.setView(wrapper)',source)
