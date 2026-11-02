@@ -34,7 +34,7 @@ class ApprovedUi25dSurface(unittest.TestCase):
             "SatoriUiTheme.deep(a)",
             "SatoriUiTheme.raised(a)",
             'val requestId=UUID.randomUUID()',
-            'val submittedPayload:',
+            'var submittedPayload:',
             'submit:(',
             "SatoriOrderValidation.sum(goods,shipping,vat)"
         ):
