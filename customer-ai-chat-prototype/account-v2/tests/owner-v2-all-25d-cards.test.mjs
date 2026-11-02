@@ -28,10 +28,19 @@ test('customer identity, address and real Vietnam registration time remain visib
  assert.match(ui,/crm-registration-time/);
  assert.doesNotThrow(()=>new vm.Script(app));
 });
-test('customer list has one refresh; Gmail reconciliation remains a separate action',()=>{
- assert.equal((html.match(/id="crmRefresh"/g)||[]).length,1);
+test('one refresh control is located at the very top and refreshes each selected tab',()=>{
+ assert.equal((html.match(/id="refresh"/g)||[]).length,1);
+ assert.match(html,/<header class="owner-header">[\s\S]*?<button id="refresh"[\s\S]*?<\/header>/);
+ assert.equal((html.match(/id="crmRefresh"/g)||[]).length,0);
+ assert.doesNotMatch(html,/↻ Kiểm tra lại/);
+ assert.doesNotMatch(app,/\['refresh','refresh'\]/);
+ assert.match(app,/byId\('refresh'\)\.addEventListener\('click',async\(\)=>\{/);
+ assert.match(app,/if\(tab==='catalogue'\)\{await reload\(\);return;\}/);
+ assert.match(app,/await loadCustomers\(\)/);
+ assert.match(app,/if\(tab==='old'\)await loadLedgerMonthCustomers\(\)/);
+ assert.match(app,/byId\('refresh'\)\.hidden=false/);
  assert.doesNotMatch(html,/↻ Đối chiếu Gmail khách cũ/);
  assert.match(html,/id="crmAutoLinkPending"/);
- assert.match(app,/byId\('crmRefresh'\)\.addEventListener\('click',loadCustomers\)/);
  assert.match(app,/\/api\/v2\/admin\/legacy\/reconcile-pending/);
+ assert.doesNotThrow(()=>new vm.Script(app));
 });
