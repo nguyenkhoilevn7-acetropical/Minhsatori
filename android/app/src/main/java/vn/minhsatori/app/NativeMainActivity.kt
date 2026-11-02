@@ -3768,10 +3768,27 @@ class NativeMainActivity : AppCompatActivity() {
 
     /** The detail dialog follows the active cover/inner-screen window size. */
     private fun resizeInvoiceDialog(dialog: AlertDialog) {
-        val viewportWidth = resources.configuration.screenWidthDp
-        val safeWidth = (viewportWidth - 24).coerceAtLeast(240).coerceAtMost(540)
-        val usableHeight = (resources.displayMetrics.heightPixels * 0.90f).toInt()
-        dialog.window?.setLayout(dp(safeWidth), usableHeight)
+        // Keep the full detail page fullscreen across Fold open/close.
+        dialog.window?.setLayout(
+            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+            android.view.WindowManager.LayoutParams.MATCH_PARENT)
+        val grid = dialog.window?.decorView
+            ?.findViewWithTag<LinearLayout>("satori_invoice_detail_grid") ?: return
+        val expanded = resources.configuration.screenWidthDp >= 600
+        grid.orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        if (grid.childCount == 2) {
+            val customer = grid.getChildAt(0)
+            val products = grid.getChildAt(1)
+            customer.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(0, -2, 1f)
+                else LinearLayout.LayoutParams(-1, -2)
+            products.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(0, -2, 1f)
+                else LinearLayout.LayoutParams(-1, -2)
+            customer.setPadding(0, 0, if (expanded) dp(10) else 0, 0)
+            products.setPadding(if (expanded) dp(10) else 0, 0, 0, 0)
+            grid.requestLayout()
+        }
     }
 
     /** Two independent payment flags; tapping a row must still confirm via Mobile API. */
@@ -3913,6 +3930,7 @@ class NativeMainActivity : AppCompatActivity() {
         val detailGrid = LinearLayout(this).apply {
             orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
             gravity = Gravity.TOP
+            tag = "satori_invoice_detail_grid"
         }
         val customerBlock = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -4181,9 +4199,7 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.setOnShowListener {
             dialog.window?.setBackgroundDrawable(
                 android.graphics.drawable.ColorDrawable(night))
-            dialog.window?.setLayout(
-                android.view.WindowManager.LayoutParams.MATCH_PARENT,
-                android.view.WindowManager.LayoutParams.MATCH_PARENT)
+            resizeInvoiceDialog(dialog)
         }
         dialog.show()
     }
