@@ -14,8 +14,8 @@ RELEASE = json.loads((ANDROID / "release-request.json").read_text(encoding="utf-
 
 class Ui25dNativeV046(unittest.TestCase):
     def test_latest_release_identity_not_downgraded(self):
-        code = re.search(r'versionCode\\s*=\\s*(\\d+)', GRADLE)
-        version = re.search(r'versionName\\s*=\\s*"([0-9.]+)"', GRADLE)
+        code = re.search(r'versionCode\s*=\s*(\d+)', GRADLE)
+        version = re.search(r'versionName\s*=\s*"([0-9.]+)"', GRADLE)
         self.assertIsNotNone(code)
         self.assertIsNotNone(version)
         self.assertGreaterEqual(int(code.group(1)), 63)
