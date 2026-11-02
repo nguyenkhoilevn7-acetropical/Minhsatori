@@ -1,8 +1,8 @@
 {
-  "purpose": "approved-2point5d-full-native-layout-v047-20261102",
+  "purpose": "android-ui25d-fullscreen-invoice-and-vector-icons-20261102",
   "package": "vn.minhsatori.app",
-  "version": "0.4.47",
-  "versionCode": 64,
+  "version": "0.4.48",
+  "versionCode": 65,
   "branch": "fix/android-invoice-notification-open-20261101",
   "requestedOn": "2026-11-02",
   "sourcePRs": [
@@ -41,9 +41,10 @@
     352,
     353,
     363,
-    364
+    364,
+    365
   ],
-  "scope": "Android UI25D layout update over verified v0.4.46 Build63: dashboard hero + KPI, invoice chips and count, debt/card screens, order editing popup, native Android/Fold menu. Invoice/payment/write security logic unchanged.",
+  "scope": "UI-only: dashboard native vector KPI icons and one fullscreen invoice detail for all entrypoints. Phone stacked layout, Fold two-column responsive layout, one top Close; preserve all payment, PDF, edit/delete/share and notifications.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -98,6 +99,7 @@
     "2026-11-01: owner screenshot v0.4.44 shows gross 833,328 on invoice #5966 because Android Mobile API response lacks CTV registry. PR #353 adds source integrity check, same-ledger Drive read recovery with scope fallback, and removes misleading gross-only profit badge. Stage v0.4.45 build62 after complete Android CI and verify pinned signing certificate; no real financial writes.",
     "2026-11-02: UI25D 0.4.46 build 63 candidate based on 0.4.45 code 62, no downgrade, signed release only after CI and registered signer verified.",
     "Signed build 0.4.46 must be created from fix/android-invoice-notification-open-20261101 after PR #363 merge; retains release signer from 0.4.45.",
-    "2026-11-02: native UI25D layout 0.4.47 build64 candidate. No migration. Preserve stored payments and official certificate SHA-256. Read-only emulator tests required."
+    "2026-11-02: native UI25D layout 0.4.47 build64 candidate. No migration. Preserve stored payments and official certificate SHA-256. Read-only emulator tests required.",
+    "2026-11-02: v0.4.48 Build65 fixes screenshot-visible icon font fallback and narrow invoice popup; same pinned release signer, no backend or real invoice writes. Require CI/emulator and signed certificate/package checks."
   ]
 }
