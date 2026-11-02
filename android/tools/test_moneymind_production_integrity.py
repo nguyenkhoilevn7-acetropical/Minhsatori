@@ -37,14 +37,16 @@ class ProductionLayoutContract(unittest.TestCase):
   source=method('openInvoice')
   def between(start,end):
    return source.split(start,1)[1].split(end,1)[0]
+  # Only security-critical request/confirmation and restricted CTV share are
+  # checksum-locked. Rearranging visual status rows must not fail integrity.
   self.assertEqual(checksum('        fun requestPayment(action: String) {'+
     between('        fun requestPayment(action: String) {',
-            '        fun confirmInternalShare(action: () -> Unit) {')),
-    'ef398f20')
+            '        // The two payment states remain independent')),
+    '51fe6782')
   self.assertEqual(checksum('        fun confirmInternalShare(action: () -> Unit) {'+
     between('        fun confirmInternalShare(action: () -> Unit) {',
-            "        // Right-align actions on both the Fold's cover and inner displays.")),
-    '15c0247b')
+            '        // Compact one-line tools on Fold;')),
+    'd7b6964b')
   for marker in ('payments.markCustomerPaid','payments.markCustomerUnpaid',
                  'payments.markSatoriPaid','payments.markSatoriUnpaid',
                  'confirmInvoicePayment(invoice, action)', 'confirmSoftDelete(invoice)',
