@@ -2813,6 +2813,7 @@ class NativeMainActivity : AppCompatActivity() {
             }
             .show()
     }
+
     private fun styleUi25dInvoiceCard(parent: LinearLayout) {
         val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
         card.background = panelBackground(Color.WHITE, 21)
