@@ -843,6 +843,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
  font-weight:530;color:#425d68;overflow-wrap:anywhere;white-space:normal
 }
 .delivery-dialog #agentAddressManage{min-height:40px;margin-top:9px;border-radius:11px;font-size:14px}
+/* Separate edit action for all customer roles: never nest interactive buttons. */
+.delivery-dialog #agentAddressChoices .delivery-address-entry{position:relative}
+.delivery-dialog #agentAddressChoices .delivery-address-entry>.agent-address-choice{width:100%;padding-right:90px}
+.delivery-dialog #agentAddressChoices .agent-address-edit{
+ position:absolute;top:12px;right:12px;min-height:35px;padding:6px 9px;z-index:1;
+ border:1px solid #a9d6ce;border-radius:11px;background:#eff9f5;
+ color:#096960;font:inherit;font-size:13px;font-weight:750;cursor:pointer
+}
+.delivery-dialog #agentAddressChoices .agent-address-edit:focus-visible{outline:2px solid #007aff;outline-offset:2px}
 @media(max-width:420px){
  .delivery-dialog{width:calc(100vw - 24px);padding:13px 13px 14px}
  .delivery-dialog #agentAddressChoices .agent-address-choice{padding:11px}
@@ -950,7 +959,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <div class="field"><label>Địa chỉ đầy đủ</label><input id="userEditText" maxlength="400"></div>
 <label class="muted" style="display:flex;gap:9px;align-items:center;padding:8px 0"><input type="checkbox" id="userEditActive" checked> Địa chỉ đang hoạt động</label>
 <button id="saveUserAddress" class="btn primary" type="button">Lưu thay đổi</button>
-<p class="muted">Chỉ thay đổi điểm giao V2. Hóa đơn đã phát hành không thay đổi.</p>
+<p class="muted">Chỉ áp dụng cho bill mới sau khi lưu. Bill đã submit giữ nguyên người nhận, số điện thoại, địa chỉ và PDF; chỉ Admin được sửa bill cũ.</p>
 </details></div>
 <section id="ctvClientPanel" class="panel" hidden aria-label="Khách riêng của cộng tác viên">
 <h2>👥 Khách riêng của CTV</h2>
@@ -2635,7 +2644,18 @@ function renderAddresses(){
    if(!$('cartView').classList.contains('hidden'))renderCart();
    void suggestReorderForSelectedAddress();
   };
-  choices.append(button);
+  const entry=node('div',undefined,'delivery-address-entry');
+  const edit=node('button','✎ Sửa','agent-address-edit');edit.type='button';
+  edit.setAttribute('aria-label','Sửa người nhận, số điện thoại, địa chỉ '+(address.label||'điểm giao'));
+  edit.onclick=()=>{
+   // Retail, agency and CTV all use the same account-owned revisioned editor.
+   closeDeliveryDialog(true);
+   view('addresses');
+   $('userAddressEditor').open=true;
+   $('userEditAddress').value=address.id;
+   clearUserAddressDraft();userAddressSelection();
+  };
+  entry.append(button,edit);choices.append(entry);
  }
  if(!active.length)choices.append(node('p','Chưa có địa chỉ giao đang hoạt động.','muted'));
  updateDeliveryGate();
@@ -3175,7 +3195,8 @@ $('saveUserAddress').onclick=async()=>{
    recipientName:$('userEditRecipient').value,recipientPhone:$('userEditPhone').value,
    address:$('userEditText').value,active:$('userEditActive').checked},'PATCH');
   me=await call('/api/v2/me',undefined,'GET');
-  clearUserAddressDraft();renderAddresses();toast('Đã cập nhật địa chỉ giao hàng');
+  clearUserAddressDraft();resetTestQuote();invalidateCartPricing();
+   renderAddresses();renderCart();toast('Đã lưu cho bill mới. Bill cũ không thay đổi.');
  }catch(e){
   if(e.message==='ADDRESS_REVISION_CONFLICT'){
    me=await call('/api/v2/me',undefined,'GET');
