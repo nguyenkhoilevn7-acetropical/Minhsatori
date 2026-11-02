@@ -3772,8 +3772,43 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.window?.setLayout(
             android.view.WindowManager.LayoutParams.MATCH_PARENT,
             android.view.WindowManager.LayoutParams.MATCH_PARENT)
-        val grid = dialog.window?.decorView
-            ?.findViewWithTag<LinearLayout>("satori_invoice_detail_grid") ?: return
+        val decor = dialog.window?.decorView ?: return
+        val summary = decor.findViewWithTag<LinearLayout>("satori_invoice_summary_row")
+        val expanded = resources.configuration.screenWidthDp >= 600
+        if (summary != null && summary.childCount == 3) {
+            val info = summary.getChildAt(0)
+            val separator = summary.getChildAt(1)
+            val total = summary.getChildAt(2)
+            summary.orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            summary.gravity = Gravity.CENTER_VERTICAL
+            info.layoutParams = if (expanded) LinearLayout.LayoutParams(0, -2, 1.6f)
+                else LinearLayout.LayoutParams(-1, -2)
+            separator.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(dp(1), dp(80)).apply { marginStart = dp(14) }
+                else LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(14) }
+            total.layoutParams = if (expanded) LinearLayout.LayoutParams(0, -2, 1f)
+                else LinearLayout.LayoutParams(-1, -2)
+            total.setPadding(if (expanded) dp(18) else 0,
+                if (expanded) 0 else dp(16), 0, 0)
+        }
+        val actionCard = decor.findViewWithTag<LinearLayout>("satori_invoice_action_card")
+        if (actionCard != null && actionCard.childCount == 2) {
+            val toolbar = actionCard.getChildAt(0)
+            val share = actionCard.getChildAt(1)
+            actionCard.orientation = if (expanded) LinearLayout.HORIZONTAL
+                else LinearLayout.VERTICAL
+            toolbar.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(0, -2, 1f)
+                else LinearLayout.LayoutParams(-1, -2)
+            share.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(dp(220), -2).apply { marginStart = dp(16) }
+                else LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }
+            val title = (toolbar as? LinearLayout)?.getChildAt(0)
+            title?.visibility = if (!expanded &&
+                resources.configuration.screenWidthDp < 370) View.GONE else View.VISIBLE
+        }
+        val grid = decor.findViewWithTag<LinearLayout>("satori_invoice_detail_grid")
+            ?: return
         val expanded = resources.configuration.screenWidthDp >= 600
         grid.orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
         if (grid.childCount == 2) {
@@ -4293,6 +4328,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
 
         val actionCard = LinearLayout(this).apply {
+            tag = "satori_invoice_action_card"
             orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(15), dp(12), dp(15), dp(14))
@@ -4306,6 +4342,8 @@ class NativeMainActivity : AppCompatActivity() {
         }
         val toolTitle = label(toolbar, "Thao tác", 15f, true, ink)
         toolTitle.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        if (!expanded && resources.configuration.screenWidthDp < 370)
+            toolTitle.visibility = View.GONE
         toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))
         if (expanded) {
             actionCard.addView(toolbar, LinearLayout.LayoutParams(0, -2, 1f))
