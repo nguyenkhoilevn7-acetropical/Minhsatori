@@ -20,7 +20,8 @@ internal object OwnerExcelExport {
     fun write(snapshot: SatoriSnapshot, selected: List<SatoriInvoice>, output: OutputStream) {
         require(selected.isNotEmpty()) { "Không có hóa đơn trong bộ lọc." }
         require(selected.size <= 50_000) { "Tối đa 50.000 hóa đơn/lần xuất." }
-        require(selected.all { it in snapshot.invoices }) { "Bản ghi chưa được xác minh." }
+        val trusted = snapshot.invoices.toHashSet()
+        require(selected.all { it in trusted }) { "Bản ghi chưa được xác minh." }
 
         val totals = SatoriLedger.totals(selected)
         // Profit is calculated against the WHOLE snapshot, including referenced
@@ -146,7 +147,6 @@ internal object OwnerExcelExport {
             '<' -> append("&lt;")
             '>' -> append("&gt;")
             '"' -> append("&quot;")
-            '\'' -> append("&apos;")
             else -> if (c.code >= 32 || c == '\t' || c == '\n' || c == '\r') append(c)
         }
     }
