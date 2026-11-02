@@ -7,7 +7,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {classifyCrmFailure,crmFailureLog} from './crm-failure.mjs';
 import {fileURLToPath} from 'node:url';
-import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
+import {calculateQuote,normalizeCart,validateAddress,validateAdminAddressEdit,validateCustomerAddressEdit,validateAdminProfileEdit,isUuid,isSku,DomainError} from './domain.mjs';
 import {interpretLegacyOrder} from './legacy-interpret.mjs';
 import {parseV2DeliveryMessage,validatedV2QuoteDelivery} from './old-gemini-delivery-note.mjs';
 import {proposeV2GeminiCart} from './original-gemini-cart-adapter.mjs';
@@ -659,7 +659,7 @@ export async function handleAccountV2(req,res,pathname){
    const profiles=await pool.query('SELECT id,type,display_name AS name,phone FROM satori_v2_profiles WHERE account_id=$1 ORDER BY created_at',
     [actor.id]);
    const addresses=await pool.query('SELECT a.id,a.profile_id AS "profileId",a.label, '+
-    'a.recipient_name AS "recipientName",a.recipient_phone AS "recipientPhone",a.address,a.active, '+
+    'a.recipient_name AS "recipientName",a.recipient_phone AS "recipientPhone",a.address,a.active,a.revision, '+
     'history.last_ordered_at AS "lastOrderedAt" FROM satori_v2_addresses a '+
     'JOIN satori_v2_profiles p ON a.profile_id=p.id '+
     'LEFT JOIN LATERAL (SELECT MAX(q.created_at) AS last_ordered_at '+
@@ -705,7 +705,7 @@ export async function handleAccountV2(req,res,pathname){
   if(pathname==='/api/v2/addresses'&&req.method==='PATCH'){
    // Account-scoped revision CAS: customers can edit only their own addresses.
    // Address ownership is checked INSIDE the UPDATE. Never trust profileId alone.
-   const input=validateAdminAddressEdit(await json(req));
+   const input=validateCustomerAddressEdit(await json(req));
    const client=await pool.connect();
    try{
     await client.query('BEGIN');
