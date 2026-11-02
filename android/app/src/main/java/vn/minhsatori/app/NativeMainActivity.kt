@@ -794,6 +794,54 @@ class NativeMainActivity : AppCompatActivity() {
         return if (widthDp >= 600) dp(minOf(680, widthDp - 32)) else -1
     }
 
+
+    /** Native 2.5D order-mode cards share the original verified editor / Gemini routes. */
+    private fun renderUi25dOrderChoices(parent: LinearLayout, enabled: Boolean) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(12), 0, 0)
+        }
+        fun option(title: String, note: String, icon: Int, tint: Int, action: () -> Unit): LinearLayout {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(13), dp(15), dp(13), dp(15))
+                background = panelBackground(Color.WHITE, 21)
+                elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
+                isClickable = true
+                isFocusable = true
+                contentDescription = title + ". " + note
+                setOnClickListener { action() }
+            }
+            val image = ImageView(this).apply {
+                setImageResource(icon)
+                setColorFilter(tint)
+                background = panelBackground(SatoriUiTheme.soft(this@NativeMainActivity), 12)
+                setPadding(dp(9), dp(9), dp(9), dp(9))
+                contentDescription = null
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            card.addView(image, LinearLayout.LayoutParams(dp(43), dp(43)))
+            label(card, title, 14f, true, ink, 12)
+            label(card, note, 11f, false, softInk, 6)
+            return card
+        }
+        val editor = option("Lên đơn thủ công",
+            if (enabled) "Chọn khách, điểm giao và sản phẩm"
+            else "Cần xác minh quyền ghi", R.drawable.ic_satori_invoice, teal) {
+            if (enabled) launchEditor()
+            else if (apiEndpoint == null) configureMobileApi()
+            else connectGoogle()
+        }
+        val gemini = option("Mở Gemini quản trị",
+            "Lên đơn bằng hội thoại", R.drawable.ic_satori_plus, Color.rgb(117, 83, 201)) {
+            startActivity(Intent(this@NativeMainActivity, AiCustomerPortalActivity::class.java)
+                .putExtra("mode", "admin"))
+        }
+        row.addView(editor, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
+        row.addView(gemini, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
+        parent.addView(row, LinearLayout.LayoutParams(-1, -2))
+    }
+
     private fun renderMoneyMindOfflineState(parent: LinearLayout, tab: Int) {
         when (tab) {
             1 -> {
@@ -808,7 +856,30 @@ class NativeMainActivity : AppCompatActivity() {
                 parent.addView(search, LinearLayout.LayoutParams(-1, dp(46)).apply {
                     topMargin = dp(12)
                 })
-                label(parent, "Lịch sử hóa đơn", 15f, true, ink, 17)
+                val summaryRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, dp(11), 0, 0)
+                }
+                val left = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(12), dp(15), dp(12), dp(15))
+                    background = panelBackground(Color.WHITE, 21)
+                    elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
+                }
+                label(left, "TỔNG TIỀN BÁN", 11f, true, softInk)
+                label(left, "—", 22f, true, teal, 8)
+                val right = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(12), dp(15), dp(12), dp(15))
+                    background = panelBackground(Color.WHITE, 21)
+                    elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
+                }
+                label(right, "TỔNG HÓA ĐƠN", 11f, true, softInk)
+                label(right, "—", 22f, true, cyan, 8)
+                summaryRow.addView(left, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
+                summaryRow.addView(right, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
+                parent.addView(summaryRow)
+                label(parent, "Lịch sử hóa đơn", 16f, true, ink, 17)
                 section(parent, "Chưa thể xem hóa đơn",
                     "Đăng nhập và đồng bộ để xem danh sách, tìm kiếm, chỉnh sửa hoặc đối soát.")
             }
@@ -835,21 +906,8 @@ class NativeMainActivity : AppCompatActivity() {
                     "Công nợ tính theo hóa đơn thật sau khi đồng bộ. Trạng thái khách trả và thanh toán Satori độc lập.")
             }
             4 -> {
-                val card = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(dp(16), dp(14), dp(16), dp(13))
-                    background = panelBackground(Color.WHITE, 17)
-                }
-                label(card, "Lên hóa đơn Minh Satori", 17f, true, ink)
-                label(card, "Sẵn sàng kết nối tài khoản để chọn khách hàng, điểm giao, sản phẩm và duyệt hóa đơn.", 12f, false, softInk, 8)
-                button(card, "Mở Gemini quản trị", false,
-                    R.drawable.ic_satori_plus) {
-                    startActivity(Intent(this, AiCustomerPortalActivity::class.java)
-                        .putExtra("mode", "admin"))
-                }
-                parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
-                    topMargin = dp(12)
-                })
+                label(parent, "Chọn cách tạo đơn", 17f, true, ink, 17)
+                renderUi25dOrderChoices(parent, false)
                 section(parent, "Chưa được cấp quyền tạo đơn",
                     "Chỉ tạo hóa đơn thật sau khi Mobile API xác minh quyền Admin và anh xác nhận.")
             }
@@ -3540,7 +3598,8 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderNewOrderInfo(parent: LinearLayout) {
-        label(parent, "LÊN ĐƠN TRỰC TIẾP", 18f, true, teal, 14)
+        label(parent, "Chọn cách tạo đơn", 17f, true, ink, 15)
+        renderUi25dOrderChoices(parent, canWrite)
         if (canWrite) {
             section(parent, "Đã sẵn sàng lên đơn",
                 "Tạo hóa đơn nhiều mặt hàng, chọn đúng điểm giao, nhập số tiền và ghi chú.")
