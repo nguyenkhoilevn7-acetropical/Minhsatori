@@ -21,6 +21,12 @@ class Ui25dContract(unittest.TestCase):
         self.assertIn('translationX = drawerWidth.toFloat()', MAIN)
         self.assertIn('brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(46)))', MAIN)
 
+    def test_five_compact_destinations_are_real_native_tabs(self):
+        for marker in ('Triple(0, "Trang chủ"', 'Triple(1, "Hóa đơn"',
+                       'Triple(4, "Lên đơn"', 'Triple(3, "Công nợ"',
+                       'Triple(5, "Quản trị"', 'shell.addView(bottomNav'):
+            self.assertIn(marker, MAIN)
+
     def test_protected_order_and_payment_entrypoints(self):
         for marker in ('renderV2OwnerBackend', 'renderInvoices', 'confirmSoftDelete',
                        'refreshFromMobileApi', 'launchEditor()'):
