@@ -638,8 +638,7 @@ body{font-size:14px;line-height:1.42}
  .crm-product-price-grid label:first-child{grid-column:1/-1}}
 @media(max-width:390px){.crm-product-price-grid{grid-template-columns:1fr}
  .crm-product-price-grid label:first-child{grid-column:auto}}
-
-
+</style><style id="s25-ui-style">
 /* SATORI UI25D • presentation only: chat/order/accounting JS and invoice documents untouched. */
 @media screen {
  :root{
@@ -697,7 +696,6 @@ body{font-size:14px;line-height:1.42}
  @media (max-width:420px){.s25-picker-button.in-header{padding:8px;font-size:0}.s25-picker-button.in-header span{font-size:17px}}
  @media (prefers-reduced-motion:reduce){.s25-picker-button,.s25-depth button,.nav,.btn,.owner-tabs button,.mm-bottom-tab{transition:none!important}}
 }
-
 </style></head>
 <body>
 <main>
@@ -2712,7 +2710,7 @@ for(const [id,iconName] of [
 }
 
 </script>
-<script>
+<template id="s25-ui-template"><h3>Giao diện Minh Satori</h3><p>Màu sắc và độ nổi áp dụng cho tất cả màn hình V2.</p><div class="s25-swatches"><button type="button" class="s25-swatch" data-s25-swatch="teal" aria-label="Màu Teal" style="background:#008e8c"></button><button type="button" class="s25-swatch" data-s25-swatch="indigo" aria-label="Màu Indigo" style="background:#5266c8"></button><button type="button" class="s25-swatch" data-s25-swatch="coral" aria-label="Màu Coral" style="background:#c96370"></button><label style="display:flex;align-items:center;gap:4px;font-size:11px" for="s25-custom">Tự chọn <input class="s25-color-input" id="s25-custom" type="color" aria-label="Màu tùy chỉnh"></label></div><div class="s25-depth"><button type="button" data-s25-depth="flat">2D</button><button type="button" data-s25-depth="raised">2.5D</button></div></template><script id="s25-ui-script">
 // UI25D local theme preferences. Never reads or modifies invoices, auth, cart, chat, or API.
 (() => {
  const KEY='satori.ui.v25d',ROOT=document.documentElement;
@@ -2740,7 +2738,7 @@ for(const [id,iconName] of [
   const btn=document.createElement('button');btn.type='button';btn.id='s25-trigger';btn.className='s25-picker-button '+(host.id==='drawerBrand'?'in-drawer':'in-header');
   btn.innerHTML='<span aria-hidden="true">🎨</span> Tùy chỉnh giao diện';btn.setAttribute('aria-controls','s25-panel');btn.setAttribute('aria-expanded','false');
   const panel=document.createElement('section');panel.id='s25-panel';panel.className='s25-panel';panel.hidden=true;panel.setAttribute('aria-label','Tùy chỉnh giao diện Minh Satori');
-  panel.innerHTML='<h3>Giao diện Minh Satori</h3><p>Màu sắc và độ nổi áp dụng cho tất cả màn hình V2.</p><div class="s25-swatches"><button type="button" class="s25-swatch" data-s25-swatch="teal" aria-label="Màu Teal" style="background:#008e8c"></button><button type="button" class="s25-swatch" data-s25-swatch="indigo" aria-label="Màu Indigo" style="background:#5266c8"></button><button type="button" class="s25-swatch" data-s25-swatch="coral" aria-label="Màu Coral" style="background:#c96370"></button><label style="display:flex;align-items:center;gap:4px;font-size:11px" for="s25-custom">Tự chọn <input class="s25-color-input" id="s25-custom" type="color" aria-label="Màu tùy chỉnh"></label></div><div class="s25-depth"><button type="button" data-s25-depth="flat">2D</button><button type="button" data-s25-depth="raised">2.5D</button></div>';
+  const template=document.getElementById('s25-ui-template');panel.appendChild(template.content.cloneNode(true));
   host.append(btn);document.body.append(panel);apply();
   btn.addEventListener('click',()=>{panel.hidden=!panel.hidden;btn.setAttribute('aria-expanded',String(!panel.hidden))});
   panel.addEventListener('click',e=>{
