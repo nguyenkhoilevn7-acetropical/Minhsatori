@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const withoutUi25d=html=>html
- .replace(/<style id="s25-ui-style">[\\s\\S]*?<\\/style>/,'')
- .replace(/<template id="s25-ui-template">[\\s\\S]*?<\\/template>/,'')
- .replace(/<script id="s25-ui-script">[\\s\\S]*?<\\/script>/,'');
+ .replace(/<style id="s25-ui-style">[\s\S]*?<\/style>/,'')
+ .replace(/<template id="s25-ui-template">[\s\S]*?<\/template>/,'')
+ .replace(/<script id="s25-ui-script">[\s\S]*?<\/script>/,'');
 const html=fs.readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
 const router=fs.readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
 const backend=fs.readFileSync(new URL('../customer-backend.mjs',import.meta.url),'utf8');
