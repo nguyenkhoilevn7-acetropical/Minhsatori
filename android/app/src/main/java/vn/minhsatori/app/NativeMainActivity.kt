@@ -3444,8 +3444,9 @@ class NativeMainActivity : AppCompatActivity() {
         val listScroll=ScrollView(this).apply { addView(results) }
         panel.addView(listScroll, LinearLayout.LayoutParams(-1,
             (resources.displayMetrics.heightPixels * 43 / 100).coerceAtLeast(dp(170))))
-        val today=java.time.LocalDate.now()
-        val todayIso=today.toString()
+        val today=java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+        val homeDate=homeProfitPeriod.from ?: today
+        val todayIso=homeDate.toString()
 
         fun value(key:String)=inputs[key]?.text?.toString()?.trim().orEmpty()
         fun redraw() {
@@ -3467,9 +3468,15 @@ class NativeMainActivity : AppCompatActivity() {
                 return
             }
             val summary=AccountingProMargin45.summarize(marginRows,range)
-            section(results,"TỔNG LỢI NHUẬN ƯỚC TÍNH: " +
-                (summary.estimatedMarginKnownVnd?.let(SatoriData::money)
-                    ?: "Chưa đủ dữ liệu"),
+            val complete = data.collaboratorRegistryLoaded &&
+                data.collaborators.isNotEmpty() && summary.missingInvoiceCount == 0
+            val totalDisplay = when {
+                summary.totalInvoiceCount == 0 -> SatoriData.money(0L)
+                complete -> summary.estimatedMarginKnownVnd?.let(SatoriData::money)
+                    ?: "Chưa đủ dữ liệu"
+                else -> "Chưa đủ dữ liệu"
+            }
+            section(results,"TỔNG LỢI NHUẬN ƯỚC TÍNH: " + totalDisplay,
                 range.title + " · Tính được " + summary.computedInvoiceCount +
                     "/" + summary.totalInvoiceCount + " bill." +
                     (if (summary.missingInvoiceCount>0)
@@ -3531,8 +3538,8 @@ class NativeMainActivity : AppCompatActivity() {
             when(periodChoice.selectedItemPosition.coerceIn(0,choices.lastIndex)) {
                 1 -> addField("day","Ngày (YYYY-MM-DD)",todayIso)
                 2 -> addField("month","Tháng (YYYY-MM)",
-                    java.time.YearMonth.from(today).toString())
-                3 -> addField("year","Năm (YYYY)",today.year.toString())
+                    java.time.YearMonth.from(homeDate).toString())
+                3 -> addField("year","Năm (YYYY)",homeDate.year.toString())
                 4 -> {
                     addField("from","Từ ngày (YYYY-MM-DD)",
                         today.withDayOfMonth(1).toString())
@@ -3547,6 +3554,7 @@ class NativeMainActivity : AppCompatActivity() {
                     v:View?,pos:Int,id:Long) { updateFields() }
                 override fun onNothingSelected(p:android.widget.AdapterView<*>?) {}
             }
+        periodChoice.setSelection(homeProfitChoice.coerceIn(0, 3))
         updateFields()
         val scroll=ScrollView(this).apply { addView(panel) }
         AlertDialog.Builder(this)
