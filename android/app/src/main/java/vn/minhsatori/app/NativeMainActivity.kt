@@ -1169,28 +1169,28 @@ class NativeMainActivity : AppCompatActivity() {
         val noEligibleInvoice = profitSummary?.totalInvoiceCount == 0 &&
             profitSummary.excludedInvalidDates == 0 &&
             (homeProfitChoice != 0 || data?.invoices?.none { !it.isExcluded } == true)
+        // Sum only verified rows; old invoices without financial evidence
+        // are omitted, never fabricated as zero-margin invoices.
         val confirmedProfit = when {
             data == null -> null
             noEligibleInvoice -> SatoriData.money(0L)
-            verifiedRegistry && profitSummary != null &&
-                profitSummary.missingInvoiceCount == 0 &&
-                profitSummary.excludedInvalidDates == 0 ->
+            profitSummary != null && profitSummary.computedInvoiceCount > 0 ->
                 profitSummary.estimatedMarginKnownVnd?.let(SatoriData::money)
             else -> null
         }
         val profitNote = when {
             data == null -> "Chưa kết nối sổ hóa đơn"
             noEligibleInvoice -> "Không có hóa đơn hợp lệ trong kỳ"
-            !verifiedRegistry -> "Thiếu hồ sơ CTV từ nguồn đồng bộ"
             profitSummary == null -> "Chưa có dữ liệu lợi nhuận"
+            profitSummary.computedInvoiceCount > 0 ->
+                "Đã tính " + profitSummary.computedInvoiceCount + "/" +
+                    profitSummary.totalInvoiceCount + " bill · bỏ qua bill thiếu dữ liệu"
+            !verifiedRegistry -> "Thiếu hồ sơ CTV từ nguồn đồng bộ"
             profitSummary.excludedInvalidDates > 0 ->
                 "Có " + profitSummary.excludedInvalidDates + " bill thiếu ngày hợp lệ"
-            profitSummary.missingInvoiceCount > 0 ->
-                "Thiếu dữ liệu " + profitSummary.missingInvoiceCount +
-                    "/" + profitSummary.totalInvoiceCount + " bill"
-            else -> "Ước tính sau hoa hồng CTV · chưa trừ chi phí khác"
+            else -> "Chưa có bill đủ điều kiện tính"
         }
-        val profit = kpi("Lợi nhuận", confirmedProfit ?: "Chưa đủ dữ liệu",
+        val profit = kpi("Lợi nhuận", confirmedProfit ?: "Chưa có số liệu",
             profitNote, Color.rgb(120, 87, 199), R.drawable.ic_satori_profit, 0)
         // Show line-by-line source reasons instead of silently hiding amounts.
         profit.setOnClickListener {
@@ -3472,23 +3472,24 @@ class NativeMainActivity : AppCompatActivity() {
                 return
             }
             val summary=AccountingProMargin45.summarize(marginRows,range)
-            val complete = data.collaboratorRegistryLoaded &&
-                data.collaborators.isNotEmpty() && summary.missingInvoiceCount == 0
             val totalDisplay = when {
+                summary.computedInvoiceCount > 0 ->
+                    summary.estimatedMarginKnownVnd?.let(SatoriData::money)
+                        ?: "Chưa có số liệu"
                 summary.totalInvoiceCount == 0 &&
                     summary.excludedInvalidDates == 0 -> SatoriData.money(0L)
-                complete && summary.excludedInvalidDates == 0 -> summary.estimatedMarginKnownVnd?.let(SatoriData::money)
-                    ?: "Chưa đủ dữ liệu"
-                else -> "Chưa đủ dữ liệu"
+                else -> "Chưa có số liệu"
             }
             section(results,"TỔNG LỢI NHUẬN ƯỚC TÍNH: " + totalDisplay,
-                range.title + " · Tính được " + summary.computedInvoiceCount +
+                range.title + " · Đã tính " + summary.computedInvoiceCount +
                     "/" + summary.totalInvoiceCount + " bill." +
                     (if (summary.missingInvoiceCount>0)
-                        " Thiếu " + summary.missingInvoiceCount + " bill chưa xác minh." else "") +
-                    " Không phải lợi nhuận ròng.")
-            val filtered=marginRows.filter { range.includes(it.invoice) }
-            label(results,"HÓA ĐƠN TRONG KỲ (" + filtered.size + ")",
+                        " Bỏ qua " + summary.missingInvoiceCount + " bill thiếu dữ liệu." else "") +
+                    " Chỉ cộng bill đủ điều kiện; đây là lợi nhuận ước tính, chưa trừ chi phí vận hành.")
+            val filtered=marginRows.filter {
+                range.includes(it.invoice) && it.estimatedOwnerMarginVnd != null
+            }
+            label(results,"BILL ĐÃ TÍNH TRONG KỲ (" + filtered.size + ")",
                 12f,true,cyan,12)
             filtered.take(90).forEach { row ->
                 section(results,"#" + row.invoice.number + " · " + row.invoice.customer,
@@ -3506,8 +3507,8 @@ class NativeMainActivity : AppCompatActivity() {
                     (row.reason?.let { "\nCần rà soát: " + it } ?: ""))
             }
             if(summary.excludedInvalidDates>0)
-                label(results,"Có " + summary.excludedInvalidDates +
-                    " hóa đơn ngày sai, không đưa vào bất kỳ báo cáo thời gian nào.",
+                label(results,"Bỏ qua " + summary.excludedInvalidDates +
+                    " hóa đơn ngày không hợp lệ; chưa tính vào tổng lợi nhuận.",
                     11f,false,Color.rgb(175,94,0),10)
             if(filtered.size>90)
                 label(results,"Đang giới hạn 90 bill, chọn kỳ ngắn hơn để xem tiếp.",
