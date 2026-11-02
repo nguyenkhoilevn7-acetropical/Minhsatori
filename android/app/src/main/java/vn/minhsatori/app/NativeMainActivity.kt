@@ -3809,7 +3809,6 @@ class NativeMainActivity : AppCompatActivity() {
         }
         val grid = decor.findViewWithTag<LinearLayout>("satori_invoice_detail_grid")
             ?: return
-        val expanded = resources.configuration.screenWidthDp >= 600
         grid.orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
         if (grid.childCount == 2) {
             val customer = grid.getChildAt(0)
