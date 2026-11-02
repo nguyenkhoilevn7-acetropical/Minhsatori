@@ -1035,7 +1035,7 @@ class NativeMainActivity : AppCompatActivity() {
             setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
         }
         val report = TextView(this).apply {
-            text = "▥  Xem báo cáo   ›"
+            text = "Xem báo cáo   ›"
             textSize = 12f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
@@ -1076,7 +1076,7 @@ class NativeMainActivity : AppCompatActivity() {
         parent.addView(heading)
 
         fun kpi(title: String, value: String, note: String, tint: Int,
-                icon: String, openTab: Int): LinearLayout {
+                iconRes: Int, openTab: Int): LinearLayout {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(15), dp(14), dp(12), dp(14))
@@ -1092,11 +1092,11 @@ class NativeMainActivity : AppCompatActivity() {
                 contentDescription = title + ": " + value + ". " + note
                 setOnClickListener { activeTab = openTab; render() }
             }
-            val smallIcon = TextView(this).apply {
-                text = icon
-                gravity = Gravity.CENTER
-                textSize = 17f
-                setTextColor(tint)
+            val smallIcon = ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(tint)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setPadding(dp(10), dp(10), dp(10), dp(10))
                 background = GradientDrawable().apply {
                     setColor(Color.rgb(
                         (Color.red(tint) + 255 * 3) / 4,
@@ -1105,6 +1105,8 @@ class NativeMainActivity : AppCompatActivity() {
                     ))
                     cornerRadius = dp(11).toFloat()
                 }
+                contentDescription = title
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }
             card.addView(smallIcon, LinearLayout.LayoutParams(dp(36), dp(36)))
             label(card, title, 11f, false, softInk, 10)
@@ -1118,11 +1120,11 @@ class NativeMainActivity : AppCompatActivity() {
         val first = kpi("Tổng tiền bán",
             if (sales == null) "—" else SatoriData.money(sales),
             if (salesCount == null) "Chưa đồng bộ" else "$salesCount hóa đơn hợp lệ",
-            tealAccent, "▥", 1)
+            tealAccent, R.drawable.ic_satori_invoice, 1
         val second = kpi("Công nợ phải thu",
             if (data == null) "—" else SatoriData.money(data.outstandingAmount),
             if (data == null) "Chưa đồng bộ" else "${data.outstandingCount} hóa đơn chưa thu",
-            Color.rgb(209, 77, 91), "▣", 3)
+            Color.rgb(209, 77, 91), R.drawable.ic_satori_debt, 3
         val grid = LinearLayout(this).apply {
             orientation = if (resources.configuration.screenWidthDp >= 350)
                 LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
@@ -1146,7 +1148,7 @@ class NativeMainActivity : AppCompatActivity() {
         } else null
         val profit = kpi("Lợi nhuận", confirmedProfit ?: "Chờ đồng bộ",
             if (confirmedProfit != null) "Ước tính · đã đối chiếu CTV" else
-                "Chưa đủ dữ liệu xác minh", Color.rgb(120, 87, 199), "▤", 0)
+                "Chưa đủ dữ liệu xác minh", Color.rgb(120, 87, 199), R.drawable.ic_satori_dashboard, 0
         // On Fold the third card aligns with the two-column dashboard.
         val width = if (resources.configuration.screenWidthDp >= 350)
             (resources.displayMetrics.widthPixels / 2 - dp(23)) else -1
