@@ -4154,11 +4154,21 @@ class NativeMainActivity : AppCompatActivity() {
                 setPadding(dp(11), dp(11), dp(10), dp(11))
                 background = panelBackground(Color.WHITE, 12)
             }
+            val productKind = InvoiceProductPresentation.icon(line.description, line.code)
+            val iconRes = when (productKind) {
+                InvoiceProductPresentation.Icon.WATER -> R.drawable.ic_product_water
+                InvoiceProductPresentation.Icon.GUAVA -> R.drawable.ic_product_guava
+                InvoiceProductPresentation.Icon.SOURSOP -> R.drawable.ic_product_soursop
+                InvoiceProductPresentation.Icon.FRUIT -> R.drawable.ic_product_fruit
+                InvoiceProductPresentation.Icon.DRINK -> R.drawable.ic_product_drink
+                InvoiceProductPresentation.Icon.PACKAGE -> R.drawable.ic_product_package
+            }
             val productIcon = ImageView(this).apply {
-                setImageResource(R.drawable.ic_satori_invoice)
+                setImageResource(iconRes)
                 setColorFilter(Color.rgb(25, 109, 180))
                 background = background(Color.rgb(235, 246, 255), 12)
                 setPadding(dp(10), dp(10), dp(10), dp(10))
+                contentDescription = "Biểu tượng " + line.description
             }
             productRow.addView(productIcon,
                 LinearLayout.LayoutParams(dp(43), dp(43)).apply { marginEnd = dp(11) })
@@ -4166,8 +4176,12 @@ class NativeMainActivity : AppCompatActivity() {
             label(textGroup, line.description, 13.5f, true, ink)
             label(textGroup, "x" + line.quantity + " " + line.unit + " × " +
                 SatoriData.money(line.unitPrice), 11.5f, false, softInk, 5)
-            label(textGroup, "Thành tiền: " + SatoriData.money(line.amount),
-                13f, true, amountRed, 5)
+            val lineDiscount = InvoiceProductPresentation.discountPercent(line)
+            if (lineDiscount != null && invoice.lines.size > 1) {
+                label(textGroup, "Discount " +
+                    InvoiceProductPresentation.formatPercent(lineDiscount),
+                    11f, true, brandGreen, 5)
+            }
             productRow.addView(textGroup, LinearLayout.LayoutParams(0, -2, 1f))
             productCard.addView(productRow, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(7)
@@ -4179,6 +4193,21 @@ class NativeMainActivity : AppCompatActivity() {
             topMargin = dp(13)
             bottomMargin = dp(5)
         })
+        // This is the stored discounted line total, not the list-price total:
+        // never subtract invoice discounts a second time.
+        val storedLineSubtotal = invoice.lines.sumOf { it.amount }
+        invoicePriceRow(productCard, "Thành tiền", storedLineSubtotal)
+        val discountLine = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(2), dp(6), dp(2), dp(6))
+        }
+        val discountTitle = label(discountLine, "Discount %", 12f, false, softInk)
+        discountTitle.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        label(discountLine,
+            InvoiceProductPresentation.invoiceDiscountLabel(invoice.lines),
+            12f, true, brandGreen)
+        productCard.addView(discountLine)
         invoicePriceRow(productCard, "Phí giao", invoice.shipping)
         invoicePriceRow(productCard, "Thuế VAT", invoice.vat)
         val productTotal = LinearLayout(this).apply {
