@@ -74,6 +74,21 @@ const quote={expectedRevision:2,requestId:'order-ctv-00001',collaboratorId:'ctv-
  order:{name:'Synthetic Customer',phone:'0900000011',location:'123 Fake Test Road',
   items:[{code:'TP-00003',qty:10}],
   deliveryNote:'Giao sớm'}};
+// Offline regression: editing a historical source cannot silently expand an
+// existing owner approval to a new destination or phone number.
+const sourceRows=JSON.parse(ledger.values.satori_orders_v15);
+sourceRows[0].location='456 Unapproved Fake Road';
+ledger.values.satori_orders_v15=JSON.stringify(sourceRows);
+assert.equal(call('orders.create.pair',{...quote,
+ order:{...quote.order,location:'456 Unapproved Fake Road'}}).error.code,'CTV_DESTINATION_NOT_APPROVED');
+sourceRows[0].location='123 Fake Test Road';
+sourceRows[0].phone='0900000099';
+ledger.values.satori_orders_v15=JSON.stringify(sourceRows);
+assert.equal(call('orders.create.pair',{...quote,
+ order:{...quote.order,phone:'0900000099'}}).error.code,'CTV_DESTINATION_NOT_APPROVED');
+sourceRows[0].phone='0900000011';
+ledger.values.satori_orders_v15=JSON.stringify(sourceRows);
+assert.equal(backups,1);assert.equal(writes,1);
 assert.equal(call('orders.create.pair',{...quote,customerRef:undefined,confirmedNewCustomer:true}).error.code,'CTV_DESTINATION_NOT_APPROVED');
 assert.equal(call('orders.create.pair',{...quote,customerRef:{id:'source-01',invoiceNo:999}}).error.code,'CTV_DESTINATION_NOT_APPROVED');
 assert.equal(backups,1);assert.equal(writes,1);
