@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const files=[
- ['account-v2/app.html','2f5d1b8e','mm-bottom-nav'],
+ ['account-v2/app.html','51979f62','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const fnv32=s=>{let h=0x811c9dc5;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),0x01000193);return (h>>>0).toString(16).padStart(8,'0')};
@@ -38,6 +38,8 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // Nov 2 reviewed visual-only fly-to-cart effect and count badge, using the
  // existing bottom navigation cart, only after confirmed server-side cart save.
  // Includes reduced-motion handling; no pricing, Gemini or checkout changes.
+ // Nov 2 reviewed a second motion-only Gemini Send confirmation entrypoint; applies
+ // strictly after authenticated positive cart deltas. No API, quote or order changes.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
  const fnvPart=x=>fnv32(x);
  assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'7ab54ebe');
