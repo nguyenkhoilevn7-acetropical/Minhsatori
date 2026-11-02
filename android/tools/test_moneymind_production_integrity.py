@@ -48,7 +48,7 @@ class ProductionLayoutContract(unittest.TestCase):
   self.assertNotIn('MobileApiClient.request(',edit)
 
  def test_money_mind_native_routes_do_not_fake_invoices(self):
-  for term in ('val bottomDestinations = listOf(', 'renderMoneyMindShortcuts(content)',
+  for term in ('val bottomDestinations = listOf(', 'renderMoneyMindShortcuts(parent)',
                'renderMoneyMindRecent(content, data)', 'renderMoneyMindOfflineState(content, activeTab)',
                'showAdvancedOverview','if (tabChanged && motionEnabled())'):
    self.assertIn(term,SOURCE)
