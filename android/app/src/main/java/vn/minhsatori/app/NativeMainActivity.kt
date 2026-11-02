@@ -82,6 +82,7 @@ class NativeMainActivity : AppCompatActivity() {
     private var ctvBridgeSnapshot: SatoriSnapshot? = null
     private var statusMessage = "Chưa liên kết dữ liệu Google Drive. Bấm KẾT NỐI DỮ LIỆU để bắt đầu."
     private var searchText = ""
+    private var selectedInvoiceStatusIndex = 0
     // UI-only filters: no ledger mutation and no new data permissions.
     private var debtProfitPeriod = AccountingProMargin45Period.all()
     private var debtProfitChoice = 0
@@ -487,6 +488,7 @@ class NativeMainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         foreground = true
+        SatoriPush.registerOwnerDevice(this)
         syncHandler.removeCallbacks(syncTick)
         syncHandler.postDelayed(syncTick, syncIntervalMs)
         v2AlertHandler.removeCallbacks(v2AlertTick)
@@ -509,6 +511,23 @@ class NativeMainActivity : AppCompatActivity() {
             }
             else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
                     SystemClock.elapsedRealtime(), fallbackReadMs)) syncPreferredSource()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 5201) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                SatoriPush.registerOwnerDevice(this)
+            } else {
+                getPreferences(MODE_PRIVATE).edit()
+                    .putBoolean("satori_live_notifications", false).apply()
+                Toast.makeText(this, "Quyền thông báo bị từ chối. Chưa bật báo đơn.",
+                    Toast.LENGTH_LONG).show()
+            }
+            render()
         }
     }
 
@@ -1300,9 +1319,13 @@ class NativeMainActivity : AppCompatActivity() {
                         PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5201)
                 }
-                Toast.makeText(this@NativeMainActivity, if (next)
-                    "Đã bật thông báo đơn thật khi dữ liệu đồng bộ được." else
-                    "Đã tắt thông báo đơn mới.", Toast.LENGTH_SHORT).show()
+                if (next) SatoriPush.registerOwnerDevice(this@NativeMainActivity)
+                Toast.makeText(this@NativeMainActivity,
+                    if (!next) "Đã tắt thông báo đơn mới."
+                    else if (SatoriPush.configured())
+                        "Đã bật thông báo. Khi đăng nhập Owner V2, thiết bị đăng ký nhận push."
+                    else "Đã bật thông báo khi đồng bộ. Push tức thời chưa có cấu hình FCM.",
+                    Toast.LENGTH_LONG).show()
                 render()
             }
         }
@@ -2879,9 +2902,12 @@ class NativeMainActivity : AppCompatActivity() {
             background = panelBackground(Color.WHITE, 21)
             elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
         }
-        label(salesSummary, "TỔNG TIỀN BÁN · HÓA ĐƠN HỢP LỆ", 11f, true, softInk)
-        label(salesSummary, SatoriData.money(salesTotal),
+        label(salesSummary, "TỔNG TIỀN BÁN", 11f, true, softInk)
+        val salesAmount = label(salesSummary, SatoriData.money(salesTotal),
             21f, true, invoiceMoneyRed, 5)
+        salesAmount.setSingleLine(true)
+        salesAmount.setAutoSizeTextTypeUniformWithConfiguration(
+            13, 21, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
         val countSummary = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(11), dp(14), dp(11))
@@ -2891,8 +2917,13 @@ class NativeMainActivity : AppCompatActivity() {
         label(countSummary, "TỔNG HÓA ĐƠN", 11f, true, softInk)
         label(countSummary, data.invoices.count { !it.isExcluded }.toString(), 21f, true, cyan, 5)
         val salesRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        salesRow.addView(salesSummary, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
-        salesRow.addView(countSummary, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
+        // Fix the two statistic cards to the same height regardless of amount wrapping.
+        salesRow.addView(salesSummary, LinearLayout.LayoutParams(0, dp(110), 1f).apply {
+            marginEnd = dp(5)
+        })
+        salesRow.addView(countSummary, LinearLayout.LayoutParams(0, dp(110), 1f).apply {
+            marginStart = dp(5)
+        })
         parent.addView(salesRow, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(10)
         })
@@ -2911,10 +2942,9 @@ class NativeMainActivity : AppCompatActivity() {
         })
         val statuses = listOf("Tất cả", "Chưa thanh toán", "Đã thanh toán",
             "Đã TT Satori", "Không Tính", "Đã hủy")
-        val filter = darkSpinner(statuses)
-        // Filter chips replace the old spinner visually but retain its selection callbacks.
-        filter.visibility = View.GONE
-        parent.addView(filter, LinearLayout.LayoutParams(1, 1))
+        // Direct chip selection: a hidden Spinner can lose click callbacks on
+        // some Android/Fold layouts. Keep the selection in native screen state.
+        var refreshList: () -> Unit = {}
         val chipScroll = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
@@ -2932,7 +2962,10 @@ class NativeMainActivity : AppCompatActivity() {
                 isClickable = true
                 isFocusable = true
                 contentDescription = "Lọc " + title
-                setOnClickListener { filter.setSelection(index) }
+                setOnClickListener {
+                    selectedInvoiceStatusIndex = index
+                    refreshList()
+                }
             }
             chips.add(chip)
             chipRow.addView(chip, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
@@ -2954,7 +2987,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
         fun updateList() {
             list.removeAllViews()
-            val selected = filter.selectedItemPosition.coerceIn(0, statuses.lastIndex)
+            val selected = selectedInvoiceStatusIndex.coerceIn(0, statuses.lastIndex)
             val status = statuses[selected]
             chips.forEachIndexed { i, chip ->
                 chip.setTextColor(if (i == selected) SatoriUiTheme.onAccent(this@NativeMainActivity) else softInk)
@@ -2962,10 +2995,9 @@ class NativeMainActivity : AppCompatActivity() {
                 chip.elevation = if (i == selected && SatoriUiTheme.raised(this@NativeMainActivity))
                     dp(2).toFloat() else 0f
             }
-            val matching = data.invoices.filter {
-                SatoriData.search(it, searchText) &&
-                    (status == "Tất cả" || it.status.equals(status, ignoreCase = true))
-            }
+            val matching = InvoiceScreenFilter.apply(
+                data.invoices, selected, searchText)
+
             label(list, "Tìm thấy " + matching.size + " hóa đơn" +
                 (if (status != "Tất cả") " • " + status else ""),
                 11.5f, true, cyan, 7)
@@ -2980,11 +3012,7 @@ class NativeMainActivity : AppCompatActivity() {
             // prices here as well so old green inline TextViews cannot reappear.
             highlightMoneyInView(list)
         }
-        filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
-                view: View?, position: Int, id: Long) { updateList() }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) { updateList() }
-        }
+        refreshList = { updateList() }
         input.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
