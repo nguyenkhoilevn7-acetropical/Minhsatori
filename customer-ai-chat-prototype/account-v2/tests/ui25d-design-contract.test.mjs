@@ -18,7 +18,8 @@ for (const page of ['app.html','owner-catalogue.html']) {
   assert.match(html,/\.drawer\{background/);
   assert.match(html,/body:not\(\.menu-open\) \.drawer/);
   assert.match(html,/Never reads or modifies invoices, auth, cart, chat, or API/);
-  assert.equal((html.match(/id='s25-panel'/g)||[]).length,0);
+  assert.match(html,/id="s25-ui-template"/);
+  assert.doesNotMatch(html,/panel\.innerHTML\s*=/);
  });
 }
 test('Original Gemini and customer order controls remain present',()=>{
