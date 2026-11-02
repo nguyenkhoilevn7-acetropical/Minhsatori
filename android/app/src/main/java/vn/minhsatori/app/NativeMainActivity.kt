@@ -1167,12 +1167,14 @@ class NativeMainActivity : AppCompatActivity() {
         val verifiedRegistry = data?.collaboratorRegistryLoaded == true &&
             data.collaborators.isNotEmpty()
         val noEligibleInvoice = profitSummary?.totalInvoiceCount == 0 &&
+            profitSummary.excludedInvalidDates == 0 &&
             (homeProfitChoice != 0 || data?.invoices?.none { !it.isExcluded } == true)
         val confirmedProfit = when {
             data == null -> null
             noEligibleInvoice -> SatoriData.money(0L)
             verifiedRegistry && profitSummary != null &&
-                profitSummary.missingInvoiceCount == 0 ->
+                profitSummary.missingInvoiceCount == 0 &&
+                profitSummary.excludedInvalidDates == 0 ->
                 profitSummary.estimatedMarginKnownVnd?.let(SatoriData::money)
             else -> null
         }
@@ -1181,6 +1183,8 @@ class NativeMainActivity : AppCompatActivity() {
             noEligibleInvoice -> "Không có hóa đơn hợp lệ trong kỳ"
             !verifiedRegistry -> "Thiếu hồ sơ CTV từ nguồn đồng bộ"
             profitSummary == null -> "Chưa có dữ liệu lợi nhuận"
+            profitSummary.excludedInvalidDates > 0 ->
+                "Có " + profitSummary.excludedInvalidDates + " bill thiếu ngày hợp lệ"
             profitSummary.missingInvoiceCount > 0 ->
                 "Thiếu dữ liệu " + profitSummary.missingInvoiceCount +
                     "/" + profitSummary.totalInvoiceCount + " bill"
@@ -3471,8 +3475,9 @@ class NativeMainActivity : AppCompatActivity() {
             val complete = data.collaboratorRegistryLoaded &&
                 data.collaborators.isNotEmpty() && summary.missingInvoiceCount == 0
             val totalDisplay = when {
-                summary.totalInvoiceCount == 0 -> SatoriData.money(0L)
-                complete -> summary.estimatedMarginKnownVnd?.let(SatoriData::money)
+                summary.totalInvoiceCount == 0 &&
+                    summary.excludedInvalidDates == 0 -> SatoriData.money(0L)
+                complete && summary.excludedInvalidDates == 0 -> summary.estimatedMarginKnownVnd?.let(SatoriData::money)
                     ?: "Chưa đủ dữ liệu"
                 else -> "Chưa đủ dữ liệu"
             }
