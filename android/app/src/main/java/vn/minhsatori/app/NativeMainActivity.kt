@@ -88,6 +88,8 @@ class NativeMainActivity : AppCompatActivity() {
     private var debtProfitChoice = 0
     private var homeProfitPeriod = AccountingProMargin45Period.all()
     private var homeProfitChoice = 0
+    // Export data is captured at tap time; never persist customer records locally.
+    private var pendingExcelExport: Pair<SatoriSnapshot, List<SatoriInvoice>>? = null
     private var isLoading = false
     private var fileUri: Uri? = null
     private var dataSource = ""
@@ -367,6 +369,33 @@ class NativeMainActivity : AppCompatActivity() {
 
     // Open a supplier XLSX/CSV statement strictly for local, read-only analysis.
     // Never upload statement bytes, persist a copy or mutate a Drive invoice.
+    private val saveExcelPicker = registerForActivityResult(
+        ActivityResultContracts.CreateDocument(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    ) { uri ->
+        val pending = pendingExcelExport
+        pendingExcelExport = null
+        if (uri != null && pending != null) {
+            Thread {
+                try {
+                    val stream = contentResolver.openOutputStream(uri, "w")
+                        ?: throw java.io.IOException("Không tạo được file Excel.")
+                    stream.use { OwnerExcelExport.write(pending.first, pending.second, it) }
+                    runOnUiThread {
+                        Toast.makeText(this, "Đã lưu Excel 4 sheet • " +
+                            pending.second.size + " hóa đơn", Toast.LENGTH_LONG).show()
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        AlertDialog.Builder(this).setTitle("Không xuất được Excel")
+                            .setMessage(e.message ?: "Không ghi được file.")
+                            .setPositiveButton("Đóng", null).show()
+                    }
+                }
+            }.start()
+        }
+    }
+
     private val supplierStatementPicker = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -1915,6 +1944,26 @@ class NativeMainActivity : AppCompatActivity() {
      * authorization. V2 CRM/discount writes are deliberately locked until
      * Google OAuth V2 validates the owner's immutable Google subject.
      */
+    private fun requestOwnerExcel(data: SatoriSnapshot, invoices: List<SatoriInvoice>) {
+        if (invoices.isEmpty()) {
+            Toast.makeText(this, "Bộ lọc không có hóa đơn.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (pendingExcelExport != null) {
+            Toast.makeText(this, "Đang chọn vị trí lưu Excel.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        pendingExcelExport = data to invoices.toList()
+        try {
+            saveExcelPicker.launch("MinhSatori_KeToan_" + java.time.LocalDate.now() +
+                "_rev" + data.revision + ".xlsx")
+        } catch (e: Exception) {
+            pendingExcelExport = null
+            Toast.makeText(this, "Không mở được nơi lưu Excel: " + e.message,
+                Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun renderV2OwnerBackend(parent: LinearLayout, current: SatoriSnapshot?) {
         val title = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -2030,6 +2079,13 @@ class NativeMainActivity : AppCompatActivity() {
                 marginStart = dp(7)
             })
             settings.addView(row)
+        }
+        settingRow("Xuất Excel · Hóa đơn / Công nợ / Lợi nhuận",
+            R.drawable.ic_satori_excel, Color.rgb(17, 133, 91)) {
+            if (current == null)
+                Toast.makeText(this, "Cần đồng bộ hóa đơn trước khi xuất.",
+                    Toast.LENGTH_LONG).show()
+            else requestOwnerExcel(current, current.invoices)
         }
         settingRow("Cài đặt kết nối", R.drawable.ic_satori_settings, cyan) {
             showConnectionSettings()
@@ -2513,6 +2569,7 @@ class NativeMainActivity : AppCompatActivity() {
         var fromIso = ""
         var toIso = ""
         lateinit var refresh: () -> Unit
+        var currentFiltered: List<SatoriInvoice> = emptyList()
         fun dateButton(): TextView = TextView(this).apply {
             setTextColor(ink)
             textSize = 12f
@@ -2616,6 +2673,7 @@ class NativeMainActivity : AppCompatActivity() {
                 )
             ).filter { customerChoice == "Tất cả khách" ||
                 it.customer.equals(customerChoice, ignoreCase = true) }
+            currentFiltered = filtered
             val t = SatoriLedger.totals(filtered)
             totalsView.removeAllViews()
             rows.removeAllViews()
@@ -2659,6 +2717,12 @@ class NativeMainActivity : AppCompatActivity() {
                     before: Int, count: Int) { refresh() }
                 override fun afterTextChanged(s: Editable?) {}
             })
+        }
+        button(content, "XUẤT EXCEL ĐƠN ĐANG LỌC (.XLSX)",
+            iconRes = R.drawable.ic_satori_excel) {
+            if (fromIso.isNotBlank() && toIso.isNotBlank() && fromIso > toIso)
+                Toast.makeText(this, "Khoảng ngày không hợp lệ.", Toast.LENGTH_LONG).show()
+            else requestOwnerExcel(data, currentFiltered)
         }
         button(content, "↻ XÓA TẤT CẢ BỘ LỌC") {
             fromIso = ""
