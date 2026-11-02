@@ -2813,9 +2813,6 @@ class NativeMainActivity : AppCompatActivity() {
             }
             .show()
     }
-
-
-    /** Pure visual wrapper: keep invoiceQuickCard byte-for-byte protected by signed baseline. */
     private fun styleUi25dInvoiceCard(parent: LinearLayout) {
         val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
         card.background = panelBackground(Color.WHITE, 21)
