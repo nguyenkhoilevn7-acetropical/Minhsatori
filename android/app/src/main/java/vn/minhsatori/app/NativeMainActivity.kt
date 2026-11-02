@@ -54,7 +54,7 @@ import com.google.android.gms.common.api.Scope
  * is configured and tested against a sandbox. No raw token or invoice stored.
  */
 class NativeMainActivity : AppCompatActivity() {
-    private val teal = Color.rgb(0, 122, 255)
+    private val teal get() = SatoriUiTheme.accent(this)
     private val dark = Color.rgb(28, 28, 30)
     private val muted = Color.rgb(110, 110, 115)
     private val pale = Color.rgb(242, 242, 247)
@@ -63,10 +63,10 @@ class NativeMainActivity : AppCompatActivity() {
     private var dashboardMode = false
     private val ink = Color.rgb(28, 28, 30)
     private val softInk = Color.rgb(110, 110, 115)
-    private val cyan = Color.rgb(0, 122, 255)
+    private val cyan get() = SatoriUiTheme.accent(this)
     private val night = Color.rgb(242, 242, 247)
     private val surface = Color.rgb(255, 255, 255)
-    private val indigo = Color.rgb(229, 239, 255)
+    private val indigo get() = SatoriUiTheme.soft(this)
     private var activeTab = 0
     private var accessToken: String? = null
     private var snapshot: SatoriSnapshot? = null
@@ -479,11 +479,11 @@ class NativeMainActivity : AppCompatActivity() {
         return view
     }
 
-    private fun panelBackground(color: Int = surface, radius: Int = 16): GradientDrawable =
+    private fun panelBackground(color: Int = surface, radius: Int = 20): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), Color.rgb(227, 229, 234))
+            setStroke(dp(1), Color.rgb(222, 234, 235))
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
@@ -498,7 +498,7 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(9), 0, dp(9), 0)
             stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
-            val accent = if (main) white else if (danger) Color.rgb(207, 46, 46) else cyan
+            val accent = if (main) SatoriUiTheme.onAccent(this@NativeMainActivity) else if (danger) Color.rgb(207, 46, 46) else cyan
             setTextColor(accent)
             if (iconRes != 0) {
                 val symbol = androidx.core.content.ContextCompat.getDrawable(
@@ -511,13 +511,14 @@ class NativeMainActivity : AppCompatActivity() {
             }
             background = if (main) {
                 GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                    intArrayOf(Color.rgb(0, 122, 255), Color.rgb(66, 151, 255))).apply {
+                    intArrayOf(SatoriUiTheme.deep(this@NativeMainActivity), cyan)).apply {
                     cornerRadius = dp(14).toFloat()
                 }
             } else panelBackground(if (danger) Color.rgb(255, 243, 243)
-                else Color.rgb(248, 249, 252), 14)
+                else SatoriUiTheme.soft(this@NativeMainActivity), 14)
             setOnClickListener { click() }
         }
+        b.elevation = if (SatoriUiTheme.raised(this)) dp(3).toFloat() else 0f
         parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
             topMargin = dp(6)
         })
@@ -537,6 +538,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
         label(frame, title, 13.5f, true, white)
         label(frame, detail, 11.5f, false, softInk, 4)
+        frame.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         parent.addView(frame, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(6)
         })
@@ -551,6 +553,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
         label(box, title, 11.5f, false, muted)
         label(box, value, 18f, true, accent, 7)
+        box.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         parent.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
@@ -643,19 +646,19 @@ class NativeMainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(7), dp(8), dp(7), dp(8))
             background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(Color.rgb(255, 255, 255), indigo, Color.rgb(232, 245, 255))).apply {
+                intArrayOf(SatoriUiTheme.deep(this@NativeMainActivity), cyan, SatoriUiTheme.lighter(this@NativeMainActivity))).apply {
                 cornerRadius = dp(18).toFloat()
             }
         }
         val menuButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_menu)
-            setColorFilter(ink)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(10), dp(11), dp(10), dp(11))
             contentDescription = "Mở menu tác vụ"
         }
-        brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(45)))
+        // Hamburger is positioned after other actions, at top-right.
         val brandLogo = ImageView(this).apply {
             setImageResource(R.drawable.satori_invoice_logo)
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -669,13 +672,13 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(7), 0, 0, 0)
         }
-        label(brandText, "MINH SATORI", 16f, true, ink)
+        label(brandText, "MINH SATORI", 16f, true, SatoriUiTheme.onAccent(this))
         label(brandText, "HÓA ĐƠN  •  SỔ KẾ TOÁN", 9f,
-            false, Color.rgb(79, 102, 132), 5)
+            false, SatoriUiTheme.onAccent(this), 5)
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
         val refreshButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_refresh)
-            setColorFilter(cyan)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(8), dp(12), dp(8), dp(12))
@@ -688,7 +691,7 @@ class NativeMainActivity : AppCompatActivity() {
                 "satori_live_notifications", false)
             setImageResource(if (enabled) R.drawable.ic_satori_bell
                 else R.drawable.ic_satori_bell_off)
-            setColorFilter(if (enabled) cyan else softInk)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(7), dp(11), dp(7), dp(11))
@@ -714,7 +717,7 @@ class NativeMainActivity : AppCompatActivity() {
         brand.addView(bellButton, LinearLayout.LayoutParams(dp(38), dp(46)))
         val options = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_settings)
-            setColorFilter(ink)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(10), dp(11), dp(10), dp(11))
@@ -722,6 +725,7 @@ class NativeMainActivity : AppCompatActivity() {
             setOnClickListener { showConnectionSettings() }
         }
         brand.addView(options, LinearLayout.LayoutParams(dp(42), dp(46)))
+        brand.addView(menuButton, LinearLayout.LayoutParams(dp(42), dp(46)))
         // Keep the hamburger and primary controls visible while long ledgers scroll.
         shell.addView(brand, 0, LinearLayout.LayoutParams(-1, -2))
 
@@ -796,13 +800,13 @@ class NativeMainActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(16), dp(14), dp(16), dp(16))
                 background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                    intArrayOf(Color.rgb(227, 239, 255), Color.rgb(232, 246, 255))).apply {
+                    intArrayOf(SatoriUiTheme.soft(this@NativeMainActivity), Color.rgb(255,255,255))).apply {
                     cornerRadius = dp(18).toFloat()
                 }
             }
-            label(hero, "GEMINI • TẠO HÓA ĐƠN THẬT", 20f, true, white)
+            label(hero, "GEMINI • TẠO HÓA ĐƠN THẬT", 20f, true, ink)
             label(hero, "Chỉ tài khoản quản trị • Giá lấy từ Google Drive • Anh duyệt rồi mới ghi hóa đơn",
-                12f, false, Color.rgb(202, 239, 249), 7)
+                12f, false, softInk, 7)
             button(hero, "TẠO HÓA ĐƠN THẬT VỚI GEMINI", true, R.drawable.ic_satori_plus) {
                 startActivity(Intent(this, AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
             }
@@ -935,9 +939,9 @@ class NativeMainActivity : AppCompatActivity() {
             setBackgroundColor(white)
             elevation = dp(14).toFloat()
             visibility = View.GONE
-            translationX = -drawerWidth.toFloat()
+            translationX = drawerWidth.toFloat()
         }
-        root.addView(drawer, FrameLayout.LayoutParams(drawerWidth, -1, Gravity.START))
+        root.addView(drawer, FrameLayout.LayoutParams(drawerWidth, -1, Gravity.END))
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -977,7 +981,7 @@ class NativeMainActivity : AppCompatActivity() {
             drawerOpened = false
             drawer.animate().cancel()
             scrim.animate().cancel()
-            drawer.animate().translationX(-drawerWidth.toFloat()).setDuration(220)
+            drawer.animate().translationX(drawerWidth.toFloat()).setDuration(220)
                 .withEndAction {
                     drawer.visibility = View.GONE
                     scrim.visibility = View.GONE
@@ -992,7 +996,7 @@ class NativeMainActivity : AppCompatActivity() {
             scrim.animate().cancel()
             scrim.alpha = 0f
             scrim.visibility = View.VISIBLE
-            drawer.translationX = -drawerWidth.toFloat()
+            drawer.translationX = drawerWidth.toFloat()
             drawer.visibility = View.VISIBLE
             drawer.animate().translationX(0f).setDuration(260).start()
             scrim.animate().alpha(1f).setDuration(240).start()
@@ -1013,7 +1017,7 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(12), 0)
                 background = background(if (activeTab == index)
-                    Color.rgb(232, 242, 255) else white, 14)
+                    SatoriUiTheme.soft(this@NativeMainActivity) else white, 14)
                 contentDescription = "Mở mục " + item.second + if (item.second == "Quản trị hệ thống") " · Quản trị bên trong ứng dụng Minh Satori" else ""
                 isClickable = true
                 isFocusable = true
@@ -1048,6 +1052,21 @@ class NativeMainActivity : AppCompatActivity() {
         drawer.addView(syncMenu, LinearLayout.LayoutParams(-1, dp(56)).apply {
             topMargin = dp(14)
         })
+        val appearanceMenu = TextView(this).apply {
+            text = "🎨  Giao diện · Màu / 2.5D"
+            textSize = 15f
+            setTextColor(cyan)
+            setPadding(dp(14), dp(14), dp(12), dp(14))
+            background = panelBackground(SatoriUiTheme.soft(this@NativeMainActivity), 14)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                dismissDrawer { SatoriUiTheme.picker(this@NativeMainActivity) { render() } }
+            }
+        }
+        drawer.addView(appearanceMenu, LinearLayout.LayoutParams(-1, dp(52)).apply {
+            topMargin = dp(8)
+        })
         menuButton.setOnClickListener { showDrawer() }
         closeButton.setOnClickListener { dismissDrawer() }
         scrim.setOnClickListener { dismissDrawer() }
@@ -1068,6 +1087,7 @@ class NativeMainActivity : AppCompatActivity() {
         label(tile, "◆", 15f, true, accent)
         label(tile, title, 14f, true, white, 9)
         label(tile, subtitle, 11f, false, muted, 6)
+        tile.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
@@ -1782,6 +1802,7 @@ class NativeMainActivity : AppCompatActivity() {
             background = panelBackground(if (isUnread) Color.rgb(255, 239, 241)
                 else Color.rgb(255, 255, 255), 16)
         }
+        card.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         if (isUnread) label(card, "🔴  ĐƠN MỚI • CHƯA XEM", 11.5f, true,
             Color.rgb(179, 32, 45))
         val top = LinearLayout(this).apply {
