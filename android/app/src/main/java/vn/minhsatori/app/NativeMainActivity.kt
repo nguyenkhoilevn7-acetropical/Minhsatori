@@ -2756,6 +2756,14 @@ class NativeMainActivity : AppCompatActivity() {
             .show()
     }
 
+
+    /** Pure visual wrapper: keep invoiceQuickCard byte-for-byte protected by signed baseline. */
+    private fun styleUi25dInvoiceCard(parent: LinearLayout) {
+        val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
+        card.background = panelBackground(Color.WHITE, 21)
+        card.elevation = if (SatoriUiTheme.raised(this)) dp(5).toFloat() else 0f
+    }
+
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
         if (currentInvoiceBadge().count > 0) {
             val pending = currentInvoiceBadge().count
@@ -2816,8 +2824,19 @@ class NativeMainActivity : AppCompatActivity() {
         label(salesSummary, "TỔNG TIỀN BÁN · HÓA ĐƠN HỢP LỆ", 11f, true, softInk)
         label(salesSummary, SatoriData.money(salesTotal),
             21f, true, invoiceMoneyRed, 5)
-        parent.addView(salesSummary, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(7)
+        val countSummary = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(11), dp(14), dp(11))
+            background = panelBackground(Color.WHITE, 21)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
+        }
+        label(countSummary, "TỔNG HÓA ĐƠN", 11f, true, softInk)
+        label(countSummary, data.invoices.count { !it.isExcluded }.toString(), 21f, true, cyan, 5)
+        val salesRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        salesRow.addView(salesSummary, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
+        salesRow.addView(countSummary, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
+        parent.addView(salesRow, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(10)
         })
         val input = EditText(this).apply {
             hint = "Tìm mã hóa đơn, khách, SĐT..."
@@ -2835,9 +2854,33 @@ class NativeMainActivity : AppCompatActivity() {
         val statuses = listOf("Tất cả", "Chưa thanh toán", "Đã thanh toán",
             "Đã TT Satori", "Không Tính", "Đã hủy")
         val filter = darkSpinner(statuses)
-        parent.addView(filter, LinearLayout.LayoutParams(-1, dp(42)).apply {
-            topMargin = dp(5)
-        })
+        // Filter chips replace the old spinner visually but retain its selection callbacks.
+        filter.visibility = View.GONE
+        parent.addView(filter, LinearLayout.LayoutParams(1, 1))
+        val chipScroll = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            setPadding(0, dp(4), 0, dp(4))
+        }
+        val chipRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val chips = mutableListOf<TextView>()
+        statuses.forEachIndexed { index, title ->
+            val chip = TextView(this).apply {
+                text = title
+                gravity = Gravity.CENTER
+                textSize = 11f
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding(dp(13), dp(11), dp(13), dp(11))
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Lọc " + title
+                setOnClickListener { filter.setSelection(index) }
+            }
+            chips.add(chip)
+            chipRow.addView(chip, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
+        }
+        chipScroll.addView(chipRow)
+        parent.addView(chipScroll, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         parent.addView(list)
         val marginByInvoice =
@@ -2853,7 +2896,14 @@ class NativeMainActivity : AppCompatActivity() {
         }
         fun updateList() {
             list.removeAllViews()
-            val status = statuses[filter.selectedItemPosition.coerceIn(0, statuses.lastIndex)]
+            val selected = filter.selectedItemPosition.coerceIn(0, statuses.lastIndex)
+            val status = statuses[selected]
+            chips.forEachIndexed { i, chip ->
+                chip.setTextColor(if (i == selected) SatoriUiTheme.onAccent(this@NativeMainActivity) else softInk)
+                chip.background = panelBackground(if (i == selected) cyan else Color.WHITE, 13)
+                chip.elevation = if (i == selected && SatoriUiTheme.raised(this@NativeMainActivity))
+                    dp(2).toFloat() else 0f
+            }
             val matching = data.invoices.filter {
                 SatoriData.search(it, searchText) &&
                     (status == "Tất cả" || it.status.equals(status, ignoreCase = true))
@@ -2863,6 +2913,7 @@ class NativeMainActivity : AppCompatActivity() {
                 11.5f, true, cyan, 7)
             matching.take(120).forEach { inv ->
                 invoiceQuickCard(list, inv)
+                styleUi25dInvoiceCard(list)
                 if (!inv.isExcluded)
                     showProfitInsideInvoiceCard(list, marginByInvoice[inv],
                         (data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
@@ -3477,6 +3528,7 @@ class NativeMainActivity : AppCompatActivity() {
         label(parent, "Công nợ theo khách hàng", 15f, true, ink, 14)
         report.outstandingInvoices.forEach { invoice ->
             invoiceQuickCard(parent, invoice, fromDebt = true)
+            styleUi25dInvoiceCard(parent)
             showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],
                 (data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
         }
