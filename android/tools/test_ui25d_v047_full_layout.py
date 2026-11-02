@@ -10,7 +10,7 @@ class ApprovedLayoutV047(unittest.TestCase):
     def test_home_is_real_hero_and_three_distinct_kpi_cards(self):
         for x in ('fun renderUi25dHome(', '"Chào quản trị viên 👋"',
                   '"Tổng quan kinh doanh"', '"Tổng tiền bán"', '"Công nợ phải thu"',
-                  '"Lợi nhuận"', '"Chờ đồng bộ"', 'renderUi25dHome(content, data)'):
+                  '"Lợi nhuận"', '"Chưa có số liệu"', 'renderUi25dHome(content, data)'):
             self.assertIn(x,ACTIVITY)
         self.assertNotIn("Match MoneyMind's compact teal dashboard",ACTIVITY)
 
