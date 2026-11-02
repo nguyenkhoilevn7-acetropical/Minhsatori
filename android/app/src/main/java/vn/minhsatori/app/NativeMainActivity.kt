@@ -488,6 +488,7 @@ class NativeMainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         foreground = true
+        SatoriPush.registerOwnerDevice(this)
         syncHandler.removeCallbacks(syncTick)
         syncHandler.postDelayed(syncTick, syncIntervalMs)
         v2AlertHandler.removeCallbacks(v2AlertTick)
@@ -510,6 +511,23 @@ class NativeMainActivity : AppCompatActivity() {
             }
             else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
                     SystemClock.elapsedRealtime(), fallbackReadMs)) syncPreferredSource()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 5201) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                SatoriPush.registerOwnerDevice(this)
+            } else {
+                getPreferences(MODE_PRIVATE).edit()
+                    .putBoolean("satori_live_notifications", false).apply()
+                Toast.makeText(this, "Quyền thông báo bị từ chối. Chưa bật báo đơn.",
+                    Toast.LENGTH_LONG).show()
+            }
+            render()
         }
     }
 
@@ -1301,9 +1319,13 @@ class NativeMainActivity : AppCompatActivity() {
                         PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5201)
                 }
-                Toast.makeText(this@NativeMainActivity, if (next)
-                    "Đã bật thông báo đơn thật khi dữ liệu đồng bộ được." else
-                    "Đã tắt thông báo đơn mới.", Toast.LENGTH_SHORT).show()
+                if (next) SatoriPush.registerOwnerDevice(this@NativeMainActivity)
+                Toast.makeText(this@NativeMainActivity,
+                    if (!next) "Đã tắt thông báo đơn mới."
+                    else if (SatoriPush.configured())
+                        "Đã bật thông báo. Khi đăng nhập Owner V2, thiết bị đăng ký nhận push."
+                    else "Đã bật thông báo khi đồng bộ. Push tức thời chưa có cấu hình FCM.",
+                    Toast.LENGTH_LONG).show()
                 render()
             }
         }
