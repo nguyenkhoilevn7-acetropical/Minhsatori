@@ -3895,7 +3895,7 @@ class NativeMainActivity : AppCompatActivity() {
                 dp(if (expanded) 28 else 16), dp(28))
             setBackgroundColor(night)
         }
-        wrapper.addView(content, ScrollView.LayoutParams(-1, -2))
+        wrapper.addView(content, FrameLayout.LayoutParams(-1, -2))
         page.addView(wrapper, LinearLayout.LayoutParams(-1, 0, 1f))
         val heading = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
