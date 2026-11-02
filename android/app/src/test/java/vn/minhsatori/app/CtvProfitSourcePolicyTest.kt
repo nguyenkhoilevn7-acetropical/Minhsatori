@@ -31,6 +31,35 @@ class CtvProfitSourcePolicyTest {
         assertTrue(rows.single().reason!!.contains("hồ sơ CTV"))
     }
 
+    @Test fun selfContainedApprovedCtvDiscountCanBeCountedWithoutRegistry() {
+        val explicit=sampleInvoice().copy(
+            collaboratorId="registered-ctv",
+            pairDiscountPercent=35.0
+        )
+        val rows=CtvProfitSourcePolicy.profitRows(
+            snapshot(false).copy(invoices=listOf(explicit)))
+        assertEquals(1,rows.size)
+        assertEquals(333_333L,rows.single().estimatedOwnerMarginVnd)
+        assertEquals(499_995L,rows.single().estimatedCtvCommissionVnd)
+    }
+
+    @Test fun incompleteOlderInvoiceIsSkippedWhileNewVerifiedInvoiceIsCounted() {
+        val valid=sampleInvoice().copy(
+            collaboratorId="registered-ctv",pairDiscountPercent=35.0)
+        val old=sampleInvoice().copy(
+            id="older-legacy",number="5900",date="30/10/2026",
+            collaboratorId="",pairDiscountPercent=null)
+        val rows=CtvProfitSourcePolicy.profitRows(
+            snapshot(false).copy(invoices=listOf(old,valid)))
+        val total=AccountingProMargin45.summarize(
+            rows,AccountingProMargin45Period.all())
+        assertEquals(2,total.totalInvoiceCount)
+        assertEquals(1,total.computedInvoiceCount)
+        assertEquals(1,total.missingInvoiceCount)
+        assertEquals(333_333L,total.estimatedMarginKnownVnd)
+        assertNull(rows.first().estimatedOwnerMarginVnd)
+    }
+
     @Test fun matchingVerifiedDriveRestoresActualOwnerNetMargin() {
         val api=snapshot(false)
         val verifiedDrive=snapshot(true)
