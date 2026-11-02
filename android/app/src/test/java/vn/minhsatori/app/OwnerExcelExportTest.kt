@@ -43,7 +43,7 @@ class OwnerExcelExportTest {
         val output = ByteArrayOutputStream()
         OwnerExcelExport.write(snapshot, snapshot.invoices, output)
         val files = extract(output.toByteArray())
-        assertEquals(8, files.size)
+        assertEquals(9, files.size)
         val workbook = files.getValue("xl/workbook.xml")
         for (name in listOf("Hoa don", "Cong no", "Bao cao", "Loi nhuan"))
             assertTrue(workbook.contains("name=\"" + name + "\""))
