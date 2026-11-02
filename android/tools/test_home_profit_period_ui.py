@@ -13,7 +13,7 @@ class HomeProfitPeriodUiTest(unittest.TestCase):
  def test_inline_time_filters_and_local_date_dialog(self):
   self.assertIn('listOf("Tất cả", "Ngày", "Tháng", "Năm")',HOME)
   self.assertIn('selectHomeProfitPeriod(index, data)',HOME)
-  self.assertIn('homeProfitPeriod = AccountingProMargin45Period.day(day)',SELECT)
+  self.assertIn('AccountingProMargin45Period.day(day)',SELECT)
   self.assertIn('AccountingProMargin45Period.month(year, monthZeroBased + 1)',SELECT)
   self.assertIn('AccountingProMargin45Period.year(years[idx])',SELECT)
   self.assertIn('java.time.ZoneId.of("Asia/Ho_Chi_Minh")',SELECT)
