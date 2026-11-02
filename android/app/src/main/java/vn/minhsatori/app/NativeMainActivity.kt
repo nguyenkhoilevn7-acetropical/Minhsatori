@@ -3772,9 +3772,43 @@ class NativeMainActivity : AppCompatActivity() {
         dialog.window?.setLayout(
             android.view.WindowManager.LayoutParams.MATCH_PARENT,
             android.view.WindowManager.LayoutParams.MATCH_PARENT)
-        val grid = dialog.window?.decorView
-            ?.findViewWithTag<LinearLayout>("satori_invoice_detail_grid") ?: return
+        val decor = dialog.window?.decorView ?: return
+        val summary = decor.findViewWithTag<LinearLayout>("satori_invoice_summary_row")
         val expanded = resources.configuration.screenWidthDp >= 600
+        if (summary != null && summary.childCount == 3) {
+            val info = summary.getChildAt(0)
+            val separator = summary.getChildAt(1)
+            val total = summary.getChildAt(2)
+            summary.orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            summary.gravity = Gravity.CENTER_VERTICAL
+            info.layoutParams = if (expanded) LinearLayout.LayoutParams(0, -2, 1.6f)
+                else LinearLayout.LayoutParams(-1, -2)
+            separator.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(dp(1), dp(80)).apply { marginStart = dp(14) }
+                else LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(14) }
+            total.layoutParams = if (expanded) LinearLayout.LayoutParams(0, -2, 1f)
+                else LinearLayout.LayoutParams(-1, -2)
+            total.setPadding(if (expanded) dp(18) else 0,
+                if (expanded) 0 else dp(16), 0, 0)
+        }
+        val actionCard = decor.findViewWithTag<LinearLayout>("satori_invoice_action_card")
+        if (actionCard != null && actionCard.childCount == 2) {
+            val toolbar = actionCard.getChildAt(0)
+            val share = actionCard.getChildAt(1)
+            actionCard.orientation = if (expanded) LinearLayout.HORIZONTAL
+                else LinearLayout.VERTICAL
+            toolbar.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(0, -2, 1f)
+                else LinearLayout.LayoutParams(-1, -2)
+            share.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(dp(220), -2).apply { marginStart = dp(16) }
+                else LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }
+            val title = (toolbar as? LinearLayout)?.getChildAt(0)
+            title?.visibility = if (!expanded &&
+                resources.configuration.screenWidthDp < 370) View.GONE else View.VISIBLE
+        }
+        val grid = decor.findViewWithTag<LinearLayout>("satori_invoice_detail_grid")
+            ?: return
         grid.orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
         if (grid.childCount == 2) {
             val customer = grid.getChildAt(0)
@@ -3897,21 +3931,91 @@ class NativeMainActivity : AppCompatActivity() {
         }
         wrapper.addView(content, FrameLayout.LayoutParams(-1, -2))
         page.addView(wrapper, LinearLayout.LayoutParams(-1, 0, 1f))
-        val heading = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(13), dp(14), dp(13))
-            background = panelBackground(Color.WHITE, 21)
+        // Design preview: one restrained mint summary card, total prominent in red.
+        val brandGreen = Color.rgb(0, 132, 122)
+        val brandPale = Color.rgb(230, 247, 242)
+        val amountRed = Color.rgb(207, 37, 45)
+        val statusRed = Color.rgb(191, 40, 49)
+        val summaryRow = LinearLayout(this).apply {
+            orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            tag = "satori_invoice_summary_row"
+            setPadding(dp(18), dp(16), dp(18), dp(17))
+            background = panelBackground(Color.WHITE, 22)
             elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(4).toFloat() else 0f
         }
-        label(heading, "TÓM TẮT HÓA ĐƠN", 11f, true, softInk)
-        label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true,
-            if (invoice.isCancelled) Color.rgb(190, 40, 48) else cyan, 7)
-        if (invoice.creationTimeLabel.isNotBlank()) label(heading,
-            "Khách đặt lúc: " + invoice.creationTimeLabel, 12f, false, cyan, 7)
-        label(heading, SatoriData.money(invoice.displayPayable), 25f, true,
-            if (invoice.isNonCounted) Color.rgb(105, 74, 164)
-            else Color.rgb(202, 39, 50), 8)
-        content.addView(heading)
+        val summaryInfo = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val summaryTitleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val receipt = ImageView(this).apply {
+            setImageResource(R.drawable.ic_satori_invoice)
+            setColorFilter(brandGreen)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = background(brandPale, 12)
+            contentDescription = "Hóa đơn"
+        }
+        summaryTitleRow.addView(receipt, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
+            marginEnd = dp(12)
+        })
+        label(summaryTitleRow, "Tóm tắt hóa đơn", 17f, true, ink)
+        summaryInfo.addView(summaryTitleRow)
+        val stateRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(9), 0, 0)
+        }
+        label(stateRow, invoice.displayDate, 12f, true, brandGreen)
+        val isAlertStatus = !invoice.customerHasPaid || invoice.isCancelled || invoice.isNonCounted
+        val statusText = TextView(this).apply {
+            text = invoice.status
+            textSize = 11f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(if (isAlertStatus) statusRed else Color.rgb(18, 125, 82))
+            setPadding(dp(9), dp(5), dp(9), dp(5))
+            background = background(
+                if (isAlertStatus) Color.rgb(255, 236, 236) else brandPale, 12)
+            maxLines = 2
+        }
+        stateRow.addView(statusText, LinearLayout.LayoutParams(-2, -2).apply {
+            marginStart = dp(12)
+        })
+        summaryInfo.addView(stateRow)
+        if (invoice.creationTimeLabel.isNotBlank()) {
+            label(summaryInfo, "Khách đặt lúc: " + invoice.creationTimeLabel,
+                11.5f, false, softInk, 9)
+        } else {
+            label(summaryInfo, "Chưa có giờ đặt hàng trong dữ liệu nguồn",
+                11f, false, softInk, 9)
+        }
+        val summaryDivider = View(this).apply {
+            setBackgroundColor(Color.rgb(218, 230, 232))
+        }
+        val totalArea = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(if (expanded) dp(18) else 0, if (expanded) 0 else dp(16), 0, 0)
+        }
+        label(totalArea, if (invoice.isNonCounted) "Giá trị tính" else "Tổng thanh toán",
+            12f, false, softInk)
+        label(totalArea, SatoriData.money(invoice.displayPayable), 27f, true,
+            if (invoice.isNonCounted) Color.rgb(105, 74, 164) else amountRed, 5)
+        if (expanded) {
+            summaryRow.addView(summaryInfo, LinearLayout.LayoutParams(0, -2, 1.6f))
+            summaryRow.addView(summaryDivider, LinearLayout.LayoutParams(dp(1), dp(80)).apply {
+                marginStart = dp(14)
+            })
+            summaryRow.addView(totalArea, LinearLayout.LayoutParams(0, -2, 1f))
+        } else {
+            summaryRow.addView(summaryInfo, LinearLayout.LayoutParams(-1, -2))
+            summaryRow.addView(summaryDivider, LinearLayout.LayoutParams(-1, dp(1)).apply {
+                topMargin = dp(14)
+            })
+            summaryRow.addView(totalArea, LinearLayout.LayoutParams(-1, -2))
+        }
+        content.addView(summaryRow)
         if (invoice.isTest) label(content,
             "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ",
             12f, true, Color.rgb(181, 95, 6), 9)
@@ -3948,77 +4052,164 @@ class NativeMainActivity : AppCompatActivity() {
             detailGrid.addView(productBlock, LinearLayout.LayoutParams(-1, -2))
         }
         content.addView(detailGrid, LinearLayout.LayoutParams(-1, -2))
-        label(customerBlock, "THÔNG TIN KHÁCH HÀNG", 12f, true, cyan, 15)
-        val customerHeading = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(11), dp(12), dp(11))
-            background = panelBackground(surface, 12)
-        }
-        val customerIcon = ImageView(this).apply {
-            setImageResource(R.drawable.ic_satori_users)
-            setColorFilter(cyan)
-            contentDescription = "Khách hàng"
-        }
-        customerHeading.addView(customerIcon,
-            LinearLayout.LayoutParams(dp(26), dp(26)).apply { marginEnd = dp(11) })
-        val headingName = label(customerHeading, invoice.customer, 16f, true, ink)
-        headingName.maxLines = 3
-        customerBlock.addView(customerHeading, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(8)
-        })
-        customerInfoRow(customerBlock, R.drawable.ic_satori_phone,
-            "SỐ ĐIỆN THOẠI", invoice.phone.ifBlank { "Chưa có số điện thoại" },
-            Color.rgb(16, 122, 78), Color.rgb(234, 249, 241))
-        customerInfoRow(customerBlock, R.drawable.ic_satori_map_pin,
-            "ĐỊA CHỈ GIAO HÀNG", invoice.address.ifBlank { "Chưa có địa chỉ" },
-            Color.rgb(17, 103, 177), Color.rgb(236, 245, 255))
-        if (invoice.duplicateFrom.isNotBlank()) label(customerBlock,
-            "Bản giá sao từ #" + invoice.duplicateFrom +
-                " — kiểm tra trạng thái trước khi tính doanh thu.",
-            12f, true, Color.rgb(181, 95, 6), 8)
-
-        label(productBlock, "SẢN PHẨM (" + invoice.lines.size + " dòng)",
-            13f, true, cyan, 16)
-        invoice.lines.forEach { line ->
-            val product = LinearLayout(this).apply {
+        // Shared section components: outer white cards, consistent icon sizes
+        // and a single typography scale for phone and unfolded Fold.
+        fun invoiceSection(parent: LinearLayout, title: String, iconRes: Int): LinearLayout {
+            val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(12), dp(10), dp(12), dp(10))
-                background = panelBackground(Color.WHITE, 17)
+                setPadding(dp(14), dp(14), dp(14), dp(16))
+                background = panelBackground(Color.WHITE, 20)
                 elevation = if (SatoriUiTheme.raised(this@NativeMainActivity))
                     dp(3).toFloat() else 0f
             }
-            label(product, line.description, 13.5f, true, ink)
-            label(product, "x" + line.quantity + " " + line.unit + "  ×  " +
-                SatoriData.money(line.unitPrice), 12f, false, softInk, 5)
-            label(product, "THÀNH TIỀN: " + SatoriData.money(line.amount),
-                13f, true, cyan, 5)
-            productBlock.addView(product, LinearLayout.LayoutParams(-1, -2).apply {
+            val header = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val icon = ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(brandGreen)
+                contentDescription = title
+            }
+            header.addView(icon, LinearLayout.LayoutParams(dp(24), dp(24)).apply {
+                marginEnd = dp(10)
+            })
+            label(header, title, 16f, true, ink)
+            card.addView(header)
+            val body = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            card.addView(body, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(10)
+            })
+            parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(14)
+            })
+            return body
+        }
+
+        fun invoiceContact(parent: LinearLayout, iconRes: Int, caption: String,
+                           value: String, tint: Int, fill: Int) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(10), dp(9), dp(10), dp(9))
+                background = panelBackground(Color.WHITE, 12)
+            }
+            val icon = ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(tint)
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+                background = background(fill, 11)
+                contentDescription = caption
+            }
+            row.addView(icon, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
+                marginEnd = dp(12)
+            })
+            val lines = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            if (caption.isNotBlank()) label(lines, caption, 11.5f, false, softInk)
+            val valueLabel = label(lines, value, 14f, true, ink,
+                if (caption.isBlank()) 0 else 3)
+            valueLabel.maxLines = 5
+            row.addView(lines, LinearLayout.LayoutParams(0, -2, 1f))
+            parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(8)
+            })
+        }
+
+        fun invoicePriceRow(parent: LinearLayout, title: String, amount: Long) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(2), dp(6), dp(2), dp(6))
+            }
+            val name = label(row, title, 12f, false, softInk)
+            name.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            label(row, SatoriData.money(amount), 13f, true, amountRed)
+            parent.addView(row)
+        }
+
+        val customerCard = invoiceSection(customerBlock,
+            "Thông tin khách hàng", R.drawable.ic_satori_users)
+        invoiceContact(customerCard, R.drawable.ic_satori_users, "",
+            invoice.customer, brandGreen, brandPale)
+        invoiceContact(customerCard, R.drawable.ic_satori_phone, "Số điện thoại",
+            invoice.phone.ifBlank { "Chưa có số điện thoại" },
+            Color.rgb(20, 135, 94), Color.rgb(234, 249, 241))
+        invoiceContact(customerCard, R.drawable.ic_satori_map_pin, "Địa chỉ giao hàng",
+            invoice.address.ifBlank { "Chưa có địa chỉ" },
+            Color.rgb(21, 109, 180), Color.rgb(235, 246, 255))
+        if (invoice.duplicateFrom.isNotBlank()) {
+            label(customerCard, "Bản giá sao từ #" + invoice.duplicateFrom +
+                " — cần kiểm tra trước khi tính doanh thu.",
+                11f, true, gold, 9)
+        }
+
+        val productCard = invoiceSection(productBlock,
+            "Sản phẩm (" + invoice.lines.size + " dòng)", R.drawable.ic_satori_invoice)
+        invoice.lines.forEach { line ->
+            val productRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(11), dp(11), dp(10), dp(11))
+                background = panelBackground(Color.WHITE, 12)
+            }
+            val productIcon = ImageView(this).apply {
+                setImageResource(R.drawable.ic_satori_invoice)
+                setColorFilter(Color.rgb(25, 109, 180))
+                background = background(Color.rgb(235, 246, 255), 12)
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+            }
+            productRow.addView(productIcon,
+                LinearLayout.LayoutParams(dp(43), dp(43)).apply { marginEnd = dp(11) })
+            val textGroup = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            label(textGroup, line.description, 13.5f, true, ink)
+            label(textGroup, "x" + line.quantity + " " + line.unit + " × " +
+                SatoriData.money(line.unitPrice), 11.5f, false, softInk, 5)
+            label(textGroup, "Thành tiền: " + SatoriData.money(line.amount),
+                13f, true, amountRed, 5)
+            productRow.addView(textGroup, LinearLayout.LayoutParams(0, -2, 1f))
+            productCard.addView(productRow, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(7)
             })
         }
-        label(productBlock, "Phí giao: " + SatoriData.money(invoice.shipping),
-            12f, false, softInk, 13)
-        label(productBlock, "Thuế VAT: " + SatoriData.money(invoice.vat),
-            12f, false, softInk, 5)
-        label(productBlock, (if (invoice.isNonCounted) "GIÁ TRỊ TÍNH: "
-            else "TỔNG THANH TOÁN: ") + SatoriData.money(invoice.displayPayable),
-            18f, true, if (invoice.isNonCounted) Color.rgb(105, 74, 164)
-            else Color.rgb(17, 133, 91), 11)
+        productCard.addView(View(this).apply {
+            setBackgroundColor(Color.rgb(230, 236, 239))
+        }, LinearLayout.LayoutParams(-1, dp(1)).apply {
+            topMargin = dp(13)
+            bottomMargin = dp(5)
+        })
+        invoicePriceRow(productCard, "Phí giao", invoice.shipping)
+        invoicePriceRow(productCard, "Thuế VAT", invoice.vat)
+        val productTotal = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(13), dp(12), dp(13))
+            background = background(brandPale, 12)
+        }
+        val totalCaption = label(productTotal,
+            if (invoice.isNonCounted) "Giá trị tính" else "Tổng thanh toán",
+            14f, true, brandGreen)
+        totalCaption.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        label(productTotal, SatoriData.money(invoice.displayPayable), 19f, true,
+            if (invoice.isNonCounted) Color.rgb(105, 74, 164) else amountRed)
+        productCard.addView(productTotal, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(7)
+        })
         if (invoice.isNonCounted) {
-            label(productBlock, "KHÔNG TÍNH • Không phải khoản phải thu", 12f, true,
-                Color.rgb(105, 74, 164), 6)
-            label(productBlock, "Tổng tiền gốc lưu để đối chiếu: " +
+            label(productCard, "KHÔNG TÍNH • Không phải khoản phải thu", 12f, true,
+                Color.rgb(105, 74, 164), 8)
+            label(productCard, "Tổng tiền gốc để đối chiếu: " +
                 SatoriData.money(invoice.total) +
-                ". PDF lưu giữ giá gốc; không sử dụng để yêu cầu thanh toán.",
+                ". PDF giữ giá gốc, không sử dụng để yêu cầu thanh toán.",
                 11f, false, softInk, 5)
         }
         if (invoice.deliveryNote.isNotBlank()) {
-            label(productBlock, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, cyan, 13)
-            label(productBlock, invoice.deliveryNote, 13f, false, ink, 5)
+            label(productCard, "Ghi chú giao hàng", 12f, true, brandGreen, 12)
+            label(productCard, invoice.deliveryNote, 12f, false, ink, 5)
         }
-        // View the authoritative A4 PDF; sharing remains an explicit action.
-        button(productBlock, "XEM PDF", true, R.drawable.ic_satori_eye) {
+        // PDF is the original invoice PDF, not a new visual mockup.
+        button(productCard, "Xem PDF", true, R.drawable.ic_satori_eye) {
             NativeInvoicePdf.preview(this, invoice)
         }
         val validInvoiceNumber = invoice.number.toIntOrNull()?.takeIf { it > 0 }
@@ -4039,37 +4230,39 @@ class NativeMainActivity : AppCompatActivity() {
             }
         }
 
-        // The two flags must never be merged: customer receipt != Satori settlement.
+        // The two payment states remain independent and retain their Owner API
+        // confirmation, audit reason, permission checks and revision guards.
+        val paymentCard = invoiceSection(customerBlock,
+            "Thanh toán", R.drawable.ic_satori_debt)
         if (invoice.isNonCounted) {
-            label(content, "KHÔNG TÍNH • GIÁ TRỊ 0 đ • KHÓA THANH TOÁN",
-                12f, true, Color.rgb(105, 74, 164), 14)
+            label(paymentCard, "KHÔNG TÍNH • GIÁ TRỊ 0 đ • KHÓA THANH TOÁN",
+                12f, true, Color.rgb(105, 74, 164))
         } else if (invoice.isCancelled) {
-            label(content, "ĐÃ HỦY • KHÔNG TÍNH DOANH THU / CÔNG NỢ", 12f, true,
-                Color.rgb(190, 40, 48), 14)
+            label(paymentCard, "ĐÃ HỦY • KHÔNG TÍNH DOANH THU / CÔNG NỢ",
+                12f, true, statusRed)
             if (invoice.customerPaidAt.isNotBlank() || invoice.satoriPaidAt.isNotBlank())
-                label(content, "Có dấu thời gian thanh toán trước khi hủy. " +
-                    "Kiểm tra chứng từ đối soát / hoàn tiền; không tự ghi nhận đã thanh toán.",
+                label(paymentCard, "Có dấu thời gian thanh toán trước khi hủy. " +
+                    "Cần đối soát / hoàn tiền; không tự ghi nhận đã thanh toán.",
                     11f, false, softInk, 6)
         } else {
-        label(content, "THANH TOÁN", 12f, true, cyan, 14)
-        val customerAction = if (invoice.customerHasPaid) "payments.markCustomerUnpaid"
-                             else "payments.markCustomerPaid"
-        val satoriAction = if (invoice.satoriHasPaid) "payments.markSatoriUnpaid"
-                           else "payments.markSatoriPaid"
-        val customerClick: (() -> Unit)? = if (canEditPayment) {
-            { requestPayment(customerAction) }
-        } else null
-        val satoriClick: (() -> Unit)? = if (canEditPayment) {
-            { requestPayment(satoriAction) }
-        } else null
-        invoicePaymentRow(content, "Khách hàng", invoice.customerHasPaid,
-            "Đã thanh toán", "Chưa thanh toán", customerClick)
-        invoicePaymentRow(content, "Satori", invoice.satoriHasPaid,
-            "Đã thanh toán", "Chưa thanh toán", satoriClick)
-        if (validInvoiceNumber == null) {
-            label(content, "Số hóa đơn không hợp lệ • đã khóa thao tác ghi.",
-                11f, true, gold, 6)
-        }
+            val customerAction = if (invoice.customerHasPaid) "payments.markCustomerUnpaid"
+                                 else "payments.markCustomerPaid"
+            val satoriAction = if (invoice.satoriHasPaid) "payments.markSatoriUnpaid"
+                               else "payments.markSatoriPaid"
+            val customerClick: (() -> Unit)? = if (canEditPayment) {
+                { requestPayment(customerAction) }
+            } else null
+            val satoriClick: (() -> Unit)? = if (canEditPayment) {
+                { requestPayment(satoriAction) }
+            } else null
+            invoicePaymentRow(paymentCard, "Khách hàng", invoice.customerHasPaid,
+                "Đã thanh toán", "Chưa thanh toán", customerClick)
+            invoicePaymentRow(paymentCard, "Satori", invoice.satoriHasPaid,
+                "Đã thanh toán", "Chưa thanh toán", satoriClick)
+            if (validInvoiceNumber == null) {
+                label(paymentCard, "Số hóa đơn không hợp lệ • đã khóa thao tác ghi.",
+                    11f, true, gold, 6)
+            }
         }
 
         fun confirmInternalShare(action: () -> Unit) {
@@ -4083,15 +4276,15 @@ class NativeMainActivity : AppCompatActivity() {
                 .show()
         }
 
-        // All 4 actions are identical 48dp squares. Fold: label and toolbar
-        // share a row; cover screens keep a separate label to avoid clipping.
+        // Compact one-line tools on Fold; separate label and a single
+        // full-width share button on narrow cover screens.
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL or Gravity.END
         }
         if (invoice.canEditOrDelete && validInvoiceNumber != null) {
             invoiceMiniAction(actions, R.drawable.ic_satori_edit, "Sửa hóa đơn",
-                Color.rgb(233, 248, 245), cyan) {
+                Color.rgb(233, 248, 245), brandGreen) {
                 if (!canAction("orders.update")) {
                     AlertDialog.Builder(this)
                         .setTitle("Chưa được cấp quyền sửa hóa đơn")
@@ -4132,52 +4325,51 @@ class NativeMainActivity : AppCompatActivity() {
                 }
             }
         }
-        // Right-align actions on both the Fold's cover and inner displays.
-        // Keep the title on the left where the actual dialog width permits.
-        val dialogWidthDp = (resources.configuration.screenWidthDp - 24)
-            .coerceAtLeast(240).coerceAtMost(540)
-        val usableContentDp = dialogWidthDp - 34 // invoice content horizontal padding
-        val actionsWidthDp = actions.childCount * 48 +
-            (actions.childCount - 1).coerceAtLeast(0) * 6
-        val inlineActions = usableContentDp >= actionsWidthDp + 90 &&
-            resources.configuration.fontScale <= 1.2f
-        actions.gravity = Gravity.END or Gravity.CENTER_VERTICAL
-        if (inlineActions) {
-            val toolbar = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(13), 0, 0)
-            }
-            val caption = label(toolbar, "THAO TÁC", 11.5f, true, cyan)
-            caption.maxLines = 1
-            caption.ellipsize = android.text.TextUtils.TruncateAt.END
-            caption.setPadding(0, 0, dp(8), 0)
-            caption.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))
-            content.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
-        } else {
-            label(content, "THAO TÁC", 11.5f, true, cyan, 13)
-            val actionRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.END or Gravity.CENTER_VERTICAL
-            }
-            actionRow.addView(actions, LinearLayout.LayoutParams(-2, -2))
-            content.addView(actionRow, LinearLayout.LayoutParams(-1, -2).apply {
-                topMargin = dp(7)
-            })
+
+        val actionCard = LinearLayout(this).apply {
+            tag = "satori_invoice_action_card"
+            orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(15), dp(12), dp(15), dp(14))
+            background = panelBackground(Color.WHITE, 20)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity))
+                dp(3).toFloat() else 0f
         }
-        // No bottom action bar: only the always-visible red X closes the page.
-        // Share remains an explicit control inside the document actions.
-        button(content, "CHIA SẺ PDF", false, R.drawable.ic_satori_share) {
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val toolTitle = label(toolbar, "Thao tác", 15f, true, ink)
+        toolTitle.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        if (!expanded && resources.configuration.screenWidthDp < 370)
+            toolTitle.visibility = View.GONE
+        toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))
+        if (expanded) {
+            actionCard.addView(toolbar, LinearLayout.LayoutParams(0, -2, 1f))
+        } else {
+            actionCard.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
+        }
+        val shareHolder = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        button(shareHolder, "Chia sẻ PDF", false, R.drawable.ic_satori_share) {
             confirmInternalShare {
-                try {
-                    NativeInvoicePdf.share(this, invoice)
-                } catch (_: Exception) {
+                try { NativeInvoicePdf.share(this, invoice) }
+                catch (_: Exception) {
                     Toast.makeText(this, "Không xuất được PDF, hãy thử lại.",
                         Toast.LENGTH_LONG).show()
                 }
             }
         }
+        actionCard.addView(shareHolder,
+            if (expanded) LinearLayout.LayoutParams(dp(220), -2).apply {
+                marginStart = dp(16)
+            } else LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(8)
+            })
+        content.addView(actionCard, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(14)
+        })
         val dialog = AlertDialog.Builder(this)
             .setView(page)
             .create()

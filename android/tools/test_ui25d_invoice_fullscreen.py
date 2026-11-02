@@ -47,8 +47,8 @@ class FullscreenInvoiceContract(unittest.TestCase):
         for marker in ("NativeInvoicePdf.preview(this, invoice)",
                        "NativeInvoicePdf.shareZalo(this, invoice)",
                        "NativeInvoicePdf.shareMessenger(this, invoice)",
-                       'invoicePaymentRow(content, "Khách hàng"',
-                       'invoicePaymentRow(content, "Satori"',
+                       'invoicePaymentRow(paymentCard, "Khách hàng"',
+                       'invoicePaymentRow(paymentCard, "Satori"',
                        "confirmSoftDelete(invoice)",
                        "requestInvoiceEdit(invoice)"):
             with self.subTest(marker=marker): self.assertIn(marker,DETAIL)
