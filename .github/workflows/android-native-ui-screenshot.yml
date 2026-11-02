@@ -52,6 +52,7 @@ jobs:
             gradle -p android :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
             adb install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            mkdir -p android/ui-evidence
             # Screenshot the real fullscreen invoice detail using ONLY synthetic
             # instrumentation fixture, never real invoice data.
             adb shell am instrument -w -e class vn.minhsatori.app.FullscreenInvoiceVisualTest vn.minhsatori.app.test/androidx.test.runner.AndroidJUnitRunner
