@@ -86,6 +86,8 @@ class NativeMainActivity : AppCompatActivity() {
     // UI-only filters: no ledger mutation and no new data permissions.
     private var debtProfitPeriod = AccountingProMargin45Period.all()
     private var debtProfitChoice = 0
+    private var homeProfitPeriod = AccountingProMargin45Period.all()
+    private var homeProfitChoice = 0
     private var isLoading = false
     private var fileUri: Uri? = null
     private var dataSource = ""
@@ -1156,26 +1158,134 @@ class NativeMainActivity : AppCompatActivity() {
             grid.addView(second, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
         }
         parent.addView(grid, LinearLayout.LayoutParams(-1, -2))
-        val confirmedProfit = if (data != null &&
-            data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()) {
-            val margins = CtvProfitSourcePolicy.profitRows(data)
-            val report = AccountingProDebtProfitPolicy.report(
-                data.invoices, margins, debtProfitPeriod)
-            if (report.margin.missingInvoiceCount == 0)
-                report.margin.estimatedMarginKnownVnd?.let(SatoriData::money)
-            else null
-        } else null
-        val profit = kpi("Lợi nhuận", confirmedProfit ?: "Chờ đồng bộ",
-            if (confirmedProfit != null) "Ước tính · đã đối chiếu CTV" else
-                "Chưa đủ dữ liệu xác minh", Color.rgb(120, 87, 199), R.drawable.ic_satori_profit, 0)
+        // Profit uses the SAME read-only verified 45%/CTV formula as the debt
+        // tab. Filtering never multiplies total sales by 45% or writes any data.
+        val profitRows = data?.let(CtvProfitSourcePolicy::profitRows)
+        val profitSummary = profitRows?.let {
+            AccountingProMargin45.summarize(it, homeProfitPeriod)
+        }
+        val verifiedRegistry = data?.collaboratorRegistryLoaded == true &&
+            data.collaborators.isNotEmpty()
+        val noEligibleInvoice = profitSummary?.totalInvoiceCount == 0 &&
+            (homeProfitChoice != 0 || data?.invoices?.none { !it.isExcluded } == true)
+        val confirmedProfit = when {
+            data == null -> null
+            noEligibleInvoice -> SatoriData.money(0L)
+            verifiedRegistry && profitSummary != null &&
+                profitSummary.missingInvoiceCount == 0 ->
+                profitSummary.estimatedMarginKnownVnd?.let(SatoriData::money)
+            else -> null
+        }
+        val profitNote = when {
+            data == null -> "Chưa kết nối sổ hóa đơn"
+            noEligibleInvoice -> "Không có hóa đơn hợp lệ trong kỳ"
+            !verifiedRegistry -> "Thiếu hồ sơ CTV từ nguồn đồng bộ"
+            profitSummary == null -> "Chưa có dữ liệu lợi nhuận"
+            profitSummary.missingInvoiceCount > 0 ->
+                "Thiếu dữ liệu " + profitSummary.missingInvoiceCount +
+                    "/" + profitSummary.totalInvoiceCount + " bill"
+            else -> "Ước tính sau hoa hồng CTV · chưa trừ chi phí khác"
+        }
+        val profit = kpi("Lợi nhuận", confirmedProfit ?: "Chưa đủ dữ liệu",
+            profitNote, Color.rgb(120, 87, 199), R.drawable.ic_satori_profit, 0)
+        // Show line-by-line source reasons instead of silently hiding amounts.
+        profit.setOnClickListener {
+            if (data == null) showConnectionSettings() else showMarginPeriod(data)
+        }
         // On Fold the third card aligns with the two-column dashboard.
         val width = if (resources.configuration.screenWidthDp >= 350)
             (resources.displayMetrics.widthPixels / 2 - dp(23)) else -1
         parent.addView(profit, LinearLayout.LayoutParams(width, -2).apply {
             topMargin = dp(11)
         })
+        label(parent, "Lọc lợi nhuận theo thời gian", 13f, true, ink, 14)
+        val periodFilter = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(5))
+        }
+        listOf("Tất cả", "Ngày", "Tháng", "Năm").forEachIndexed { index, title ->
+            val active = index == homeProfitChoice
+            val chip = TextView(this).apply {
+                text = title
+                gravity = Gravity.CENTER
+                textSize = 11.5f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(if (active) Color.WHITE else tealAccent)
+                background = panelBackground(
+                    if (active) tealAccent else Color.WHITE, 12)
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Lọc lợi nhuận: $title"
+                setOnClickListener { selectHomeProfitPeriod(index, data) }
+            }
+            periodFilter.addView(chip, LinearLayout.LayoutParams(0, dp(39), 1f).apply {
+                if (index > 0) marginStart = dp(5)
+            })
+        }
+        parent.addView(periodFilter, LinearLayout.LayoutParams(-1, -2))
+        label(parent, homeProfitPeriod.title + " · " +
+            (profitSummary?.computedInvoiceCount ?: 0) + "/" +
+            (profitSummary?.totalInvoiceCount ?: 0) + " bill đã tính được",
+            11f, false, softInk, 3)
+        if (data != null && !verifiedRegistry && !noEligibleInvoice) {
+            val sourceWarning = TextView(this).apply {
+                text = "⚠ Thiếu hồ sơ CTV. Chạm để chọn nguồn Google Drive chỉ đọc."
+                textSize = 11f
+                setTextColor(Color.rgb(154, 83, 24))
+                setPadding(dp(9), dp(10), dp(9), dp(10))
+                background = panelBackground(Color.rgb(255, 247, 230), 11)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { showConnectionSettings() }
+            }
+            parent.addView(sourceWarning, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(7)
+            })
+        }
         label(parent, "Truy cập nhanh", 16f, true, ink, 19)
         renderMoneyMindShortcuts(parent)
+    }
+
+    /** Date filter for the Home profit card; never edits an invoice or payment. */
+    private fun selectHomeProfitPeriod(mode: Int, data: SatoriSnapshot?) {
+        val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+        if (mode == 0) {
+            homeProfitChoice = 0
+            homeProfitPeriod = AccountingProMargin45Period.all()
+            render()
+            return
+        }
+        if (mode == 1 || mode == 2) {
+            val initial = homeProfitPeriod.from ?: today
+            val dialog = android.app.DatePickerDialog(this,
+                { _, year, monthZeroBased, dayOfMonth ->
+                    val day = java.time.LocalDate.of(year, monthZeroBased + 1, dayOfMonth)
+                    homeProfitChoice = mode
+                    homeProfitPeriod = if (mode == 1)
+                        AccountingProMargin45Period.day(day)
+                    else AccountingProMargin45Period.month(year, monthZeroBased + 1)
+                    render()
+                }, initial.year, initial.monthValue - 1, initial.dayOfMonth)
+            dialog.setTitle(if (mode == 1) "Chọn ngày xem lợi nhuận" else
+                "Chọn một ngày trong tháng cần xem")
+            dialog.show()
+            return
+        }
+        if (mode == 3) {
+            val years = (data?.invoices.orEmpty()
+                .filter { it.hasValidDate }
+                .mapNotNull { it.sortDate.substring(0, 4).toIntOrNull() } +
+                today.year).distinct().sortedDescending()
+            AlertDialog.Builder(this)
+                .setTitle("Chọn năm xem lợi nhuận")
+                .setItems(years.map { "Năm $it" }.toTypedArray()) { _, idx ->
+                    homeProfitChoice = 3
+                    homeProfitPeriod = AccountingProMargin45Period.year(years[idx])
+                    render()
+                }
+                .setNegativeButton("Đóng", null).show()
+        }
     }
 
     private fun renderUi25dSectionIntro(parent: LinearLayout, name: String) {
