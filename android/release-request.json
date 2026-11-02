@@ -1,8 +1,8 @@
 {
-  "purpose": "android-invoice-product-icons-discount-20261102",
+  "purpose": "android-invoice-kpi-filter-fcm-ready-20261102",
   "package": "vn.minhsatori.app",
-  "version": "0.4.50",
-  "versionCode": 67,
+  "version": "0.4.51",
+  "versionCode": 68,
   "branch": "fix/android-invoice-notification-open-20261101",
   "requestedOn": "2026-11-02",
   "sourcePRs": [
@@ -44,9 +44,10 @@
     364,
     365,
     366,
-    367
+    367,
+    368
   ],
-  "scope": "Android native invoice-detail UI only: category-specific vector product icons, stored line subtotal above Shipping/VAT, actual Discount % with no guessing or double-discount, same approved fullscreen layout, same PDF/payment/accounting behavior.",
+  "scope": "Android-only: equal height invoice summary KPIs, native payment filter chips sorted newest first, optional owner FCM receiving infrastructure disabled until Firebase credentials/backend live. No accounting or Gemini mutation.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -104,6 +105,7 @@
     "2026-11-02: native UI25D layout 0.4.47 build64 candidate. No migration. Preserve stored payments and official certificate SHA-256. Read-only emulator tests required.",
     "2026-11-02: v0.4.48 Build65 fixes screenshot-visible icon font fallback and narrow invoice popup; same pinned release signer, no backend or real invoice writes. Require CI/emulator and signed certificate/package checks.",
     "2026-11-02: Owner explicitly requested deploy after preview approval. PR #366 merged after Android debug compile/unit PASS, emulator instrumentation PASS and UI screenshot PASS. Ship v0.4.49 build66 only using existing pinned signer, require GitHub signed-release CI and exact package/version/certificate SHA-256 verification. No backend/website/financial mutation; Samsung owner acceptance follows APK artifact.",
-    "2026-11-02 owner approved incremental invoice UI change and explicitly requested signed APK. PR #367 merged after Android/Kotlin unit, emulator outbox instrumentation and UI screenshot all PASS. Signed v0.4.50 build67 must use existing pinned signer and exact package/certificate; no production invoices, backend, Gemini or API mutation. Samsung install validation remains owner-only."
+    "2026-11-02 owner approved incremental invoice UI change and explicitly requested signed APK. PR #367 merged after Android/Kotlin unit, emulator outbox instrumentation and UI screenshot all PASS. Signed v0.4.50 build67 must use existing pinned signer and exact package/certificate; no production invoices, backend, Gemini or API mutation. Samsung install validation remains owner-only.",
+    "2026-11-02: Owner approved all three fixes. PR #368 Android debug/unit/emulator/screenshot PASS; signed v0.4.51 build68 uses pinned official signer. IMPORTANT: FCM is not live until Firebase public client vars, Render service credentials, database migration, V2 owner token enrollment and all-order-source event hooks are verified; do not claim background push success just because APK built."
   ]
 }
