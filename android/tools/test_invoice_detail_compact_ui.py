@@ -31,7 +31,7 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn("Tổng tiền gốc để đối chiếu", DETAIL)
         self.assertIn("PDF giữ giá gốc", DETAIL)
         self.assertIn('Không tính doanh thu / công nợ', SRC)
-        self.assertIn(""Giá trị tính", DETAIL)
+        self.assertIn('"Giá trị tính"', DETAIL)
         self.assertIn('if (invoice.isNonCounted) Color.rgb(105, 74, 164)', SRC)
         # Real payments and invoice mutations remain on the preexisting guarded paths.
         self.assertIn('NativeInvoicePdf.preview(this, invoice)', DETAIL)
