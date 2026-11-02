@@ -71,7 +71,7 @@ test('customer interface has visible per-address edit for all roles and invalida
  assert.match(html,/userAddressDraftRevision/);
  assert.match(html,/clearUserAddressDraft\(\);resetTestQuote\(\);invalidateCartPricing\(\)/);
  assert.match(html,/Bill đã submit giữ nguyên người nhận/);
- assert.match(router,/q\.payload->'delivery' AS delivery/);
+ assert.match(router,/q\.payload->\\'delivery\\' AS delivery/);
  assert.match(router,/assertCurrentQuote\(/);
  for(const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)){
   assert.doesNotThrow(()=>new vm.Script(match[1]));
