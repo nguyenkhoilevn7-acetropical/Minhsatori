@@ -4135,7 +4135,7 @@ boot();
   const host=document.getElementById('drawerBrand')||document.querySelector('.owner-header')||document.querySelector('header');
   if(!host||document.getElementById('s25-trigger'))return;
   const btn=document.createElement('button');btn.type='button';btn.id='s25-trigger';btn.className='s25-picker-button '+(host.id==='drawerBrand'?'in-drawer':'in-header');
-  btn.innerHTML='<span aria-hidden="true">🎨</span> Tùy chỉnh giao diện';btn.setAttribute('aria-controls','s25-panel');btn.setAttribute('aria-expanded','false');
+  btn.textContent='Tùy chỉnh giao diện';const icon=document.createElement('span');icon.textContent='🎨';icon.setAttribute('aria-hidden','true');btn.prepend(icon);btn.setAttribute('aria-controls','s25-panel');btn.setAttribute('aria-expanded','false');
   const panel=document.createElement('section');panel.id='s25-panel';panel.className='s25-panel';panel.hidden=true;panel.setAttribute('aria-label','Tùy chỉnh giao diện Minh Satori');
   const template=document.getElementById('s25-ui-template');panel.appendChild(template.content.cloneNode(true));
   host.append(btn);document.body.append(panel);apply();
