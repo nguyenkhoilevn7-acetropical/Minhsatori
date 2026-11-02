@@ -1148,7 +1148,7 @@ class NativeMainActivity : AppCompatActivity() {
         } else null
         val profit = kpi("Lợi nhuận", confirmedProfit ?: "Chờ đồng bộ",
             if (confirmedProfit != null) "Ước tính · đã đối chiếu CTV" else
-                "Chưa đủ dữ liệu xác minh", Color.rgb(120, 87, 199), R.drawable.ic_satori_dashboard, 0
+                "Chưa đủ dữ liệu xác minh", Color.rgb(120, 87, 199), R.drawable.ic_satori_profit, 0)
         // On Fold the third card aligns with the two-column dashboard.
         val width = if (resources.configuration.screenWidthDp >= 350)
             (resources.displayMetrics.widthPixels / 2 - dp(23)) else -1
