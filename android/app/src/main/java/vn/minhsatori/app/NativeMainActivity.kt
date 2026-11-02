@@ -2525,8 +2525,7 @@ class NativeMainActivity : AppCompatActivity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(12), dp(13), dp(12))
-            background = panelBackground(Color.rgb(255, 255, 255), 20)
-            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(4).toFloat() else 0f
+            background = panelBackground(Color.rgb(255, 255, 255), 16)
         }
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
