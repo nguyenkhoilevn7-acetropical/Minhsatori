@@ -494,7 +494,7 @@ function createPair(s,all,p){
    Number(d.invoiceNo)===Number(p.customerRef.invoiceNo);
  });
  need(approved.length===1&&norm(approved[0].name)===norm(p.order.name)&&
-  String(approved[0].phone||'').replace(/\\D/g,'')===String(p.order.phone||'').replace(/\\D/g,'')&&
+  String(approved[0].phone||'').replace(/\D/g,'')===String(p.order.phone||'').replace(/\D/g,'')&&
   norm(approved[0].location)===norm(p.order.location),
   'CTV_DESTINATION_NOT_APPROVED','Điểm giao khác thông tin chủ đã duyệt');
  checkProfile(all,p.order,p);
