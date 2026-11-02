@@ -81,7 +81,6 @@ jobs:
             adb shell screencap -p /sdcard/minhsatori-native-profile.png
             adb pull /sdcard/minhsatori-native-profile.png android/ui-evidence/minhsatori-native-profile.png
             test -s android/ui-evidence/invoice-fullscreen-phone.png
-            test -s android/ui-evidence/invoice-fullscreen-fold.png
             test -s android/ui-evidence/minhsatori-native-home.png
             test -s android/ui-evidence/minhsatori-native-invoices.png
             test -s android/ui-evidence/minhsatori-native-create.png
@@ -96,6 +95,7 @@ jobs:
             sleep 3
             adb shell am instrument -w -e class vn.minhsatori.app.FullscreenInvoiceVisualTest vn.minhsatori.app.test/androidx.test.runner.AndroidJUnitRunner
             adb exec-out run-as vn.minhsatori.app cat files/ui25d-invoice-fullscreen.png > android/ui-evidence/invoice-fullscreen-fold.png
+            test -s android/ui-evidence/invoice-fullscreen-fold.png
             adb shell screencap -p /sdcard/minhsatori-fold-open.png
             adb pull /sdcard/minhsatori-fold-open.png android/ui-evidence/minhsatori-fold-open.png
             adb shell wm size 904x2316
