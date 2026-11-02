@@ -1,6 +1,7 @@
 """Presentation-only v0.4.46 regression checks. No network, Drive, or real invoice mutation."""
 import json
 import pathlib
+import re
 import unittest
 
 ANDROID = pathlib.Path(__file__).resolve().parents[1]
@@ -13,10 +14,14 @@ RELEASE = json.loads((ANDROID / "release-request.json").read_text(encoding="utf-
 
 class Ui25dNativeV046(unittest.TestCase):
     def test_latest_release_identity_not_downgraded(self):
-        self.assertIn('versionCode = 63', GRADLE)
-        self.assertIn('versionName = "0.4.46"', GRADLE)
-        self.assertEqual(RELEASE['versionCode'], 63)
-        self.assertEqual(RELEASE['version'], '0.4.46')
+        code = re.search(r'versionCode\\s*=\\s*(\\d+)', GRADLE)
+        version = re.search(r'versionName\\s*=\\s*"([0-9.]+)"', GRADLE)
+        self.assertIsNotNone(code)
+        self.assertIsNotNone(version)
+        self.assertGreaterEqual(int(code.group(1)), 63)
+        self.assertGreaterEqual(tuple(map(int,version.group(1).split('.'))),(0,4,46))
+        self.assertEqual(RELEASE['versionCode'], int(code.group(1)))
+        self.assertEqual(RELEASE['version'], version.group(1))
         self.assertEqual(RELEASE['package'], 'vn.minhsatori.app')
 
     def test_native_palette_controls_are_persistent_and_readonly(self):
