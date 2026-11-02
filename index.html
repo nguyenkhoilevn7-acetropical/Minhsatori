@@ -9604,6 +9604,80 @@ document.addEventListener('keydown',event=>{
   }
 });
 </script>
+
+/* MINH SATORI UI 2.5D — screen-only visual layer; official invoice PDF unchanged. */
+<style id="s25-ledger-style">
+@media screen{
+ html.satori-light-review{--s25-a:#008e8c;--s25-bright:#25c6ad;--s25-deep:#006d70;--s25-soft:#e0f5f1;--s25-on:#fff;--s25-shadow:0 6px 0 rgba(17,89,104,.035),0 15px 26px rgba(20,65,83,.10);--s25-glow:rgba(0,142,140,.18);--ms-teal:var(--s25-a);--ms-soft:var(--s25-soft)}
+ html.satori-light-review[data-s25-depth=flat]{--s25-shadow:0 2px 7px rgba(20,65,83,.07)}
+ html.satori-light-review body{background:radial-gradient(circle at top left,#fff 0%,transparent 48%),linear-gradient(125deg,#edf3f5,#f5f7f9)!important}
+ html.satori-light-review #appHeader{background:linear-gradient(115deg,var(--s25-deep),var(--s25-a) 64%,var(--s25-bright))!important;box-shadow:0 9px 24px var(--s25-glow)!important}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory,#tab-reconcile) > div[class*="bg-slate"],
+ html.satori-light-review #tab-input > div[class*="grid"] > div,
+ html.satori-light-review .compact-panel,
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card,
+ html.satori-light-review #tab-sheet #sheetsTableBody tr,
+ html.satori-light-review #tab-input #invoicePreviewPanel {
+  border-radius:20px!important;box-shadow:var(--s25-shadow)!important;border-color:#dfebed!important;
+ }
+ html.satori-light-review #archiveCardsContainer .ms-invoice-card:hover{box-shadow:0 15px 33px rgba(20,65,83,.16)!important;transform:translateY(-1px)}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory,#tab-reconcile) :is(button,summary):not(.s25-button){transition:transform .17s ease,box-shadow .17s ease,border-color .17s ease}
+ html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-aimemory,#tab-reconcile) button:active{transform:translateY(2px) scale(.99)}
+ html.satori-light-review #satori-legacy-dock{border-radius:18px 18px 0 0!important;box-shadow:0 -6px 26px rgba(10,44,59,.12)!important}
+ html.satori-light-review #satori-legacy-dock .dock-item[aria-current=page]{background:var(--s25-soft)!important;color:var(--s25-deep)!important}
+ html.satori-light-review #satori-web-drawer{border-radius:22px 0 0 22px!important;box-shadow:-16px 0 42px rgba(7,51,61,.18)!important}
+ html.satori-light-review #satori-web-drawer button:not(.s25-button){background:var(--s25-soft)!important;color:var(--s25-deep)!important}
+ html.satori-light-review #satori-web-drawer button i{color:var(--s25-a)!important}
+ html.satori-light-review :is(input,select,textarea,button):focus-visible{outline:2px solid var(--s25-a)!important;outline-offset:2px!important}
+ .s25-button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:1px solid #dce8eb;background:var(--s25-soft);color:#16424b;border-radius:12px;font-size:13px;font-weight:800;padding:11px;box-shadow:var(--s25-shadow)}
+ .s25-panel{position:fixed;z-index:99999;top:80px;right:max(12px,env(safe-area-inset-right));width:min(310px,calc(100vw - 24px));background:#fff;color:#183642;border:1px solid #dfebee;border-radius:20px;padding:17px;box-shadow:0 25px 50px rgba(7,35,46,.22)}
+ .s25-panel[hidden]{display:none!important}.s25-panel h3{font-size:16px;font-weight:850;margin:0 0 6px}.s25-panel p{font-size:12px;color:#6d848d;margin:0 0 13px}
+ .s25-swatches{display:flex;align-items:center;gap:8px}.s25-swatch{width:34px;height:34px;border-radius:10px;border:2px solid white;box-shadow:0 0 0 1px #cfdce0}.s25-swatch[aria-pressed=true]{outline:2px solid #193b48}
+ .s25-depth{display:flex;gap:7px;margin-top:14px}.s25-depth button{flex:1;padding:9px;background:#f1f6f8;color:#234352;border:1px solid #d6e5e9;border-radius:12px;font-weight:800}.s25-depth button[aria-pressed=true]{background:var(--s25-soft);border-color:var(--s25-a);color:var(--s25-deep)}
+ @media(prefers-reduced-motion:reduce){html.satori-light-review :is(button,summary,.ms-invoice-card){transition:none!important}}
+}
+</style>
+
+
+<script id="s25-ledger-controller">
+/* UI only. Never changes any invoice, sync, API, payment, chat or PDF logic. */
+(function(){
+ const ROOT=document.documentElement, KEY='satori.ui.v25d',colors={teal:'#008e8c',indigo:'#5266c8',coral:'#c96370'};
+ const good=s=>/^#[0-9a-fA-F]{6}$/.test(s||'');
+ const rgb=s=>[1,3,5].map(i=>parseInt(s.slice(i,i+2),16));
+ const mix=(a,b,t)=>'#'+rgb(a).map((v,i)=>Math.round(v*(1-t)+rgb(b)[i]*t).toString(16).padStart(2,'0')).join('');
+ let v={theme:'teal',color:colors.teal,depth:'raised'};
+ try{const previous=JSON.parse(localStorage.getItem(KEY)||'{}');if(colors[previous.theme]||previous.theme==='custom')v.theme=previous.theme;if(good(previous.color))v.color=previous.color;if(['raised','flat'].includes(previous.depth))v.depth=previous.depth}catch(e){}
+ function apply(){
+  const a=v.theme==='custom'?v.color:colors[v.theme], [r,g,b]=rgb(a);
+  const on=(.2126*r+.7152*g+.0722*b)>174?'#152e3c':'#fff';
+  const values={'--s25-a':a,'--s25-bright':mix(a,'#ffffff',.26),'--s25-deep':mix(a,'#052936',.24),'--s25-soft':mix(a,'#ffffff',.87),'--s25-glow':`rgba(${r},${g},${b},.20)`,'--s25-on':on};
+  Object.entries(values).forEach(([k,val])=>ROOT.style.setProperty(k,val));
+  ROOT.dataset.s25Depth=v.depth;
+  document.querySelectorAll('[data-s25-swatch]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s25Swatch===v.theme)));
+  document.querySelectorAll('[data-s25-depth]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s25Depth===v.depth)));
+  const c=document.getElementById('s25-color');if(c)c.value=a;
+  try{localStorage.setItem(KEY,JSON.stringify(v))}catch(e){}
+ }
+ function init(){
+  const drawer=document.getElementById('satori-web-drawer');
+  if(!drawer||document.getElementById('s25-picker-trigger'))return;
+  const button=document.createElement('button');button.type='button';button.id='s25-picker-trigger';button.className='s25-button';button.textContent='🎨 Giao diện · Màu / 2.5D';button.setAttribute('aria-expanded','false');button.setAttribute('aria-controls','s25-ledger-panel');
+  (drawer.children[1]||drawer).prepend(button);
+  const panel=document.createElement('section');panel.id='s25-ledger-panel';panel.className='s25-panel';panel.hidden=true;panel.setAttribute('aria-label','Bộ chọn màu Minh Satori');
+  panel.innerHTML='<h3>Tùy chỉnh giao diện</h3><p>Thay màu và độ nổi trên tất cả tab kế toán.</p><div class="s25-swatches"><button class="s25-swatch" type="button" aria-label="Teal" data-s25-swatch="teal" style="background:#008e8c"></button><button type="button" class="s25-swatch" aria-label="Indigo" data-s25-swatch="indigo" style="background:#5266c8"></button><button type="button" class="s25-swatch" aria-label="Coral" data-s25-swatch="coral" style="background:#c96370"></button><label style="font-size:11px" for="s25-color">Tự chọn <input id="s25-color" type="color" style="width:39px;height:35px;border:0;background:none;vertical-align:middle" aria-label="Màu khác"></label></div><div class="s25-depth"><button type="button" data-s25-depth="flat">2D</button><button type="button" data-s25-depth="raised">2.5D</button></div>';
+  document.body.append(panel);
+  button.addEventListener('click',()=>{panel.hidden=!panel.hidden;button.setAttribute('aria-expanded',String(!panel.hidden))});
+  panel.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;if(t.dataset.s25Swatch)v.theme=t.dataset.s25Swatch;if(t.dataset.s25Depth)v.depth=t.dataset.s25Depth;apply()});
+  panel.querySelector('input').addEventListener('input',e=>{if(good(e.target.value)){v.color=e.target.value;v.theme='custom';apply()}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){panel.hidden=true;button.setAttribute('aria-expanded','false')}});
+  document.addEventListener('pointerdown',e=>{if(!panel.hidden&&!panel.contains(e.target)&&!button.contains(e.target)){panel.hidden=true;button.setAttribute('aria-expanded','false')}});
+  apply();
+ }
+ apply();if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
+</script>
+
 </body>
 </html>
 
