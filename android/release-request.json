@@ -1,10 +1,10 @@
 {
-  "purpose": "android-home-profit-partial-date-filter-20261102",
+  "purpose": "android-owner-scoped-xlsx-four-sheets-20261103",
   "package": "vn.minhsatori.app",
-  "version": "0.4.52",
-  "versionCode": 69,
+  "version": "0.4.53",
+  "versionCode": 70,
   "branch": "fix/android-invoice-notification-open-20261101",
-  "requestedOn": "2026-11-02",
+  "requestedOn": "2026-11-03",
   "sourcePRs": [
     240,
     241,
@@ -46,9 +46,10 @@
     366,
     367,
     368,
-    370
+    370,
+    374
   ],
-  "scope": "Android only: home profit day/month/year selection with verified partial margin sum, exclude unknown historical prices/CTV discounts, show counted X/Y, fallback only explicit self-contained CTV discount snapshots; preserve all existing payment/PDF/Gemini/backend operations.",
+  "scope": "Android Owner only: scoped XLSX download via native save picker, four sheets for invoices, debt, reports and verified CTV-adjusted 45-percent margin. No backend, Gemini, Google Drive, payment or real invoice write changes.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -108,6 +109,7 @@
     "2026-11-02: Owner explicitly requested deploy after preview approval. PR #366 merged after Android debug compile/unit PASS, emulator instrumentation PASS and UI screenshot PASS. Ship v0.4.49 build66 only using existing pinned signer, require GitHub signed-release CI and exact package/version/certificate SHA-256 verification. No backend/website/financial mutation; Samsung owner acceptance follows APK artifact.",
     "2026-11-02 owner approved incremental invoice UI change and explicitly requested signed APK. PR #367 merged after Android/Kotlin unit, emulator outbox instrumentation and UI screenshot all PASS. Signed v0.4.50 build67 must use existing pinned signer and exact package/certificate; no production invoices, backend, Gemini or API mutation. Samsung install validation remains owner-only.",
     "2026-11-02: Owner approved all three fixes. PR #368 Android debug/unit/emulator/screenshot PASS; signed v0.4.51 build68 uses pinned official signer. IMPORTANT: FCM is not live until Firebase public client vars, Render service credentials, database migration, V2 owner token enrollment and all-order-source event hooks are verified; do not claim background push success just because APK built.",
-    "2026-11-02: Owner approved counting every verifiable invoice and ignoring older unverified historical bills for profit. PR #370 CI Android debug+unit, emulator outbox, screenshot all PASS; signed v0.4.52 Build69 from original pinned signer. Does NOT change production ledger or historical invoice values; profit estimate after CTV, excludes VAT and charged shipping, not full net profit. App read source may still need updated Apps Script Mobile API to send historical CTV registry."
+    "2026-11-02: Owner approved counting every verifiable invoice and ignoring older unverified historical bills for profit. PR #370 CI Android debug+unit, emulator outbox, screenshot all PASS; signed v0.4.52 Build69 from original pinned signer. Does NOT change production ledger or historical invoice values; profit estimate after CTV, excludes VAT and charged shipping, not full net profit. App read source may still need updated Apps Script Mobile API to send historical CTV registry.",
+    "2026-11-03: PR #374 merged after Android debug/unit, outbox emulator and UI screenshot PASS. Signed v0.4.53 Build70 acceptance candidate: export XLSX to user-selected device document, no cache or server write. Preserve original pinned signer, no debug APK distribution. Validate certificate/package/sha, then owner Samsung install & Excel opening. Profit is estimate only; missing CTV data remains blank. No production API or ledger writes."
   ]
 }
