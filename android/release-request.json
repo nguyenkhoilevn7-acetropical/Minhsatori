@@ -1,8 +1,8 @@
 {
-  "purpose": "android-invoice-kpi-filter-fcm-ready-20261102",
+  "purpose": "android-home-profit-partial-date-filter-20261102",
   "package": "vn.minhsatori.app",
-  "version": "0.4.51",
-  "versionCode": 68,
+  "version": "0.4.52",
+  "versionCode": 69,
   "branch": "fix/android-invoice-notification-open-20261101",
   "requestedOn": "2026-11-02",
   "sourcePRs": [
@@ -45,9 +45,10 @@
     365,
     366,
     367,
-    368
+    368,
+    370
   ],
-  "scope": "Android-only: equal height invoice summary KPIs, native payment filter chips sorted newest first, optional owner FCM receiving infrastructure disabled until Firebase credentials/backend live. No accounting or Gemini mutation.",
+  "scope": "Android only: home profit day/month/year selection with verified partial margin sum, exclude unknown historical prices/CTV discounts, show counted X/Y, fallback only explicit self-contained CTV discount snapshots; preserve all existing payment/PDF/Gemini/backend operations.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -106,6 +107,7 @@
     "2026-11-02: v0.4.48 Build65 fixes screenshot-visible icon font fallback and narrow invoice popup; same pinned release signer, no backend or real invoice writes. Require CI/emulator and signed certificate/package checks.",
     "2026-11-02: Owner explicitly requested deploy after preview approval. PR #366 merged after Android debug compile/unit PASS, emulator instrumentation PASS and UI screenshot PASS. Ship v0.4.49 build66 only using existing pinned signer, require GitHub signed-release CI and exact package/version/certificate SHA-256 verification. No backend/website/financial mutation; Samsung owner acceptance follows APK artifact.",
     "2026-11-02 owner approved incremental invoice UI change and explicitly requested signed APK. PR #367 merged after Android/Kotlin unit, emulator outbox instrumentation and UI screenshot all PASS. Signed v0.4.50 build67 must use existing pinned signer and exact package/certificate; no production invoices, backend, Gemini or API mutation. Samsung install validation remains owner-only.",
-    "2026-11-02: Owner approved all three fixes. PR #368 Android debug/unit/emulator/screenshot PASS; signed v0.4.51 build68 uses pinned official signer. IMPORTANT: FCM is not live until Firebase public client vars, Render service credentials, database migration, V2 owner token enrollment and all-order-source event hooks are verified; do not claim background push success just because APK built."
+    "2026-11-02: Owner approved all three fixes. PR #368 Android debug/unit/emulator/screenshot PASS; signed v0.4.51 build68 uses pinned official signer. IMPORTANT: FCM is not live until Firebase public client vars, Render service credentials, database migration, V2 owner token enrollment and all-order-source event hooks are verified; do not claim background push success just because APK built.",
+    "2026-11-02: Owner approved counting every verifiable invoice and ignoring older unverified historical bills for profit. PR #370 CI Android debug+unit, emulator outbox, screenshot all PASS; signed v0.4.52 Build69 from original pinned signer. Does NOT change production ledger or historical invoice values; profit estimate after CTV, excludes VAT and charged shipping, not full net profit. App read source may still need updated Apps Script Mobile API to send historical CTV registry."
   ]
 }
