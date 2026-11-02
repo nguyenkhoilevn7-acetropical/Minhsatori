@@ -58,7 +58,7 @@ import com.google.android.gms.common.api.Scope
  * is configured and tested against a sandbox. No raw token or invoice stored.
  */
 class NativeMainActivity : AppCompatActivity() {
-    private val teal = Color.rgb(0, 156, 153)
+    private val teal get() = SatoriUiTheme.accent(this)
     private val dark = Color.rgb(16, 43, 56)
     private val muted = Color.rgb(102, 121, 130)
     private val pale = Color.rgb(241, 244, 245)
@@ -67,7 +67,7 @@ class NativeMainActivity : AppCompatActivity() {
     private var dashboardMode = false
     private val ink = Color.rgb(16, 43, 56)
     private val softInk = Color.rgb(102, 121, 130)
-    private val cyan = Color.rgb(0, 156, 153)
+    private val cyan get() = SatoriUiTheme.accent(this)
     private val night = Color.rgb(241, 244, 245)
     private val surface = Color.rgb(255, 255, 255)
     private val indigo = Color.rgb(226, 246, 243)
@@ -645,7 +645,7 @@ class NativeMainActivity : AppCompatActivity() {
         return view
     }
 
-    private fun panelBackground(color: Int = surface, radius: Int = 16): GradientDrawable =
+    private fun panelBackground(color: Int = surface, radius: Int = 20): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
@@ -664,7 +664,7 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(9), 0, dp(9), 0)
             stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
-            val accent = if (main) white else if (danger) Color.rgb(207, 46, 46) else cyan
+            val accent = if (main) SatoriUiTheme.onAccent(this@NativeMainActivity) else if (danger) Color.rgb(207, 46, 46) else cyan
             setTextColor(accent)
             if (iconRes != 0) {
                 val symbol = androidx.core.content.ContextCompat.getDrawable(
@@ -676,14 +676,14 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
             }
             background = if (main) {
-                GradientDrawable().apply {
-                    // MoneyMind flat design: solid teal, no gradients.
-                    setColor(Color.rgb(0, 156, 153))
-                    cornerRadius = dp(14).toFloat()
+                GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(SatoriUiTheme.deep(this@NativeMainActivity), teal)).apply {
+                    cornerRadius = dp(16).toFloat()
                 }
             } else panelBackground(if (danger) Color.rgb(255, 243, 243)
-                else Color.rgb(233, 248, 245), 14)
+                else SatoriUiTheme.soft(this@NativeMainActivity), 14)
             setOnClickListener { click() }
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(3).toFloat() else 0f
         }
         parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
             topMargin = dp(6)
@@ -704,6 +704,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
         label(frame, title, 13.5f, true, white)
         label(frame, detail, 11.5f, false, softInk, 4)
+        frame.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         parent.addView(frame, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(6)
         })
@@ -722,6 +723,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
         label(box, title, 11.5f, false, muted)
         label(box, value, 18f, true, accent, 7)
+        box.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         parent.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
@@ -979,11 +981,15 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(7), dp(8), dp(7), dp(8))
-            background = panelBackground(if (activeTab == 0) teal else Color.WHITE, 18)
+            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(SatoriUiTheme.deep(this@NativeMainActivity), teal,
+                    SatoriUiTheme.lighter(this@NativeMainActivity))).apply {
+                cornerRadius = dp(18).toFloat()
+            }
         }
         val menuButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_menu)
-            setColorFilter(if (activeTab == 0) white else ink)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(10), dp(11), dp(10), dp(11))
@@ -1005,17 +1011,17 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(7), 0, 0, 0)
         }
         label(brandText, "MINH SATORI", 15f, true, ink).apply {
-            if (activeTab == 0) setTextColor(Color.WHITE)
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
         }
         label(brandText, if (activeTab == 0) "Xin chào, Quản trị viên 👋"
             else "HÓA ĐƠN  •  SỔ KẾ TOÁN", 10f,
             false, Color.rgb(79, 102, 132), 4).apply {
-            if (activeTab == 0) setTextColor(Color.rgb(224, 252, 246))
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
         }
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
         val refreshButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_refresh)
-            setColorFilter(if (activeTab == 0) white else cyan)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(8), dp(12), dp(8), dp(12))
@@ -1028,7 +1034,7 @@ class NativeMainActivity : AppCompatActivity() {
                 "satori_live_notifications", false)
             setImageResource(if (enabled) R.drawable.ic_satori_bell
                 else R.drawable.ic_satori_bell_off)
-            setColorFilter(if (activeTab == 0) white else if (enabled) cyan else softInk)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(7), dp(11), dp(7), dp(11))
@@ -1074,7 +1080,7 @@ class NativeMainActivity : AppCompatActivity() {
         brand.addView(bellContainer,LinearLayout.LayoutParams(dp(38),dp(46)))
         val options = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_settings)
-            setColorFilter(if (activeTab == 0) white else ink)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(10), dp(11), dp(10), dp(11))
@@ -1302,8 +1308,8 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(4), dp(6), dp(4), dp(6))
-            background = panelBackground(Color.WHITE, 0)
-            elevation = dp(5).toFloat()
+            background = panelBackground(Color.WHITE, 18)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(7).toFloat() else 0f
         }
         val bottomDestinations = listOf(
             Triple(0, "Trang chủ", R.drawable.ic_satori_dashboard),
@@ -1484,7 +1490,7 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(12), 0)
                 background = background(if (activeTab == index)
-                    Color.rgb(232, 242, 255) else white, 14)
+                    SatoriUiTheme.soft(this@NativeMainActivity) else white, 14)
                 contentDescription = "Mở mục " + item.second + if (item.second == "Quản trị hệ thống") " · Quản trị bên trong ứng dụng Minh Satori" else ""
                 isClickable = true
                 isFocusable = true
@@ -1518,6 +1524,23 @@ class NativeMainActivity : AppCompatActivity() {
         }
         drawer.addView(syncMenu, LinearLayout.LayoutParams(-1, dp(56)).apply {
             topMargin = dp(14)
+        })
+        val appearanceMenu = TextView(this).apply {
+            text = "🎨  Giao diện · Màu sắc / 2.5D"
+            textSize = 15f
+            setTextColor(cyan)
+            setPadding(dp(14), dp(14), dp(12), dp(14))
+            background = panelBackground(SatoriUiTheme.soft(this@NativeMainActivity), 14)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(3).toFloat() else 0f
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Tùy chỉnh màu và độ nổi giao diện"
+            setOnClickListener {
+                dismissDrawer { SatoriUiTheme.picker(this@NativeMainActivity) { render() } }
+            }
+        }
+        drawer.addView(appearanceMenu, LinearLayout.LayoutParams(-1, dp(52)).apply {
+            topMargin = dp(8)
         })
         menuButton.setOnClickListener { showDrawer() }
         closeButton.setOnClickListener { dismissDrawer() }
