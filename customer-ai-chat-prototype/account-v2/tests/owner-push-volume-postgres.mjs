@@ -53,19 +53,25 @@ async function scenario(newCount,ownerSub,deviceId,token){
  }
  const sent=[];
  const send=async m=>{sent.push(m);return true};
- let ticks=0,res;
+ let ticks=0,res,sawLarge=false;
  do{
   res=await scanInvoices(pool,reader,now);
   await queueDeliveries(pool,ownerSub);
   await dispatch(pool,ownerSub,send);
   ticks++;
- }while(res.backlog>0&&ticks<30);
+  if(res.backlog>1000){
+   const w=await one('SELECT last_error_code FROM satori_v2_owner_push_feed_state WHERE feed=$1',['invoices']);
+   assert.equal(w.last_error_code,'PUSH_BACKFILL_LARGE','large backlog is flagged, not truncated');
+   sawLarge=true;
+  }
+ }while(res.backlog>0&&ticks<80);
  assert.equal(res.backlog,0,'backfill completes');
  assert.equal(res.unresolved,0);
- // Deliveries are claimed 30 per dispatch; drain the queue.
- for(let i=0;i<20;i++){
+ // Deliveries are claimed 30 per dispatch; drain the queue completely.
+ for(let i=0;i<200;i++){
   await pool.query('UPDATE satori_v2_owner_push_deliveries SET retry_at=now() WHERE delivered_at IS NULL');
   await dispatch(pool,ownerSub,send);
+  if(!(await one('SELECT count(*)::int n FROM satori_v2_owner_push_deliveries WHERE delivered_at IS NULL')).n)break;
  }
  const numbers=sent.map(m=>Number(m.data.invoiceNo));
  assert.equal(new Set(numbers).size,numbers.length,'no duplicate notification');
@@ -79,6 +85,7 @@ async function scenario(newCount,ownerSub,deviceId,token){
  assert.equal(stats.probes,before,'steady state uses only the two day-window reads');
  const lastFeed=await one('SELECT backfill_next,last_error_code FROM satori_v2_owner_push_feed_state WHERE feed=$1',['invoices']);
  assert.equal(lastFeed.backfill_next,null);assert.equal(lastFeed.last_error_code,null);
+ if(newCount-100>1000)assert.ok(sawLarge,'gap >1000 exercised the warning path');
  console.log(`PASS ${newCount} new invoices/day: ${newCount} pushes, 0 duplicates, ${ticks} ticks, ${stats.probes} exact readbacks`);
 }
 
@@ -92,7 +99,8 @@ try{
  const deviceId=randomUUID(),token='fAkE_volume_tOkEn:APA91b'+randomBytes(60).toString('hex');
  await pool.query("INSERT INTO satori_v2_owner_push_devices(device_id,account_id,session_hash,token,token_hash,registered_at) VALUES($1,$2,$3,$4,$5,now()-interval '1 hour')",
   [deviceId,owner.id,hash(session),token,hash(token)]);
- for(const n of [101,150,250])await scenario(n,ownerSub,deviceId,token);
+ // 1,600 new => gap of 1,500 numbers beyond the 100-row window (> 1,000).
+ for(const n of [101,150,250,1001,1500,1600])await scenario(n,ownerSub,deviceId,token);
 
  // Pathological: >100 same-day, same-status rows whose phone contains the
  // probed digits. The number cannot be resolved yet -> cursor HOLDS (never

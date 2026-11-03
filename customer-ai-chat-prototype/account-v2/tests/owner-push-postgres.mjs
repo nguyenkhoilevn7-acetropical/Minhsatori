@@ -31,7 +31,8 @@ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'n
 const reader=async(action,payload)=>{
  assert.equal(action,'orders.list');
  if(ledgerDown)throw Error('READ_ONLY_UPSTREAM_HTTP_503');
- const rows=payload.from===today?ledger:[];
+ // BotApi.gs visible() always carries date + timestamp (null when absent).
+ const rows=(payload.from===today?ledger:[]).map(r=>({date:today,timestamp:Date.now(),...r}));
  return {revision,data:{totalMatches:rows.length,orders:rows}};
 };
 // Fake FCM: records accepted messages; can simulate outages / dead tokens.
@@ -133,10 +134,12 @@ try{
  pass('TEST 06: same bill re-synced / edited / paid -> no duplicate push');
 
  ledger.push({id:'L-3',invoiceNo:7003,status:'Đã hủy'},{id:'L-4',invoiceNo:7004,status:'Chưa thanh toán',excluded:true},
-  {id:'L-5',invoiceNo:7005,status:'Chưa thanh toán',isTest:true},{id:'L-6',invoiceNo:7006,status:'DRAFT'});
+  {id:'L-5',invoiceNo:7005,status:'Chưa thanh toán',isTest:true},{id:'L-6',invoiceNo:7006,status:'DRAFT'},
+  {id:'L-6b',invoiceNo:7106,status:'Chưa thanh toán',timestamp:null,date:'01/10/2026'},
+  {id:'L-6c',invoiceNo:7107,status:'Chưa thanh toán',timestamp:'invalid',date:''});
  await tick();
  assert.equal(delivered.length,1);
- pass('Cancelled / excluded / TEST / draft invoices never notify');
+ pass('Cancelled / excluded / TEST / draft / old-or-undated invoices never notify');
 
  // --- Concurrency: two relay ticks at once -> one push -----------------
  ledger.push({id:'L-7',invoiceNo:7007,status:'Chưa thanh toán'});

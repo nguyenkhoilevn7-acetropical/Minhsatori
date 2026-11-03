@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {ownerPushConfig,validateDevice,eligibleOfficialInvoice,classifyFcmFailure,
  scanDays,createFcmSender,registerOwnerDevice,startOwnerPushRelay,verifyWakeRequest,
- probeInvoiceNumber} from '../owner-push.mjs';
+ probeInvoiceNumber,invoiceIsFresh} from '../owner-push.mjs';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
@@ -41,7 +41,7 @@ test('registration is fail-closed before touching the database when push is off'
 });
 
 test('only official, non-test, non-cancelled canonical invoices are eligible',()=>{
- const base={id:'1700000000000',invoiceNo:5969,status:'Chưa thanh toán',excluded:false};
+ const base={id:'1700000000000',invoiceNo:5969,status:'Chưa thanh toán',excluded:false,timestamp:Date.now()};
  assert.equal(eligibleOfficialInvoice(base),true);
  for(const bad of [{...base,id:''},{...base,invoiceNo:0},{...base,status:'Đã hủy'},
   {...base,status:'Không Tính'},{...base,excluded:true},{...base,testOnly:true},
@@ -162,4 +162,26 @@ test('exact readback narrows by day then status; never claims MISSING when unsur
  const unsure=await probeInvoiceNumber(async()=>({revision:1,data:{totalMatches:500,orders:[]}}),7999,{days:['2026-11-03']});
  assert.equal(unsure.state,'UNRESOLVED');
  assert.equal((await probeInvoiceNumber(async()=>({revision:1,data:{totalMatches:0,orders:[]}}),7999,{days:['2026-11-03']})).state,'MISSING');
+});
+
+test('freshness is fail-closed for missing/invalid/future timestamps',()=>{
+ const now=Date.parse('2026-11-03T08:00:00Z'); // 15:00 Vietnam time
+ const base={id:'abc',invoiceNo:1,status:'Chưa thanh toán'};
+ assert.equal(invoiceIsFresh({...base,timestamp:now-3_600_000},now),true);
+ assert.equal(invoiceIsFresh({...base,timestamp:now-49*3_600_000},now),false,'older than 48h');
+ // Missing / non-numeric / zero / negative / pre-2000 / far-future timestamp -> fall back to date.
+ for(const timestamp of [undefined,null,'',0,-5,'abc',123456,NaN,now+86_400_000,1.5e12+0.5]){
+  assert.equal(invoiceIsFresh({...base,timestamp,date:'03/11/2026'},now),true,'today by date: '+timestamp);
+  assert.equal(invoiceIsFresh({...base,timestamp,date:'2026-11-02'},now),true,'yesterday by date');
+  assert.equal(invoiceIsFresh({...base,timestamp,date:'15/10/2026'},now),false,'old date never alerts');
+  assert.equal(invoiceIsFresh({...base,timestamp},now),false,'no usable age -> no alert');
+  assert.equal(invoiceIsFresh({...base,timestamp,date:'31/02/2026'},now),false,'impossible date');
+ }
+ // Millisecond ledger id as last resort.
+ assert.equal(invoiceIsFresh({...base,id:String(now-60_000)},now),true);
+ assert.equal(invoiceIsFresh({...base,id:String(now-30*86_400_000)},now),false);
+ assert.equal(invoiceIsFresh({...base,id:String(now+86_400_000)},now),false,'future id rejected');
+ // Eligibility includes freshness.
+ assert.equal(eligibleOfficialInvoice({...base,id:'L1',date:'01/01/2025'},now),false);
+ assert.equal(eligibleOfficialInvoice({...base,id:'L1',date:'03/11/2026'},now),true);
 });

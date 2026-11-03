@@ -21,8 +21,13 @@ trigger, outside every order write; it sends no invoice data.
   backoff, dead tokens disabled only on a verified FCM token error.
 * >100 invoices/day: newest-first day window + exact per-number readback with a
   persisted cursor; an unreadable number holds the cursor (never skipped) and is
-  reported as `PUSH_BACKFILL_UNRESOLVED`.
+  reported as `PUSH_BACKFILL_UNRESOLVED`. A backlog is never truncated: above
+  1,000 numbers it is flagged `PUSH_BACKFILL_LARGE` and drained over several
+  passes (40 exact readbacks per pass).
 * Invoices older than 48 h (restored, or found after a long outage) never alert.
+  Freshness is fail-closed: missing/invalid/future `timestamp` falls back to the
+  invoice date (today/yesterday, Vietnam time), then a millisecond ledger id;
+  if the age cannot be established, no notification is sent.
 
 ## Latency (do not over-claim)
 | Situation | Expected latency |

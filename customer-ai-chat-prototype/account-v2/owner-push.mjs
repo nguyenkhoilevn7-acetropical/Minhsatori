@@ -150,13 +150,38 @@ export async function ownerPushStatus(pool,actor,sessionHash,deviceId,env=proces
 
 /** Older invoices (e.g. restored from trash, or found after a long outage) never alert. */
 const MAX_INVOICE_AGE_MS=48*3_600_000;
-export function eligibleOfficialInvoice(row,now=Date.now()){
+const MAX_CLOCK_SKEW_MS=10*60_000;
+const vnDay=ms=>new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',
+ month:'2-digit',day:'2-digit'}).format(new Date(ms));
+function isoDate(value){
+ const v=String(value??'').trim();
+ const m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+ const iso=m?m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'):v;
+ if(!/^20\d{2}-\d{2}-\d{2}$/.test(iso))return null;
+ const d=new Date(iso+'T00:00:00Z');
+ return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===iso?iso:null;
+}
+const plausibleMs=(x,now)=>Number.isSafeInteger(x)&&x>=946_684_800_000&&x<=now+MAX_CLOCK_SKEW_MS;
+/**
+ * Freshness, fail-closed. BotApi.gs writes timestamp=Date.now() on every new
+ * order. If it is missing/invalid/in the future, fall back to the invoice date
+ * (must be today or yesterday, Vietnam time), then to a millisecond ledger id.
+ * If the age cannot be established the invoice does NOT notify.
+ */
+export function invoiceIsFresh(row,now=Date.now()){
  const ts=Number(row?.timestamp);
+ if(row?.timestamp!=null&&plausibleMs(ts,now))return now-ts<=MAX_INVOICE_AGE_MS;
+ const date=isoDate(row?.date);
+ if(date)return date===vnDay(now)||date===vnDay(now-86_400_000);
+ const idMs=/^\d{13}$/.test(String(row?.id??''))?Number(row.id):NaN;
+ if(plausibleMs(idMs,now))return now-idMs<=MAX_INVOICE_AGE_MS;
+ return false;
+}
+export function eligibleOfficialInvoice(row,now=Date.now()){
  return !!row&&Number.isSafeInteger(Number(row.invoiceNo))&&Number(row.invoiceNo)>0&&
   safeId(String(row.id??''))&&row.missing!==true&&row.excluded!==true&&
   row.testOnly!==true&&row.isTest!==true&&row.draft!==true&&
-  !excludedStatus(row.status)&&
-  (!Number.isSafeInteger(ts)||ts<=0||now-ts<=MAX_INVOICE_AGE_MS);
+  !excludedStatus(row.status)&&invoiceIsFresh(row,now);
 }
 
 /** Today and yesterday (Vietnam time). */
@@ -167,7 +192,8 @@ export function scanDays(now=new Date()){
 }
 
 const PROBE_PER_TICK=40;
-const MAX_BACKFILL_SPAN=1000;
+// Above this backlog a warning code is recorded; the backlog is NEVER truncated.
+const LARGE_BACKFILL=1000;
 function signedRows(result){
  if(!Number.isSafeInteger(result?.revision)||!Array.isArray(result?.data?.orders))
   throw pushError('PUSH_LEDGER_NOT_VERIFIED');
@@ -246,7 +272,6 @@ export async function scanInvoices(pool,reader,now=new Date(),{probeLimit=PROBE_
   if(gapHigh>=gapLow){
    next=next==null?gapLow:Math.min(next,gapLow);
    until=Math.max(until??gapHigh,gapHigh);
-   if(until-next>MAX_BACKFILL_SPAN)next=until-MAX_BACKFILL_SPAN;
   }
  }
  let unresolved=0;
@@ -274,7 +299,8 @@ export async function scanInvoices(pool,reader,now=new Date(),{probeLimit=PROBE_
   }
   await client.query('UPDATE satori_v2_owner_push_feed_state SET initialized=true,last_checked_at=now(),'+
    'backfill_next=$2,backfill_until=$3,last_error_code=$4 WHERE feed=$1',
-   ['invoices',next,until,unresolved?'PUSH_BACKFILL_UNRESOLVED':null]);
+   ['invoices',next,until,unresolved?'PUSH_BACKFILL_UNRESOLVED':
+    next!=null&&until-next+1>LARGE_BACKFILL?'PUSH_BACKFILL_LARGE':null]);
   await client.query('COMMIT');
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
  finally{client.release()}
@@ -470,8 +496,11 @@ export function startOwnerPushRelay({env=process.env,pool,reader,send,intervalMs
     again=false;
     try{
      await ensureOwnerPushSchema(pool);
-     await scanInvoices(pool,reader);
+     const scan=await scanInvoices(pool,reader);
      relayState.lastScanAt=new Date().toISOString();relayState.lastScanError=null;
+     relayState.backlog=scan.backlog;
+     // Drain a backlog promptly (bounded per pass), unless the cursor is held.
+     if(scan.backlog>0&&!scan.unresolved)again=true;
     }catch(e){
      const code=/^[A-Z0-9_]{3,40}$/.test(String(e?.code||e?.message||''))?(e.code||e.message):'PUSH_SCAN_FAILED';
      relayState.lastScanError=code;
