@@ -66,7 +66,7 @@ test('retail and historical saved delivery points receive an Owner VAT/Shipping 
  assert.deepEqual(calls.map(x=>x.id),[p1,p2]);
  assert.deepEqual(calls[0].rows,[a1]);
  assert.deepEqual(calls[1].rows,[a2]);
- assert.ok(calls[0].refresh instanceof Function);
+ assert.equal(typeof calls[0].refresh,'function');
  assert.match(html,/crm-saved-address-charge/);
  assert.match(fee,/recipient\.label\?recipient\.label\+' · '/);
  assert.match(js,/feeEditor\.open=profiles\.profiles\.length===1/);
