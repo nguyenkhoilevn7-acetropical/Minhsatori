@@ -115,3 +115,5 @@ jobs:
         run: node account-v2/tests/checkout-races-postgres.mjs
       - name: Owner FCM push outbox, idempotency, retry, logout revocation (fake ledger + fake FCM)
         run: node account-v2/tests/owner-push-postgres.mjs
+      - name: Owner push >100 invoices/day (101/150/250), cursor never skips (fake BotApi semantics)
+        run: node account-v2/tests/owner-push-volume-postgres.mjs

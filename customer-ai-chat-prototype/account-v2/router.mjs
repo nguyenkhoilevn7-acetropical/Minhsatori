@@ -32,7 +32,7 @@ import {readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,saveInvoiceFeePolicy,
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
 import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
 import {ownerPushConfig,registerOwnerDevice,revokeOwnerDevice,ownerPushStatus,sendTestPush,
- createFcmSender,startOwnerPushRelay,kickOwnerPushRelay} from './owner-push.mjs';
+ createFcmSender,startOwnerPushRelay,kickOwnerPushRelay,verifyWakeRequest} from './owner-push.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
@@ -533,6 +533,18 @@ export async function handleAccountV2(req,res,pathname){
   }
   error(ready(),'ACCOUNT_V2_DISABLED',503);
   const pool=await db();
+  if(pathname==='/api/v2/push/wake'&&req.method==='POST'){
+   // Signed server-to-server wake (no cookie, no invoice data). It only lets a
+   // sleeping service start the relay, which then re-reads the signed ledger.
+   const cfg=ownerPushConfig();
+   error(cfg.enabled,cfg.reason,503);
+   const checked=verifyWakeRequest(req.headers['x-satori-wake-signature'],await json(req));
+   error(checked.ok,checked.code,checked.status);
+   const relay=await startOwnerPushBackground();
+   error(relay.enabled,relay.reason||'PUSH_RELAY_DISABLED',503);
+   relay.kick();
+   send(res,202,{ok:true,accepted:true});return true;
+  }
   if(pathname==='/api/v2/auth/google'&&req.method==='POST'){
    await login(req,res,pool);return true;
   }

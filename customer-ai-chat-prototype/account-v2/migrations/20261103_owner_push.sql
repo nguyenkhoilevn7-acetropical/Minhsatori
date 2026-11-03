@@ -19,8 +19,12 @@ CREATE TABLE IF NOT EXISTS satori_v2_owner_push_feed_state (
  feed text PRIMARY KEY CHECK (feed IN ('invoices')),
  initialized boolean NOT NULL DEFAULT false,
  last_checked_at timestamptz,
- last_error_code text
+ last_error_code text,
+ backfill_next bigint,
+ backfill_until bigint
 );
+ALTER TABLE satori_v2_owner_push_feed_state ADD COLUMN IF NOT EXISTS backfill_next bigint;
+ALTER TABLE satori_v2_owner_push_feed_state ADD COLUMN IF NOT EXISTS backfill_until bigint;
 
 -- One row per canonical invoice (invoiceNo|ledgerId): the stable event ID.
 CREATE TABLE IF NOT EXISTS satori_v2_owner_push_events (

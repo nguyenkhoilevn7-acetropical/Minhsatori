@@ -148,35 +148,116 @@ export async function ownerPushStatus(pool,actor,sessionHash,deviceId,env=proces
  return out;
 }
 
-export function eligibleOfficialInvoice(row){
+/** Older invoices (e.g. restored from trash, or found after a long outage) never alert. */
+const MAX_INVOICE_AGE_MS=48*3_600_000;
+export function eligibleOfficialInvoice(row,now=Date.now()){
+ const ts=Number(row?.timestamp);
  return !!row&&Number.isSafeInteger(Number(row.invoiceNo))&&Number(row.invoiceNo)>0&&
   safeId(String(row.id??''))&&row.missing!==true&&row.excluded!==true&&
   row.testOnly!==true&&row.isTest!==true&&row.draft!==true&&
-  !excludedStatus(row.status);
+  !excludedStatus(row.status)&&
+  (!Number.isSafeInteger(ts)||ts<=0||now-ts<=MAX_INVOICE_AGE_MS);
 }
 
-/** Today and yesterday (Vietnam time): single-day windows stay well under 100 rows. */
+/** Today and yesterday (Vietnam time). */
 export function scanDays(now=new Date()){
  const day=d=>new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',
   month:'2-digit',day:'2-digit'}).format(d);
  return [...new Set([day(now),day(new Date(now.getTime()-86_400_000))])];
 }
 
-export async function scanInvoices(pool,reader,now=new Date()){
+const PROBE_PER_TICK=40;
+const MAX_BACKFILL_SPAN=1000;
+function signedRows(result){
+ if(!Number.isSafeInteger(result?.revision)||!Array.isArray(result?.data?.orders))
+  throw pushError('PUSH_LEDGER_NOT_VERIFIED');
+ const rows=result.data.orders;
+ const total=Number(result.data.totalMatches??rows.length);
+ if(!Number.isSafeInteger(total)||total<rows.length)throw pushError('PUSH_LEDGER_NOT_VERIFIED');
+ return {rows,truncated:total>rows.length};
+}
+function refOf(row){
+ const no=Number(row?.invoiceNo);
+ return Number.isSafeInteger(no)&&no>0&&safeId(String(row?.id??''))?{no,key:no+'|'+String(row.id)}:null;
+}
+
+/**
+ * Exact single-invoice readback with the SAME owner orders:read scope already
+ * used by local-invoice-read.mjs (orders.list query=<number>, filtered to an
+ * exact invoiceNo). If the substring query matches >100 rows (phones/names can
+ * contain the digits), it is narrowed with the filters BotApi.gs select()
+ * already supports: a single day, then day + status. No new Bot API action.
+ */
+const KNOWN_STATUSES=['Chưa thanh toán','Đã thanh toán','Đã TT Satori','Đã hủy','Không Tính'];
+export async function probeInvoiceNumber(reader,no,{days=[],statuses=[]}={}){
+ const attempt=async payload=>{
+  const {rows,truncated}=signedRows(await reader('orders.list',{query:String(no),limit:100,...payload}));
+  const exact=rows.filter(r=>Number(r?.invoiceNo)===no&&refOf(r));
+  return {exact,truncated};
+ };
+ let r=await attempt({});
+ if(r.exact.length)return {state:'FOUND',rows:r.exact};
+ if(!r.truncated)return {state:'MISSING',rows:[]};
+ let allDaysComplete=true;
+ for(const d of days){
+  r=await attempt({from:d,to:d});
+  if(r.exact.length)return {state:'FOUND',rows:r.exact};
+  if(!r.truncated)continue;
+  let dayComplete=true;
+  for(const status of [...new Set([...KNOWN_STATUSES,...statuses])]){
+   const x=await attempt({from:d,to:d,status});
+   if(x.exact.length)return {state:'FOUND',rows:x.exact};
+   if(x.truncated)dayComplete=false;
+  }
+  if(!dayComplete)allDaysComplete=false;
+ }
+ // Not in the recent days: an older/deleted number, never a new order to alert.
+ return {state:allDaysComplete?'MISSING':'UNRESOLVED',rows:[]};
+}
+
+/**
+ * The canonical Bot API returns newest invoices FIRST (BotApi.gs unshift) and
+ * at most 100 rows per read. A day window therefore always contains the most
+ * recent invoices. Any invoice number between the highest number already known
+ * and the oldest unseen row in the window (e.g. >100 orders while the service
+ * slept) is read back one number at a time, PROBE_PER_TICK per tick, with a
+ * persisted cursor, so invoice #101, #150, #250 of a day are never skipped.
+ */
+export async function scanInvoices(pool,reader,now=new Date(),{probeLimit=PROBE_PER_TICK}={}){
+ const nowMs=now.getTime();
  const found=new Map();
+ const add=row=>{const r=refOf(row);if(r)found.set(r.key,{invoiceNo:r.no,eligible:eligibleOfficialInvoice(row,nowMs)})};
+ const statuses=new Set();
  for(const d of scanDays(now)){
-  const result=await reader('orders.list',{from:d,to:d,limit:100});
-  if(!Number.isSafeInteger(result?.revision)||!Array.isArray(result?.data?.orders))
-   throw pushError('PUSH_LEDGER_NOT_VERIFIED');
-  const rows=result.data.orders;
-  const total=Number(result.data.totalMatches??rows.length);
-  if(!Number.isSafeInteger(total)||total>rows.length)throw pushError('PUSH_LEDGER_TRUNCATED');
-  for(const row of rows){
-   const no=Number(row?.invoiceNo);
-   if(!Number.isSafeInteger(no)||no<=0||!safeId(String(row?.id??'')))continue;
-   found.set(no+'|'+String(row.id),{invoiceNo:no,eligible:eligibleOfficialInvoice(row)});
+  const {rows}=signedRows(await reader('orders.list',{from:d,to:d,limit:100}));
+  rows.forEach(add);
+  rows.forEach(r=>{if(typeof r?.status==='string'&&r.status.length<=40)statuses.add(r.status)});
+ }
+ const known=await pool.query('SELECT max(invoice_no)::bigint AS max FROM satori_v2_owner_push_events');
+ const knownMax=known.rows[0]?.max==null?null:Number(known.rows[0].max);
+ const seen=new Set((await pool.query('SELECT source_key FROM satori_v2_owner_push_events '+
+  'WHERE source_key=ANY($1::text[])',[[...found.keys()]])).rows.map(r=>r.source_key));
+ const unseenNos=[...found].filter(([k])=>!seen.has(k)).map(([,x])=>x.invoiceNo);
+ const st=await pool.query('SELECT initialized,backfill_next,backfill_until FROM satori_v2_owner_push_feed_state WHERE feed=$1',['invoices']);
+ let next=st.rows[0]?.backfill_next==null?null:Number(st.rows[0].backfill_next);
+ let until=st.rows[0]?.backfill_until==null?null:Number(st.rows[0].backfill_until);
+ if(st.rows[0]?.initialized===true&&knownMax!=null&&unseenNos.length){
+  const gapHigh=Math.min(...unseenNos)-1, gapLow=knownMax+1;
+  if(gapHigh>=gapLow){
+   next=next==null?gapLow:Math.min(next,gapLow);
+   until=Math.max(until??gapHigh,gapHigh);
+   if(until-next>MAX_BACKFILL_SPAN)next=until-MAX_BACKFILL_SPAN;
   }
  }
+ let unresolved=0;
+ for(let probes=0;next!=null&&next<=until&&probes<probeLimit;probes++,next++){
+  if([...found.values()].some(x=>x.invoiceNo===next))continue;
+  const probe=await probeInvoiceNumber(reader,next,{days:scanDays(now),statuses:[...statuses]});
+  probe.rows.forEach(add);
+  // Never skip an unresolved number: keep the cursor here and retry next tick.
+  if(probe.state==='UNRESOLVED'){unresolved++;break}
+ }
+ if(next!=null&&next>until){next=null;until=null}
  const client=await pool.connect();
  let inserted=0;
  try{
@@ -191,12 +272,13 @@ export async function scanInvoices(pool,reader,now=new Date()){
     ['verified_new_invoice',key,x.invoiceNo,initialized&&x.eligible]);
    inserted+=r.rowCount;
   }
-  await client.query('UPDATE satori_v2_owner_push_feed_state SET initialized=true,'+
-   'last_checked_at=now(),last_error_code=NULL WHERE feed=$1',['invoices']);
+  await client.query('UPDATE satori_v2_owner_push_feed_state SET initialized=true,last_checked_at=now(),'+
+   'backfill_next=$2,backfill_until=$3,last_error_code=$4 WHERE feed=$1',
+   ['invoices',next,until,unresolved?'PUSH_BACKFILL_UNRESOLVED':null]);
   await client.query('COMMIT');
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
  finally{client.release()}
- return {seen:found.size,inserted};
+ return {seen:found.size,inserted,backlog:next==null?0:until-next+1,unresolved};
 }
 
 const ownerDeviceFilter=
@@ -237,19 +319,28 @@ async function claimDeliveries(pool,ownerSub){
  return r.rows.filter(x=>wanted.has(x.id+'|'+x.device_id));
 }
 
-/** Maps an FCM HTTP v1 response to a SAFE low-cardinality audit code. */
+/**
+ * Maps an FCM HTTP v1 response to a SAFE low-cardinality audit code.
+ * A device is disabled ONLY for a verified token error (FcmError UNREGISTERED,
+ * or INVALID_ARGUMENT naming the registration token). A bare 404 (wrong
+ * project/endpoint), 401/403 (credentials) or SENDER_ID_MISMATCH (server
+ * project differs from the app's Firebase project) is a CONFIGURATION error:
+ * it must never wipe every owner device.
+ */
 export function classifyFcmFailure(status,body){
- const details=JSON.stringify(body?.error?.details||[]);
- const fcmCode=(details.match(/"errorCode":"([A-Z_]+)"/)||[])[1]||'';
- if(status===404||fcmCode==='UNREGISTERED')
-  return {code:'FCM_TOKEN_UNREGISTERED',invalidToken:true};
- if(status===400&&/registration token/i.test(String(body?.error?.message||'')))
+ const details=Array.isArray(body?.error?.details)?body.error.details:[];
+ const fcmCode=String(details.find(d=>/google\.firebase\.fcm\.v1\.FcmError$/.test(String(d?.['@type']||''))
+  &&typeof d?.errorCode==='string')?.errorCode||'');
+ const message=String(body?.error?.message||'');
+ if(fcmCode==='UNREGISTERED')return {code:'FCM_TOKEN_UNREGISTERED',invalidToken:true};
+ if(status===400&&(fcmCode==='INVALID_ARGUMENT'||body?.error?.status==='INVALID_ARGUMENT')&&
+  /registration token/i.test(message))
   return {code:'FCM_TOKEN_INVALID',invalidToken:true};
- if(status===403&&fcmCode==='SENDER_ID_MISMATCH')
-  return {code:'FCM_SENDER_ID_MISMATCH',invalidToken:true};
- if(status===401||status===403)return {code:'FCM_AUTH_FAILED',invalidToken:false};
- if(status===429)return {code:'FCM_QUOTA_EXCEEDED',invalidToken:false};
- if(status>=500)return {code:'FCM_UNAVAILABLE',invalidToken:false};
+ if(fcmCode==='SENDER_ID_MISMATCH')return {code:'FCM_SENDER_ID_MISMATCH',invalidToken:false,config:true};
+ if(status===404)return {code:'FCM_PROJECT_OR_ENDPOINT_NOT_FOUND',invalidToken:false,config:true};
+ if(status===401||status===403)return {code:'FCM_AUTH_FAILED',invalidToken:false,config:true};
+ if(status===429||fcmCode==='QUOTA_EXCEEDED')return {code:'FCM_QUOTA_EXCEEDED',invalidToken:false};
+ if(status>=500||fcmCode==='UNAVAILABLE'||fcmCode==='INTERNAL')return {code:'FCM_UNAVAILABLE',invalidToken:false};
  return {code:'FCM_HTTP_'+Number(status||0),invalidToken:false};
 }
 
@@ -331,6 +422,32 @@ export async function sendTestPush(pool,actor,sessionHash,deviceId,send){
    'last_error_code=$2,updated_at=now() WHERE device_id=$1',[String(deviceId).toLowerCase(),code]);
   return {ok:false,accepted:false,errorCode:code};
  }
+}
+
+const wakeNonces=new Map();
+/**
+ * Authenticated wake-up from the canonical ledger side (Apps Script time-driven
+ * trigger, see api/OwnerPushWake.gs). The request carries NO invoice data and
+ * NO authority: it only makes a sleeping Render service start and re-read the
+ * signed ledger. HMAC-SHA256 over "ts\nnonce\nchangedAt", +-5 min, single-use nonce.
+ */
+export function verifyWakeRequest(signature,input,env=process.env,now=Date.now()){
+ const secret=String(env.SATORI_OWNER_PUSH_WAKE_SECRET||'');
+ if(secret.length<32)return {ok:false,code:'PUSH_WAKE_NOT_CONFIGURED',status:503};
+ const ts=input?.ts,nonce=String(input?.nonce||''),changedAt=input?.changedAt;
+ if(!Number.isSafeInteger(ts)||!Number.isSafeInteger(changedAt)||changedAt<0||
+  !/^[a-f0-9]{32}$/.test(nonce)||!/^[a-f0-9]{64}$/.test(String(signature||'')))
+  return {ok:false,code:'PUSH_WAKE_INVALID',status:400};
+ if(Math.abs(now-ts)>300_000)return {ok:false,code:'PUSH_WAKE_EXPIRED',status:401};
+ const expected=crypto.createHmac('sha256',secret).update(ts+'\n'+nonce+'\n'+changedAt,'utf8').digest();
+ const given=Buffer.from(String(signature),'hex');
+ if(given.length!==expected.length||!crypto.timingSafeEqual(given,expected))
+  return {ok:false,code:'PUSH_WAKE_FORBIDDEN',status:403};
+ for(const [k,exp] of wakeNonces)if(exp<now)wakeNonces.delete(k);
+ if(wakeNonces.has(nonce))return {ok:false,code:'PUSH_WAKE_REPLAYED',status:409};
+ if(wakeNonces.size>=2000)wakeNonces.delete(wakeNonces.keys().next().value);
+ wakeNonces.set(nonce,now+600_000);
+ return {ok:true};
 }
 
 /**

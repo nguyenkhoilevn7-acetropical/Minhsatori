@@ -21,7 +21,7 @@ const {privateKey}=generateKeyPairSync('rsa',{modulusLength:1024,
 const pushEnv={SATORI_OWNER_PUSH_ENABLED:'1',SATORI_FCM_PROJECT_ID:'satori-fake-ci',
  SATORI_FCM_SERVICE_ACCOUNT_JSON:JSON.stringify({type:'service_account',project_id:'satori-fake-ci',
   client_email:'push@satori-fake-ci.iam.gserviceaccount.com',private_key:privateKey}),
- SATORI_ACCOUNT_V2_OWNER_SUB:ownerSub};
+ SATORI_ACCOUNT_V2_OWNER_SUB:ownerSub,SATORI_OWNER_PUSH_WAKE_SECRET:'ci-wake-secret-'+'z'.repeat(40)};
 const results=[];
 const pass=name=>{results.push(name);console.log('PASS',name)};
 
@@ -94,6 +94,24 @@ try{
  assert.equal(status.device.registered,true);assert.equal(status.device.currentSession,true);
  assert.ok(!JSON.stringify(status).includes(token),'status never exposes the token');
  pass('Owner device registration is idempotent; status is safe (no token)');
+
+ // --- Signed wake endpoint (no cookie) ---------------------------------
+ const {createHmac}=await import('node:crypto');
+ const wake=async(mutate={})=>{
+  const ts=Date.now(),nonce=randomBytes(16).toString('hex'),changedAt=ts-1000;
+  let sig=createHmac('sha256',pushEnv.SATORI_OWNER_PUSH_WAKE_SECRET).update(ts+'\n'+nonce+'\n'+changedAt).digest('hex');
+  const body={ts,nonce,changedAt,...mutate.body};if(mutate.sig)sig=mutate.sig;
+  const r=await fetch(base+'/api/v2/push/wake',{method:'POST',headers:{'content-type':'application/json','x-satori-wake-signature':sig},body:JSON.stringify(body)});
+  return {status:r.status,...await r.json()};
+ };
+ assert.equal((await wake({sig:'0'.repeat(64)})).status,403);
+ assert.equal((await wake({body:{changedAt:1}})).status,403,'tampered payload breaks signature');
+ assert.equal((await wake({body:{ts:Date.now()-600_000}})).status,401,'stale request expired');
+ const validWake=await wake();
+ // Signature accepted; this CI child has no signed ledger reader configured,
+ // so the relay correctly refuses to start instead of pretending success.
+ assert.equal(validWake.status,503);assert.equal(validWake.error,'READ_ONLY_NOT_CONFIGURED');
+ pass('Wake endpoint: forged/tampered rejected, valid signature accepted, fail-closed without ledger reader');
 
  // --- Relay: baseline, new invoice, idempotency ------------------------
  ledger=[{id:'L-1',invoiceNo:7001,status:'Chưa thanh toán'}];
