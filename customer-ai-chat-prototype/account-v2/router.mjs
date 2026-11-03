@@ -31,6 +31,8 @@ import {readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,saveInvoiceFeePolicy,
  saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
 import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
+import {ownerPushConfig,registerOwnerDevice,revokeOwnerDevice,ownerPushStatus,sendTestPush,
+ createFcmSender,startOwnerPushRelay,kickOwnerPushRelay,verifyWakeRequest} from './owner-push.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
  reconcileCanonicalCheckout} from './canonical-checkout-journal.mjs';
 import {CrmError,registrationSave,registrationRead,adminCustomerList,adminCreateLead,
@@ -487,6 +489,14 @@ async function verifyLiveLockedQuote(client,actor,q){
   ...calculateInvoiceFees(feeConfig,q.address_id)});
 }
 
+/** Starts the owner push relay with the shared V2 pool. No-op unless enabled. */
+export async function startOwnerPushBackground(){
+ const cfg=ownerPushConfig();
+ if(!ready()||!cfg.enabled||!readOnlyReady())
+  return {enabled:false,reason:!cfg.enabled?cfg.reason:!ready()?'ACCOUNT_V2_DISABLED':'READ_ONLY_NOT_CONFIGURED'};
+ return startOwnerPushRelay({pool:await db(),reader:readMinhSatori});
+}
+
 export async function handleAccountV2(req,res,pathname){
  const page=pathname==='/app-v2'||pathname==='/app-v2/';
  const ownerPage=pathname==='/owner-v2'||pathname==='/owner-v2/';
@@ -523,6 +533,18 @@ export async function handleAccountV2(req,res,pathname){
   }
   error(ready(),'ACCOUNT_V2_DISABLED',503);
   const pool=await db();
+  if(pathname==='/api/v2/push/wake'&&req.method==='POST'){
+   // Signed server-to-server wake (no cookie, no invoice data). It only lets a
+   // sleeping service start the relay, which then re-reads the signed ledger.
+   const cfg=ownerPushConfig();
+   error(cfg.enabled,cfg.reason,503);
+   const checked=verifyWakeRequest(req.headers['x-satori-wake-signature'],await json(req));
+   error(checked.ok,checked.code,checked.status);
+   const relay=await startOwnerPushBackground();
+   error(relay.enabled,relay.reason||'PUSH_RELAY_DISABLED',503);
+   relay.kick();
+   send(res,202,{ok:true,accepted:true});return true;
+  }
   if(pathname==='/api/v2/auth/google'&&req.method==='POST'){
    await login(req,res,pool);return true;
   }
@@ -546,6 +568,38 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/register'&&req.method==='POST'){
    send(res,200,await registrationSave(pool,actor,await json(req)));return true;
+  }
+  if(pathname.startsWith('/api/v2/admin/push/')){
+   // Owner-only FCM device registry. auth() already enforced session, Origin
+   // and CSRF; the owner identity is never taken from the request body.
+   owner(actor);
+   const sessionHash=sha(cookies(req).satori_v2_session);
+   try{
+    if(pathname==='/api/v2/admin/push/device'&&req.method==='POST'){
+     send(res,200,await registerOwnerDevice(pool,actor,sessionHash,await json(req)));
+     startOwnerPushBackground().catch(()=>{});
+     return true;
+    }
+    if(pathname==='/api/v2/admin/push/device'&&req.method==='DELETE'){
+     send(res,200,await revokeOwnerDevice(pool,actor,await json(req)));return true;
+    }
+    if(pathname==='/api/v2/admin/push/status'&&req.method==='GET'){
+     const deviceId=new URL(req.url,'http://local').searchParams.get('deviceId');
+     send(res,200,await ownerPushStatus(pool,actor,sessionHash,deviceId));return true;
+    }
+    if(pathname==='/api/v2/admin/push/test'&&req.method==='POST'){
+     const cfg=ownerPushConfig();
+     error(cfg.enabled,cfg.reason,503);
+     const input=await json(req);
+     send(res,200,await sendTestPush(pool,actor,sessionHash,input.deviceId,createFcmSender()));
+     return true;
+    }
+   }catch(e){
+    if(e instanceof ApiError)throw e;
+    if(typeof e?.code==='string'&&Number.isInteger(e?.status))throw new ApiError(e.code,e.status);
+    throw e;
+   }
+   error(false,'NOT_FOUND',404);
   }
   if(pathname==='/api/v2/admin/customers/complete-new-registration'&&req.method==='POST'){
    owner(actor);
@@ -1165,7 +1219,11 @@ export async function handleAccountV2(req,res,pathname){
     message:committed?'Đơn hàng đã ghi và đối soát với sổ Minh Satori.':
      receipt.state==='REJECTED'?'Đơn bị từ chối; vui lòng kiểm tra lại báo giá.':
      'Chưa xác minh được hóa đơn. Không gửi đơn mới; hãy đối soát cùng mã yêu cầu.'
-   });return true;
+   });
+   // Fast path only: the durable relay re-reads the signed ledger and sends
+   // exactly one push per canonical invoice, even if this kick is lost.
+   if(committed)kickOwnerPushRelay();
+   return true;
   }
   if(pathname==='/api/v2/orders/reconcile'&&req.method==='POST'){
    error(realCheckoutConfigured(),'REAL_CHECKOUT_GATE_NOT_VERIFIED',503);

@@ -40,6 +40,11 @@ if(process.env.SATORI_ACCOUNT_V2_MIGRATION_APPROVED==='1'){
  console.info('V2_MIGRATION_SCHEMA_READBACK_PASSED');
 }
 await import('./standalone.mjs');
+// Owner FCM relay: disabled unless SATORI_OWNER_PUSH_ENABLED=1 with a matching
+// service account. Logs only a fixed status code, never keys or tokens.
+import('./router.mjs').then(({startOwnerPushBackground})=>startOwnerPushBackground())
+ .then(r=>console.info('SATORI_OWNER_PUSH_RELAY',r?.enabled?'STARTED':(r?.reason||'DISABLED')))
+ .catch(()=>console.warn('SATORI_OWNER_PUSH_RELAY','START_FAILED'));
 // Async read-only catalogue coverage; never block service availability.
 import('./catalogue-readiness-log.mjs').then(({logCatalogueSnapshot})=>logCatalogueSnapshot()).catch(()=>{});
 
