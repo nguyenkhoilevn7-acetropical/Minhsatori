@@ -183,15 +183,16 @@ object NativeOrderEditor {
                 Triple(goods,shipping to vat,SatoriOrderValidation.sum(goods,shipping,vat))
             }
             result.fold(
-                onSuccess { (goods, fees, sum) ->
+                onSuccess = { calc ->
+                    val (goods, fees, sum)=calc
                     total.text="TỔNG: "+SatoriData.money(sum)
                     chargeBreakdown?.text="Tiền hàng: "+SatoriData.money(goods)+
                         "\nShipping: "+SatoriData.money(fees.first)+
                         " · VAT: "+SatoriData.money(fees.second)
                 },
-                onFailure {
+                onFailure = { error ->
                     total.text="TỔNG: — (kiểm tra số lượng, đơn giá và %)"
-                    chargeBreakdown?.text="⚠ "+(it.message?:"Phần trăm không hợp lệ.")
+                    chargeBreakdown?.text="⚠ "+(error.message?:"Phần trăm không hợp lệ.")
                 }
             )
         }
