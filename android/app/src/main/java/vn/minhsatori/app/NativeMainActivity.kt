@@ -315,6 +315,10 @@ class NativeMainActivity : AppCompatActivity() {
             notifications.createNotificationChannel(NotificationChannel(newOrderChannelId,
                 "Đơn hàng thật Minh Satori", NotificationManager.IMPORTANCE_HIGH))
         val newestNo = update.fresh.maxOrNull() ?: return
+        // One OS notification per invoice: if FCM already alerted for every
+        // fresh invoice, re-sync must not alert again (and vice versa).
+        val notYetAlerted = update.fresh.filter { SatoriPush.markNotified(this, it) }
+        if (notYetAlerted.isEmpty()) return
         val invoice = latest.invoices.firstOrNull {
             it.number.toLongOrNull() == newestNo
         } ?: return
@@ -334,6 +338,14 @@ class NativeMainActivity : AppCompatActivity() {
                 SatoriData.money(invoice.total))
             .setContentIntent(openInvoiceIntent)
             .setAutoCancel(true)
+            // Amounts are hidden on the lock screen; only a generic line shows.
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion((if (Build.VERSION.SDK_INT >= 26)
+                Notification.Builder(this, newOrderChannelId)
+                else @Suppress("DEPRECATION") Notification.Builder(this))
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("Minh Satori")
+                .setContentText("Có đơn hàng mới · mở khóa để xem").build())
         notifications.notify(newOrderNotificationId, notification.build())
     }
 
@@ -542,6 +554,54 @@ class NativeMainActivity : AppCompatActivity() {
             }
             else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
                     SystemClock.elapsedRealtime(), fallbackReadMs)) syncPreferredSource()
+        }
+    }
+
+    /**
+     * Owner-facing push diagnostics. Shows safe states only: never the full FCM
+     * token, cookies or secrets. "Gửi thử" asks the server for a synthetic push
+     * (no invoice) to prove server -> Firebase -> this phone end to end.
+     */
+    private fun showPushDiagnostics() {
+        fun format(lines: List<Pair<String, String>>) =
+            lines.joinToString("\n") { "• " + it.first + ": " + it.second }
+        val local = format(SatoriPush.localDiagnostics(this))
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Chẩn đoán thông báo đẩy")
+            .setMessage(local + "\n\nĐang kiểm tra máy chủ…")
+            .setPositiveButton("Gửi thử", null)
+            .setNeutralButton("Đăng ký lại", null)
+            .setNegativeButton("Đóng", null)
+            .show()
+        val message = dialog.findViewById<TextView>(android.R.id.message)
+        message?.setTextIsSelectable(true)
+        fun refresh(note: String? = null) {
+            val cookie = V2RegistrationAlerts.cookie()
+            val localNow = format(SatoriPush.localDiagnostics(this))
+            Thread {
+                val server = format(SatoriPush.fetchServerStatus(applicationContext, cookie))
+                runOnUiThread {
+                    if (dialog.isShowing) dialog.setMessage(localNow + "\n\nMÁY CHỦ\n" + server +
+                        (if (note != null) "\n\n" + note else ""))
+                }
+            }.start()
+        }
+        refresh()
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+            SatoriPush.registerOwnerDevice(this, force = true) { code ->
+                runOnUiThread { refresh("Kết quả đăng ký: " + code) }
+            }
+        }
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+            val cookie = V2RegistrationAlerts.cookie()
+            Thread {
+                val code = SatoriPush.requestServerTest(applicationContext, cookie)
+                runOnUiThread {
+                    refresh(if (code == "FCM_ACCEPTED")
+                        "Firebase đã nhận tin thử. Thông báo sẽ hiện trên máy trong giây lát."
+                        else "Gửi thử thất bại: " + code)
+                }
+            }.start()
         }
     }
 
@@ -1462,7 +1522,8 @@ class NativeMainActivity : AppCompatActivity() {
                         PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5201)
                 }
-                if (next) SatoriPush.registerOwnerDevice(this@NativeMainActivity)
+                if (next) SatoriPush.registerOwnerDevice(this@NativeMainActivity, force = true)
+                else SatoriPush.revokeOwnerDevice(this@NativeMainActivity)
                 Toast.makeText(this@NativeMainActivity,
                     if (!next) "Đã tắt thông báo đơn mới."
                     else if (SatoriPush.configured())
@@ -2090,6 +2151,8 @@ class NativeMainActivity : AppCompatActivity() {
         settingRow("Cài đặt kết nối", R.drawable.ic_satori_settings, cyan) {
             showConnectionSettings()
         }
+        settingRow("Chẩn đoán thông báo đẩy (Push)", R.drawable.ic_satori_bell,
+            Color.rgb(214, 96, 40)) { showPushDiagnostics() }
         settingRow("Đồng bộ dữ liệu", R.drawable.ic_satori_refresh,
             Color.rgb(22, 126, 184)) { refreshNow() }
         settingRow("Trợ lý Gemini", R.drawable.ic_satori_plus,
