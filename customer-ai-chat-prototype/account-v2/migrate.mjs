@@ -46,6 +46,9 @@ try{
  await client.query(statements('migrations/20261025_customer_crm.sql'));
  // CRM connection works against existing UNIQUE(linked_account_id); no schema migration.
  await client.query(statements('migrations/20261028_canonical_checkout_journal.sql'));
+ // Optional owner FCM tables, isolated from billing. Migration still requires
+ // explicit dedicated-DB approval and transactional readback.
+ await client.query(statements('migrations/20261101_owner_fcm.sql'));
  const expected=[
   'satori_v2_accounts','satori_v2_sessions','satori_v2_profiles',
   'satori_v2_addresses','satori_v2_policies','satori_v2_catalogue',
