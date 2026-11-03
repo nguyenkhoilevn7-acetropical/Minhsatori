@@ -120,9 +120,19 @@ test('wake: signed, fresh, single-use; forged/expired/replayed rejected',()=>{
  assert.equal(verifyWakeRequest(sign(now,nonce,input.changedAt),input,wakeEnv,now).code,'PUSH_WAKE_REPLAYED');
 });
 
-test('Apps Script OwnerPushWake.gs signature is accepted by the V2 server; no change -> no call',()=>{
+test('Apps Script OwnerPushWake.gs signature is accepted by the V2 server; no change -> no call',t=>{
  const here=path.dirname(fileURLToPath(import.meta.url));
- const source=fs.readFileSync(path.join(here,'../../../api/OwnerPushWake.gs'),'utf8');
+ const wakeFile=path.join(here,'../../../api/OwnerPushWake.gs');
+ // The Render Docker build context is customer-ai-chat-prototype/ only;
+ // the Apps Script source lives in the repository-level api/ directory.
+ // Full-repository GitHub CI runs this cross-language contract, whereas the
+ // constrained production Docker build must not fail due to an absent
+ // *build-only test fixture*. The running V2 server never imports this file.
+ if(!fs.existsSync(wakeFile)){
+  t.skip('OwnerPushWake.gs is outside the production Docker build context; full-repo CI verifies it');
+  return;
+ }
+ const source=fs.readFileSync(wakeFile,'utf8');
  const props={SATORI_OWNER_PUSH_WAKE_URL:'https://v2.example.invalid/api/v2/push/wake',
   SATORI_OWNER_PUSH_WAKE_SECRET:WAKE_SECRET,STATE_FILE_ID:'fake-file'};
  let updated=Date.now()-1000;const calls=[];
