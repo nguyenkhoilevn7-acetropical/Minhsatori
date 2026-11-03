@@ -1245,7 +1245,10 @@ function ownerInvoiceChargeEditor(profileId,addresses,refresh){
     const labelNode=make('label',null,'crm-charge-recipient');
     const check=document.createElement('input');check.type='checkbox';
     check.checked=members.some(x=>config.addressIds.includes(x.id));
-    labelNode.append(check,make('span',members[0].recipientName+' · '+members[0].address));
+    const recipient=members[0];
+    labelNode.append(check,make('span',
+     (recipient.label?recipient.label+' · ':'')+
+     (recipient.recipientName||'Người nhận')+' · '+recipient.address));
     list.append(labelNode);boxes.push({check,ids:members.map(x=>x.id)});
    }
    if(!boxes.length)list.append(make('p','Chưa có khách nhận hàng đang hoạt động.'));
@@ -1340,6 +1343,28 @@ async function renderOwnerSavedDeliveryCards(account,wrap,{editable=true}={}){
   const header=make('div',null,'crm-ctv-heading');
   header.append(make('h3','Điểm giao đã lưu ('+groups.length+' địa chỉ)'));
   container.append(header);
+  // Retail / imported accounts can have multiple verified profiles. Each fee
+  // editor MUST use addresses from its own profile only. Previously this
+  // panel existed only for Agency/CTV, leaving retail and legacy-linked
+  // recipient cards (e.g. a saved branch location) without VAT / Shipping.
+  // Never offer fee writes for pending, suspended, or read-only account cards.
+  if(editable&&account.accessStatus==='ACTIVE'){
+   profiles.profiles.forEach((profile,index)=>{
+    const scoped=results[index];
+    if(!scoped.some(address=>address.active))return;
+    const section=make('section',null,'crm-saved-address-charge');
+    section.append(make('strong','VAT / Shipping · '+(profile.name||typeLabel(profile.type))));
+    section.append(make('p',
+     'Chọn “Chỉ khách được chỉ định” và tích đúng điểm giao bên dưới để áp dụng riêng; hóa đơn cũ không đổi.',
+     'crm-charge-help'));
+    const feeEditor=ownerInvoiceChargeEditor(profile.id,scoped,
+     ()=>renderOwnerSavedDeliveryCards(account,wrap,{editable}));
+    // Single-profile accounts should not have to hunt for a collapsed editor.
+    feeEditor.open=profiles.profiles.length===1;
+    section.append(feeEditor);
+    container.append(section);
+   });
+  }
   const list=make('div',null,'crm-imported-delivery-list');
   for(const group of groups){
    const row=group.find(x=>x.active)||group[0];
@@ -1374,7 +1399,16 @@ async function renderOwnerCtvClientCards(account,wrap){
  try{
   const profiles=await api('/api/v2/admin/profiles?accountId='+encodeURIComponent(account.id));
   const profile=profiles.profiles?.find(x=>x.type===account.requestedType&&['collaborator','agency'].includes(x.type));
-  if(!profile){wrap.replaceChildren(make('p','Lưu vai trò CTV / Đại lý trước khi thêm khách riêng.'));return}
+  if(!profile){
+   // Older linked accounts can still hold a valid retail profile and saved
+   // delivery destinations. Never hide their VAT/Shipping controls simply
+   // because the account role has not yet been persisted to Agency/CTV.
+   await renderOwnerSavedDeliveryCards(account,wrap);
+   if(wrap.isConnected)wrap.prepend(make('p',
+    'Lưu vai trò CTV / Đại lý trước khi cấp chiết khấu riêng. VAT / Shipping cho điểm giao đã lưu vẫn chỉnh được.',
+    'crm-client-banner'));
+   return;
+  }
   const [a,p]=await Promise.all([
    api('/api/v2/admin/addresses?profileId='+encodeURIComponent(profile.id)),
    api('/api/v2/admin/policies?profileId='+encodeURIComponent(profile.id))
