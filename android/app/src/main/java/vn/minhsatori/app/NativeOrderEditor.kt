@@ -35,13 +35,16 @@ object NativeOrderEditor {
         return v
     }
     private fun input(a: AppCompatActivity,p: LinearLayout,label: String,
-                      value: String="",numeric: Boolean=false,multi: Boolean=false): EditText {
+                      value: String="",numeric: Boolean=false,multi: Boolean=false,
+                      percentage: Boolean=false): EditText {
         title(a,p,label,12f)
         return EditText(a).apply {
             hint=label
             setText(value)
             textSize=15f
-            inputType=if(numeric) InputType.TYPE_CLASS_NUMBER else if(multi)
+            inputType=if(percentage)
+                InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            else if(numeric) InputType.TYPE_CLASS_NUMBER else if(multi)
                 InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             if(multi) { minLines=2;maxLines=4 }
@@ -143,25 +146,60 @@ object NativeOrderEditor {
         val total=title(a,page,"Tổng tiền: 0 đ",18f)
         var ship:EditText?=null
         var tax:EditText?=null
+        var chargeBreakdown:TextView?=null
+        var shippingPercentModified=false
+        var vatPercentModified=false
+        // Original goods value is the invoice's stored item subtotal, not a new
+        // total inferred from the form. Preserve original charges when untouched.
+        val originalGoods=editing?.let { invoice ->
+            runCatching {
+                invoice.lines.fold(0L) { acc,line ->
+                    SatoriOrderValidation.sum(acc,SatoriOrderValidation.lineAmount(
+                        line.quantity.toLong(),line.unitPrice))
+                }
+            }.getOrNull()
+        }
         fun totalGoods():Long=rows.fold(0L){acc,row->
             SatoriOrderValidation.sum(acc,SatoriOrderValidation.lineAmount(
                 amount(row.qty.text.toString()),amount(row.price.text.toString())))
         }
+        fun charges(goods:Long):Pair<Long,Long> {
+            return if(editing==null)
+                amount(ship?.text?.toString().orEmpty()) to
+                    amount(tax?.text?.toString().orEmpty())
+            else {
+                SatoriPercentCharges.charge(goods,ship!!.text.toString(),originalGoods,
+                    editing.shipping,shippingPercentModified) to
+                SatoriPercentCharges.charge(goods,tax!!.text.toString(),originalGoods,
+                    editing.vat,vatPercentModified)
+            }
+        }
         fun recalc(){
             val result=runCatching{
-                SatoriOrderValidation.sum(totalGoods(),
-                    amount(ship?.text?.toString().orEmpty()),
-                    amount(tax?.text?.toString().orEmpty()))
+                val goods=totalGoods()
+                val (shipping,vat)=charges(goods)
+                Triple(goods,shipping to vat,SatoriOrderValidation.sum(goods,shipping,vat))
             }
-            total.text=result.fold(
-                onSuccess={"TỔNG: "+SatoriData.money(it)},
-                onFailure={"TỔNG: — (kiểm tra số lượng và đơn giá)"}
+            result.fold(
+                onSuccess { (goods, fees, sum) ->
+                    total.text="TỔNG: "+SatoriData.money(sum)
+                    chargeBreakdown?.text="Tiền hàng: "+SatoriData.money(goods)+
+                        "\nShipping: "+SatoriData.money(fees.first)+
+                        " · VAT: "+SatoriData.money(fees.second)
+                },
+                onFailure {
+                    total.text="TỔNG: — (kiểm tra số lượng, đơn giá và %)"
+                    chargeBreakdown?.text="⚠ "+(it.message?:"Phần trăm không hợp lệ.")
+                }
             )
         }
-        fun watcher(e:EditText){
+        fun watcher(e:EditText,modified:()->Unit={}){
             e.addTextChangedListener(object:TextWatcher{
                 override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}
-                override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){recalc()}
+                override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){
+                    modified()
+                    recalc()
+                }
                 override fun afterTextChanged(e:Editable?){}
             })
         }
@@ -205,9 +243,25 @@ object NativeOrderEditor {
         }
         if(editing==null||editing.lines.isEmpty())addRow() else editing.lines.forEach{addRow(it)}
         action(a,page,"+ THÊM SẢN PHẨM"){addRow()}
-        ship=input(a,page,"Phí giao hàng (đ)",editing?.shipping?.toString()?:"0",numeric=true)
-        tax=input(a,page,"VAT (đ)",editing?.vat?.toString()?:"0",numeric=true)
-        watcher(ship!!);watcher(tax!!);recalc()
+        if(editing!=null){
+            title(a,page,"Nhập % trên tiền hàng; tổng hóa đơn tự tính theo số tiền mới.",12f)
+            ship=input(a,page,"Shipping (%)",
+                SatoriPercentCharges.fromAmount(originalGoods?:0L,editing.shipping),
+                percentage=true)
+            tax=input(a,page,"VAT (%)",
+                SatoriPercentCharges.fromAmount(originalGoods?:0L,editing.vat),
+                percentage=true)
+            watcher(ship!!){shippingPercentModified=true}
+            watcher(tax!!){vatPercentModified=true}
+            chargeBreakdown=title(a,page,"",12f)
+        }else{
+            // Keep the existing new-order flow unchanged; this change is
+            // specifically for edits to an already-issued invoice.
+            ship=input(a,page,"Phí giao hàng (đ)","0",numeric=true)
+            tax=input(a,page,"VAT (đ)","0",numeric=true)
+            watcher(ship!!);watcher(tax!!)
+        }
+        recalc()
         val requestId=UUID.randomUUID().toString().replace("-","")
         // One durable request ID must always represent exactly one order payload.
         // Never allow an edited payload to reuse an ID after an ambiguous HTTP failure.
@@ -243,9 +297,8 @@ object NativeOrderEditor {
                             .put("qty",qty).put("unit",it.unit.text.toString().trim())
                             .put("unitPrice",price).put("listPrice",listed))
                     }
-                    val shipping=amount(ship!!.text.toString())
-                    val vat=amount(tax!!.text.toString())
                     val goods=totalGoods()
+                    val (shipping,vat)=charges(goods)
                     require(shipping<=100000000000L&&vat<=100000000000L&&
                         goods<=100000000000L&&goods+shipping+vat<=100000000000L){
                         "Tổng tiền vượt giới hạn."
@@ -304,8 +357,12 @@ object NativeOrderEditor {
                             .append(SatoriData.money(SatoriOrderValidation.lineAmount(line.getLong("qty"),line.getLong("unitPrice"))))
                     }
                     preview.append("\nTiền hàng: ").append(SatoriData.money(goods))
-                        .append("\nPhí giao: ").append(SatoriData.money(shipping))
-                        .append("\nVAT: ").append(SatoriData.money(vat))
+                        .append("\nPhí giao")
+                        .append(if(editing!=null) " ("+ship!!.text.toString().trim()+"%)" else "")
+                        .append(": ").append(SatoriData.money(shipping))
+                        .append("\nVAT")
+                        .append(if(editing!=null) " ("+tax!!.text.toString().trim()+"%)" else "")
+                        .append(": ").append(SatoriData.money(vat))
                         .append("\nTỔNG THANH TOÁN: ").append(SatoriData.money(sum))
                     if(note.text.isNotBlank())preview.append("\nGHI CHÚ: ").append(note.text)
                     preview.append("\n\nXác nhận để lưu lên Google Drive.")
