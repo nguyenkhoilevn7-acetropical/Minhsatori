@@ -547,6 +547,11 @@ body{font-size:14px;line-height:1.42}
  #legacyConsole .crm-duplicate-cleanup{flex-direction:column;align-items:stretch}
  #legacyConsole .crm-duplicate-cleanup button{width:100%;min-height:44px}
 }
+.crm-saved-address-charge{min-width:0;display:grid;gap:5px;margin:12px 0;padding:12px;
+ border:1px solid #d3e9e4;border-radius:17px;background:linear-gradient(155deg,#fff,#f6fbfa);
+ box-shadow:0 6px 15px rgba(24,71,81,.08)}
+.crm-saved-address-charge>strong{font-size:14px;color:#194650;overflow-wrap:anywhere}
+.crm-saved-address-charge>.crm-charge-policy{margin:3px 0}
 .crm-charge-policy{margin:14px 0;border:1px solid #c8e2dc;border-radius:15px;background:#f6fbf9;padding:10px 13px;color:#214652}
 .crm-charge-policy>summary{cursor:pointer;color:#187e77;font-weight:800;line-height:1.5;padding:4px 0}
 .crm-charge-body{padding-top:12px}
@@ -710,8 +715,8 @@ body{font-size:14px;line-height:1.42}
  #ownerTabs{padding:3px 2px 12px;gap:10px}
  #ownerTabs button{background:linear-gradient(165deg,#fff,#f6fafa)!important;color:#20434e!important;border:1px solid #d9e8e9!important;border-radius:16px!important;box-shadow:var(--s25-shadow)!important}
  #ownerTabs button[aria-selected="true"]{background:linear-gradient(135deg,var(--s25-dark),var(--s25-a))!important;color:var(--s25-ink-on)!important;border-color:var(--s25-a)!important;box-shadow:0 9px 17px var(--s25-glow)!important}
- #crmConsole :is(.crm-customer-card,.crm-alerts,.crm-inspector,.crm-card-details,.crm-role-editor,.crm-ctv-clients,.crm-ledger-discovery,.crm-charge-policy,.crm-import-panel,.crm-new-registration),
- #legacyConsole :is(.crm-customer-card,.crm-ctv-clients,.crm-ctv-client-row,.crm-duplicate-group,.crm-ledger-card,.crm-role-editor,.crm-ledger-discovery,.crm-charge-policy,.crm-import-panel,.crm-ledger-import),
+ #crmConsole :is(.crm-customer-card,.crm-alerts,.crm-inspector,.crm-card-details,.crm-role-editor,.crm-ctv-clients,.crm-ledger-discovery,.crm-charge-policy,.crm-saved-address-charge,.crm-import-panel,.crm-new-registration),
+ #legacyConsole :is(.crm-customer-card,.crm-ctv-clients,.crm-ctv-client-row,.crm-duplicate-group,.crm-ledger-card,.crm-role-editor,.crm-ledger-discovery,.crm-charge-policy,.crm-saved-address-charge,.crm-import-panel,.crm-ledger-import),
  #console :is(.metric,details,#notice,.actions){
   border:1px solid #d9e8e9!important;border-radius:17px!important;
   background:linear-gradient(155deg,#fff 20%,#f6fbfa)!important;
