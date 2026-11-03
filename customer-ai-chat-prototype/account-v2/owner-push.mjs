@@ -192,6 +192,15 @@ export function scanDays(now=new Date()){
 }
 
 const PROBE_PER_TICK=40;
+// Resource bounds. BotApi.gs takes the script lock for EVERY request (reads
+// too), so readback must never monopolise it: a fixed Apps Script call budget
+// per pass, a pause between readbacks so order writers can take the lock,
+// a cap on consecutive passes per tick and a pause between passes.
+const READ_BUDGET_PER_PASS=45;
+const PROBE_PAUSE_MS=250;
+const MAX_PASSES_PER_TICK=2;
+const DRAIN_PAUSE_MS=3000;
+const sleep=ms=>ms>0?new Promise(r=>setTimeout(r,ms)):Promise.resolve();
 // Above this backlog a warning code is recorded; the backlog is NEVER truncated.
 const LARGE_BACKFILL=1000;
 function signedRows(result){
@@ -249,8 +258,11 @@ export async function probeInvoiceNumber(reader,no,{days=[],statuses=[]}={}){
  * slept) is read back one number at a time, PROBE_PER_TICK per tick, with a
  * persisted cursor, so invoice #101, #150, #250 of a day are never skipped.
  */
-export async function scanInvoices(pool,reader,now=new Date(),{probeLimit=PROBE_PER_TICK}={}){
+export async function scanInvoices(pool,sourceReader,now=new Date(),
+ {probeLimit=PROBE_PER_TICK,readBudget=READ_BUDGET_PER_PASS,probePauseMs=PROBE_PAUSE_MS}={}){
  const nowMs=now.getTime();
+ let reads=0;
+ const reader=(action,payload)=>{reads++;return sourceReader(action,payload)};
  const found=new Map();
  const add=row=>{const r=refOf(row);if(r)found.set(r.key,{invoiceNo:r.no,eligible:eligibleOfficialInvoice(row,nowMs)})};
  const statuses=new Set();
@@ -274,9 +286,15 @@ export async function scanInvoices(pool,reader,now=new Date(),{probeLimit=PROBE_
    until=Math.max(until??gapHigh,gapHigh);
   }
  }
- let unresolved=0;
+ let unresolved=0,budgetExhausted=false;
+ // Worst case for one number: 1 + days*(1 + statuses) readbacks.
+ const worstProbeReads=1+scanDays(now).length*(2+KNOWN_STATUSES.length+statuses.size);
  for(let probes=0;next!=null&&next<=until&&probes<probeLimit;probes++,next++){
   if([...found.values()].some(x=>x.invoiceNo===next))continue;
+  // Stop BEFORE a readback could exceed the budget; the cursor stays on `next`.
+  if(reads+worstProbeReads>readBudget&&probes>0){budgetExhausted=true;break}
+  if(reads>=readBudget){budgetExhausted=true;break}
+  if(probes>0)await sleep(probePauseMs);
   const probe=await probeInvoiceNumber(reader,next,{days:scanDays(now),statuses:[...statuses]});
   probe.rows.forEach(add);
   // Never skip an unresolved number: keep the cursor here and retry next tick.
@@ -304,7 +322,7 @@ export async function scanInvoices(pool,reader,now=new Date(),{probeLimit=PROBE_
   await client.query('COMMIT');
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
  finally{client.release()}
- return {seen:found.size,inserted,backlog:next==null?0:until-next+1,unresolved};
+ return {seen:found.size,inserted,backlog:next==null?0:until-next+1,unresolved,reads,budgetExhausted};
 }
 
 const ownerDeviceFilter=
@@ -481,7 +499,8 @@ export function verifyWakeRequest(signature,input,env=process.env,now=Date.now()
  * kick() runs a tick immediately (e.g. right after a V2 checkout COMMITTED);
  * the interval tick is the durable fallback for every other source.
  */
-export function startOwnerPushRelay({env=process.env,pool,reader,send,intervalMs=INTERVAL_MS}={}){
+export function startOwnerPushRelay({env=process.env,pool,reader,send,intervalMs=INTERVAL_MS,
+ maxPassesPerTick=MAX_PASSES_PER_TICK,drainPauseMs=DRAIN_PAUSE_MS,scanOptions={}}={}){
  if(activeRelay)return activeRelay;
  const cfg=ownerPushConfig(env);
  if(!cfg.enabled||!pool||!reader)return {enabled:false,reason:cfg.enabled?'RELAY_DEPENDENCY_MISSING':cfg.reason,kick(){}};
@@ -491,15 +510,17 @@ export function startOwnerPushRelay({env=process.env,pool,reader,send,intervalMs
  const tick=async()=>{
   if(running){again=true;return}
   running=true;
+  let passes=0;
   try{
    do{
-    again=false;
+    again=false;passes++;
     try{
      await ensureOwnerPushSchema(pool);
-     const scan=await scanInvoices(pool,reader);
+     const scan=await scanInvoices(pool,reader,new Date(),scanOptions);
      relayState.lastScanAt=new Date().toISOString();relayState.lastScanError=null;
-     relayState.backlog=scan.backlog;
-     // Drain a backlog promptly (bounded per pass), unless the cursor is held.
+     relayState.backlog=scan.backlog;relayState.lastScanReads=scan.reads;
+     // Continue draining in this tick only within the pass cap; never while
+     // the cursor is held on an unresolved number.
      if(scan.backlog>0&&!scan.unresolved)again=true;
     }catch(e){
      const code=/^[A-Z0-9_]{3,40}$/.test(String(e?.code||e?.message||''))?(e.code||e.message):'PUSH_SCAN_FAILED';
@@ -516,8 +537,12 @@ export function startOwnerPushRelay({env=process.env,pool,reader,send,intervalMs
      relayState.lastDispatchError='PUSH_DISPATCH_FAILED';
      console.warn('SATORI_OWNER_PUSH_DISPATCH_FAILED');
     }
-   }while(again);
-  }finally{running=false}
+    if(again&&passes<maxPassesPerTick)await sleep(drainPauseMs);
+   }while(again&&passes<maxPassesPerTick);
+   // Remaining backlog continues on the next interval tick from the persisted
+   // cursor: nothing is skipped, and Apps Script/V2 get a rest in between.
+   if(again)relayState.deferredTicks=(relayState.deferredTicks||0)+1;
+  }finally{running=false;relayState.lastTickPasses=passes}
  };
  const timer=setInterval(()=>{void tick()},intervalMs);
  timer.unref?.();

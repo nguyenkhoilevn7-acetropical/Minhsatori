@@ -14,6 +14,8 @@ const hash=s=>createHash('sha256').update(s).digest('hex');
 const one=async(sql,args)=>(await pool.query(sql,args)).rows[0];
 const vnDay=d=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 const now=new Date();
+// Real resource budgets; only the inter-readback pause is removed for CI speed.
+const FAST={probePauseMs:0};
 const today=vnDay(now),yesterday=vnDay(new Date(now.getTime()-86_400_000));
 
 function fakeBotApi(ledger,stats){
@@ -43,7 +45,7 @@ async function scenario(newCount,ownerSub,deviceId,token){
  for(let i=0;i<30;i++)ledger.unshift(order(yesterday));
  for(let i=0;i<40;i++)ledger.unshift(order(today));
  const reader=fakeBotApi(ledger,stats);
- await scanInvoices(pool,reader,now);
+ await scanInvoices(pool,reader,now,FAST);
  // Relay asleep: newCount official orders arrive (some phones deliberately
  // contain another invoice number to stress the substring readback).
  const fresh=[];
@@ -55,7 +57,8 @@ async function scenario(newCount,ownerSub,deviceId,token){
  const send=async m=>{sent.push(m);return true};
  let ticks=0,res,sawLarge=false;
  do{
-  res=await scanInvoices(pool,reader,now);
+  res=await scanInvoices(pool,reader,now,FAST);
+  assert.ok(res.reads<=45,'Apps Script reads per pass stay within budget: '+res.reads);
   await queueDeliveries(pool,ownerSub);
   await dispatch(pool,ownerSub,send);
   ticks++;
@@ -80,7 +83,7 @@ async function scenario(newCount,ownerSub,deviceId,token){
  assert.ok(sent.every(m=>m.token===token));
  // Re-scan after completion: no new pushes, no extra probes beyond the window.
  const before=stats.probes;
- await scanInvoices(pool,reader,now);await queueDeliveries(pool,ownerSub);await dispatch(pool,ownerSub,send);
+ await scanInvoices(pool,reader,now,FAST);await queueDeliveries(pool,ownerSub);await dispatch(pool,ownerSub,send);
  assert.equal(sent.length,newCount);
  assert.equal(stats.probes,before,'steady state uses only the two day-window reads');
  const lastFeed=await one('SELECT backfill_next,last_error_code FROM satori_v2_owner_push_feed_state WHERE feed=$1',['invoices']);
@@ -112,17 +115,17 @@ try{
   const mk=(n,phone)=>({id:'P'+n,invoiceNo:n,date:today,name:'Khách giả '+n,phone,status:'Chưa thanh toán',timestamp:Date.now()});
   ledger.unshift(mk(8000,'0900000000'));
   const reader=fakeBotApi(ledger,stats);
-  await scanInvoices(pool,reader,now);
+  await scanInvoices(pool,reader,now,FAST);
   ledger.unshift(mk(8001,'0900000001'));               // the hard-to-read invoice
   for(let n=8002;n<8130;n++)ledger.unshift(mk(n,'098'+'8001'+String(n).slice(-3)));
-  let r;for(let i=0;i<6;i++)r=await scanInvoices(pool,reader,now);
+  let r;for(let i=0;i<6;i++)r=await scanInvoices(pool,reader,now,FAST);
   const st=await one('SELECT backfill_next,last_error_code FROM satori_v2_owner_push_feed_state WHERE feed=$1',['invoices']);
   assert.equal(Number(st.backfill_next),8001,'cursor holds on the unresolved invoice');
   assert.equal(st.last_error_code,'PUSH_BACKFILL_UNRESOLVED');
   assert.ok(r.backlog>0);
   // Owner marks 40 colliding orders paid -> the day+status read now fits.
   ledger.filter(o=>o.invoiceNo>=8090).forEach(o=>{o.status='Đã thanh toán'});
-  for(let i=0;i<5&&(r=await scanInvoices(pool,reader,now)).backlog>0;i++);
+  for(let i=0;i<5&&(r=await scanInvoices(pool,reader,now,FAST)).backlog>0;i++);
   assert.equal(r.backlog,0);
   await queueDeliveries(pool,ownerSub);
   for(let i=0;i<8;i++){
@@ -134,13 +137,61 @@ try{
   console.log('PASS unresolvable readback holds the cursor (no skip) and recovers exactly once');
  }
 
+ // Relay resource bounds: a 2,000-number backlog is drained across ticks with
+ // a hard cap on passes per tick and Apps Script reads per pass, a pause
+ // between passes, a persisted cursor and no skipped invoice.
+ {
+  await pool.query('TRUNCATE satori_v2_owner_push_deliveries,satori_v2_owner_push_events,satori_v2_owner_push_feed_state');
+  const ledger=[],stats={calls:0,probes:0,revision:1},sent=[];
+  let n=20000;
+  const mk=()=>({id:'B'+(++n),invoiceNo:n,date:today,name:'Khách giả '+n,
+   phone:'09'+String(Math.floor(Math.random()*1e8)).padStart(8,'0'),status:'Chưa thanh toán',timestamp:Date.now()});
+  ledger.unshift(mk());
+  const counting=fakeBotApi(ledger,stats);
+  const reader=async(a,p)=>counting(a,p);
+  const env={SATORI_OWNER_PUSH_ENABLED:'1',SATORI_FCM_PROJECT_ID:'satori-fake-ci',SATORI_ACCOUNT_V2_OWNER_SUB:ownerSub,
+   SATORI_FCM_SERVICE_ACCOUNT_JSON:JSON.stringify({type:'service_account',project_id:'satori-fake-ci',
+    client_email:'x@satori-fake-ci.iam.gserviceaccount.com',private_key:'-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----'})};
+  const {startOwnerPushRelay,relayState}=await import('../owner-push.mjs');
+  const relay=startOwnerPushRelay({env,pool,reader,send:async m=>{sent.push(m);return true},
+   intervalMs:3_600_000,maxPassesPerTick:2,drainPauseMs:40,scanOptions:{probePauseMs:0,readBudget:30,probeLimit:40}});
+  assert.equal(relay.enabled,true);
+  await relay.tick();                                   // baseline
+  for(let i=0;i<2100;i++)ledger.unshift(mk());          // 2,100 new => 2,000-number gap
+  const fresh=ledger.slice(0,2100).map(o=>o.invoiceNo);
+  const before=stats.calls,t0=Date.now();
+  await relay.tick();
+  const callsOneTick=stats.calls-before,elapsed=Date.now()-t0;
+  assert.ok(callsOneTick<=2*30,'one tick is bounded to passes x read budget: '+callsOneTick);
+  assert.equal(relayState.lastTickPasses,2,'pass cap reached');
+  assert.ok(elapsed>=40,'pause between passes');
+  assert.ok(relayState.backlog>1000,'backlog kept, not truncated');
+  assert.ok((relayState.deferredTicks||0)>=1,'remaining work deferred to the next interval');
+  const cursor=Number((await one('SELECT backfill_next FROM satori_v2_owner_push_feed_state WHERE feed=$1',['invoices'])).backfill_next);
+  assert.ok(cursor>20001&&cursor<20001+2000,'cursor persisted mid-backlog');
+  let ticks=1;
+  while(relayState.backlog>0&&ticks<200){await relay.tick();ticks++;
+   assert.ok(relayState.lastTickPasses<=2);}
+  assert.equal(relayState.backlog,0);
+  for(let i=0;i<200;i++){
+   await pool.query('UPDATE satori_v2_owner_push_deliveries SET retry_at=now() WHERE delivered_at IS NULL');
+   await relay.tick();
+   if(!(await one('SELECT count(*)::int n FROM satori_v2_owner_push_deliveries WHERE delivered_at IS NULL')).n)break;
+  }
+  await relay.stop();
+  const nums=sent.map(m=>Number(m.data.invoiceNo));
+  assert.equal(new Set(nums).size,nums.length,'no duplicate');
+  assert.deepEqual([...nums].sort((a,b)=>a-b),[...fresh].sort((a,b)=>a-b),'all 2,100 notified, none skipped');
+  console.log(`PASS relay bounds: 2,100 backlog drained in ${ticks} ticks, <=2 passes and <=60 reads per tick, 0 skipped, 0 duplicates`);
+ }
+
  // An invoice older than 48h (restored from trash / found after a long outage) never alerts.
  await pool.query('TRUNCATE satori_v2_owner_push_deliveries,satori_v2_owner_push_events,satori_v2_owner_push_feed_state');
  const ledger=[{id:'R1',invoiceNo:100,date:today,name:'a',phone:'0',status:'Chưa thanh toán',timestamp:Date.now()}];
  const stats={calls:0,probes:0,revision:1},reader=fakeBotApi(ledger,stats),sent=[];
- await scanInvoices(pool,reader,now);
+ await scanInvoices(pool,reader,now,FAST);
  ledger.unshift({id:'R2',invoiceNo:50,date:today,name:'b',phone:'0',status:'Chưa thanh toán',timestamp:Date.now()-5*86_400_000});
- await scanInvoices(pool,reader,now);await queueDeliveries(pool,ownerSub);await dispatch(pool,ownerSub,async m=>{sent.push(m);return true});
+ await scanInvoices(pool,reader,now,FAST);await queueDeliveries(pool,ownerSub);await dispatch(pool,ownerSub,async m=>{sent.push(m);return true});
  assert.equal(sent.length,0);
  console.log('PASS restored / >48h-old invoice does not notify');
 }finally{await pool.end()}

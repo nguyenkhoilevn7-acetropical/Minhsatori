@@ -23,7 +23,13 @@ trigger, outside every order write; it sends no invoice data.
   persisted cursor; an unreadable number holds the cursor (never skipped) and is
   reported as `PUSH_BACKFILL_UNRESOLVED`. A backlog is never truncated: above
   1,000 numbers it is flagged `PUSH_BACKFILL_LARGE` and drained over several
-  passes (40 exact readbacks per pass).
+  ticks from the persisted cursor.
+* Resource bounds (BotApi.gs takes the script lock for every request, reads
+  included): at most 45 Apps Script reads per pass, 250 ms pause between
+  readbacks so order writers can take the lock, at most 2 passes per tick with
+  a 3 s pause, then the rest waits for the next 30 s tick. A very large backlog
+  (e.g. 2,000 numbers) therefore takes tens of minutes to drain; it is never
+  skipped.
 * Invoices older than 48 h (restored, or found after a long outage) never alert.
   Freshness is fail-closed: missing/invalid/future `timestamp` falls back to the
   invoice date (today/yesterday, Vietnam time), then a millisecond ledger id;
