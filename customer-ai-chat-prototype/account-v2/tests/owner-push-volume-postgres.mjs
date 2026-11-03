@@ -137,6 +137,45 @@ try{
   console.log('PASS unresolvable readback holds the cursor (no skip) and recovers exactly once');
  }
 
+ // An adversarial first exact-number probe with 70+ distinct statuses must
+ // NEVER exceed the hard 45-request Apps Script budget or advance the cursor.
+ // After the underlying data becomes resolvable, the saved cursor resumes.
+ {
+  await pool.query('TRUNCATE satori_v2_owner_push_deliveries,satori_v2_owner_push_events,satori_v2_owner_push_feed_state');
+  const ledger=[],stats={calls:0,probes:0,revision:1};
+  const mk=(number,status,phone='0900000000')=>({
+   id:'H'+number,invoiceNo:number,date:today,name:'Khách giả '+number,
+   phone,status,timestamp:Date.now()
+  });
+  ledger.unshift(mk(30000,'Chưa thanh toán'));
+  const reader=fakeBotApi(ledger,stats);
+  await scanInvoices(pool,reader,now,FAST);
+  ledger.unshift(mk(30001,'Cat-025'));
+  // Every collider matches query=30001 through its phone, pushing the true
+  // invoice out of the first 100 and forcing day/status narrowing.
+  for(let i=0;i<150;i++)ledger.unshift(mk(30002+i,
+   'Cat-'+String(i%70).padStart(3,'0'),'09030001'+String(i).padStart(3,'0')));
+  const before=stats.calls;
+  const first=await scanInvoices(pool,reader,now,{probePauseMs:0,readBudget:45,probeLimit:40});
+  assert.ok(first.reads<=45,'hard budget applies to first probe: '+first.reads);
+  assert.ok(stats.calls-before<=45,'upstream Apps Script calls never exceed 45');
+  assert.equal(first.budgetExhausted,true);
+  assert.ok(first.backlog>0);
+  const held=await one('SELECT backfill_next,last_error_code FROM satori_v2_owner_push_feed_state WHERE feed=$1',['invoices']);
+  assert.equal(Number(held.backfill_next),30001,'cannot skip target invoice');
+  assert.equal(held.last_error_code,'PUSH_READ_BUDGET_EXHAUSTED');
+  // Simulate a later resolvable read window: most colliders paid; the target
+  // status now appears in the newest 100 so the status filter can identify it.
+  ledger.filter(o=>o.invoiceNo>=30002).forEach(o=>{o.status='Chưa thanh toán'});
+  ledger[0].status='Cat-025';
+  const second=await scanInvoices(pool,reader,now,{probePauseMs:0,readBudget:45,probeLimit:40});
+  assert.ok(second.reads<=45);
+  assert.equal(second.budgetExhausted,false);
+  const found=await one('SELECT count(*)::int AS n FROM satori_v2_owner_push_events WHERE invoice_no=$1',[30001]);
+  assert.equal(found.n,1,'held invoice recovered exactly once');
+  console.log('PASS adversarial first probe: hard 45-request cap, saved cursor and eventual recovery');
+ }
+
  // Relay resource bounds: a 2,000-number backlog is drained across ticks with
  // a hard cap on passes per tick and Apps Script reads per pass, a pause
  // between passes, a persisted cursor and no skipped invoice.
