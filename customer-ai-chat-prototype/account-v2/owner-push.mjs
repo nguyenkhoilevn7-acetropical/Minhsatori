@@ -333,8 +333,8 @@ export async function scanInvoices(pool,sourceReader,now=new Date(),
   await client.query('UPDATE satori_v2_owner_push_feed_state SET initialized=true,last_checked_at=now(),'+
    'backfill_next=$2,backfill_until=$3,last_error_code=$4 WHERE feed=$1',
    ['invoices',next,until,unresolved?'PUSH_BACKFILL_UNRESOLVED':
-    budgetExhausted?'PUSH_READ_BUDGET_EXHAUSTED':
-    next!=null&&until-next+1>LARGE_BACKFILL?'PUSH_BACKFILL_LARGE':null]);
+    next!=null&&until-next+1>LARGE_BACKFILL?'PUSH_BACKFILL_LARGE':
+    budgetExhausted?'PUSH_READ_BUDGET_EXHAUSTED':null]);
   await client.query('COMMIT');
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
  finally{client.release()}
