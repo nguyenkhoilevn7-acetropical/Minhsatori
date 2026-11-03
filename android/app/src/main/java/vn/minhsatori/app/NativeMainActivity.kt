@@ -141,8 +141,16 @@ class NativeMainActivity : AppCompatActivity() {
     private fun openPendingNotificationInvoiceIfReady() {
         val no = pendingNotificationInvoiceNo ?: return
         if (activeInvoiceDialog?.isShowing == true) return
-        val invoice = snapshot?.invoices?.firstOrNull { it.number.toLongOrNull() == no }
+        val candidates = snapshot?.invoices?.filter { it.number.toLongOrNull() == no }
             ?: return
+        // Historical ledgers can contain duplicate invoice numbers. Never open
+        // an arbitrary row from an ambiguous notification deep link.
+        if (candidates.size > 1) {
+            pendingNotificationInvoiceNo = null
+            statusMessage = "⚠ Hóa đơn #$no trùng số; hãy chọn đúng bản ghi trong danh sách."
+            return
+        }
+        val invoice = candidates.singleOrNull() ?: return
         pendingNotificationInvoiceNo = null
         previousScrollView?.post {
             if (!isFinishing && !isDestroyed && activeTab == 1 &&
@@ -315,7 +323,9 @@ class NativeMainActivity : AppCompatActivity() {
             notifications.createNotificationChannel(NotificationChannel(newOrderChannelId,
                 "Đơn hàng thật Minh Satori", NotificationManager.IMPORTANCE_HIGH))
         val newestNo = update.fresh.maxOrNull() ?: return
-        val invoice = latest.invoices.firstOrNull {
+        // Fail closed on a duplicated historical number: keep the in-app
+        // unread badge, but never send a notification targeting the wrong row.
+        val invoice = latest.invoices.singleOrNull {
             it.number.toLongOrNull() == newestNo
         } ?: return
         val destination = Intent(this, NativeMainActivity::class.java)
