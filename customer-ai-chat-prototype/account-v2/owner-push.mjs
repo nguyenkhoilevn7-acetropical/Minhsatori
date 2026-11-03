@@ -262,7 +262,13 @@ export async function scanInvoices(pool,sourceReader,now=new Date(),
  {probeLimit=PROBE_PER_TICK,readBudget=READ_BUDGET_PER_PASS,probePauseMs=PROBE_PAUSE_MS}={}){
  const nowMs=now.getTime();
  let reads=0;
- const reader=(action,payload)=>{reads++;return sourceReader(action,payload)};
+ // Hard cap: no code path (including the FIRST adversarial readback)
+ // may call Apps Script after the 45-request budget is exhausted.
+ const reader=(action,payload)=>{
+  if(reads>=readBudget)throw pushError('PUSH_READ_BUDGET_EXHAUSTED');
+  reads++;
+  return sourceReader(action,payload);
+ };
  const found=new Map();
  const add=row=>{const r=refOf(row);if(r)found.set(r.key,{invoiceNo:r.no,eligible:eligibleOfficialInvoice(row,nowMs)})};
  const statuses=new Set();
@@ -295,7 +301,16 @@ export async function scanInvoices(pool,sourceReader,now=new Date(),
   if(reads+worstProbeReads>readBudget&&probes>0){budgetExhausted=true;break}
   if(reads>=readBudget){budgetExhausted=true;break}
   if(probes>0)await sleep(probePauseMs);
-  const probe=await probeInvoiceNumber(reader,next,{days:scanDays(now),statuses:[...statuses]});
+  let probe;
+  try{
+   probe=await probeInvoiceNumber(reader,next,{days:scanDays(now),statuses:[...statuses]});
+  }catch(e){
+   // The cursor stays on this invoice; alert diagnostics instead of
+   // exceeding the per-pass lock contention budget or silently skipping it.
+   if(e?.code!=='PUSH_READ_BUDGET_EXHAUSTED')throw e;
+   budgetExhausted=true;
+   break;
+  }
   probe.rows.forEach(add);
   // Never skip an unresolved number: keep the cursor here and retry next tick.
   if(probe.state==='UNRESOLVED'){unresolved++;break}
@@ -318,6 +333,7 @@ export async function scanInvoices(pool,sourceReader,now=new Date(),
   await client.query('UPDATE satori_v2_owner_push_feed_state SET initialized=true,last_checked_at=now(),'+
    'backfill_next=$2,backfill_until=$3,last_error_code=$4 WHERE feed=$1',
    ['invoices',next,until,unresolved?'PUSH_BACKFILL_UNRESOLVED':
+    budgetExhausted?'PUSH_READ_BUDGET_EXHAUSTED':
     next!=null&&until-next+1>LARGE_BACKFILL?'PUSH_BACKFILL_LARGE':null]);
   await client.query('COMMIT');
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
