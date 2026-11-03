@@ -24,7 +24,13 @@ class InvoiceNotificationTapTest(unittest.TestCase):
         self.assertIn("override fun onNewIntent(intent: Intent)", NATIVE)
         self.assertIn("setIntent(intent)", NATIVE)
         self.assertIn("openPendingNotificationInvoiceIfReady()", NATIVE)
-        self.assertIn("snapshot?.invoices?.firstOrNull { it.number.toLongOrNull() == no }", NATIVE)
+        self.assertIn("val candidates = snapshot?.invoices?.filter { it.number.toLongOrNull() == no }", NATIVE)
+        self.assertIn("if (candidates.size > 1)", NATIVE)
+        self.assertIn("pendingNotificationInvoiceNo = null", NATIVE)
+        self.assertIn("val invoice = candidates.singleOrNull() ?: return", NATIVE)
+        self.assertNotIn("snapshot?.invoices?.firstOrNull { it.number.toLongOrNull() == no }", NATIVE)
+        self.assertIn("latest.invoices.singleOrNull {", NATIVE)
+        self.assertNotIn("latest.invoices.firstOrNull {", NATIVE)
         self.assertIn("openInvoice(invoice)", NATIVE)
         self.assertIn("android:name=\".NativeMainActivity\"", MANIFEST)
 
@@ -35,7 +41,8 @@ class InvoiceNotificationTapTest(unittest.TestCase):
         self.assertNotIn("token", section)
         self.assertNotIn("amount", section)
         handler = NATIVE.split("private fun openPendingNotificationInvoiceIfReady()", 1)[1].split("private fun badgePill(",1)[0]
-        self.assertIn("val invoice = snapshot?.invoices?", handler)
+        self.assertIn("val candidates = snapshot?.invoices?.filter { it.number.toLongOrNull() == no }", handler)
+        self.assertIn("val invoice = candidates.singleOrNull() ?: return", handler)
         self.assertIn("pendingNotificationInvoiceNo = null", handler)
 
     def test_reading_one_invoice_clears_matching_notification_only_when_no_unread(self):
