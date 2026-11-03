@@ -164,6 +164,8 @@ object NativeOrderEditor {
                 amount(row.qty.text.toString()),amount(row.price.text.toString())))
         }
         fun charges(goods:Long):Pair<Long,Long> {
+            // Item rows are rendered before VAT/Shipping controls exist.
+            if(ship==null || tax==null) return 0L to 0L
             return if(editing==null)
                 amount(ship?.text?.toString().orEmpty()) to
                     amount(tax?.text?.toString().orEmpty())
@@ -299,11 +301,11 @@ object NativeOrderEditor {
                     }
                     val goods=totalGoods()
                     val (shipping,vat)=charges(goods)
+                    val sum=SatoriOrderValidation.sum(goods,shipping,vat)
                     require(shipping<=100000000000L&&vat<=100000000000L&&
-                        goods<=100000000000L&&goods+shipping+vat<=100000000000L){
+                        goods<=100000000000L&&sum<=100000000000L){
                         "Tổng tiền vượt giới hạn."
                     }
-                    val sum=SatoriOrderValidation.sum(goods,shipping,vat)
                     val dateText=SatoriOrderValidation.validDeliveryDate(deliveryDate.text.toString())
                     val order=JSONObject().put("name",cleanName).put("phone",cleanPhone)
                         .put("location",cleanAddress).put("items",lines)
