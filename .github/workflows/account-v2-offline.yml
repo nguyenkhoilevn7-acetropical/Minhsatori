@@ -113,3 +113,5 @@ jobs:
           sudo rm -f "$RUNNER_TEMP/satori-v2-ci-only.dump"
       - name: HTTP checkout races with Admin revocation and suspension (fake accounts only)
         run: node account-v2/tests/checkout-races-postgres.mjs
+      - name: Owner FCM push outbox, idempotency, retry, logout revocation (fake ledger + fake FCM)
+        run: node account-v2/tests/owner-push-postgres.mjs

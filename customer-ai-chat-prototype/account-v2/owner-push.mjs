@@ -1,0 +1,386 @@
+/**
+ * Owner-only FCM push for NEW, verified canonical invoices.
+ *
+ * Pipeline (every official source: Website V2, Gemini V2, ChatGPT connector,
+ * any other writer of the canonical Minh Satori ledger):
+ *   canonical ledger (signed READ-ONLY orders.list)
+ *     -> satori_v2_owner_push_events   (stable event id per invoiceNo|ledgerId)
+ *     -> satori_v2_owner_push_deliveries (per device, retry/backoff, audit code)
+ *     -> FCM HTTP v1 (Google service account from Render secrets)
+ *     -> Android FirebaseMessagingService (data message, high priority)
+ *
+ * Safety:
+ *  - NEVER writes the canonical ledger, invoices, payments, VAT, or shipping.
+ *  - A push failure can never fail or duplicate an invoice: the relay runs
+ *    outside every checkout transaction and only reads the signed ledger.
+ *  - Events are idempotent (UNIQUE kind+source_key); an edited/paid invoice
+ *    can never re-alert. The FIRST scan is a quiet baseline (no flood).
+ *  - Disabled unless SATORI_OWNER_PUSH_ENABLED=1 AND a matching service
+ *    account is configured. No token, cookie, key or customer data is logged
+ *    or sent in the push (only the numeric invoice number and event id).
+ */
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const HERE=path.dirname(fileURLToPath(import.meta.url));
+const TZ='Asia/Ho_Chi_Minh';
+const FCM_SCOPE='https://www.googleapis.com/auth/firebase.messaging';
+const MAX_ATTEMPTS=12;
+const INTERVAL_MS=30_000;
+const sha=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
+const pushError=(code,status)=>Object.assign(new Error(code),{code,status});
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const safeId=x=>typeof x==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(x);
+const fold=x=>String(x??'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+ .replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
+const excludedStatus=x=>/(?:khong tinh|da huy|huy don|bi tu choi|cancel|void|draft|nhap|test|reject)/
+ .test(fold(x));
+
+/** Shared relay diagnostics (process-local, no secrets). */
+export const relayState={started:false,lastScanAt:null,lastScanError:null,
+ lastDispatchAt:null,lastDispatchError:null,kicks:0};
+let activeRelay=null;
+
+/** Validates server configuration WITHOUT logging or returning any secret. */
+export function ownerPushConfig(env=process.env){
+ if(env.SATORI_OWNER_PUSH_ENABLED!=='1')return {enabled:false,reason:'PUSH_DISABLED'};
+ const projectId=String(env.SATORI_FCM_PROJECT_ID||'');
+ if(!/^[a-z][a-z0-9-]{4,62}$/.test(projectId))
+  return {enabled:false,reason:'FCM_PROJECT_ID_MISSING'};
+ let credentials;
+ try{credentials=JSON.parse(String(env.SATORI_FCM_SERVICE_ACCOUNT_JSON||''))}
+ catch{return {enabled:false,reason:'FCM_SERVICE_ACCOUNT_MISSING'}}
+ if(!credentials||credentials.type!=='service_account'||
+  typeof credentials.client_email!=='string'||
+  typeof credentials.private_key!=='string'||
+  !credentials.private_key.includes('PRIVATE KEY'))
+  return {enabled:false,reason:'FCM_SERVICE_ACCOUNT_INVALID'};
+ if(credentials.project_id!==projectId)
+  return {enabled:false,reason:'FCM_PROJECT_MISMATCH'};
+ return {enabled:true,reason:'READY',projectId,credentials};
+}
+export const ownerPushReady=(env=process.env)=>ownerPushConfig(env).enabled;
+
+export function validateDevice(input){
+ if(!input||typeof input!=='object'||!UUID.test(String(input.deviceId||''))||
+  typeof input.token!=='string'||input.token.length<40||input.token.length>4096||
+  !/^[A-Za-z0-9:_-]+$/.test(input.token)||
+  (input.platform!==undefined&&input.platform!=='android'))
+  throw pushError('PUSH_DEVICE_INVALID',400);
+ return {deviceId:input.deviceId.toLowerCase(),token:input.token};
+}
+
+let schemaReady=null;
+/** Additive idempotent DDL; only invoked when the owner explicitly enables push. */
+export function ensureOwnerPushSchema(pool){
+ if(!schemaReady)schemaReady=pool.query(fs.readFileSync(
+  path.join(HERE,'migrations/20261103_owner_push.sql'),'utf8'))
+  .then(()=>true).catch(e=>{schemaReady=null;throw e});
+ return schemaReady;
+}
+
+/** Call ONLY after auth() (session + CSRF + Origin) and owner(actor). */
+export async function registerOwnerDevice(pool,actor,sessionHash,input,env=process.env){
+ const cfg=ownerPushConfig(env);
+ if(!cfg.enabled)throw pushError(cfg.reason,503);
+ if(!/^[a-f0-9]{64}$/.test(String(sessionHash||'')))
+  throw pushError('OWNER_SESSION_INVALID',401);
+ const device=validateDevice(input);
+ await ensureOwnerPushSchema(pool);
+ const digest=sha(device.token);
+ const client=await pool.connect();
+ try{
+  await client.query('BEGIN');
+  // A token can belong to only one device row; a reinstall re-registers it.
+  const other=await client.query('SELECT device_id,account_id FROM satori_v2_owner_push_devices '+
+   'WHERE token_hash=$1 FOR UPDATE',[digest]);
+  if(other.rows.some(r=>r.account_id!==actor.id))
+   throw pushError('PUSH_DEVICE_ALREADY_OWNED',403);
+  await client.query('DELETE FROM satori_v2_owner_push_devices WHERE token_hash=$1 AND device_id<>$2',
+   [digest,device.deviceId]);
+  const saved=await client.query('INSERT INTO satori_v2_owner_push_devices '+
+   '(device_id,account_id,session_hash,token,token_hash) VALUES($1,$2,$3,$4,$5) '+
+   'ON CONFLICT(device_id) DO UPDATE SET session_hash=EXCLUDED.session_hash,'+
+   'token=EXCLUDED.token,token_hash=EXCLUDED.token_hash,enabled=true,'+
+   'last_error_code=NULL,updated_at=now() '+
+   'WHERE satori_v2_owner_push_devices.account_id=EXCLUDED.account_id '+
+   'RETURNING (xmax=0) AS inserted',
+   [device.deviceId,actor.id,sessionHash,device.token,digest]);
+  if(saved.rowCount!==1)throw pushError('PUSH_DEVICE_ALREADY_OWNED',403);
+  await client.query('COMMIT');
+  return {ok:true,registered:true,serverPushEnabled:true,
+   tokenSuffix:device.token.slice(-6)};
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
+ finally{client.release()}
+}
+
+export async function revokeOwnerDevice(pool,actor,input){
+ if(!UUID.test(String(input?.deviceId||'')))throw pushError('PUSH_DEVICE_INVALID',400);
+ await ensureOwnerPushSchema(pool);
+ const r=await pool.query('DELETE FROM satori_v2_owner_push_devices WHERE device_id=$1 AND account_id=$2',
+  [input.deviceId.toLowerCase(),actor.id]);
+ return {ok:true,revoked:r.rowCount>0};
+}
+
+/** Safe diagnostic summary: never returns a token, cookie or credential. */
+export async function ownerPushStatus(pool,actor,sessionHash,deviceId,env=process.env){
+ const cfg=ownerPushConfig(env);
+ const out={ok:true,serverPushEnabled:cfg.enabled,serverReason:cfg.reason,
+  ownerSession:'VALID',device:null,relay:{...relayState}};
+ if(!cfg.enabled)return out;
+ await ensureOwnerPushSchema(pool);
+ if(UUID.test(String(deviceId||''))){
+  const d=await pool.query('SELECT d.enabled,d.registered_at AS "registeredAt",'+
+   'd.updated_at AS "updatedAt",d.last_error_code AS "lastErrorCode",'+
+   'right(d.token,6) AS "tokenSuffix",(d.session_hash=$3) AS "currentSession",'+
+   '(SELECT max(delivered_at) FROM satori_v2_owner_push_deliveries p WHERE p.device_id=d.device_id) AS "lastDeliveredAt",'+
+   '(SELECT last_error_code FROM satori_v2_owner_push_deliveries p WHERE p.device_id=d.device_id '+
+   'AND p.last_error_code IS NOT NULL ORDER BY retry_at DESC LIMIT 1) AS "lastDeliveryError" '+
+   'FROM satori_v2_owner_push_devices d WHERE d.device_id=$1 AND d.account_id=$2',
+   [String(deviceId).toLowerCase(),actor.id,sessionHash]);
+  out.device=d.rows[0]?{registered:true,...d.rows[0]}:{registered:false};
+ }
+ const feed=await pool.query('SELECT initialized,last_checked_at AS "lastCheckedAt",'+
+  'last_error_code AS "lastErrorCode" FROM satori_v2_owner_push_feed_state WHERE feed=$1',['invoices']);
+ out.feed=feed.rows[0]||{initialized:false};
+ return out;
+}
+
+export function eligibleOfficialInvoice(row){
+ return !!row&&Number.isSafeInteger(Number(row.invoiceNo))&&Number(row.invoiceNo)>0&&
+  safeId(String(row.id??''))&&row.missing!==true&&row.excluded!==true&&
+  row.testOnly!==true&&row.isTest!==true&&row.draft!==true&&
+  !excludedStatus(row.status);
+}
+
+/** Today and yesterday (Vietnam time): single-day windows stay well under 100 rows. */
+export function scanDays(now=new Date()){
+ const day=d=>new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',
+  month:'2-digit',day:'2-digit'}).format(d);
+ return [...new Set([day(now),day(new Date(now.getTime()-86_400_000))])];
+}
+
+export async function scanInvoices(pool,reader,now=new Date()){
+ const found=new Map();
+ for(const d of scanDays(now)){
+  const result=await reader('orders.list',{from:d,to:d,limit:100});
+  if(!Number.isSafeInteger(result?.revision)||!Array.isArray(result?.data?.orders))
+   throw pushError('PUSH_LEDGER_NOT_VERIFIED');
+  const rows=result.data.orders;
+  const total=Number(result.data.totalMatches??rows.length);
+  if(!Number.isSafeInteger(total)||total>rows.length)throw pushError('PUSH_LEDGER_TRUNCATED');
+  for(const row of rows){
+   const no=Number(row?.invoiceNo);
+   if(!Number.isSafeInteger(no)||no<=0||!safeId(String(row?.id??'')))continue;
+   found.set(no+'|'+String(row.id),{invoiceNo:no,eligible:eligibleOfficialInvoice(row)});
+  }
+ }
+ const client=await pool.connect();
+ let inserted=0;
+ try{
+  await client.query('BEGIN');
+  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',['satori_owner_push_invoices']);
+  await client.query('INSERT INTO satori_v2_owner_push_feed_state(feed) VALUES($1) ON CONFLICT DO NOTHING',['invoices']);
+  const state=await client.query('SELECT initialized FROM satori_v2_owner_push_feed_state WHERE feed=$1 FOR UPDATE',['invoices']);
+  const initialized=state.rows[0]?.initialized===true;
+  for(const [key,x] of found){
+   const r=await client.query('INSERT INTO satori_v2_owner_push_events(kind,source_key,invoice_no,eligible) '+
+    'VALUES($1,$2,$3,$4) ON CONFLICT(kind,source_key) DO NOTHING',
+    ['verified_new_invoice',key,x.invoiceNo,initialized&&x.eligible]);
+   inserted+=r.rowCount;
+  }
+  await client.query('UPDATE satori_v2_owner_push_feed_state SET initialized=true,'+
+   'last_checked_at=now(),last_error_code=NULL WHERE feed=$1',['invoices']);
+  await client.query('COMMIT');
+ }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
+ finally{client.release()}
+ return {seen:found.size,inserted};
+}
+
+const ownerDeviceFilter=
+ 'JOIN satori_v2_accounts a ON a.id=d.account_id '+
+ 'JOIN satori_v2_sessions s ON s.token_hash=d.session_hash AND s.expires_at>now() '+
+ "WHERE d.enabled=true AND a.google_sub=$1 AND a.access_status NOT IN ('REMOVED','SUSPENDED') ";
+
+export async function queueDeliveries(pool,ownerSub){
+ if(!ownerSub)return 0;
+ // A newly enrolled phone never receives historical events; stale events
+ // (offline > 24h) are not delivered late.
+ const r=await pool.query('INSERT INTO satori_v2_owner_push_deliveries(event_id,device_id) '+
+  'SELECT e.id,d.device_id FROM satori_v2_owner_push_events e '+
+  'CROSS JOIN satori_v2_owner_push_devices d '+ownerDeviceFilter+
+  'AND e.eligible=true AND e.created_at>=d.registered_at '+
+  "AND e.created_at>now()-interval '24 hours' ON CONFLICT DO NOTHING",[ownerSub]);
+ return r.rowCount;
+}
+
+async function claimDeliveries(pool,ownerSub){
+ const claimed=await pool.query(
+  'WITH due AS (SELECT event_id,device_id FROM satori_v2_owner_push_deliveries '+
+  'WHERE delivered_at IS NULL AND retry_at<=now() AND attempts<$1 '+
+  'ORDER BY retry_at LIMIT 30 FOR UPDATE SKIP LOCKED) '+
+  'UPDATE satori_v2_owner_push_deliveries p SET attempts=p.attempts+1,'+
+  // Lease + exponential backoff: 1,2,4..30 min. A crash simply retries later.
+  "retry_at=now()+least(interval '30 minutes',interval '1 minute'*power(2,p.attempts)) "+
+  'FROM due WHERE p.event_id=due.event_id AND p.device_id=due.device_id '+
+  'RETURNING p.event_id,p.device_id',[MAX_ATTEMPTS]);
+ if(!claimed.rows.length)return [];
+ const r=await pool.query('SELECT e.id,e.invoice_no,d.device_id,d.token '+
+  'FROM satori_v2_owner_push_events e '+
+  'JOIN satori_v2_owner_push_deliveries p ON p.event_id=e.id '+
+  'JOIN satori_v2_owner_push_devices d ON d.device_id=p.device_id '+ownerDeviceFilter+
+  'AND p.event_id=ANY($2::uuid[]) AND p.device_id=ANY($3::uuid[]) AND p.delivered_at IS NULL',
+  [ownerSub,claimed.rows.map(x=>x.event_id),claimed.rows.map(x=>x.device_id)]);
+ const wanted=new Set(claimed.rows.map(x=>x.event_id+'|'+x.device_id));
+ return r.rows.filter(x=>wanted.has(x.id+'|'+x.device_id));
+}
+
+/** Maps an FCM HTTP v1 response to a SAFE low-cardinality audit code. */
+export function classifyFcmFailure(status,body){
+ const details=JSON.stringify(body?.error?.details||[]);
+ const fcmCode=(details.match(/"errorCode":"([A-Z_]+)"/)||[])[1]||'';
+ if(status===404||fcmCode==='UNREGISTERED')
+  return {code:'FCM_TOKEN_UNREGISTERED',invalidToken:true};
+ if(status===400&&/registration token/i.test(String(body?.error?.message||'')))
+  return {code:'FCM_TOKEN_INVALID',invalidToken:true};
+ if(status===403&&fcmCode==='SENDER_ID_MISMATCH')
+  return {code:'FCM_SENDER_ID_MISMATCH',invalidToken:true};
+ if(status===401||status===403)return {code:'FCM_AUTH_FAILED',invalidToken:false};
+ if(status===429)return {code:'FCM_QUOTA_EXCEEDED',invalidToken:false};
+ if(status>=500)return {code:'FCM_UNAVAILABLE',invalidToken:false};
+ return {code:'FCM_HTTP_'+Number(status||0),invalidToken:false};
+}
+
+/** FCM HTTP v1 sender. The OAuth token comes from the service account only. */
+export function createFcmSender(env=process.env,{fetcher=fetch,accessToken}={}){
+ const cfg=ownerPushConfig(env);
+ if(!cfg.enabled)throw pushError(cfg.reason,503);
+ let client=null;
+ const bearer=accessToken||(async()=>{
+  if(!client){
+   const {GoogleAuth}=await import('google-auth-library');
+   client=await new GoogleAuth({credentials:cfg.credentials,scopes:[FCM_SCOPE]}).getClient();
+  }
+  const t=await client.getAccessToken();
+  if(!t?.token)throw pushError('FCM_OAUTH_UNAVAILABLE');
+  return t.token;
+ });
+ return async({token,data})=>{
+  let response;
+  try{
+   response=await fetcher('https://fcm.googleapis.com/v1/projects/'+cfg.projectId+'/messages:send',{
+    method:'POST',
+    headers:{'content-type':'application/json','authorization':'Bearer '+await bearer()},
+    body:JSON.stringify({message:{token,data,
+     // Data-only + HIGH priority: onMessageReceived runs while the app is in
+     // background or was closed by the system. TTL 6h covers offline phones.
+     android:{priority:'HIGH',ttl:'21600s'}}}),
+    signal:AbortSignal.timeout(8000)
+   });
+  }catch(e){
+   if(e?.code&&String(e.code).startsWith('FCM_'))throw e;
+   throw Object.assign(pushError('FCM_NETWORK_ERROR'),{invalidToken:false});
+  }
+  if(response.ok)return true;
+  let body=null;try{body=await response.json()}catch{}
+  const failure=classifyFcmFailure(response.status,body);
+  throw Object.assign(pushError(failure.code),failure);
+ };
+}
+
+export async function dispatch(pool,ownerSub,send){
+ let sent=0,failed=0;
+ for(const row of await claimDeliveries(pool,ownerSub)){
+  try{
+   await send({token:row.token,data:{type:'verified_new_invoice',
+    invoiceNo:String(row.invoice_no),eventId:String(row.id)}});
+   await pool.query('UPDATE satori_v2_owner_push_deliveries SET delivered_at=now(),last_error_code=NULL '+
+    'WHERE event_id=$1 AND device_id=$2',[row.id,row.device_id]);
+   sent++;
+  }catch(e){
+   failed++;
+   const code=/^[A-Z0-9_]{3,40}$/.test(String(e?.code||''))?e.code:'FCM_SEND_FAILED';
+   if(e?.invalidToken){
+    await pool.query('UPDATE satori_v2_owner_push_devices SET enabled=false,last_error_code=$2,updated_at=now() '+
+     'WHERE device_id=$1',[row.device_id,code]);
+   }
+   await pool.query('UPDATE satori_v2_owner_push_deliveries SET last_error_code=$3 '+
+    'WHERE event_id=$1 AND device_id=$2',[row.id,row.device_id,code]);
+  }
+ }
+ return {sent,failed};
+}
+
+/** Owner-triggered synthetic push to THIS session's device. No invoice data. */
+export async function sendTestPush(pool,actor,sessionHash,deviceId,send){
+ if(!UUID.test(String(deviceId||'')))throw pushError('PUSH_DEVICE_INVALID',400);
+ await ensureOwnerPushSchema(pool);
+ const d=await pool.query('SELECT token FROM satori_v2_owner_push_devices '+
+  'WHERE device_id=$1 AND account_id=$2 AND session_hash=$3 AND enabled=true',
+  [String(deviceId).toLowerCase(),actor.id,sessionHash]);
+ if(!d.rows.length)throw pushError('PUSH_DEVICE_NOT_REGISTERED',404);
+ const eventId='test-'+crypto.randomUUID();
+ try{
+  await send({token:d.rows[0].token,data:{type:'owner_push_test',eventId}});
+  return {ok:true,accepted:true,eventId};
+ }catch(e){
+  const code=/^[A-Z0-9_]{3,40}$/.test(String(e?.code||''))?e.code:'FCM_SEND_FAILED';
+  if(e?.invalidToken)await pool.query('UPDATE satori_v2_owner_push_devices SET enabled=false,'+
+   'last_error_code=$2,updated_at=now() WHERE device_id=$1',[String(deviceId).toLowerCase(),code]);
+  return {ok:false,accepted:false,errorCode:code};
+ }
+}
+
+/**
+ * Starts the durable relay. Safe to call many times; returns the same relay.
+ * kick() runs a tick immediately (e.g. right after a V2 checkout COMMITTED);
+ * the interval tick is the durable fallback for every other source.
+ */
+export function startOwnerPushRelay({env=process.env,pool,reader,send,intervalMs=INTERVAL_MS}={}){
+ if(activeRelay)return activeRelay;
+ const cfg=ownerPushConfig(env);
+ if(!cfg.enabled||!pool||!reader)return {enabled:false,reason:cfg.enabled?'RELAY_DEPENDENCY_MISSING':cfg.reason,kick(){}};
+ const sender=send||createFcmSender(env);
+ const ownerSub=env.SATORI_ACCOUNT_V2_OWNER_SUB||'';
+ let running=false,again=false;
+ const tick=async()=>{
+  if(running){again=true;return}
+  running=true;
+  try{
+   do{
+    again=false;
+    try{
+     await ensureOwnerPushSchema(pool);
+     await scanInvoices(pool,reader);
+     relayState.lastScanAt=new Date().toISOString();relayState.lastScanError=null;
+    }catch(e){
+     const code=/^[A-Z0-9_]{3,40}$/.test(String(e?.code||e?.message||''))?(e.code||e.message):'PUSH_SCAN_FAILED';
+     relayState.lastScanError=code;
+     await pool.query('UPDATE satori_v2_owner_push_feed_state SET last_error_code=$2 WHERE feed=$1',
+      ['invoices',code]).catch(()=>{});
+     console.warn('SATORI_OWNER_PUSH_SCAN_FAILED',code);
+    }
+    try{
+     await queueDeliveries(pool,ownerSub);
+     await dispatch(pool,ownerSub,sender);
+     relayState.lastDispatchAt=new Date().toISOString();relayState.lastDispatchError=null;
+    }catch{
+     relayState.lastDispatchError='PUSH_DISPATCH_FAILED';
+     console.warn('SATORI_OWNER_PUSH_DISPATCH_FAILED');
+    }
+   }while(again);
+  }finally{running=false}
+ };
+ const timer=setInterval(()=>{void tick()},intervalMs);
+ timer.unref?.();
+ const first=setTimeout(()=>{void tick()},1500);
+ first.unref?.();
+ relayState.started=true;
+ activeRelay={enabled:true,tick,
+  kick(){relayState.kicks++;setTimeout(()=>{void tick()},0).unref?.()},
+  async stop(){clearInterval(timer);clearTimeout(first);activeRelay=null;relayState.started=false}};
+ return activeRelay;
+}
+export const kickOwnerPushRelay=()=>{activeRelay?.kick()};
