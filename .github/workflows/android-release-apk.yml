@@ -93,6 +93,22 @@ jobs:
           printf '%s' "$SATORI_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/satori-release.jks"
           chmod 600 "$RUNNER_TEMP/satori-release.jks"
           echo "SATORI_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/satori-release.jks" >> "$GITHUB_ENV"
+      - name: Refuse a push-required release without public Firebase config
+        env:
+          SATORI_FCM_APP_ID: ${{ vars.SATORI_FCM_APP_ID }}
+          SATORI_FCM_API_KEY: ${{ vars.SATORI_FCM_API_KEY }}
+          SATORI_FCM_PROJECT_ID: ${{ vars.SATORI_FCM_PROJECT_ID }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          req = json.load(open("android/release-request.json"))
+          names = ["SATORI_FCM_APP_ID", "SATORI_FCM_API_KEY", "SATORI_FCM_PROJECT_ID"]
+          present = {n: bool(re.fullmatch(r"[A-Za-z0-9_:.-]{6,220}", os.environ.get(n, ""))) for n in names}
+          print("FCM public config present:", present)
+          if req.get("requiresFcm") is True and not all(present.values()):
+              missing = [n for n, ok in present.items() if not ok]
+              raise SystemExit("Release requires owner push but GitHub repository variables are missing: " + ", ".join(missing))
+          PY
       - name: Test and build signed RELEASE APK
         env:
           SATORI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.SATORI_ANDROID_KEYSTORE_PASSWORD }}
