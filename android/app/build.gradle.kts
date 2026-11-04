@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -20,8 +22,15 @@ android {
 
     // Public project settings only. A missing Firebase project disables FCM.
     defaultConfig {
+        // Committed PUBLIC identifiers (android/firebase-public.properties);
+        // an environment variable with the same name overrides the file.
+        val publicFirebase = Properties().apply {
+            val f = rootProject.file("firebase-public.properties")
+            if (f.isFile) f.inputStream().use { load(it) }
+        }
         fun fcmValue(name: String): String =
-            System.getenv(name).orEmpty().takeIf {
+            (System.getenv(name)?.takeIf { it.isNotBlank() }
+                ?: publicFirebase.getProperty(name).orEmpty()).trim().takeIf {
                 it.matches(Regex("[A-Za-z0-9_:.-]{0,220}"))
             } ?: ""
         fun quotedFcmValue(name: String): String =
