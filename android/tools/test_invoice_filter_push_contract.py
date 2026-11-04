@@ -14,7 +14,9 @@ class OwnerPushFilterTests(unittest.TestCase):
   self.assertNotIn('TỔNG TIỀN BÁN · HÓA ĐƠN HỢP LỆ',DETAIL)
   self.assertIn('salesRow.addView(salesSummary, LinearLayout.LayoutParams(0, dp(110), 1f)',DETAIL)
   self.assertIn('salesRow.addView(countSummary, LinearLayout.LayoutParams(0, dp(110), 1f)',DETAIL)
-  self.assertIn('salesAmount.setSingleLine(true)',DETAIL)
+  self.assertIn('fitCardNumber(salesAmount)',DETAIL)
+  self.assertIn('fitCardNumber(invoiceCount)',DETAIL)
+  self.assertNotIn('salesAmount.setSingleLine(true)',DETAIL)
  def test_chips_directly_filter_and_count(self):
   self.assertIn('selectedInvoiceStatusIndex = index',DETAIL)
   self.assertIn('refreshList()',DETAIL)
