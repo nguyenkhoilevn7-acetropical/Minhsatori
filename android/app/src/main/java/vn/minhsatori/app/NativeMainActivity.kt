@@ -755,6 +755,29 @@ class NativeMainActivity : AppCompatActivity() {
         return view
     }
 
+    /**
+     * Compact numerical values to the actual available card width.
+     *
+     * A TextView with setSingleLine(true) becomes horizontally scrollable on
+     * Android, so the platform auto-size engine measures an effectively
+     * infinite width and may clip the trailing digits of VND totals.
+     * maxLines=1 WITHOUT horizontal scrolling lets auto-size choose a font
+     * that fits the measured card (including compact Samsung/Fold layouts).
+     */
+    private fun fitCardNumber(view: TextView, maxSp: Int = 21, minSp: Int = 9) {
+        require(minSp in 1..maxSp)
+        view.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        view.maxLines = 1
+        view.setHorizontallyScrolling(false)
+        view.ellipsize = null
+        view.setAutoSizeTextTypeUniformWithConfiguration(
+            minSp, maxSp, 1, android.util.TypedValue.COMPLEX_UNIT_SP
+        )
+    }
+
     private fun panelBackground(color: Int = surface, radius: Int = 20): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
@@ -832,7 +855,7 @@ class NativeMainActivity : AppCompatActivity() {
             })
         }
         label(box, title, 11.5f, false, muted)
-        label(box, value, 18f, true, accent, 7)
+        fitCardNumber(label(box, value, 18f, true, accent, 7), maxSp = 18)
         box.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         parent.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
@@ -1220,8 +1243,9 @@ class NativeMainActivity : AppCompatActivity() {
             }
             card.addView(smallIcon, LinearLayout.LayoutParams(dp(36), dp(36)))
             label(card, title, 11f, false, softInk, 10)
-            label(card, value, if (value.length > 15) 17f else 19f, true,
+            val number = label(card, value, 19f, true,
                 if (title == "Công nợ phải thu") invoiceMoneyRed else tint, 6)
+            fitCardNumber(number, maxSp = 19)
             label(card, note, 10f, false, softInk, 6)
             return card
         }
@@ -3146,9 +3170,7 @@ class NativeMainActivity : AppCompatActivity() {
         label(salesSummary, "TỔNG TIỀN BÁN", 11f, true, softInk)
         val salesAmount = label(salesSummary, SatoriData.money(salesTotal),
             21f, true, invoiceMoneyRed, 5)
-        salesAmount.setSingleLine(true)
-        salesAmount.setAutoSizeTextTypeUniformWithConfiguration(
-            13, 21, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+        fitCardNumber(salesAmount)
         val countSummary = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(11), dp(14), dp(11))
@@ -3156,7 +3178,9 @@ class NativeMainActivity : AppCompatActivity() {
             elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
         }
         label(countSummary, "TỔNG HÓA ĐƠN", 11f, true, softInk)
-        label(countSummary, data.invoices.count { !it.isExcluded }.toString(), 21f, true, cyan, 5)
+        val invoiceCount = label(countSummary,
+            data.invoices.count { !it.isExcluded }.toString(), 21f, true, cyan, 5)
+        fitCardNumber(invoiceCount)
         val salesRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         // Fix the two statistic cards to the same height regardless of amount wrapping.
         salesRow.addView(salesSummary, LinearLayout.LayoutParams(0, dp(110), 1f).apply {
