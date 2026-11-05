@@ -12,7 +12,9 @@ class AccountingProMargin45Test {
         shipping:Long=0L,vat:Long=0L,
         pairRole:String="",pairGroup:String="",pairNo:String="",
         collaborator:String="",discount:Double?=null,
-        status:String="Chưa thanh toán",isTest:Boolean=false
+        status:String="Chưa thanh toán",isTest:Boolean=false,
+        ownerVatAmount:Long?=null,ownerVatPercent:Double?=null,
+        ownerVat:Boolean?=null,vatExempt:Boolean=false
     ) = SatoriInvoice(
         id=id,number=no,date=date,customer="DEMO",
         phone="0900000000",address="267F Thủ Đức",
@@ -20,21 +22,25 @@ class AccountingProMargin45Test {
         lines=listOf(SatoriLine("Suối",qty,"thùng",unitPrice,listPrice,code="SUOI")),
         deliveryNote="",customerPaidAt="",duplicateFrom="",
         pairRole=pairRole,pairGroupId=pairGroup,pairInvoiceNo=pairNo,
-        collaboratorId=collaborator,pairDiscountPercent=discount,isTest=isTest
+        collaboratorId=collaborator,pairDiscountPercent=discount,isTest=isTest,
+        ownerBorneVatAmount=ownerVatAmount,ownerBorneVatPercent=ownerVatPercent,
+        ownerBorneVat=ownerVat,vatExempt=vatExempt
     )
 
-    @Test fun supplier45PercentMeans55PercentCostAnd25PercentGross() {
+    @Test fun supplier45PercentAndOwnerBorneVatReduceActualMargin() {
         val row=AccountingProMargin45.calculate(listOf(invoice())).single()
         assertEquals(800_000L,row.saleGoodsVnd)
         assertEquals(550_000L,row.estimatedPurchaseVnd)
         assertEquals(0L,row.estimatedCtvCommissionVnd)
-        assertEquals(250_000L,row.estimatedOwnerMarginVnd)
+        assertEquals(80_000L,row.estimatedOwnerBorneVatVnd)
+        assertEquals(170_000L,row.estimatedOwnerMarginVnd)
     }
 
     @Test fun vatAndShippingNeverBecomeGoodsRevenueOrMargin() {
         val inv=invoice(total=880_000L,shipping=10_000L,vat=70_000L)
         val row=AccountingProMargin45.calculate(listOf(inv)).single()
         assertEquals(800_000L,row.saleGoodsVnd)
+        assertEquals(0L,row.estimatedOwnerBorneVatVnd)
         assertEquals(250_000L,row.estimatedOwnerMarginVnd)
     }
 
@@ -45,14 +51,16 @@ class AccountingProMargin45Test {
         val rows=AccountingProMargin45.calculate(listOf(buyer,internal))
         assertEquals(1,rows.size)
         assertEquals(150_000L,rows.single().estimatedCtvCommissionVnd)
-        assertEquals(100_000L,rows.single().estimatedOwnerMarginVnd)
+        assertEquals(80_000L,rows.single().estimatedOwnerBorneVatVnd)
+        assertEquals(20_000L,rows.single().estimatedOwnerMarginVnd)
     }
 
     @Test fun singleBillCtvDiscount35PercentCanProduceEstimate() {
         val row=AccountingProMargin45.calculate(listOf(
             invoice(collaborator="ctv1",discount=35.0))).single()
         assertEquals(150_000L,row.estimatedCtvCommissionVnd)
-        assertEquals(100_000L,row.estimatedOwnerMarginVnd)
+        assertEquals(80_000L,row.estimatedOwnerBorneVatVnd)
+        assertEquals(20_000L,row.estimatedOwnerMarginVnd)
     }
 
     @Test fun canceledCtvReferenceCannotProduceEstimatedCommission() {
@@ -99,7 +107,7 @@ class AccountingProMargin45Test {
             invoice(id="internal",no="5904",pairRole="collaborator")
         ))
         assertEquals(1,rows.size)
-        assertEquals(250_000L,rows.single().estimatedOwnerMarginVnd)
+        assertEquals(170_000L,rows.single().estimatedOwnerMarginVnd)
     }
 
     @Test fun duplicateNumbersCannotBeSummedAsOwnerProfit() {
@@ -119,12 +127,12 @@ class AccountingProMargin45Test {
         ))
         fun total(p:AccountingProMargin45Period)=
             AccountingProMargin45.summarize(rows,p).estimatedMarginKnownVnd
-        assertEquals(250_000L,total(AccountingProMargin45Period.day(LocalDate.of(2026,10,30))))
-        assertEquals(500_000L,total(AccountingProMargin45Period.month(2026,10)))
-        assertEquals(750_000L,total(AccountingProMargin45Period.year(2026)))
-        assertEquals(500_000L,total(AccountingProMargin45Period.custom(
+        assertEquals(170_000L,total(AccountingProMargin45Period.day(LocalDate.of(2026,10,30))))
+        assertEquals(340_000L,total(AccountingProMargin45Period.month(2026,10)))
+        assertEquals(510_000L,total(AccountingProMargin45Period.year(2026)))
+        assertEquals(340_000L,total(AccountingProMargin45Period.custom(
             LocalDate.of(2026,9,30),LocalDate.of(2026,10,29))))
-        assertEquals(1_000_000L,total(AccountingProMargin45Period.all()))
+        assertEquals(680_000L,total(AccountingProMargin45Period.all()))
     }
 
     @Test fun unavailableInvoicesReportCoverageRatherThanInflatingTotal() {
@@ -134,7 +142,7 @@ class AccountingProMargin45Test {
         assertEquals(2,summary.totalInvoiceCount)
         assertEquals(1,summary.computedInvoiceCount)
         assertEquals(1,summary.missingInvoiceCount)
-        assertEquals(250_000L,summary.estimatedMarginKnownVnd)
+        assertEquals(170_000L,summary.estimatedMarginKnownVnd)
         assertFalse(summary.fullyCovered)
     }
 
@@ -187,10 +195,10 @@ class AccountingProMargin45Test {
         val correct = AccountingProMargin45.calculate(listOf(bill),
             listOf(registered)).single()
         assertEquals(150_000L, correct.estimatedCtvCommissionVnd)
-        assertEquals(100_000L, correct.estimatedOwnerMarginVnd)
+        assertEquals(20_000L, correct.estimatedOwnerMarginVnd)
         // A regular customer with a different name must not inherit CTV rates.
         val unrelated = registered.copy(name="OTHER")
-        assertEquals(250_000L, AccountingProMargin45.calculate(listOf(bill),
+        assertEquals(170_000L, AccountingProMargin45.calculate(listOf(bill),
             listOf(unrelated)).single().estimatedOwnerMarginVnd)
         // Same-name duplicates are ambiguous even with different registered phones.
         val duplicate = registered.copy(id="ctv2",phone="0900000000")
@@ -200,9 +208,9 @@ class AccountingProMargin45Test {
         assertNotNull(unresolved.reason)
         // An explicit, verified CTV ID continues to support third-party buyers.
         val assigned = bill.copy(customer="CUSTOMER",collaboratorId=registered.id)
-        assertEquals(100_000L, AccountingProMargin45.calculate(listOf(assigned),
+        assertEquals(20_000L, AccountingProMargin45.calculate(listOf(assigned),
             listOf(registered)).single().estimatedOwnerMarginVnd)
-        assertEquals(250_000L, AccountingProMargin45.calculate(listOf(bill))
+        assertEquals(170_000L, AccountingProMargin45.calculate(listOf(bill))
             .single().estimatedOwnerMarginVnd) // Gross only if registry unavailable
     }
 
@@ -225,6 +233,69 @@ class AccountingProMargin45Test {
         val blocked=AccountingProMargin45.calculate(listOf(priceConflict),listOf(registered)).single()
         assertNull(blocked.estimatedOwnerMarginVnd)
         assertNotNull(blocked.reason)
+    }
+
+
+    @Test fun customerFundedVatOrShippingIsNotDoubleCharged() {
+        val vatBill=invoice(vat=64_000L,total=864_000L)
+        val shipBill=invoice(shipping=64_000L,total=864_000L)
+        for (bill in listOf(vatBill,shipBill)) {
+            val row=AccountingProMargin45.calculate(listOf(bill)).single()
+            assertEquals(0L,row.estimatedOwnerBorneVatVnd)
+            assertEquals(250_000L,row.estimatedOwnerMarginVnd)
+        }
+    }
+
+    @Test fun explicitExpenseAndExemptionOverrideFallbackInSameOrderAsWebsite() {
+        val base=invoice()
+        fun margin(i:SatoriInvoice)=AccountingProMargin45.calculate(listOf(i))
+            .single()
+        assertEquals(250_000L,margin(base.copy(ownerBorneVatAmount=0)).estimatedOwnerMarginVnd)
+        assertEquals(247_000L,margin(base.copy(ownerBorneVatAmount=3_000)).estimatedOwnerMarginVnd)
+        assertEquals(200_000L,margin(base.copy(ownerBorneVatPercent=5.0)).estimatedOwnerMarginVnd)
+        assertEquals(250_000L,margin(base.copy(ownerBorneVat=false)).estimatedOwnerMarginVnd)
+        assertEquals(250_000L,margin(base.copy(vatExempt=true)).estimatedOwnerMarginVnd)
+        assertEquals(250_000L,margin(base.copy(ownerBorneVatPercent=-5.0)).estimatedOwnerMarginVnd)
+        assertNull(margin(base.copy(ownerBorneVatPercent=Double.NaN)).estimatedOwnerMarginVnd)
+        assertEquals(247_000L,margin(base.copy(ownerBorneVatAmount=3_000,
+            vatExempt=true)).estimatedOwnerMarginVnd) // Explicit expense has priority
+    }
+
+    @Test fun eightPercentUsesListedPriceNotDiscountedSaleAndRoundsOnce() {
+        val bill=invoice(qty=1,listPrice=101,unitPrice=81,total=81)
+        val row=AccountingProMargin45.calculate(listOf(bill)).single()
+        assertEquals(8L,row.estimatedOwnerBorneVatVnd)
+        assertEquals(17L,row.estimatedOwnerMarginVnd) // 81 − round(55.55) − 8
+    }
+
+    @Test fun ctvAndOwnerBorneVatAreEachSubtractedExactlyOnce() {
+        val bill=invoice(collaborator="ctv1",discount=35.0)
+        val result=AccountingProMargin45.calculate(listOf(bill)).single()
+        assertEquals(150_000L,result.estimatedCtvCommissionVnd)
+        assertEquals(80_000L,result.estimatedOwnerBorneVatVnd)
+        assertEquals(20_000L,result.estimatedOwnerMarginVnd)
+        assertEquals(250_000L,result.saleGoodsVnd!! - result.estimatedPurchaseVnd!!)
+    }
+
+    @Test fun sourceParserReadsExplicitOwnerExpenseFlags() {
+        val row=org.json.JSONObject()
+            .put("id","invoice-a").put("invoiceNo",5901).put("date","30/10/2026")
+            .put("name","DEMO").put("total",800_000)
+            .put("items",org.json.JSONArray().put(org.json.JSONObject()
+                .put("product","Suối").put("qty",10)
+                .put("unitPrice",80_000).put("listPrice",100_000)))
+            .put("ownerBorneVatAmount",3_000).put("ownerBorneVatPercent",5)
+            .put("ownerBorneVat",false).put("vatExempt",true)
+        val state=org.json.JSONObject().put("revision",205)
+            .put("values",org.json.JSONObject()
+                .put("satori_orders_v15",org.json.JSONArray().put(row).toString()))
+        val parsed=SatoriData.fromDriveState(state.toString()).invoices.single()
+        assertEquals(3_000L,parsed.ownerBorneVatAmount)
+        assertEquals(5.0,parsed.ownerBorneVatPercent!!,0.00001)
+        assertEquals(false,parsed.ownerBorneVat)
+        assertTrue(parsed.vatExempt)
+        assertEquals(247_000L,AccountingProMargin45.calculate(listOf(parsed))
+            .single().estimatedOwnerMarginVnd)
     }
 
     @Test fun originalInvoiceObjectsAreNeverMutated() {
