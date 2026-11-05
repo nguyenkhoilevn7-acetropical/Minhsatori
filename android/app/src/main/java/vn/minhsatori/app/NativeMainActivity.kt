@@ -68,9 +68,9 @@ class NativeMainActivity : AppCompatActivity() {
     private val ink = Color.rgb(16, 43, 56)
     private val softInk = Color.rgb(102, 121, 130)
     private val cyan get() = SatoriUiTheme.accent(this)
-    private val night = Color.rgb(241, 244, 245)
+    private val night = Color.rgb(244, 249, 247)
     private val surface = Color.rgb(255, 255, 255)
-    private val indigo = Color.rgb(226, 246, 243)
+    private val indigo = Color.rgb(229, 248, 242)
     private var activeTab = 0
     private var activeInvoiceDialog: AlertDialog? = null
     private var showAdvancedOverview = false
@@ -778,11 +778,12 @@ class NativeMainActivity : AppCompatActivity() {
         )
     }
 
+    // V2: shared 2.5D surface strokes; preserve account-selected theme colors.
     private fun panelBackground(color: Int = surface, radius: Int = 20): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), Color.rgb(225, 233, 233))
+            setStroke(dp(1), Color.rgb(216, 234, 229))
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
@@ -792,8 +793,8 @@ class NativeMainActivity : AppCompatActivity() {
             textSize = 12f
             isAllCaps = false
             letterSpacing = 0f
-            minHeight = dp(40)
-            minimumHeight = dp(40)
+            minHeight = dp(44)
+            minimumHeight = dp(44)
             setPadding(dp(9), 0, dp(9), 0)
             stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
@@ -818,7 +819,7 @@ class NativeMainActivity : AppCompatActivity() {
             setOnClickListener { click() }
             elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(3).toFloat() else 0f
         }
-        parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
+        parent.addView(b, LinearLayout.LayoutParams(-1, dp(44)).apply {
             topMargin = dp(6)
         })
     }
@@ -827,8 +828,9 @@ class NativeMainActivity : AppCompatActivity() {
                         click: (() -> Unit)? = null) {
         val frame = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(15), dp(13), dp(15), dp(13))
             background = panelBackground()
+            clipToOutline = true
             if (click != null) {
                 isClickable = true
                 isFocusable = true
@@ -847,12 +849,13 @@ class NativeMainActivity : AppCompatActivity() {
                            accent: Int = cyan) {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(13), dp(14), dp(12), dp(14))
+            setPadding(dp(16), dp(15), dp(15), dp(15))
             background = panelBackground(when (accent) {
                 Color.rgb(16, 122, 78), Color.rgb(17, 133, 91) -> Color.rgb(227, 247, 238)
                 gold -> Color.rgb(255, 246, 223)
-                else -> Color.rgb(226, 247, 244)
+                else -> SatoriUiTheme.soft(this@NativeMainActivity)
             })
+            clipToOutline = true
         }
         label(box, title, 11.5f, false, muted)
         fitCardNumber(label(box, value, 18f, true, accent, 7), maxSp = 18)
@@ -1479,8 +1482,10 @@ class NativeMainActivity : AppCompatActivity() {
             background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                 intArrayOf(SatoriUiTheme.deep(this@NativeMainActivity), teal,
                     SatoriUiTheme.lighter(this@NativeMainActivity))).apply {
-                cornerRadius = dp(18).toFloat()
+                cornerRadius = dp(22).toFloat()
             }
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity))
+                dp(5).toFloat() else 0f
         }
         val menuButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_menu)
