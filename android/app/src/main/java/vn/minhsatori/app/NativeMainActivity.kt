@@ -2226,7 +2226,7 @@ class NativeMainActivity : AppCompatActivity() {
         val marginAll = AccountingProMargin45.summarize(
             marginRows, AccountingProMargin45Period.all())
         section(parent,
-            (if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) "TỔNG LỢI NHUẬN SAU CTV (ƯỚC TÍNH): "
+            (if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) "TỔNG LỢI NHUẬN SAU CTV & VAT CHỦ CHỊU (ƯỚC TÍNH): "
                 else "TỔNG LỢI NHUẬN · THIẾU HỒ SƠ CTV: ") +
                 (marginAll.estimatedMarginKnownVnd?.let(SatoriData::money)
                     ?: "Chưa đủ dữ liệu"),
@@ -3583,10 +3583,10 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(14),dp(12),dp(14),dp(16))
         }
         label(panel,if((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
-                "LỢI NHUẬN SAU CTV (ƯỚC TÍNH)"
+                "LỢI NHUẬN SAU CTV & VAT CHỦ CHỊU (ƯỚC TÍNH)"
             else "THIẾU HỒ SƠ CTV · CHƯA TÍNH LỢI NHUẬN",
             15f,true,ink)
-        label(panel,"Chỉ xem · Theo ngày lập hóa đơn · Chưa trừ chi phí vận hành",
+        label(panel,"Chỉ xem · Trừ VAT 8% chủ chịu nếu bill không thu VAT/ship · Chưa trừ vận hành",
             11f,false,softInk,6)
         val choices=listOf("Tất cả","Theo ngày","Theo tháng","Theo năm",
             "Khoảng tùy chỉnh")
@@ -3657,7 +3657,10 @@ class NativeMainActivity : AppCompatActivity() {
                     "\nHoa hồng CTV: " +
                     (row.estimatedCtvCommissionVnd?.let(SatoriData::money)
                         ?: "Chưa xác minh") +
-                    "\nLợi nhuận sau CTV ước tính: " +
+                    "\nVAT 8% chủ chịu: " +
+                    (row.estimatedOwnerBorneVatVnd?.let(SatoriData::money)
+                        ?: "Chưa xác minh") +
+                    "\nLợi nhuận sau CTV và VAT chủ chịu: " +
                     (row.estimatedOwnerMarginVnd?.let(SatoriData::money)
                         ?: "Chưa đủ dữ liệu") +
                     (row.reason?.let { "\nCần rà soát: " + it } ?: ""))
@@ -3873,7 +3876,7 @@ class NativeMainActivity : AppCompatActivity() {
         val known = report.margin.computedInvoiceCount
         val eligible = report.margin.totalInvoiceCount
         val unknown = report.margin.missingInvoiceCount
-        totalCard(if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) "Tổng lợi nhuận sau CTV"
+        totalCard(if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) "Lợi nhuận sau CTV & VAT"
             else "Lợi nhuận · thiếu hồ sơ CTV",
             report.margin.estimatedMarginKnownVnd?.let(SatoriData::money)
                 ?: "Chưa đủ dữ liệu",
@@ -3882,9 +3885,9 @@ class NativeMainActivity : AppCompatActivity() {
             Color.rgb(244, 250, 247))
         parent.addView(totals)
         label(parent, (if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
-            "Lợi nhuận sau hoa hồng CTV được đối chiếu từ hồ sơ đăng ký; "
+            "Lợi nhuận trừ hoa hồng CTV và VAT 8% chủ chịu khi không thu VAT/ship; "
             else "⚠ Mobile API chưa gửi hồ sơ CTV. Không hiển thị lãi gộp thành lợi nhuận; ") +
-            "ước tính theo giá nhập chiết khấu 45%, chưa trừ phí giao và vận hành.",
+            "ước tính theo giá nhập chiết khấu 45%, chưa trừ các chi phí vận hành khác.",
             10.5f, false, softInk, 6)
         if (debtProfitChoice != 0 && report.invalidDateDebtCount > 0)
             label(parent, report.invalidDateDebtCount.toString() +
