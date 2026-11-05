@@ -836,7 +836,7 @@ class NativeMainActivity : AppCompatActivity() {
                 setOnClickListener { click() }
             }
         }
-        label(frame, title, 13.5f, true, white)
+        label(frame, title, 13.5f, true, ink)
         label(frame, detail, 11.5f, false, softInk, 4)
         frame.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         parent.addView(frame, LinearLayout.LayoutParams(-1, -2).apply {
@@ -1218,7 +1218,7 @@ class NativeMainActivity : AppCompatActivity() {
                 background = GradientDrawable().apply {
                     setColor(Color.WHITE)
                     cornerRadius = dp(21).toFloat()
-                    setStroke(dp(1), Color.rgb(226, 235, 238))
+                    setStroke(dp(1), Color.rgb(216, 234, 229))
                 }
                 elevation = if (raised) dp(6).toFloat() else 0f
                 minimumHeight = dp(150)
@@ -1246,7 +1246,8 @@ class NativeMainActivity : AppCompatActivity() {
             card.addView(smallIcon, LinearLayout.LayoutParams(dp(36), dp(36)))
             label(card, title, 11f, false, softInk, 10)
             val number = label(card, value, 19f, true,
-                if (title == "Công nợ phải thu") invoiceMoneyRed else tint, 6)
+                if (title == "Công nợ phải thu" || title == "Tổng tiền bán")
+                    invoiceMoneyRed else tint, 6)
             fitCardNumber(number, maxSp = 19)
             label(card, note, 10f, false, softInk, 6)
             return card
@@ -2980,8 +2981,10 @@ class NativeMainActivity : AppCompatActivity() {
                                  fromDebt: Boolean = false) {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(13), dp(12), dp(13), dp(12))
-            background = panelBackground(Color.rgb(255, 255, 255), 16)
+            setPadding(dp(16), dp(15), dp(16), dp(15))
+            background = panelBackground(Color.rgb(255, 255, 255), 20)
+            clipToOutline = true
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
         }
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -2997,14 +3000,13 @@ class NativeMainActivity : AppCompatActivity() {
         val amount = TextView(this).apply {
             text = SatoriData.money(invoice.displayPayable)
             textSize = 15f
-            setTextColor(if (fromDebt) Color.rgb(181, 95, 6)
-                else Color.rgb(17, 133, 91))
+            setTextColor(invoiceMoneyRed)
             setTypeface(typeface, Typeface.BOLD)
             gravity = Gravity.END
         }
         top.addView(amount, LinearLayout.LayoutParams(-2, -2))
         card.addView(top)
-        label(card, "👤 " + invoice.customer, 14f, true, white, 9)
+        label(card, "👤 " + invoice.customer, 14f, true, ink, 9)
         infoStrip(card, "☎  " + invoice.phone.ifBlank { "Chưa có số điện thoại" },
             Color.rgb(18, 128, 88))
         infoStrip(card, "📍  " + invoice.address.ifBlank { "Chưa có địa chỉ" },
