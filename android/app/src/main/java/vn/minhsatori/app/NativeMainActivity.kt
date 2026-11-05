@@ -2981,10 +2981,8 @@ class NativeMainActivity : AppCompatActivity() {
                                  fromDebt: Boolean = false) {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(15), dp(16), dp(15))
-            background = panelBackground(Color.rgb(255, 255, 255), 20)
-            clipToOutline = true
-            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
+            setPadding(dp(13), dp(12), dp(13), dp(12))
+            background = panelBackground(Color.rgb(255, 255, 255), 16)
         }
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -3000,13 +2998,14 @@ class NativeMainActivity : AppCompatActivity() {
         val amount = TextView(this).apply {
             text = SatoriData.money(invoice.displayPayable)
             textSize = 15f
-            setTextColor(invoiceMoneyRed)
+            setTextColor(if (fromDebt) Color.rgb(181, 95, 6)
+                else Color.rgb(17, 133, 91))
             setTypeface(typeface, Typeface.BOLD)
             gravity = Gravity.END
         }
         top.addView(amount, LinearLayout.LayoutParams(-2, -2))
         card.addView(top)
-        label(card, "👤 " + invoice.customer, 14f, true, ink, 9)
+        label(card, "👤 " + invoice.customer, 14f, true, white, 9)
         infoStrip(card, "☎  " + invoice.phone.ifBlank { "Chưa có số điện thoại" },
             Color.rgb(18, 128, 88))
         infoStrip(card, "📍  " + invoice.address.ifBlank { "Chưa có địa chỉ" },
