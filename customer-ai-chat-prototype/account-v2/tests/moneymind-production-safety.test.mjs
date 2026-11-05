@@ -9,6 +9,8 @@ const files=[
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const withoutUi25d=html=>html
+ // Approved V2 redesign is a screen-only visual overlay, not a business delta.
+ .replace(/<style id="ms-v2-refresh-20261105">[\s\S]*?<\/style>/,'')
  .replace(/<style id="s25-ui-style">[\s\S]*?<\/style>/,'')
  .replace(/<template id="s25-ui-template">[\s\S]*?<\/template>/,'')
  .replace(/<script id="s25-ui-script">[\s\S]*?<\/script>/,'');
@@ -50,6 +52,8 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // Nov 2 reviewed a second motion-only Gemini Send confirmation entrypoint; applies
  // strictly after authenticated positive cart deltas. No API, quote or order changes.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
+ assert.equal((v2.match(/<style id="ms-v2-refresh-20261105">/g)||[]).length,1);
+ assert.match(v2,/<style id="ms-v2-refresh-20261105">[\s\S]*?@media screen/);
  const fnvPart=x=>fnv32(x);
  assert.equal(fnvPart(v2.match(/<style>[\s\S]*?<\/style>/)?.[0]||''),'62df041d');
  assert.equal(fnvPart(withoutUi25d(v2).replace(/<script>[\s\S]*?<\/script>/,'<script/>')),'d7c3f789');
