@@ -83,7 +83,12 @@ data class SatoriInvoice(
     val satoriPaidAt: String = "",
     // Only audit identifiers, never payment proofs/secrets, are retained in memory.
     val paymentAuditKeys: Set<String> = emptySet(),
-    val creationTimestampMillis: Long? = null
+    val creationTimestampMillis: Long? = null,
+    // Read-only expense evidence. No changes to the customer invoice total.
+    val ownerBorneVatAmount: Long? = null,
+    val ownerBorneVatPercent: Double? = null,
+    val ownerBorneVat: Boolean? = null,
+    val vatExempt: Boolean = false
 ) {
     val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
     val isCustomerPairBill: Boolean get() = pairRole == "customer"
@@ -294,7 +299,16 @@ object SatoriData {
                     !x.isNull("pairDiscountPercent"))
                     x.optDouble("pairDiscountPercent").takeIf { it.isFinite() } else null,
                 creationTimestampMillis = x.optLong("timestamp", 0L)
-                    .takeIf { it in 946684800000L..4102444799999L }
+                    .takeIf { it in 946684800000L..4102444799999L },
+                ownerBorneVatAmount = if (x.has("ownerBorneVatAmount") &&
+                    !x.isNull("ownerBorneVatAmount"))
+                    x.optLong("ownerBorneVatAmount", 0L) else null,
+                ownerBorneVatPercent = if (x.has("ownerBorneVatPercent") &&
+                    !x.isNull("ownerBorneVatPercent"))
+                    x.optDouble("ownerBorneVatPercent", Double.NaN) else null,
+                ownerBorneVat = if (x.has("ownerBorneVat") && !x.isNull("ownerBorneVat"))
+                    x.optBoolean("ownerBorneVat", true) else null,
+                vatExempt = x.optBoolean("vatExempt", false)
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
