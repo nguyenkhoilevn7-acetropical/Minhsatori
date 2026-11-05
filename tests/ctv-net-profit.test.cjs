@@ -82,3 +82,28 @@ test('website does not subtract commission twice in filtered sums',()=>{
 test('server-side and web collaborator accounting rules stay byte-identical',()=>{
  assert.equal(core.trimEnd(),server.trimEnd());
 });
+test('owner covers 8% of list price when neither VAT nor shipping is charged',()=>{
+ const o=invoice({name:'Lan Hồ',invoiceNo:5974,vatAmount:0,shippingAmount:0,
+  total:2991188,items:[{qty:1,listPrice:3519045,unitPrice:2991188}]});
+ assert.equal(C.ownerBorneCharge(o),281524);
+ assert.equal(net([o],[]),ctx.getOrderProfit(o)-281524);
+ assert.equal(o.total,2991188,'buyer invoice total must not change');
+});
+test('customer-funded VAT/ship, VAT exemption, explicit policy overrides avoid double deduction',()=>{
+ const o=invoice({name:'Lan Hồ',vatAmount:0,shippingAmount:0,
+   items:[{qty:1,listPrice:100000,unitPrice:85000}]});
+ assert.equal(C.ownerBorneCharge(o),8000);
+ assert.equal(C.ownerBorneCharge({...o,vatAmount:6800}),0);
+ assert.equal(C.ownerBorneCharge({...o,shippingAmount:6800}),0);
+ assert.equal(C.ownerBorneCharge({...o,vatExempt:true}),0);
+ assert.equal(C.ownerBorneCharge({...o,ownerBorneVat:false}),0);
+ assert.equal(C.ownerBorneCharge({...o,ownerBorneVatAmount:3000}),3000);
+ assert.equal(C.ownerBorneCharge({...o,ownerBorneVatPercent:5}),5000);
+ assert.equal(C.ownerBorneCharge({...o,status:'Đã hủy'}),0);
+});
+test('owner-covered VAT and CTV commission are each deducted exactly once',()=>{
+ const o=invoice({vatAmount:0,shippingAmount:0});
+ const commission=C.calculate([o],[ctv]).rows[0].profit;
+ const expected=ctx.getOrderProfit(o)-commission-C.ownerBorneCharge(o);
+ assert.equal(net([o],[ctv]),expected);
+});
