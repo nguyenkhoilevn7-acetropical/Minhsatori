@@ -931,7 +931,91 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
  @media (max-width:420px){.s25-picker-button.in-header{padding:8px;font-size:0}.s25-picker-button.in-header span{font-size:17px}}
  @media (prefers-reduced-motion:reduce){.s25-picker-button,.s25-depth button,.nav,.btn,.owner-tabs button,.mm-bottom-tab{transition:none!important}}
 }
-</style></head><body>
+</style><style id="ms-v2-refresh-20261105">
+
+/* Minh Satori V2 redesign • visual-only overlay; business logic is unchanged. */
+@media screen {
+  :root {
+    --ms-v2-forest:#075a57; --ms-v2-teal:#078f88; --ms-v2-mint:#e7f8f2;
+    --ms-v2-outline:#dcebe7; --ms-v2-ink:#17393f; --ms-v2-muted:#627a80;
+    --ms-v2-shadow:0 3px 7px rgba(13,61,64,.035),0 16px 34px rgba(13,61,64,.09);
+    --ms-v2-soft-shadow:0 3px 14px rgba(13,61,64,.055);
+    --bg:#f4f8f7; --ink:var(--ms-v2-ink); --sub:var(--ms-v2-muted);
+    --edge:var(--ms-v2-outline); --blue:var(--ms-v2-teal);
+    --blueSoft:var(--ms-v2-mint);
+  }
+  html,body {background:radial-gradient(ellipse at 12% -10%,#e4faf2 0,transparent 36%),#f4f8f7}
+  #app {max-width:1120px;background:#f9fcfb;box-shadow:0 12px 56px rgba(22,68,70,.12)}
+  #app>header {
+    background:linear-gradient(112deg,rgba(255,255,255,.97),rgba(231,249,244,.96))!important;
+    border-bottom:1px solid #d8ebe6!important;color:var(--ms-v2-ink)!important;
+    box-shadow:0 5px 18px rgba(7,98,89,.075)!important;
+  }
+  #app>header .brand :is(strong,small){color:var(--ms-v2-ink)!important}
+  #app>header .brand small{color:var(--ms-v2-muted)!important}
+  #app>header :is(.hamburger,.round,.header-icon),
+  #app>header .s25-picker-button.in-header{
+    background:#ffffffd9!important;color:var(--ms-v2-forest)!important;
+    border:1px solid #cce5de!important;box-shadow:var(--ms-v2-soft-shadow);
+  }
+  #app>header .hamburger span{background:var(--ms-v2-forest)!important}
+  #drawer.drawer {
+    left:auto!important;right:0!important;
+    background:linear-gradient(180deg,#ffffff,#f0faf7)!important;
+    border-left:1px solid var(--ms-v2-outline)!important;
+    box-shadow:-14px 0 40px rgba(20,60,66,.16)!important;
+  }
+  body:not(.menu-open) #drawer.drawer{transform:translateX(105%)!important}
+  body.menu-open #drawer.drawer{transform:translateX(0)!important}
+  #drawer .nav{border:1px solid transparent}
+  #drawer .nav.active{border-color:#c8e8df!important;background:var(--ms-v2-mint)!important}
+  #gate{background:#fff;border:1px solid var(--ms-v2-outline);border-radius:26px;box-shadow:var(--ms-v2-shadow);margin-block:auto}
+  .intro{background:linear-gradient(120deg,#f0fbf7,#fff 75%);border-bottom:1px solid #e2f0eb;padding:18px}
+  .ai-avatar{background:linear-gradient(145deg,#056a66,#23bba4);border-radius:17px;box-shadow:0 6px 14px rgba(17,153,139,.21)}
+  #messages{background:radial-gradient(circle at 85% 0,#eef9f5 0,transparent 38%),linear-gradient(#f9fcfc,#fff);padding:clamp(12px,2.6vw,22px)}
+  .chat-help{box-shadow:var(--ms-v2-soft-shadow);border-color:var(--ms-v2-outline)}
+  .bubble.ai{background:#edf1f2;color:#24363a}
+  .bubble.me{background:#1778db}
+  .composer{background:rgba(255,255,255,.98);border-top:1px solid #dceae8;box-shadow:0 -4px 18px rgba(14,74,73,.04);gap:10px}
+  .composer textarea{border:1px solid #d7e6e3;background:#f6faf9;border-radius:17px;min-height:44px}
+  .composer textarea:focus{border-color:#12a69a;box-shadow:0 0 0 3px #1ebaa519}
+  :is(.panel,.cart-panel,.delivery-panel,.invoice-order-card,.chat-order-receipt,.invoice-filters,.invoice-document){
+    border:1px solid #e2edeb!important;border-radius:21px!important;
+    background:#fff!important;box-shadow:var(--ms-v2-shadow)!important;
+  }
+  .invoice-order-card{position:relative;overflow:hidden}
+  .invoice-order-card:before{content:'';position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(#15bca6,#068984)}
+  .delivery-panel,.delivery-inline-editor{background:linear-gradient(180deg,#f7fcfa,#fff)!important}
+  .checkout-submit:not(:disabled),.btn.primary:not(:disabled),.product-add:not(:disabled){
+    background:linear-gradient(120deg,#056a67,#0caaa0)!important;color:#fff!important;
+    box-shadow:0 8px 18px rgba(0,135,124,.19)!important;
+  }
+  .checkout-submit:disabled{box-shadow:none!important}
+  .mm-bottom-tab.active{color:#007d78!important}
+  .invoice-document{max-width:940px!important}
+  .invoice-detail-final{color:#b42335}
+  .delivery-prompt{border-color:#b5e2d8;background:#effaf6;color:#08695f}
+  :is(button,input,textarea,select,a):focus-visible{outline:3px solid #25a99c!important;outline-offset:2px}
+  #catalogueView .panel,#addressesView .panel,#ordersView .panel{max-width:1020px}
+}
+@media screen and (min-width:900px){
+  #cartView.view:not(.hidden){display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:18px;padding:20px}
+  #cartView>.panel{min-width:0;margin:0}
+  #messages{padding-inline:max(28px,calc((100% - 820px)/2))}
+  .composer{padding-inline:max(18px,calc((100% - 850px)/2))}
+}
+@media screen and (max-width:600px){
+  #app{box-shadow:none}
+  .intro{padding:14px 15px}
+  #gate{margin:12px;border-radius:20px;padding:25px 16px}
+  .composer{padding-bottom:max(10px,env(safe-area-inset-bottom))}
+  .invoice-document{border-radius:16px!important}
+}
+@media screen and (prefers-reduced-motion:reduce){
+  #drawer.drawer, .composer button, .invoice-order-card{transition:none!important}
+}
+
+</head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
 <div class="drawer-brand" id="drawerBrand"><h2>Minh Satori</h2></div>
