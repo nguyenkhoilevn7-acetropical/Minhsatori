@@ -58,7 +58,7 @@ class OwnerExcelExportTest {
         assertTrue(debt.contains("<c r=\"H2\" s=\"2\"><v>800000</v></c>"))
         assertTrue(report.contains("<f>SUM('Hoa don'!H2:H4)</f><v>1600000</v>"))
         assertTrue(report.contains("<f>SUM('Cong no'!H2:H3)</f><v>800000</v>"))
-        assertTrue(profit.contains("250000"))
+        assertTrue(profit.contains("170000"))
         assertFalse(profit.contains("5903"))
     }
 
