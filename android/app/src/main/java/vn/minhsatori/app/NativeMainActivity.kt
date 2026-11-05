@@ -609,10 +609,9 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
             }
             background = if (main) {
-                GradientDrawable().apply {
+                GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(Color.rgb(6, 105, 103), Color.rgb(13, 170, 152))).apply {
                     // V2: restrained mint-to-teal depth, no change to business actions.
-                    orientation = GradientDrawable.Orientation.LEFT_RIGHT
-                    colors = intArrayOf(Color.rgb(6, 105, 103), Color.rgb(13, 170, 152))
                     cornerRadius = dp(15).toFloat()
                 }
             } else panelBackground(if (danger) Color.rgb(255, 243, 243)
