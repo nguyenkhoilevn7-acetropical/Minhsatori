@@ -10,6 +10,20 @@ const items=o=>o.items?.length?o.items:[o];
 const goods=o=>items(o).reduce((s,i)=>s+number(i.qty)*number(i.unitPrice),0);
 const listed=o=>items(o).reduce((s,i)=>s+number(i.qty)*number(i.listPrice),0);
 const total=o=>o.total!==undefined?number(o.total):goods(o)+number(o.shippingAmount)+number(o.vatAmount);
+// Owner absorbs an internal 8% charge when the customer invoice has neither
+// VAT nor delivery fee. It is NEVER an extra customer charge. The 8% is
+// measured on the same listed-price basis as the visible discount.
+// Explicit false/zero disables the fallback for exempt or reconciled orders.
+function ownerBorneCharge(o){
+ if(!o||!active(o))return 0;
+ if(o.ownerBorneVatAmount!==undefined&&o.ownerBorneVatAmount!==null)
+  return Math.max(0,Math.round(number(o.ownerBorneVatAmount)));
+ if(o.ownerBorneVatPercent!==undefined&&o.ownerBorneVatPercent!==null)
+  return Math.round(listed(o)*Math.max(0,number(o.ownerBorneVatPercent))/100);
+ if(o.ownerBorneVat===false||o.vatExempt===true)return 0;
+ if(number(o.vatAmount)>0||number(o.shippingAmount)>0)return 0;
+ return Math.round(listed(o)*0.08);
+}
 function basket(o){
  const map=new Map();
  for(const i of items(o)){
@@ -194,7 +208,7 @@ function paymentGroup(all,ids,{id,target,markPaid=true,receipt=null,at,scope=''}
  });
 }
 
-root.SatoriAccountingCore={key,norm,number,active,statusClass,paid,resolveReceipt,preserveReceiptAssets,customerMatches,paymentGroup,items,goods,listed,total,basket,pairOrders,calculate,groupCompanyRows,addressSimilarity,identityMatch};
+root.SatoriAccountingCore={key,norm,number,active,statusClass,paid,resolveReceipt,preserveReceiptAssets,customerMatches,paymentGroup,items,goods,listed,total,ownerBorneCharge,basket,pairOrders,calculate,groupCompanyRows,addressSimilarity,identityMatch};
 })(typeof window!=='undefined'?window:globalThis);
 
 
