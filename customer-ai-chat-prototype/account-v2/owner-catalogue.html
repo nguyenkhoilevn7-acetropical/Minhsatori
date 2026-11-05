@@ -767,7 +767,98 @@ body{font-size:14px;line-height:1.42}
 .owner-header #refresh[hidden]{display:none!important}
 .owner-header #refresh:disabled{opacity:.55;cursor:wait}
 @media(max-width:420px){.owner-header #refresh{width:40px;height:40px}}
-</style></head>
+</style><style id="ms-v2-refresh-20261105">
+
+/* Minh Satori V2 • owner administration design layer; data/actions stay authoritative. */
+@media screen {
+  :root{
+    --ms-v2-forest:#075a57;--ms-v2-teal:#078f88;--ms-v2-mint:#e7f8f2;
+    --ms-v2-line:#d9eae6;--ms-v2-ink:#193940;
+    --ms-v2-depth:0 3px 8px rgba(10,57,61,.04),0 16px 32px rgba(10,57,61,.09);
+    --bg:#f3f8f7;--ink:#193940;--sub:#617980;--line:var(--ms-v2-line);
+    --blue:#078f88;--pale:var(--ms-v2-mint);
+  }
+  body{background:radial-gradient(ellipse at 5% 0,#e2f8ef,transparent 37%),#f3f8f7}
+  main{width:min(1280px,100%);padding:16px clamp(12px,2.5vw,30px) 48px}
+  header.owner-header{
+    display:flex;gap:14px;min-height:98px;padding:19px 22px!important;
+    border:1px solid #086d67!important;border-radius:24px;
+    background:linear-gradient(110deg,#064f52 0%,#087c73 58%,#18ac98 100%)!important;
+    color:#fff!important;box-shadow:0 13px 28px rgba(6,93,84,.18)!important;
+    margin-bottom:16px;
+  }
+  .owner-header .owner-brand :is(h1,small){color:#fff!important}
+  .owner-header .owner-mark,.owner-header .owner-back{
+    background:rgba(255,255,255,.17)!important;color:#fff!important;
+    border:1px solid rgba(255,255,255,.34)!important;
+  }
+  .owner-header #refresh{background:rgba(255,255,255,.17)!important;color:#fff!important}
+  .owner-tabs{
+    position:sticky;top:0;z-index:18;gap:10px;padding:11px 4px 12px;
+    background:rgba(243,248,247,.93);backdrop-filter:blur(14px);
+    border-bottom:1px solid #dcebe7;scroll-snap-type:x proximity;
+  }
+  .owner-tabs button{
+    min-height:53px;border-radius:15px;background:#fff!important;color:#26464a!important;
+    border:1px solid var(--ms-v2-line)!important;box-shadow:0 2px 9px rgba(8,63,61,.06)!important;
+    scroll-snap-align:start;
+  }
+  body .owner-tabs button[aria-selected="true"]{
+    color:#fff!important;background:linear-gradient(115deg,#056d69,#11ab99)!important;
+    border-color:#078e83!important;box-shadow:0 8px 19px rgba(6,122,111,.19)!important;
+  }
+  :is(#console,#crmConsole,#legacyConsole,.card,.crm-entry,.metric,.crm-status-group,.crm-ctv-summary){
+    border:1px solid var(--ms-v2-line)!important;border-radius:20px!important;
+    box-shadow:var(--ms-v2-depth)!important;
+  }
+  :is(#console,#crmConsole,#legacyConsole){background:linear-gradient(180deg,#fff,#fcfefd);padding:clamp(15px,2.1vw,26px)!important}
+  .card{background:#fff}
+  .metric{min-height:96px;padding:18px;background:linear-gradient(145deg,#f7fcfa,#ffffff)}
+  .metric strong{font-size:clamp(21px,2vw,28px);color:#124c4b}
+  .metric small{font-weight:700}
+  .crm-entry{background:#fff!important;min-height:0;padding:17px!important}
+  .crm-entry.new-account{
+    border-left:5px solid #e5a146!important;
+    background:linear-gradient(105deg,#fffaf0,#fff 48%)!important;
+  }
+  .crm-entry .crm-customer-name{color:#142f35;font-weight:850}
+  .crm-entry .crm-customer-contact,.crm-entry .crm-customer-address{color:#46666b;line-height:1.55}
+  .crm-alerts{background:linear-gradient(110deg,#e5f7f1,#f6fcf9);border-color:#c9e6da;border-radius:17px}
+  .crm-stage{color:#16413f}
+  .crm-stage.pending .crm-stage-count{background:#fff1dd;color:#a05e0a}
+  .crm-status-group[open]{border-color:#9bd4ca!important}
+  .crm-status-group>summary{min-height:52px}
+  :is(.field-grid input,.field-grid textarea,.field-grid select,.crm-controls input,.crm-controls select){
+    border-radius:13px;min-height:45px;background:#fbfefd;border-color:#d6e6e3;
+  }
+  :is(button,input,select,textarea,a):focus-visible{outline:3px solid #1db9a6!important;outline-offset:2px}
+  button:not(:disabled):active{transform:translateY(1px)}
+  button:not(.secondary):not(.danger){background:linear-gradient(115deg,#087a73,#109d91);color:#fff}
+  .actions{gap:11px}
+  .crm-select-tools{background:#eff9f6;border:1px solid #d8eee7}
+  .crm-profit{background:#e7f8f0;border:1px solid #ccebdc;color:#08674e}
+  #crmCustomers{overflow:visible;max-height:none}
+}
+@media screen and (min-width:920px){
+  #console .metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .crm-controls{gap:16px}
+}
+@media screen and (max-width:620px){
+  main{padding:10px 11px 30px}
+  header.owner-header{padding:13px 12px!important;border-radius:17px;min-height:78px}
+  .owner-brand h1{font-size:17px}
+  .owner-brand small{font-size:10px}
+  .owner-tabs{padding:9px 0;gap:7px}
+  .owner-tabs button{min-height:48px;padding:8px 12px}
+  :is(#crmConsole,#legacyConsole,#console){padding:13px!important;border-radius:17px!important}
+  .crm-entry{padding:13px!important}
+  .metric{min-height:80px}
+}
+@media screen and (prefers-reduced-motion:reduce){
+  .owner-tabs button,.crm-entry,button{transition:none!important}
+}
+
+</head>
 <body>
 <main>
 <header class="owner-header">
