@@ -1,10 +1,10 @@
 {
-  "purpose": "android-owner-fcm-push-e2e-20261103",
+  "purpose": "android-v055-redesign-2-5d-owner-ui-and-fcm-20261105",
   "package": "vn.minhsatori.app",
   "version": "0.4.55",
   "versionCode": 72,
   "branch": "fix/android-invoice-notification-open-20261101",
-  "requestedOn": "2026-11-04",
+  "requestedOn": "2026-11-05",
   "sourcePRs": [
     240,
     241,
@@ -48,9 +48,10 @@
     368,
     370,
     374,
-    377
+    377,
+    387
   ],
-  "scope": "Owner push end-to-end: FCM token registration with response handling, onNewToken re-registration job, deviceId-bound server registry, single notification per invoice (FCM and in-app dedupe), lock-screen privacy, revoke on bell off, push diagnostics panel and server synthetic test push. No invoice, payment, VAT, shipping or ledger changes.",
+  "scope": "Signed owner acceptance release v0.4.55 Build72 with 2.5D native UI cards, accessible controls, shared theme tokens, clear financial KPI color and retained existing owner FCM. All production invoice, payment, PDF, CTV commission, security and historical data routines preserved. In-place update only; existing pinned release signing identity is mandatory.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -114,7 +115,8 @@
     "2026-11-03: PR #374 merged after Android debug/unit, outbox emulator and UI screenshot PASS. Signed v0.4.53 Build70 acceptance candidate: export XLSX to user-selected device document, no cache or server write. Preserve original pinned signer, no debug APK distribution. Validate certificate/package/sha, then owner Samsung install & Excel opening. Profit is estimate only; missing CTV data remains blank. No production API or ledger writes.",
     "2026-11-03: PR #377 passed debug build, Kotlin percentage unit tests, Python Android UI contract checks and isolated outbox emulator PASS. v0.4.54 Build71 is a signed owner acceptance build using original pinned certificate and package vn.minhsatori.app. Only percent UI and exact VND amount calculation; no live invoice edits, server schema, Gemini, payment status or data migration. On physical Samsung, owner must verify edited VAT/Shipping % preview and save to authorized real invoice manually only after acceptance.",
     "2026-11-03: v0.4.55 build72 REQUIRES public Firebase vars (SATORI_FCM_APP_ID/API_KEY/PROJECT_ID). Root cause of no push in v0.4.54: these vars were empty in the signed build log, so SatoriPush.configured() was false and FCM never initialised; and V2 production had no /api/v2/admin/push/device endpoint. Release workflow now refuses to build when requiresFcm is true and vars are missing. Acceptance requires the in-app 'Gửi thử' synthetic push and one fake/staging order reaching a physical Samsung with the app closed.",
-    "2026-11-04: Firebase project minh-satori-app (858399143038) created; Android app vn.minhsatori.app registered (appId 1:858399143038:android:55b034e9c742271af6d42f). Public identifiers committed in android/firebase-public.properties (repository variables override). FCM server credential is a separate service account kept only in Render secrets. Signed v0.4.55 build72 must show Firebase Configured in the in-app push diagnostics."
+    "2026-11-04: Firebase project minh-satori-app (858399143038) created; Android app vn.minhsatori.app registered (appId 1:858399143038:android:55b034e9c742271af6d42f). Public identifiers committed in android/firebase-public.properties (repository variables override). FCM server credential is a separate service account kept only in Render secrets. Signed v0.4.55 build72 must show Firebase Configured in the in-app push diagnostics.",
+    "2026-11-05: Owner requested Android parity with deployed website owner interface. PR #387 merged to official Android release branch, scoped UI only, business routines protected by immutable checksum; Android tests and screenshot validation required. Release v0.4.55 code72 must use the same pinned official certificate as v0.4.54; requires FCM public identifiers. APK must not be presented as installable until signed CI verifies package/version/certificate."
   ],
   "requiresFcm": true
 }
