@@ -67,9 +67,9 @@ class NativeMainActivity : AppCompatActivity() {
     private val ink = Color.rgb(16, 43, 56)
     private val softInk = Color.rgb(102, 121, 130)
     private val cyan = Color.rgb(0, 156, 153)
-    private val night = Color.rgb(241, 244, 245)
+    private val night = Color.rgb(244, 249, 247)
     private val surface = Color.rgb(255, 255, 255)
-    private val indigo = Color.rgb(226, 246, 243)
+    private val indigo = Color.rgb(226, 247, 240)
     private var activeTab = 0
     private var activeInvoiceDialog: AlertDialog? = null
     private var showAdvancedOverview = false
@@ -577,11 +577,12 @@ class NativeMainActivity : AppCompatActivity() {
         return view
     }
 
-    private fun panelBackground(color: Int = surface, radius: Int = 16): GradientDrawable =
+    // V2: softly raised iOS-light surfaces share a consistent stroke and corner system.
+    private fun panelBackground(color: Int = surface, radius: Int = 19): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), Color.rgb(225, 233, 233))
+            setStroke(dp(1), Color.rgb(217, 233, 228))
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
@@ -591,8 +592,8 @@ class NativeMainActivity : AppCompatActivity() {
             textSize = 12f
             isAllCaps = false
             letterSpacing = 0f
-            minHeight = dp(40)
-            minimumHeight = dp(40)
+            minHeight = dp(44)
+            minimumHeight = dp(44)
             setPadding(dp(9), 0, dp(9), 0)
             stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
@@ -609,15 +610,16 @@ class NativeMainActivity : AppCompatActivity() {
             }
             background = if (main) {
                 GradientDrawable().apply {
-                    // MoneyMind flat design: solid teal, no gradients.
-                    setColor(Color.rgb(0, 156, 153))
-                    cornerRadius = dp(14).toFloat()
+                    // V2: restrained mint-to-teal depth, no change to business actions.
+                    orientation = GradientDrawable.Orientation.LEFT_RIGHT
+                    colors = intArrayOf(Color.rgb(6, 105, 103), Color.rgb(13, 170, 152))
+                    cornerRadius = dp(15).toFloat()
                 }
             } else panelBackground(if (danger) Color.rgb(255, 243, 243)
                 else Color.rgb(233, 248, 245), 14)
             setOnClickListener { click() }
         }
-        parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
+        parent.addView(b, LinearLayout.LayoutParams(-1, dp(44)).apply {
             topMargin = dp(6)
         })
     }
@@ -626,8 +628,10 @@ class NativeMainActivity : AppCompatActivity() {
                         click: (() -> Unit)? = null) {
         val frame = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(15), dp(13), dp(15), dp(13))
             background = panelBackground()
+            elevation = dp(3).toFloat()
+            clipToOutline = true
             if (click != null) {
                 isClickable = true
                 isFocusable = true
@@ -647,10 +651,12 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(14), dp(12), dp(14))
             background = panelBackground(when (accent) {
-                Color.rgb(16, 122, 78), Color.rgb(17, 133, 91) -> Color.rgb(227, 247, 238)
-                gold -> Color.rgb(255, 246, 223)
-                else -> Color.rgb(226, 247, 244)
+                Color.rgb(16, 122, 78), Color.rgb(17, 133, 91) -> Color.rgb(233, 249, 242)
+                gold -> Color.rgb(255, 248, 234)
+                else -> Color.rgb(232, 248, 245)
             })
+            elevation = dp(2).toFloat()
+            clipToOutline = true
         }
         label(box, title, 11.5f, false, muted)
         label(box, value, 18f, true, accent, 7)
@@ -911,7 +917,20 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(7), dp(8), dp(7), dp(8))
-            background = panelBackground(if (activeTab == 0) teal else Color.WHITE, 18)
+            background = if (activeTab == 0) {
+                GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(Color.rgb(5, 83, 82), Color.rgb(7, 143, 136),
+                        Color.rgb(39, 177, 156))).apply {
+                    cornerRadius = dp(20).toFloat()
+                }
+            } else {
+                GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(Color.WHITE, Color.rgb(238, 250, 247))).apply {
+                    cornerRadius = dp(20).toFloat()
+                    setStroke(dp(1), Color.rgb(216, 233, 227))
+                }
+            }
+            elevation = dp(4).toFloat()
         }
         val menuButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_menu)
