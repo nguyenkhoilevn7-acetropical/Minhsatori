@@ -103,7 +103,18 @@ jobs:
           import json, os, re
           req = json.load(open("android/release-request.json"))
           names = ["SATORI_FCM_APP_ID", "SATORI_FCM_API_KEY", "SATORI_FCM_PROJECT_ID"]
-          present = {n: bool(re.fullmatch(r"[A-Za-z0-9_:.-]{6,220}", os.environ.get(n, ""))) for n in names}
+          # Same precedence as Gradle: repository variable, else the committed
+          # PUBLIC android/firebase-public.properties (never a server key).
+          committed = {}
+          if os.path.isfile("android/firebase-public.properties"):
+              for line in open("android/firebase-public.properties", encoding="utf-8"):
+                  line = line.strip()
+                  if line and not line.startswith("#") and "=" in line:
+                      k, v = line.split("=", 1)
+                      committed[k.strip()] = v.strip()
+          value = lambda n: os.environ.get(n, "").strip() or committed.get(n, "")
+          present = {n: bool(re.fullmatch(r"[A-Za-z0-9_:.-]{6,220}", value(n))) for n in names}
+          assert not any(k in committed for k in ("SATORI_FCM_SERVICE_ACCOUNT_JSON", "private_key")), "server credential must never be committed"
           print("FCM public config present:", present)
           if req.get("requiresFcm") is True and not all(present.values()):
               missing = [n for n, ok in present.items() if not ok]
