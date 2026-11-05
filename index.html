@@ -4309,8 +4309,9 @@ document.documentElement.classList.add('satori-light-review');
             return Math.round(goods - Math.round(list * (1 - pct / 100)));
         }
 
-        // Owner-facing margin: merchandise revenue minus factory cost minus CTV commission.
-        // Never include VAT / delivery fees or internal CTV mirror invoices in owner profit.
+        // Owner margin excludes customer VAT/shipping collected as pass-through.
+        // Owner-borne 8% on listed goods is an INTERNAL cost, never added to
+        // customer invoices. Explicit overrides/exemptions are in AccountingCore.
         function getOrderNetProfit(o, row=null) {
             const gross=getOrderProfit(o);
             if (!o || ['Đã hủy','Không Tính'].includes(o.status)) return 0;
@@ -4319,7 +4320,8 @@ document.documentElement.classList.add('satori-light-review');
                 row=rows.find(r=>SatoriAccountingCore.key(r.order)===SatoriAccountingCore.key(o));
             }
             if(row?.secondary||o.pairRole==='collaborator')return 0;
-            return Math.round(gross-(row?.eligible?row.profit:0));
+            const ownerBorneVat=SatoriAccountingCore.ownerBorneCharge(o);
+            return Math.round(gross-(row?.eligible?row.profit:0)-ownerBorneVat);
         }
 
         function syncPaymentStatusStyle(select=document.getElementById('paymentStatus')) {
