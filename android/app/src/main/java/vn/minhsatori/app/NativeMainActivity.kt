@@ -68,7 +68,7 @@ class NativeMainActivity : AppCompatActivity() {
     private val ink = Color.rgb(16, 43, 56)
     private val softInk = Color.rgb(102, 121, 130)
     private val cyan get() = SatoriUiTheme.accent(this)
-    private val night = Color.rgb(244, 249, 247)
+    private val night = Color.rgb(241, 244, 245)
     private val surface = Color.rgb(255, 255, 255)
     private val indigo = Color.rgb(229, 248, 242)
     private var activeTab = 0
