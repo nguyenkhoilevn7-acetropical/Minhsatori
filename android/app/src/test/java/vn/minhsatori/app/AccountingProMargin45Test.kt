@@ -279,7 +279,7 @@ class AccountingProMargin45Test {
 
     @Test fun sourceParserReadsExplicitOwnerExpenseFlags() {
         val row=org.json.JSONObject()
-            .put("id","row-a").put("invoiceNo",5901).put("date","30/10/2026")
+            .put("id","invoice-a").put("invoiceNo",5901).put("date","30/10/2026")
             .put("name","DEMO").put("total",800_000)
             .put("items",org.json.JSONArray().put(org.json.JSONObject()
                 .put("product","Suối").put("qty",10)
