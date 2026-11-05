@@ -1,14 +1,18 @@
 package vn.minhsatori.app
 
+import java.math.BigDecimal
 import java.math.BigInteger
+import java.math.RoundingMode
 import java.time.LocalDate
 
 /**
  * Owner-only estimate from historically stored invoice item list prices.
  * Supplier agreement: 45% off listed price, so the purchase BASIS is 55%.
  *
- * Estimate is NOT net profit: excludes shipping expenses, overhead, taxes,
- * rebates/returns and any unbooked CTV liability. Never sends financial writes.
+ * Estimate deducts recorded CTV commission and owner-borne 8% VAT when
+ * neither VAT nor shipping is charged to the customer, on LISTED prices.
+ * Other unrecorded operating expenses/charges are still excluded.
+ * Read-only accounting: never changes the invoice or sends financial writes.
  */
 data class AccountingProMargin45Row(
     val invoice: SatoriInvoice,
@@ -16,7 +20,8 @@ data class AccountingProMargin45Row(
     val estimatedPurchaseVnd: Long?,
     val estimatedCtvCommissionVnd: Long?,
     val estimatedOwnerMarginVnd: Long?,
-    val reason: String? = null
+    val reason: String? = null,
+    val estimatedOwnerBorneVatVnd: Long? = null
 )
 data class AccountingProMargin45Period(
     val title: String,
@@ -97,6 +102,26 @@ object AccountingProMargin45 {
         listed.multiply(BigInteger.valueOf((100-percent).toLong()))
             .add(BigInteger.valueOf(50L)).divide(HUNDRED)
 
+    // Mirrors accounting-core.js ownerBorneCharge for the same immutable invoice.
+    // Overrides take precedence even when VAT/shipping were charged or exempted.
+    // Compute in arbitrary precision to avoid accidental overflow or truncation.
+    private fun ownerBorneCharge(invoice: SatoriInvoice, listed: BigInteger): BigInteger? {
+        invoice.ownerBorneVatAmount?.let {
+            return BigInteger.valueOf(it.coerceAtLeast(0L))
+        }
+        invoice.ownerBorneVatPercent?.let { percent ->
+            if (!percent.isFinite()) return null
+            return BigDecimal(listed)
+                .multiply(BigDecimal.valueOf(percent.coerceAtLeast(0.0)))
+                .divide(BigDecimal.valueOf(100L), 0, RoundingMode.HALF_UP)
+                .toBigIntegerExact()
+        }
+        if (invoice.ownerBorneVat == false || invoice.vatExempt ||
+            invoice.vat > 0L || invoice.shipping > 0L) return BigInteger.ZERO
+        return listed.multiply(BigInteger.valueOf(8L))
+            .add(BigInteger.valueOf(50L)).divide(HUNDRED)
+    }
+
     private fun sameBasket(a: SatoriInvoice,b: SatoriInvoice):Boolean {
         fun basket(invoice:SatoriInvoice) = invoice.lines
             .groupBy { Pair(SatoriData.normalized(it.code.ifBlank { it.description }),
@@ -133,6 +158,7 @@ object AccountingProMargin45 {
             val cost=if(pair!=null) discounted(pair.second,SUPPLIER_DISCOUNT_PERCENT)
                 else null
             val sale=pair?.first
+            val ownerVat=pair?.let { ownerBorneCharge(invoice, it.second) }
             var commission=BigInteger.ZERO
             val matched = candidates(invoice)
             val ambiguous = !invoice.isLinkedPairBill && invoice.collaboratorId.isBlank() &&
@@ -204,13 +230,18 @@ object AccountingProMargin45 {
                     }
                 } else warning="Thiếu chính sách hoa hồng CTV đã xác minh."
             }
-            val finalMargin=if(warning==null && sale!=null && cost!=null)
-                checked(sale.subtract(cost).subtract(commission)) else null
+            if(warning==null && (ownerVat==null || checked(ownerVat)==null))
+                warning="Chi phí VAT chủ chịu không hợp lệ hoặc vượt giới hạn an toàn."
+            val finalMargin=if(warning==null && sale!=null && cost!=null &&
+                ownerVat!=null)
+                checked(sale.subtract(cost).subtract(commission).subtract(ownerVat))
+                else null
             if(warning==null && finalMargin==null)warning="Số tiền vượt giới hạn an toàn."
             AccountingProMargin45Row(invoice,
                 sale?.let(::checked),cost?.let(::checked),
                 if(warning==null) checked(commission) else null,
-                finalMargin,warning)
+                finalMargin,warning,
+                if(warning==null) ownerVat?.let(::checked) else null)
         }
     }
 
