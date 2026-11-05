@@ -70,7 +70,6 @@ class NativeMainActivity : AppCompatActivity() {
     private val cyan get() = SatoriUiTheme.accent(this)
     private val night = Color.rgb(241, 244, 245)
     private val surface = Color.rgb(255, 255, 255)
-    private val indigo = Color.rgb(226, 246, 243)
     private var activeTab = 0
     private var activeInvoiceDialog: AlertDialog? = null
     private var showAdvancedOverview = false
@@ -778,11 +777,12 @@ class NativeMainActivity : AppCompatActivity() {
         )
     }
 
+    // V2: shared 2.5D surface strokes; preserve account-selected theme colors.
     private fun panelBackground(color: Int = surface, radius: Int = 20): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), Color.rgb(225, 233, 233))
+            setStroke(dp(1), Color.rgb(216, 234, 229))
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
@@ -792,8 +792,8 @@ class NativeMainActivity : AppCompatActivity() {
             textSize = 12f
             isAllCaps = false
             letterSpacing = 0f
-            minHeight = dp(40)
-            minimumHeight = dp(40)
+            minHeight = dp(44)
+            minimumHeight = dp(44)
             setPadding(dp(9), 0, dp(9), 0)
             stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
@@ -818,7 +818,7 @@ class NativeMainActivity : AppCompatActivity() {
             setOnClickListener { click() }
             elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(3).toFloat() else 0f
         }
-        parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
+        parent.addView(b, LinearLayout.LayoutParams(-1, dp(44)).apply {
             topMargin = dp(6)
         })
     }
@@ -827,15 +827,16 @@ class NativeMainActivity : AppCompatActivity() {
                         click: (() -> Unit)? = null) {
         val frame = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(15), dp(13), dp(15), dp(13))
             background = panelBackground()
+            clipToOutline = true
             if (click != null) {
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { click() }
             }
         }
-        label(frame, title, 13.5f, true, white)
+        label(frame, title, 13.5f, true, ink)
         label(frame, detail, 11.5f, false, softInk, 4)
         frame.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         parent.addView(frame, LinearLayout.LayoutParams(-1, -2).apply {
@@ -847,12 +848,13 @@ class NativeMainActivity : AppCompatActivity() {
                            accent: Int = cyan) {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(13), dp(14), dp(12), dp(14))
+            setPadding(dp(16), dp(15), dp(15), dp(15))
             background = panelBackground(when (accent) {
                 Color.rgb(16, 122, 78), Color.rgb(17, 133, 91) -> Color.rgb(227, 247, 238)
                 gold -> Color.rgb(255, 246, 223)
-                else -> Color.rgb(226, 247, 244)
+                else -> SatoriUiTheme.soft(this@NativeMainActivity)
             })
+            clipToOutline = true
         }
         label(box, title, 11.5f, false, muted)
         fitCardNumber(label(box, value, 18f, true, accent, 7), maxSp = 18)
@@ -1025,7 +1027,7 @@ class NativeMainActivity : AppCompatActivity() {
                 val metric = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(dp(15), dp(15), dp(15), dp(15))
-                    background = panelBackground(Color.rgb(227, 247, 243), 18)
+                    background = panelBackground(SatoriUiTheme.soft(this@NativeMainActivity), 18)
                 }
                 label(metric, "Tổng công nợ cần thu", 12f, false, softInk)
                 label(metric, "—", 25f, true, ink, 7)
@@ -1216,7 +1218,7 @@ class NativeMainActivity : AppCompatActivity() {
                 background = GradientDrawable().apply {
                     setColor(Color.WHITE)
                     cornerRadius = dp(21).toFloat()
-                    setStroke(dp(1), Color.rgb(226, 235, 238))
+                    setStroke(dp(1), Color.rgb(216, 234, 229))
                 }
                 elevation = if (raised) dp(6).toFloat() else 0f
                 minimumHeight = dp(150)
@@ -1244,7 +1246,8 @@ class NativeMainActivity : AppCompatActivity() {
             card.addView(smallIcon, LinearLayout.LayoutParams(dp(36), dp(36)))
             label(card, title, 11f, false, softInk, 10)
             val number = label(card, value, 19f, true,
-                if (title == "Công nợ phải thu") invoiceMoneyRed else tint, 6)
+                if (title == "Công nợ phải thu" || title == "Tổng tiền bán")
+                    invoiceMoneyRed else tint, 6)
             fitCardNumber(number, maxSp = 19)
             label(card, note, 10f, false, softInk, 6)
             return card
@@ -1479,8 +1482,10 @@ class NativeMainActivity : AppCompatActivity() {
             background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                 intArrayOf(SatoriUiTheme.deep(this@NativeMainActivity), teal,
                     SatoriUiTheme.lighter(this@NativeMainActivity))).apply {
-                cornerRadius = dp(18).toFloat()
+                cornerRadius = dp(22).toFloat()
             }
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity))
+                dp(5).toFloat() else 0f
         }
         val menuButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_menu)
@@ -3864,7 +3869,7 @@ class NativeMainActivity : AppCompatActivity() {
         totalCard("Tổng công nợ cần thu",
             report.outstandingVnd?.let(SatoriData::money) ?: "Chưa xác minh",
             report.outstandingInvoices.size.toString() + " hóa đơn chưa thanh toán",
-            Color.rgb(227, 247, 243), 7)
+            SatoriUiTheme.soft(this@NativeMainActivity), 7)
         val known = report.margin.computedInvoiceCount
         val eligible = report.margin.totalInvoiceCount
         val unknown = report.margin.missingInvoiceCount
