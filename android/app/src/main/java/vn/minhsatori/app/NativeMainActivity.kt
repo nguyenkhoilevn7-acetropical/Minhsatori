@@ -70,7 +70,6 @@ class NativeMainActivity : AppCompatActivity() {
     private val cyan get() = SatoriUiTheme.accent(this)
     private val night = Color.rgb(241, 244, 245)
     private val surface = Color.rgb(255, 255, 255)
-    private val indigo = Color.rgb(229, 248, 242)
     private var activeTab = 0
     private var activeInvoiceDialog: AlertDialog? = null
     private var showAdvancedOverview = false
@@ -1028,7 +1027,7 @@ class NativeMainActivity : AppCompatActivity() {
                 val metric = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(dp(15), dp(15), dp(15), dp(15))
-                    background = panelBackground(Color.rgb(227, 247, 243), 18)
+                    background = panelBackground(SatoriUiTheme.soft(this@NativeMainActivity), 18)
                 }
                 label(metric, "Tổng công nợ cần thu", 12f, false, softInk)
                 label(metric, "—", 25f, true, ink, 7)
@@ -3869,7 +3868,7 @@ class NativeMainActivity : AppCompatActivity() {
         totalCard("Tổng công nợ cần thu",
             report.outstandingVnd?.let(SatoriData::money) ?: "Chưa xác minh",
             report.outstandingInvoices.size.toString() + " hóa đơn chưa thanh toán",
-            Color.rgb(227, 247, 243), 7)
+            SatoriUiTheme.soft(this@NativeMainActivity), 7)
         val known = report.margin.computedInvoiceCount
         val eligible = report.margin.totalInvoiceCount
         val unknown = report.margin.missingInvoiceCount
