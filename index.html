@@ -750,6 +750,168 @@
 }
 
 </style>
+<style id="ms-admin-redesign-v2-20261105">
+
+/* MINH SATORI ADMIN V2 • real production accounting workspace.
+   Pure presentation: no pricing, invoice, payment, PDF or Drive logic changed. */
+@media screen {
+  html.satori-light-review {
+    --admin-v2-forest:#065b59;--admin-v2-mid:#087f77;--admin-v2-mint:#24b5a0;
+    --admin-v2-border:#dbeae5;--admin-v2-soft:#eff9f5;--admin-v2-red:#ca2945;
+    --admin-v2-ink:#193b42;--admin-v2-shadow:0 3px 8px rgba(14,64,63,.035),0 15px 31px rgba(14,64,63,.09);
+    --ms-bg:#f3f8f6;--ms-line:var(--admin-v2-border);--ms-teal:var(--admin-v2-mid);
+  }
+  html.satori-light-review body {
+    background:radial-gradient(ellipse at 14% -7%,#e1f8ed 0,transparent 38%),#f3f8f6!important;
+    color:var(--admin-v2-ink)!important;
+  }
+  html.satori-light-review #appHeader {
+    background:linear-gradient(112deg,#064f52 0%,#087e75 57%,#1dae9b 100%)!important;
+    border:1px solid rgba(255,255,255,.12)!important;
+    border-top:0!important;
+    border-radius:0 0 26px 26px!important;
+    box-shadow:0 14px 28px rgba(6,102,93,.20)!important;
+  }
+  html.satori-light-review #appHeader img{
+    background:#fff!important;border:1px solid rgba(255,255,255,.55)!important;
+    border-radius:15px!important;padding:3px!important;
+    box-shadow:0 5px 15px rgba(0,36,42,.13)!important;
+  }
+  html.satori-light-review #appHeader nav {
+    border-radius:17px!important;
+    background:rgba(255,255,255,.12)!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.14)!important;
+    border-color:rgba(255,255,255,.29)!important;
+  }
+  html.satori-light-review #appHeader nav button{
+    min-height:42px;border-radius:12px!important;
+    transition:transform .16s ease,box-shadow .16s ease,background-color .16s ease;
+  }
+  html.satori-light-review #appHeader nav button:not([class*="bg-gradient-to-r"]){
+    background:rgba(255,255,255,.95)!important;
+    box-shadow:0 4px 10px rgba(0,39,43,.06)!important;
+  }
+  html.satori-light-review #appHeader nav button[class*="bg-gradient-to-r"]{
+    background:linear-gradient(115deg,#045955,#0aa293)!important;
+    box-shadow:0 7px 15px rgba(0,66,67,.22)!important;
+  }
+  html.satori-light-review main {
+    max-width:1370px!important;
+    padding-top:clamp(12px,2.5vw,26px)!important;
+  }
+  /* Operational workspaces: 2.5D with a consistent low-profile depth. */
+  html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-reconcile,#tab-aimemory)
+    > div[class*="bg-slate-9"] {
+    border-radius:24px!important;border-color:var(--admin-v2-border)!important;
+    background:linear-gradient(160deg,#fff 0%,#fbfefd 100%)!important;
+    box-shadow:var(--admin-v2-shadow)!important;
+  }
+  html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet,#tab-catalogue,#tab-reconcile,#tab-aimemory)
+    div[class*="bg-slate-9"]:not(#invoicePreview):not(#modalInvoiceContent) {
+    border-color:var(--admin-v2-border)!important;border-radius:19px!important;
+  }
+  html.satori-light-review #tab-input > div[class*="grid"] > div,
+  html.satori-light-review .compact-panel,
+  html.satori-light-review #tab-input #invoicePreviewPanel {
+    border:1px solid var(--admin-v2-border)!important;
+    border-radius:21px!important;background:#fff!important;
+    box-shadow:var(--admin-v2-shadow)!important;
+  }
+  html.satori-light-review .compact-panel>summary {
+    border-radius:20px 20px 0 0;
+    color:var(--admin-v2-forest)!important;
+  }
+  html.satori-light-review #tab-sheet > div > div.grid > div {
+    background:linear-gradient(145deg,#fff 0%,#f3faf7 100%)!important;
+    border:1px solid #d4e9e2!important;border-radius:21px!important;
+    padding:17px!important;min-height:108px;
+    box-shadow:0 3px 7px rgba(12,57,58,.035),0 11px 24px rgba(12,57,58,.08)!important;
+  }
+  html.satori-light-review #tab-sheet > div > div.grid > div:nth-child(3){
+    background:linear-gradient(145deg,#e5f8ee,#fff 90%)!important;
+    border-color:#bce5d4!important;
+  }
+  html.satori-light-review #tab-sheet > div > div.grid > div:nth-child(5){
+    background:linear-gradient(145deg,#fff1f2,#fff 90%)!important;
+    border-color:#f2d7d9!important;
+  }
+  html.satori-light-review #tab-sheet > div > div.grid > div :is(p,span):not([id]) {
+    color:#577279!important;
+  }
+  html.satori-light-review :is(#statTotalRevenue,#statTotalProfit,#statPaid,#statUnpaid,#subStatRevenue,#subStatProfit,#subStatPaid,#subStatUnpaid){
+    font-variant-numeric:tabular-nums;
+    overflow-wrap:anywhere!important;white-space:normal!important;
+    color:var(--admin-v2-red)!important;
+  }
+  html.satori-light-review #tab-sheet #statTotalOrders {
+    color:var(--admin-v2-forest)!important;
+    font-variant-numeric:tabular-nums;
+  }
+  html.satori-light-review #archiveCardsContainer .ms-invoice-card {
+    border-radius:22px!important;
+    border:1px solid #daeae5!important;
+    box-shadow:var(--admin-v2-shadow)!important;
+    transition:transform .16s ease,box-shadow .16s ease!important;
+  }
+  html.satori-light-review #archiveCardsContainer .ms-invoice-card:hover{
+    transform:translateY(-2px);
+    box-shadow:0 12px 27px rgba(8,76,75,.13)!important;
+  }
+  html.satori-light-review #archiveCardsContainer .ms-card-actions button {
+    border-radius:12px!important;min-height:41px!important;
+  }
+  html.satori-light-review #tab-sheet :is(table,#sheetsTableBody),
+  html.satori-light-review #tab-archive table {
+    border-radius:16px;overflow:hidden;
+  }
+  html.satori-light-review :is(#tab-sheet,#tab-archive) thead {
+    background:#e9f7f1!important;
+  }
+  html.satori-light-review :is(#tab-sheet,#tab-archive) tbody tr:hover {
+    background:#f4faf7!important;
+  }
+  html.satori-light-review #satori-web-drawer {
+    background:linear-gradient(180deg,#fff,#f0f9f5)!important;
+    box-shadow:-18px 0 42px rgba(13,56,59,.17)!important;
+  }
+  html.satori-light-review #satori-web-drawer button{
+    border:1px solid #e1eeeb!important;
+    background:#fff!important;box-shadow:0 3px 11px rgba(13,56,59,.04)!important;
+    border-radius:14px!important;min-height:49px;
+  }
+  html.satori-light-review #satori-web-drawer button:active{
+    background:#e8f8f2!important;
+  }
+  html.satori-light-review :is(#tab-input,#tab-archive,#tab-sheet)
+    :is(input,textarea,select):not([type="checkbox"]):not([type="radio"]){
+    border-radius:13px!important;border-color:#d3e4de!important;
+    min-height:42px;
+  }
+  html.satori-light-review :is(button,input,textarea,select,summary,a):focus-visible{
+    outline:3px solid #23b5a1!important;outline-offset:2px!important;
+  }
+}
+@media screen and (max-width:900px){
+  html.satori-light-review #appHeader{
+    border-radius:0 0 19px 19px!important;
+    box-shadow:0 6px 18px rgba(7,95,91,.16)!important;
+  }
+  html.satori-light-review main{padding:11px!important}
+  html.satori-light-review #tab-sheet > div > div.grid > div{
+    padding:12px!important;min-height:93px;border-radius:17px!important;
+  }
+  html.satori-light-review #archiveCardsContainer .ms-invoice-card{
+    border-radius:17px!important;
+  }
+}
+@media screen and (prefers-reduced-motion:reduce){
+  html.satori-light-review #archiveCardsContainer .ms-invoice-card,
+  html.satori-light-review #appHeader nav button{
+    transition:none!important;transform:none!important;
+  }
+}
+
+</style>
 <script>
 /* Production MoneyMind visual skin. Invoice/payment/Drive business logic is unchanged. */
 document.documentElement.classList.add('satori-light-review');
