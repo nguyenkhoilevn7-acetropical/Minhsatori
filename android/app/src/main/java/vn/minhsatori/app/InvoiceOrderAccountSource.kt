@@ -28,6 +28,21 @@ internal object InvoiceOrderAccountSource {
             return Display("Đặt từ: $value", value, verifiedLogin = true)
         }
 
+        // Source mapping for historical V2 orders, keyed by BOTH immutable
+        // ledger invoice ID and number. A same-name or same-number match alone
+        // is insufficient. The registry must come from the owner-only source.
+        val mapped = snapshot?.orderOrigins?.filter {
+            it.ledgerInvoiceId == invoice.id && it.invoiceNo == invoice.number
+        }?.singleOrNull()
+        if (mapped != null && mapped.accountId.isNotBlank() &&
+            mapped.accountName.isNotBlank()) {
+            val mappedRole = role(mapped.accountRole)
+            if (mappedRole != null) {
+                val value = mapped.accountName.trim() + " · " + mappedRole
+                return Display("Đặt từ: $value", value, verifiedLogin = true)
+            }
+        }
+
         // An explicitly bound collaborator is financially meaningful even when
         // historic invoice records lack the authenticated ordering account.
         val id = invoice.collaboratorId.trim()
