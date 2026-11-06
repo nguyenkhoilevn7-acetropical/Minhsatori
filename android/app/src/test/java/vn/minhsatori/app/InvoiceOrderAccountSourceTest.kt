@@ -96,6 +96,55 @@ class InvoiceOrderAccountSourceTest {
         }
     }
 
+    @Test fun verifiedV2RegistryCanResolveOldBillWithoutChangingRecipient() {
+        val invoice = bill()
+        val origin = SatoriOrderOrigin(invoice.id, invoice.number,
+            "auth-v2-account", "Hà Minh Nguyệt", "collaborator")
+        val snapshot = ledger(invoice).copy(orderOrigins = listOf(origin))
+        val display = InvoiceOrderAccountSource.resolve(invoice, snapshot)
+        assertTrue(display.verifiedLogin)
+        assertEquals("Đặt từ: Hà Minh Nguyệt · CTV", display.card)
+        assertEquals("Ngọc Ngô", invoice.customer)
+    }
+
+    @Test fun oldBillAttributionNeverMatchesOnlyNumberOrName() {
+        val invoice = bill()
+        val wrong = SatoriOrderOrigin("different-ledger-id", invoice.number,
+            "v2-wrong-account", "Hà Minh Nguyệt", "collaborator")
+        val mismatchedNo = wrong.copy(ledgerInvoiceId = invoice.id,
+            invoiceNo = "5999")
+        val duplicate = SatoriOrderOrigin(invoice.id, invoice.number,
+            "v2-a", "CTV A", "collaborator")
+        val duplicate2 = duplicate.copy(accountId = "v2-b", accountName = "CTV B")
+        for (origins in listOf(listOf(wrong), listOf(mismatchedNo),
+            listOf(duplicate, duplicate2))) {
+            val result = InvoiceOrderAccountSource.resolve(invoice,
+                ledger(invoice).copy(orderOrigins = origins))
+            assertFalse(result.verifiedLogin)
+            assertTrue(result.card.contains("Chưa xác minh"))
+        }
+    }
+
+    @Test fun optionalRegistryParserDoesNotInvalidateFinancialLedger() {
+        fun raw(value: String) = JSONObject().put("revision", 231)
+            .put("values", JSONObject()
+                .put("satori_orders_v15", "[]")
+                .put("satori_v2_order_origins_v1", value)).toString()
+        val invoiceOrigin = JSONObject()
+            .put("ledgerInvoiceId", "1793954613776")
+            .put("invoiceNo", 5978)
+            .put("accountId", "v2-account")
+            .put("accountName", "Hà Minh Nguyệt")
+            .put("accountRole", "collaborator")
+        val parsed = SatoriData.fromDriveState(raw(
+            JSONArray().put(invoiceOrigin).toString()))
+        assertEquals(1, parsed.orderOrigins.size)
+        assertEquals("5978", parsed.orderOrigins.single().invoiceNo)
+        val malformed = SatoriData.fromDriveState(raw("not-json"))
+        assertTrue(malformed.orderOrigins.isEmpty())
+        assertTrue(malformed.invoices.isEmpty())
+    }
+
     @Test fun parsedLedgerKeepsOrdererAndRecipientIndependent() {
         val order = JSONObject()
             .put("id", "immutable-id").put("invoiceNo", 5978)
