@@ -48,7 +48,9 @@ data class SatoriOrderOrigin(
     val accountName: String,
     val accountRole: String,
     /** ORDER_SNAPSHOT = role captured at checkout; anything else = current profile. */
-    val roleSource: String = ""
+    val roleSource: String = "",
+    /** Checkout request id; when present it must equal the bill's apiRequestId. */
+    val requestId: String = ""
 )
 
 data class SatoriLine(
@@ -99,7 +101,9 @@ data class SatoriInvoice(
     val ownerBorneVatAmount: Long? = null,
     val ownerBorneVatPercent: Double? = null,
     val ownerBorneVat: Boolean? = null,
-    val vatExempt: Boolean = false
+    val vatExempt: Boolean = false,
+    /** Ledger creation channel, e.g. "bot_api". Only used for the creator label. */
+    val source: String = ""
 ) {
     val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
     val isCustomerPairBill: Boolean get() = pairRole == "customer"
@@ -321,7 +325,8 @@ object SatoriData {
                     x.optDouble("ownerBorneVatPercent", Double.NaN) else null,
                 ownerBorneVat = if (x.has("ownerBorneVat") && !x.isNull("ownerBorneVat"))
                     x.optBoolean("ownerBorneVat", true) else null,
-                vatExempt = x.optBoolean("vatExempt", false)
+                vatExempt = x.optBoolean("vatExempt", false),
+                source = string(x, "source").takeIf { it.length <= 40 }.orEmpty()
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })

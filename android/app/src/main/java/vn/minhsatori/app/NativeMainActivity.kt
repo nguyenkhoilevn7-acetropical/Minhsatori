@@ -118,6 +118,10 @@ class NativeMainActivity : AppCompatActivity() {
     private var authorizationPending = false
     private var authorizationDeclined = false
     private var foreground = false
+    // Verified V2 checkout origins (owner V2 session). Labels only; never changes bills.
+    private var v2Origins: List<SatoriOrderOrigin> = emptyList()
+    private var v2OriginsFetchedAtMs = 0L
+    @Volatile private var v2OriginsInFlight = false
     private var lastOAuthRecoveryAt = 0L
     private val oauthRetryBackoffMs = 300_000L
     private val newOrderChannelId = "minh_satori_live_orders"
@@ -477,6 +481,7 @@ class NativeMainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        v2Origins = runCatching { V2OrderOriginsClient.cached(this) }.getOrDefault(emptyList())
         queueInvoiceFromNotification(intent)
         pendingStore = PendingWriteStore(this)
         runCatching { pendingStore.load() }.fold(
@@ -1439,6 +1444,32 @@ class NativeMainActivity : AppCompatActivity() {
             setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
         }
         parent.addView(top, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+    }
+
+    /** Pull verified V2 ordering accounts at most once a minute, off the UI thread. */
+    private fun refreshV2Origins() {
+        val now = SystemClock.elapsedRealtime()
+        if (v2OriginsInFlight || (v2OriginsFetchedAtMs != 0L && now - v2OriginsFetchedAtMs < 60_000)) return
+        val cookie = V2RegistrationAlerts.cookie()
+        if (!cookie.contains("satori_v2_session=")) return
+        v2OriginsInFlight = true
+        v2OriginsFetchedAtMs = now
+        try {
+            v2AlertExecutor.execute {
+                try {
+                    val result = V2OrderOriginsClient.fetch(cookie)
+                    if (result != null) {
+                        V2OrderOriginsClient.store(applicationContext, result.first)
+                        runOnUiThread {
+                            val changed = result.second != v2Origins
+                            v2Origins = result.second
+                            if (changed && !isFinishing && !isDestroyed) render()
+                        }
+                    }
+                } catch (_: Exception) {
+                } finally { v2OriginsInFlight = false }
+            }
+        } catch (_: Exception) { v2OriginsInFlight = false }
     }
 
     private fun render() {
@@ -2986,7 +3017,7 @@ class NativeMainActivity : AppCompatActivity() {
                                           invoice: SatoriInvoice,
                                           data: SatoriSnapshot) {
         val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
-        val source = InvoiceOrderAccountSource.resolve(invoice, data)
+        val source = InvoiceOrderAccountSource.resolve(invoice, data, v2Origins)
         val actions = card.getChildAt(card.childCount - 1) ?: return
         card.removeView(actions)
         val detail = label(card, source.card, 11.5f, true,
@@ -4214,7 +4245,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun openInvoice(invoice: SatoriInvoice) {
-        val orderOrigin = InvoiceOrderAccountSource.resolve(invoice, snapshot)
+        val orderOrigin = InvoiceOrderAccountSource.resolve(invoice, snapshot, v2Origins)
         // One shared fullscreen detail page for Home, Invoices, Debt, Customers
         // and notification entrypoints. It is not a narrow Android alert popup.
         var invoiceDialog: AlertDialog? = null
@@ -4474,7 +4505,9 @@ class NativeMainActivity : AppCompatActivity() {
             invoiceContact(orderingCard, R.drawable.ic_satori_users, "Vai trò",
                 orderOrigin.roleDetail, brandGreen, brandPale)
         } else {
-            label(orderingCard, InvoiceOrderAccountSource.UNKNOWN, 12f, true, softInk, 4)
+            // Not a verified V2 account: show the ledger creation channel
+            // (ChatGPT / AI via Bot API / manual) or "Chưa xác định".
+            label(orderingCard, orderOrigin.card, 12f, true, softInk, 4)
         }
 
         val customerCard = invoiceSection(customerBlock,
@@ -4914,6 +4947,7 @@ class NativeMainActivity : AppCompatActivity() {
                             return@runOnUiThread
                         }
                         snapshot = it.snapshot
+                        refreshV2Origins()
                         lastMobileRevisionProbeElapsedMs = SystemClock.elapsedRealtime()
                         allowedActions =
                             if (getPreferences(MODE_PRIVATE).getBoolean(

@@ -47,7 +47,7 @@ class CustomerCardContract(unittest.TestCase):
         # Only verified registry data, never recipient fields, fills the ordering block.
         self.assertIn("orderOrigin.accountName", ordering)
         self.assertIn("orderOrigin.roleDetail", ordering)
-        self.assertIn("InvoiceOrderAccountSource.UNKNOWN", ordering)
+        self.assertIn("orderOrigin.card", ordering)
         for recipient_field in ("invoice.customer", "invoice.phone", "invoice.address"):
             self.assertNotIn(recipient_field, ordering)
         recipient = block.split('"Người nhận hàng"', 1)[1]
