@@ -76,18 +76,21 @@ internal object InvoiceOrderAccountSource {
         v2Origins: List<SatoriOrderOrigin> = emptyList()
     ): Display {
         if (invoice.id.isBlank() || invoice.number.isBlank()) return unknown
-        val all = snapshot?.orderOrigins.orEmpty() + v2Origins
-        // Same ledger id OR same number must collapse to exactly one account record.
-        // Identical rows from the two feeds count once; anything else is a conflict.
-        val related = all.filter {
+        fun matching(feed: List<SatoriOrderOrigin>) = feed.filter {
             it.ledgerInvoiceId == invoice.id || it.invoiceNo == invoice.number
-        }.sortedByDescending { it.requestId.isNotEmpty() }.distinctBy {
-            listOf(it.ledgerInvoiceId, it.invoiceNo, it.accountId, it.accountName,
-                it.accountRole, it.roleSource)
         }
-        if (related.isEmpty()) return creator(invoice)
-        if (related.size != 1) return unknown
-        val origin = related.single()
+        // Within ONE feed, a second row for the same id or number (even identical)
+        // is a duplicate and makes the invoice unknown.
+        val fromRegistry = matching(snapshot?.orderOrigins.orEmpty())
+        val fromV2 = matching(v2Origins)
+        if (fromRegistry.size > 1 || fromV2.size > 1) return unknown
+        if (fromRegistry.isEmpty() && fromV2.isEmpty()) return creator(invoice)
+        // Across the two feeds the same account must be stated identically.
+        fun identity(o: SatoriOrderOrigin) = listOf(o.ledgerInvoiceId, o.invoiceNo,
+            o.accountId, o.accountName, o.accountRole, o.roleSource)
+        if (fromRegistry.isNotEmpty() && fromV2.isNotEmpty() &&
+            identity(fromRegistry.single()) != identity(fromV2.single())) return unknown
+        val origin = fromV2.singleOrNull() ?: fromRegistry.single()
         if (origin.ledgerInvoiceId != invoice.id || origin.invoiceNo != invoice.number)
             return unknown
         if (origin.requestId.isNotEmpty() && origin.requestId != invoice.requestId) return unknown

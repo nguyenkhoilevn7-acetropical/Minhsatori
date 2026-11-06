@@ -239,6 +239,12 @@ class InvoiceOrderAccountSourceTest {
         assertEquals("Tạo bởi: " + InvoiceOrderAccountSource.MANUAL, display.card)
     }
 
+    @Test fun duplicateInsideTheV2FeedIsUnknown() {
+        val invoice = bill()
+        assertFalse(InvoiceOrderAccountSource.resolve(invoice, ledger(invoice),
+            listOf(v2(invoice), v2(invoice))).verifiedLogin)
+    }
+
     @Test fun ownerFeedParserAcceptsServerDocumentAndRejectsOthers() {
         val row = JSONObject().put("ledgerInvoiceId", "1793954613776").put("invoiceNo", "5978")
             .put("accountId", "v2-account-a").put("accountName", "Tài khoản A")
