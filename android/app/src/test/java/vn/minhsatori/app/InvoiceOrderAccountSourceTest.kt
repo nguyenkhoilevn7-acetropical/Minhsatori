@@ -33,13 +33,14 @@ class InvoiceOrderAccountSourceTest {
             sourceName = "Hà Minh Nguyệt", sourceRole = "collaborator")
         val display = InvoiceOrderAccountSource.resolve(invoice, ledger(invoice))
         assertEquals("Đặt từ: Hà Minh Nguyệt · CTV", display.card)
-        assertEquals("Hà Minh Nguyệt · CTV", display.detail)
+        assertEquals("Hà Minh Nguyệt", display.detail)
+        assertEquals("CTV", display.accountRole)
         assertTrue(display.verifiedLogin)
         assertFalse(display.card.contains("Ngọc Ngô"))
     }
 
     @Test fun roleLabelsRemainDistinct() {
-        val roles = mapOf("agency" to "Đại lý", "retail" to "Khách lẻ",
+        val roles = mapOf("agency" to "Đại Lý", "retail" to "Khách Lẻ",
             "owner" to "Quản trị")
         roles.forEach { (role, expected) ->
             val invoice = bill(sourceId = "verified-account",
@@ -56,7 +57,7 @@ class InvoiceOrderAccountSourceTest {
         val display = InvoiceOrderAccountSource.resolve(invoice,
             ledger(invoice, collaborators = partners))
         assertFalse(display.verifiedLogin)
-        assertTrue(display.card.contains("Chưa xác minh"))
+        assertTrue(display.card.contains("Chưa xác định tài khoản đặt hàng"))
     }
 
     @Test fun explicitCollaboratorLinkDoesNotPretendToVerifyLoginAccount() {
@@ -64,9 +65,9 @@ class InvoiceOrderAccountSourceTest {
         val ctv = SatoriCollaborator("ctv1", "Hà Minh Nguyệt", "000", 35.0)
         val display = InvoiceOrderAccountSource.resolve(invoice,
             ledger(invoice, listOf(ctv)))
-        assertEquals("CTV liên kết: Hà Minh Nguyệt · CTV", display.card)
+        assertEquals(InvoiceOrderAccountSource.UNKNOWN, display.card)
         assertFalse(display.verifiedLogin)
-        assertTrue(display.detail.contains("chưa xác minh tài khoản"))
+        assertEquals(InvoiceOrderAccountSource.UNKNOWN, display.detail)
     }
 
     @Test fun duplicateOrMissingCtvRegistryCannotProduceAttribution() {
@@ -79,7 +80,7 @@ class InvoiceOrderAccountSourceTest {
             ledger(invoice))
         unknown.forEach {
             val display = InvoiceOrderAccountSource.resolve(invoice, it)
-            assertTrue(display.card.contains("Chưa xác minh"))
+            assertTrue(display.card.contains("Chưa xác định tài khoản đặt hàng"))
             assertFalse(display.verifiedLogin)
         }
     }
@@ -121,7 +122,7 @@ class InvoiceOrderAccountSourceTest {
             val result = InvoiceOrderAccountSource.resolve(invoice,
                 ledger(invoice).copy(orderOrigins = origins))
             assertFalse(result.verifiedLogin)
-            assertTrue(result.card.contains("Chưa xác minh"))
+            assertTrue(result.card.contains("Chưa xác định tài khoản đặt hàng"))
         }
     }
 
@@ -164,5 +165,29 @@ class InvoiceOrderAccountSourceTest {
         assertEquals("Hà Minh Nguyệt", invoice.orderedByName)
         assertEquals("collaborator", invoice.orderedByRole)
         assertTrue(InvoiceOrderAccountSource.resolve(invoice, ledger(invoice)).verifiedLogin)
+    }
+    @Test fun conflictingAuthenticatedSourcesAreNotDisplayed() {
+        val invoice = bill(sourceId = "one", sourceName = "Account A", sourceRole = "retail")
+        val mapped = SatoriOrderOrigin(invoice.id, invoice.number, "two", "Account B", "agency")
+        val result = InvoiceOrderAccountSource.resolve(invoice,
+            ledger(invoice).copy(orderOrigins = listOf(mapped)))
+        assertFalse(result.verifiedLogin)
+        assertEquals(InvoiceOrderAccountSource.UNKNOWN, result.card)
+    }
+
+    @Test fun duplicateRegistryCannotBeBypassedByInlineMetadata() {
+        val invoice = bill(sourceId = "one", sourceName = "Account A", sourceRole = "retail")
+        val mapped = SatoriOrderOrigin(invoice.id, invoice.number, "one", "Account A", "retail")
+        assertFalse(InvoiceOrderAccountSource.resolve(invoice,
+            ledger(invoice).copy(orderOrigins = listOf(mapped, mapped))).verifiedLogin)
+    }
+
+    @Test fun oversizedIdentityIsRejectedRatherThanTruncatedIntoMatch() {
+        val row = JSONObject().put("ledgerInvoiceId", "x".repeat(101)).put("invoiceNo", "5978")
+            .put("accountId", "one").put("accountName", "Account A").put("accountRole", "retail")
+        val state = JSONObject().put("revision", 231).put("values", JSONObject()
+            .put("satori_orders_v15", "[]")
+            .put("satori_v2_order_origins_v1", JSONArray().put(row).toString()))
+        assertTrue(SatoriData.fromDriveState(state.toString()).orderOrigins.isEmpty())
     }
 }

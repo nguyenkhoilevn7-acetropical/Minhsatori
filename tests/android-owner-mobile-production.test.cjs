@@ -47,8 +47,12 @@ function request(action,payload={},token='FAKE_TEST_OWNER_TOKEN_EXPLICIT'){
      payload,accessToken:token,nonce:'requestnonce_123456789012345'})},
    parameter:{route:'android'}}).body);
 }
+let originReads=0;
+ctx.SatoriV2OrderOrigins={read:state=>{assert.equal(state,ledger);originReads++;return [{ledgerInvoiceId:'11',invoiceNo:'8001',accountId:'fake-account',accountName:'Fake CTV',accountRole:'collaborator'}]}};
 let snap=request('mobile.snapshot');assert.equal(snap.ok,true);
 assert.equal(snap.data.revision,133);
+assert.equal(JSON.parse(snap.data.values.satori_v2_order_origins_v1)[0].accountId,'fake-account');
+assert.equal(originReads,1);
 assert.equal(snap.data.actorId,'12345678901234567890');
 assert.ok(snap.data.allowedActions.includes('orders.restore'));
 assert.ok(snap.data.allowedActions.includes('orders.delete'));

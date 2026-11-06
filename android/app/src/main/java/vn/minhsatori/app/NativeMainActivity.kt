@@ -4466,10 +4466,13 @@ class NativeMainActivity : AppCompatActivity() {
 
         val customerCard = invoiceSection(customerBlock,
             "Thông tin khách hàng", R.drawable.ic_satori_users)
-        invoiceContact(customerCard, R.drawable.ic_satori_users, "",
+        invoiceContact(customerCard, R.drawable.ic_satori_users, "Người nhận",
             invoice.customer, brandGreen, brandPale)
         invoiceContact(customerCard, R.drawable.ic_satori_users,
             "Tài khoản đặt hàng", orderOrigin.detail, brandGreen, brandPale)
+        if (orderOrigin.verifiedLogin)
+            invoiceContact(customerCard, R.drawable.ic_satori_users,
+                "Vai trò", orderOrigin.accountRole, brandGreen, brandPale)
         invoiceContact(customerCard, R.drawable.ic_satori_phone, "Số điện thoại",
             invoice.phone.ifBlank { "Chưa có số điện thoại" },
             Color.rgb(20, 135, 94), Color.rgb(234, 249, 241))

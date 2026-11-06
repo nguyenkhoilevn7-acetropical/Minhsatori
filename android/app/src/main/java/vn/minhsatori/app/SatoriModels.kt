@@ -324,9 +324,9 @@ object SatoriData {
                 ownerBorneVat = if (x.has("ownerBorneVat") && !x.isNull("ownerBorneVat"))
                     x.optBoolean("ownerBorneVat", true) else null,
                 vatExempt = x.optBoolean("vatExempt", false),
-                orderedByAccountId = string(x, "orderedByAccountId").take(100),
-                orderedByName = string(x, "orderedByName").take(150),
-                orderedByRole = string(x, "orderedByRole").take(40)
+                orderedByAccountId = string(x, "orderedByAccountId").takeIf { it.length <= 100 }.orEmpty(),
+                orderedByName = string(x, "orderedByName").takeIf { it.length <= 150 }.orEmpty(),
+                orderedByRole = string(x, "orderedByRole").takeIf { it.length <= 40 }.orEmpty()
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
@@ -415,10 +415,11 @@ object SatoriData {
                 val accountName = string(row, "accountName")
                 val accountRole = string(row, "accountRole")
                 if (invoiceId.isBlank() || invoiceNo.isBlank() ||
-                    accountId.isBlank() || accountName.isBlank() || accountRole.isBlank())
+                    accountId.isBlank() || accountName.isBlank() || accountRole.isBlank() ||
+                    invoiceId.length > 100 || invoiceNo.length > 24 || accountId.length > 100 ||
+                    accountName.length > 150 || accountRole.length > 40)
                     null
-                else SatoriOrderOrigin(invoiceId.take(100), invoiceNo.take(24),
-                    accountId.take(100), accountName.take(150), accountRole.take(40))
+                else SatoriOrderOrigin(invoiceId, invoiceNo, accountId, accountName, accountRole)
             }
         }.getOrDefault(emptyList())
         return SatoriSnapshot(revision, string(root, "updatedAt"),

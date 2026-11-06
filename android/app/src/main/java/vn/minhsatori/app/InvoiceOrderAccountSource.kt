@@ -1,62 +1,38 @@
 package vn.minhsatori.app
 
-/**
- * Read-only invoice attribution, separate from the person receiving goods.
- *
- * We only identify the ordering account when the production ledger has an
- * explicit account ID, display name and role. Older CTV-tagged invoices
- * expose the verified CTV association, but NOT a claimed login identity.
- * No customer-name/phone/address/discount heuristics are permitted.
- */
+/** Owner-only attribution. Invoice identity is never inferred from delivery data. */
 internal object InvoiceOrderAccountSource {
-    data class Display(val card: String, val detail: String, val verifiedLogin: Boolean)
+    const val UNKNOWN = "Chưa xác định tài khoản đặt hàng"
+    data class Display(val card: String, val detail: String, val verifiedLogin: Boolean,
+                       val accountName: String = "", val accountRole: String = "")
 
     private fun role(value: String): String? = when (value.trim().lowercase()) {
-        "retail", "customer" -> "Khách lẻ"
-        "agency" -> "Đại lý"
+        "retail", "customer" -> "Khách Lẻ"
+        "agency" -> "Đại Lý"
         "collaborator", "ctv" -> "CTV"
         "admin", "owner" -> "Quản trị"
         else -> null
     }
 
     fun resolve(invoice: SatoriInvoice, snapshot: SatoriSnapshot?): Display {
-        val accountId = invoice.orderedByAccountId.trim()
-        val name = invoice.orderedByName.trim()
-        val accountRole = role(invoice.orderedByRole)
-        if (accountId.isNotEmpty() && name.isNotEmpty() && accountRole != null) {
-            val value = "$name · $accountRole"
-            return Display("Đặt từ: $value", value, verifiedLogin = true)
-        }
-
-        // Source mapping for historical V2 orders, keyed by BOTH immutable
-        // ledger invoice ID and number. A same-name or same-number match alone
-        // is insufficient. The registry must come from the owner-only source.
-        val mapped = snapshot?.orderOrigins?.filter {
+        fun unknown() = Display(UNKNOWN, UNKNOWN, false)
+        val candidates = snapshot?.orderOrigins.orEmpty().filter {
             it.ledgerInvoiceId == invoice.id && it.invoiceNo == invoice.number
-        }?.singleOrNull()
-        if (mapped != null && mapped.accountId.isNotBlank() &&
-            mapped.accountName.isNotBlank()) {
-            val mappedRole = role(mapped.accountRole)
-            if (mappedRole != null) {
-                val value = mapped.accountName.trim() + " · " + mappedRole
-                return Display("Đặt từ: $value", value, verifiedLogin = true)
-            }
         }
-
-        // An explicitly bound collaborator is financially meaningful even when
-        // historic invoice records lack the authenticated ordering account.
-        val id = invoice.collaboratorId.trim()
-        val matched = if (id.isNotEmpty() && snapshot?.collaboratorRegistryLoaded == true)
-            snapshot.collaborators.filter { it.id == id }.singleOrNull()
-        else null
-        if (matched != null && matched.name.isNotBlank()) {
-            val value = matched.name.trim() + " · CTV"
-            return Display("CTV liên kết: $value",
-                "$value (chưa xác minh tài khoản đăng nhập đã đặt đơn)",
-                verifiedLogin = false)
-        }
-        return Display("Đặt từ: Chưa xác minh tài khoản",
-            "Chưa có dữ liệu tài khoản đặt hàng trong nguồn hóa đơn.",
-            verifiedLogin = false)
+        // Duplicates, even identical ones, are not authoritative evidence.
+        if (candidates.size > 1) return unknown()
+        val mapped = candidates.singleOrNull()
+        val direct = if (invoice.orderedByAccountId.isNotBlank() &&
+            invoice.orderedByName.isNotBlank() && role(invoice.orderedByRole) != null)
+            SatoriOrderOrigin(invoice.id, invoice.number, invoice.orderedByAccountId,
+                invoice.orderedByName, invoice.orderedByRole) else null
+        if (direct != null && mapped != null &&
+            (direct.accountId != mapped.accountId || direct.accountName != mapped.accountName ||
+                role(direct.accountRole) != role(mapped.accountRole))) return unknown()
+        val source = mapped ?: direct ?: return unknown()
+        if (source.accountId.isBlank() || source.accountName.isBlank()) return unknown()
+        val accountRole = role(source.accountRole) ?: return unknown()
+        val name = source.accountName.trim()
+        return Display("Đặt từ: $name · $accountRole", name, true, name, accountRole)
     }
 }
