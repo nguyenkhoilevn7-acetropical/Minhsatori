@@ -40,6 +40,17 @@ data class SatoriCollaborator(
     val discountPercent: Double?
 )
 
+/** Verified read-only V2 order attribution keyed by the exact canonical invoice identity. */
+data class SatoriOrderOrigin(
+    val ledgerInvoiceId: String,
+    val invoiceNo: String,
+    val accountId: String,
+    val accountName: String,
+    val accountRole: String,
+    /** ORDER_SNAPSHOT = role captured at checkout; anything else = current profile. */
+    val roleSource: String = ""
+)
+
 data class SatoriLine(
     val description: String,
     val quantity: Int,
@@ -160,7 +171,9 @@ data class SatoriSnapshot(
     val collaborators: List<SatoriCollaborator> = emptyList(),
     // True only when a verified source actually supplied the owner CTV registry.
     // Missing key is NOT the same as an empty list of registered collaborators.
-    val collaboratorRegistryLoaded: Boolean = false
+    val collaboratorRegistryLoaded: Boolean = false,
+    // Optional server-authenticated attribution registry. Never changes bills.
+    val orderOrigins: List<SatoriOrderOrigin> = emptyList()
 ) {
     val activeCount: Int get() = invoices.count { !it.isExcluded }
     val outstandingCount: Int get() = invoices.count { it.isOutstanding }
@@ -383,8 +396,31 @@ object SatoriData {
                 else null
             SatoriCollaborator(id, name, string(row, "phone"), discount)
         }
+        // A separate owner-only registry can attribute OLD V2 invoices without
+        // rewriting their immutable canonical invoices. Malformed metadata may
+        // never prevent the owner from reading the financial ledger.
+        val origins = runCatching {
+            val originRows = JSONArray(values.optString("satori_v2_order_origins_v1", "[]"))
+            require(originRows.length() <= 50000)
+            (0 until originRows.length()).mapNotNull { i ->
+                val row = originRows.optJSONObject(i) ?: return@mapNotNull null
+                val invoiceId = string(row, "ledgerInvoiceId")
+                val invoiceNo = string(row, "invoiceNo")
+                val accountId = string(row, "accountId")
+                val accountName = string(row, "accountName")
+                val accountRole = string(row, "accountRole")
+                val roleSource = string(row, "roleSource").takeIf { it.length <= 40 }.orEmpty()
+                if (invoiceId.isBlank() || invoiceNo.isBlank() ||
+                    accountId.isBlank() || accountName.isBlank() || accountRole.isBlank() ||
+                    invoiceId.length > 100 || invoiceNo.length > 24 || accountId.length > 100 ||
+                    accountName.length > 150 || accountRole.length > 40)
+                    null
+                else SatoriOrderOrigin(invoiceId, invoiceNo, accountId, accountName,
+                    accountRole, roleSource)
+            }
+        }.getOrDefault(emptyList())
         return SatoriSnapshot(revision, string(root, "updatedAt"),
-            invoices, products, memory, partners, registryLoaded)
+            invoices, products, memory, partners, registryLoaded, origins)
     }
 
     // Presentation separators do not change the recipient's phone number.

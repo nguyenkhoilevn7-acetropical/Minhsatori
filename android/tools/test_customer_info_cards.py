@@ -38,8 +38,21 @@ class CustomerCardContract(unittest.TestCase):
         block = SRC.split("private fun openInvoice(", 1)[1]
         self.assertIn("invoiceContact(customerCard, R.drawable.ic_satori_phone", block)
         self.assertIn("invoiceContact(customerCard, R.drawable.ic_satori_map_pin", block)
-        self.assertIn('"Thông tin khách hàng"', block)
+        self.assertIn('"Người nhận hàng"', block)
         self.assertIn("R.drawable.ic_satori_users", block)
+
+    def test_invoice_detail_separates_ordering_account_from_recipient(self):
+        block = SRC.split("private fun openInvoice(", 1)[1].split('val productCard = invoiceSection(', 1)[0]
+        ordering = block.split('"Tài khoản đặt hàng"', 1)[1].split('"Người nhận hàng"', 1)[0]
+        # Only verified registry data, never recipient fields, fills the ordering block.
+        self.assertIn("orderOrigin.accountName", ordering)
+        self.assertIn("orderOrigin.roleDetail", ordering)
+        self.assertIn("InvoiceOrderAccountSource.UNKNOWN", ordering)
+        for recipient_field in ("invoice.customer", "invoice.phone", "invoice.address"):
+            self.assertNotIn(recipient_field, ordering)
+        recipient = block.split('"Người nhận hàng"', 1)[1]
+        for recipient_field in ("invoice.customer", "invoice.phone", "invoice.address"):
+            self.assertIn(recipient_field, recipient)
 
     def test_accounting_ledger_filter_has_distinct_customer_details(self):
         body = SRC.split("private fun showLedger(", 1)[1].split("private fun infoStrip(", 1)[0]

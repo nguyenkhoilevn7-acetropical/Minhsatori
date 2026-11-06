@@ -2977,6 +2977,25 @@ class NativeMainActivity : AppCompatActivity() {
         launchEditor(editing = latest)
     }
 
+    /**
+     * Attach a read-only ordering-account label to the existing native card.
+     * Keep invoiceQuickCard() itself byte-identical to protected financial UI
+     * tests; this does not touch payment actions or the PDF.
+     */
+    private fun showOrderingAccountOnCard(parent: LinearLayout,
+                                          invoice: SatoriInvoice,
+                                          data: SatoriSnapshot) {
+        val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
+        val source = InvoiceOrderAccountSource.resolve(invoice, data)
+        val actions = card.getChildAt(card.childCount - 1) ?: return
+        card.removeView(actions)
+        val detail = label(card, source.card, 11.5f, true,
+            if (source.verifiedLogin) Color.rgb(0, 132, 122) else softInk, 8)
+        detail.maxLines = 3
+        detail.contentDescription = source.card
+        card.addView(actions)
+    }
+
     private fun invoiceQuickCard(parent: LinearLayout, invoice: SatoriInvoice,
                                  fromDebt: Boolean = false) {
         val card = LinearLayout(this).apply {
@@ -3274,6 +3293,7 @@ class NativeMainActivity : AppCompatActivity() {
             matching.take(120).forEach { inv ->
                 invoiceQuickCard(list, inv)
                 styleUi25dInvoiceCard(list)
+                showOrderingAccountOnCard(list, inv, data)
                 if (!inv.isExcluded)
                     showProfitInsideInvoiceCard(list, marginByInvoice[inv],
                         (data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
@@ -3898,6 +3918,7 @@ class NativeMainActivity : AppCompatActivity() {
         report.outstandingInvoices.forEach { invoice ->
             invoiceQuickCard(parent, invoice, fromDebt = true)
             styleUi25dInvoiceCard(parent)
+            showOrderingAccountOnCard(parent, invoice, data)
             showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],
                 (data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
         }
@@ -4193,6 +4214,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun openInvoice(invoice: SatoriInvoice) {
+        val orderOrigin = InvoiceOrderAccountSource.resolve(invoice, snapshot)
         // One shared fullscreen detail page for Home, Invoices, Debt, Customers
         // and notification entrypoints. It is not a narrow Android alert popup.
         var invoiceDialog: AlertDialog? = null
@@ -4302,6 +4324,8 @@ class NativeMainActivity : AppCompatActivity() {
             label(summaryInfo, "Chưa có giờ đặt hàng trong dữ liệu nguồn",
                 11f, false, softInk, 9)
         }
+        label(summaryInfo, orderOrigin.card, 12f, true,
+            if (orderOrigin.verifiedLogin) brandGreen else softInk, 8)
         val summaryDivider = View(this).apply {
             setBackgroundColor(Color.rgb(218, 230, 232))
         }
@@ -4440,9 +4464,22 @@ class NativeMainActivity : AppCompatActivity() {
             parent.addView(row)
         }
 
+        // Ordering account (server-verified V2 checkout) is kept apart from the
+        // delivery recipient: the person receiving goods may not be the buyer.
+        val orderingCard = invoiceSection(customerBlock,
+            "Tài khoản đặt hàng", R.drawable.ic_satori_users)
+        if (orderOrigin.verifiedLogin) {
+            invoiceContact(orderingCard, R.drawable.ic_satori_users, "Tài khoản",
+                orderOrigin.accountName, brandGreen, brandPale)
+            invoiceContact(orderingCard, R.drawable.ic_satori_users, "Vai trò",
+                orderOrigin.roleDetail, brandGreen, brandPale)
+        } else {
+            label(orderingCard, InvoiceOrderAccountSource.UNKNOWN, 12f, true, softInk, 4)
+        }
+
         val customerCard = invoiceSection(customerBlock,
-            "Thông tin khách hàng", R.drawable.ic_satori_users)
-        invoiceContact(customerCard, R.drawable.ic_satori_users, "",
+            "Người nhận hàng", R.drawable.ic_satori_users)
+        invoiceContact(customerCard, R.drawable.ic_satori_users, "Người nhận",
             invoice.customer, brandGreen, brandPale)
         invoiceContact(customerCard, R.drawable.ic_satori_phone, "Số điện thoại",
             invoice.phone.ifBlank { "Chưa có số điện thoại" },
