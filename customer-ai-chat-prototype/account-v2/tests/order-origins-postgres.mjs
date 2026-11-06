@@ -17,8 +17,17 @@ try {
   await pool.query("INSERT INTO satori_v2_order_requests(quote_id,account_id,request_id,state,ledger_invoice_id,ledger_invoice_no,canonical_intent) VALUES($1,$2,$3,'COMMITTED',$4,$5,$6)",[q.id,a.id,request,ledger,no,{requestId:request}]);
   const before=await one('SELECT * FROM satori_v2_order_requests WHERE request_id=$1',[request]);
   const out=await readVerifiedOrderOrigins(pool);
-  assert.deepEqual(out.entries.find(r=>r.ledgerInvoiceId===ledger),{ledgerInvoiceId:ledger,invoiceNo:String(no),accountId:a.id,accountName:'Fake '+role,accountRole:role,requestId:request});
+  assert.deepEqual(out.entries.find(r=>r.ledgerInvoiceId===ledger),{ledgerInvoiceId:ledger,invoiceNo:String(no),accountId:a.id,accountName:'Fake '+role,accountRole:role,roleSource:'CURRENT_PROFILE',requestId:request});
+  // Same checkout with a reservation-time snapshot: a LATER role change is ignored.
+  await pool.query("INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) VALUES($1,'account','CANONICAL_INTENT_RESERVED',$2,jsonb_build_object('profileId',$3::text,'profileType',$4::text,'profileRevision',1))",[a.id,request,p.id,role]);
+  const later=role==='retail'?'agency':'retail';
+  await pool.query('UPDATE satori_v2_profiles SET type=$2,revision=revision+1 WHERE id=$1',[p.id,later]);
+  const snap=(await readVerifiedOrderOrigins(pool)).entries.find(r=>r.ledgerInvoiceId===ledger);
+  assert.equal(snap.accountRole,role);assert.equal(snap.roleSource,'ORDER_SNAPSHOT');
+  // A second, contradictory snapshot makes the invoice unverified.
+  await pool.query("INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) VALUES($1,'account','CANONICAL_INTENT_RESERVED',$2,jsonb_build_object('profileId',$3::text,'profileType',$4::text))",[a.id,request,p.id,later]);
+  assert.equal((await readVerifiedOrderOrigins(pool)).entries.find(r=>r.ledgerInvoiceId===ledger),undefined);
   assert.deepEqual(await one('SELECT * FROM satori_v2_order_requests WHERE request_id=$1',[request]),before);
  }
- console.log('PASS synthetic PostgreSQL: exact checkout joins, three roles, submitted rows unchanged');
+ console.log('PASS synthetic PostgreSQL: exact checkout joins, three roles, role snapshot vs current profile, conflicts fail closed, submitted rows unchanged');
 } finally {await pool.end()}

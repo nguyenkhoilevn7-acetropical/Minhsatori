@@ -2,7 +2,7 @@
  * Account Ordering V2 API. Opt-in, isolated from legacy /real and /ctv.
  * No production invoice writes. PostgreSQL is mandatory for any customer state.
  */
-import {readVerifiedOrderOrigins} from './order-origins.mjs';
+import {readVerifiedOrderOrigins,verifyOriginsRequest} from './order-origins.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -545,6 +545,13 @@ export async function handleAccountV2(req,res,pathname){
    error(relay.enabled,relay.reason||'PUSH_RELAY_DISABLED',503);
    relay.kick();
    send(res,202,{ok:true,accepted:true});return true;
+  }
+  if(pathname==='/api/v2/origins/export'&&req.method==='POST'){
+   // Signed pull by the owner's Apps Script. Read-only attribution export; no
+   // cookie, no invoice/price/payment data and no write of any kind.
+   const checked=verifyOriginsRequest(req.headers['x-satori-origins-signature'],await json(req));
+   error(checked.ok,checked.code,checked.status);
+   send(res,200,{ok:true,...await readVerifiedOrderOrigins(pool)});return true;
   }
   if(pathname==='/api/v2/auth/google'&&req.method==='POST'){
    await login(req,res,pool);return true;
