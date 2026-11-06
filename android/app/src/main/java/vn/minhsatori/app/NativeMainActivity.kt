@@ -2977,6 +2977,25 @@ class NativeMainActivity : AppCompatActivity() {
         launchEditor(editing = latest)
     }
 
+    /**
+     * Attach a read-only ordering-account label to the existing native card.
+     * Keep invoiceQuickCard() itself byte-identical to protected financial UI
+     * tests; this does not touch payment actions or the PDF.
+     */
+    private fun showOrderingAccountOnCard(parent: LinearLayout,
+                                          invoice: SatoriInvoice,
+                                          data: SatoriSnapshot) {
+        val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
+        val source = InvoiceOrderAccountSource.resolve(invoice, data)
+        val actions = card.getChildAt(card.childCount - 1) ?: return
+        card.removeView(actions)
+        val detail = label(card, source.card, 11.5f, true,
+            if (source.verifiedLogin) Color.rgb(0, 132, 122) else softInk, 8)
+        detail.maxLines = 3
+        detail.contentDescription = source.card
+        card.addView(actions)
+    }
+
     private fun invoiceQuickCard(parent: LinearLayout, invoice: SatoriInvoice,
                                  fromDebt: Boolean = false) {
         val card = LinearLayout(this).apply {
@@ -3058,25 +3077,6 @@ class NativeMainActivity : AppCompatActivity() {
         parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(9)
         })
-    }
-
-    /**
-     * Attach a read-only ordering-account label to the existing native card.
-     * Keep invoiceQuickCard() itself byte-identical to protected financial UI
-     * tests; this does not touch payment actions or the PDF.
-     */
-    private fun showOrderingAccountOnCard(parent: LinearLayout,
-                                          invoice: SatoriInvoice,
-                                          data: SatoriSnapshot) {
-        val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
-        val source = InvoiceOrderAccountSource.resolve(invoice, data)
-        val actions = card.getChildAt(card.childCount - 1) ?: return
-        card.removeView(actions)
-        val detail = label(card, source.card, 11.5f, true,
-            if (source.verifiedLogin) Color.rgb(0, 132, 122) else softInk, 8)
-        detail.maxLines = 3
-        detail.contentDescription = source.card
-        card.addView(actions)
     }
 
     /** One guarded soft-delete from the invoice list, debt list and detail. */
