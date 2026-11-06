@@ -129,8 +129,8 @@ test('missing writer config fails before claim and never creates an invoice',asy
 
 test('reservation requires explicit in-transaction authoritative verifier',async()=>{
  let invoked=0,inserted=0;
- const quoteRow={id:quoteId,account_id:accountId,payload:quote,
-  expires_at:new Date(Date.now()+60000).toISOString()};
+ const quoteRow={id:quoteId,account_id:accountId,profile_id:profileId,
+  payload:quote,expires_at:new Date(Date.now()+60000).toISOString()};
  const client={release(){},async query(sql,args){
   if(sql==='BEGIN'||sql==='COMMIT'||sql==='ROLLBACK')return {rows:[]};
   if(sql.startsWith('SELECT id,account_id,profile_id,address_id,payload'))
@@ -140,7 +140,12 @@ test('reservation requires explicit in-transaction authoritative verifier',async
   if(sql.startsWith('INSERT INTO satori_v2_order_requests')){
    inserted++;return {rows:[{request_id:requestId,state:'PENDING_INTEGRATION'}]};
   }
-  if(sql.startsWith('INSERT INTO satori_v2_audit'))return {rows:[]};
+  if(sql.startsWith('INSERT INTO satori_v2_audit')){
+   // Role snapshot comes from the quote's own profile, inside this transaction.
+   assert.match(sql,/profileType',p\.type/);assert.doesNotMatch(sql,/display_name|phone/);
+   assert.deepEqual(args,[accountId,requestId,quoteRow.profile_id]);
+   return {rows:[],rowCount:1};
+  }
   throw Error('unexpected fake SQL');
  }};
  const pool={connect:async()=>client};
@@ -165,4 +170,23 @@ test('live checkout remains behind two explicit server-side gates and migrations
  assert.match(router,/realCheckoutConfigured\(\)/);
  assert.match(router,/reserveCanonicalCheckout\(pool/);
  assert.match(router,/\/api\/v2\/orders\/reconcile/);
+});
+
+test('reservation rolls back when the quote profile cannot be snapshotted',async()=>{
+ const calls=[];
+ const quoteRow={id:quoteId,account_id:accountId,profile_id:profileId,
+  payload:quote,expires_at:new Date(Date.now()+60000).toISOString()};
+ const client={release(){},async query(sql){
+  calls.push(sql.split(' ')[0]);
+  if(sql==='BEGIN'||sql==='COMMIT'||sql==='ROLLBACK')return {rows:[]};
+  if(sql.startsWith('SELECT id,account_id,profile_id,address_id,payload'))return {rows:[quoteRow]};
+  if(sql.startsWith('SELECT request_id,quote_id,state,canonical_intent'))return {rows:[]};
+  if(sql.startsWith('INSERT INTO satori_v2_order_requests'))
+   return {rows:[{request_id:requestId,state:'PENDING_INTEGRATION'}]};
+  if(sql.startsWith('INSERT INTO satori_v2_audit'))return {rows:[],rowCount:0};
+  throw Error('unexpected fake SQL');
+ }};
+ await assert.rejects(()=>reserveCanonicalCheckout({connect:async()=>client},{
+  accountId,quoteId,requestId,expectedRevision:177},async()=>{}),{code:'CHECKOUT_PROFILE_FORBIDDEN'});
+ assert.equal(calls.at(-1),'ROLLBACK');assert.ok(!calls.includes('COMMIT'));
 });

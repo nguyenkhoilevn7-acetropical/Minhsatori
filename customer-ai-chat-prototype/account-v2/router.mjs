@@ -2,6 +2,7 @@
  * Account Ordering V2 API. Opt-in, isolated from legacy /real and /ctv.
  * No production invoice writes. PostgreSQL is mandatory for any customer state.
  */
+import {readVerifiedOrderOrigins,verifyOriginsRequest} from './order-origins.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -545,6 +546,13 @@ export async function handleAccountV2(req,res,pathname){
    relay.kick();
    send(res,202,{ok:true,accepted:true});return true;
   }
+  if(pathname==='/api/v2/origins/export'&&req.method==='POST'){
+   // Signed pull by the owner's Apps Script. Read-only attribution export; no
+   // cookie, no invoice/price/payment data and no write of any kind.
+   const checked=verifyOriginsRequest(req.headers['x-satori-origins-signature'],await json(req));
+   error(checked.ok,checked.code,checked.status);
+   send(res,200,{ok:true,...await readVerifiedOrderOrigins(pool)});return true;
+  }
   if(pathname==='/api/v2/auth/google'&&req.method==='POST'){
    await login(req,res,pool);return true;
   }
@@ -568,6 +576,10 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/register'&&req.method==='POST'){
    send(res,200,await registrationSave(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/order-origins'&&req.method==='GET'){
+   owner(actor);
+   send(res,200,{ok:true,...await readVerifiedOrderOrigins(pool)});return true;
   }
   if(pathname.startsWith('/api/v2/admin/push/')){
    // Owner-only FCM device registry. auth() already enforced session, Origin

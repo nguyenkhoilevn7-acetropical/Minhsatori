@@ -92,6 +92,8 @@ jobs:
         run: node account-v2/tests/postgres-integration.mjs
       - name: CRM registered customer, owner discounts, suspension and revocation (fake accounts only)
         run: node account-v2/tests/crm-postgres-integration.mjs
+      - name: Verified checkout provenance (synthetic PostgreSQL only)
+        run: node account-v2/tests/order-origins-postgres.mjs
       - name: Offline logical backup, restore, and readback drill
         run: |
           set -euo pipefail

@@ -64,10 +64,15 @@ export async function reserveCanonicalCheckout(pool,{
    '(quote_id,account_id,request_id,state,canonical_intent) '+
    "VALUES($1,$2,$3,'PENDING_INTEGRATION',$4::jsonb) RETURNING request_id,state",
    [quoteId,accountId,requestId,JSON.stringify(intent)]);
-  await client.query(
+  // Snapshot the ordering profile's role in the same transaction (attribution
+  // evidence only: no name/phone, no price, no ledger field).
+  const audited=await client.query(
    'INSERT INTO satori_v2_audit(account_id,actor,event_type,resource_id,details) '+
-   "VALUES($1,'account','CANONICAL_INTENT_RESERVED',$2,'{}'::jsonb)",
-   [accountId,requestId]);
+   "SELECT $1,'account','CANONICAL_INTENT_RESERVED',$2,"+
+   "jsonb_build_object('profileId',p.id::text,'profileType',p.type,'profileRevision',p.revision) "+
+   'FROM satori_v2_profiles p WHERE p.id=$3 AND p.account_id=$1',
+   [accountId,requestId,q.profile_id]);
+  requireTrue(audited.rowCount===1,'CHECKOUT_PROFILE_FORBIDDEN');
   await client.query('COMMIT');
   return {...publicResult(inserted.rows[0]),alreadyReserved:false};
  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e}
