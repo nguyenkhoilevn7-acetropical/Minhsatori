@@ -33,6 +33,26 @@ data class SatoriCustomerMemory(
     val receivers: List<SatoriReceiver>
 )
 
+data class SatoriCollaborator(
+    val id: String,
+    val name: String,
+    val phone: String,
+    val discountPercent: Double?
+)
+
+/** Verified read-only V2 order attribution keyed by the exact canonical invoice identity. */
+data class SatoriOrderOrigin(
+    val ledgerInvoiceId: String,
+    val invoiceNo: String,
+    val accountId: String,
+    val accountName: String,
+    val accountRole: String,
+    /** ORDER_SNAPSHOT = role captured at checkout; anything else = current profile. */
+    val roleSource: String = "",
+    /** Checkout request id; when present it must equal the bill's apiRequestId. */
+    val requestId: String = ""
+)
+
 data class SatoriLine(
     val description: String,
     val quantity: Int,
@@ -75,7 +95,15 @@ data class SatoriInvoice(
     val pairDiscountPercent: Double? = null,
     val satoriPaidAt: String = "",
     // Only audit identifiers, never payment proofs/secrets, are retained in memory.
-    val paymentAuditKeys: Set<String> = emptySet()
+    val paymentAuditKeys: Set<String> = emptySet(),
+    val creationTimestampMillis: Long? = null,
+    // Read-only expense evidence. No changes to the customer invoice total.
+    val ownerBorneVatAmount: Long? = null,
+    val ownerBorneVatPercent: Double? = null,
+    val ownerBorneVat: Boolean? = null,
+    val vatExempt: Boolean = false,
+    /** Ledger creation channel, e.g. "bot_api". Only used for the creator label. */
+    val source: String = ""
 ) {
     val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
     val isCustomerPairBill: Boolean get() = pairRole == "customer"
@@ -126,6 +154,13 @@ data class SatoriInvoice(
             "00000000"
         }
     }
+    val creationTimeLabel: String get() = creationTimestampMillis
+        ?.takeIf { it in 946684800000L..4102444799999L }
+        ?.let { millis ->
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+                .withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+                .format(java.time.Instant.ofEpochMilli(millis))
+        } ?: ""
     val hasValidDate: Boolean get() = sortDate != "00000000"
     val displayDate: String get() =
         if (hasValidDate) date else "⚠ Ngày cần kiểm tra: " + date.ifBlank { "(trống)" }
@@ -136,7 +171,13 @@ data class SatoriSnapshot(
     val updatedAt: String,
     val invoices: List<SatoriInvoice>,
     val products: List<SatoriProduct> = emptyList(),
-    val customerMemory: List<SatoriCustomerMemory> = emptyList()
+    val customerMemory: List<SatoriCustomerMemory> = emptyList(),
+    val collaborators: List<SatoriCollaborator> = emptyList(),
+    // True only when a verified source actually supplied the owner CTV registry.
+    // Missing key is NOT the same as an empty list of registered collaborators.
+    val collaboratorRegistryLoaded: Boolean = false,
+    // Optional server-authenticated attribution registry. Never changes bills.
+    val orderOrigins: List<SatoriOrderOrigin> = emptyList()
 ) {
     val activeCount: Int get() = invoices.count { !it.isExcluded }
     val outstandingCount: Int get() = invoices.count { it.isOutstanding }
@@ -273,7 +314,19 @@ object SatoriData {
                 pairCollaboratorName = string(x, "pairCollaboratorName"),
                 pairDiscountPercent = if (x.has("pairDiscountPercent") &&
                     !x.isNull("pairDiscountPercent"))
-                    x.optDouble("pairDiscountPercent").takeIf { it.isFinite() } else null
+                    x.optDouble("pairDiscountPercent").takeIf { it.isFinite() } else null,
+                creationTimestampMillis = x.optLong("timestamp", 0L)
+                    .takeIf { it in 946684800000L..4102444799999L },
+                ownerBorneVatAmount = if (x.has("ownerBorneVatAmount") &&
+                    !x.isNull("ownerBorneVatAmount"))
+                    x.optLong("ownerBorneVatAmount", 0L) else null,
+                ownerBorneVatPercent = if (x.has("ownerBorneVatPercent") &&
+                    !x.isNull("ownerBorneVatPercent"))
+                    x.optDouble("ownerBorneVatPercent", Double.NaN) else null,
+                ownerBorneVat = if (x.has("ownerBorneVat") && !x.isNull("ownerBorneVat"))
+                    x.optBoolean("ownerBorneVat", true) else null,
+                vatExempt = x.optBoolean("vatExempt", false),
+                source = string(x, "source").takeIf { it.length <= 40 }.orEmpty()
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
@@ -326,7 +379,53 @@ object SatoriData {
                 receivers = receivers
             )
         }
-        return SatoriSnapshot(revision, string(root, "updatedAt"), invoices, products, memory)
+        // Source-approved CTV registry is read-only. Never infer a discount from an order name alone.
+        val registryLoaded = values.has("satori_collaborators_v1") &&
+            !values.isNull("satori_collaborators_v1")
+        val partnerArray = if (registryLoaded) {
+            try {
+                JSONArray(values.getString("satori_collaborators_v1"))
+            } catch (_: Exception) {
+                throw IllegalArgumentException(
+                    "Dữ liệu hồ sơ CTV bị lỗi, không thể tính lợi nhuận.")
+            }
+        } else JSONArray()
+        require(partnerArray.length() <= 5000) { "Danh sách CTV vượt giới hạn an toàn." }
+        val partners = (0 until partnerArray.length()).mapNotNull { i ->
+            val row = partnerArray.optJSONObject(i) ?: return@mapNotNull null
+            val id = string(row, "id")
+            val name = string(row, "name")
+            if (id.isBlank() || name.isBlank()) return@mapNotNull null
+            val discount = if (row.has("discountPercent") && !row.isNull("discountPercent"))
+                row.optDouble("discountPercent").takeIf { it.isFinite() && it in 0.0..100.0 }
+                else null
+            SatoriCollaborator(id, name, string(row, "phone"), discount)
+        }
+        // A separate owner-only registry can attribute OLD V2 invoices without
+        // rewriting their immutable canonical invoices. Malformed metadata may
+        // never prevent the owner from reading the financial ledger.
+        val origins = runCatching {
+            val originRows = JSONArray(values.optString("satori_v2_order_origins_v1", "[]"))
+            require(originRows.length() <= 50000)
+            (0 until originRows.length()).mapNotNull { i ->
+                val row = originRows.optJSONObject(i) ?: return@mapNotNull null
+                val invoiceId = string(row, "ledgerInvoiceId")
+                val invoiceNo = string(row, "invoiceNo")
+                val accountId = string(row, "accountId")
+                val accountName = string(row, "accountName")
+                val accountRole = string(row, "accountRole")
+                val roleSource = string(row, "roleSource").takeIf { it.length <= 40 }.orEmpty()
+                if (invoiceId.isBlank() || invoiceNo.isBlank() ||
+                    accountId.isBlank() || accountName.isBlank() || accountRole.isBlank() ||
+                    invoiceId.length > 100 || invoiceNo.length > 24 || accountId.length > 100 ||
+                    accountName.length > 150 || accountRole.length > 40)
+                    null
+                else SatoriOrderOrigin(invoiceId, invoiceNo, accountId, accountName,
+                    accountRole, roleSource)
+            }
+        }.getOrDefault(emptyList())
+        return SatoriSnapshot(revision, string(root, "updatedAt"),
+            invoices, products, memory, partners, registryLoaded, origins)
     }
 
     // Presentation separators do not change the recipient's phone number.

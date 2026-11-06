@@ -13,8 +13,8 @@ DRAWABLE = ANDROID / "app/src/main/res/drawable"
 
 class CompactInvoiceDetailContract(unittest.TestCase):
     def test_two_payment_facts_remain_independent_and_visible(self):
-        self.assertIn('invoicePaymentRow(content, "Khách hàng", invoice.customerHasPaid', DETAIL)
-        self.assertIn('invoicePaymentRow(content, "Satori", invoice.satoriHasPaid', DETAIL)
+        self.assertIn('invoicePaymentRow(paymentCard, "Khách hàng", invoice.customerHasPaid', DETAIL)
+        self.assertIn('invoicePaymentRow(paymentCard, "Satori", invoice.satoriHasPaid', DETAIL)
         self.assertIn('payments.markCustomerPaid', DETAIL)
         self.assertIn('payments.markCustomerUnpaid', DETAIL)
         self.assertIn('payments.markSatoriPaid', DETAIL)
@@ -28,10 +28,10 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn('"KHÔNG TÍNH • GIÁ TRỊ 0 đ • KHÓA THANH TOÁN"', DETAIL)
         self.assertIn('if (invoice.isNonCounted)', DETAIL)
         self.assertIn('if (invoice.isNonCounted) {', SRC)
-        self.assertIn("Tổng tiền gốc lưu để đối chiếu", DETAIL)
-        self.assertIn("PDF lưu giữ giá gốc", DETAIL)
+        self.assertIn("Tổng tiền gốc để đối chiếu", DETAIL)
+        self.assertIn("PDF giữ giá gốc", DETAIL)
         self.assertIn('Không tính doanh thu / công nợ', SRC)
-        self.assertIn("GIÁ TRỊ TÍNH: ", DETAIL)
+        self.assertIn('"Giá trị tính"', DETAIL)
         self.assertIn('if (invoice.isNonCounted) Color.rgb(105, 74, 164)', SRC)
         # Real payments and invoice mutations remain on the preexisting guarded paths.
         self.assertIn('NativeInvoicePdf.preview(this, invoice)', DETAIL)
@@ -47,7 +47,7 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn('"Có lịch sử thanh toán • cần đối soát"', activity)
         self.assertIn("if (invoice.isCancelled)", DETAIL)
         self.assertIn('"ĐÃ HỦY • KHÔNG TÍNH DOANH THU / CÔNG NỢ"', DETAIL)
-        self.assertIn("Kiểm tra chứng từ đối soát / hoàn tiền", DETAIL)
+        self.assertIn("Cần đối soát / hoàn tiền", DETAIL)
         self.assertIn("invoice.isCancelled -> Color.rgb(190, 40, 48)", SRC)
         self.assertIn("if (invoice.isCancelled) Color.rgb(190, 40, 48)", SRC)
 
@@ -70,7 +70,8 @@ class CompactInvoiceDetailContract(unittest.TestCase):
         self.assertIn('confirmSoftDelete(invoice)', DETAIL)
         self.assertIn('if (!canAction("orders.update"))', DETAIL)
         self.assertIn('requestInvoiceEdit(invoice)', DETAIL)
-        self.assertIn('.setPositiveButton("Chia sẻ", null)', DETAIL)
+        self.assertIn('button(shareHolder, "Chia sẻ PDF"', DETAIL)
+        self.assertNotIn('.setPositiveButton("Chia sẻ", null)', DETAIL)
 
     def test_accessibility_and_vector_brand_sources(self):
         helper = SRC.split("private fun invoiceMiniAction(", 1)[1].split(
@@ -91,20 +92,20 @@ class CompactInvoiceDetailContract(unittest.TestCase):
     def test_fold_cover_and_inner_display_layout(self):
         helper = SRC.split("private fun resizeInvoiceDialog(", 1)[1].split(
             "private fun invoicePaymentRow(", 1)[0]
-        self.assertIn("viewportWidth - 24", helper)
-        self.assertIn(".coerceAtMost(540)", helper)
-        self.assertIn("dialog.window?.setLayout(dp(safeWidth), usableHeight)", helper)
-        self.assertIn("activeInvoiceDialog?.takeIf { it.isShowing }?.let(::resizeInvoiceDialog)", SRC)
-        self.assertIn("val dialogWidthDp = (resources.configuration.screenWidthDp - 24)", DETAIL)
-        self.assertIn("val actionsWidthDp = actions.childCount * 48", DETAIL)
-        self.assertIn("val inlineActions = usableContentDp >= actionsWidthDp + 90", DETAIL)
-        self.assertIn("resources.configuration.fontScale <= 1.2f", DETAIL)
-        self.assertIn("actions.gravity = Gravity.END or Gravity.CENTER_VERTICAL", DETAIL)
-        self.assertIn('toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))', DETAIL)
-        self.assertIn('actionRow.addView(actions, LinearLayout.LayoutParams(-2, -2))', DETAIL)
-        self.assertIn('gravity = Gravity.END or Gravity.CENTER_VERTICAL', DETAIL)
-        self.assertNotIn("actions.gravity = Gravity.CENTER\n", DETAIL)
-        self.assertIn("resizeInvoiceDialog(dialog)", DETAIL)
+        self.assertIn('android.view.WindowManager.LayoutParams.MATCH_PARENT', helper)
+        self.assertNotIn('.coerceAtMost(540)', helper)
+        self.assertIn('findViewWithTag<LinearLayout>("satori_invoice_detail_grid")',helper)
+        self.assertIn('grid.orientation = if (expanded) LinearLayout.HORIZONTAL',helper)
+        self.assertIn('customer.layoutParams = if (expanded)',helper)
+        self.assertIn('products.layoutParams = if (expanded)',helper)
+        self.assertIn('activeInvoiceDialog?.takeIf { it.isShowing }?.let(::resizeInvoiceDialog)', SRC)
+        self.assertIn('resizeInvoiceDialog(dialog)', DETAIL)
+        self.assertIn('val closePage = ImageView(this)',DETAIL)
+        self.assertIn('setOnClickListener { invoiceDialog?.dismiss() }',DETAIL)
+        self.assertIn('setView(page)',DETAIL)
+        self.assertNotIn('setView(wrapper)',DETAIL)
+        self.assertNotIn('.setPositiveButton("Chia sẻ", null)',DETAIL)
+        self.assertIn('gravity = Gravity.CENTER_VERTICAL or Gravity.END',DETAIL)
 
     def test_zalo_vector_uses_android_safe_polygon_not_svg_arc_flags(self):
         import re

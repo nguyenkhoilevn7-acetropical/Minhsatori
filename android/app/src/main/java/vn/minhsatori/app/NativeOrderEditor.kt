@@ -2,6 +2,8 @@ package vn.minhsatori.app
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -25,25 +27,36 @@ object NativeOrderEditor {
         val v=TextView(a).apply {
             text=t
             textSize=sz
-            setTextColor(Color.rgb(27,46,59))
+            setTextColor(SatoriUiTheme.deep(a))
+            if (sz >= 16f) setTypeface(typeface, Typeface.BOLD)
             setPadding(0,dp(a,8),0,0)
         }
         parent.addView(v)
         return v
     }
     private fun input(a: AppCompatActivity,p: LinearLayout,label: String,
-                      value: String="",numeric: Boolean=false,multi: Boolean=false): EditText {
+                      value: String="",numeric: Boolean=false,multi: Boolean=false,
+                      percentage: Boolean=false): EditText {
         title(a,p,label,12f)
         return EditText(a).apply {
             hint=label
             setText(value)
             textSize=15f
-            inputType=if(numeric) InputType.TYPE_CLASS_NUMBER else if(multi)
+            inputType=if(percentage)
+                InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            else if(numeric) InputType.TYPE_CLASS_NUMBER else if(multi)
                 InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             if(multi) { minLines=2;maxLines=4 }
-            setBackgroundColor(Color.rgb(240,247,249))
-            setPadding(dp(a,10),dp(a,6),dp(a,10),dp(a,6))
+            setTextColor(Color.rgb(16,43,56))
+            setHintTextColor(Color.rgb(114,134,145))
+            minHeight = dp(a,43)
+            background = GradientDrawable().apply {
+                setColor(Color.WHITE)
+                setStroke(dp(a,1), Color.rgb(216,232,235))
+                cornerRadius = dp(a,13).toFloat()
+            }
+            setPadding(dp(a,12),dp(a,10),dp(a,12),dp(a,10))
             p.addView(this,LinearLayout.LayoutParams(-1,-2).apply{topMargin=dp(a,3)})
         }
     }
@@ -52,6 +65,15 @@ object NativeOrderEditor {
             text=label
             isAllCaps=false
             textSize=13f
+            setTextColor(if(label.startsWith("XÓA")) Color.rgb(179,36,60)
+                else SatoriUiTheme.onAccent(a))
+            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                if(label.startsWith("XÓA"))
+                    intArrayOf(Color.rgb(255,240,242),Color.rgb(255,247,248))
+                else intArrayOf(SatoriUiTheme.deep(a),SatoriUiTheme.accent(a))).apply {
+                cornerRadius = dp(a,13).toFloat()
+            }
+            elevation = if (SatoriUiTheme.raised(a)) dp(a,3).toFloat() else 0f
             setOnClickListener{click()}
         }
         p.addView(b,LinearLayout.LayoutParams(-1,dp(a,45)).apply{topMargin=dp(a,8)})
@@ -74,8 +96,19 @@ object NativeOrderEditor {
             setPadding(dp(a,18),dp(a,12),dp(a,18),dp(a,20))
         }
         scroll.addView(page)
-        title(a,page,if(editing==null)"LÊN ĐƠN MỚI" else "SỬA HÓA ĐƠN #"+editing.number,19f)
-        title(a,page,"Đơn dùng revision "+state.revision,12f)
+        val hero = LinearLayout(a).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(a,16),dp(a,16),dp(a,16),dp(a,16))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(SatoriUiTheme.deep(a),SatoriUiTheme.accent(a),
+                    SatoriUiTheme.lighter(a))).apply {cornerRadius=dp(a,21).toFloat()}
+            elevation = if (SatoriUiTheme.raised(a)) dp(a,5).toFloat() else 0f
+        }
+        title(a,hero,if(editing==null)"LÊN ĐƠN MỚI" else "SỬA HÓA ĐƠN #"+editing.number,19f)
+            .setTextColor(SatoriUiTheme.onAccent(a))
+        title(a,hero,"Đơn dùng revision "+state.revision,12f)
+            .setTextColor(SatoriUiTheme.onAccent(a))
+        page.addView(hero,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(a,12)})
         val name=input(a,page,"Tên khách",editing?.customer?:customer?.customer.orEmpty())
         val phone=input(a,page,"Điện thoại",editing?.phone?:customer?.phone.orEmpty())
         val address=input(a,page,"Địa chỉ giao hàng",
@@ -113,33 +146,76 @@ object NativeOrderEditor {
         val total=title(a,page,"Tổng tiền: 0 đ",18f)
         var ship:EditText?=null
         var tax:EditText?=null
+        var chargeBreakdown:TextView?=null
+        var shippingPercentModified=false
+        var vatPercentModified=false
+        // Original goods value is the invoice's stored item subtotal, not a new
+        // total inferred from the form. Preserve original charges when untouched.
+        val originalGoods=editing?.let { invoice ->
+            runCatching {
+                invoice.lines.fold(0L) { acc,line ->
+                    SatoriOrderValidation.sum(acc,SatoriOrderValidation.lineAmount(
+                        line.quantity.toLong(),line.unitPrice))
+                }
+            }.getOrNull()
+        }
         fun totalGoods():Long=rows.fold(0L){acc,row->
             SatoriOrderValidation.sum(acc,SatoriOrderValidation.lineAmount(
                 amount(row.qty.text.toString()),amount(row.price.text.toString())))
         }
+        fun charges(goods:Long):Pair<Long,Long> {
+            // Item rows are rendered before VAT/Shipping controls exist.
+            if(ship==null || tax==null) return 0L to 0L
+            return if(editing==null)
+                amount(ship?.text?.toString().orEmpty()) to
+                    amount(tax?.text?.toString().orEmpty())
+            else {
+                SatoriPercentCharges.charge(goods,ship!!.text.toString(),originalGoods,
+                    editing.shipping,shippingPercentModified) to
+                SatoriPercentCharges.charge(goods,tax!!.text.toString(),originalGoods,
+                    editing.vat,vatPercentModified)
+            }
+        }
         fun recalc(){
             val result=runCatching{
-                SatoriOrderValidation.sum(totalGoods(),
-                    amount(ship?.text?.toString().orEmpty()),
-                    amount(tax?.text?.toString().orEmpty()))
+                val goods=totalGoods()
+                val (shipping,vat)=charges(goods)
+                Triple(goods,shipping to vat,SatoriOrderValidation.sum(goods,shipping,vat))
             }
-            total.text=result.fold(
-                onSuccess={"TỔNG: "+SatoriData.money(it)},
-                onFailure={"TỔNG: — (kiểm tra số lượng và đơn giá)"}
+            result.fold(
+                onSuccess = { calc ->
+                    val (goods, fees, sum)=calc
+                    total.text="TỔNG: "+SatoriData.money(sum)
+                    chargeBreakdown?.text="Tiền hàng: "+SatoriData.money(goods)+
+                        "\nShipping: "+SatoriData.money(fees.first)+
+                        " · VAT: "+SatoriData.money(fees.second)
+                },
+                onFailure = { error ->
+                    total.text="TỔNG: — (kiểm tra số lượng, đơn giá và %)"
+                    chargeBreakdown?.text="⚠ "+(error.message?:"Phần trăm không hợp lệ.")
+                }
             )
         }
-        fun watcher(e:EditText){
+        fun watcher(e:EditText,modified:()->Unit={}){
             e.addTextChangedListener(object:TextWatcher{
                 override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}
-                override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){recalc()}
+                override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){
+                    modified()
+                    recalc()
+                }
                 override fun afterTextChanged(e:Editable?){}
             })
         }
         fun addRow(old:SatoriLine?=null){
             val card=LinearLayout(a).apply{
                 orientation=LinearLayout.VERTICAL
-                setPadding(dp(a,9),dp(a,9),dp(a,9),dp(a,9))
-                setBackgroundColor(Color.rgb(236,244,247))
+                setPadding(dp(a,14),dp(a,14),dp(a,14),dp(a,14))
+                background = GradientDrawable().apply {
+                    setColor(Color.WHITE)
+                    setStroke(dp(a,1), Color.rgb(220,235,238))
+                    cornerRadius = dp(a,20).toFloat()
+                }
+                elevation = if (SatoriUiTheme.raised(a)) dp(a,4).toFloat() else 0f
             }
             items.addView(card,LinearLayout.LayoutParams(-1,-2).apply{topMargin=dp(a,8)})
             val product=input(a,card,"Tên sản phẩm",old?.description.orEmpty())
@@ -170,9 +246,25 @@ object NativeOrderEditor {
         }
         if(editing==null||editing.lines.isEmpty())addRow() else editing.lines.forEach{addRow(it)}
         action(a,page,"+ THÊM SẢN PHẨM"){addRow()}
-        ship=input(a,page,"Phí giao hàng (đ)",editing?.shipping?.toString()?:"0",numeric=true)
-        tax=input(a,page,"VAT (đ)",editing?.vat?.toString()?:"0",numeric=true)
-        watcher(ship!!);watcher(tax!!);recalc()
+        if(editing!=null){
+            title(a,page,"Nhập % trên tiền hàng; tổng hóa đơn tự tính theo số tiền mới.",12f)
+            ship=input(a,page,"Shipping (%)",
+                SatoriPercentCharges.fromAmount(originalGoods?:0L,editing.shipping),
+                percentage=true)
+            tax=input(a,page,"VAT (%)",
+                SatoriPercentCharges.fromAmount(originalGoods?:0L,editing.vat),
+                percentage=true)
+            watcher(ship!!){shippingPercentModified=true}
+            watcher(tax!!){vatPercentModified=true}
+            chargeBreakdown=title(a,page,"",12f)
+        }else{
+            // Keep the existing new-order flow unchanged; this change is
+            // specifically for edits to an already-issued invoice.
+            ship=input(a,page,"Phí giao hàng (đ)","0",numeric=true)
+            tax=input(a,page,"VAT (đ)","0",numeric=true)
+            watcher(ship!!);watcher(tax!!)
+        }
+        recalc()
         val requestId=UUID.randomUUID().toString().replace("-","")
         // One durable request ID must always represent exactly one order payload.
         // Never allow an edited payload to reuse an ID after an ambiguous HTTP failure.
@@ -208,14 +300,13 @@ object NativeOrderEditor {
                             .put("qty",qty).put("unit",it.unit.text.toString().trim())
                             .put("unitPrice",price).put("listPrice",listed))
                     }
-                    val shipping=amount(ship!!.text.toString())
-                    val vat=amount(tax!!.text.toString())
                     val goods=totalGoods()
+                    val (shipping,vat)=charges(goods)
+                    val sum=SatoriOrderValidation.sum(goods,shipping,vat)
                     require(shipping<=100000000000L&&vat<=100000000000L&&
-                        goods<=100000000000L&&goods+shipping+vat<=100000000000L){
+                        goods<=100000000000L&&sum<=100000000000L){
                         "Tổng tiền vượt giới hạn."
                     }
-                    val sum=SatoriOrderValidation.sum(goods,shipping,vat)
                     val dateText=SatoriOrderValidation.validDeliveryDate(deliveryDate.text.toString())
                     val order=JSONObject().put("name",cleanName).put("phone",cleanPhone)
                         .put("location",cleanAddress).put("items",lines)
@@ -269,8 +360,12 @@ object NativeOrderEditor {
                             .append(SatoriData.money(SatoriOrderValidation.lineAmount(line.getLong("qty"),line.getLong("unitPrice"))))
                     }
                     preview.append("\nTiền hàng: ").append(SatoriData.money(goods))
-                        .append("\nPhí giao: ").append(SatoriData.money(shipping))
-                        .append("\nVAT: ").append(SatoriData.money(vat))
+                        .append("\nPhí giao")
+                        .append(if(editing!=null) " ("+ship!!.text.toString().trim()+"%)" else "")
+                        .append(": ").append(SatoriData.money(shipping))
+                        .append("\nVAT")
+                        .append(if(editing!=null) " ("+tax!!.text.toString().trim()+"%)" else "")
+                        .append(": ").append(SatoriData.money(vat))
                         .append("\nTỔNG THANH TOÁN: ").append(SatoriData.money(sum))
                     if(note.text.isNotBlank())preview.append("\nGHI CHÚ: ").append(note.text)
                     preview.append("\n\nXác nhận để lưu lên Google Drive.")
