@@ -156,3 +156,60 @@ jobs:
         if: always()
         shell: bash
         run: rm -f "$RUNNER_TEMP/satori-release.jks"
+
+  # Owner delivery: the repository is public, so the signed APK is never published
+  # in clear. It is encrypted (AES-256 key wrapped with RSA-OAEP-SHA256) for the
+  # public key in android/release-delivery-public.pem and attached to a temporary
+  # prerelease; only the holder of the private key can decrypt it, verify the
+  # apkSha256 from release-verification.json and hand the APK to the owner.
+  # Runs in its own job so the signing job keeps read-only repository access.
+  deliver-encrypted-apk:
+    needs: signed-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: android/release-delivery-public.pem
+          sparse-checkout-cone-mode: false
+      - name: Skip when no delivery key is configured
+        id: key
+        run: |
+          if [ -s android/release-delivery-public.pem ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/download-artifact@v4
+        if: steps.key.outputs.ok == 'true'
+        with:
+          name: MinhSatori-Samsung-Native-iOS-Light-SIGNED-RELEASE
+          path: signed
+      - name: Encrypt signed APK for the delivery key
+        if: steps.key.outputs.ok == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p out
+          openssl rand -out key.bin 32
+          openssl rand -hex 16 > iv.hex
+          openssl enc -aes-256-cbc -K "$(od -An -tx1 -v key.bin | tr -d ' \n')" -iv "$(cat iv.hex)" \
+            -in signed/app-release.apk -out out/app-release.apk.enc
+          openssl pkeyutl -encrypt -pubin -inkey android/release-delivery-public.pem \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
+            -in key.bin -out out/key.bin.enc
+          cp iv.hex out/iv.hex
+          cp signed/release-verification.json out/release-verification.json
+          rm -f key.bin
+      - name: Attach encrypted APK to a temporary prerelease
+        if: steps.key.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python3 -c "import json;r=json.load(open('out/release-verification.json'));print(f\"{r['versionName']}-build{r['versionCode']}\")")
+          tag="apk-delivery-${version}-run${{ github.run_id }}"
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Encrypted owner APK delivery $version (temporary)" \
+            --notes "Encrypted for the owner delivery key; not installable without decryption. Deleted after delivery." \
+            out/app-release.apk.enc out/key.bin.enc out/iv.hex out/release-verification.json
