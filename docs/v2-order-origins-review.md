@@ -1,46 +1,101 @@
-# Verified order origins — deployment review
+# V2 order origins — account that placed an invoice (owner-only)
 
-Status: draft, not deployed. Invoice 5978 is NOT yet attributed to an account.
-Read-only Bot API verification on 2026-11-06: revision 231, invoice ID
-1793954613776, invoice number 5978, recipient Ngọc Ngô. The response does not
-contain account provenance; collaboratorId is null. This is not evidence of
-which account submitted it.
+Android shows, on invoice cards and the invoice detail screen only:
 
-## Source and safety
+- Card: `Đặt từ: <tên tài khoản> · CTV | Đại Lý | Khách Lẻ`
+  (suffix ` (hồ sơ hiện tại)` when the role is not a checkout-time snapshot)
+- Detail: block **Tài khoản đặt hàng** (account, role) separate from block
+  **Người nhận hàng** (recipient name, phone, delivery address).
+- Anything not proven: `Chưa xác định tài khoản đặt hàng`.
 
-The companion V2 branch `fix/v2-verified-order-origins-20261106` reads committed
-checkout receipts with account / quote / profile joins in a read-only transaction.
-It exports only unique exact ledger IDs and invoice numbers whose request ID
-matches canonical_intent.requestId. Account/profile name and role are current
-profile values, not a historical role snapshot. No name/phone/discount matching.
+The PDF is not touched. No invoice, ledger revision, payment, profit or permission
+logic changes.
 
-Apps Script reads a separate private owner-controlled export file through
-SATORI_V2_ORDER_ORIGINS_FILE_ID. It additionally requires ledger apiRequestId to
-match the checkout request. Missing historical request IDs remain unknown.
-Snapshot outputs only ledgerInvoiceId, invoiceNo, accountId, accountName, accountRole.
+## Evidence chain
 
-The export refresh/upload workflow is NOT provisioned. Exports expire after 24h;
-an operator must refresh the private export before expiry. This draft must not be
-released as a complete continuous-sync solution until refresh is operational and
-staging verifies it. Android periodic full snapshots/manual refresh pick up
-registry changes even when the financial ledger revision is unchanged.
+```
+PostgreSQL V2 (committed checkout)            backend PR #395
+  satori_v2_order_requests.state = COMMITTED
+  request.account = quote.account = profile.account
+  canonical_intent.requestId = request_id
+  unique ledger id AND unique invoice number (DB index + export check)
+  role: CANONICAL_INTENT_RESERVED audit snapshot (ORDER_SNAPSHOT)
+        or current profile for older checkouts (CURRENT_PROFILE)
+        │  POST /api/v2/origins/export  (HMAC, own secret, ±5 min, single-use nonce, READ ONLY tx)
+        ▼
+Apps Script time trigger (5 min)              this PR, api/V2OrderOrigins.gs
+  satoriV2OrderOriginsRefreshTick → private Drive cache file (auto-created, owner, PRIVATE)
+        │  read only after owner OAuth + production ledger checks
+        ▼
+AndroidOwnerMobileApi → satori_v2_order_origins_v1
+  join with CURRENT ledger: exact id + exact number + bill.apiRequestId = requestId,
+  any duplicate of id or number on either side → omitted
+        ▼
+Android InvoiceOrderAccountSource — registry only; inline bill fields are ignored
+```
 
-## Required release gates
+Not used as evidence, ever: recipient name, phone, address, discount percent,
+CTV link on the bill, `orderedBy*` fields typed into the ledger.
 
-1. Establish authorized read-only PostgreSQL access; query invoice 5978 and
-   compare ledger_invoice_id=1793954613776, ledger_invoice_no=5978, account_id,
-   quote.account_id, profile.account_id and canonical requestId against ledger.
-2. Back up actual Apps Script Production and record deployment/version and hashes.
-   Version 19 is reported by the owner, not reverified in this change.
-3. Stage V2 export and Apps Script helper with synthetic invoices. Verify all three
-   account roles, missing/duplicate/conflicting identities, expired export, and
-   no mutation of submitted orders, financial fields, payment permissions or PDF.
-4. Complete Android unit/build/emulator CI and PostgreSQL CI.
-5. Present exact Production diff and obtain deployment/merge/release approval.
-   Apply only the helper and read hook to backed-up V19; DO NOT replace its full
-   Mobile API with repository code that may have different payment permissions.
-6. After approved deploy, verify read-only snapshot against the PostgreSQL proof.
-   Then approve merge/release separately as required and upload signed APK to Drive.
+No manual 24-hour export file any more: the trigger refreshes automatically, and
+committed attribution is immutable, so a cache up to 30 days old is still correct
+for the invoices it lists; new invoices show "Chưa xác định" until the next refresh.
 
-No Production code, properties, deployments, invoices or account profiles were
-changed while preparing this patch. No official APK was produced.
+## Invoice #5978 (read-only check, 2026-11-06)
+
+From the production ledger file (read only, nothing written):
+
+| Field | Value |
+|---|---|
+| id | 1793954613776 (= 2026-11-06 15:43:33 +07) |
+| invoiceNo | 5978 |
+| revision written | 231 (ledger updatedAt 08:43:35Z) |
+| source | `bot_api` |
+| apiRequestId | `827b61d1-59bf-477d-9cec-92631d33ba4e` (random UUID, same shape as V2 checkouts #5963–#5968, #5971, #5976, #5977; owner/ChatGPT-made bills use readable request ids) |
+| recipient | Ngọc Ngô |
+
+V2 service logs: instance `vdhls` was up from 14:36 to after 15:43 (+07), and a
+successful checkout writes no log line, so the logs neither prove nor exclude it.
+
+**Account that placed #5978: NOT VERIFIED.** The mapping
+`request_id 827b61d1-… → account_id → profile` exists only in PostgreSQL
+`minh-satori-v2-pilot-isolated`, whose IP allowlist blocks every external client.
+Nothing here says it was Hà Minh Nguyệt; Android will show
+`Chưa xác định tài khoản đặt hàng` until the export proves it.
+
+Owner check after the backend is deployed (read only):
+
+```sql
+SELECT r.request_id, r.state, r.ledger_invoice_id, r.ledger_invoice_no,
+       a.display_name AS login_name, p.display_name AS profile_name, p.type
+FROM satori_v2_order_requests r
+JOIN satori_v2_quotes q ON q.id = r.quote_id
+JOIN satori_v2_profiles p ON p.id = q.profile_id
+JOIN satori_v2_accounts a ON a.id = r.account_id
+WHERE r.request_id = '827b61d1-59bf-477d-9cec-92631d33ba4e';
+```
+
+## Deployment (needs owner approval — nothing below has been done)
+
+1. **Back up Apps Script Production version 19** (clasp pull + project JSON + new
+   snapshot version) before any change.
+2. **Render `minh-satori-v2-customer-admin`**: add env `SATORI_V2_ORIGINS_SECRET`
+   (≥32 random chars, different from `SATORI_OWNER_PUSH_WAKE_SECRET`), deploy #395.
+   Checkouts after this deploy carry a role snapshot.
+3. **Apps Script (staging first)**: add `V2OrderOrigins.gs` and the 3-line hook in
+   `AndroidOwnerMobileApi.gs`; Script Properties `SATORI_V2_ORIGINS_ENDPOINT`
+   (`https://minh-satori-v2-customer-admin.onrender.com/api/v2/origins/export`) and
+   `SATORI_V2_ORIGINS_SECRET` (same value as Render); time trigger every 5 minutes
+   on `satoriV2OrderOriginsRefreshTick`. Status (no secrets) is written to the
+   Script Property `SATORI_V2_ORDER_ORIGINS_STATUS` (`OK_<n>`, `HTTP_<code>`, ...).
+   New OAuth scope: `script.external_request` (UrlFetch) — the owner must re-authorize.
+4. Verify on staging, then promote to Production as a new version; deployments
+   @8/@19 stay untouched until approved.
+5. Android release APK after merge, versionCode above the installed build 73.
+
+## Risk to act on now
+
+`minh-satori-v2-pilot-isolated` is a Render **free** PostgreSQL that **expires on
+2026-11-24**. When it expires, every V2 account, profile and checkout journal —
+the only evidence of who placed an order — is deleted. Upgrade it or migrate it
+before that date.

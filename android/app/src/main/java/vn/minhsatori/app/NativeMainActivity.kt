@@ -4464,15 +4464,23 @@ class NativeMainActivity : AppCompatActivity() {
             parent.addView(row)
         }
 
+        // Ordering account (server-verified V2 checkout) is kept apart from the
+        // delivery recipient: the person receiving goods may not be the buyer.
+        val orderingCard = invoiceSection(customerBlock,
+            "Tài khoản đặt hàng", R.drawable.ic_satori_users)
+        if (orderOrigin.verifiedLogin) {
+            invoiceContact(orderingCard, R.drawable.ic_satori_users, "Tài khoản",
+                orderOrigin.accountName, brandGreen, brandPale)
+            invoiceContact(orderingCard, R.drawable.ic_satori_users, "Vai trò",
+                orderOrigin.roleDetail, brandGreen, brandPale)
+        } else {
+            label(orderingCard, InvoiceOrderAccountSource.UNKNOWN, 12f, true, softInk, 4)
+        }
+
         val customerCard = invoiceSection(customerBlock,
-            "Thông tin khách hàng", R.drawable.ic_satori_users)
+            "Người nhận hàng", R.drawable.ic_satori_users)
         invoiceContact(customerCard, R.drawable.ic_satori_users, "Người nhận",
             invoice.customer, brandGreen, brandPale)
-        invoiceContact(customerCard, R.drawable.ic_satori_users,
-            "Tài khoản đặt hàng", orderOrigin.detail, brandGreen, brandPale)
-        if (orderOrigin.verifiedLogin)
-            invoiceContact(customerCard, R.drawable.ic_satori_users,
-                "Vai trò", orderOrigin.accountRole, brandGreen, brandPale)
         invoiceContact(customerCard, R.drawable.ic_satori_phone, "Số điện thoại",
             invoice.phone.ifBlank { "Chưa có số điện thoại" },
             Color.rgb(20, 135, 94), Color.rgb(234, 249, 241))

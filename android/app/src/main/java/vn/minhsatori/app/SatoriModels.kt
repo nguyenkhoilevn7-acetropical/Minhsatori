@@ -46,7 +46,9 @@ data class SatoriOrderOrigin(
     val invoiceNo: String,
     val accountId: String,
     val accountName: String,
-    val accountRole: String
+    val accountRole: String,
+    /** ORDER_SNAPSHOT = role captured at checkout; anything else = current profile. */
+    val roleSource: String = ""
 )
 
 data class SatoriLine(
@@ -97,11 +99,7 @@ data class SatoriInvoice(
     val ownerBorneVatAmount: Long? = null,
     val ownerBorneVatPercent: Double? = null,
     val ownerBorneVat: Boolean? = null,
-    val vatExempt: Boolean = false,
-    // Owner-visible provenance from the server ledger; never infer from receiver.
-    val orderedByAccountId: String = "",
-    val orderedByName: String = "",
-    val orderedByRole: String = ""
+    val vatExempt: Boolean = false
 ) {
     val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
     val isCustomerPairBill: Boolean get() = pairRole == "customer"
@@ -323,10 +321,7 @@ object SatoriData {
                     x.optDouble("ownerBorneVatPercent", Double.NaN) else null,
                 ownerBorneVat = if (x.has("ownerBorneVat") && !x.isNull("ownerBorneVat"))
                     x.optBoolean("ownerBorneVat", true) else null,
-                vatExempt = x.optBoolean("vatExempt", false),
-                orderedByAccountId = string(x, "orderedByAccountId").takeIf { it.length <= 100 }.orEmpty(),
-                orderedByName = string(x, "orderedByName").takeIf { it.length <= 150 }.orEmpty(),
-                orderedByRole = string(x, "orderedByRole").takeIf { it.length <= 40 }.orEmpty()
+                vatExempt = x.optBoolean("vatExempt", false)
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
@@ -414,12 +409,14 @@ object SatoriData {
                 val accountId = string(row, "accountId")
                 val accountName = string(row, "accountName")
                 val accountRole = string(row, "accountRole")
+                val roleSource = string(row, "roleSource").takeIf { it.length <= 40 }.orEmpty()
                 if (invoiceId.isBlank() || invoiceNo.isBlank() ||
                     accountId.isBlank() || accountName.isBlank() || accountRole.isBlank() ||
                     invoiceId.length > 100 || invoiceNo.length > 24 || accountId.length > 100 ||
                     accountName.length > 150 || accountRole.length > 40)
                     null
-                else SatoriOrderOrigin(invoiceId, invoiceNo, accountId, accountName, accountRole)
+                else SatoriOrderOrigin(invoiceId, invoiceNo, accountId, accountName,
+                    accountRole, roleSource)
             }
         }.getOrDefault(emptyList())
         return SatoriSnapshot(revision, string(root, "updatedAt"),
