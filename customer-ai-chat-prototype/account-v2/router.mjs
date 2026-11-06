@@ -2,6 +2,7 @@
  * Account Ordering V2 API. Opt-in, isolated from legacy /real and /ctv.
  * No production invoice writes. PostgreSQL is mandatory for any customer state.
  */
+import {readVerifiedOrderOrigins} from './order-origins.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -568,6 +569,10 @@ export async function handleAccountV2(req,res,pathname){
   }
   if(pathname==='/api/v2/register'&&req.method==='POST'){
    send(res,200,await registrationSave(pool,actor,await json(req)));return true;
+  }
+  if(pathname==='/api/v2/admin/order-origins'&&req.method==='GET'){
+   owner(actor);
+   send(res,200,{ok:true,...await readVerifiedOrderOrigins(pool)});return true;
   }
   if(pathname.startsWith('/api/v2/admin/push/')){
    // Owner-only FCM device registry. auth() already enforced session, Origin
