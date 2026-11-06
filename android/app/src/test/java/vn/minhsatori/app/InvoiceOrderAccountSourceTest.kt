@@ -10,14 +10,16 @@ class InvoiceOrderAccountSourceTest {
         recipient: String = "Ngọc Ngô",
         collaborator: String = "",
         id: String = "1793954613776",
-        number: String = "5978"
+        number: String = "5978",
+        source: String = "bot_api",
+        requestId: String = "827b61d1-59bf-477d-9cec-92631d33ba4e"
     ) = SatoriInvoice(
         id = id, number = number, date = "06/11/2026",
         customer = recipient, phone = "000000000", address = "Điểm giao hàng",
         status = "Chưa thanh toán", total = 212296, shipping = 0, vat = 15726,
         lines = listOf(SatoriLine("Suối", 5, "Bình", 39314, 49143)),
         deliveryNote = "", customerPaidAt = "", duplicateFrom = "",
-        collaboratorId = collaborator
+        collaboratorId = collaborator, source = source, requestId = requestId
     )
 
     private fun origin(
@@ -175,5 +177,82 @@ class InvoiceOrderAccountSourceTest {
             .put("satori_orders_v15", "[]")
             .put("satori_v2_order_origins_v1", JSONArray().put(row).toString()))
         assertTrue(SatoriData.fromDriveState(state.toString()).orderOrigins.isEmpty())
+    }
+
+    private fun v2(invoice: SatoriInvoice, role: String = "collaborator",
+                   requestId: String = invoice.requestId) =
+        SatoriOrderOrigin(invoice.id, invoice.number, "v2-account-a", "Tài khoản A", role,
+            InvoiceOrderAccountSource.ROLE_FROM_ORDER, requestId)
+
+    @Test fun v2OwnerFeedVerifiesAccountWhenRequestIdMatchesBill() {
+        val invoice = bill()
+        val display = InvoiceOrderAccountSource.resolve(invoice, ledger(invoice), listOf(v2(invoice)))
+        assertTrue(display.verifiedLogin)
+        assertEquals(InvoiceOrderAccountSource.Creator.V2_ACCOUNT, display.creator)
+        assertEquals("Đặt từ: Tài khoản A · CTV", display.card)
+    }
+
+    @Test fun v2OwnerFeedWithDifferentRequestIdIsRejected() {
+        val invoice = bill()
+        val display = InvoiceOrderAccountSource.resolve(invoice, ledger(invoice),
+            listOf(v2(invoice, requestId = "00000000-0000-4000-8000-000000000000")))
+        assertFalse(display.verifiedLogin)
+        assertEquals(InvoiceOrderAccountSource.UNKNOWN, display.card)
+    }
+
+    @Test fun sameAccountFromBothFeedsCountsOnceButConflictIsUnknown() {
+        val invoice = bill()
+        val registry = origin(invoice, accountId = "v2-account-a", name = "Tài khoản A")
+        assertTrue(InvoiceOrderAccountSource.resolve(invoice, ledger(invoice, listOf(registry)),
+            listOf(v2(invoice))).verifiedLogin)
+        val other = origin(invoice, accountId = "v2-account-b", name = "Tài khoản B")
+        assertFalse(InvoiceOrderAccountSource.resolve(invoice, ledger(invoice, listOf(other)),
+            listOf(v2(invoice))).verifiedLogin)
+    }
+
+    @Test fun chatGptBillsAreLabelledFromTheirRequestId() {
+        val invoice = bill(requestId = "chatgpt-20261105-sample-01")
+        val display = InvoiceOrderAccountSource.resolve(invoice, ledger(invoice))
+        assertFalse(display.verifiedLogin)
+        assertEquals(InvoiceOrderAccountSource.Creator.CHATGPT, display.creator)
+        assertEquals("Tạo bởi: ChatGPT", display.card)
+    }
+
+    @Test fun otherHandWrittenBotApiIdsAreAiAssistantNotChatGpt() {
+        val invoice = bill(requestId = "hmn-20261024-sample")
+        val display = InvoiceOrderAccountSource.resolve(invoice, ledger(invoice))
+        assertEquals(InvoiceOrderAccountSource.Creator.AI_BOT_API, display.creator)
+        assertEquals("Tạo bởi: " + InvoiceOrderAccountSource.AI_BOT_API, display.card)
+    }
+
+    @Test fun uuidBotApiBillWithoutVerifiedAccountStaysUnknown() {
+        val invoice = bill()
+        val display = InvoiceOrderAccountSource.resolve(invoice, ledger(invoice))
+        assertEquals(InvoiceOrderAccountSource.Creator.V2_UNVERIFIED, display.creator)
+        assertEquals(InvoiceOrderAccountSource.UNKNOWN, display.card)
+    }
+
+    @Test fun billsWithoutBotApiAreManual() {
+        val invoice = bill(source = "", requestId = "")
+        val display = InvoiceOrderAccountSource.resolve(invoice, ledger(invoice))
+        assertEquals(InvoiceOrderAccountSource.Creator.MANUAL, display.creator)
+        assertEquals("Tạo bởi: " + InvoiceOrderAccountSource.MANUAL, display.card)
+    }
+
+    @Test fun ownerFeedParserAcceptsServerDocumentAndRejectsOthers() {
+        val row = JSONObject().put("ledgerInvoiceId", "1793954613776").put("invoiceNo", "5978")
+            .put("accountId", "v2-account-a").put("accountName", "Tài khoản A")
+            .put("accountRole", "collaborator").put("roleSource", "ORDER_SNAPSHOT")
+            .put("requestId", "827b61d1-59bf-477d-9cec-92631d33ba4e")
+        val doc = JSONObject().put("ok", true).put("schemaVersion", 1)
+            .put("source", "satori-v2-postgresql-committed").put("entries", JSONArray().put(row))
+        val parsed = V2OrderOriginsClient.parse(doc.toString())!!
+        assertEquals("827b61d1-59bf-477d-9cec-92631d33ba4e", parsed.single().requestId)
+        assertNull(V2OrderOriginsClient.parse(JSONObject(doc.toString()).put("source", "x").toString()))
+        assertNull(V2OrderOriginsClient.parse(JSONObject(doc.toString()).put("ok", false).toString()))
+        assertNull(V2OrderOriginsClient.parse("not json"))
+        val noRequest = JSONObject(row.toString()).apply { remove("requestId") }
+        val doc2 = JSONObject(doc.toString()).put("entries", JSONArray().put(noRequest))
+        assertTrue(V2OrderOriginsClient.parse(doc2.toString())!!.isEmpty())
     }
 }
