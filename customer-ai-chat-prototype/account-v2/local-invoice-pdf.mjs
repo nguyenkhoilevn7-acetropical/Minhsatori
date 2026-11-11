@@ -6,6 +6,7 @@
  * customer-price estimation, external renderer, trigger or public file URL.
  */
 import crypto from 'node:crypto';
+import {invoiceLineVatSnapshot} from '../invoice-line-vat.mjs';
 import {renderOriginalWebsitePdf,canonicalPdfVersion,PDF_TEMPLATE_VERSION} from '../original-website-pdf.mjs';
 
 function fail(code){const e=new Error(code);e.code=code;throw e}
@@ -32,8 +33,9 @@ export function currentInvoiceForWebsitePdf(current,{invoiceNo,ledgerId},{allowA
   fail('V2_PDF_CURRENT_INVOICE_REQUIRED');
  if(!current.delivery||!Array.isArray(current.items)||
     current.items.length<1||current.items.length>40)fail('V2_PDF_LINES_INVALID');
+ const tax=invoiceLineVatSnapshot({...current,vatAmount:current.vatVnd});
  let goods=0;
- const items=current.items.map(line=>{
+ const items=current.items.map((line,index)=>{
   if(!line||typeof line!=='object'||!Number.isSafeInteger(line.qty)||
      line.qty<1||line.qty>100_000)fail('V2_PDF_LINES_INVALID');
   const unitPrice=money(line.unitPrice);
@@ -48,7 +50,8 @@ export function currentInvoiceForWebsitePdf(current,{invoiceNo,ledgerId},{allowA
    product:boundText(line.name,200),
    code:boundText(line.code,40),
    unit:boundText(line.unit||'Thùng',30),
-   qty:line.qty,listPrice,unitPrice,discountPercent:computedDiscount
+   qty:line.qty,listPrice,unitPrice,discountPercent:computedDiscount,
+   ...(tax?tax.lines[index]:{})
   };
  });
  const canonicalGoods=money(current.goodsVnd);
@@ -57,6 +60,7 @@ export function currentInvoiceForWebsitePdf(current,{invoiceNo,ledgerId},{allowA
  if(goods!==canonicalGoods||goods+vat+shipping!==total)
   fail('V2_PDF_TOTAL_CONFLICT');
  const o={
+  ...(tax?{vatMode:'per_line',...(tax.header===null?{}:{vatRate:tax.header})}:{}),
   id:String(current.id),invoiceNo,date:boundText(current.date,30),
   timestamp:Number.isSafeInteger(current.timestamp)&&
    current.timestamp>=946684800000&&current.timestamp<4102444800000?

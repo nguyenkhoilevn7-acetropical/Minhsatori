@@ -5,6 +5,7 @@
  * Re-extract from main and rerun parity tests whenever index.html invoice PDF code changes.
  */
 import fs from 'node:fs/promises';
+import {invoiceLineVatSnapshot} from './invoice-line-vat.mjs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import crypto from 'node:crypto';
@@ -122,9 +123,11 @@ function invoicePdfDefinition(o, qrImage=null, logoImage=null) {
             const {goods,vat,ship,total,memo}=invoicePaymentDetails(o);
             const createdAtText=invoiceCreatedAtLabel(o);
             const head=['STT','Tên sản phẩm','ĐVT','SL','Giá niêm yết','CK (%)','Đơn giá','Thành tiền'].map(text=>({text,bold:true,color:'#ffffff',fillColor:'#0369a1',alignment:'center',fontSize:8}));
+            const tax=invoiceLineVatSnapshot(o);
             const rows=items.map((it,i)=>{
                 const lp=Number(it.listPrice || 0),up=Number(it.unitPrice || 0),pct=it.discountPercent ?? (lp?(lp-up)/lp*100:0);
-                return [String(i+1),String(it.product || ''),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
+                const label=String(it.product || '')+(tax?'\nVAT '+tax.lines[i].vatRate+'% · '+money(tax.lines[i].vatAmount):'');
+                return [String(i+1),label,String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
             });
             const bank=total>0?
                 [{text:'THÔNG TIN THANH TOÁN',bold:true,color:'#0369a1',margin:[0,8,0,6]},'Ngân hàng: VPBank','Số tài khoản: 658489418','Chủ tài khoản: HKD MINH SATORI',{text:'Nội dung: '+memo,margin:[0,4,0,0]}]:
@@ -143,14 +146,16 @@ function invoicePdfDefinition(o, qrImage=null, logoImage=null) {
                     {text:'Mã số thuế: '+(o.taxCode || 'Không có'),margin:[0,0,0,12]},
                     ...(o.deliveryNote?.trim() ? [{table:{widths:['*'],body:[[{stack:[{text:'GHI CHÚ / YÊU CẦU GIAO HÀNG',bold:true,color:'#92400e',margin:[0,0,0,4]},{text:o.deliveryNote,style:'deliveryNote'}],fillColor:'#fffbeb'}]]},layout:{hLineColor:()=> '#f59e0b',vLineColor:()=> '#f59e0b'},margin:[0,0,0,12]}] : []),
                     {table:{headerRows:1,widths:[18,'*',30,24,57,38,57,64],body:[head,...rows]},layout:{hLineColor:()=> '#cbd5e1',vLineColor:()=> '#cbd5e1',paddingTop:()=>7,paddingBottom:()=>7}},
-                    {columns:[{width:'*',stack:bank},{width:240,margin:[0,12,0,0],table:{widths:['*',100],body:[['Tổng tiền hàng:',{text:money(goods),alignment:'right'}],['Phí vận chuyển:',{text:money(ship),alignment:'right'}],['Thuế VAT ('+(o.vat==='yes'?'8':'0')+'%):',{text:money(vat),alignment:'right'}],[{text:'TỔNG THANH TOÁN',bold:true},{text:money(total),bold:true,alignment:'right',color:'#0369a1',fontSize:12}]]},layout:'noBorders'}]},
+                    {columns:[{width:'*',stack:bank},{width:240,margin:[0,12,0,0],table:{widths:['*',100],body:[['Tổng tiền hàng:',{text:money(goods),alignment:'right'}],['Phí vận chuyển:',{text:money(ship),alignment:'right'}],[tax?'Thuế VAT (theo từng dòng):':'Thuế VAT ('+(o.vat==='yes'?'8':'0')+'%):',{text:money(vat),alignment:'right'}],[{text:'TỔNG THANH TOÁN',bold:true},{text:money(total),bold:true,alignment:'right',color:'#0369a1',fontSize:12}]]},layout:'noBorders'}]},
                     {text:'Số tiền bằng chữ: '+moneyToVietnameseWords(total),italics:true,margin:[0,12,0,16]},
                     {columns:[{stack:[{text:'ĐẠI DIỆN BÊN BÁN',bold:true},'(Ký, ghi rõ họ tên)',{text:'HKD MINH SATORI',margin:[0,45,0,0],bold:true,color:'#0369a1'}],alignment:'center'},{stack:[{text:'ĐẠI DIỆN BÊN MUA / NGƯỜI NHẬN',bold:true},'(Ký, ghi rõ họ tên)',{text:o.name || '',margin:[0,45,0,0],bold:true}],alignment:'center'}]}
                 ]};
         }
 
 function invoicePdfKey(o) {
-            return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount,o.timestamp]);
+            const fields=[o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount,o.timestamp];
+            if(o.vatMode==='per_line')fields.push(o.vatMode,o.vatRate);
+            return JSON.stringify(fields);
         }
 
 

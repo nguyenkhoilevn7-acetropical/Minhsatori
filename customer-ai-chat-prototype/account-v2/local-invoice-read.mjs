@@ -5,6 +5,7 @@
  * ledger ID and reject ambiguity. No new Apps Script action or deployment needed.
  */
 import {readMinhSatori} from '../satori-readonly.mjs';
+import {invoiceLineVatSnapshot} from '../invoice-line-vat.mjs';
 const refuse=(code)=>{const e=new Error(code);e.code=code;throw e};
 const amount=(v)=>Number.isSafeInteger(Number(v))&&Number(v)>=0&&Number(v)<=100_000_000_000;
 export async function exactCurrentInvoiceFromOrdersList({invoiceNo,ledgerId},{reader=readMinhSatori}={}){
@@ -24,14 +25,16 @@ export async function exactCurrentInvoiceFromOrdersList({invoiceNo,ledgerId},{re
  if(!Array.isArray(x.items)||x.items.length<1||x.items.length>40||
     !amount(x.total)||!amount(x.shippingAmount??0)||!amount(x.vatAmount??0))
   refuse('V2_PDF_LEDGER_INVALID');
- const items=x.items.map(line=>{
+ const tax=invoiceLineVatSnapshot(x);
+ const items=x.items.map((line,index)=>{
   if(!line||!Number.isSafeInteger(Number(line.qty))||Number(line.qty)<1||
      !amount(line.unitPrice)||!amount(line.listPrice))
    refuse('V2_PDF_LEDGER_INVALID');
   const qty=Number(line.qty),unitPrice=Number(line.unitPrice);
   return {name:String(line.product||line.name||'').slice(0,200),
    code:String(line.code||'').slice(0,40),unit:String(line.unit||'Thùng').slice(0,30),
-   qty,unitPrice,listPrice:Number(line.listPrice),lineTotal:qty*unitPrice};
+   qty,unitPrice,listPrice:Number(line.listPrice),lineTotal:qty*unitPrice,
+   ...(tax?tax.lines[index]:{})};
  });
  const goods=items.reduce((n,l)=>n+l.lineTotal,0);
  const shipping=Number(x.shippingAmount??0),vat=Number(x.vatAmount??0);
@@ -40,7 +43,8 @@ export async function exactCurrentInvoiceFromOrdersList({invoiceNo,ledgerId},{re
   refuse('V2_PDF_LEDGER_TOTAL_CONFLICT');
  return Object.freeze({
   revision:r.revision,
-  current:{id:String(x.id),invoiceNo,status:String(x.status||'Chưa thanh toán'),
+  current:{...(tax?{vatMode:'per_line',...(tax.header===null?{}:{vatRate:tax.header})}:{}),
+   id:String(x.id),invoiceNo,status:String(x.status||'Chưa thanh toán'),
    excluded:['Đã hủy','Không Tính'].includes(x.status),
    totalVnd:total,goodsVnd:goods,shippingVnd:shipping,vatVnd:vat,
    date:String(x.date||''),
