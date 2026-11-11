@@ -34,7 +34,9 @@ function invoiceVatRate(v){
 }
 // No new tax fields => keep the historic invoice-level vatAmount contract.
 // Explicit order/item rates => compute once, at item level, then sum.
-function normalizeInvoiceItems(rawItems,legacyVatAmount,defaultVatRate){
+// enforceListFloor: only updateUnpaidOrder historically rejected listPrice < unitPrice;
+// create() never did, so the shared VAT normalizer must not add that rule to create.
+function normalizeInvoiceItems(rawItems,legacyVatAmount,defaultVatRate,enforceListFloor){
  var hasDefault=defaultVatRate!==undefined&&defaultVatRate!==null;
  var hasItemRates=rawItems.some(function(i){
   return i&&(i.vatExempt===true||(i.vatRate!==undefined&&i.vatRate!==null));
@@ -48,7 +50,7 @@ function normalizeInvoiceItems(rawItems,legacyVatAmount,defaultVatRate){
   var qty=Number(i.qty),price=money(i.unitPrice);
   need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Sai số lượng');
   var list=i.listPrice==null?price:money(i.listPrice);
-  need(list>=price,'INVALID_ITEM','Giá niêm yết không thể thấp hơn giá bán');
+  if(enforceListFloor)need(list>=price,'INVALID_ITEM','Giá niêm yết không thể thấp hơn giá bán');
   var subtotal=qty*price;
   need(Number.isFinite(subtotal)&&subtotal>=0&&subtotal<=1e11,'INVALID_AMOUNT',
    'Thành tiền dòng vượt giới hạn');
@@ -743,7 +745,7 @@ function updateUnpaidOrder(s,all,p){
  need(name.length>=2&&name.length<=150&&phone.length<=60&&
   location.length>=5&&location.length<=500&&note.length<=1000,
   'INVALID_ORDER','Thông tin khách, địa chỉ hoặc ghi chú không hợp lệ');
- var normalizedItems=normalizeInvoiceItems(draft.items,draft.vatAmount,draft.vatRate),items=normalizedItems.items;
+ var normalizedItems=normalizeInvoiceItems(draft.items,draft.vatAmount,draft.vatRate,true),items=normalizedItems.items;
  need(original.vatMode!=='per_line'||normalizedItems.vatMode==='per_line',
   'PER_LINE_VAT_REQUIRED','Ứng dụng phải giữ VAT từng dòng khi sửa hóa đơn này');
  var shipping=money(draft.shippingAmount==null?0:draft.shippingAmount),

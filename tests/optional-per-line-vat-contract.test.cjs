@@ -172,3 +172,14 @@ test('canonical connector accepts optional VAT fields and delivery note (single 
   assert.ok(schema.items.items.properties.vatExempt);
   assert.ok(schema.items.items.properties.vatAmount);
 });
+test('create keeps the live rule: listPrice below unitPrice is still accepted (no new create restriction)', () => {
+  // Live BotApi create() never rejected unitPrice > listPrice; the VAT change must not add it.
+  const h = harness();
+  const marked = {product: 'Marked up', qty: 1, unitPrice: 12000, listPrice: 10000};
+  const legacy = create(h, 'markup_0001', draft([marked]));
+  assert.equal(legacy.ok, true, JSON.stringify(legacy));
+  assert.equal(h.rows()[0].items[0].discountAmount, -2000);
+  const perLine = create(h, 'markup_0002', draft([marked], {vatRate: 8, vatAmount: 960, total: 13460}));
+  assert.equal(perLine.ok, true, JSON.stringify(perLine));
+  assert.equal(perLine.data.order.vatAmount, 960);
+});
