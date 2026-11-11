@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   node-browser-pdf:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -24,7 +24,7 @@ jobs:
       - name: Byte-for-byte legacy PDF golden
         run: node tests/optional-vat-pdf-golden.cjs
   android-unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - name: Install API 35 with the runner SDK manager
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
