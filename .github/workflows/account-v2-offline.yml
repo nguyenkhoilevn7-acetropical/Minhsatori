@@ -5,12 +5,16 @@ on:
       - feature/account-based-ordering-v2-20261025
     paths:
       - 'customer-ai-chat-prototype/account-v2/**'
+      - 'customer-ai-chat-prototype/original-*.mjs'
+      - 'customer-ai-chat-prototype/invoice-line-vat.mjs'
       - 'customer-ai-chat-prototype/server.mjs'
       - 'customer-ai-chat-prototype/package.json'
       - '.github/workflows/account-v2-offline.yml'
   pull_request:
     paths:
       - 'customer-ai-chat-prototype/account-v2/**'
+      - 'customer-ai-chat-prototype/original-*.mjs'
+      - 'customer-ai-chat-prototype/invoice-line-vat.mjs'
       - 'customer-ai-chat-prototype/server.mjs'
       - 'customer-ai-chat-prototype/package.json'
       - '.github/workflows/account-v2-offline.yml'
@@ -37,6 +41,8 @@ jobs:
       - name: Parse account page inline script without executing it
         run: |
           node -e "const fs=require('node:fs');const html=fs.readFileSync('account-v2/app.html','utf8');const m=html.match(/<script>([\\s\\S]*?)<\\/script>/);if(!m)throw Error('INLINE_APP_SCRIPT_MISSING');new Function(m[1]);"
+      - name: Install PDF text verification dependency
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
       - name: Pure domain security and pricing tests
         run: npm run test:account-v2
       - name: Install isolated browser test runner
