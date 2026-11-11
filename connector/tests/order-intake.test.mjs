@@ -50,7 +50,7 @@ test('missing recipient, product or quantity is returned for clarification; no g
   assert.equal(missing.toolCall,undefined);
 });
 
-test('manual-entry line defaults to 0% VAT, independent of customer profile', () => {
+test('manual-entry line inherits the selected customer profile VAT default', () => {
   const prepared=prepareOrderIntake({...base,extracted:{
     customer:base.extracted.customer,
     items:[{manualEntry:true,product:'Tiền cọc',qty:1,unit:'Khoản',unitPrice:500000}],
@@ -58,9 +58,9 @@ test('manual-entry line defaults to 0% VAT, independent of customer profile', ()
   }});
   assert.equal(prepared.status,'READY_FOR_OWNER_CONFIRMATION');
   const line=prepared.toolCall.payload.order.items[0];
-  assert.equal(line.vatRate,0);
-  assert.equal(line.vatAmount,0);
-  assert.equal(prepared.toolCall.payload.order.vatAmount,0);
+  assert.equal(line.vatRate,8);
+  assert.equal(line.vatAmount,40000);
+  assert.equal(prepared.toolCall.payload.order.vatAmount,40000);
 });
 
 test('explicit per-line tax rate overrides customer profile default', () => {
@@ -89,7 +89,7 @@ test('selected customer profile supplies its exact saved phone when transcript o
   assert.equal(prepared.toolCall.payload.order.phone,'0900000001');
 });
 
-test('missing customer tax profile blocks catalogue lines instead of hardcoding 8%', () => {
+test('missing customer tax profile blocks new lines instead of guessing a tax rate', () => {
   const prepared=prepareOrderIntake({...base,customerProfile:{...profile,defaultVatRate:undefined}});
   assert.equal(prepared.status,'NEEDS_CONFIRMATION');
   assert.ok(prepared.issues.some(x=>x.code==='TAX_PROFILE_REQUIRED'));
