@@ -6,6 +6,8 @@ RUN npm install --omit=dev --no-audit --no-fund
 COPY customer-ai-chat-prototype/ ./
 # The exact website logo is part of the canonical PDF template.
 COPY logo-satori-3394.jpg ./assets/logo-satori.jpg
+# The build-time test suite extracts text from real PDF bytes (pdftotext), as CI does.
+RUN apk add --no-cache poppler-utils
 RUN npm run test:account-v2
 ENV NODE_ENV=production PORT=10000
 EXPOSE 10000
