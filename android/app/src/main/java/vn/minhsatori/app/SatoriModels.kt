@@ -60,7 +60,10 @@ data class SatoriLine(
     val unitPrice: Long,
     val listPrice: Long,
     val code: String = "",
-    val discountPercent: Double? = null
+    val discountPercent: Double? = null,
+    /** Immutable per-item VAT snapshot; null means a legacy invoice row. */
+    val vatRate: Double? = null,
+    val vatAmount: Long? = null
 ) {
     val amount: Long get() = quantity.toLong() * unitPrice
 }
@@ -262,7 +265,11 @@ object SatoriData {
                         listPrice = row.optLong("listPrice", 0).coerceAtLeast(0),
                         code = string(row, "code"),
                         discountPercent = if (row.has("discountPercent") && !row.isNull("discountPercent"))
-                            row.optDouble("discountPercent").takeIf { it.isFinite() } else null
+                            row.optDouble("discountPercent").takeIf { it.isFinite() } else null,
+                        vatRate = if (row.has("vatRate") && !row.isNull("vatRate"))
+                            row.optDouble("vatRate").takeIf { it.isFinite() && it in 0.0..100.0 } else null,
+                        vatAmount = if (row.has("vatAmount") && !row.isNull("vatAmount"))
+                            row.optLong("vatAmount").takeIf { it >= 0L } else null
                     )
                 }
             } else {
