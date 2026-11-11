@@ -2843,8 +2843,8 @@
         function currentDefaultVatRate() {
             return document.getElementById('vatOption')?.value === 'no' ? 0 : 8;
         }
-        function lineVatAmount(item) {
-            const rate = Number(item.vatRate ?? currentDefaultVatRate());
+        function lineVatAmount(item, fallbackRate=currentDefaultVatRate()) {
+            const rate = Number(item.vatRate ?? fallbackRate);
             if (!Number.isFinite(rate) || rate < 0 || rate > 100 ||
                 Math.abs(rate * 100 - Math.round(rate * 100)) > 1e-7) {
                 throw new Error('VAT từng dòng phải từ 0 đến 100%, tối đa 2 số thập phân.');
@@ -5132,7 +5132,7 @@
                     return `
                         <tr style="border-bottom: 1px solid #cbd5e1; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; text-align: center;">
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1;">${idx + 1}</td>
-                            <td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; font-weight: 600; color: #0f172a;">${it.product}<br><small style="font-weight:400;color:#0369a1;">VAT ${Number(it.vatRate ?? (vatOpt === 'yes' ? 8 : 0))}% · ${lineVatAmount(it).toLocaleString('vi-VN')} đ</small></td>
+                            <td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; font-weight: 600; color: #0f172a;">${it.product}<br><small style="font-weight:400;color:#0369a1;">VAT ${Number(it.vatRate ?? (o.vat === 'yes' ? 8 : 0))}% · ${lineVatAmount(it,o.vat === 'yes' ? 8 : 0).toLocaleString('vi-VN')} đ</small></td>
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1; color: #475569;">${it.unit || 'Thùng'}</td>
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1; font-weight: 700; color: #0f172a;">${it.qty}</td>
                             <td style="padding: 6px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace;">${listP.toLocaleString('vi-VN')}</td>
