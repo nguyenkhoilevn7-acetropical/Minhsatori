@@ -1,10 +1,10 @@
 {
-  "purpose": "android-owner-v2-account-and-creator-labels-20261107",
+  "purpose": "android-owner-optional-vat-lines-20261112",
   "package": "vn.minhsatori.app",
-  "version": "0.4.58",
-  "versionCode": 75,
+  "version": "0.4.59",
+  "versionCode": 76,
   "branch": "fix/android-invoice-notification-open-20261101",
-  "requestedOn": "2026-11-07",
+  "requestedOn": "2026-11-12",
   "sourcePRs": [
     240,
     241,
@@ -51,9 +51,10 @@
     377,
     387,
     393,
-    394
+    394,
+    410
   ],
-  "scope": "Signed owner-only APK v0.4.58 build 75 over v0.4.57 build 74: invoice cards/details show the V2 account that placed the bill (verified from PostgreSQL V2 via the owner's existing V2 session, exact ledger id + number + apiRequestId), or the creator channel: ChatGPT (Bot API request id 'chatgpt-'), AI assistant via Bot API, or manual web-app/App. No PDF, invoice write, payment, VAT, profit or ledger change.",
+  "scope": "Signed owner-only APK v0.4.59 build 76 over v0.4.58 build 75: optional per-line VAT editor and persisted VAT mode from integrated PR #410; default invoice-level VAT unchanged. Keep existing owner notifications, payments, PDF, OAuth, web and ledger. No live invoice creation, no backend deployment.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -122,7 +123,8 @@
     "2026-11-05: PR #393: align Android net owner profit with website accounting-core.js ownerBorneCharge, no ledger writes or invoice edits. All financial, Excel and Android unit tests PASS on PR; release only with existing pinned certificate and public FCM config. Work separately audits Apps Script deployed mobile.snapshot for satori_collaborators_v1. Physical Samsung acceptance remains pending.",
     "2026-11-06: Owner explicitly requested completing a pinned-certificate signed installable APK rather than a DEBUG build. Android PR #394 CI Android unit, emulator, owner fake API and Bot API are green; use protected Release workflow on the existing allowed release branch. Same package, same original signer, versionCode 74 > 73. Do not merge/deploy backend PR #395 or Apps Script Production as part of Android signing; missing source registry must display unknown instead of inferring recipient account.",
     "2026-11-07: Owner screenshot of v0.4.57 showed #5978 'Chưa xác định' because the origin registry depended on an undeployed Apps Script. Backend V2 #395 deployed (d7e9608, owner-only read-only /api/v2/admin/order-origins). Android now reads it directly with the owner V2 session; no Apps Script change needed. Same package, same pinned signer, versionCode 75 > 74; never distribute debug APK.",
-    "2026-11-07: Re-sign identical v0.4.58 build 75 source so the owner receives the APK directly in chat: new deliver-encrypted-apk job encrypts the signed APK for android/release-delivery-public.pem (AES-256 + RSA-OAEP-SHA256) and attaches it to a temporary prerelease; repository is public, so the APK is never published in clear. Signing job permissions unchanged (contents: read)."
+    "2026-11-07: Re-sign identical v0.4.58 build 75 source so the owner receives the APK directly in chat: new deliver-encrypted-apk job encrypts the signed APK for android/release-delivery-public.pem (AES-256 + RSA-OAEP-SHA256) and attaches it to a temporary prerelease; repository is public, so the APK is never published in clear. Signing job permissions unchanged (contents: read).",
+    "2026-11-12: Owner explicitly requested the newest installable APK after Claude finished optional per-line VAT. Release v0.4.59 build 76 from the existing integrated Android branch with the pinned release signing certificate; preserve existing package and install in place. This release commit does not merge PRs, deploy any backend or write production invoices."
   ],
   "requiresFcm": true
 }
