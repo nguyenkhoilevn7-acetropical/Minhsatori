@@ -29,7 +29,7 @@ test('text and voice transcript share the same deterministic intake path', () =>
 });
 
 test('missing recipient, product or quantity is returned for clarification; no guessing', () => {
-  const missing=prepareOrderIntake({...base,extracted:{
+  const missing=prepareOrderIntake({...base,customerProfile:null,extracted:{
     customer:{name:'Ốc Q'},items:[{product:'Nước suối 1.5L'}]
   }});
   assert.equal(missing.status,'NEEDS_CONFIRMATION');
@@ -98,10 +98,20 @@ test('request id and revision are mandatory before an orders.create payload exis
 test('owner confirmation is required and duplicate retries retain the same requestId', async () => {
   const prepared=prepareOrderIntake(base);
   let calls=0;
-  const executor=async(name,payload)=>{calls++;return {name,requestId:payload.requestId,duplicate:true};};
+  const seen=new Set();
+  const executor=async(name,payload)=>{
+    calls++;
+    const duplicate=seen.has(payload.requestId);
+    seen.add(payload.requestId);
+    return {name,requestId:payload.requestId,duplicate};
+  };
   await assert.rejects(submitPreparedOrder({prepared,executeCanonicalTool:executor,ownerApproved:false}),/confirmation/);
   assert.equal(calls,0);
-  const result=await submitPreparedOrder({prepared,executeCanonicalTool:executor,ownerApproved:true});
-  assert.equal(result.requestId,'fake-order-0001');
-  assert.equal(calls,1);
+  const first=await submitPreparedOrder({prepared,executeCanonicalTool:executor,ownerApproved:true});
+  const retry=await submitPreparedOrder({prepared,executeCanonicalTool:executor,ownerApproved:true});
+  assert.equal(first.requestId,'fake-order-0001');
+  assert.equal(first.duplicate,false);
+  assert.equal(retry.duplicate,true);
+  assert.equal(retry.requestId,first.requestId);
+  assert.equal(calls,2);
 });
