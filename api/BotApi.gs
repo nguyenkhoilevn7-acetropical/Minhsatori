@@ -69,7 +69,7 @@ function normalizeInvoiceItems(rawItems,legacyVatAmount,defaultVatRate){
    need(Number.isSafeInteger(lineVat)&&lineVat>=0&&lineVat<=1e11,
     'INVALID_AMOUNT','Tiền VAT của dòng không hợp lệ');
    if(i.vatAmount!==undefined&&i.vatAmount!==null)
-    need(money(i.vatAmount)===lineVat,'VAT_MISMATCH','VAT dòng không khớp');
+    need(money(i.vatAmount)===lineVat,'LINE_VAT_MISMATCH','VAT dòng không khớp');
    line.vatExempt=exempt;line.vatRate=rate;line.vatAmount=lineVat;
    vatTotal+=lineVat;
    need(Number.isSafeInteger(vatTotal)&&vatTotal<=1e11,
@@ -506,9 +506,9 @@ function configurePair(s,p){
 }
 function pairRequestIntent(p){
  var o=p.order||{},items=o.items||[];
- need(o.vatRate==null&&!items.some(function(i){
+ need(o.vatRate==null&&(!Array.isArray(items)||!items.some(function(i){
   return i&&(i.vatExempt===true||i.vatRate!=null);
- }), 'PER_LINE_VAT_NOT_SUPPORTED',
+ })), 'PER_LINE_VAT_NOT_SUPPORTED',
  'Đơn cặp CTV chưa hỗ trợ VAT từng dòng; không tạo hóa đơn');
  need(typeof o.name==='string'&&o.name.trim().length>=2&&o.name.length<=150&&
   typeof o.location==='string'&&o.location.trim().length>=5&&o.location.length<=500&&
