@@ -234,7 +234,7 @@ function sameCreateIntent(saved,provided){
    if(expectedVat!==Number(old.vatAmount))return false;
   }
   return true;
- };
+ });
 }
 function approveAIPricing(s,all,p){
  // An entirely separate HMAC owner scope is required to approve or revoke AI
