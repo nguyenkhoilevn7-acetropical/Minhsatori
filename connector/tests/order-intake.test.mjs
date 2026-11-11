@@ -69,6 +69,16 @@ test('explicit per-line tax rate overrides customer profile default', () => {
   assert.equal(prepared.toolCall.payload.order.vatAmount,16700);
 });
 
+
+test('selected customer profile supplies its exact saved phone when transcript omits it', () => {
+  const prepared=prepareOrderIntake({...base,extracted:{
+    customer:{name:'Ốc Q',address:'101 Đường Thử A'},
+    items:[{product:'Nước suối 1.5L',qty:1}]
+  }});
+  assert.equal(prepared.status,'READY_FOR_OWNER_CONFIRMATION');
+  assert.equal(prepared.toolCall.payload.order.phone,'0900000001');
+});
+
 test('missing customer tax profile blocks catalogue lines instead of hardcoding 8%', () => {
   const prepared=prepareOrderIntake({...base,customerProfile:{...profile,defaultVatRate:undefined}});
   assert.equal(prepared.status,'NEEDS_CONFIRMATION');
