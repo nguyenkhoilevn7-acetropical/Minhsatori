@@ -50,7 +50,7 @@ test('missing recipient, product or quantity is returned for clarification; no g
   assert.equal(missing.toolCall,undefined);
 });
 
-test('manual-entry line inherits the selected customer profile VAT default', () => {
+test('manual-entry line defaults to no tax and is not overwritten by the customer profile', () => {
   const prepared=prepareOrderIntake({...base,extracted:{
     customer:base.extracted.customer,
     items:[{manualEntry:true,product:'Tiền cọc',qty:1,unit:'Khoản',unitPrice:500000}],
@@ -58,9 +58,20 @@ test('manual-entry line inherits the selected customer profile VAT default', () 
   }});
   assert.equal(prepared.status,'READY_FOR_OWNER_CONFIRMATION');
   const line=prepared.toolCall.payload.order.items[0];
-  assert.equal(line.vatRate,8);
-  assert.equal(line.vatAmount,40000);
-  assert.equal(prepared.toolCall.payload.order.vatAmount,40000);
+  assert.equal(line.vatRate,0);
+  assert.equal(line.vatAmount,0);
+  assert.equal(prepared.toolCall.payload.order.vatAmount,0);
+  assert.equal(prepared.toolCall.payload.order.total,500000);
+});
+
+test('catalogue lines follow a no-tax customer profile instead of inventing 8 percent', () => {
+  const prepared=prepareOrderIntake({...base,customerProfile:{...profile,defaultVatRate:0}});
+  assert.equal(prepared.status,'READY_FOR_OWNER_CONFIRMATION');
+  const line=prepared.toolCall.payload.order.items[0];
+  assert.equal(line.vatRate,0);
+  assert.equal(line.vatAmount,0);
+  assert.equal(prepared.toolCall.payload.order.vatAmount,0);
+  assert.equal(prepared.toolCall.payload.order.total,140000);
 });
 
 test('explicit per-line tax rate overrides customer profile default', () => {

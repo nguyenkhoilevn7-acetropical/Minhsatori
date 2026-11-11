@@ -164,8 +164,9 @@ export function prepareOrderIntake(input = {}) {
       }
     }
 
-    // Explicit line tax always wins. Manual-entry rows default to exempt (0%).
-    // Catalogue rows inherit the selected customer's tax profile, never a global rate.
+    // Explicit line tax always wins, including an explicit 0%.
+    // Manual rows default to no tax. Catalogue rows use the selected customer's
+    // profile rate, which may itself be 0. Never invent 8% when the profile is missing.
     let vatRate;
     if (raw.taxChoiceExplicit === true) {
       if (!validRate(raw.vatRate)) {
@@ -173,10 +174,9 @@ export function prepareOrderIntake(input = {}) {
         continue;
       }
       vatRate = raw.vatRate;
+    } else if (isManual) {
+      vatRate = 0;
     } else if (profile && validRate(profile.defaultVatRate)) {
-      // Every new row, including manual entries, inherits the selected customer's
-      // current profile rate. An explicit line-level choice (e.g. deposit 0%)
-      // overrides this default without changing any other row.
       vatRate = profile.defaultVatRate;
     } else {
       issues.push(issue('TAX_PROFILE_REQUIRED', field + '.vatRate', 'Chưa xác định mức thuế mặc định từ hồ sơ khách hàng; không tự gán 8% hoặc 0%.'));
@@ -203,9 +203,10 @@ export function prepareOrderIntake(input = {}) {
   const order = {
     name, phone, location: address, items,
     shippingAmount, vatAmount, total,
-    deliveryNote: String(x.deliveryNote || '').trim().slice(0, 1000),
-    deliveryDate: String(x.deliveryDate || '').trim() || null
+    deliveryNote: String(x.deliveryNote || '').trim().slice(0, 1000)
   };
+  const deliveryDate = String(x.deliveryDate || '').trim();
+  if (deliveryDate) order.deliveryDate = deliveryDate;
   const payload = {
     expectedRevision: input.expectedRevision,
     requestId: input.requestId,

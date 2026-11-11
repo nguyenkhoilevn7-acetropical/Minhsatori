@@ -53,12 +53,16 @@ class SatoriLineVatTest {
             .put("shippingAmount", 500).put("vatAmount", 3250).put("items", items)
         val values = org.json.JSONObject().put("satori_orders_v15",
             org.json.JSONArray().put(order).toString())
-        val snapshot = SatoriSnapshot.fromDriveState(
+        val snapshot = SatoriData.fromDriveState(
             org.json.JSONObject().put("revision", 1).put("values", values).toString())
         val lines = snapshot.invoices.single().lines
         assertEquals(listOf(8.0, 0.0, 5.5), lines.map { it.vatRate })
         assertEquals(listOf(1600L, 0L, 1650L), lines.map { it.vatAmount })
         assertEquals(3250L, snapshot.invoices.single().vat)
+    }
+
+    @Test fun newManualLineDefaultsToNoTax() {
+        assertEquals("0", SatoriPercentCharges.manualLineDefaultVatRate())
     }
 
 }

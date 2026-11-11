@@ -227,7 +227,7 @@ object NativeOrderEditor {
             val legacyVatRate=if(originalGoods!=null&&editing!=null)
                 SatoriPercentCharges.fromAmount(originalGoods,editing.vat) else "0"
             val vatRate=input(a,card,"VAT dòng (%) · nhập 0 nếu không tính",
-                old?.vatRate?.toString() ?: if(old!=null) legacyVatRate else "8",
+                old?.vatRate?.toString() ?: if(old!=null) legacyVatRate else SatoriPercentCharges.manualLineDefaultVatRate(),
                 percentage=true)
             val entry=Row(card,product,qty,unit,price,list,vatRate,old?.code.orEmpty())
             rows.add(entry)
@@ -253,14 +253,14 @@ object NativeOrderEditor {
         if(editing==null||editing.lines.isEmpty())addRow() else editing.lines.forEach{addRow(it)}
         action(a,page,"+ THÊM SẢN PHẨM"){addRow()}
         if(editing!=null){
-            title(a,page,"VAT được tính riêng cho từng sản phẩm. Dòng mới mặc định 8%; nhập 0 để miễn VAT hoặc nhập mức khác.",12f)
+            title(a,page,"VAT được tính riêng cho từng sản phẩm. Dòng thêm thủ công mặc định 0%. Nhập mức khác chỉ cho đúng dòng đó.",12f)
             ship=input(a,page,"Shipping (%)",
                 SatoriPercentCharges.fromAmount(originalGoods?:0L,editing.shipping),
                 percentage=true)
             watcher(ship!!){shippingPercentModified=true}
             chargeBreakdown=title(a,page,"",12f)
         }else{
-            title(a,page,"VAT được tính riêng cho từng sản phẩm. Mặc định 8%; nhập 0 để miễn VAT hoặc nhập mức khác.",12f)
+            title(a,page,"VAT được tính riêng cho từng sản phẩm. Dòng thêm thủ công mặc định 0%. Nhập mức khác chỉ cho đúng dòng đó.",12f)
             ship=input(a,page,"Phí giao hàng (đ)","0",numeric=true)
             watcher(ship!!)
             chargeBreakdown=title(a,page,"",12f)

@@ -12,6 +12,9 @@ internal object SatoriPercentCharges {
     private val decimal = Regex("""^\d{1,3}(?:[.,]\d{1,2})?$""")
     private val hundred = BigDecimal.valueOf(100L)
 
+    /** A manually added row starts with no tax. A saved line rate is never replaced by this default. */
+    fun manualLineDefaultVatRate(): String = "0"
+
     fun rate(raw: String): BigDecimal {
         val normalized = raw.trim().removeSuffix("%").trim().replace(',', '.')
         require(decimal.matches(normalized)) {

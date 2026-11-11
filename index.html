@@ -617,11 +617,11 @@
                             <!-- 1. Thuế VAT -->
                             <div>
                                 <label class="block text-[11px] text-slate-400 font-medium mb-1 flex items-center gap-1">
-                                    <i class="fa-solid fa-receipt text-[10px] text-cyan-400"></i> VAT mặc định cho dòng mới
+                                    <i class="fa-solid fa-receipt text-[10px] text-cyan-400"></i> VAT mặc định cho dòng danh mục
                                 </label>
                                 <select id="vatOption" onchange="calculateTotals()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-                                    <option value="yes" selected>VAT 8% (mặc định)</option>
-                                    <option value="no">Không VAT (0%)</option>
+                                    <option value="yes">VAT 8% (khi hồ sơ khách bật thuế)</option>
+                                    <option value="no" selected>Không VAT (0%)</option>
                                 </select>
                             </div>
 
@@ -2938,6 +2938,7 @@
                 return;
             }
             currentItems[index].vatRate=rate;
+            currentItems[index].vatRateExplicit=true;
             delete currentItems[index].vatRateInput;
             calculateTotals();
         }
@@ -3149,6 +3150,13 @@
             } else if (codeVal === 'custom') {
                 currentItems[index].code = "";
                 currentItems[index].product = "Mặt hàng khác";
+                if (!currentItems[index].vatRateExplicit) {
+                    currentItems[index].vatRate = 0;
+                    currentItems[index].vatAmount = 0;
+                }
+            }
+            if (codeVal !== 'custom' && !currentItems[index].vatRateExplicit) {
+                currentItems[index].vatRate = currentDefaultVatRate();
             }
             renderItemsForm();
             calculateTotals();
@@ -3767,7 +3775,10 @@
             document.getElementById('busLocation').value = o.location || '';
             document.getElementById('deliveryNote').value = o.deliveryNote || '';
             document.getElementById('taxCode').value = o.taxCode || '';
-            document.getElementById('vatOption').value = 'yes'; // New rows inherit the current 8% profile default.
+            const matchedProfile = getAIMemory().find(c => String(c.name || '').trim().toLowerCase() === String(o.name || '').trim().toLowerCase());
+            const profileVat = matchedProfile && (matchedProfile.defaultVat === 'yes' || matchedProfile.defaultVat === 'no')
+                ? matchedProfile.defaultVat : '';
+            document.getElementById('vatOption').value = profileVat || (o.vat === 'yes' ? 'yes' : 'no');
 
             document.getElementById('paymentStatus').value = o.status || 'Chưa thanh toán';
 
@@ -3804,11 +3815,13 @@
                 if (customInput) customInput.value = '0';
             }
 
-            // 2. Load items
+            // 2. Load items. A stored 0% is explicit and must not be replaced by the profile.
             if (o.items && Array.isArray(o.items) && o.items.length > 0) {
                 const legacyRate=o.vat==='yes'?8:0;
                 currentItems = JSON.parse(JSON.stringify(o.items)).map(it=>({
-                    ...it, vatRate:it.vatRate ?? legacyRate
+                    ...it,
+                    vatRate:it.vatRate ?? legacyRate,
+                    vatRateExplicit: it.vatRate !== undefined && it.vatRate !== null
                 }));
             } else {
                 currentItems = [{
@@ -3891,7 +3904,7 @@
             document.getElementById('busLocation').value = '';
             document.getElementById('deliveryNote').value = '';
             document.getElementById('taxCode').value = '';
-            document.getElementById('vatOption').value = 'yes';
+            document.getElementById('vatOption').value = 'no';
             document.getElementById('paymentStatus').value = 'Chưa thanh toán';
             document.getElementById('shippingOption').value = '0';
             document.getElementById('customShippingWrap').classList.add('hidden');
@@ -3913,8 +3926,8 @@
                 discountAmount: 23000,
                 unitPrice: 65000,
                 subtotal: 650000,
-                vatRate: 8,
-                vatAmount: 52000
+                vatRate: 0,
+                vatAmount: 0
             }];
 
             renderItemsForm();
@@ -5951,6 +5964,7 @@
 
             if (currentItems && currentItems.length > 0) {
                 currentItems.forEach(it => {
+                    if (!it.vatRateExplicit) it.vatRate = it.code ? currentDefaultVatRate() : 0;
                     const pricing = aiResolvePricing(cust, it, '', '');
                     it.discountPercent = pricing.percent;
                     it.discountAmount = pricing.amount;
