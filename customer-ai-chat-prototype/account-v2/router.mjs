@@ -32,6 +32,7 @@ import {readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,saveInvoiceFeePolicy,
  saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
 import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
+import {GROK_MCP_PREFIX,handleGrokMcpHttp} from './grok-mcp.mjs';
 import {ownerPushConfig,registerOwnerDevice,revokeOwnerDevice,ownerPushStatus,sendTestPush,
  createFcmSender,startOwnerPushRelay,kickOwnerPushRelay,verifyWakeRequest} from './owner-push.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
@@ -499,6 +500,14 @@ export async function startOwnerPushBackground(){
 }
 
 export async function handleAccountV2(req,res,pathname){
+ if(pathname.startsWith(GROK_MCP_PREFIX)){
+  try{return await handleGrokMcpHttp(req,res,pathname,db)}
+  catch{
+   if(!res.headersSent){res.writeHead(503,{'content-type':'application/json','cache-control':'no-store'});
+    res.end('{"ok":false,"error":"GROK_MCP_UNAVAILABLE"}')}
+   return true;
+  }
+ }
  const page=pathname==='/app-v2'||pathname==='/app-v2/';
  const ownerPage=pathname==='/owner-v2'||pathname==='/owner-v2/';
  const api=pathname.startsWith('/api/v2/');

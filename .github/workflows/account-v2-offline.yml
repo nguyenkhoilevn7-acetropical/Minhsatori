@@ -119,3 +119,5 @@ jobs:
         run: node account-v2/tests/owner-push-postgres.mjs
       - name: Owner push >100 invoices/day (101/150/250), cursor never skips (fake BotApi semantics)
         run: node account-v2/tests/owner-push-volume-postgres.mjs
+      - name: Grok PDF delivery MCP (capability URL, one delivery per new invoice, fake ledger)
+        run: node account-v2/tests/grok-mcp-postgres.mjs
