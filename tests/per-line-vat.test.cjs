@@ -27,9 +27,9 @@ test('website supports zero VAT for a deposit and a custom rate per row', () => 
   assert.equal(lineVatAmount({qty:2,unitPrice:15000,vatRate:5.5}), 1650);
 });
 
-test('per-line sum wins over the legacy bill-level VAT field', () => {
+test('per-line invoice without an aggregate computes its line sum', () => {
   const order = {
-    vatAmount: 999999,
+    vatMode:'per_line',
     vat: 'no',
     items: [
       {qty:2,unitPrice:10000,vatRate:8},
@@ -61,8 +61,8 @@ test('invalid per-line rates fail instead of silently changing the total', () =>
 });
 
 test('website save and PDF paths carry per-line VAT fields', () => {
-  assert.match(html, /items:\s*JSON\.parse\(JSON\.stringify\(currentItems/);
-  assert.match(html, /const vatAmount = currentItems\.reduce\(\(sum, item\) => sum \+ lineVatAmount\(item\), 0\)/);
+  assert.ok(html.includes('items: formVatItems()'));
+  assert.ok(html.includes('const vatAmount = formVatAmount(goodsTotal)'));
   assert.ok(html.includes("+'% · '+money(rowVat)"), 'PDF line description must include VAT rate and amount');
   assert.match(html, /vatAmount:\s*totals\.vatAmount/);
 });

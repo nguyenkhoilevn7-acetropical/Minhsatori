@@ -314,26 +314,12 @@ internal object WebsiteInvoicePdf {
         if (invoice.deliveryNote.isNotBlank()) w.note(invoice.deliveryNote)
 
         w.tableHead()
-        val invoiceGoods = invoice.lines.sumOf { it.amount }
-        val legacyVatRate = if (invoiceGoods > 0L)
-            SatoriPercentCharges.fromAmount(invoiceGoods, invoice.vat).toDouble() else 0.0
-        val legacyLineVatAmounts = if (invoice.lines.all { it.vatRate == null }) {
-            val amounts = invoice.lines.map {
-                SatoriPercentCharges.amount(it.amount, legacyVatRate.toString())
-            }.toMutableList()
-            if (amounts.isNotEmpty()) {
-                val residual = invoice.vat - amounts.sum()
-                amounts[amounts.lastIndex] = (amounts.last() + residual).coerceAtLeast(0L)
-            }
-            amounts
-        } else emptyList()
         invoice.lines.forEachIndexed { index, line ->
-            val lineVatRate = line.vatRate ?: legacyVatRate
-            val lineVatAmount = line.vatAmount
-                ?: legacyLineVatAmounts.getOrNull(index)
-                ?: SatoriPercentCharges.amount(line.amount, lineVatRate.toString())
-            val productWithTax = line.description + "\nVAT " +
-                lineVatRate.toString() + "% · " + SatoriData.money(lineVatAmount)
+            val productWithTax = if (invoice.vatMode == "per_line") {
+                val rate = if (line.vatExempt) 0.0 else line.vatRate ?: invoice.vatRate
+                line.description + "\nVAT " + (rate?.toString()?.plus("%") ?: "—") +
+                    (line.vatAmount?.let { " · " + SatoriData.money(it) } ?: "")
+            } else line.description
             w.tableItem(listOf((index + 1).toString(), productWithTax, line.unit,
                 line.quantity.toString(), SatoriData.money(line.listPrice),
                 percent(line), SatoriData.money(line.unitPrice),

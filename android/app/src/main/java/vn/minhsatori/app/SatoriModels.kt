@@ -61,9 +61,10 @@ data class SatoriLine(
     val listPrice: Long,
     val code: String = "",
     val discountPercent: Double? = null,
-    /** Immutable per-item VAT snapshot; null means a legacy invoice row. */
+    /** Stored per-item VAT snapshot; null preserves an absent field. */
     val vatRate: Double? = null,
-    val vatAmount: Long? = null
+    val vatAmount: Long? = null,
+    val vatExempt: Boolean = false
 ) {
     val amount: Long get() = quantity.toLong() * unitPrice
 }
@@ -106,7 +107,9 @@ data class SatoriInvoice(
     val ownerBorneVat: Boolean? = null,
     val vatExempt: Boolean = false,
     /** Ledger creation channel, e.g. "bot_api". Only used for the creator label. */
-    val source: String = ""
+    val source: String = "",
+    val vatMode: String = "invoice",
+    val vatRate: Double? = null
 ) {
     val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
     val isCustomerPairBill: Boolean get() = pairRole == "customer"
@@ -269,7 +272,8 @@ object SatoriData {
                         vatRate = if (row.has("vatRate") && !row.isNull("vatRate"))
                             row.optDouble("vatRate").takeIf { it.isFinite() && it in 0.0..100.0 } else null,
                         vatAmount = if (row.has("vatAmount") && !row.isNull("vatAmount"))
-                            row.optLong("vatAmount").takeIf { it >= 0L } else null
+                            row.optLong("vatAmount").takeIf { it >= 0L } else null,
+                        vatExempt = row.optBoolean("vatExempt", false)
                     )
                 }
             } else {
@@ -333,7 +337,10 @@ object SatoriData {
                 ownerBorneVat = if (x.has("ownerBorneVat") && !x.isNull("ownerBorneVat"))
                     x.optBoolean("ownerBorneVat", true) else null,
                 vatExempt = x.optBoolean("vatExempt", false),
-                source = string(x, "source").takeIf { it.length <= 40 }.orEmpty()
+                source = string(x, "source").takeIf { it.length <= 40 }.orEmpty(),
+                vatMode = string(x, "vatMode").ifBlank { "invoice" },
+                vatRate = if (x.has("vatRate") && !x.isNull("vatRate"))
+                    x.optDouble("vatRate").takeIf { it.isFinite() && it in 0.0..100.0 } else null
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })

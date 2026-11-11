@@ -617,11 +617,13 @@
                             <!-- 1. Thuế VAT -->
                             <div>
                                 <label class="block text-[11px] text-slate-400 font-medium mb-1 flex items-center gap-1">
-                                    <i class="fa-solid fa-receipt text-[10px] text-cyan-400"></i> VAT mặc định cho dòng mới
+                                    <i class="fa-solid fa-receipt text-[10px] text-cyan-400"></i> VAT tổng bill (mặc định)
                                 </label>
-                                <select id="vatOption" onchange="calculateTotals()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+                                <label class="block text-xs mb-2"><input id="perLineVat" type="checkbox" onchange="togglePerLineVat()"> VAT theo từng dòng (tùy chọn)</label>
+                                <select id="vatOption" onchange="vatFormSnapshot=null; calculateTotals()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
                                     <option value="yes" selected>VAT 8% (mặc định)</option>
                                     <option value="no">Không VAT (0%)</option>
+                                    <option id="storedVatRate" value="saved" hidden></option>
                                 </select>
                             </div>
 
@@ -2839,35 +2841,75 @@
             return html;
         }
 
-        // Per-line VAT snapshot. The selector above the form is only the default for NEW rows.
+        // Invoice mode is the default. Only an explicit toggle enables line tax.
         function currentDefaultVatRate() {
-            return document.getElementById('vatOption')?.value === 'no' ? 0 : 8;
+            const value=document.getElementById('vatOption')?.value;
+            if(value==='saved')return Number(document.getElementById('storedVatRate').dataset.rate);
+            return value==='no'?0:8;
+        }
+        var vatFormSnapshot = null;
+        function isPerLineVat() { return document.getElementById('perLineVat')?.checked === true; }
+        function loadVatState(order=null) {
+            document.getElementById('perLineVat').checked = order?.vatMode === 'per_line';
+            vatFormSnapshot = order ? {goods:getOrderGoodsTotal(order),vat:invoiceVatAmount(order)} : null;
+            const stored=document.getElementById('storedVatRate');
+            if(stored){
+                stored.hidden=true;
+                if(order?.vatMode==='per_line' && order.vatRate!=null){
+                    stored.dataset.rate=String(order.vatRate);stored.textContent='VAT mặc định '+order.vatRate+'%';stored.hidden=false;
+                    document.getElementById('vatOption').value='saved';
+                }
+            }
+        }
+        function togglePerLineVat() {
+            vatFormSnapshot=null;
+            if(isPerLineVat()) currentItems.forEach(item=>{
+                if(item.vatRate==null && item.vatExempt!==true) item.vatRate=currentDefaultVatRate();
+            });
+            else currentItems.forEach(item=>{
+                delete item.vatRate; delete item.vatAmount; delete item.vatExempt; delete item.vatRateInput;
+            });
+            renderItemsForm(); calculateTotals();
         }
         function lineVatAmount(item, fallbackRate=currentDefaultVatRate()) {
-            const rate = Number(item.vatRate ?? fallbackRate);
+            const rate = item.vatExempt===true ? 0 : Number(item.vatRate ?? fallbackRate);
             if (!Number.isFinite(rate) || rate < 0 || rate > 100 ||
                 Math.abs(rate * 100 - Math.round(rate * 100)) > 1e-7) {
                 throw new Error('VAT từng dòng phải từ 0 đến 100%, tối đa 2 số thập phân.');
             }
-            const subtotal = Math.round(Number(item.qty || 0) * Number(item.unitPrice || 0));
+            const subtotal = Number(item.qty || 0) * Number(item.unitPrice || 0);
             if (!Number.isSafeInteger(subtotal) || subtotal < 0 || subtotal > 1e11)
                 throw new Error('Thành tiền dòng không hợp lệ.');
-            item.vatRate = rate;
-            item.vatAmount = Math.round(subtotal * rate / 100);
-            return item.vatAmount;
+            // Integer basis points avoid binary floating-point half-up errors.
+            return Number((BigInt(subtotal)*BigInt(Math.round(rate*100))+5000n)/10000n);
+        }
+        function formVatAmount(goods) {
+            if(isPerLineVat()) return currentItems.reduce((sum,item)=>sum+lineVatAmount(item),0);
+            if(vatFormSnapshot && vatFormSnapshot.goods===goods) return vatFormSnapshot.vat;
+            return Math.round(goods*currentDefaultVatRate()/100);
+        }
+        function formVatItems() {
+            return currentItems.map(item=>{
+                const copy=JSON.parse(JSON.stringify(item));
+                delete copy.vatRateInput;
+                if(isPerLineVat()) {
+                    copy.vatRate=copy.vatExempt===true?0:(copy.vatRate??currentDefaultVatRate());
+                    copy.vatAmount=lineVatAmount(copy);
+                } else { delete copy.vatRate; delete copy.vatAmount; delete copy.vatExempt; }
+                return copy;
+            });
         }
         function invoiceVatAmount(order) {
-            const items = order?.items || [];
-            if (items.length && items.every(it => it.vatRate !== undefined && it.vatRate !== null))
-                return items.reduce((sum, it) => sum + lineVatAmount(it), 0);
             if (order?.vatAmount !== undefined && order?.vatAmount !== null)
                 return Number(order.vatAmount) || 0;
+            if(order?.vatMode==='per_line') return (order.items||[]).reduce((sum,it)=>sum+lineVatAmount(it,order.vatRate),0);
             const goods = getOrderGoodsTotal(order || {});
             return order?.vat === 'yes' ? Math.round(goods * 0.08) : 0;
         }
         function invoiceLineVatRate(order,index) {
             const item=(order?.items || [])[index];
             if(!item)return 0;
+            if(item.vatExempt===true)return 0;
             if(item.vatRate!==undefined&&item.vatRate!==null)return Number(item.vatRate);
             const goods=getOrderGoodsTotal(order || {});
             return goods>0?Number((invoiceVatAmount(order)/goods*100).toFixed(2)):0;
@@ -2887,6 +2929,7 @@
             return amounts[index] || 0;
         }
         function hasInvalidLineVat() {
+            if(!isPerLineVat())return false;
             return currentItems.some(it => {
                 const rate=Number(it.vatRate ?? currentDefaultVatRate());
                 return it.vatRateInput !== undefined || !Number.isFinite(rate) ||
@@ -2912,7 +2955,7 @@
                 const code=item.code || catalogue.find(p=>p.code===aiProductKey(item))?.code || 'custom';
                 const field=(id,label,value,handler,type='number')=>`<label class="compact-field">${label}<input id="${id}_${index}" type="${type}" value="${aiEscape(value)}" oninput="${handler}(${index},this.value)" ${type==='number'?'min="0" step="any"':''} ${id==='item_disc'||id==='item_vat'?'max="100"':''}></label>`;
                 card.innerHTML=`<div class="compact-item-head"><div><strong id="item_heading_${index}">${aiEscape(item.product)}</strong><small>${aiEscape(item.unit || 'Thùng')}${item.parseSource?' · Loại nước từ '+aiEscape(item.parseSource):''}</small></div><button type="button" onclick="removeProductItem(${index})" aria-label="Xóa ${aiEscape(item.product)}" class="text-rose-300 p-2">✕</button></div>
-                  <div class="compact-item-values">${field('item_qty','Số lượng',item.qty,'onQtyInput')}${field('item_listp','Giá niêm yết / '+aiEscape(item.unit || 'thùng'),item.listPrice,'onListPriceInput')}${field('item_disc','Chiết khấu (%)',Number(Number(item.discountPercent || 0).toFixed(6)),'onDiscPctInput')}${field('item_unitp','Đơn giá bán / '+aiEscape(item.unit || 'thùng'),item.unitPrice,'onUnitPriceInput')}${field('item_vat','VAT dòng (%) · 0 = không tính',Number(Number(item.vatRate ?? currentDefaultVatRate()).toFixed(2)),'onVatRateInput')}</div>
+                  <div class="compact-item-values">${field('item_qty','Số lượng',item.qty,'onQtyInput')}${field('item_listp','Giá niêm yết / '+aiEscape(item.unit || 'thùng'),item.listPrice,'onListPriceInput')}${field('item_disc','Chiết khấu (%)',Number(Number(item.discountPercent || 0).toFixed(6)),'onDiscPctInput')}${field('item_unitp','Đơn giá bán / '+aiEscape(item.unit || 'thùng'),item.unitPrice,'onUnitPriceInput')}${isPerLineVat()?field('item_vat','VAT dòng (%) · 0 = không tính',Number(Number(item.vatExempt?0:(item.vatRate ?? currentDefaultVatRate())).toFixed(2)),'onVatRateInput'):''}</div>
                   <details class="compact-item-edit"><summary>Đổi loại nước / tên hàng / tiền giảm</summary><div class="compact-fields">
                     <label class="compact-field wide">Sản phẩm<select onchange="updateItemType(${index},this.value)">${getProductSelectOptionsHTML(code)}</select></label>
                     ${field('item_name','Tên sản phẩm',item.product,'onItemNameInput','text')}${field('item_unit','Đơn vị tính',item.unit || 'Thùng','onItemUnitInput','text')}
@@ -2938,6 +2981,7 @@
                 return;
             }
             currentItems[index].vatRate=rate;
+            currentItems[index].vatExempt=rate===0;
             delete currentItems[index].vatRateInput;
             calculateTotals();
         }
@@ -3119,8 +3163,7 @@
                 discountAmount: discAmt,
                 unitPrice: unitP,
                 subtotal: (target.unit === 'Bình' ? 5 : 10) * unitP,
-                vatRate: currentDefaultVatRate(),
-                vatAmount: 0
+                ...(isPerLineVat()?{vatRate:currentDefaultVatRate()}: {})
             });
             renderItemsForm();
             calculateTotals();
@@ -3565,7 +3608,9 @@
             const items = o.items?.length ? o.items : [o];
             const list = items.reduce((sum, it) => sum + Number(it.qty ?? 0) * Number(it.listPrice ?? 0), 0);
             const goods = getOrderGoodsTotal(o);
-            return Math.round(goods - Math.round(list * (1 - pct / 100)));
+            const ownerVat=SatoriAccountingCore.ownerBorneCharge(o,list);
+            if(ownerVat===null)throw new Error('Chưa xác minh được VAT công ty chịu.');
+            return Math.round(goods - Math.round(list * (1 - pct / 100))) - ownerVat;
         }
 
         function syncPaymentStatusStyle(select=document.getElementById('paymentStatus')) {
@@ -3600,8 +3645,8 @@
                     : '0 đ';
             }
 
-            // 2. VAT is calculated per item. The bill-level selector is only the default for new rows.
-            const vatAmount = currentItems.reduce((sum, item) => sum + lineVatAmount(item), 0);
+            // 2. Preserve invoice VAT unless the owner explicitly enables per-line mode.
+            const vatAmount = formVatAmount(goodsTotal);
 
             // 3. Tổng cộng thanh toán = Tiền hàng + Phí vận chuyển + Thuế VAT
             const grandTotal = goodsTotal + shippingAmount + vatAmount;
@@ -3634,7 +3679,7 @@
                 tr.className = "border-b border-slate-800";
                 tr.innerHTML = `
                     <td class="p-1.5 border-r border-slate-800">${idx + 1}</td>
-                    <td class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">${it.product}<small class="block text-[10px] text-cyan-300 font-normal">VAT ${Number(it.vatRate ?? currentDefaultVatRate())}% · ${lineVatAmount(it).toLocaleString('vi-VN')} đ</small></td>
+                    <td class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">${it.product}${isPerLineVat()?`<small class="block text-[10px] text-cyan-300 font-normal">VAT ${Number(it.vatExempt?0:(it.vatRate ?? currentDefaultVatRate()))}% · ${lineVatAmount(it).toLocaleString('vi-VN')} đ</small>`:''}</td>
                     <td class="p-1.5 border-r border-slate-800">${it.unit || 'Thùng'}</td>
                     <td class="p-1.5 border-r border-slate-800 font-bold">${it.qty}</td>
                     <td class="p-1.5 border-r border-slate-800 font-mono text-cyan-300 font-semibold">${(it.listPrice || 0).toLocaleString('vi-VN')}</td>
@@ -3687,7 +3732,12 @@
             const costTotal = Math.round(listPriceTotal * (1 - costDiscountPercent / 100));
             
             // Lợi nhuận gộp tiền hàng, chưa gồm chi phí vận hành khác.
-            const profit = Math.round(goodsTotal - costTotal);
+            const ownerVat=SatoriAccountingCore.ownerBorneCharge({
+                ...(orders.find(o=>o.id===currentEditingOrderId)||{}),
+                vatAmount,shippingAmount
+            },listPriceTotal);
+            if(ownerVat===null)throw new Error('Chưa xác minh được VAT công ty chịu.');
+            const profit = Math.round(goodsTotal - costTotal) - ownerVat;
             const profitInput = document.getElementById('orderProfitInput');
             if (profitInput) profitInput.value = profit;
 
@@ -3767,7 +3817,8 @@
             document.getElementById('busLocation').value = o.location || '';
             document.getElementById('deliveryNote').value = o.deliveryNote || '';
             document.getElementById('taxCode').value = o.taxCode || '';
-            document.getElementById('vatOption').value = 'yes'; // New rows inherit the current 8% profile default.
+            document.getElementById('vatOption').value = o.vat || 'no';
+            loadVatState(o);
 
             document.getElementById('paymentStatus').value = o.status || 'Chưa thanh toán';
 
@@ -3806,10 +3857,7 @@
 
             // 2. Load items
             if (o.items && Array.isArray(o.items) && o.items.length > 0) {
-                const legacyRate=o.vat==='yes'?8:0;
-                currentItems = JSON.parse(JSON.stringify(o.items)).map(it=>({
-                    ...it, vatRate:it.vatRate ?? legacyRate
-                }));
+                currentItems = JSON.parse(JSON.stringify(o.items));
             } else {
                 currentItems = [{
                     id: Date.now(),
@@ -3823,7 +3871,7 @@
                     discountAmount: o.discount || 23000,
                     unitPrice: o.unitPrice || 65000,
                     subtotal: (o.unitPrice || 65000) * (o.qty || 10),
-                    vatRate:o.vat==='yes'?8:0
+                    ...(o.vatMode==='per_line'?{vatRate:o.vatRate??(o.vat==='yes'?8:0)}:{})
                 }];
             }
 
@@ -3892,6 +3940,7 @@
             document.getElementById('deliveryNote').value = '';
             document.getElementById('taxCode').value = '';
             document.getElementById('vatOption').value = 'yes';
+            loadVatState();
             document.getElementById('paymentStatus').value = 'Chưa thanh toán';
             document.getElementById('shippingOption').value = '0';
             document.getElementById('customShippingWrap').classList.add('hidden');
@@ -3912,9 +3961,7 @@
                 discountPercent: 26.14,
                 discountAmount: 23000,
                 unitPrice: 65000,
-                subtotal: 650000,
-                vatRate: 8,
-                vatAmount: 52000
+                subtotal: 650000
             }];
 
             renderItemsForm();
@@ -3967,7 +4014,9 @@
                         deliveryNote: (document.getElementById('deliveryNote')?.value || '').trim().slice(0,1000),
                         taxCode: document.getElementById('taxCode').value || '',
                         product: prodSummary,
-                        items: JSON.parse(JSON.stringify(currentItems)),
+                        items: formVatItems(),
+                        vatMode:isPerLineVat()?'per_line':'invoice',
+                        vatRate:isPerLineVat()?currentDefaultVatRate():null,
                         qty: totalQty,
                         listPrice: currentItems[0] ? currentItems[0].listPrice : 88000,
                         discount: currentItems[0] ? currentItems[0].discountAmount : 0,
@@ -4048,7 +4097,9 @@
                         deliveryNote: (document.getElementById('deliveryNote')?.value || '').trim().slice(0,1000),
                 taxCode: document.getElementById('taxCode').value || '',
                 product: prodSummary,
-                items: JSON.parse(JSON.stringify(currentItems)),
+                items: formVatItems(),
+                        vatMode:isPerLineVat()?'per_line':'invoice',
+                        vatRate:isPerLineVat()?currentDefaultVatRate():null,
                 qty: totalQty,
                 listPrice: currentItems[0] ? currentItems[0].listPrice : 88000,
                 discount: currentItems[0] ? currentItems[0].discountAmount : 23000,
@@ -4544,7 +4595,7 @@
                 rowsHtml += `
                     <tr class="border-b border-slate-800 text-center">
                         <td class="p-1.5 border-r border-slate-800">${idx + 1}</td>
-                        <td class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">${it.product}<small class="block text-[10px] text-cyan-300 font-normal">VAT ${invoiceLineVatRate(o,idx)}% · ${invoiceLineVatAmount(o,idx).toLocaleString('vi-VN')} đ</small></td>
+                        <td class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">${it.product}${o.vatMode==='per_line'?`<small class="block text-[10px] text-cyan-300 font-normal">VAT ${invoiceLineVatRate(o,idx)}% · ${invoiceLineVatAmount(o,idx).toLocaleString('vi-VN')} đ</small>`:''}</td>
                         <td class="p-1.5 border-r border-slate-800">${it.unit || 'Thùng'}</td>
                         <td class="p-1.5 border-r border-slate-800 font-bold">${it.qty}</td>
                         <td class="p-1.5 border-r border-slate-800 font-mono">${(it.listPrice || 0).toLocaleString('vi-VN')}</td>
@@ -5113,7 +5164,9 @@
                 deliveryNote: (document.getElementById('deliveryNote')?.value || '').trim().slice(0,1000),
                 taxCode: document.getElementById('taxCode')?.value || '',
                 product: prodSummary,
-                items: JSON.parse(JSON.stringify(currentItems || [])),
+                items: formVatItems(),
+                vatMode:isPerLineVat()?'per_line':'invoice',
+                vatRate:isPerLineVat()?currentDefaultVatRate():null,
                 qty: totalQty,
                 goodsTotal: totals.goodsTotal,
                 vat: totals.vatAmount > 0 ? 'yes' : 'no',
@@ -5155,7 +5208,7 @@
                     return `
                         <tr style="border-bottom: 1px solid #cbd5e1; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; text-align: center;">
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1;">${idx + 1}</td>
-                            <td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; font-weight: 600; color: #0f172a;">${it.product}<br><small style="font-weight:400;color:#0369a1;">VAT ${invoiceLineVatRate(o,idx)}% · ${invoiceLineVatAmount(o,idx).toLocaleString('vi-VN')} đ</small></td>
+                            <td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; font-weight: 600; color: #0f172a;">${it.product}${o.vatMode==='per_line'?`<br><small style="font-weight:400;color:#0369a1;">VAT ${invoiceLineVatRate(o,idx)}% · ${invoiceLineVatAmount(o,idx).toLocaleString('vi-VN')} đ</small>`:''}</td>
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1; color: #475569;">${it.unit || 'Thùng'}</td>
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1; font-weight: 700; color: #0f172a;">${it.qty}</td>
                             <td style="padding: 6px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace;">${listP.toLocaleString('vi-VN')}</td>
@@ -5168,7 +5221,7 @@
             }
 
             const goodsT = o.goodsTotal ?? totals.goodsTotal;
-            const vatOpt = 'Theo từng dòng';
+            const vatOpt = o.vatMode==='per_line'?'Theo từng dòng':(o.vat==='yes'?'8%':'0%');
             const vatAmt = invoiceVatAmount(o);
             const grandT = o.total ?? (goodsT + vatAmt + (o.shippingAmount || 0));
 
@@ -5188,7 +5241,7 @@
                 }
             }
 
-            document.getElementById('printVatPercent').innerText = 'Theo từng dòng';
+            document.getElementById('printVatPercent').innerText = o.vatMode==='per_line'?'Theo từng dòng':(o.vat==='yes'?'8':'0');
             document.getElementById('printVatAmount').innerText = `${vatAmt.toLocaleString('vi-VN')} đ`;
             document.getElementById('printGrandTotal').innerText = `${grandT.toLocaleString('vi-VN')} đ`;
             document.getElementById('printTotalInWords').innerText = moneyToVietnameseWords(grandT);
@@ -5324,7 +5377,7 @@
                 const lp=Number(it.listPrice || 0),up=Number(it.unitPrice || 0),pct=it.discountPercent ?? (lp?(lp-up)/lp*100:0);
                 const rate=invoiceLineVatRate(o,i);
                 const rowVat=invoiceLineVatAmount(o,i);
-                return [String(i+1),String(it.product || '')+'\nVAT '+rate+'% · '+money(rowVat),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
+                return [String(i+1),String(it.product || '')+(o.vatMode==='per_line'?'\nVAT '+rate+'% · '+money(rowVat):''),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
             });
             const bank=total>0?
                 [{text:'THÔNG TIN THANH TOÁN',bold:true,color:'#0369a1',margin:[0,8,0,6]},'Ngân hàng: VPBank','Số tài khoản: 658489418','Chủ tài khoản: HKD MINH SATORI',{text:'Nội dung: '+memo,margin:[0,4,0,0]}]:
@@ -5343,7 +5396,7 @@
                     {text:'Mã số thuế: '+(o.taxCode || 'Không có'),margin:[0,0,0,12]},
                     ...(o.deliveryNote?.trim() ? [{table:{widths:['*'],body:[[{stack:[{text:'GHI CHÚ / YÊU CẦU GIAO HÀNG',bold:true,color:'#92400e',margin:[0,0,0,4]},{text:o.deliveryNote,style:'deliveryNote'}],fillColor:'#fffbeb'}]]},layout:{hLineColor:()=> '#f59e0b',vLineColor:()=> '#f59e0b'},margin:[0,0,0,12]}] : []),
                     {table:{headerRows:1,widths:[18,'*',30,24,57,38,57,64],body:[head,...rows]},layout:{hLineColor:()=> '#cbd5e1',vLineColor:()=> '#cbd5e1',paddingTop:()=>7,paddingBottom:()=>7}},
-                    {columns:[{width:'*',stack:bank},{width:240,margin:[0,12,0,0],table:{widths:['*',100],body:[['Tổng tiền hàng:',{text:money(goods),alignment:'right'}],['Phí vận chuyển:',{text:money(ship),alignment:'right'}],['Thuế VAT (theo từng dòng):',{text:money(vat),alignment:'right'}],[{text:'TỔNG THANH TOÁN',bold:true},{text:money(total),bold:true,alignment:'right',color:'#0369a1',fontSize:12}]]},layout:'noBorders'}]},
+                    {columns:[{width:'*',stack:bank},{width:240,margin:[0,12,0,0],table:{widths:['*',100],body:[['Tổng tiền hàng:',{text:money(goods),alignment:'right'}],['Phí vận chuyển:',{text:money(ship),alignment:'right'}],[(o.vatMode==='per_line'?'Thuế VAT (theo từng dòng):':'Thuế VAT ('+(o.vat==='yes'?'8':'0')+'%):'),{text:money(vat),alignment:'right'}],[{text:'TỔNG THANH TOÁN',bold:true},{text:money(total),bold:true,alignment:'right',color:'#0369a1',fontSize:12}]]},layout:'noBorders'}]},
                     {text:'Số tiền bằng chữ: '+moneyToVietnameseWords(total),italics:true,margin:[0,12,0,16]},
                     {columns:[{stack:[{text:'ĐẠI DIỆN BÊN BÁN',bold:true},'(Ký, ghi rõ họ tên)',{text:'HKD MINH SATORI',margin:[0,45,0,0],bold:true,color:'#0369a1'}],alignment:'center'},{stack:[{text:'ĐẠI DIỆN BÊN MUA / NGƯỜI NHẬN',bold:true},'(Ký, ghi rõ họ tên)',{text:o.name || '',margin:[0,45,0,0],bold:true}],alignment:'center'}]}
                 ]};
@@ -5377,13 +5430,15 @@
         let activePreparedPdf=null,lastSavedPdfOrder=null,lastSavedPdfFormSignature=null,pdfShareRequest=0;
         let activePdfChannel='zalo',pdfNativeSharePending=false,pdfPreparationTimer=null,pdfBuildingDraft=false;
         function pdfFormSignature() {
-            return JSON.stringify({fields:['invoiceNo','orderDate','busName','busPhone','busLocation','deliveryNote','taxCode','vatOption','shippingOption','customShippingInput','paymentStatus'].map(id=>document.getElementById(id)?.value || ''),items:currentItems});
+            return JSON.stringify({fields:['invoiceNo','orderDate','busName','busPhone','busLocation','deliveryNote','taxCode','vatOption','perLineVat','shippingOption','customShippingInput','paymentStatus'].map(id=>(id==='perLineVat'?document.getElementById(id)?.checked:document.getElementById(id)?.value) || ''),items:currentItems});
         }
         function resolvePdfOrder(order=null) {
             return JSON.parse(JSON.stringify(order || currentModalViewedOrder || (lastSavedPdfOrder && lastSavedPdfFormSignature===pdfFormSignature()?lastSavedPdfOrder:null) || getCurrentInvoiceData()));
         }
         function invoicePdfKey(o) {
-            return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount]);
+            const fields=[o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount];
+            if(o.vatMode==='per_line')fields.push(o.vatMode,o.vatRate);
+            return JSON.stringify(fields);
         }
         function pdfShareFilename(name) {
             const stem=String(name || 'Hoa_don.pdf').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/\.pdf$/i,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,120);
@@ -6687,15 +6742,13 @@
                 document.getElementById('busPhone').value = o.phone || '';
                 document.getElementById('busLocation').value = o.location || '';
                 document.getElementById('taxCode').value = o.taxCode || '';
-                document.getElementById('vatOption').value = 'yes'; // New rows inherit the current 8% profile default.
+                document.getElementById('vatOption').value = o.vat || 'no';
+            loadVatState(o);
 
                 document.getElementById('paymentStatus').value = o.status || 'Chưa thanh toán';
 
                 if (o.items && o.items.length > 0) {
-                    const legacyRate=o.vat==='yes'?8:0;
-                currentItems = JSON.parse(JSON.stringify(o.items)).map(it=>({
-                    ...it, vatRate:it.vatRate ?? legacyRate
-                }));
+                    currentItems = JSON.parse(JSON.stringify(o.items));
                 } else {
                     currentItems = [{
                         code: 'SATORI_350',
@@ -7905,6 +7958,7 @@
             }
 
             document.getElementById('vatOption').value = data.vat || 'no';
+            loadVatState(data);
             document.getElementById('shippingOption').value = data.shippingAmount ? 'custom' : '0';
             document.getElementById('customShippingInput').value = data.shippingPercent || 0;
             document.getElementById('customShippingWrap').classList.toggle('hidden', !data.shippingAmount);

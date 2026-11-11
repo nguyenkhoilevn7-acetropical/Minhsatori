@@ -9,9 +9,13 @@ var SatoriInvoicePdfArchive=(function(){
   var suffix='SATORI_PDF_VIETQR_20261021';
   function fail(message){throw Error(message);}
   function canonical(o){
-    return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,
+    var fields=[o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,
       o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,
-      o.vat,o.vatAmount,o.shippingAmount])+'\n'+suffix;
+      o.vat,o.vatAmount,o.shippingAmount];
+    // Keep historical version keys byte-for-byte. Explicit per-line snapshots
+    // also bind the mode and header fallback used by the PDF renderer.
+    if(o.vatMode==='per_line')fields.push(o.vatMode,o.vatRate);
+    return JSON.stringify(fields)+'\n'+suffix;
   }
   function digest(bytes){
     return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
@@ -98,6 +102,10 @@ function pending(s,p){
         'taxCode','status','items','product','qty','listPrice','unitPrice',
         'vat','vatAmount','shippingAmount','total'];
       var order={};fields.forEach(function(k){if(o[k]!==undefined)order[k]=o[k]});
+      if(o.vatMode==='per_line'){
+        order.vatMode=o.vatMode;
+        if(o.vatRate!==undefined)order.vatRate=o.vatRate;
+      }
       found.push({order:order,versionKey:key});
     }
     return {revision:s.revision,jobs:found,limit:limit};

@@ -81,7 +81,8 @@ object NativeOrderEditor {
     private fun amount(s:String)=SatoriOrderValidation.amount(s)
     private data class Row(
         val view:LinearLayout,val name:EditText,val qty:EditText,val unit:EditText,
-        val price:EditText,val listPrice:EditText,val vatRate:EditText,var code:String
+        val price:EditText,val listPrice:EditText,val vatRate:EditText,
+        val vatExempt:CheckBox,val taxControls:LinearLayout,var code:String
     )
     fun show(
         a:AppCompatActivity,
@@ -139,12 +140,23 @@ object NativeOrderEditor {
                         note.setText("Shipper khi giao hàng phải mang theo hóa đơn có hiển thị đầy đủ số tiền thanh toán để người nhận kiểm tra.")
                 }.setNegativeButton("Hủy",null).show()
         }
+        val perLine = CheckBox(a).apply {
+            text = "Tính VAT riêng từng dòng (tùy chọn)"
+            isChecked = editing?.vatMode == "per_line"
+            // Existing per-line snapshots cannot be collapsed by a bill-level edit.
+            isEnabled = editing?.vatMode != "per_line"
+        }
+        page.addView(perLine)
+        if(editing?.vatMode == "per_line") title(a,page,
+            "Hóa đơn đang tính VAT từng dòng; sửa VAT tại từng sản phẩm.",12f)
         title(a,page,"CHI TIẾT HÀNG HÓA",16f)
         val rows=mutableListOf<Row>()
         val items=LinearLayout(a).apply{orientation=LinearLayout.VERTICAL}
         page.addView(items)
         val total=title(a,page,"Tổng tiền: 0 đ",18f)
         var ship:EditText?=null
+        var tax:EditText?=null
+        var vatPercentModified=false
         var chargeBreakdown:TextView?=null
         var shippingPercentModified=false
         // Original goods value is the invoice's stored item subtotal, not a new
@@ -164,13 +176,16 @@ object NativeOrderEditor {
         fun totalVat():Long=rows.fold(0L){acc,row->
             val subtotal=SatoriOrderValidation.lineAmount(
                 amount(row.qty.text.toString()),amount(row.price.text.toString()))
-            val vat=SatoriPercentCharges.amount(subtotal,row.vatRate.text.toString())
+            val vat=if(row.vatExempt.isChecked) 0L else
+                SatoriLineTax.amount(subtotal,row.vatRate.text.toString(),false)
             SatoriOrderValidation.sum(acc,vat)
         }
         fun charges(goods:Long):Pair<Long,Long> {
-            // VAT is always the sum of independently selected item rates.
-            // The old invoice-level VAT field is deliberately not consulted.
-            val vat=totalVat()
+            val vat=if(perLine.isChecked) totalVat()
+                else if(tax==null) 0L
+                else if(editing==null) amount(tax!!.text.toString())
+                else SatoriPercentCharges.charge(goods,tax!!.text.toString(),originalGoods,
+                    editing.vat,vatPercentModified)
             if(ship==null) return 0L to vat
             val shipping=if(editing==null) amount(ship!!.text.toString())
                 else SatoriPercentCharges.charge(goods,ship!!.text.toString(),originalGoods,
@@ -189,7 +204,7 @@ object NativeOrderEditor {
                     total.text="TỔNG: "+SatoriData.money(sum)
                     chargeBreakdown?.text="Tiền hàng: "+SatoriData.money(goods)+
                         "\nShipping: "+SatoriData.money(fees.first)+
-                        " · VAT từng dòng: "+SatoriData.money(fees.second)
+                        " · VAT: "+SatoriData.money(fees.second)
                 },
                 onFailure = { error ->
                     total.text="TỔNG: — (kiểm tra số lượng, đơn giá và %)"
@@ -224,12 +239,24 @@ object NativeOrderEditor {
             val unit=input(a,card,"Đơn vị",old?.unit?:"Thùng")
             val price=input(a,card,"Đơn giá (đ)",old?.unitPrice?.toString().orEmpty(),numeric=true)
             val list=input(a,card,"Giá niêm yết (đ)",old?.listPrice?.toString().orEmpty(),numeric=true)
-            val legacyVatRate=if(originalGoods!=null&&editing!=null)
-                SatoriPercentCharges.fromAmount(originalGoods,editing.vat) else "0"
-            val vatRate=input(a,card,"VAT dòng (%) · nhập 0 nếu không tính",
-                old?.vatRate?.toString() ?: if(old!=null) legacyVatRate else "8",
-                percentage=true)
-            val entry=Row(card,product,qty,unit,price,list,vatRate,old?.code.orEmpty())
+            val taxControls=LinearLayout(a).apply {
+                orientation=LinearLayout.VERTICAL
+                visibility=if(perLine.isChecked) android.view.View.VISIBLE else android.view.View.GONE
+            }
+            card.addView(taxControls)
+            val vatRate=input(a,taxControls,"VAT dòng (%) · cần chọn mức hoặc miễn VAT",
+                (old?.vatRate ?: editing?.vatRate)?.toString().orEmpty(),percentage=true)
+            val vatExempt=CheckBox(a).apply {
+                text="Miễn VAT dòng này"
+                isChecked=old?.vatExempt == true
+            }
+            taxControls.addView(vatExempt)
+            vatRate.isEnabled=!vatExempt.isChecked
+            vatExempt.setOnCheckedChangeListener { _, exempt ->
+                vatRate.isEnabled=!exempt
+                recalc()
+            }
+            val entry=Row(card,product,qty,unit,price,list,vatRate,vatExempt,taxControls,old?.code.orEmpty())
             rows.add(entry)
             action(a,card,"CHỌN HÀNG TỪ DANH MỤC"){
                 if(state.products.isEmpty()) Toast.makeText(a,"Danh mục chưa đồng bộ.",Toast.LENGTH_SHORT).show()
@@ -253,17 +280,25 @@ object NativeOrderEditor {
         if(editing==null||editing.lines.isEmpty())addRow() else editing.lines.forEach{addRow(it)}
         action(a,page,"+ THÊM SẢN PHẨM"){addRow()}
         if(editing!=null){
-            title(a,page,"VAT được tính riêng cho từng sản phẩm. Dòng mới mặc định 8%; nhập 0 để miễn VAT hoặc nhập mức khác.",12f)
+            title(a,page,"Nhập % trên tiền hàng; tổng hóa đơn tự tính theo số tiền mới.",12f)
             ship=input(a,page,"Shipping (%)",
-                SatoriPercentCharges.fromAmount(originalGoods?:0L,editing.shipping),
-                percentage=true)
+                SatoriPercentCharges.fromAmount(originalGoods?:0L,editing.shipping),percentage=true)
+            tax=input(a,page,"VAT (%)",
+                SatoriPercentCharges.fromAmount(originalGoods?:0L,editing.vat),percentage=true)
             watcher(ship!!){shippingPercentModified=true}
-            chargeBreakdown=title(a,page,"",12f)
+            watcher(tax!!){vatPercentModified=true}
         }else{
-            title(a,page,"VAT được tính riêng cho từng sản phẩm. Mặc định 8%; nhập 0 để miễn VAT hoặc nhập mức khác.",12f)
             ship=input(a,page,"Phí giao hàng (đ)","0",numeric=true)
-            watcher(ship!!)
-            chargeBreakdown=title(a,page,"",12f)
+            tax=input(a,page,"VAT (đ)","0",numeric=true)
+            watcher(ship!!);watcher(tax!!)
+        }
+        tax!!.isEnabled=!perLine.isChecked
+        chargeBreakdown=title(a,page,"",12f)
+        perLine.setOnCheckedChangeListener { _, enabled ->
+            tax!!.isEnabled=!enabled
+            rows.forEach { it.taxControls.visibility=if(enabled)
+                android.view.View.VISIBLE else android.view.View.GONE }
+            recalc()
         }
         recalc()
         val requestId=UUID.randomUUID().toString().replace("-","")
@@ -297,13 +332,22 @@ object NativeOrderEditor {
                         require(listed>=price && listed<=10000000000L) {
                             "Giá niêm yết phải lớn hơn hoặc bằng đơn giá bán."
                         }
-                        val vatRate=SatoriPercentCharges.rate(it.vatRate.text.toString()).toDouble()
-                        val lineSubtotal=SatoriOrderValidation.lineAmount(qty,price)
-                        val lineVat=SatoriPercentCharges.amount(lineSubtotal,vatRate.toString())
-                        lines.put(JSONObject().put("product",product).put("code",it.code)
+                        val line=JSONObject().put("product",product).put("code",it.code)
                             .put("qty",qty).put("unit",it.unit.text.toString().trim())
                             .put("unitPrice",price).put("listPrice",listed)
-                            .put("vatRate",vatRate).put("vatAmount",lineVat))
+                        if(perLine.isChecked){
+                            require(it.vatExempt.isChecked || !it.vatRate.text.isBlank()) {
+                                "Cần chọn mức VAT hoặc miễn VAT cho từng dòng."
+                            }
+                            val rate=if(it.vatExempt.isChecked) 0.0 else
+                                SatoriPercentCharges.rate(it.vatRate.text.toString()).toDouble()
+                            val lineVat=SatoriLineTax.amount(
+                                SatoriOrderValidation.lineAmount(qty,price),
+                                it.vatRate.text.toString(),it.vatExempt.isChecked)
+                            line.put("vatExempt",it.vatExempt.isChecked)
+                                .put("vatRate",rate).put("vatAmount",lineVat)
+                        }
+                        lines.put(line)
                     }
                     val goods=totalGoods()
                     val (shipping,vat)=charges(goods)
@@ -318,6 +362,7 @@ object NativeOrderEditor {
                         .put("shippingAmount",shipping).put("vatAmount",vat)
                         .put("total",sum).put("deliveryNote",note.text.toString().trim())
                         .put("deliveryDate",dateText)
+                    if(perLine.isChecked && editing?.vatRate!=null) order.put("vatRate",editing.vatRate)
                     val payload=JSONObject().put("expectedRevision",state.revision)
                         .put("requestId",requestId).put("order",order)
                     if(editing!=null){
@@ -363,14 +408,15 @@ object NativeOrderEditor {
                         preview.append("\n").append(line.getString("product")).append(" × ")
                             .append(line.getInt("qty")).append(" = ")
                             .append(SatoriData.money(SatoriOrderValidation.lineAmount(line.getLong("qty"),line.getLong("unitPrice"))))
-                        .append(" · VAT ").append(line.getDouble("vatRate")).append("%: ")
-                        .append(SatoriData.money(line.getLong("vatAmount")))
+                        if(perLine.isChecked) preview.append(" · VAT ")
+                            .append(line.getDouble("vatRate")).append("%: ")
+                            .append(SatoriData.money(line.getLong("vatAmount")))
                     }
                     preview.append("\nTiền hàng: ").append(SatoriData.money(goods))
                         .append("\nPhí giao")
                         .append(if(editing!=null) " ("+ship!!.text.toString().trim()+"%)" else "")
                         .append(": ").append(SatoriData.money(shipping))
-                        .append("\nVAT theo từng dòng: ")
+                        .append(if(perLine.isChecked) "\nVAT theo từng dòng: " else "\nVAT: ")
                         .append(SatoriData.money(vat))
                         .append("\nTỔNG THANH TOÁN: ").append(SatoriData.money(sum))
                     if(note.text.isNotBlank())preview.append("\nGHI CHÚ: ").append(note.text)
