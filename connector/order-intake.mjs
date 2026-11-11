@@ -66,7 +66,7 @@ export function prepareOrderIntake(input = {}) {
 
   const customer = x.customer && typeof x.customer === 'object' ? x.customer : {};
   const name = String(customer.name ?? '').trim();
-  const phone = String(customer.phone ?? '').trim();
+  let phone = String(customer.phone ?? '').trim();
   const address = String(customer.address ?? '').trim();
   if (name.length < 2) issues.push(issue('CUSTOMER_NAME_REQUIRED', 'customer.name', 'Chưa xác định rõ tên khách/người nhận.'));
   if (address.length < 5) issues.push(issue('ADDRESS_REQUIRED', 'customer.address', 'Chưa có địa chỉ giao hàng hợp lệ.'));
@@ -75,9 +75,12 @@ export function prepareOrderIntake(input = {}) {
   let customerRef;
   let confirmedNewCustomer = false;
   if (profile) {
+    const profilePhone = String(profile.phone ?? '').trim();
+    const phoneMatches = !profilePhone || !phone ||
+      profilePhone.replace(/\D/g,'') === phone.replace(/\D/g,'');
     const exact = norm(profile.name) === norm(name) &&
-      norm(profile.address) === norm(address) &&
-      (!profile.phone || !phone || String(profile.phone).replace(/\D/g,'') === phone.replace(/\D/g,''));
+      norm(profile.address) === norm(address) && phoneMatches;
+    if (!phone && profilePhone) phone = profilePhone;
     if (!exact) {
       issues.push(issue('CUSTOMER_PROFILE_MISMATCH', 'customer', 'Thông tin không khớp chính xác hồ sơ/điểm giao đã chọn.'));
     } else if (profile.id == null || !Number.isSafeInteger(Number(profile.invoiceNo)) || Number(profile.invoiceNo) <= 0) {
