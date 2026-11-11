@@ -220,13 +220,21 @@ function sameCreateIntent(saved,provided){
     String(saved.deliveryDate||'')!==String(provided.deliveryDate||''))return false;
  return provided.items.every(function(item,i){
   var old=saved.items[i];
-  return item&&old&&String(item.code||'')===String(old.code||'')&&
+  if(!(item&&old&&String(item.code||'')===String(old.code||'')&&
    norm(item.product||item.name)===norm(old.product)&&
    String(item.unit||'Thùng')===String(old.unit||'Thùng')&&
    Number(item.qty)===Number(old.qty)&&
    Number(item.unitPrice)===Number(old.unitPrice)&&
-   Number(item.listPrice==null?item.unitPrice:item.listPrice)===Number(old.listPrice);
- });
+   Number(item.listPrice==null?item.unitPrice:item.listPrice)===Number(old.listPrice)))return false;
+  var providedRate=item.vatRate==null?null:Number(item.vatRate);
+  var savedRate=old.vatRate==null?null:Number(old.vatRate);
+  if(providedRate!==savedRate)return false;
+  if(providedRate!==null){
+   var expectedVat=Math.round(Number(item.qty)*Number(item.unitPrice)*providedRate/100);
+   if(expectedVat!==Number(old.vatAmount))return false;
+  }
+  return true;
+ };
 }
 function approveAIPricing(s,all,p){
  // An entirely separate HMAC owner scope is required to approve or revoke AI
