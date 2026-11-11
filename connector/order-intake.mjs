@@ -173,12 +173,13 @@ export function prepareOrderIntake(input = {}) {
         continue;
       }
       vatRate = raw.vatRate;
-    } else if (isManual) {
-      vatRate = 0;
     } else if (profile && validRate(profile.defaultVatRate)) {
+      // Every new row, including manual entries, inherits the selected customer's
+      // current profile rate. An explicit line-level choice (e.g. deposit 0%)
+      // overrides this default without changing any other row.
       vatRate = profile.defaultVatRate;
     } else {
-      issues.push(issue('TAX_PROFILE_REQUIRED', field + '.vatRate', 'Chưa xác định mức thuế mặc định từ hồ sơ khách hàng; không tự lấy 8%.'));
+      issues.push(issue('TAX_PROFILE_REQUIRED', field + '.vatRate', 'Chưa xác định mức thuế mặc định từ hồ sơ khách hàng; không tự gán 8% hoặc 0%.'));
       continue;
     }
 
