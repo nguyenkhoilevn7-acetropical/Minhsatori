@@ -8,14 +8,17 @@ EDITOR = ROOT / "app/src/main/java/vn/minhsatori/app/NativeOrderEditor.kt"
 MATH = ROOT / "app/src/main/java/vn/minhsatori/app/SatoriPercentCharges.kt"
 
 class InvoiceEditPercentContract(unittest.TestCase):
-    def test_edit_has_percentage_fields_but_new_order_still_uses_vnd(self):
+    def test_shipping_remains_invoice_level_and_vat_is_per_line(self):
         code = EDITOR.read_text(encoding="utf-8")
         self.assertIn('ship=input(a,page,"Shipping (%)"', code)
-        self.assertIn('tax=input(a,page,"VAT (%)"', code)
         self.assertIn('ship=input(a,page,"Phí giao hàng (đ)","0",numeric=true)', code)
-        self.assertIn('tax=input(a,page,"VAT (đ)","0",numeric=true)', code)
+        self.assertIn('val vatRate=input(a,card,"VAT dòng (%) · nhập 0 nếu không tính"', code)
+        self.assertIn('old?.vatRate?.toString() ?: if(old!=null) legacyVatRate else "8"', code)
+        self.assertIn('watcher(qty);watcher(price);watcher(vatRate);recalc()', code)
         self.assertIn("shippingPercentModified=true", code)
-        self.assertIn("vatPercentModified=true", code)
+        self.assertNotIn('tax=input(a,page,"VAT (%)"', code)
+        self.assertNotIn('tax=input(a,page,"VAT (đ)"', code)
+        self.assertNotIn("vatPercentModified", code)
 
     def test_live_preview_and_server_payload_use_same_calculated_amounts(self):
         code = EDITOR.read_text(encoding="utf-8")
