@@ -54,6 +54,6 @@ test('invalid per-line rates fail instead of silently changing the total', () =>
 test('website save and PDF paths carry per-line VAT fields', () => {
   assert.match(html, /items:\s*JSON\.parse\(JSON\.stringify\(currentItems/);
   assert.match(html, /const vatAmount = currentItems\.reduce\(\(sum, item\) => sum \+ lineVatAmount\(item\), 0\)/);
-  assert.match(html, /VAT \+rate\+['"]%/);
+  assert.ok(html.includes("+'% · '+money(rowVat)"), 'PDF line description must include VAT rate and amount');
   assert.match(html, /vatAmount:\s*totals\.vatAmount/);
 });
