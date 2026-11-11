@@ -14,8 +14,8 @@ const sandbox = {
     (sum, item) => sum + Number(item.qty || 0) * Number(item.unitPrice || 0), 0)
 };
 vm.createContext(sandbox);
-vm.runInContext(source + '\nthis.testApi={currentDefaultVatRate,lineVatAmount,invoiceVatAmount};', sandbox);
-const { currentDefaultVatRate, lineVatAmount, invoiceVatAmount } = sandbox.testApi;
+vm.runInContext(source + '\nthis.testApi={currentDefaultVatRate,lineVatAmount,invoiceVatAmount,invoiceLineVatRate,invoiceLineVatAmount};', sandbox);
+const { currentDefaultVatRate, lineVatAmount, invoiceVatAmount, invoiceLineVatRate, invoiceLineVatAmount } = sandbox.testApi;
 
 test('website defaults a new row to the active profile default (8%)', () => {
   assert.equal(currentDefaultVatRate(), 8);
@@ -44,6 +44,15 @@ test('legacy invoices without line rates keep their stored aggregate VAT', () =>
   assert.equal(invoiceVatAmount({
     vatAmount:1600, vat:'yes', items:[{qty:2,unitPrice:10000}]
   }), 1600);
+});
+
+test('legacy PDF line allocation reconciles exactly to the stored bill VAT', () => {
+  const legacy = {vat:'yes',vatAmount:1,items:[
+    {qty:1,unitPrice:7},{qty:1,unitPrice:7}
+  ]};
+  assert.equal(invoiceVatAmount(legacy),1);
+  assert.equal(invoiceLineVatRate(legacy,0),7.14);
+  assert.equal(invoiceLineVatAmount(legacy,0)+invoiceLineVatAmount(legacy,1),1);
 });
 
 test('invalid per-line rates fail instead of silently changing the total', () => {
