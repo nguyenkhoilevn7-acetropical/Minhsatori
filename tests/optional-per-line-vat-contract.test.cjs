@@ -21,7 +21,8 @@ function harness() {
     ContentService: {MimeType: {JSON: 'json'}, createTextOutput: text => ({
       text, setMimeType() {return this;}
     })},
-    PropertiesService: {getScriptProperties: () => ({getProperty: key => key === 'SATORI_BOT_CLIENTS_JSON'
+    PropertiesService: {getScriptProperties: () => ({getProperty: key => key === 'STATE_FILE_ID' ? 'fixture-ledger-only'
+      : key === 'SATORI_BOT_CLIENTS_JSON'
       ? JSON.stringify({fixture: {secret, enabled: true, scopes: ['orders:read','orders:write','collaborators:pair:write']}}) : null})},
     CacheService: {getScriptCache: () => ({
       get: key => cache.get(key), put: (key, val) => cache.set(key, val)
