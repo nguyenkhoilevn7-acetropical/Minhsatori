@@ -159,3 +159,15 @@ test('paired CTV invoices explicitly refuse new per-line tax fields', () => {
   });
   assert.equal(result.error.code, 'PER_LINE_VAT_NOT_SUPPORTED');
 });
+
+test('canonical connector accepts optional VAT fields and delivery note (single contract)', async () => {
+  const connector = await import('../connector/lib/satori.mjs');
+  const schema = connector.tools({SATORI_ENABLE_WRITES: 'true'}).find(
+    tool => tool.name === 'satori_orders_create'
+  ).inputSchema.properties.order.properties;
+  assert.ok(schema.vatRate);
+  assert.ok(schema.deliveryNote);
+  assert.ok(schema.items.items.properties.vatRate);
+  assert.ok(schema.items.items.properties.vatExempt);
+  assert.ok(schema.items.items.properties.vatAmount);
+});
