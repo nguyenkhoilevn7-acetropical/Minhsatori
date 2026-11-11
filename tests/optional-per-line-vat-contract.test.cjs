@@ -78,7 +78,7 @@ const deposit = {product: 'Deposit', qty: 1, unitPrice: 5000, listPrice: 5000};
 test('legacy without new tax fields preserves existing invoice VAT and total verbatim', () => {
   const h = harness();
   const result = create(h, 'legacy_00001', draft([water, deposit], {vatAmount: 2000, total: 27500}));
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.data.order.vatAmount, 2000);
   assert.equal(result.data.order.total, 27500);
   assert.equal(h.rows()[0].vatMode, 'invoice');
@@ -87,7 +87,7 @@ test('legacy without new tax fields preserves existing invoice VAT and total ver
 test('invoice vatRate=8 calculates line VAT without double taxation', () => {
   const h = harness();
   const result = create(h, 'rate_000001', draft([water, deposit], {vatRate: 8, vatAmount: 2000, total: 27500}));
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.data.order.vatAmount, 2000);
   assert.equal(h.rows()[0].items.reduce((sum, x) => sum + x.vatAmount, 0), 2000);
   assert.equal(h.rows()[0].vatMode, 'per_line');
@@ -99,7 +99,7 @@ test('line exemption and custom 10 percent rate use half-up VND rounding indepen
   const result = create(h, 'rates_00001', draft(items, {
     vatRate: 8, vatAmount: 1601, total: 27106
   }));
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.data.order.vatAmount, 1601);
   assert.equal(result.data.order.total, 27106);
   assert.equal(h.rows()[0].vatMode, 'per_line');
@@ -125,7 +125,7 @@ test('duplicate requestId cannot create a second invoice or silently change VAT 
     vatRate: 8, vatAmount: 1600, total: 27100
   });
   const first = create(h, 'dedupe_00001', order);
-  assert.equal(first.ok, true);
+  assert.equal(first.ok, true, JSON.stringify(first));
   const writes = h.writes();
   const replay = h.call('orders.create', {
     requestId: 'dedupe_00001', expectedRevision: 1, confirmedNewCustomer: true, order
@@ -145,7 +145,7 @@ test('list readback exposes persisted mode and VAT fields per item', () => {
     vatRate: 8, vatAmount: 1600, total: 27100
   }));
   const result = h.call('orders.list', {query: 'Synthetic VAT Customer'});
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, JSON.stringify(result));
   const row = result.data.orders[0];
   assert.equal(row.vatMode, 'per_line');
   assert.equal(row.items[1].vatExempt, true);
