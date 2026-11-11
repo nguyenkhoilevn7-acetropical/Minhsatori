@@ -20,6 +20,14 @@ class InvoiceEditPercentContract(unittest.TestCase):
         self.assertNotIn('tax=input(a,page,"VAT (đ)"', code)
         self.assertNotIn("vatPercentModified", code)
 
+    def test_line_tax_is_saved_with_each_item_and_bill_total_is_the_sum(self):
+        code = EDITOR.read_text(encoding="utf-8")
+        self.assertIn('.put("vatRate",vatRate).put("vatAmount",lineVat)', code)
+        self.assertIn('val vat=SatoriPercentCharges.amount(subtotal,row.vatRate.text.toString())', code)
+        self.assertIn('val vat=totalVat()', code)
+        self.assertIn('else "8"', code)
+        self.assertIn('VAT theo từng dòng:', code)
+
     def test_live_preview_and_server_payload_use_same_calculated_amounts(self):
         code = EDITOR.read_text(encoding="utf-8")
         self.assertIn('val (shipping,vat)=charges(goods)', code)
