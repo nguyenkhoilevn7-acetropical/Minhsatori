@@ -79,6 +79,8 @@ export function ensureOwnerPushSchema(pool){
   path.join(HERE,'migrations/20261103_owner_push.sql'),'utf8'))
   .then(()=>pool.query(fs.readFileSync(
    path.join(HERE,'migrations/20261111_owner_pdf_delivery.sql'),'utf8')))
+  .then(()=>pool.query(fs.readFileSync(
+   path.join(HERE,'migrations/20261112_grok_order_drafts.sql'),'utf8')))
   .then(()=>true).catch(e=>{schemaReady=null;throw e});
  return schemaReady;
 }

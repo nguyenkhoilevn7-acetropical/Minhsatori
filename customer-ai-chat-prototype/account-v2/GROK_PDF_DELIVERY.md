@@ -37,3 +37,25 @@ dấu failed và báo anh."
   Grok is asked (or a Grok scheduled task runs) while the computer and Zalo
   Desktop are open. Nothing is lost or duplicated while waiting.
 - Rows older than 7 days or with 10 failed attempts are no longer offered.
+
+## Phase B: owner creates real orders in Grok (`GROK_OWNER_WRITES_ENABLED=1`)
+
+Same connector URL. With the flag set, four more tools appear:
+
+1. `satori_find_customer` (read): past delivery destinations by name/phone -> `customerRef`.
+2. `satori_order_draft`: the server prices the order (goods, VAT, shipping, total) with the
+   live `orders.create` rules and returns a summary plus a 4-digit approval code. Nothing is
+   written to the ledger. VAT: none unless asked; order `vatRate` = invoice VAT on goods;
+   line `vatRate`/`vatExempt` = optional per-line VAT.
+3. `satori_order_confirm`: only after the owner types the code back. One signed
+   `orders.create` through the isolated V2 writer, exact readback by requestId; repeated
+   calls never create a second invoice. Then the owner push + PDF queue run as usual.
+4. `satori_order_status`: reconcile a draft whose confirm returned `UNCERTAIN`.
+
+Drafts expire after 30 minutes; 5 wrong codes cancel a draft. No payment, edit or delete
+tool exists here. To turn it off: remove `GROK_OWNER_WRITES_ENABLED` on Render (the tools
+disappear on the next deploy/restart).
+
+Verification: `node --test account-v2/tests/grok-orders.test.mjs` (offline) and
+`SATORI_BOTAPI_SOURCE=<clasp clone>/BotApi.js node account-v2/tests/grok-orders-ledger.mjs`
+(real BotApi source in a vm sandbox + local PostgreSQL).

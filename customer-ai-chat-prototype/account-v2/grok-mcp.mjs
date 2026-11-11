@@ -14,6 +14,7 @@
  * least 40 characters is configured. Tokens are never logged.
  */
 import crypto from 'node:crypto';
+import {GROK_ORDER_TOOLS,GROK_ORDER_TOOL_NAMES,GrokOrderError,callGrokOrderTool,grokOrdersEnabled} from './grok-orders.mjs';
 
 export const GROK_MCP_PREFIX='/mcp/grok/';
 const PROTOCOL_VERSIONS=['2025-06-18','2025-03-26','2024-11-05'];
@@ -96,9 +97,12 @@ export async function callGrokTool(pool,name,args={}){
 }
 
 const rpcError=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,message}});
+/** Phase A tools always; Phase B order tools only when GROK_OWNER_WRITES_ENABLED=1. */
+export const grokToolList=(env=process.env)=>grokOrdersEnabled(env)?[...GROK_TOOLS,...GROK_ORDER_TOOLS]:GROK_TOOLS;
 
 /** Handles one JSON-RPC message; returns a response object or null for notifications. */
-export async function handleGrokRpc(pool,msg){
+export async function handleGrokRpc(pool,msg,deps={}){
+ const env=deps.env||process.env;
  if(!msg||msg.jsonrpc!=='2.0'||typeof msg.method!=='string')return rpcError(msg?.id,-32600,'Invalid Request');
  const isNotification=msg.id===undefined;
  if(isNotification)return null;
@@ -111,13 +115,23 @@ export async function handleGrokRpc(pool,msg){
     capabilities:{tools:{listChanged:false}},
     serverInfo:{name:'minh-satori-grok-delivery',version:'1.0.0'},
     instructions:'Hàng đợi gửi PDF hóa đơn mới của Minh Satori. Chỉ gửi đúng nội dung zaloText kèm PDF '+
-     'chính thức lấy từ satori_invoice_pdf; ghi nhận kết quả bằng satori_mark_pdf_delivered.'}};
+     'chính thức lấy từ satori_invoice_pdf; ghi nhận kết quả bằng satori_mark_pdf_delivered.'+
+     (grokOrdersEnabled(env)?' Tạo đơn: satori_find_customer -> satori_order_draft -> gửi summary cho chủ cửa hàng -> '+
+      'chỉ khi chủ cửa hàng gõ lại mã duyệt mới gọi satori_order_confirm.':'')}};
   }
   if(msg.method==='ping')return {jsonrpc:'2.0',id,result:{}};
-  if(msg.method==='tools/list')return {jsonrpc:'2.0',id,result:{tools:GROK_TOOLS}};
+  if(msg.method==='tools/list')return {jsonrpc:'2.0',id,result:{tools:grokToolList(env)}};
   if(msg.method==='tools/call'){
    const name=msg.params?.name,args=msg.params?.arguments||{};
-   if(!GROK_TOOLS.some(t=>t.name===name))return rpcError(id,-32602,'Unknown tool');
+   if(!grokToolList(env).some(t=>t.name===name))return rpcError(id,-32602,'Unknown tool');
+   if(GROK_ORDER_TOOL_NAMES.includes(name)){
+    try{return {jsonrpc:'2.0',id,result:toolOk(await callGrokOrderTool(pool,deps,name,args))}}
+    catch(e){
+     // Business errors carry a safe Vietnamese message; anything else stays generic.
+     if(e instanceof GrokOrderError)return {jsonrpc:'2.0',id,result:toolError(e.code+': '+e.message)};
+     throw e;
+    }
+   }
    return {jsonrpc:'2.0',id,result:await callGrokTool(pool,name,args)};
   }
   return rpcError(id,-32601,'Method not found');
@@ -139,7 +153,8 @@ function sendJson(res,status,body){
 }
 
 /** HTTP entry. Returns true when the request was for this endpoint. */
-export async function handleGrokMcpHttp(req,res,pathname,getPool,env=process.env){
+export async function handleGrokMcpHttp(req,res,pathname,getPool,env=process.env,deps={}){
+ deps={env,...deps};
  if(!String(pathname).startsWith(GROK_MCP_PREFIX))return false;
  // Same 404 for disabled, wrong token and malformed path: no probing signal.
  if(!grokPathAuthorized(pathname,env)){sendJson(res,404,{ok:false,error:'NOT_FOUND'});return true}
@@ -152,11 +167,11 @@ export async function handleGrokMcpHttp(req,res,pathname,getPool,env=process.env
  const { ensureOwnerPushSchema }=await import('./owner-push.mjs');
  await ensureOwnerPushSchema(pool);
  if(Array.isArray(payload)){
-  const out=(await Promise.all(payload.slice(0,20).map(m=>handleGrokRpc(pool,m)))).filter(Boolean);
+  const out=(await Promise.all(payload.slice(0,20).map(m=>handleGrokRpc(pool,m,deps)))).filter(Boolean);
   if(!out.length){res.writeHead(202);res.end();return true}
   sendJson(res,200,out);return true;
  }
- const out=await handleGrokRpc(pool,payload);
+ const out=await handleGrokRpc(pool,payload,deps);
  if(!out){res.writeHead(202);res.end();return true}
  sendJson(res,200,out);return true;
 }
