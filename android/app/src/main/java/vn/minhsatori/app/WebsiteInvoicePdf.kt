@@ -317,9 +317,20 @@ internal object WebsiteInvoicePdf {
         val invoiceGoods = invoice.lines.sumOf { it.amount }
         val legacyVatRate = if (invoiceGoods > 0L)
             SatoriPercentCharges.fromAmount(invoiceGoods, invoice.vat).toDouble() else 0.0
+        val legacyLineVatAmounts = if (invoice.lines.all { it.vatRate == null }) {
+            val amounts = invoice.lines.map {
+                SatoriPercentCharges.amount(it.amount, legacyVatRate.toString())
+            }.toMutableList()
+            if (amounts.isNotEmpty()) {
+                val residual = invoice.vat - amounts.sum()
+                amounts[amounts.lastIndex] = (amounts.last() + residual).coerceAtLeast(0L)
+            }
+            amounts
+        } else emptyList()
         invoice.lines.forEachIndexed { index, line ->
             val lineVatRate = line.vatRate ?: legacyVatRate
             val lineVatAmount = line.vatAmount
+                ?: legacyLineVatAmounts.getOrNull(index)
                 ?: SatoriPercentCharges.amount(line.amount, lineVatRate.toString())
             val productWithTax = line.description + "\nVAT " +
                 lineVatRate.toString() + "% · " + SatoriData.money(lineVatAmount)
