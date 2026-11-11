@@ -860,6 +860,12 @@ body{font-size:14px;line-height:1.42}
 @media screen and (prefers-reduced-motion:reduce){
   .owner-tabs button,.crm-entry,button{transition:none!important}
 }
+#invoiceLineDialog{border:0;border-radius:16px;padding:16px;width:min(560px,calc(100vw - 24px));max-height:min(88dvh,760px);overflow:auto}
+#invoiceLineDialog::backdrop{background:#12203288}
+.invoice-line-card{border:1px solid #d5e6e2;border-radius:12px;padding:10px;margin:8px 0;display:grid;gap:8px}
+.invoice-line-card label{display:grid;gap:4px;font-size:13px;font-weight:700}
+.invoice-line-card input{font:inherit;min-height:40px;border:1px solid #c5d9d4;border-radius:8px;padding:6px 8px}
+#invoiceLineTotal{font-weight:800;margin:8px 0}
 
 </style></head>
 <body>
@@ -892,7 +898,22 @@ body{font-size:14px;line-height:1.42}
  <div id="notice" role="status" aria-live="polite">Đang tải thông tin danh mục.</div>
  <div class="actions">
   <button id="sync" type="button" disabled>Đồng bộ từ Satori chính thức</button>
+  <button id="openInvoiceLineEditor" type="button">Nhập dòng hóa đơn</button>
  </div>
+ <dialog id="invoiceLineDialog" aria-label="Dòng hóa đơn">
+  <form id="invoiceLineForm">
+   <h2>Dòng hóa đơn</h2>
+   <p>Nhập tên, số lượng và đơn giá. Chọn danh mục chỉ khi dòng thuộc sản phẩm có sẵn. Bản này không tạo sản phẩm mới và không ghi hóa đơn thật.</p>
+   <div id="invoiceLineRows"></div>
+   <p id="invoiceLineTotal">Tổng: 0 đ</p>
+   <div class="actions">
+    <button id="invoiceLineAdd" type="button">+Thêm sản phẩm</button>
+    <button id="invoiceLineSave" type="submit">Kiểm tra & Lưu</button>
+    <button id="invoiceLineClose" type="button">Đóng</button>
+   </div>
+   <p id="invoiceLineStatus" role="status"></p>
+  </form>
+ </dialog>
  <details><summary>Điều kiện đồng bộ an toàn</summary>
   <p>Backend cần bộ quyền đọc HMAC <code>catalogue:read</code> và danh mục chính thức đã được lưu trên Drive. Nút đồng bộ yêu cầu xác nhận của Admin, kiểm tra revision và xác minh dữ liệu sau khi ghi vào PostgreSQL V2. Không chuyển hóa đơn, công nợ hoặc hồ sơ khách hàng.</p>
  </details>
@@ -2924,6 +2945,150 @@ function ownerContactEditor(rec){
  details.append(form);return details;
 }
 
+
+function serializeInvoiceEditorRows(rows){
+ return rows.map(row=>{
+  const name=String(row.name||'').trim();
+  const catalogName=String(row.catalogName||'').trim();
+  const picked=row.productId&&catalogName&&name===catalogName?row.productId:null;
+  const list=row.listPrice===''||row.listPrice==null?null:Number(row.listPrice);
+  return {name,qty:Number(row.qty),unit:String(row.unit||'').trim(),
+   unitPrice:Number(row.unitPrice),listPrice:list,
+   productId:typeof picked==='string'&&/^TP-[0-9]{5}$/.test(picked)?picked:null};
+ });
+}
+function invoiceEditorGoods(rows){
+ return serializeInvoiceEditorRows(rows).reduce((sum,line)=>{
+  if(!Number.isSafeInteger(line.qty)||!Number.isSafeInteger(line.unitPrice))return sum;
+  return sum+line.qty*line.unitPrice;
+ },0);
+}
+const invoiceEditorRows=[];
+let invoiceEditorId=null,invoiceEditorRevision=0,invoiceEditorCatalogue=[];
+function invoiceEditorMoney(value){
+ return Number.isSafeInteger(value)?value.toLocaleString('vi-VN')+' đ':'—';
+}
+function refreshInvoiceEditorTotal(){
+ byId('invoiceLineTotal').textContent='Tổng: '+invoiceEditorMoney(invoiceEditorGoods(invoiceEditorRows));
+}
+function invoiceEditorStatus(message){byId('invoiceLineStatus').textContent=message||'';}
+function bindInvoiceEditorField(card,label,value,apply,numeric=false){
+ const field=document.createElement('label');
+ field.append(document.createTextNode(label));
+ const input=document.createElement('input');
+ input.value=value==null?'':String(value);
+ if(numeric){input.inputMode='numeric';input.autocomplete='off';}
+ input.addEventListener('input',()=>{apply(input.value);refreshInvoiceEditorTotal();});
+ field.append(input);card.append(field);return input;
+}
+function addInvoiceEditorRow(seed={}){
+ const state={name:seed.name||'',qty:seed.qty??1,unit:seed.unit||'Thùng',
+  unitPrice:seed.unitPrice??'',listPrice:seed.listPrice??'',
+  productId:seed.productId||null,catalogName:seed.catalogName||''};
+ invoiceEditorRows.push(state);
+ const card=document.createElement('div');
+ card.className='invoice-line-card';
+ const nameInput=bindInvoiceEditorField(card,'Tên sản phẩm',state.name,value=>{
+  state.name=value;
+  if(value.trim()!==state.catalogName)state.productId=null;
+ });
+ bindInvoiceEditorField(card,'Số lượng',state.qty,value=>{state.qty=value;},true);
+ const unitInput=bindInvoiceEditorField(card,'Đơn vị',state.unit,value=>{state.unit=value;});
+ const priceInput=bindInvoiceEditorField(card,'Đơn giá',state.unitPrice,value=>{state.unitPrice=value;},true);
+ const listInput=bindInvoiceEditorField(card,'Giá niêm yết',state.listPrice,value=>{state.listPrice=value;},true);
+ const pick=document.createElement('button');
+ pick.type='button';pick.textContent='Chọn hàng từ danh mục';
+ pick.addEventListener('click',()=>{
+  if(!invoiceEditorCatalogue.length){invoiceEditorStatus('Danh mục chưa đồng bộ.');return;}
+  let choice=card.querySelector('select');
+  if(choice){choice.hidden=false;return;}
+  choice=document.createElement('select');
+  const blank=document.createElement('option');
+  blank.value='';blank.textContent='Chọn sản phẩm';choice.append(blank);
+  for(const product of invoiceEditorCatalogue){
+   const option=document.createElement('option');
+   option.value=product.code;
+   option.textContent=product.name+' · '+invoiceEditorMoney(Number(product.listPrice));
+   choice.append(option);
+  }
+  choice.addEventListener('change',()=>{
+   const product=invoiceEditorCatalogue.find(item=>item.code===choice.value);
+   if(!product)return;
+   state.productId=product.code;state.catalogName=product.name;state.name=product.name;
+   state.unit=product.unit;state.unitPrice=Number(product.listPrice);
+   state.listPrice=Number(product.listPrice);
+   nameInput.value=product.name;unitInput.value=product.unit;
+   priceInput.value=String(product.listPrice);listInput.value=String(product.listPrice);
+   refreshInvoiceEditorTotal();invoiceEditorStatus('');
+  });
+  pick.insertAdjacentElement('afterend',choice);
+ });
+ const remove=document.createElement('button');
+ remove.type='button';remove.textContent='Xóa sản phẩm này';
+ remove.addEventListener('click',()=>{
+  if(invoiceEditorRows.length===1){invoiceEditorStatus('Đơn cần ít nhất 1 sản phẩm.');return;}
+  invoiceEditorRows.splice(invoiceEditorRows.indexOf(state),1);
+  card.remove();refreshInvoiceEditorTotal();
+ });
+ card.append(pick,remove);
+ byId('invoiceLineRows').append(card);
+ refreshInvoiceEditorTotal();
+ return card;
+}
+function resetInvoiceEditor(draft){
+ invoiceEditorRows.splice(0,invoiceEditorRows.length);
+ byId('invoiceLineRows').replaceChildren();
+ const lines=draft?.lines?.length?draft.lines:[{qty:1,unit:'Thùng'}];
+ for(const line of lines)addInvoiceEditorRow({
+  name:line.name||'',qty:line.qty??1,unit:line.unit||'Thùng',
+  unitPrice:line.unitPrice??'',listPrice:line.listPrice??'',
+  productId:line.productId||null,catalogName:line.productId?line.name||'':''
+ });
+ invoiceEditorId=draft?.id||null;
+ invoiceEditorRevision=Number.isSafeInteger(draft?.revision)?draft.revision:0;
+ refreshInvoiceEditorTotal();
+}
+const invoiceEditorDraftKey='satori.v2.invoiceLineDraft';
+async function invoiceEditorRequest(method,body,id){
+ const headers={'accept':'application/json'};
+ const url='/api/v2/admin/invoice-line-draft'+(method==='GET'?'?id='+encodeURIComponent(id):'');
+ if(method!=='GET'){headers['content-type']='application/json';headers['x-satori-csrf']=csrf();}
+ const response=await fetch(url,{method,credentials:'same-origin',cache:'no-store',headers,
+  body:method==='GET'?undefined:JSON.stringify(body)});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(data.message||data.error||'Không lưu được dòng hóa đơn.');
+ return data;
+}
+byId('openInvoiceLineEditor').addEventListener('click',async()=>{
+ if(!isOwner)return;
+ invoiceEditorStatus('');
+ try{const data=await api('/api/v2/catalogue');invoiceEditorCatalogue=data.items||[];}
+ catch{invoiceEditorCatalogue=[];}
+ let remembered=null;
+ try{remembered=sessionStorage.getItem(invoiceEditorDraftKey);}catch{}
+ if(remembered){
+  try{resetInvoiceEditor(await invoiceEditorRequest('GET',null,remembered));}
+  catch(e){resetInvoiceEditor(null);invoiceEditorStatus(e.message);}
+ }else resetInvoiceEditor(null);
+ byId('invoiceLineDialog').showModal();
+});
+byId('invoiceLineAdd').addEventListener('click',()=>addInvoiceEditorRow());
+byId('invoiceLineClose').addEventListener('click',()=>byId('invoiceLineDialog').close());
+byId('invoiceLineForm').addEventListener('submit',async event=>{
+ event.preventDefault();
+ if(!isOwner)return;
+ const save=byId('invoiceLineSave');save.disabled=true;invoiceEditorStatus('');
+ try{
+  const payload={confirmed:true,expectedRevision:invoiceEditorRevision,
+   lines:serializeInvoiceEditorRows(invoiceEditorRows)};
+  if(invoiceEditorId)payload.id=invoiceEditorId;
+  const saved=await invoiceEditorRequest('PUT',payload);
+  resetInvoiceEditor(saved);
+  try{sessionStorage.setItem(invoiceEditorDraftKey,saved.id);}catch{}
+  invoiceEditorStatus('Đã lưu dòng hóa đơn. Không tạo sản phẩm danh mục và không ghi hóa đơn thật.');
+ }catch(e){invoiceEditorStatus(e.message);}
+ finally{save.disabled=false;}
+});
 
 /* Small consistent icons also on existing backoffice actions. */
 for(const [id,iconName] of [
