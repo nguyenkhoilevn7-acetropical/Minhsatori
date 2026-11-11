@@ -245,7 +245,7 @@ assert.equal(req('orders.update',{...mixedTaxPayload,requestId:'synthetic-line-v
  'INVALID_TAX_RATE','server must reject VAT above 100 percent');
 assert.equal(req('orders.update',{...mixedTaxPayload,requestId:'synthetic-line-vat-mixed-001',
  order:{...mixedTaxOrder,items:[mixedTaxItems[0],{product:'No tax selection',qty:1,unitPrice:1000}]}}).error.code,
- 'INVALID_ITEM','server must reject a partially configured per-line VAT invoice');
+ 'VAT_RATE_REQUIRED','server must require an invoice default for rows without a line rate');
 assert.deepEqual(count(),[0,0,300],'invalid tax inputs must not write or back up the canonical ledger');
 
 const mixedSaved=req('orders.update',mixedTaxPayload);
