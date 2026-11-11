@@ -287,6 +287,10 @@ export async function confirmDraft(pool,reader,relayFactory,{draftId,approvalCod
 export async function draftStatus(pool,relayFactory,{draftId},kick=()=>{}){
  need(UUID.test(String(draftId||'')),'INVALID_DRAFT','draftId không hợp lệ.');
  const id=String(draftId).toLowerCase();
+ // A dispatcher that died mid-send (restart) leaves 'submitting': after 2 minutes
+ // it is treated as uncertain and resolved ONLY by exact requestId readback.
+ await pool.query("UPDATE satori_v2_grok_order_drafts SET status='uncertain',last_note='STALE_SUBMITTING',updated_at=now() "+
+  "WHERE id=$1 AND status='submitting' AND updated_at<now()-interval '2 minutes'",[id]);
  const r=await pool.query('SELECT *,expires_at<now() AS expired FROM satori_v2_grok_order_drafts WHERE id=$1',[id]);
  need(r.rows.length===1,'DRAFT_NOT_FOUND','Không tìm thấy đơn nháp.');
  const row=r.rows[0];

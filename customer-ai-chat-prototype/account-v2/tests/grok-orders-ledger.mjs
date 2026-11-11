@@ -197,6 +197,17 @@ try{
   pass('Per-line VAT (exempt, 10% line, half-up 0.5 đ) matches the live ledger exactly');
  }else console.log('NOT RUN: per-line VAT scenarios (source has no optional per-line VAT): '+sourcePath);
 
+ // 6b. Dispatcher died mid-send (draft stuck in 'submitting'): status reconciles after 2 minutes.
+ const d9=ok(await tool('satori_order_draft',{newCustomer:true,customer:{name:'Khách Restart',location:'09 Đường Giả'},items:[{product:'Nước Giả',qty:1,unitPrice:7000}]}));
+ await pool.query("UPDATE satori_v2_grok_order_drafts SET status='submitting' WHERE id=$1",[d9.draftId]);
+ assert.equal(ok(await tool('satori_order_status',{draftId:d9.draftId})).state,'SUBMITTING');
+ assert.match(err(await tool('satori_order_confirm',{draftId:d9.draftId,approvalCode:d9.approvalCode})),/DRAFT_CLOSED/);
+ await pool.query("UPDATE satori_v2_grok_order_drafts SET updated_at=now()-interval '3 minutes' WHERE id=$1",[d9.draftId]);
+ assert.equal(ok(await tool('satori_order_status',{draftId:d9.draftId})).state,'NOT_WRITTEN');
+ assert.equal(ok(await tool('satori_order_confirm',{draftId:d9.draftId,approvalCode:d9.approvalCode})).state,'COMMITTED');
+ assert.equal(ledger().filter(o=>o.name==='Khách Restart').length,1);
+ pass('A draft stuck in submitting (restart) is reconciled by requestId, then written exactly once');
+
  // 7. Writer not configured: fails before claiming, draft stays usable.
  const d8=ok(await tool('satori_order_draft',{newCustomer:true,customer:{name:'Khách Chưa Bật',location:'08 Đường Giả'},items:[{product:'Nước Giả',qty:1,unitPrice:1000}]}));
  process.env.SATORI_V2_CANONICAL_WRITES_ENABLED='0';
