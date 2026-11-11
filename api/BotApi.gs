@@ -24,6 +24,47 @@ function need(x,code,message){if(!x)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function norm(v){return String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\btreky\b/g,'traky').trim();}
 function money(v){var n=Number(v);need(Number.isFinite(n)&&n>=0&&n<=1e11,'INVALID_AMOUNT','Số tiền không hợp lệ');return n;}
+// Per-line VAT snapshot. Old clients without vatRate retain the legacy invoice-level
+// vatAmount contract; new clients must send vatRate for EVERY item in the invoice.
+function normalizeInvoiceItems(rawItems,legacyVatAmount){
+ var hasRates=rawItems.some(function(i){return i&&i.vatRate!==undefined&&i.vatRate!==null;});
+ if(hasRates)need(rawItems.every(function(i){return i&&i.vatRate!==undefined&&i.vatRate!==null;}),
+  'INVALID_ITEM','Không được trộn dòng có VAT riêng và dòng chưa chọn VAT');
+ var vatTotal=0;
+ var items=rawItems.map(function(i){
+  need(i&&typeof i==='object'&&String(i.product||i.name||'').trim().length>=2,
+   'INVALID_ITEM','Thiếu tên sản phẩm');
+  var qty=Number(i.qty),price=money(i.unitPrice);
+  need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Sai số lượng');
+  var list=i.listPrice==null?price:money(i.listPrice);
+  need(list>=price,'INVALID_ITEM','Giá niêm yết không thể thấp hơn giá bán');
+  var subtotal=qty*price;
+  need(Number.isSafeInteger(subtotal)&&subtotal<=1e11,
+   'INVALID_AMOUNT','Thành tiền dòng vượt giới hạn');
+  var line={id:Utilities.getUuid(),code:String(i.code||'').slice(0,50),
+   product:String(i.product||i.name).slice(0,200),
+   unit:String(i.unit||'Thùng').slice(0,30),qty:qty,unitPrice:price,
+   listPrice:list,discountAmount:list-price,subtotal:subtotal};
+  if(hasRates){
+   var rate=Number(i.vatRate);
+   need(Number.isFinite(rate)&&rate>=0&&rate<=100&&
+    Math.abs(rate*100-Math.round(rate*100))<1e-7,
+    'INVALID_TAX_RATE','VAT từng dòng phải từ 0 đến 100%, tối đa 2 số thập phân');
+   var lineVat=Math.round(subtotal*rate/100);
+   need(Number.isSafeInteger(lineVat)&&lineVat>=0&&lineVat<=1e11,
+    'INVALID_AMOUNT','Tiền VAT của dòng không hợp lệ');
+   if(i.vatAmount!==undefined&&i.vatAmount!==null)
+    need(money(i.vatAmount)===lineVat,'LINE_VAT_MISMATCH','VAT dòng không khớp tỷ lệ đã chọn');
+   line.vatRate=rate;line.vatAmount=lineVat;
+   vatTotal+=lineVat;
+   need(Number.isSafeInteger(vatTotal)&&vatTotal<=1e11,
+    'INVALID_AMOUNT','Tổng VAT vượt giới hạn');
+  }
+  return line;
+ });
+ return {items:items,vatAmount:hasRates?vatTotal:money(legacyVatAmount==null?0:legacyVatAmount),
+  perLineTax:hasRates};
+}
 function signed(secret,data){return Utilities.computeHmacSha256Signature(data,secret,Utilities.Charset.UTF_8).map(function(b){return ('0'+(b&255).toString(16)).slice(-2)}).join('');}
 function equalSig(a,b){if(typeof a!=='string'||typeof b!=='string'||a.length!==64||b.length!==64)return false;var x=0;for(var i=0;i<64;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;}
 function auth(o){
@@ -582,15 +623,9 @@ function create(s,all,p,aiMode){
  need(name.length<=150&&phone.length<=60&&location.length<=500,'INVALID_ORDER','Thông tin khách quá dài');
  checkProfile(all,o,p);
  if(aiMode)checkAIPricing(s,o,p);
- var items=o.items.map(function(i){
-  need(i&&String(i.product||i.name||'').trim().length>=2,'INVALID_ITEM','Thiếu tên sản phẩm');
-  var qty=Number(i.qty),price=money(i.unitPrice);need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Sai số lượng');
-  var list=i.listPrice==null?price:money(i.listPrice);
-  return {id:Utilities.getUuid(),code:String(i.code||'').slice(0,50),product:String(i.product||i.name).slice(0,200),
-   unit:String(i.unit||'Thùng').slice(0,30),qty:qty,unitPrice:price,listPrice:list,discountAmount:list-price,subtotal:Math.round(qty*price)};
- });
+ var normalizedItems=normalizeInvoiceItems(o.items,o.vatAmount),items=normalizedItems.items;
  var goods=Math.round(items.reduce(function(v,i){return v+i.qty*i.unitPrice},0));
- var ship=money(o.shippingAmount==null?0:o.shippingAmount),vat=money(o.vatAmount==null?0:o.vatAmount),total=Math.round(goods+ship+vat);
+ var ship=money(o.shippingAmount==null?0:o.shippingAmount),vat=normalizedItems.vatAmount,total=Math.round(goods+ship+vat);
  need(total<=1e11,'INVALID_AMOUNT','Tổng tiền vượt giới hạn');
  if(o.total!==undefined)need(money(o.total)===total,'TOTAL_MISMATCH','Tổng tiền không khớp');
  var reserved=JSON.parse(s.values.satori_deleted_invoice_nos||'[]');
@@ -672,21 +707,9 @@ function updateUnpaidOrder(s,all,p){
  need(name.length>=2&&name.length<=150&&phone.length<=60&&
   location.length>=5&&location.length<=500&&note.length<=1000,
   'INVALID_ORDER','Thông tin khách, địa chỉ hoặc ghi chú không hợp lệ');
- var items=draft.items.map(function(i){
-  need(i&&typeof i==='object'&&String(i.product||i.name||'').trim().length>=2,
-   'INVALID_ITEM','Thiếu tên sản phẩm');
-  var qty=Number(i.qty),price=money(i.unitPrice);
-  need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Số lượng không hợp lệ');
-  var list=i.listPrice==null?price:money(i.listPrice);
-  need(list>=price,'INVALID_ITEM','Giá niêm yết không thể thấp hơn giá bán');
-  return {id:Utilities.getUuid(),code:String(i.code||'').slice(0,50),
-   product:String(i.product||i.name).trim().slice(0,200),
-   unit:String(i.unit||'Thùng').slice(0,30),
-   qty:qty,unitPrice:price,listPrice:list,discountAmount:list-price,
-   subtotal:Math.round(qty*price)};
- });
+ var normalizedItems=normalizeInvoiceItems(draft.items,draft.vatAmount),items=normalizedItems.items;
  var shipping=money(draft.shippingAmount==null?0:draft.shippingAmount),
-  vat=money(draft.vatAmount==null?0:draft.vatAmount),
+  vat=normalizedItems.vatAmount,
   goods=Math.round(items.reduce(function(n,i){return n+i.qty*i.unitPrice},0));
  var total=Math.round(goods+shipping+vat);
  need(total<=1e11,'INVALID_AMOUNT','Tổng tiền hóa đơn quá lớn');
