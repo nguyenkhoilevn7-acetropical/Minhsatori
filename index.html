@@ -2865,6 +2865,27 @@
             const goods = getOrderGoodsTotal(order || {});
             return order?.vat === 'yes' ? Math.round(goods * 0.08) : 0;
         }
+        function invoiceLineVatRate(order,index) {
+            const item=(order?.items || [])[index];
+            if(!item)return 0;
+            if(item.vatRate!==undefined&&item.vatRate!==null)return Number(item.vatRate);
+            const goods=getOrderGoodsTotal(order || {});
+            return goods>0?Number((invoiceVatAmount(order)/goods*100).toFixed(2)):0;
+        }
+        function invoiceLineVatAmount(order,index) {
+            const items=order?.items || [];
+            const item=items[index];
+            if(!item)return 0;
+            if(item.vatRate!==undefined&&item.vatRate!==null)
+                return item.vatAmount ?? lineVatAmount(item);
+            const total=invoiceVatAmount(order);
+            const goods=getOrderGoodsTotal(order || {});
+            const rate=goods>0?total/goods*100:0;
+            const amounts=items.map(it=>Math.round(Number(it.qty||0)*Number(it.unitPrice||0)*rate/100));
+            const residual=total-amounts.reduce((sum,value)=>sum+value,0);
+            if(index===items.length-1)amounts[index]+=residual;
+            return amounts[index] || 0;
+        }
         function hasInvalidLineVat() {
             return currentItems.some(it => {
                 const rate=Number(it.vatRate ?? currentDefaultVatRate());
@@ -4523,7 +4544,7 @@
                 rowsHtml += `
                     <tr class="border-b border-slate-800 text-center">
                         <td class="p-1.5 border-r border-slate-800">${idx + 1}</td>
-                        <td class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">${it.product}<small class="block text-[10px] text-cyan-300 font-normal">VAT ${Number(it.vatRate ?? (o.vat === 'yes' ? 8 : 0))}% · ${lineVatAmount(it,o.vat === 'yes' ? 8 : 0).toLocaleString('vi-VN')} đ</small></td>
+                        <td class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">${it.product}<small class="block text-[10px] text-cyan-300 font-normal">VAT ${invoiceLineVatRate(o,idx)}% · ${invoiceLineVatAmount(o,idx).toLocaleString('vi-VN')} đ</small></td>
                         <td class="p-1.5 border-r border-slate-800">${it.unit || 'Thùng'}</td>
                         <td class="p-1.5 border-r border-slate-800 font-bold">${it.qty}</td>
                         <td class="p-1.5 border-r border-slate-800 font-mono">${(it.listPrice || 0).toLocaleString('vi-VN')}</td>
@@ -5134,7 +5155,7 @@
                     return `
                         <tr style="border-bottom: 1px solid #cbd5e1; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; text-align: center;">
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1;">${idx + 1}</td>
-                            <td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; font-weight: 600; color: #0f172a;">${it.product}<br><small style="font-weight:400;color:#0369a1;">VAT ${Number(it.vatRate ?? (o.vat === 'yes' ? 8 : 0))}% · ${lineVatAmount(it,o.vat === 'yes' ? 8 : 0).toLocaleString('vi-VN')} đ</small></td>
+                            <td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; font-weight: 600; color: #0f172a;">${it.product}<br><small style="font-weight:400;color:#0369a1;">VAT ${invoiceLineVatRate(o,idx)}% · ${invoiceLineVatAmount(o,idx).toLocaleString('vi-VN')} đ</small></td>
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1; color: #475569;">${it.unit || 'Thùng'}</td>
                             <td style="padding: 6px 4px; border: 1px solid #cbd5e1; font-weight: 700; color: #0f172a;">${it.qty}</td>
                             <td style="padding: 6px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace;">${listP.toLocaleString('vi-VN')}</td>
@@ -5301,8 +5322,8 @@
             const head=['STT','Tên sản phẩm','ĐVT','SL','Giá niêm yết','CK (%)','Đơn giá','Thành tiền'].map(text=>({text,bold:true,color:'#ffffff',fillColor:'#0369a1',alignment:'center',fontSize:8}));
             const rows=items.map((it,i)=>{
                 const lp=Number(it.listPrice || 0),up=Number(it.unitPrice || 0),pct=it.discountPercent ?? (lp?(lp-up)/lp*100:0);
-                const rate=Number(it.vatRate ?? (o.vat==='yes'?8:0));
-                const rowVat=it.vatAmount ?? Math.round(Number(it.qty)*up*rate/100);
+                const rate=invoiceLineVatRate(o,i);
+                const rowVat=invoiceLineVatAmount(o,i);
                 return [String(i+1),String(it.product || '')+'\nVAT '+rate+'% · '+money(rowVat),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
             });
             const bank=total>0?
