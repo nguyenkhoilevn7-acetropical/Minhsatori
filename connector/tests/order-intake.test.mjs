@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {prepareOrderIntake, submitPreparedOrder} from '../order-intake.mjs';
+import {tools as connectorTools} from '../lib/satori.mjs';
 
 const catalogue = [
   {code:'WATER-1500',name:'Nước suối 1.5L',unit:'Thùng',unitPrice:70000,listPrice:90000}
@@ -18,6 +19,15 @@ const base = {
   },
   customerProfile:profile,catalogue,expectedRevision:244,requestId:'fake-order-0001'
 };
+
+
+test('canonical satori_orders_create connector schema accepts per-line tax fields', () => {
+  const create=connectorTools({SATORI_ENABLE_WRITES:'true'}).find(x=>x.name==='satori_orders_create');
+  assert.ok(create);
+  const itemSchema=create.inputSchema.properties.order.properties.items.items;
+  assert.ok(itemSchema.properties.vatRate);
+  assert.ok(itemSchema.properties.vatAmount);
+});
 
 test('text and voice transcript share the same deterministic intake path', () => {
   const textDraft=prepareOrderIntake(base);
