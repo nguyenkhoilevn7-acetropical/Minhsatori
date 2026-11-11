@@ -31,7 +31,7 @@ import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
  saveCtvInvoiceFeeChoice,requireCtvChargeForAddress} from './invoice-fee-scopes.mjs';
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
-import {ledgerRelayConfig} from './canonical-ledger-relay.mjs';
+import {ledgerRelayConfig,createV2CanonicalRelay} from './canonical-ledger-relay.mjs';
 import {GROK_MCP_PREFIX,handleGrokMcpHttp} from './grok-mcp.mjs';
 import {ownerPushConfig,registerOwnerDevice,revokeOwnerDevice,ownerPushStatus,sendTestPush,
  createFcmSender,startOwnerPushRelay,kickOwnerPushRelay,verifyWakeRequest} from './owner-push.mjs';
@@ -501,7 +501,9 @@ export async function startOwnerPushBackground(){
 
 export async function handleAccountV2(req,res,pathname){
  if(pathname.startsWith(GROK_MCP_PREFIX)){
-  try{return await handleGrokMcpHttp(req,res,pathname,db)}
+  try{return await handleGrokMcpHttp(req,res,pathname,db,process.env,{reader:readMinhSatori,
+   // Same isolated, signed V2 writer as customer checkout (separate key from reads).
+   relayFactory:()=>{ledgerRelayConfig(process.env);return createV2CanonicalRelay({env:process.env,fetcher:fetch})},kick:kickOwnerPushRelay})}
   catch{
    if(!res.headersSent){res.writeHead(503,{'content-type':'application/json','cache-control':'no-store'});
     res.end('{"ok":false,"error":"GROK_MCP_UNAVAILABLE"}')}
