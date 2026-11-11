@@ -22,7 +22,7 @@ function harness() {
       text, setMimeType() {return this;}
     })},
     PropertiesService: {getScriptProperties: () => ({getProperty: key => key === 'SATORI_BOT_CLIENTS_JSON'
-      ? JSON.stringify({fixture: {secret, enabled: true, scopes: ['orders:read','orders:write']}}) : null})},
+      ? JSON.stringify({fixture: {secret, enabled: true, scopes: ['orders:read','orders:write','collaborators:pair:write']}}) : null})},
     CacheService: {getScriptCache: () => ({
       get: key => cache.get(key), put: (key, val) => cache.set(key, val)
     })},
@@ -116,7 +116,7 @@ test('wrong aggregate or item VAT returns VAT_MISMATCH before any ledger write',
   const badItem = draft([{...water, vatRate: 8, vatAmount: 999}], {
     vatRate: 8, vatAmount: 999, total: 21499
   });
-  assert.equal(create(h, 'mismatch_002', badItem).error.code, 'VAT_MISMATCH');
+  assert.equal(create(h, 'mismatch_002', badItem).error.code, 'LINE_VAT_MISMATCH');
   assert.equal(h.writes(), 0);
 });
 test('duplicate requestId cannot create a second invoice or silently change VAT intent', () => {
@@ -153,8 +153,9 @@ test('list readback exposes persisted mode and VAT fields per item', () => {
 });
 test('paired CTV invoices explicitly refuse new per-line tax fields', () => {
   const h = harness();
-  assert.throws(() => h.context.pairRequestIntent({
-    collaboratorId: 'test-ctv',
+  const result = h.call('orders.create.pair', {
+    collaboratorId: 'test-ctv', requestId: 'pair_000001',
     order: draft([{...water, vatExempt: true}], {vatRate: 8})
-  }), e => e.code === 'PER_LINE_VAT_NOT_SUPPORTED');
+  });
+  assert.equal(result.error.code, 'PER_LINE_VAT_NOT_SUPPORTED');
 });
