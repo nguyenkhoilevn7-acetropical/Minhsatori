@@ -314,8 +314,16 @@ internal object WebsiteInvoicePdf {
         if (invoice.deliveryNote.isNotBlank()) w.note(invoice.deliveryNote)
 
         w.tableHead()
+        val invoiceGoods = invoice.lines.sumOf { it.amount }
+        val legacyVatRate = if (invoiceGoods > 0L)
+            SatoriPercentCharges.fromAmount(invoiceGoods, invoice.vat).toDouble() else 0.0
         invoice.lines.forEachIndexed { index, line ->
-            w.tableItem(listOf((index + 1).toString(), line.description, line.unit,
+            val lineVatRate = line.vatRate ?: legacyVatRate
+            val lineVatAmount = line.vatAmount
+                ?: SatoriPercentCharges.amount(line.amount, lineVatRate.toString())
+            val productWithTax = line.description + "\nVAT " +
+                lineVatRate.toString() + "% · " + SatoriData.money(lineVatAmount)
+            w.tableItem(listOf((index + 1).toString(), productWithTax, line.unit,
                 line.quantity.toString(), SatoriData.money(line.listPrice),
                 percent(line), SatoriData.money(line.unitPrice),
                 SatoriData.money(line.amount)), index % 2 == 1)
