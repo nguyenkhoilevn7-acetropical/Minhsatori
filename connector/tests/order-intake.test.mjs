@@ -93,6 +93,17 @@ test('ambiguous or missing catalogue product is not guessed', () => {
   assert.ok(prepared.issues.some(x=>x.code==='PRODUCT_AMBIGUOUS'));
 });
 
+
+test('missing product name is blocked rather than inferred from the transcript', () => {
+  const prepared=prepareOrderIntake({...base,extracted:{
+    customer:base.extracted.customer,
+    items:[{qty:2}]
+  }});
+  assert.equal(prepared.status,'NEEDS_CONFIRMATION');
+  assert.ok(prepared.issues.some(x=>x.code==='PRODUCT_NOT_FOUND'));
+  assert.equal(prepared.toolCall,undefined);
+});
+
 test('customer profile mismatch is not silently converted into a new customer', () => {
   const prepared=prepareOrderIntake({...base,customerProfile:{...profile,address:'Địa chỉ khác'}});
   assert.equal(prepared.status,'NEEDS_CONFIRMATION');
