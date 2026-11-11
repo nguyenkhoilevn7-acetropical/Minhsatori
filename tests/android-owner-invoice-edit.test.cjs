@@ -281,3 +281,34 @@ assert.equal(storedVatRows[1].vatAmount,800,
 assert.equal(storedVatRows[1].items[0].vatRate,undefined,
  'legacy rows must not be silently rewritten with a guessed rate');
 console.log('PASS fake per-line VAT: mixed 8%/0%/5.5%, server totals, persistence, invalid input, replay and legacy compatibility');
+
+
+// Create idempotency must also bind each item's VAT choice, even when the
+// invoice-level VAT total remains unchanged after swapping rates between rows.
+const createVatOrder={
+ name:'Synthetic Mixed VAT',phone:'0901111111',location:'VAT Test Street',
+ items:[
+  {product:'Create taxable',qty:1,unitPrice:10000,listPrice:10000,vatRate:8,vatAmount:800},
+  {product:'Create exempt',qty:1,unitPrice:10000,listPrice:10000,vatRate:0,vatAmount:0}
+ ],
+ shippingAmount:0,vatAmount:800,total:20800,deliveryNote:'FAKE CREATE VAT IDEMPOTENCY'
+};
+const createVatPayload={
+ expectedRevision:302,requestId:'synthetic-line-vat-create-001',
+ customerRef:{id:7101,invoiceNo:9711},order:createVatOrder
+};
+const createVatSaved=req('orders.create',createVatPayload);
+assert.equal(createVatSaved.ok,true,JSON.stringify(createVatSaved.error));
+assert.equal(createVatSaved.revision,303);
+const createVatSwapped={
+ ...createVatPayload,
+ order:{...createVatOrder,items:[
+  {...createVatOrder.items[0],vatRate:0,vatAmount:0},
+  {...createVatOrder.items[1],vatRate:8,vatAmount:800}
+ ]}
+};
+assert.equal(req('orders.create',createVatSwapped).error.code,'REQUEST_ID_CONFLICT',
+ 'same aggregate VAT must not let a requestId replay with different per-line tax choices');
+assert.deepEqual(count(),[3,3,303],
+ 'only the two valid invoice updates and one create may write the fake ledger');
+console.log('PASS create idempotency binds each per-line VAT choice even when bill VAT total is unchanged');
