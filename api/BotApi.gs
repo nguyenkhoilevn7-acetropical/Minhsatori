@@ -24,6 +24,66 @@ function need(x,code,message){if(!x)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function norm(v){return String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\btreky\b/g,'traky').trim();}
 function money(v){var n=Number(v);need(Number.isFinite(n)&&n>=0&&n<=1e11,'INVALID_AMOUNT','Số tiền không hợp lệ');return n;}
+// Per-line VAT snapshot. Old clients without vatRate retain the legacy invoice-level
+// vatAmount contract; new clients must send vatRate for EVERY item in the invoice.
+function invoiceVatRate(v){
+ need(typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=100&&
+  Math.abs(v*100-Math.round(v*100))<1e-7,
+  'INVALID_TAX_RATE','VAT phải từ 0 đến 100%, tối đa 2 chữ số thập phân');
+ return Math.round(v*100);
+}
+// No new tax fields => keep the historic invoice-level vatAmount contract.
+// Explicit order/item rates => compute once, at item level, then sum.
+// enforceListFloor: only updateUnpaidOrder historically rejected listPrice < unitPrice;
+// create() never did, so the shared VAT normalizer must not add that rule to create.
+function normalizeInvoiceItems(rawItems,legacyVatAmount,defaultVatRate,enforceListFloor){
+ var hasDefault=defaultVatRate!==undefined&&defaultVatRate!==null;
+ var hasItemRates=rawItems.some(function(i){
+  return i&&(i.vatExempt===true||(i.vatRate!==undefined&&i.vatRate!==null));
+ });
+ var perLine=hasDefault||hasItemRates;
+ var defaultBasisPoints=hasDefault?invoiceVatRate(defaultVatRate):null;
+ var vatTotal=0;
+ var items=rawItems.map(function(i){
+  need(i&&typeof i==='object'&&String(i.product||i.name||'').trim().length>=2,
+   'INVALID_ITEM','Thiếu tên sản phẩm');
+  var qty=Number(i.qty),price=money(i.unitPrice);
+  need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Sai số lượng');
+  var list=i.listPrice==null?price:money(i.listPrice);
+  if(enforceListFloor)need(list>=price,'INVALID_ITEM','Giá niêm yết không thể thấp hơn giá bán');
+  var subtotal=qty*price;
+  need(Number.isFinite(subtotal)&&subtotal>=0&&subtotal<=1e11,'INVALID_AMOUNT',
+   'Thành tiền dòng vượt giới hạn');
+  // Preserve the existing rounding behavior for legacy invoices.
+  var line={id:Utilities.getUuid(),code:String(i.code||'').slice(0,50),
+   product:String(i.product||i.name).slice(0,200),
+   unit:String(i.unit||'Thùng').slice(0,30),qty:qty,unitPrice:price,
+   listPrice:list,discountAmount:list-price,subtotal:perLine?subtotal:Math.round(subtotal)};
+  if(perLine){
+   need(Number.isSafeInteger(subtotal),'INVALID_AMOUNT','VAT dòng yêu cầu giá theo đồng');
+   need(i.vatExempt===undefined||typeof i.vatExempt==='boolean',
+    'INVALID_TAX_RATE','vatExempt phải là true hoặc false');
+   var exempt=i.vatExempt===true,hasRate=i.vatRate!==undefined&&i.vatRate!==null;
+   var basisPoints=exempt?0:hasRate?invoiceVatRate(i.vatRate):defaultBasisPoints;
+   need(basisPoints!==null,'VAT_RATE_REQUIRED',
+    'Dòng chưa có mức VAT; cần vatRate cấp đơn hoặc mức riêng cho dòng');
+   var rate=basisPoints/100,lineVat=Math.round(subtotal*basisPoints/10000);
+   need(Number.isSafeInteger(lineVat)&&lineVat>=0&&lineVat<=1e11,
+    'INVALID_AMOUNT','Tiền VAT của dòng không hợp lệ');
+   if(i.vatAmount!==undefined&&i.vatAmount!==null)
+    need(money(i.vatAmount)===lineVat,'LINE_VAT_MISMATCH','VAT dòng không khớp');
+   line.vatExempt=exempt;line.vatRate=rate;line.vatAmount=lineVat;
+   vatTotal+=lineVat;
+   need(Number.isSafeInteger(vatTotal)&&vatTotal<=1e11,
+    'INVALID_AMOUNT','Tổng VAT vượt giới hạn');
+  }
+  return line;
+ });
+ if(perLine&&legacyVatAmount!==undefined&&legacyVatAmount!==null)
+  need(money(legacyVatAmount)===vatTotal,'VAT_MISMATCH','VAT tổng đơn không khớp VAT từng dòng');
+ return {items:items,vatAmount:perLine?vatTotal:money(legacyVatAmount==null?0:legacyVatAmount),
+  vatMode:perLine?'per_line':'invoice',perLineTax:perLine};
+}
 function signed(secret,data){return Utilities.computeHmacSha256Signature(data,secret,Utilities.Charset.UTF_8).map(function(b){return ('0'+(b&255).toString(16)).slice(-2)}).join('');}
 function equalSig(a,b){if(typeof a!=='string'||typeof b!=='string'||a.length!==64||b.length!==64)return false;var x=0;for(var i=0;i<64;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;}
 function auth(o){
@@ -46,7 +106,10 @@ function state(){
 }
 function rows(s){var x=JSON.parse(s.values[ORDER_KEY]);need(Array.isArray(x),'INVALID_STATE','Dữ liệu hóa đơn hỏng');return x;}
 function version(s,p){need(Number.isInteger(p.expectedRevision),'REVISION_REQUIRED','Thiếu expectedRevision');need(s.revision===p.expectedRevision,'REVISION_CONFLICT','Dữ liệu vừa được cập nhật, hãy đọc lại');}
-function visible(o){return {pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCommissionAmount:o.pairCommissionAmount??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,satoriPaidAt:o.satoriPaidAt||null,customerPaid:paid(o),satoriPaid:active(o)&&(o.status==='Đã TT Satori'||!!o.satoriPaidAt),customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};}
+function visible(o){var result={pairGroupId:o.pairGroupId||null,pairRole:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null,collaboratorId:o.collaboratorId||null,pairDiscountPercent:o.pairDiscountPercent??null,pairCommissionAmount:o.pairCommissionAmount??null,pairCustomerName:o.pairCustomerName||null,pairCollaboratorName:o.pairCollaboratorName||null,id:o.id,invoiceNo:o.invoiceNo,date:o.date,name:o.name,phone:o.phone,location:o.location,items:o.items||[],product:o.product||'',qty:o.qty||0,total:o.total,status:o.status,customerPaidAt:o.customerPaidAt||null,satoriPaidAt:o.satoriPaidAt||null,customerPaid:paid(o),satoriPaid:active(o)&&(o.status==='Đã TT Satori'||!!o.satoriPaidAt),customerPaymentReceiptUrl:o.customerPaymentReceiptUrl||null,customerPaymentReceiptAt:o.customerPaymentReceiptAt||null,customerPaymentNote:o.customerPaymentNote||null,shippingAmount:o.shippingAmount||0,vatAmount:o.vatAmount||0,deliveryNote:o.deliveryNote||'',deliveryDate:o.deliveryDate||null,updatedAt:o.updatedAt||null};
+ if(o.vatMode!==undefined)result.vatMode=o.vatMode;
+ if(o.vatRate!==undefined)result.vatRate=o.vatRate;
+ return result;}
 function iso(date){
  var m=String(date||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
  var d=new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
@@ -163,9 +226,6 @@ function recoverOrder(s,all,p){
  return {modified:true,extras:{satori_trash_bin_v15:JSON.stringify(trash),satori_deleted_invoice_nos:JSON.stringify(deleted)},result:{restored:true,duplicate:false,order:visible(restored)}};
 }
 function sameCreateIntent(saved,provided){
- // A requestId is bound to the entire intended order, not just its invoice number.
- // Compare only canonical fields already persisted in the Drive ledger, so a lost
- // HTTP reply can be retried without another backup/write. Modified carts fail.
  if(!provided||typeof provided!=='object'||Array.isArray(provided)||
     !Array.isArray(provided.items)||!Array.isArray(saved.items)||
     provided.items.length!==saved.items.length)return false;
@@ -174,17 +234,31 @@ function sameCreateIntent(saved,provided){
     String(saved.phone||'').replace(/\D/g,'')!==String(provided.phone||'').replace(/\D/g,'')||
     Number(saved.total)!==Number(provided.total))return false;
  if(Number(saved.shippingAmount||0)!==Number(provided.shippingAmount||0)||
-    Number(saved.vatAmount||0)!==Number(provided.vatAmount||0)||
+    (provided.vatAmount!==undefined&&
+      Number(saved.vatAmount||0)!==Number(provided.vatAmount))||
     String(saved.deliveryNote||'')!==String(provided.deliveryNote||'')||
     String(saved.deliveryDate||'')!==String(provided.deliveryDate||''))return false;
+ var newMode=provided.vatRate!=null||provided.items.some(function(i){
+  return i&&(i.vatExempt===true||i.vatRate!=null);
+ });
+ if((saved.vatMode==='per_line')!==newMode)return false;
+ if(newMode&&Number(saved.vatRate==null?-1:saved.vatRate)!==
+   Number(provided.vatRate==null?-1:provided.vatRate))return false;
+ if(!newMode&&Number(saved.vatAmount||0)!==Number(provided.vatAmount||0))return false;
  return provided.items.every(function(item,i){
   var old=saved.items[i];
-  return item&&old&&String(item.code||'')===String(old.code||'')&&
+  if(!(item&&old&&String(item.code||'')===String(old.code||'')&&
    norm(item.product||item.name)===norm(old.product)&&
    String(item.unit||'Thùng')===String(old.unit||'Thùng')&&
    Number(item.qty)===Number(old.qty)&&
    Number(item.unitPrice)===Number(old.unitPrice)&&
-   Number(item.listPrice==null?item.unitPrice:item.listPrice)===Number(old.listPrice);
+   Number(item.listPrice==null?item.unitPrice:item.listPrice)===Number(old.listPrice)))return false;
+  if(!newMode)return true;
+  var exempt=item.vatExempt===true;
+  var rate=exempt?0:item.vatRate!=null?Number(item.vatRate):Number(provided.vatRate);
+  var amount=Math.round(Number(item.qty)*Number(item.unitPrice)*Math.round(rate*100)/10000);
+  return Number.isFinite(rate)&&old.vatExempt===exempt&&
+   Number(old.vatRate)===rate&&Number(old.vatAmount)===amount;
  });
 }
 function approveAIPricing(s,all,p){
@@ -434,6 +508,10 @@ function configurePair(s,p){
 }
 function pairRequestIntent(p){
  var o=p.order||{},items=o.items||[];
+ need(o.vatRate==null&&(!Array.isArray(items)||!items.some(function(i){
+  return i&&(i.vatExempt===true||i.vatRate!=null);
+ })), 'PER_LINE_VAT_NOT_SUPPORTED',
+ 'Đơn cặp CTV chưa hỗ trợ VAT từng dòng; không tạo hóa đơn');
  need(typeof o.name==='string'&&o.name.trim().length>=2&&o.name.length<=150&&
   typeof o.location==='string'&&o.location.trim().length>=5&&o.location.length<=500&&
   typeof o.phone==='string'&&o.phone.length<=60&&
@@ -582,15 +660,9 @@ function create(s,all,p,aiMode){
  need(name.length<=150&&phone.length<=60&&location.length<=500,'INVALID_ORDER','Thông tin khách quá dài');
  checkProfile(all,o,p);
  if(aiMode)checkAIPricing(s,o,p);
- var items=o.items.map(function(i){
-  need(i&&String(i.product||i.name||'').trim().length>=2,'INVALID_ITEM','Thiếu tên sản phẩm');
-  var qty=Number(i.qty),price=money(i.unitPrice);need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Sai số lượng');
-  var list=i.listPrice==null?price:money(i.listPrice);
-  return {id:Utilities.getUuid(),code:String(i.code||'').slice(0,50),product:String(i.product||i.name).slice(0,200),
-   unit:String(i.unit||'Thùng').slice(0,30),qty:qty,unitPrice:price,listPrice:list,discountAmount:list-price,subtotal:Math.round(qty*price)};
- });
+ var normalizedItems=normalizeInvoiceItems(o.items,o.vatAmount,o.vatRate),items=normalizedItems.items;
  var goods=Math.round(items.reduce(function(v,i){return v+i.qty*i.unitPrice},0));
- var ship=money(o.shippingAmount==null?0:o.shippingAmount),vat=money(o.vatAmount==null?0:o.vatAmount),total=Math.round(goods+ship+vat);
+ var ship=money(o.shippingAmount==null?0:o.shippingAmount),vat=normalizedItems.vatAmount,total=Math.round(goods+ship+vat);
  need(total<=1e11,'INVALID_AMOUNT','Tổng tiền vượt giới hạn');
  if(o.total!==undefined)need(money(o.total)===total,'TOTAL_MISMATCH','Tổng tiền không khớp');
  var reserved=JSON.parse(s.values.satori_deleted_invoice_nos||'[]');
@@ -605,9 +677,10 @@ function create(s,all,p,aiMode){
   date:Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','dd/MM/yyyy'),timestamp:Date.now(),
   name:name,phone:phone,location:location,items:items,
   product:items.map(function(i){return i.product+' x'+i.qty}).join(', '),qty:items.reduce(function(v,i){return v+i.qty},0),
-  goodsTotal:goods,shippingAmount:ship,vatAmount:vat,vat:vat?'yes':'no',total:total,status:'Chưa thanh toán',source:aiMode?'bot_api_ai':'bot_api',
+  goodsTotal:goods,shippingAmount:ship,vatAmount:vat,vat:vat?'yes':'no',vatMode:normalizedItems.vatMode,total:total,status:'Chưa thanh toán',source:aiMode?'bot_api_ai':'bot_api',
   aiPricingMemoryId:aiMode?p.customerMemoryId:null,
   deliveryNote:String(o.deliveryNote||'').slice(0,1000)};
+ if(o.vatRate!==undefined&&o.vatRate!==null)next.vatRate=o.vatRate;
  all.unshift(next);return {modified:true,result:{order:visible(next),duplicate:false}};
 }
 
@@ -672,21 +745,11 @@ function updateUnpaidOrder(s,all,p){
  need(name.length>=2&&name.length<=150&&phone.length<=60&&
   location.length>=5&&location.length<=500&&note.length<=1000,
   'INVALID_ORDER','Thông tin khách, địa chỉ hoặc ghi chú không hợp lệ');
- var items=draft.items.map(function(i){
-  need(i&&typeof i==='object'&&String(i.product||i.name||'').trim().length>=2,
-   'INVALID_ITEM','Thiếu tên sản phẩm');
-  var qty=Number(i.qty),price=money(i.unitPrice);
-  need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Số lượng không hợp lệ');
-  var list=i.listPrice==null?price:money(i.listPrice);
-  need(list>=price,'INVALID_ITEM','Giá niêm yết không thể thấp hơn giá bán');
-  return {id:Utilities.getUuid(),code:String(i.code||'').slice(0,50),
-   product:String(i.product||i.name).trim().slice(0,200),
-   unit:String(i.unit||'Thùng').slice(0,30),
-   qty:qty,unitPrice:price,listPrice:list,discountAmount:list-price,
-   subtotal:Math.round(qty*price)};
- });
+ var normalizedItems=normalizeInvoiceItems(draft.items,draft.vatAmount,draft.vatRate,true),items=normalizedItems.items;
+ need(original.vatMode!=='per_line'||normalizedItems.vatMode==='per_line',
+  'PER_LINE_VAT_REQUIRED','Ứng dụng phải giữ VAT từng dòng khi sửa hóa đơn này');
  var shipping=money(draft.shippingAmount==null?0:draft.shippingAmount),
-  vat=money(draft.vatAmount==null?0:draft.vatAmount),
+  vat=normalizedItems.vatAmount,
   goods=Math.round(items.reduce(function(n,i){return n+i.qty*i.unitPrice},0));
  var total=Math.round(goods+shipping+vat);
  need(total<=1e11,'INVALID_AMOUNT','Tổng tiền hóa đơn quá lớn');
@@ -703,6 +766,7 @@ function updateUnpaidOrder(s,all,p){
   items:items,product:items.map(function(i){return i.product+' x'+i.qty}).join(', '),
   qty:items.reduce(function(n,i){return n+i.qty},0),
   goodsTotal:goods,shippingAmount:shipping,vatAmount:vat,vat:vat?'yes':'no',
+  vatMode:normalizedItems.vatMode,vatRate:draft.vatRate==null?null:draft.vatRate,
   total:total,deliveryDate:deliveryDate||null,deliveryNote:note,
   apiUpdateRequestId:requestId,updatedAt:now
  });

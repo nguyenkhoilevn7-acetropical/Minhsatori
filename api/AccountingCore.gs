@@ -11,6 +11,29 @@ const items=o=>o.items?.length?o.items:[o];
 const goods=o=>items(o).reduce((s,i)=>s+number(i.qty)*number(i.unitPrice),0);
 const listed=o=>items(o).reduce((s,i)=>s+number(i.qty)*number(i.listPrice),0);
 const total=o=>o.total!==undefined?number(o.total):goods(o)+number(o.shippingAmount)+number(o.vatAmount);
+// Same expense policy as Android AccountingProMargin45.ownerBorneCharge.
+// Null means an invalid/overflowing override: callers must withhold profit.
+function ownerBorneCharge(o,listedAmount=listed(o)){
+ if(o.ownerBorneVatAmount!==undefined&&o.ownerBorneVatAmount!==null){
+  const amount=Number(o.ownerBorneVatAmount);
+  return Number.isSafeInteger(amount)?Math.max(0,amount):null;
+ }
+ const override=o.ownerBorneVatPercent!==undefined&&o.ownerBorneVatPercent!==null;
+ if(!override&&(o.ownerBorneVat===false||o.vatExempt===true||
+    number(o.vatAmount)>0||number(o.shippingAmount)>0))return 0;
+ const percent=override?Number(o.ownerBorneVatPercent):8;
+ if(!Number.isFinite(percent)||!Number.isSafeInteger(listedAmount)||listedAmount<0)return null;
+ // Decimal rational arithmetic mirrors BigDecimal HALF_UP, including tiny
+ // exponent-form percentages, without binary floating-point half-dong drift.
+ const [coefficient,exponent='0']=String(Math.max(0,percent)).toLowerCase().split('e');
+ const [whole,fraction='']=coefficient.split('.');
+ const scale=fraction.length-Number(exponent)+2;
+ let numerator=BigInt(whole+fraction)*BigInt(listedAmount),denominator=1n;
+ if(scale>0)denominator=10n**BigInt(scale);
+ else numerator*=10n**BigInt(-scale);
+ const rounded=Number((numerator+denominator/2n)/denominator);
+ return Number.isSafeInteger(rounded)?rounded:null;
+}
 function basket(o){
  const map=new Map();
  for(const i of items(o)){
@@ -177,7 +200,7 @@ function paymentGroup(all,ids,{id,target,markPaid=true,receipt=null,at,scope=''}
  });
 }
 
-root.SatoriAccountingCore={key,norm,number,active,statusClass,paid,resolveReceipt,preserveReceiptAssets,customerMatches,paymentGroup,items,goods,listed,total,basket,pairOrders,calculate,groupCompanyRows,addressSimilarity,identityMatch};
+root.SatoriAccountingCore={key,norm,number,active,statusClass,paid,resolveReceipt,preserveReceiptAssets,customerMatches,paymentGroup,items,goods,listed,total,ownerBorneCharge,basket,pairOrders,calculate,groupCompanyRows,addressSimilarity,identityMatch};
 })(typeof window!=='undefined'?window:globalThis);
 
 

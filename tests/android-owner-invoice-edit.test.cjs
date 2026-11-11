@@ -204,3 +204,111 @@ assert.equal(paymentRead[0].status,'Chưa thanh toán',
  'final readback agrees with canonical ledger after independent toggles');
 console.log('PASS synthetic four payment toggles: independent customer/Satori states, audit, replays, readback');
 
+
+
+// Per-line VAT regression: all data stays inside the existing canonical Drive ledger.
+data={revision:300,updatedAt:'2026-11-11T00:00:00Z',values:{
+ satori_orders_v15:JSON.stringify([
+  {id:7101,invoiceNo:9711,name:'Synthetic Mixed VAT',phone:'0901111111',
+   location:'VAT Test Street',date:'11/11/2026',status:'Chưa thanh toán',
+   total:21600,shippingAmount:0,vatAmount:1600,
+   items:[{product:'Legacy water',qty:2,unitPrice:10000,listPrice:10000}]},
+  {id:7102,invoiceNo:9712,name:'Synthetic Legacy VAT',phone:'0902222222',
+   location:'Legacy VAT Street',date:'11/11/2026',status:'Chưa thanh toán',
+   total:10800,shippingAmount:0,vatAmount:800,
+   items:[{product:'Legacy bottle',qty:1,unitPrice:10000,listPrice:10000}]}
+ ]),
+ satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'
+}};
+writes=0;backups=0;
+const mixedTaxItems=[
+ {product:'Water 8 percent',qty:2,unitPrice:10000,listPrice:10000,vatRate:8,vatAmount:1600},
+ {product:'Deposit exempt',qty:1,unitPrice:5000,listPrice:5000,vatRate:0,vatAmount:0},
+ {product:'Service custom 5.5',qty:2,unitPrice:15000,listPrice:15000,vatRate:5.5,vatAmount:1650}
+];
+const mixedTaxOrder={
+ name:'Synthetic Mixed VAT',phone:'0901111111',location:'VAT Test Street',
+ items:mixedTaxItems,shippingAmount:500,vatAmount:3250,total:58750,
+ deliveryNote:'FAKE PER-LINE VAT TEST'
+};
+const mixedTaxPayload={
+ expectedRevision:300,requestId:'synthetic-line-vat-001',confirmed:true,
+ id:7101,invoiceNo:9711,expectedName:'Synthetic Mixed VAT',expectedTotal:21600,
+ order:mixedTaxOrder
+};
+const badVatPayload={...mixedTaxPayload,requestId:'synthetic-line-vat-bad-001',
+ order:{...mixedTaxOrder,items:mixedTaxItems.map((x,i)=>i===0?{...x,vatAmount:0}:x)}};
+assert.equal(req('orders.update',badVatPayload).error.code,'LINE_VAT_MISMATCH',
+ 'server must reject a line tax amount inconsistent with the selected rate');
+assert.equal(req('orders.update',{...mixedTaxPayload,requestId:'synthetic-line-vat-rate-001',
+ order:{...mixedTaxOrder,items:mixedTaxItems.map((x,i)=>i===0?{...x,vatRate:100.001}:x)}}).error.code,
+ 'INVALID_TAX_RATE','server must reject VAT above 100 percent');
+assert.equal(req('orders.update',{...mixedTaxPayload,requestId:'synthetic-line-vat-mixed-001',
+ order:{...mixedTaxOrder,items:[mixedTaxItems[0],{product:'No tax selection',qty:1,unitPrice:1000}]}}).error.code,
+ 'VAT_RATE_REQUIRED','server must require an invoice default for rows without a line rate');
+assert.deepEqual(count(),[0,0,300],'invalid tax inputs must not write or back up the canonical ledger');
+
+const mixedSaved=req('orders.update',mixedTaxPayload);
+assert.equal(mixedSaved.ok,true,JSON.stringify(mixedSaved.error));
+assert.equal(mixedSaved.revision,301);
+assert.deepEqual(count(),[1,1,301]);
+let storedVatRows=JSON.parse(data.values.satori_orders_v15);
+assert.equal(storedVatRows[0].vatAmount,3250);
+assert.equal(storedVatRows[0].total,58750);
+assert.deepEqual(storedVatRows[0].items.map(x=>[x.vatRate,x.vatAmount]),
+ [[8,1600],[0,0],[5.5,1650]]);
+assert.equal(storedVatRows[0].items[1].product,'Deposit exempt',
+ 'zero-tax deposit selection must survive canonical readback');
+const mixedReplay=req('orders.update',mixedTaxPayload);
+assert.equal(mixedReplay.ok,true);
+assert.equal(mixedReplay.data.duplicate,true);
+assert.deepEqual(count(),[1,1,301],'replay must not duplicate invoice write');
+
+const legacyOrder={
+ name:'Synthetic Legacy VAT',phone:'0902222222',location:'Legacy VAT Street',
+ items:[{product:'Legacy bottle edited',qty:1,unitPrice:10000,listPrice:10000}],
+ shippingAmount:0,vatAmount:800,total:10800,deliveryNote:'Legacy APK payload'
+};
+const legacySaved=req('orders.update',{
+ expectedRevision:301,requestId:'synthetic-legacy-vat-001',confirmed:true,
+ id:7102,invoiceNo:9712,expectedName:'Synthetic Legacy VAT',expectedTotal:10800,
+ order:legacyOrder
+});
+assert.equal(legacySaved.ok,true,JSON.stringify(legacySaved.error));
+storedVatRows=JSON.parse(data.values.satori_orders_v15);
+assert.equal(storedVatRows[1].vatAmount,800,
+ 'old clients without per-line rates must retain their legacy aggregate VAT');
+assert.equal(storedVatRows[1].items[0].vatRate,undefined,
+ 'legacy rows must not be silently rewritten with a guessed rate');
+console.log('PASS fake per-line VAT: mixed 8%/0%/5.5%, server totals, persistence, invalid input, replay and legacy compatibility');
+
+
+// Create idempotency must also bind each item's VAT choice, even when the
+// invoice-level VAT total remains unchanged after swapping rates between rows.
+const createVatOrder={
+ name:'Synthetic Mixed VAT',phone:'0901111111',location:'VAT Test Street',
+ items:[
+  {product:'Create taxable',qty:1,unitPrice:10000,listPrice:10000,vatRate:8,vatAmount:800},
+  {product:'Create exempt',qty:1,unitPrice:10000,listPrice:10000,vatRate:0,vatAmount:0}
+ ],
+ shippingAmount:0,vatAmount:800,total:20800,deliveryNote:'FAKE CREATE VAT IDEMPOTENCY'
+};
+const createVatPayload={
+ expectedRevision:302,requestId:'synthetic-line-vat-create-001',
+ customerRef:{id:7101,invoiceNo:9711},order:createVatOrder
+};
+const createVatSaved=req('orders.create',createVatPayload);
+assert.equal(createVatSaved.ok,true,JSON.stringify(createVatSaved.error));
+assert.equal(createVatSaved.revision,303);
+const createVatSwapped={
+ ...createVatPayload,
+ order:{...createVatOrder,items:[
+  {...createVatOrder.items[0],vatRate:0,vatAmount:0},
+  {...createVatOrder.items[1],vatRate:8,vatAmount:800}
+ ]}
+};
+assert.equal(req('orders.create',createVatSwapped).error.code,'REQUEST_ID_CONFLICT',
+ 'same aggregate VAT must not let a requestId replay with different per-line tax choices');
+assert.deepEqual(count(),[3,3,303],
+ 'only the two valid invoice updates and one create may write the fake ledger');
+console.log('PASS create idempotency binds each per-line VAT choice even when bill VAT total is unchanged');

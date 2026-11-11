@@ -315,7 +315,12 @@ internal object WebsiteInvoicePdf {
 
         w.tableHead()
         invoice.lines.forEachIndexed { index, line ->
-            w.tableItem(listOf((index + 1).toString(), line.description, line.unit,
+            val productWithTax = if (invoice.vatMode == "per_line") {
+                val rate = if (line.vatExempt) 0.0 else line.vatRate ?: invoice.vatRate
+                line.description + "\nVAT " + (rate?.toString()?.plus("%") ?: "—") +
+                    (line.vatAmount?.let { " · " + SatoriData.money(it) } ?: "")
+            } else line.description
+            w.tableItem(listOf((index + 1).toString(), productWithTax, line.unit,
                 line.quantity.toString(), SatoriData.money(line.listPrice),
                 percent(line), SatoriData.money(line.unitPrice),
                 SatoriData.money(line.amount)), index % 2 == 1)
