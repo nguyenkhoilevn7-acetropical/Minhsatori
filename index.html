@@ -2866,10 +2866,12 @@
             return order?.vat === 'yes' ? Math.round(goods * 0.08) : 0;
         }
         function hasInvalidLineVat() {
-            return currentItems.some(it => it.vatRateInput !== undefined ||
-                !Number.isFinite(Number(it.vatRate ?? currentDefaultVatRate())) ||
-                Number(it.vatRate ?? currentDefaultVatRate()) < 0 ||
-                Number(it.vatRate ?? currentDefaultVatRate()) > 100);
+            return currentItems.some(it => {
+                const rate=Number(it.vatRate ?? currentDefaultVatRate());
+                return it.vatRateInput !== undefined || !Number.isFinite(rate) ||
+                    rate < 0 || rate > 100 ||
+                    Math.abs(rate*100-Math.round(rate*100)) > 1e-7;
+            });
         }
 
         // Render entire form items ONLY when adding/deleting rows or changing product dropdown
@@ -4521,7 +4523,7 @@
                 rowsHtml += `
                     <tr class="border-b border-slate-800 text-center">
                         <td class="p-1.5 border-r border-slate-800">${idx + 1}</td>
-                        <td class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">${it.product}<small class="block text-[10px] text-cyan-300 font-normal">VAT ${Number(it.vatRate ?? currentDefaultVatRate())}% · ${lineVatAmount(it).toLocaleString('vi-VN')} đ</small></td>
+                        <td class="p-1.5 border-r border-slate-800 text-left px-2 font-medium text-white">${it.product}<small class="block text-[10px] text-cyan-300 font-normal">VAT ${Number(it.vatRate ?? (o.vat === 'yes' ? 8 : 0))}% · ${lineVatAmount(it,o.vat === 'yes' ? 8 : 0).toLocaleString('vi-VN')} đ</small></td>
                         <td class="p-1.5 border-r border-slate-800">${it.unit || 'Thùng'}</td>
                         <td class="p-1.5 border-r border-slate-800 font-bold">${it.qty}</td>
                         <td class="p-1.5 border-r border-slate-800 font-mono">${(it.listPrice || 0).toLocaleString('vi-VN')}</td>
@@ -4535,8 +4537,8 @@
             const cleanMemo = `HD${o.invoiceNo} ${o.name.replace(/[^a-zA-Z0-9 ]/g, '')}`.substring(0, 25);
             const qrUrl = `https://img.vietqr.io/image/vpbank-658489418-compact2.png?amount=${o.total}&addInfo=${encodeURIComponent(cleanMemo)}&accountName=HKD%20MINH%20SATORI`;
 
-            const vatStr = o.vat === 'yes' ? `${Math.round((o.total / 1.08) * 0.08).toLocaleString('vi-VN')} VND (8%)` : '0 VND';
-            const goodsStr = o.vat === 'yes' ? `${Math.round(o.total / 1.08).toLocaleString('vi-VN')} VND` : `${(o.total || 0).toLocaleString('vi-VN')} VND`;
+            const vatStr = `${invoiceVatAmount(o).toLocaleString('vi-VN')} VND (theo từng dòng)`;
+            const goodsStr = `${getOrderGoodsTotal(o).toLocaleString('vi-VN')} VND`;
 
             const contentDiv = document.getElementById('modalInvoiceContent');
             contentDiv.innerHTML = `
@@ -5301,7 +5303,7 @@
                 const lp=Number(it.listPrice || 0),up=Number(it.unitPrice || 0),pct=it.discountPercent ?? (lp?(lp-up)/lp*100:0);
                 const rate=Number(it.vatRate ?? (o.vat==='yes'?8:0));
                 const rowVat=it.vatAmount ?? Math.round(Number(it.qty)*up*rate/100);
-                return [String(i+1),String(it.product || '')+'\\nVAT '+rate+'% · '+money(rowVat),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
+                return [String(i+1),String(it.product || '')+'\nVAT '+rate+'% · '+money(rowVat),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
             });
             const bank=total>0?
                 [{text:'THÔNG TIN THANH TOÁN',bold:true,color:'#0369a1',margin:[0,8,0,6]},'Ngân hàng: VPBank','Số tài khoản: 658489418','Chủ tài khoản: HKD MINH SATORI',{text:'Nội dung: '+memo,margin:[0,4,0,0]}]:
