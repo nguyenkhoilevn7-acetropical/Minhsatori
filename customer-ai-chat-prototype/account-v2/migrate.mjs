@@ -48,6 +48,7 @@ try{
  await client.query(statements('migrations/20261028_canonical_checkout_journal.sql'));
  // Additive owner push outbox (no invoice/accounting tables touched).
  await client.query(statements('migrations/20261103_owner_push.sql'));
+ await client.query(statements('migrations/20261111_owner_pdf_delivery.sql'));
  const expected=[
   'satori_v2_accounts','satori_v2_sessions','satori_v2_profiles',
   'satori_v2_addresses','satori_v2_policies','satori_v2_catalogue',
@@ -60,7 +61,8 @@ try{
  const found=new Set(check.rows.map(x=>x.table_name));
  if(expected.some(x=>!found.has(x)))throw Error('V2_SCHEMA_READBACK_FAILED');
  const pushTables=['satori_v2_owner_push_devices','satori_v2_owner_push_feed_state',
-  'satori_v2_owner_push_events','satori_v2_owner_push_deliveries'];
+  'satori_v2_owner_push_events','satori_v2_owner_push_deliveries',
+  'satori_v2_owner_pdf_deliveries'];
  if(pushTables.some(x=>!found.has(x)))throw Error('V2_OWNER_PUSH_READBACK_FAILED');
  const crmTables=['satori_v2_registrations','satori_v2_customer_leads'];
  if(crmTables.some(x=>!found.has(x)))throw Error('V2_CRM_READBACK_FAILED');
