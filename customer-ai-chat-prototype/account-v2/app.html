@@ -2907,6 +2907,22 @@ $('quickAgentProfile').onchange=async()=>{
 };
 // Display a committed V2 receipt in a dedicated invoice screen, NEVER in chat.
 // Render current verified invoice items, not a stale quote after owner edits.
+function verifiedInvoicePdfFilename(order) {
+ const n=Number(order?.receipt?.invoiceNo);
+ if(!Number.isSafeInteger(n)||n<1)throw Error('PDF_FILENAME_NUMBER_REQUIRED');
+ const recipient=String(order?.delivery?.recipientName??'').normalize('NFC')
+  .replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim().slice(0,80);
+ if(!recipient||recipient==='.'||recipient==='..')throw Error('PDF_FILENAME_RECIPIENT_REQUIRED');
+ const raw=String(order?.invoiceDate??'').trim();
+ const vi=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
+ const iso=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+ if(!vi&&!iso)throw Error('PDF_FILENAME_ORDER_DATE_REQUIRED');
+ const y=Number(vi?vi[3]:iso[1]),m=Number(vi?vi[2]:iso[2]),d=Number(vi?vi[1]:iso[3]);
+ const dt=new Date(Date.UTC(y,m-1,d));
+ if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)
+  throw Error('PDF_FILENAME_ORDER_DATE_REQUIRED');
+ return n+' - '+recipient+' - '+String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')+'.pdf';
+}
 function attachVerifiedPdfUi(order){
  const box=document.getElementById('invoiceDetailBody');
  if(!box||order?.verified!==true||order.state!=='COMMITTED'||!/^[0-9a-f-]{36}$/i.test(order.id||''))return;
@@ -2933,7 +2949,7 @@ function attachVerifiedPdfUi(order){
   return {blob,cancelled:r.headers.get('x-satori-pdf-status')==='CANCELLED'};
  }).then(({blob,cancelled})=>{
   if(!row.isConnected)return;
-  const name='MinhSatori_HD'+order.receipt.invoiceNo+(cancelled?'_DA_HUY':'')+'.pdf';
+  const name=verifiedInvoicePdfFilename(order);
   const file=new File([blob],name,{type:'application/pdf'});
   const [view,download,share]=buttons;
   buttons.forEach(b=>b.disabled=false);
