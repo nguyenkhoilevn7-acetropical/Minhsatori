@@ -78,12 +78,26 @@ try{
  assert.equal(d[0].orderDate,today);
  assert.equal(d[0].fileName,'9101 - Khách giả 9101 - '+today+'.pdf');
  assert.equal(d[0].requiresFilenameVerification,false);
+ assert.equal(d[0].ownerDownloadPath,'/api/v2/admin/invoices/9101/G9101/pdf');
  assert.deepEqual({invoiceNo:d[0].invoiceNo,ledgerId:d[0].ledgerId,zaloText:d[0].zaloText},
   {invoiceNo:9101,ledgerId:'G9101',zaloText:'Hóa đơn #9101\nKhách giả 9101'});
  const failed=await rpc({jsonrpc:'2.0',id:4,method:'tools/call',params:{name:'satori_mark_pdf_delivered',arguments:{deliveryId:d[0].deliveryId,status:'failed',note:'Zalo chưa mở'}}});
  assert.equal(failed.body.result.structuredContent.status,'failed');
  assert.equal((await rpc({jsonrpc:'2.0',id:5,method:'tools/call',params:{name:'satori_pending_pdf_deliveries',arguments:{}}})).body.result.structuredContent.count,1,'failed is retried');
- const sent=await rpc({jsonrpc:'2.0',id:6,method:'tools/call',params:{name:'satori_mark_pdf_delivered',arguments:{deliveryId:d[0].deliveryId,status:'sent'}}});
+ const wrong=await rpc({jsonrpc:'2.0',id:12,method:'tools/call',
+  params:{name:'satori_mark_pdf_delivered',arguments:{
+   deliveryId:d[0].deliveryId,status:'sent',actualFileName:'bb6f2c91-9645-4fab-'+d[0].fileName
+  }}});
+ assert.equal(wrong.body.result.isError,true,'UUID-prefixed filename must be refused');
+ const absent=await rpc({jsonrpc:'2.0',id:13,method:'tools/call',
+  params:{name:'satori_mark_pdf_delivered',arguments:{deliveryId:d[0].deliveryId,status:'sent'}}});
+ assert.equal(absent.body.result.isError,true,'Sent cannot omit actualFileName');
+ assert.equal((await pool.query('SELECT status FROM satori_v2_owner_pdf_deliveries')).rows[0].status,'failed',
+  'Rejected send must not change delivery status');
+ const sent=await rpc({jsonrpc:'2.0',id:6,method:'tools/call',params:{
+  name:'satori_mark_pdf_delivered',arguments:{
+   deliveryId:d[0].deliveryId,status:'sent',actualFileName:d[0].fileName
+  }}});
  assert.equal(sent.body.result.structuredContent.status,'sent');
  const again=await rpc({jsonrpc:'2.0',id:7,method:'tools/call',params:{name:'satori_mark_pdf_delivered',arguments:{deliveryId:d[0].deliveryId,status:'failed'}}});
  assert.equal(again.body.result.structuredContent.alreadyFinal,true);

@@ -6,10 +6,17 @@ gets exactly one row in `satori_v2_owner_pdf_deliveries`. Grok, running on the
 owner's computer with Zalo Desktop open, works the queue:
 
 1. `satori_pending_pdf_deliveries` (this connector) → `deliveryId`, `invoiceNo`,
-   `ledgerId`, `recipientName`, `orderDate`, `fileName`, `zaloText`.
+   `ledgerId`, `recipientName`, `orderDate`, `fileName`, `ownerDownloadPath`, `zaloText`.
 2. `satori_invoice_pdf` (existing **minh-satori** connector) with
    `id = ledgerId`, `invoiceNo` → official PDF.
-3. **Rename the downloaded PDF BEFORE sending it to Zalo Desktop** to match
+3. **Prefer an authenticated owner browser download**:
+   open `https://minh-satori-v2-customer-admin.onrender.com` + `ownerDownloadPath`
+   in a browser currently signed in as OWNER. The server reads the exact
+   canonical signed ledger PDF and returns an HTTP attachment with the correct
+   UTF-8 `Content-Disposition`. This avoids any UUID prefix added by an
+   AI/chat attachment host. Never forward an AI temporary file directly.
+   If using a connector's local PDF instead, **rename the physical file before
+   sending to Zalo Desktop** to match
    `fileName` from the queue, for example `5988 - Traky Sài Gòn - 2026-11-12.pdf`.
    This is derived from the verified ledger `invoiceNo`, delivery recipient and
    original order date `orderDate`. Never use a UUID, ledger ID, delivery ID,
@@ -18,7 +25,11 @@ owner's computer with Zalo Desktop open, works the queue:
    the official PDF, otherwise mark failed and ask the owner instead of guessing.
    Send the PDF with exactly `zaloText` (two lines: invoice number, recipient)
    to the person/group the owner designated.
-4. `satori_mark_pdf_delivered` with `sent`, `failed` (retried later) or
+4. Only after Zalo accepts the file and its actual filename is inspected,
+   call `satori_mark_pdf_delivered` with `deliveryId`, `status:"sent"`, and
+   `actualFileName` **exactly equal to `fileName`** in the delivery queue.
+   UUID-prefixed, omitted or mismatched names are rejected and must not be
+   recorded as delivered. Otherwise mark `failed` (retried later) or
    `skipped`. A `sent` delivery is final and never re-queued.
 
 No invoice, payment, VAT, shipping or ledger write exists on this connector.
@@ -34,10 +45,11 @@ grok.com → Plugins → Connectors → New Connector → Custom Connector:
 The URL is the credential: keep it private; rotate the token to revoke access.
 
 ## Suggested owner instruction to Grok
-"Kiểm tra satori_pending_pdf_deliveries. Với từng mục: lấy PDF bằng
-satori_invoice_pdf, gửi PDF kèm đúng zaloText vào nhóm Zalo [tên nhóm] cho
-[người nhận], rồi gọi satori_mark_pdf_delivered. Nếu không gửi được thì đánh
-dấu failed và báo anh."
+"Kiểm tra satori_pending_pdf_deliveries. Lấy ownerDownloadPath để tải PDF
+trực tiếp trong trình duyệt đã đăng nhập Owner. Không dùng file đính kèm tạm
+của AI. Kiểm tra tên file thật khớp fileName rồi gửi đúng người/nhóm trên Zalo.
+Sau khi đã gửi và xác nhận tên, gọi satori_mark_pdf_delivered với
+actualFileName=fileName. Nếu chưa xác minh được, ghi failed và báo anh."
 
 ## Limits (honest)
 - A Grok chat is not an always-on watcher: deliveries wait in the queue until
@@ -66,3 +78,14 @@ disappear on the next deploy/restart).
 Verification: `node --test account-v2/tests/grok-orders.test.mjs` (offline) and
 `SATORI_BOTAPI_SOURCE=<clasp clone>/BotApi.js node account-v2/tests/grok-orders-ledger.mjs`
 (real BotApi source in a vm sandbox + local PostgreSQL).
+
+## Security and verification (2026-11-12)
+- Owner PDF download route is **session-authenticated, owner-only, read-only**.
+- It matches **both** immutable ledger ID and invoice number before rendering.
+- Do not attach the file via ChatGPT/Grok file upload if the host prepends a UUID;
+  instead download to Files and attach that physical, canonical-name PDF to Zalo.
+- File attachment name within Zalo is controlled by the receiving app/OS. A
+  server response cannot override a filename that Zalo itself renames on import.
+- The sent-name gate rejects wrong filenames **as reported by the sender**; it
+  cannot inspect the remote Zalo message, so the sender must verify it manually.
+- Never run a real invoice write to test the download path.

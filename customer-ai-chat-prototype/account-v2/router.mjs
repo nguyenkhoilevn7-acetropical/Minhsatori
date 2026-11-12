@@ -27,6 +27,7 @@ import {selectLatestReorderSuggestion} from './reorder-suggestion.mjs';
 import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {renderCurrentV2Pdf} from './local-invoice-pdf.mjs';
 import {invoicePdfDisposition} from './pdf-filename.mjs';
+import {prepareOwnerPdfDownload} from './owner-pdf-delivery.mjs';
 import {exactCurrentInvoiceFromRequestId} from './local-invoice-read.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
@@ -842,6 +843,35 @@ export async function handleAccountV2(req,res,pathname){
    }
    error(r.rows.length===1,'CART_REVISION_CONFLICT',409);
    send(res,200,{ok:true,lines,revision:r.rows[0].revision});return true;
+  }
+  // Owner session required. A direct browser download avoids chat attachment UUIDs.
+  // Both invoice number and immutable ledger ID must match signed orders.list.
+  const ownerPdfMatch=/^\/api\/v2\/admin\/invoices\/(\d{1,12})\/([A-Za-z0-9_-]{1,80})\/pdf$/.exec(pathname);
+  if(ownerPdfMatch&&req.method==='GET'){
+   owner(actor);
+   error(readOnlyReady()&&process.env.SATORI_V2_LOCAL_PDFMAKE_ENABLED==='1',
+    'OWNER_PDF_UNAVAILABLE',503);
+   let prepared;
+   try{
+    prepared=await prepareOwnerPdfDownload({
+     invoiceNo:Number(ownerPdfMatch[1]),ledgerId:ownerPdfMatch[2]
+    });
+   }catch{
+    // Hide exact-ledger identity and do not leak customer data on mismatch.
+    throw new ApiError('OWNER_PDF_NOT_READY',404);
+   }
+   res.writeHead(200,{
+    'content-type':'application/pdf',
+    'content-length':String(prepared.bytes.length),
+    'content-disposition':prepared.disposition,
+    'cache-control':'private, no-store, max-age=0',
+    'x-content-type-options':'nosniff',
+    'x-frame-options':'DENY',
+    'referrer-policy':'no-referrer',
+    'x-satori-pdf-sha256':prepared.sha256
+   });
+   res.end(prepared.bytes);
+   return true;
   }
   if(pathname==='/api/v2/admin/original-invoices'&&req.method==='GET'){
    // Original ledger is owner-only. Never join by ambiguous name or phone.
