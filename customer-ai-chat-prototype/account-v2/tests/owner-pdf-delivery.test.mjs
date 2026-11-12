@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
 import {ownerPdfDownloadPath,prepareOwnerPdfDownload,ownerPdfRefByNumber} from '../owner-pdf-delivery.mjs';
 
 const ref={invoiceNo:98765,ledgerId:'1800000000000'};
@@ -101,4 +102,12 @@ test('Owner UI is authenticated and downloads real named PDF, not AI temporary b
  assert.ok(html.includes("filename\\*=UTF-8''"));
  assert.match(html,/a\.download=filename/);
  assert.match(html,/magic!=='%PDF-'/);
+});
+
+test('inline Owner panel scripts compile (no broken download handler on mobile)',()=>{
+ const html=readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
+ const scripts=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
+  .map(match=>match[1]).filter(Boolean);
+ assert.ok(scripts.length>=2);
+ for(const js of scripts)new vm.Script(js,{filename:'owner-catalogue-inline.js'});
 });
