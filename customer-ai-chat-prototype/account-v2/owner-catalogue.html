@@ -989,6 +989,59 @@ body{font-size:14px;line-height:1.42}
 'use strict';
 const byId=id=>document.getElementById(id);
 const csrf=()=>document.cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith('satori_v2_csrf='))?.slice(15)||'';
+
+// Owner direct export: browser downloads a named PDF, never an AI-hosted UUID file.
+byId('ownerPdfToggle').addEventListener('click',()=>{
+ if(!isOwner)return;
+ const panel=byId('ownerPdfExport'),open=panel.hidden;
+ panel.hidden=!open;
+ byId('ownerPdfToggle').setAttribute('aria-expanded',String(open));
+ if(open)byId('ownerPdfNo').focus();
+});
+byId('ownerPdfForm').addEventListener('submit',async ev=>{
+ ev.preventDefault();
+ if(!isOwner)return;
+ const no=Number(byId('ownerPdfNo').value);
+ const button=byId('ownerPdfDownload'),status=byId('ownerPdfState');
+ const set=(message,kind='info')=>{status.dataset.kind=kind;status.textContent=message};
+ if(!Number.isSafeInteger(no)||no<1||no>999999999999){
+  set('Số hóa đơn không hợp lệ.','error');return;
+ }
+ button.disabled=true;set('Đang xác minh hóa đơn và chuẩn bị PDF…');
+ try{
+  const response=await fetch('/api/v2/admin/invoices/'+no+'/pdf',{
+   credentials:'same-origin',cache:'no-store',headers:{accept:'application/pdf'}
+  });
+  if(!response.ok)throw Error(response.status===401||response.status===403
+   ?'Cần đăng nhập lại tài khoản Owner.'
+   :'Không tải được hóa đơn đã xác minh ('+response.status+').');
+  const disposition=response.headers.get('content-disposition')||'';
+  const match=/filename\*=UTF-8''([^;]+)/i.exec(disposition);
+  if(!match)throw Error('Máy chủ không cung cấp tên PDF chuẩn.');
+  const filename=decodeURIComponent(match[1].trim());
+  const canonical=/^(\d{1,12}) - (.{1,80}) - (\d{4})-(\d{2})-(\d{2})\.pdf$/u.exec(filename);
+  if(!canonical||Number(canonical[1])!==no||
+     /[\\/:*?"<>|\u0000-\u001f\u007f]/u.test(filename)||
+     /[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i.test(filename))
+   throw Error('Tên PDF có mã kỹ thuật hoặc không đúng mẫu; đã chặn tải.');
+  if(!String(response.headers.get('content-type')||'').startsWith('application/pdf'))
+   throw Error('Tệp trả về không phải PDF.');
+  const blob=await response.blob();
+  if(blob.size<100||blob.size>8*1024*1024)throw Error('Dung lượng PDF bất thường.');
+  const magic=new TextDecoder('ascii').decode(await blob.slice(0,5).arrayBuffer());
+  if(magic!=='%PDF-')throw Error('Tệp trả về không phải PDF hợp lệ.');
+  const objectUrl=URL.createObjectURL(new Blob([blob],{type:'application/pdf'}));
+  try{
+   const a=document.createElement('a');
+   a.href=objectUrl;a.download=filename;a.style.display='none';
+   document.body.appendChild(a);a.click();a.remove();
+  }finally{window.setTimeout(()=>URL.revokeObjectURL(objectUrl),60_000)}
+  set('Tên PDF: '+filename+'. Mở Files → Downloads → chọn file này và gửi Zalo. KHÔNG dùng file tạm do AI đính kèm.','success');
+ }catch(e){
+  set('Lỗi xuất PDF: '+(e?.message||'Không rõ nguyên nhân'),'error');
+ }finally{button.disabled=false}
+});
+
 let isOwner=false,busy=false,sourceReady=false,ownerAccountId=null;
 function state(message,kind='info'){byId('notice').textContent=message;byId('notice').dataset.kind=kind}
 async function api(route,method='GET',body){
