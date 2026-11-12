@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {ownerPdfDownloadPath,prepareOwnerPdfDownload} from '../owner-pdf-delivery.mjs';
+import {ownerPdfDownloadPath,prepareOwnerPdfDownload,ownerPdfRefByNumber} from '../owner-pdf-delivery.mjs';
 
 const ref={invoiceNo:98765,ledgerId:'1800000000000'};
 const current={id:ref.ledgerId,invoiceNo:ref.invoiceNo,status:'Chưa thanh toán',
@@ -53,7 +53,7 @@ test('strict saved order identity, status, recipient and date - fail closed',asy
 test('no public PDF or cross-account access: route is AFTER auth and OWNER-only',()=>{
  const source=readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
  const auth=source.indexOf('const actor=await auth(req,pool)');
- const route=source.indexOf('if(ownerPdfMatch&&req.method');
+ const route=source.indexOf('if((ownerPdfMatch||ownerPdfByNo)&&req.method');
  const next=source.indexOf("if(pathname==='/api/v2/admin/original-invoices'",route);
  assert.ok(auth>0&&route>auth&&next>route);
  const block=source.slice(route,next);
@@ -64,4 +64,41 @@ test('no public PDF or cross-account access: route is AFTER auth and OWNER-only'
  assert.match(block,/cache-control':'private, no-store/);
  assert.match(block,/content-disposition':prepared\.disposition/);
  assert.doesNotMatch(block,/orders\.create|payments\.mark|DriveApp|setSharing/);
+});
+
+
+test('Owner selects invoice by NUMBER from signed ledger, no UUID/phone guessing',async()=>{
+ const source={revision:250,data:{totalMatches:1,orders:[
+  {id:'1794487403974',invoiceNo:5989,name:'18+',date:'12/11/2026'}
+ ]}};
+ const actual=await ownerPdfRefByNumber(5989,{reader:async(action,opts)=>{
+  assert.equal(action,'orders.list');assert.deepEqual(opts,{query:'5989',limit:100});
+  return source;
+ }});
+ assert.deepEqual(actual,{invoiceNo:5989,ledgerId:'1794487403974'});
+});
+test('No ambiguous/incomplete signed invoice lookup can serve a file',async()=>{
+ const expected=5989;
+ const payloads=[
+  {revision:4,data:{totalMatches:2,orders:[{id:'x1',invoiceNo:5989},{id:'x2',invoiceNo:5989}]}},
+  {revision:4,data:{totalMatches:102,orders:[]}},
+  {revision:4,data:{totalMatches:2,orders:[{id:'x1',invoiceNo:5989}]}},
+  {revision:4,data:{totalMatches:1,orders:[{id:'../etc',invoiceNo:5989}]}},
+  {revision:4,data:{totalMatches:1,orders:[{id:'x1',invoiceNo:5988}]}}
+ ];
+ for(const payload of payloads){
+  await assert.rejects(ownerPdfRefByNumber(expected,{reader:async()=>payload}));
+ }
+});
+test('Owner UI is authenticated and downloads real named PDF, not AI temporary blob',()=>{
+ const html=readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
+ assert.match(html,/id="ownerPdfForm"/);
+ assert.match(html,/id="ownerPdfNo"/);
+ assert.match(html,/id="ownerPdfToggle"/);
+ assert.match(html,/byId\('ownerPdfToggle'\)\.hidden=false/);
+ assert.match(html,/if\(!isOwner\)return/);
+ assert.match(html,/fetch\('\/api\/v2\/admin\/invoices\/'\+no\+'\/pdf'/);
+ assert.match(html,/filename\*=UTF-8''/);
+ assert.match(html,/a\.download=filename/);
+ assert.match(html,/magic!=='%PDF-'/);
 });
