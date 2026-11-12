@@ -48,8 +48,8 @@ export const GROK_TOOLS=[
  {name:'satori_pending_pdf_deliveries',
   title:'Minh Satori: PDF hóa đơn mới cần gửi Zalo',
   description:'Danh sách hóa đơn MỚI đã xác minh trong sổ Minh Satori mà chưa gửi PDF. '+
-   'Với mỗi mục: lấy PDF chính thức bằng công cụ satori_invoice_pdf (id=ledgerId, invoiceNo), '+
-   'Tải PDF trực tiếp bằng ownerDownloadPath qua trình duyệt đã đăng nhập Owner để tránh UUID do AI đính kèm; '+
+   'KHÔNG chia sẻ file đính kèm tạm từ công cụ satori_invoice_pdf hoặc file chat AI vào Zalo: hệ thống trung gian có thể chèn UUID. '+
+   'Mở ownerDownloadPath trên trình duyệt Owner, hoặc dùng mục 📄 PDF của /owner-v2 để tải file thật vào Downloads trước khi gửi. '+
    'hoặc đổi tên tệp vật lý theo fileName, không dùng UUID/ledgerId/ID tạm trong tên tệp, '+
    'gửi PDF kèm đúng nội dung zaloText qua Zalo Desktop tới người/nhóm chủ cửa hàng chỉ định, '+
    'rồi gọi satori_mark_pdf_delivered. Không tự sửa giá, khách hay nội dung tin.',
@@ -144,7 +144,8 @@ export async function handleGrokRpc(pool,msg,deps={}){
     capabilities:{tools:{listChanged:false}},
     serverInfo:{name:'minh-satori-grok-delivery',version:'1.0.0'},
     instructions:'Hàng đợi gửi PDF hóa đơn mới của Minh Satori. Chỉ gửi đúng nội dung zaloText kèm PDF '+
-     'chính thức qua ownerDownloadPath (trình duyệt đã đăng nhập Owner), hoặc đổi tên tệp PDF thật đúng fileName, '+
+     'chính thức từ ownerDownloadPath hoặc trang /owner-v2 trên Chrome đã đăng nhập Owner; không gửi tệp tạm của AI. '+
+     'Nếu không thể tải tệp có fileName chuẩn, không gửi Zalo và không đánh dấu sent; '+
      'không gắn ID tạm/UUID. Nếu thiếu fileName phải xác minh ngày từ PDF gốc, tuyệt đối không dùng ngày tải; '+
      'chỉ sau khi gửi Zalo và kiểm tra tên file thực tế mới ghi satori_mark_pdf_delivered '+
      '(sent và actualFileName bằng đúng fileName).'+

@@ -82,7 +82,7 @@ export async function renderCurrentV2Pdf(current,expected,{
  const doc=currentInvoiceForWebsitePdf(current,expected,{allowArchived});
  const output=await render(doc);
  if(!output||!Buffer.isBuffer(output.bytes)||output.bytes.length<100||
-    output.bytes.length>3*1024*1024||
+    output.bytes.length>8*1024*1024||
     output.bytes.subarray(0,5).toString('ascii')!=='%PDF-'||
     output.versionKey!==canonicalPdfVersion(doc)||
     !/^[a-f0-9]{64}$/.test(output.sha256||'')||

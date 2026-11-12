@@ -203,7 +203,7 @@ export async function renderOriginalWebsitePdf(order) {
     try{pdfMake.createPdf(doc).getBuffer(x=>{clearTimeout(handle);resolve(Buffer.from(x));});}
     catch(e){clearTimeout(handle);reject(e)}
   });
-  if(bytes.length<100||bytes.length>3*1024*1024||
+  if(bytes.length<100||bytes.length>8*1024*1024||
     bytes.subarray(0,5).toString('ascii')!=='%PDF-')
     throw Error('PDF_INVALID_BYTES');
   return Object.freeze({bytes,versionKey:canonicalPdfVersion(order),
