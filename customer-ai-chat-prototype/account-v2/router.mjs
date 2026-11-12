@@ -26,6 +26,7 @@ import {readExactCurrentInvoices,currentCustomerOrder,currentLinkedHistory} from
 import {selectLatestReorderSuggestion} from './reorder-suggestion.mjs';
 import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {renderCurrentV2Pdf} from './local-invoice-pdf.mjs';
+import {invoicePdfDisposition} from './pdf-filename.mjs';
 import {exactCurrentInvoiceFromRequestId} from './local-invoice-read.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
@@ -947,8 +948,10 @@ export async function handleAccountV2(req,res,pathname){
    const pdfCancelled=localPdf&&source?.archived===true;
    res.writeHead(200,{
     'content-type':'application/pdf','content-length':String(pdf.bytes.length),
-    'content-disposition':disposition+'; filename="MinhSatori_HD'+pdf.invoiceNo+
-      (pdfCancelled?'_DA_HUY':'')+'.pdf"',
+    'content-disposition':invoicePdfDisposition(disposition,{
+      invoiceNo:pdf.invoiceNo,recipientName:latest.delivery?.recipientName,
+      date:latest.date
+     }),
     'cache-control':'private, no-store, max-age=0','x-content-type-options':'nosniff',
     'x-frame-options':'DENY','referrer-policy':'no-referrer',
     'x-satori-pdf-sha256':pdf.sha256,

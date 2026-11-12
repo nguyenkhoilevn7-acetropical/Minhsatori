@@ -44,9 +44,10 @@ try{
  await scanInvoices(pool,reader,new Date(),{probePauseMs:0});
  ledger[0]={...ledger[0],status:'Đã thanh toán'};
  await scanInvoices(pool,reader,new Date(),{probePauseMs:0});
- const q=(await pool.query('SELECT invoice_no,ledger_id,recipient_name,status FROM satori_v2_owner_pdf_deliveries')).rows;
+ const q=(await pool.query('SELECT invoice_no,ledger_id,recipient_name,order_date,status FROM satori_v2_owner_pdf_deliveries')).rows;
  assert.deepEqual(q.map(x=>Number(x.invoice_no)),[9101]);
  assert.equal(q[0].ledger_id,'G9101');assert.equal(q[0].recipient_name,'Khách giả 9101');assert.equal(q[0].status,'pending');
+ assert.equal(q[0].order_date,today,'must be order date from signed ledger');
  pass('One delivery per NEW eligible invoice: no baseline, cancelled, TEST, re-scan or payment-change duplicates');
 
  child=spawn(process.execPath,['account-v2/standalone.mjs'],{env:{...process.env,PORT:'18773',
@@ -74,6 +75,9 @@ try{
  const pending=await rpc({jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'satori_pending_pdf_deliveries',arguments:{}}});
  const d=pending.body.result.structuredContent.deliveries;
  assert.equal(d.length,1);
+ assert.equal(d[0].orderDate,today);
+ assert.equal(d[0].fileName,'9101 - Khách giả 9101 - '+today+'.pdf');
+ assert.equal(d[0].requiresFilenameVerification,false);
  assert.deepEqual({invoiceNo:d[0].invoiceNo,ledgerId:d[0].ledgerId,zaloText:d[0].zaloText},
   {invoiceNo:9101,ledgerId:'G9101',zaloText:'Hóa đơn #9101\nKhách giả 9101'});
  const failed=await rpc({jsonrpc:'2.0',id:4,method:'tools/call',params:{name:'satori_mark_pdf_delivered',arguments:{deliveryId:d[0].deliveryId,status:'failed',note:'Zalo chưa mở'}}});

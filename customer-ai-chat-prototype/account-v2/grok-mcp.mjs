@@ -14,6 +14,7 @@
  * least 40 characters is configured. Tokens are never logged.
  */
 import crypto from 'node:crypto';
+import {invoicePdfFilename} from './pdf-filename.mjs';
 import {GROK_ORDER_TOOLS,GROK_ORDER_TOOL_NAMES,GrokOrderError,callGrokOrderTool,grokOrdersEnabled} from './grok-orders.mjs';
 
 export const GROK_MCP_PREFIX='/mcp/grok/';
@@ -47,6 +48,7 @@ export const GROK_TOOLS=[
   title:'Minh Satori: PDF hóa đơn mới cần gửi Zalo',
   description:'Danh sách hóa đơn MỚI đã xác minh trong sổ Minh Satori mà chưa gửi PDF. '+
    'Với mỗi mục: lấy PDF chính thức bằng công cụ satori_invoice_pdf (id=ledgerId, invoiceNo), '+
+   'trước khi gửi phải đổi tên tệp theo fileName; không dùng UUID/ledgerId/ID tạm trong tên tệp, '+
    'gửi PDF kèm đúng nội dung zaloText qua Zalo Desktop tới người/nhóm chủ cửa hàng chỉ định, '+
    'rồi gọi satori_mark_pdf_delivered. Không tự sửa giá, khách hay nội dung tin.',
   inputSchema:{type:'object',properties:{limit:{type:'integer',minimum:1,maximum:20,default:10}},
@@ -70,13 +72,18 @@ const toolOk=data=>({content:[{type:'text',text:JSON.stringify(data)}],structure
 export async function callGrokTool(pool,name,args={}){
  if(name==='satori_pending_pdf_deliveries'){
   const limit=Math.min(20,Math.max(1,Number.isSafeInteger(args.limit)?args.limit:10));
-  const r=await pool.query('SELECT id,invoice_no,ledger_id,recipient_name,status,attempts,created_at '+
+  const r=await pool.query('SELECT id,invoice_no,ledger_id,recipient_name,order_date,status,attempts,created_at '+
    "FROM satori_v2_owner_pdf_deliveries WHERE status IN ('pending','failed') AND attempts<10 "+
    "AND created_at>now()-interval '7 days' ORDER BY created_at LIMIT $1",[limit]);
-  return toolOk({count:r.rows.length,deliveries:r.rows.map(x=>({
-   deliveryId:x.id,invoiceNo:Number(x.invoice_no),ledgerId:x.ledger_id,
-   recipientName:x.recipient_name,zaloText:deliveryText(x),status:x.status,attempts:x.attempts,
-   createdAt:x.created_at}))});
+  return toolOk({count:r.rows.length,deliveries:r.rows.map(x=>{
+   let fileName=null;
+   try{fileName=invoicePdfFilename({invoiceNo:Number(x.invoice_no),
+    recipientName:x.recipient_name,date:x.order_date})}catch{}
+   return {deliveryId:x.id,invoiceNo:Number(x.invoice_no),ledgerId:x.ledger_id,
+    recipientName:x.recipient_name,orderDate:x.order_date,fileName,
+    requiresFilenameVerification:!fileName,zaloText:deliveryText(x),
+    status:x.status,attempts:x.attempts,createdAt:x.created_at};
+  })});
  }
  if(name==='satori_mark_pdf_delivered'){
   if(!UUID.test(String(args.deliveryId||'')))return toolError('deliveryId không hợp lệ.');
@@ -115,7 +122,9 @@ export async function handleGrokRpc(pool,msg,deps={}){
     capabilities:{tools:{listChanged:false}},
     serverInfo:{name:'minh-satori-grok-delivery',version:'1.0.0'},
     instructions:'Hàng đợi gửi PDF hóa đơn mới của Minh Satori. Chỉ gửi đúng nội dung zaloText kèm PDF '+
-     'chính thức lấy từ satori_invoice_pdf; ghi nhận kết quả bằng satori_mark_pdf_delivered.'+
+     'chính thức lấy từ satori_invoice_pdf; đổi tên PDF đúng fileName rồi mới gửi, '+
+     'không gắn ID tạm/UUID. Nếu thiếu fileName phải xác minh ngày từ PDF gốc, tuyệt đối không dùng ngày tải; '+
+     'ghi nhận kết quả bằng satori_mark_pdf_delivered.'+
      (grokOrdersEnabled(env)?' Tạo đơn: satori_find_customer -> satori_order_draft -> gửi summary cho chủ cửa hàng -> '+
       'chỉ khi chủ cửa hàng gõ lại mã duyệt mới gọi satori_order_confirm.':'')}};
   }

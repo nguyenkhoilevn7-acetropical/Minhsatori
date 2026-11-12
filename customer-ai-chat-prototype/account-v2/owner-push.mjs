@@ -80,6 +80,8 @@ export function ensureOwnerPushSchema(pool){
   .then(()=>pool.query(fs.readFileSync(
    path.join(HERE,'migrations/20261111_owner_pdf_delivery.sql'),'utf8')))
   .then(()=>pool.query(fs.readFileSync(
+   path.join(HERE,'migrations/20261112_pdf_filename.sql'),'utf8')))
+  .then(()=>pool.query(fs.readFileSync(
    path.join(HERE,'migrations/20261112_grok_order_drafts.sql'),'utf8')))
   .then(()=>true).catch(e=>{schemaReady=null;throw e});
  return schemaReady;
@@ -276,7 +278,8 @@ export async function scanInvoices(pool,sourceReader,now=new Date(),
  const found=new Map();
  const add=row=>{const r=refOf(row);if(r)found.set(r.key,{invoiceNo:r.no,
   ledgerId:String(row.id),recipientName:String(row.name??'').trim().slice(0,160),
-  eligible:eligibleOfficialInvoice(row,nowMs)})};
+   orderDate:String(row.date??'').trim().slice(0,30),
+   eligible:eligibleOfficialInvoice(row,nowMs)})};
  const statuses=new Set();
  for(const d of scanDays(now)){
   const {rows}=signedRows(await reader('orders.list',{from:d,to:d,limit:100}));
@@ -338,8 +341,9 @@ export async function scanInvoices(pool,sourceReader,now=new Date(),
    // Same decision as the push: only a NEW, eligible invoice (never the quiet
    // baseline, a re-scan, an edit or a payment change) gets one PDF delivery.
    if(r.rowCount===1&&initialized&&x.eligible)
-    await client.query('INSERT INTO satori_v2_owner_pdf_deliveries(source_key,invoice_no,ledger_id,recipient_name) '+
-     'VALUES($1,$2,$3,$4) ON CONFLICT(source_key) DO NOTHING',[key,x.invoiceNo,x.ledgerId,x.recipientName]);
+    await client.query('INSERT INTO satori_v2_owner_pdf_deliveries(source_key,invoice_no,ledger_id,recipient_name,order_date) '+
+      'VALUES($1,$2,$3,$4,$5) ON CONFLICT(source_key) DO NOTHING',
+      [key,x.invoiceNo,x.ledgerId,x.recipientName,x.orderDate]);
   }
   await client.query('UPDATE satori_v2_owner_push_feed_state SET initialized=true,last_checked_at=now(),'+
    'backfill_next=$2,backfill_until=$3,last_error_code=$4 WHERE feed=$1',
