@@ -15,6 +15,7 @@
  */
 import crypto from 'node:crypto';
 import {invoicePdfFilename} from './pdf-filename.mjs';
+import {ownerPdfDownloadPath} from './owner-pdf-delivery.mjs';
 import {GROK_ORDER_TOOLS,GROK_ORDER_TOOL_NAMES,GrokOrderError,callGrokOrderTool,grokOrdersEnabled} from './grok-orders.mjs';
 
 export const GROK_MCP_PREFIX='/mcp/grok/';
@@ -48,7 +49,8 @@ export const GROK_TOOLS=[
   title:'Minh Satori: PDF hóa đơn mới cần gửi Zalo',
   description:'Danh sách hóa đơn MỚI đã xác minh trong sổ Minh Satori mà chưa gửi PDF. '+
    'Với mỗi mục: lấy PDF chính thức bằng công cụ satori_invoice_pdf (id=ledgerId, invoiceNo), '+
-   'trước khi gửi phải đổi tên tệp theo fileName; không dùng UUID/ledgerId/ID tạm trong tên tệp, '+
+   'Tải PDF trực tiếp bằng ownerDownloadPath qua trình duyệt đã đăng nhập Owner để tránh UUID do AI đính kèm; '+
+   'hoặc đổi tên tệp vật lý theo fileName, không dùng UUID/ledgerId/ID tạm trong tên tệp, '+
    'gửi PDF kèm đúng nội dung zaloText qua Zalo Desktop tới người/nhóm chủ cửa hàng chỉ định, '+
    'rồi gọi satori_mark_pdf_delivered. Không tự sửa giá, khách hay nội dung tin.',
   inputSchema:{type:'object',properties:{limit:{type:'integer',minimum:1,maximum:20,default:10}},
@@ -56,12 +58,15 @@ export const GROK_TOOLS=[
   annotations:{readOnlyHint:true,openWorldHint:false}},
  {name:'satori_mark_pdf_delivered',
   title:'Minh Satori: ghi nhận đã gửi PDF',
-  description:'Ghi kết quả gửi PDF của một mục trong hàng đợi: sent (đã gửi), failed (lỗi, sẽ thử lại) '+
-   'hoặc skipped (chủ cửa hàng bảo không gửi). Gọi lại với cùng kết quả không tạo trùng.',
+  description:'Ghi kết quả PDF: sent (đã gửi), failed hoặc skipped. '+
+   'Nếu sent: BẮT BUỘC cung cấp actualFileName từ tệp THỰC TẾ đưa vào Zalo; '+
+   'phải khớp hoàn toàn fileName của satori_pending_pdf_deliveries. '+
+   'UUID hoặc tên tạm bị chặn. Không gọi sent nếu mới tải tệp nhưng chưa gửi.',
   inputSchema:{type:'object',required:['deliveryId','status'],properties:{
    deliveryId:{type:'string',description:'deliveryId từ satori_pending_pdf_deliveries'},
    status:{type:'string',enum:['sent','failed','skipped']},
-   note:{type:'string',maxLength:200,description:'Ghi chú ngắn, không chứa dữ liệu khách'}},
+   note:{type:'string',maxLength:200,description:'Ghi chú ngắn, không chứa dữ liệu khách'},
+   actualFileName:{type:'string',maxLength:180,description:'Tên PDF thực tế được gửi vào Zalo, bắt buộc cho sent; đúng fileName đã xác thực'}} ,
    additionalProperties:false},
   annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}}
 ];
@@ -76,11 +81,14 @@ export async function callGrokTool(pool,name,args={}){
    "FROM satori_v2_owner_pdf_deliveries WHERE status IN ('pending','failed') AND attempts<10 "+
    "AND created_at>now()-interval '7 days' ORDER BY created_at LIMIT $1",[limit]);
   return toolOk({count:r.rows.length,deliveries:r.rows.map(x=>{
-   let fileName=null;
-   try{fileName=invoicePdfFilename({invoiceNo:Number(x.invoice_no),
-    recipientName:x.recipient_name,date:x.order_date})}catch{}
+   let fileName=null,ownerDownloadPath=null;
+   try{
+    fileName=invoicePdfFilename({invoiceNo:Number(x.invoice_no),
+     recipientName:x.recipient_name,date:x.order_date});
+    ownerDownloadPath=ownerPdfDownloadPath({invoiceNo:Number(x.invoice_no),ledgerId:x.ledger_id});
+   }catch{}
    return {deliveryId:x.id,invoiceNo:Number(x.invoice_no),ledgerId:x.ledger_id,
-    recipientName:x.recipient_name,orderDate:x.order_date,fileName,
+    recipientName:x.recipient_name,orderDate:x.order_date,fileName,ownerDownloadPath,
     requiresFilenameVerification:!fileName,zaloText:deliveryText(x),
     status:x.status,attempts:x.attempts,createdAt:x.created_at};
   })});
@@ -89,6 +97,20 @@ export async function callGrokTool(pool,name,args={}){
   if(!UUID.test(String(args.deliveryId||'')))return toolError('deliveryId không hợp lệ.');
   if(!['sent','failed','skipped'].includes(args.status))return toolError('status phải là sent, failed hoặc skipped.');
   const note=typeof args.note==='string'?args.note.replace(/[\u0000-\u001f]/g,' ').slice(0,200):null;
+  if(args.status==='sent'){
+   const check=await pool.query('SELECT invoice_no,recipient_name,order_date,status '+
+    'FROM satori_v2_owner_pdf_deliveries WHERE id=$1',[args.deliveryId.toLowerCase()]);
+   if(!check.rows.length)return toolError('Không tìm thấy mục giao PDF.');
+   if(check.rows[0].status==='pending'||check.rows[0].status==='failed'){
+    let expected;
+    try{expected=invoicePdfFilename({invoiceNo:Number(check.rows[0].invoice_no),
+     recipientName:check.rows[0].recipient_name,date:check.rows[0].order_date})}catch{
+     return toolError('Không có ngày order gốc đã xác minh. Không thể đánh dấu đã gửi.');
+    }
+    if(typeof args.actualFileName!=='string'||args.actualFileName!==expected)
+     return toolError('Sai tên PDF. Phải tải/đổi tên tệp thành: '+expected);
+   }
+  }
   // A delivery already marked sent/skipped is final: retries never resend it.
   const r=await pool.query('UPDATE satori_v2_owner_pdf_deliveries SET status=$2,last_note=$3,'+
    "attempts=attempts+CASE WHEN $2='failed' THEN 1 ELSE 0 END,updated_at=now(),"+
@@ -122,9 +144,10 @@ export async function handleGrokRpc(pool,msg,deps={}){
     capabilities:{tools:{listChanged:false}},
     serverInfo:{name:'minh-satori-grok-delivery',version:'1.0.0'},
     instructions:'Hàng đợi gửi PDF hóa đơn mới của Minh Satori. Chỉ gửi đúng nội dung zaloText kèm PDF '+
-     'chính thức lấy từ satori_invoice_pdf; đổi tên PDF đúng fileName rồi mới gửi, '+
+     'chính thức qua ownerDownloadPath (trình duyệt đã đăng nhập Owner), hoặc đổi tên tệp PDF thật đúng fileName, '+
      'không gắn ID tạm/UUID. Nếu thiếu fileName phải xác minh ngày từ PDF gốc, tuyệt đối không dùng ngày tải; '+
-     'ghi nhận kết quả bằng satori_mark_pdf_delivered.'+
+     'chỉ sau khi gửi Zalo và kiểm tra tên file thực tế mới ghi satori_mark_pdf_delivered '+
+     '(sent và actualFileName bằng đúng fileName).'+
      (grokOrdersEnabled(env)?' Tạo đơn: satori_find_customer -> satori_order_draft -> gửi summary cho chủ cửa hàng -> '+
       'chỉ khi chủ cửa hàng gõ lại mã duyệt mới gọi satori_order_confirm.':'')}};
   }
