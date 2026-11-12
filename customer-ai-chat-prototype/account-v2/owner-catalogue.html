@@ -861,6 +861,15 @@ body{font-size:14px;line-height:1.42}
   .owner-tabs button,.crm-entry,button{transition:none!important}
 }
 
+
+.owner-pdf-action{min-width:56px;min-height:44px;white-space:nowrap}
+#ownerPdfExport{margin:10px 0 15px;padding:17px}
+#ownerPdfForm{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:12px}
+#ownerPdfForm label{display:grid;gap:5px;flex:1;min-width:145px}
+#ownerPdfForm input{width:100%;min-height:46px;font-size:16px;border-radius:12px;padding:9px 12px}
+#ownerPdfForm button{min-height:46px}
+#ownerPdfState{font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+#ownerPdfState[data-kind="error"]{color:#ba1c1c}
 </style></head>
 <body>
 <main>
@@ -868,7 +877,8 @@ body{font-size:14px;line-height:1.42}
  <a href="/app-v2" class="owner-back" aria-label="Quay về ứng dụng đặt hàng">‹</a>
  <span class="owner-mark"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
  <div class="owner-brand"><h1>MINH SATORI</h1><small>QUẢN TRỊ · KHÁCH HÀNG V2</small></div>
- <button id="refresh" class="secondary owner-refresh" type="button" aria-label="Làm mới mục quản trị hiện tại" title="Làm mới" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11a9 9 0 0 0-15-6L3 8M3 3v5h5M3 13a9 9 0 0 0 15 6l3-3m0 5v-5h-5"/></svg></button>
+ <button id="ownerPdfToggle" class="secondary owner-pdf-action" type="button" aria-label="Xuất hóa đơn PDF chuẩn" title="Xuất PDF" aria-expanded="false" aria-controls="ownerPdfExport" hidden>📄 PDF</button>
+  <button id="refresh" class="secondary owner-refresh" type="button" aria-label="Làm mới mục quản trị hiện tại" title="Làm mới" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11a9 9 0 0 0-15-6L3 8M3 3v5h5M3 13a9 9 0 0 0 15 6l3-3m0 5v-5h-5"/></svg></button>
 </header>
 <nav id="ownerTabs" class="owner-tabs" hidden role="tablist" aria-label="Khu vực quản trị">
  <button type="button" data-owner-tab="new" role="tab" aria-selected="true" aria-controls="crmConsole"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2M19 8v8M15 12h8"/></svg><span>Khách mới</span></button>
@@ -878,6 +888,17 @@ body{font-size:14px;line-height:1.42}
 <section class="card" id="ownerAuth" aria-label="Quyền truy cập">
  <span class="badge">Chỉ quản trị viên</span>
  <p id="authState" role="status">Đang kiểm tra quyền Admin…</p>
+</section>
+<section class="card" id="ownerPdfExport" hidden aria-label="Xuất PDF hóa đơn đúng tên">
+ <h2>📄 Xuất PDF theo số hóa đơn</h2>
+ <p>Tải trực tiếp từ hóa đơn gốc. Tên file gồm số hóa đơn, người nhận và ngày đặt — không có UUID.</p>
+ <form id="ownerPdfForm">
+  <label for="ownerPdfNo">Số hóa đơn
+   <input id="ownerPdfNo" type="number" inputmode="numeric" min="1" max="999999999999" step="1" required placeholder="Ví dụ: 5989">
+  </label>
+  <button id="ownerPdfDownload" type="submit">Tải PDF đúng tên</button>
+ </form>
+ <p id="ownerPdfState" role="status" aria-live="polite">Tải về điện thoại rồi mở Files → Downloads để gửi vào Zalo. Không dùng tệp đính kèm tạm của AI.</p>
 </section>
 <section class="card" id="console" hidden>
  <h2>📦 Danh mục đã xác minh</h2>
@@ -2756,6 +2777,7 @@ async function initCrm(){
   const me=await api('/api/v2/me');
   if(!me?.account?.isAdmin)throw Error('ADMIN_REQUIRED');
   isOwner=true;ownerAccountId=me.account.id;
+  byId('ownerPdfToggle').hidden=false;
   byId('authState').textContent='Đã xác thực quyền Admin.';
   byId('ownerAuth').hidden=true;
   await initCrm();await reload();
