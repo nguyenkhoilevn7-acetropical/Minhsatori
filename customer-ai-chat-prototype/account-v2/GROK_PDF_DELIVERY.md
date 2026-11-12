@@ -6,10 +6,17 @@ gets exactly one row in `satori_v2_owner_pdf_deliveries`. Grok, running on the
 owner's computer with Zalo Desktop open, works the queue:
 
 1. `satori_pending_pdf_deliveries` (this connector) → `deliveryId`, `invoiceNo`,
-   `ledgerId`, `recipientName`, `zaloText`.
+   `ledgerId`, `recipientName`, `orderDate`, `fileName`, `zaloText`.
 2. `satori_invoice_pdf` (existing **minh-satori** connector) with
    `id = ledgerId`, `invoiceNo` → official PDF.
-3. Send the PDF with exactly `zaloText` (two lines: invoice number, recipient)
+3. **Rename the downloaded PDF BEFORE sending it to Zalo Desktop** to match
+   `fileName` from the queue, for example `5988 - Traky Sài Gòn - 2026-11-12.pdf`.
+   This is derived from the verified ledger `invoiceNo`, delivery recipient and
+   original order date `orderDate`. Never use a UUID, ledger ID, delivery ID,
+   temporary download path, archive hash or current download date in the filename.
+   A pre-migration row can have `fileName=null`: verify the original date from
+   the official PDF, otherwise mark failed and ask the owner instead of guessing.
+   Send the PDF with exactly `zaloText` (two lines: invoice number, recipient)
    to the person/group the owner designated.
 4. `satori_mark_pdf_delivered` with `sent`, `failed` (retried later) or
    `skipped`. A `sent` delivery is final and never re-queued.
