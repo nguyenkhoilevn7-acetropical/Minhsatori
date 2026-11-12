@@ -1,8 +1,8 @@
 {
-  "purpose": "android-owner-optional-vat-lines-20261112",
+  "purpose": "android-owner-canonical-pdf-filenames-20261112",
   "package": "vn.minhsatori.app",
-  "version": "0.4.59",
-  "versionCode": 76,
+  "version": "0.4.60",
+  "versionCode": 77,
   "branch": "fix/android-invoice-notification-open-20261101",
   "requestedOn": "2026-11-12",
   "sourcePRs": [
@@ -52,9 +52,10 @@
     387,
     393,
     394,
-    410
+    410,
+    413
   ],
-  "scope": "Signed owner-only APK v0.4.59 build 76 over v0.4.58 build 75: optional per-line VAT editor and persisted VAT mode from integrated PR #410; default invoice-level VAT unchanged. Keep existing owner notifications, payments, PDF, OAuth, web and ledger. No live invoice creation, no backend deployment.",
+  "scope": "Signed owner-only production Android APK v0.4.60 build 77 over v0.4.59 build 76. Customer-facing PDF file name in native Zalo/Messenger share and preview is <invoice number> - <delivery recipient> - <original saved order date>.pdf; retain Vietnamese accents. No change to invoice data, canonical ledger satori_orders_v15, VAT, PDF body, payments, push or OAuth.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -124,7 +125,8 @@
     "2026-11-06: Owner explicitly requested completing a pinned-certificate signed installable APK rather than a DEBUG build. Android PR #394 CI Android unit, emulator, owner fake API and Bot API are green; use protected Release workflow on the existing allowed release branch. Same package, same original signer, versionCode 74 > 73. Do not merge/deploy backend PR #395 or Apps Script Production as part of Android signing; missing source registry must display unknown instead of inferring recipient account.",
     "2026-11-07: Owner screenshot of v0.4.57 showed #5978 'Chưa xác định' because the origin registry depended on an undeployed Apps Script. Backend V2 #395 deployed (d7e9608, owner-only read-only /api/v2/admin/order-origins). Android now reads it directly with the owner V2 session; no Apps Script change needed. Same package, same pinned signer, versionCode 75 > 74; never distribute debug APK.",
     "2026-11-07: Re-sign identical v0.4.58 build 75 source so the owner receives the APK directly in chat: new deliver-encrypted-apk job encrypts the signed APK for android/release-delivery-public.pem (AES-256 + RSA-OAEP-SHA256) and attaches it to a temporary prerelease; repository is public, so the APK is never published in clear. Signing job permissions unchanged (contents: read).",
-    "2026-11-12: Owner explicitly requested the newest installable APK after Claude finished optional per-line VAT. Release v0.4.59 build 76 from the existing integrated Android branch with the pinned release signing certificate; preserve existing package and install in place. This release commit does not merge PRs, deploy any backend or write production invoices."
+    "2026-11-12: Owner explicitly requested the newest installable APK after Claude finished optional per-line VAT. Release v0.4.59 build 76 from the existing integrated Android branch with the pinned release signing certificate; preserve existing package and install in place. This release commit does not merge PRs, deploy any backend or write production invoices.",
+    "2026-11-12: Owner explicitly approved production release of PR #413 PDF user-visible filenames. Build with pinned production signer, same package; never distribute debug APK. Deliver owner APK only; backend deploy is handled separately."
   ],
   "requiresFcm": true
 }
