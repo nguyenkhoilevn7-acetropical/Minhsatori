@@ -52,7 +52,7 @@ export async function prepareOwnerPdfDownload(input,{
  const filename=invoicePdfFilename(source);
  const output=await render(current,{invoiceNo:n,ledgerId:id});
  if(!output||!Buffer.isBuffer(output.bytes)||output.bytes.length<100||
-    output.bytes.length>3*1024*1024||
+    output.bytes.length>8*1024*1024||
     output.bytes.subarray(0,5).toString('ascii')!=='%PDF-'||
     !/^[a-f0-9]{64}$/.test(output.sha256||''))
   throw Error('OWNER_PDF_RENDER_FAILED');
