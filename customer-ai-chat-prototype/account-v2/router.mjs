@@ -27,7 +27,7 @@ import {selectLatestReorderSuggestion} from './reorder-suggestion.mjs';
 import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {renderCurrentV2Pdf} from './local-invoice-pdf.mjs';
 import {invoicePdfDisposition} from './pdf-filename.mjs';
-import {prepareOwnerPdfDownload} from './owner-pdf-delivery.mjs';
+import {prepareOwnerPdfDownload,ownerPdfRefByNumber} from './owner-pdf-delivery.mjs';
 import {exactCurrentInvoiceFromRequestId} from './local-invoice-read.mjs';
 import {validateExactUnitPrice} from './unit-sale-price.mjs';
 import {readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,saveInvoiceFeePolicy,calculateInvoiceFees,
@@ -846,16 +846,18 @@ export async function handleAccountV2(req,res,pathname){
   }
   // Owner session required. A direct browser download avoids chat attachment UUIDs.
   // Both invoice number and immutable ledger ID must match signed orders.list.
+  const ownerPdfByNo=/^\/api\/v2\/admin\/invoices\/(\d{1,12})\/pdf$/.exec(pathname);
   const ownerPdfMatch=/^\/api\/v2\/admin\/invoices\/(\d{1,12})\/([A-Za-z0-9_-]{1,80})\/pdf$/.exec(pathname);
-  if(ownerPdfMatch&&req.method==='GET'){
+  if((ownerPdfMatch||ownerPdfByNo)&&req.method==='GET'){
    owner(actor);
    error(readOnlyReady()&&process.env.SATORI_V2_LOCAL_PDFMAKE_ENABLED==='1',
     'OWNER_PDF_UNAVAILABLE',503);
    let prepared;
    try{
-    prepared=await prepareOwnerPdfDownload({
-     invoiceNo:Number(ownerPdfMatch[1]),ledgerId:ownerPdfMatch[2]
-    });
+    const ref=ownerPdfMatch
+     ?{invoiceNo:Number(ownerPdfMatch[1]),ledgerId:ownerPdfMatch[2]}
+     :await ownerPdfRefByNumber(Number(ownerPdfByNo[1]));
+    prepared=await prepareOwnerPdfDownload(ref);
    }catch{
     // Hide exact-ledger identity and do not leak customer data on mismatch.
     throw new ApiError('OWNER_PDF_NOT_READY',404);
