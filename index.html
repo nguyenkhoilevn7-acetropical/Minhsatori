@@ -5823,17 +5823,26 @@ document.documentElement.classList.add('satori-light-review');
         // =========================================================================
         // HÀM TIỆN ÍCH DỮ LIỆU HÓA ĐƠN & ĐẶT TÊN FILE PDF CHUẨN
         // =========================================================================
+        function formatInvoicePdfOrderDate(value) {
+            const raw=String(value??'').trim();
+            const vi=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
+            const iso=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+            if(!vi&&!iso)throw new Error('Ngày đặt hàng không hợp lệ.');
+            const y=Number(vi?vi[3]:iso[1]),m=Number(vi?vi[2]:iso[2]),d=Number(vi?vi[1]:iso[3]);
+            const dt=new Date(Date.UTC(y,m-1,d));
+            if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)
+                throw new Error('Ngày đặt hàng không hợp lệ.');
+            return String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+        }
         function getInvoicePdfFilename(order = null) {
             const o = order || (currentModalViewedOrder || getCurrentInvoiceData());
-            const invNo = o.invoiceNo || nextInvoiceNumber || 85;
-            let recipientName = (o.name || '').trim();
-            if (!recipientName || recipientName === 'Khách vãng lai' || recipientName === 'Khách Zalo') {
-                recipientName = "Satori";
-            }
-            const cleanName = recipientName
-                .replace(/[\\/:*?\"<>|]/g, '')
-                .replace(/\s+/g, '_');
-            return cleanName + '_Bill_' + invNo + '.pdf';
+            const no=Number(o?.invoiceNo);
+            if(!Number.isSafeInteger(no)||no<1)throw new Error('Thiếu số hóa đơn hợp lệ.');
+            const recipient=String(o?.name??'').normalize('NFC')
+                .replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g,' ')
+                .replace(/\s+/g,' ').trim().slice(0,80);
+            if(!recipient||recipient==='.'||recipient==='..')throw new Error('Thiếu tên người nhận.');
+            return no+' - '+recipient+' - '+formatInvoicePdfOrderDate(o.date)+'.pdf';
         }
 
         function getCurrentInvoiceData() {
@@ -6158,8 +6167,8 @@ document.documentElement.classList.add('satori-light-review');
             return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount,o.timestamp]);
         }
         function pdfShareFilename(name) {
-            const stem=String(name || 'Hoa_don.pdf').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/\.pdf$/i,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,120);
-            return (stem || 'Hoa_don')+'.pdf';
+            // Preserve the recipient, number and immutable order date.
+            return String(name);
         }
         function prepareInvoicePdf(o) {
             o=JSON.parse(JSON.stringify(o));
@@ -6167,7 +6176,7 @@ document.documentElement.classList.add('satori-light-review');
             if(preparedInvoicePdfs.has(key))return preparedInvoicePdfs.get(key).promise;
             const entry={key,result:null,promise:null};preparedInvoicePdfs.set(key,entry);
             entry.promise=renderInvoiceToPdfBlob(o).then(async result=>{
-                // Finish reading all bytes before the click. Use an ASCII filename and PDF MIME.
+                // Finish reading all bytes before the click. Preserve the recipient/date filename and PDF MIME.
                 const bytes=new Uint8Array(await result.blob.arrayBuffer());
                 if(String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')throw new Error('Tệp chưa phải PDF hợp lệ.');
                 result.blob=new Blob([bytes],{type:'application/pdf'});
