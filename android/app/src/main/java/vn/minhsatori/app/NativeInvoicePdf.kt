@@ -38,10 +38,7 @@ object NativeInvoicePdf {
             val result = runCatching {
                 val folder = File(context.cacheDir, "shared_invoices")
                 require(folder.isDirectory || folder.mkdirs()) { "Không tạo được thư mục PDF." }
-                val safeNumber = invoice.number
-                    .replace(Regex("[^a-zA-Z0-9_-]"), "").take(24)
-                val output = File(folder, "MinhSatori_HD_" +
-                    safeNumber.ifBlank { "invoice" } + ".pdf")
+                val output = File(folder, InvoicePdfFilename.forInvoice(invoice))
                 WebsiteInvoicePdf.render(context, invoice, output)
                 require(output.length() > 100) { "File PDF không hợp lệ." }
                 output
@@ -100,8 +97,7 @@ object NativeInvoicePdf {
             val result = runCatching {
                 val directory = File(activity.cacheDir, "shared_invoices")
                 require(directory.isDirectory || directory.mkdirs())
-                val name = invoice.number.replace(Regex("[^a-zA-Z0-9_-]"), "").take(24)
-                val file = File(directory, "Preview_" + name.ifBlank { "invoice" } + ".pdf")
+                val file = File(directory, InvoicePdfFilename.forInvoice(invoice))
                 WebsiteInvoicePdf.render(activity, invoice, file)
                 require(file.length() > 100L) { "Không tạo được PDF." }
                 val images = ArrayList<Bitmap>()
