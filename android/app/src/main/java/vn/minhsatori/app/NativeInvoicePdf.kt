@@ -38,10 +38,8 @@ object NativeInvoicePdf {
             val result = runCatching {
                 val folder = File(context.cacheDir, "shared_invoices")
                 require(folder.isDirectory || folder.mkdirs()) { "Không tạo được thư mục PDF." }
-                val safeNumber = invoice.number
-                    .replace(Regex("[^a-zA-Z0-9_-]"), "").take(24)
-                val output = File(folder, "MinhSatori_HD_" +
-                    safeNumber.ifBlank { "invoice" } + ".pdf")
+                // The receiver shows this name: invoice number, recipient, order date only.
+                val output = File(folder, InvoiceFileName.pdf(invoice))
                 WebsiteInvoicePdf.render(context, invoice, output)
                 require(output.length() > 100) { "File PDF không hợp lệ." }
                 output
@@ -75,9 +73,11 @@ object NativeInvoicePdf {
             type = "application/pdf"
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, "Hóa đơn Minh Satori #" + invoice.number)
+            // Same name in every field a receiving app may read it from.
+            putExtra(Intent.EXTRA_TITLE, file.name)
             putExtra(Intent.EXTRA_TEXT, WebsiteInvoicePdf.shareMessage(invoice))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            clipData = ClipData.newUri(context.contentResolver, "Hóa đơn Minh Satori", uri)
+            clipData = ClipData.newUri(context.contentResolver, file.name, uri)
         }
         if (target != null) {
             try {
@@ -98,10 +98,10 @@ object NativeInvoicePdf {
         Toast.makeText(activity, "Đang mở hóa đơn PDF…", Toast.LENGTH_SHORT).show()
         Thread {
             val result = runCatching {
-                val directory = File(activity.cacheDir, "shared_invoices")
+                // Separate folder: an in-app preview never overwrites a file being shared.
+                val directory = File(File(activity.cacheDir, "shared_invoices"), "preview")
                 require(directory.isDirectory || directory.mkdirs())
-                val name = invoice.number.replace(Regex("[^a-zA-Z0-9_-]"), "").take(24)
-                val file = File(directory, "Preview_" + name.ifBlank { "invoice" } + ".pdf")
+                val file = File(directory, InvoiceFileName.pdf(invoice))
                 WebsiteInvoicePdf.render(activity, invoice, file)
                 require(file.length() > 100L) { "Không tạo được PDF." }
                 val images = ArrayList<Bitmap>()
