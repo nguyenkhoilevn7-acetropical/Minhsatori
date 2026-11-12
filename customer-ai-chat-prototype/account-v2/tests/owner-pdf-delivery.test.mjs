@@ -98,7 +98,7 @@ test('Owner UI is authenticated and downloads real named PDF, not AI temporary b
  assert.match(html,/byId\('ownerPdfToggle'\)\.hidden=false/);
  assert.match(html,/if\(!isOwner\)return/);
  assert.match(html,/fetch\('\/api\/v2\/admin\/invoices\/'\+no\+'\/pdf'/);
- assert.match(html,/filename\*=UTF-8''/);
+ assert.ok(html.includes("filename\\*=UTF-8''"));
  assert.match(html,/a\.download=filename/);
  assert.match(html,/magic!=='%PDF-'/);
 });
