@@ -104,6 +104,23 @@ test('old invoice payment changes and unchanged trash restoration remain allowed
   const increased={...row,items:[{code:'TP-00005',qty:3}]};
   assert.throws(()=>c.satoriGuardRetired20L_({satori_orders_v15:JSON.stringify([increased])},previous),/PRODUCT_DISCONTINUED/);
 });
+test('owner edit blocks new or increased 20L while allowing unchanged historical lines',()=>{
+  const source=fs.readFileSync(path.join(root,'api/BotApi.gs'),'utf8');
+  const start=source.indexOf('function guardRetiredOrderEdit_('),end=source.indexOf('function ownerMobileWrite(',start);
+  assert.ok(start>=0,'owner edit must guard retired quantities before writing');
+  const c=guard();
+  c.rows=s=>JSON.parse(s.values.satori_orders_v15);
+  c.discontinued20L_=c.satoriIsRetired20L_;
+  c.need=(valid,code)=>{if(!valid){const e=new Error(code);e.code=code;throw e}};
+  vm.runInContext(source.slice(start,end),c);
+  const original={id:1,invoiceNo:1,items:[{code:'TP-00005',qty:2}]};
+  const state={values:{satori_orders_v15:JSON.stringify([original])}};
+  for(const qty of [1,2])c.guardRetiredOrderEdit_(state,'orders.update',{id:1,invoiceNo:1,order:{items:[{code:'TP-00005',qty}]}});
+  assert.throws(()=>c.guardRetiredOrderEdit_(state,'orders.update',{id:1,invoiceNo:1,order:{items:[{code:'TP-00005',qty:3}]}}),/PRODUCT_DISCONTINUED/);
+  const clean={values:{satori_orders_v15:JSON.stringify([{id:1,invoiceNo:1,items:[{code:'TP-00033',qty:1}]}])}};
+  assert.throws(()=>c.guardRetiredOrderEdit_(clean,'orders.update',{id:1,invoiceNo:1,order:{items:[{product:'Satori 20-lít',qty:1}]}}),/PRODUCT_DISCONTINUED/);
+  c.guardRetiredOrderEdit_(clean,'orders.update',{id:1,invoiceNo:1,order:{items:[{code:'TP-00033',qty:3}]}});
+});
 test('migration locks, verifies backup, archives only 20L and retains exact invoices', () => {
   let state={revision:251,values:{satori_orders_v15:JSON.stringify([{id:1,invoiceNo:1,product:'20L',qty:2}]),satori_catalogue_v15:JSON.stringify([{code:'TP-00005'},{code:'TP-00033'},{code:'TP-00096'}]),other:'unchanged'}};
   const before=JSON.stringify(state); let locked=false,backs=0,writes=0;
