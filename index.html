@@ -4674,15 +4674,15 @@ document.documentElement.classList.add('satori-light-review');
         }
 
         function handleSaveAndGenerate() {
+            if(window.__SATORI_DRIVE_APP__ && !window.__SATORI_DRIVE_READY__){
+                showModal('Google Drive chưa sẵn sàng',
+                    'Chưa thể lưu hóa đơn an toàn. Hãy kiểm tra thanh đồng bộ Drive bên dưới, tải bản dữ liệu chưa đồng bộ nếu có, rồi thử kết nối lại.', 'info');
+                return;
+            }
             const original = currentEditingOrderId ? orders.find(o => o.id === currentEditingOrderId) : null;
             const previousItems = original ? (original.items?.length ? original.items : [original]) : [];
             if (retired20LQuantity(currentItems) > retired20LQuantity(previousItems)) {
                 showModal('Sản phẩm đã ngừng bán', 'Bình Satori 20L không còn nhận đơn mới. Vui lòng bỏ dòng 20L trước khi lưu.', 'info');
-                return;
-            }
-            if(window.__SATORI_DRIVE_APP__ && !window.__SATORI_DRIVE_READY__){
-                showModal('Google Drive chưa sẵn sàng',
-                    'Chưa thể lưu hóa đơn an toàn. Hãy kiểm tra thanh đồng bộ Drive bên dưới, tải bản dữ liệu chưa đồng bộ nếu có, rồi thử kết nối lại.', 'info');
                 return;
             }
             if (!currentItems.length || currentItems.some(it => !Number.isFinite(Number(it.qty)) || Number(it.qty) <= 0 || !Number.isFinite(Number(it.unitPrice)) || Number(it.unitPrice) < 0)) {
@@ -9851,12 +9851,3 @@ document.addEventListener('keydown',event=>{
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
