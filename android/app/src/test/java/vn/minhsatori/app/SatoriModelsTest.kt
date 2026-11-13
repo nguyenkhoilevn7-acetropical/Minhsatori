@@ -227,6 +227,8 @@ class SatoriModelsTest {
             .put(JSONObject().put("code", "TP-00005")
                 .put("name", "Nước tinh khiết Satori bình 20L, có tay cầm, không vòi")
                 .put("unit", "Bình").put("listPrice", 49142).put("unitPrice", 36857))
+            .put(JSONObject().put("name", "Nước Satori bình 20-lít")
+                .put("unit", "Bình").put("listPrice", 49142).put("unitPrice", 36857))
             .put(JSONObject().put("code", "TP-00033")
                 .put("name", "Nước tinh khiết Satori bình 19L có vòi")
                 .put("unit", "Bình").put("listPrice", 49142).put("unitPrice", 36857))
