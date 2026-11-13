@@ -11,6 +11,9 @@ function satoriGuardRetired20L_(values, previous) {
   var identity = function(o) { return String(o.__syncId || o.id) + '|' + String(o.invoiceNo); };
   var oldById = {};
   oldOrders.forEach(function(o) { oldById[identity(o)] = o; });
+  JSON.parse(previous.satori_trash_bin_v15 || '[]').forEach(function(t) {
+    if (t && t.order && !oldById[identity(t.order)]) oldById[identity(t.order)] = t.order;
+  });
   var quantity = function(o) { return (o.items && o.items.length ? o.items : [o]).filter(satoriIsRetired20L_).reduce(function(sum, i) { return sum + Number(i.qty || 0); }, 0); };
   orders.forEach(function(o) {
     var old = oldById[identity(o)];
