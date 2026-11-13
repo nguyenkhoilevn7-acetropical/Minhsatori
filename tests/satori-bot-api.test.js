@@ -37,6 +37,11 @@ const blockedSale=call('orders.create',{expectedRevision:1,requestId:'retired-20
  location:'Địa chỉ thử nghiệm',items:[{code:'TP-00005',product:'Nước tinh khiết Satori bình 20L',
  qty:1,unit:'Bình',unitPrice:36857,listPrice:49142}],total:36857}});
 assert.equal(blockedSale.error.code,'PRODUCT_DISCONTINUED');
+const hyphenatedSale=call('orders.create',{expectedRevision:1,requestId:'retired-20l-hyphen',
+ confirmedNewCustomer:true,order:{name:'Khách kiểm thử',phone:'0901000000',
+ location:'Địa chỉ thử nghiệm',items:[{product:'Nước tinh khiết Satori bình 20-lít',
+ qty:1,unit:'Bình',unitPrice:36857,listPrice:49142}],total:36857}});
+assert.equal(hyphenatedSale.error?.code,'PRODUCT_DISCONTINUED');
 assert.equal(backs,0,'rejected 20L order must not create a Drive backup');
 assert.equal(writes,0,'rejected 20L order must not mutate the ledger');
 assert.equal(data.revision,1);
