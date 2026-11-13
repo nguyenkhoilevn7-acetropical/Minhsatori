@@ -199,6 +199,14 @@ object SatoriData {
             .replace(Regex("\\s+"), " ")
             .trim()
 
+    // Keep old invoices intact; only hide discontinued stock from active picking.
+    private fun discontinued20L(item: JSONObject, name: String): Boolean {
+        if (string(item, "code") == "TP-00005") return true
+        val description = normalized(name + " " + string(item, "spec"))
+        return Regex("""(?:^|[^0-9])20\s*(?:l|lit|litre|liter)\b""")
+            .containsMatchIn(description)
+    }
+
     private fun string(json: JSONObject, key: String): String =
         if (!json.has(key) || json.isNull(key)) "" else json.optString(key, "").trim()
 
@@ -288,6 +296,7 @@ object SatoriData {
         val products = (0 until catalogue.length()).mapNotNull { i ->
             val item = catalogue.optJSONObject(i) ?: return@mapNotNull null
             val name = string(item, "name").ifBlank { string(item, "product") }
+            if (discontinued20L(item, name)) return@mapNotNull null
             if (name.isBlank()) null else SatoriProduct(
                 code = string(item, "code"),
                 name = name,
