@@ -41,13 +41,14 @@ object NativeInvoicePdf {
                 val output = File(folder, InvoicePdfFilename.forInvoice(invoice))
                 WebsiteInvoicePdf.render(context, invoice, output)
                 require(output.length() > 100) { "File PDF không hợp lệ." }
-                output
+                // Off the UI thread: copy into Download/Minh Satori (null = fallback).
+                output to SharedInvoiceDownload.publish(context, output)
             }
             Handler(Looper.getMainLooper()).post {
                 if (context is Activity && context.isFinishing) return@post
                 result.fold(
-                    onSuccess = { file ->
-                        runCatching { openShare(context, invoice, file, target) }
+                    onSuccess = { (file, publicUri) ->
+                        runCatching { openShare(context, invoice, file, publicUri, target) }
                             .onFailure { err ->
                                 Toast.makeText(context,
                                     "Không chia sẻ được PDF: " + (err.message ?: "Lỗi"),
@@ -65,8 +66,10 @@ object NativeInvoicePdf {
     }
 
     private fun openShare(context: Context, invoice: SatoriInvoice, file: File,
-                          target: String?) {
-        val uri = FileProvider.getUriForFile(
+                          publicUri: android.net.Uri?, target: String?) {
+        // Public Downloads copy first (keeps the exact name in Zalo); private
+        // FileProvider only when that is unavailable.
+        val uri = publicUri ?: FileProvider.getUriForFile(
             context, context.packageName + ".fileprovider", file)
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "application/pdf"
@@ -74,7 +77,8 @@ object NativeInvoicePdf {
             putExtra(Intent.EXTRA_SUBJECT, "Hóa đơn Minh Satori #" + invoice.number)
             putExtra(Intent.EXTRA_TEXT, WebsiteInvoicePdf.shareMessage(invoice))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            clipData = ClipData.newUri(context.contentResolver, "Hóa đơn Minh Satori", uri)
+            putExtra(Intent.EXTRA_TITLE, file.name)
+            clipData = ClipData.newUri(context.contentResolver, file.name, uri)
         }
         if (target != null) {
             try {
