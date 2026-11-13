@@ -23,6 +23,14 @@ function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function norm(v){return String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase().replace(/\btreky\b/g,'traky').trim();}
+
+/** Sales-only retirement. Historical invoice rows are never rewritten. */
+function discontinued20L_(item){
+ if(!item||typeof item!=='object')return false;
+ if(String(item.code||'').trim()==='TP-00005')return true;
+ var label=norm([item.name,item.product,item.spec].filter(Boolean).join(' '));
+ return /(?:^|[^0-9])20\s*(?:l|lit|litre|liter)\b/.test(label);
+}
 function money(v){var n=Number(v);need(Number.isFinite(n)&&n>=0&&n<=1e11,'INVALID_AMOUNT','Số tiền không hợp lệ');return n;}
 function signed(secret,data){return Utilities.computeHmacSha256Signature(data,secret,Utilities.Charset.UTF_8).map(function(b){return ('0'+(b&255).toString(16)).slice(-2)}).join('');}
 function equalSig(a,b){if(typeof a!=='string'||typeof b!=='string'||a.length!==64||b.length!==64)return false;var x=0;for(var i=0;i<64;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;}
@@ -302,7 +310,9 @@ function checkAIPricing(s,o,p){
  o.items.forEach(function(i){
   need(i&&typeof i.code==='string'&&codes[i.code]&&!codes[i.code]._aiSeen,
    'AI_UNKNOWN_PRODUCT','Sản phẩm không được phép hoặc bị lặp');
-  var sourceItem=codes[i.code];sourceItem._aiSeen=true;
+  var sourceItem=codes[i.code];
+  need(!discontinued20L_(sourceItem),'PRODUCT_DISCONTINUED','Sản phẩm bình 20L đã ngừng bán');
+  sourceItem._aiSeen=true;
   need(Number.isSafeInteger(i.qty)&&i.qty>=1&&i.qty<=500,
    'AI_ITEM_LIMIT','Số lượng sản phẩm không hợp lệ');
   units+=i.qty;
@@ -506,6 +516,7 @@ function createPair(s,all,p){
  var basket=p.order.items.map(function(i){
   var item=entries.get(i.code);
   need(!!item,'INVALID_ITEM','Mặt hàng không có trong bảng giá chuẩn');
+  need(!discontinued20L_(item),'PRODUCT_DISCONTINUED','Sản phẩm bình 20L đã ngừng bán');
   return {code:item.code,product:item.name,unit:item.unit,qty:i.qty,listPrice:item.listPrice};
  });
  var bin=JSON.parse(s.values.satori_trash_bin_v15||'[]');
@@ -584,6 +595,7 @@ function create(s,all,p,aiMode){
  if(aiMode)checkAIPricing(s,o,p);
  var items=o.items.map(function(i){
   need(i&&String(i.product||i.name||'').trim().length>=2,'INVALID_ITEM','Thiếu tên sản phẩm');
+  need(!discontinued20L_(i),'PRODUCT_DISCONTINUED','Sản phẩm bình 20L đã ngừng bán');
   var qty=Number(i.qty),price=money(i.unitPrice);need(Number.isSafeInteger(qty)&&qty>0&&qty<=100000,'INVALID_ITEM','Sai số lượng');
   var list=i.listPrice==null?price:money(i.listPrice);
   return {id:Utilities.getUuid(),code:String(i.code||'').slice(0,50),product:String(i.product||i.name).slice(0,200),
@@ -1026,7 +1038,7 @@ function read(s,action,p){
     return {code:item.code,name:name,brand:String(item.brand||'').slice(0,40),
       spec:String(item.spec||'').slice(0,120),unit:unit,listPrice:listPrice,
       standardUnitPrice:standardPrice,standardDiscountPercent:Number(item.discountPercent||0)};
-  });
+  }).filter(function(item){return !discontinued20L_(item)});
   return {revision:s.revision,updatedAt:s.updatedAt,products:products,
     source:'drive-ledger:satori_catalogue_v15',total:products.length};
  }
