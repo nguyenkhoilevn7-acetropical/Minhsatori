@@ -2257,7 +2257,7 @@ document.documentElement.classList.add('satori-light-review');
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <button onclick="filterCatalogue('ALL')" id="filter-cat-ALL" class="bg-blue-600/20 border border-blue-500/50 rounded-xl p-3 text-left transition hover:bg-blue-600/30">
                         <p class="text-[11px] text-blue-300 font-semibold">Tất Cả Sản Phẩm</p>
-                        <p class="text-xl font-bold text-white mt-1">20 Mặt Hàng</p>
+                        <p class="text-xl font-bold text-white mt-1">19 Mặt Hàng</p>
                         <span class="text-[10px] text-slate-400">Đã lưu trữ vĩnh viễn</span>
                     </button>
                     <button onclick="filterCatalogue('SATORI')" id="filter-cat-SATORI" class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-left transition hover:bg-slate-850">
@@ -7542,6 +7542,17 @@ document.documentElement.classList.add('satori-light-review');
         // ==========================================
         // TAB 4: CATALOGUE (BẢNG GIÁ 19 SẢN PHẨM)
         // ==========================================
+        function cataloguePricing(p) {
+            const listPrice = Number(p.listPrice);
+            const storedPrice = p.unitPrice ?? p.defaultUnitPrice;
+            const discountPercent = p.discountPercent != null ? Number(p.discountPercent)
+                : listPrice > 0 && p.standardDiscount != null ? Number(p.standardDiscount) / listPrice * 100
+                : listPrice > 0 && storedPrice != null ? (listPrice - Number(storedPrice)) / listPrice * 100 : 0;
+            const unitPrice = storedPrice != null ? Number(storedPrice)
+                : Math.round(listPrice * (1 - discountPercent / 100));
+            return {listPrice, discountPercent, unitPrice, discountAmount: listPrice - unitPrice};
+        }
+
         function filterCatalogue(brand) {
             currentCatBrandFilter = brand;
             ['ALL', 'SATORI', 'HIKARI', 'JUICE'].forEach(b => {
@@ -7575,6 +7586,7 @@ document.documentElement.classList.add('satori-light-review');
             tbody.innerHTML = '';
 
             filtered.forEach((p, index) => {
+                const price = cataloguePricing(p);
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-900/60 transition";
 
@@ -7588,16 +7600,17 @@ document.documentElement.classList.add('satori-light-review');
                 tr.innerHTML = `
                     <td class="p-3 text-center text-slate-500 font-mono text-[11px]">${index + 1}</td>
                     <td class="p-3 text-center">${brandBadge}</td>
+                    <td class="p-3 text-center font-mono text-xs text-slate-300">${p.code}</td>
                     <td class="p-3 font-semibold text-white">${p.name}</td>
                     <td class="p-3 text-slate-400 text-xs">${p.spec}</td>
-                    <td class="p-3 text-center font-mono text-xs text-slate-300">${p.code}</td>
+                    <td class="p-3 text-center text-xs text-slate-300">${p.unit || 'Thùng'}</td>
                     <td class="p-3 text-right">
                         <input type="number" min="0" step="1000" value="${p.listPrice}" onchange="editCatalogueItemPrice('${p.code}', this.value)" class="w-24 bg-slate-950 border border-slate-700 focus:border-blue-500 rounded px-2 py-1 text-right text-xs font-mono text-cyan-300">
                     </td>
                     <td class="p-3 text-right">
-                        <input type="number" min="0" step="1000" value="${p.standardDiscount}" onchange="editCatalogueItemDisc('${p.code}', this.value)" class="w-24 bg-slate-950 border border-slate-700 focus:border-blue-500 rounded px-2 py-1 text-right text-xs font-mono text-amber-300">
+                        <input type="number" min="0" max="100" step="0.1" value="${price.discountPercent}" onchange="editCatalogueItemDisc('${p.code}', this.value)" class="w-24 bg-slate-950 border border-slate-700 focus:border-blue-500 rounded px-2 py-1 text-right text-xs font-mono text-amber-300">
                     </td>
-                    <td class="p-3 text-right font-bold font-mono text-emerald-400 text-xs">${(p.defaultUnitPrice || (p.listPrice - p.standardDiscount)).toLocaleString('vi-VN')} đ</td>
+                    <td class="p-3 text-right font-bold font-mono text-emerald-400 text-xs">${price.unitPrice.toLocaleString('vi-VN')} đ</td>
                     <td class="p-3 text-center">
                         <button onclick="orderThisCatalogueProduct('${p.code}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1 mx-auto">
                             <i class="fa-solid fa-cart-plus"></i> Lên Đơn
@@ -7610,18 +7623,26 @@ document.documentElement.classList.add('satori-light-review');
 
         function editCatalogueItemPrice(code, newPrice) {
             const p = catalogue.find(item => item.code === code);
-            if (p) {
-                p.listPrice = parseInt(newPrice) || 0;
-                p.defaultUnitPrice = Math.max(0, p.listPrice - p.standardDiscount);
+            const value = Number(newPrice);
+            if (p && Number.isFinite(value) && value >= 0) {
+                const percent = cataloguePricing(p).discountPercent;
+                p.listPrice = Math.round(value);
+                p.discountPercent = percent;
+                p.unitPrice = Math.round(p.listPrice * (1 - percent / 100));
+                if ('standardDiscount' in p) p.standardDiscount = p.listPrice - p.unitPrice;
+                if ('defaultUnitPrice' in p) p.defaultUnitPrice = p.unitPrice;
                 renderCatalogueTable();
             }
         }
 
         function editCatalogueItemDisc(code, newDisc) {
             const p = catalogue.find(item => item.code === code);
-            if (p) {
-                p.standardDiscount = parseInt(newDisc) || 0;
-                p.defaultUnitPrice = Math.max(0, p.listPrice - p.standardDiscount);
+            const value = Number(newDisc);
+            if (p && Number.isFinite(value) && value >= 0 && value <= 100) {
+                p.discountPercent = value;
+                p.unitPrice = Math.round(Number(p.listPrice) * (1 - value / 100));
+                if ('standardDiscount' in p) p.standardDiscount = Number(p.listPrice) - p.unitPrice;
+                if ('defaultUnitPrice' in p) p.defaultUnitPrice = p.unitPrice;
                 renderCatalogueTable();
             }
         }
@@ -7649,16 +7670,18 @@ document.documentElement.classList.add('satori-light-review');
         function orderThisCatalogueProduct(code) {
             const p = catalogue.find(item => item.code === code);
             if (p) {
+                const price = cataloguePricing(p);
                 currentItems = [{
                     code: p.code,
                     brand: p.brand,
                     product: p.name,
+                    unit: p.unit || 'Thùng',
                     qty: 10,
                     listPrice: p.listPrice,
-                    discountPercent: Math.round((p.standardDiscount / p.listPrice) * 100) || 0,
-                    discountAmount: p.standardDiscount,
-                    unitPrice: p.defaultUnitPrice,
-                    lineTotal: p.defaultUnitPrice * 10
+                    discountPercent: price.discountPercent,
+                    discountAmount: price.discountAmount,
+                    unitPrice: price.unitPrice,
+                    lineTotal: price.unitPrice * 10
                 }];
                 renderItemsForm();
                 calculateTotals();
@@ -7669,13 +7692,14 @@ document.documentElement.classList.add('satori-light-review');
         function exportCatalogueCSV() {
             let csv = "﻿Mã Sản Phẩm,Thương Hiệu,Tên Sản Phẩm,Quy Cách,Giá Niêm Yết,Chiết Khấu Mặc Định,Đơn Giá Bán\n";
             catalogue.forEach(p => {
-                csv += `"${p.code}","${p.brand}","${p.name}","${p.spec}",${p.listPrice},${p.standardDiscount},${p.defaultUnitPrice}\n`;
+                const price = cataloguePricing(p);
+                csv += `"${p.code}","${p.brand}","${p.name}","${p.spec}",${price.listPrice},${price.discountPercent},${price.unitPrice}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Bang_Gia_Minh_Satori_20_San_Pham.csv`;
+            a.download = `Bang_Gia_Minh_Satori_${catalogue.length}_San_Pham.csv`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
