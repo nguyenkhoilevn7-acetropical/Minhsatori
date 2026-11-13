@@ -18,4 +18,9 @@ function bytes(ctx,order){const def=ctx.invoicePdfDefinition(order);def.info.cre
  const text=JSON.stringify(newCtx.invoicePdfDefinition(perLine));assert(text.includes('VAT 10% · 1 đ'));assert(text.includes('VAT 0% · 0 đ'));
  assert(!JSON.stringify(newCtx.invoicePdfDefinition(order)).includes('VAT 8% ·'));
  const result=await bytes(newCtx,perLine);assert.equal(result.subarray(0,5).toString(),'%PDF-');console.log('PASS per_line real PDF',result.length);
+ const inclusive={...order,vatMode:'invoice',vatRate:8,goodsTotal:1370370,vatAmount:109630,total:1480000,items:[{product:'Synthetic water',unit:'Thùng',qty:20,unitPrice:68518.5,listPrice:98000,subtotal:1370370,priceMode:'inclusive',inputUnitPrice:74000}]};
+ const definition=JSON.stringify(newCtx.invoicePdfDefinition(inclusive));
+ for(const amount of ['1.370.370','109.630','1.480.000'])assert(definition.includes(amount),'inclusive PDF must contain '+amount);
+ const inclusivePdf=await bytes(newCtx,inclusive);assert.equal(inclusivePdf.subarray(0,5).toString(),'%PDF-');
+ assert.notDeepEqual(inclusivePdf,await bytes(newCtx,order),'edit produces a new PDF version');console.log('PASS inclusive VAT corrected PDF',inclusivePdf.length);
 })().catch(e=>{console.error(e);process.exitCode=1});

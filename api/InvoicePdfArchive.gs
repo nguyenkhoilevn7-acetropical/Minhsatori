@@ -86,11 +86,17 @@ function pending(s,p){
     // from either website or Bot API, without any browser session. Never send
     // unrelated historical orders or deleted invoices to Render.
     var eligible=list.filter(function(o){
-      return o&&Number.isSafeInteger(Number(o.id))&&Number(o.id)>=cutoff&&
+      var edited=o&&o.apiUpdateRequestId&&Number.isFinite(Date.parse(o.updatedAt))&&
+        Date.parse(o.updatedAt)>=cutoff&&Date.parse(o.updatedAt)<=Date.now();
+      return o&&Number.isSafeInteger(Number(o.id))&&(Number(o.id)>=cutoff||edited)&&
         Number.isSafeInteger(Number(o.invoiceNo))&&Number(o.invoiceNo)>0&&
         Number.isSafeInteger(Number(o.total))&&Number(o.total)>=0&&
         Array.isArray(o.items)&&o.items.length>0;
-    }).sort(function(a,b){return Number(b.invoiceNo)-Number(a.invoiceNo);}).slice(0,40);
+    }).sort(function(a,b){
+      var ta=a.apiUpdateRequestId?Date.parse(a.updatedAt)||Number(a.id):Number(a.id);
+      var tb=b.apiUpdateRequestId?Date.parse(b.updatedAt)||Number(b.id):Number(b.id);
+      return tb-ta||Number(b.invoiceNo)-Number(a.invoiceNo);
+    }).slice(0,40);
     for(var i=0;i<eligible.length&&found.length<limit;i++){
       var o=eligible[i],key=canonical(o);
       var hash=digest(Utilities.newBlob(key).getBytes()).slice(0,16);

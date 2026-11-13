@@ -8,6 +8,9 @@ var SatoriBotApi=(function(){
 'use strict';
 var ORDER_KEY='satori_orders_v15', PRICE_APPROVAL_KEY='satori_ai_pricing_approvals_v1';
 var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
+ 'orders.get':'orders:read','orders.auditHistory':'orders:read',
+ 'orders.capabilities':'orders:update',
+ 'orders.previewUpdate':'orders:update','orders.update':'orders:update','orders.undoUpdate':'orders:update',
  'debt.summary':'debt:read','customers.search':'customers:read','catalogue.list':'catalogue:read','orders.create':'orders:write',
  'orders.create.ai':'orders:ai:write','pricing.approve':'pricing:approve','pricing.eligibility':'orders:ai:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
@@ -99,7 +102,9 @@ function auth(o){
  need(p&&typeof p==='object'&&!Array.isArray(p),'INVALID_REQUEST','Payload không hợp lệ');
  var msg=[o.keyId,o.timestamp,o.nonce,o.action,JSON.stringify(p)].join('\n');
  need(equalSig(signed(client.secret,msg),o.signature),'AUTH_FAILED','Không thể xác thực');
- return {action:o.action,payload:p,nonce:o.keyId+':'+o.nonce};
+ if(['orders.get','orders.auditHistory','orders.capabilities','orders.previewUpdate','orders.update','orders.undoUpdate'].includes(o.action))
+  need(['owner','admin'].includes(client.role),'FORBIDDEN','Cần quyền Owner/Admin trong cấu hình máy chủ');
+ return {action:o.action,payload:p,nonce:o.keyId+':'+o.nonce,actor:'hmac:'+o.keyId};
 }
 function state(){
  var x=readState_();need(Number.isInteger(x.revision)&&x.values&&typeof x.values[ORDER_KEY]==='string','INVALID_STATE','Dữ liệu Drive không hợp lệ');return x;
@@ -684,11 +689,84 @@ function create(s,all,p,aiMode){
  all.unshift(next);return {modified:true,result:{order:visible(next),duplicate:false}};
 }
 
-// Owner-only correction to an UNPAID standalone invoice. This action is
-// intentionally NOT in HMAC SCOPES: only AndroidOwnerMobileApi's verified
-// Google Owner path may call ownerMobileWrite('orders.update').
-function updateUnpaidOrder(s,all,p){
+// Shared correction to an UNPAID standalone invoice. Android uses verified
+// Google Owner OAuth; MCP uses a server-configured Owner/Admin client with the
+// dedicated orders:update scope. Both reuse the same lock/backup/readback writer.
+function exactEditOrder(all,p){
+ need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0,'INVALID_ORDER','Cần số bill chính xác');
+ var found=all.filter(function(o){return Number(o.invoiceNo)===p.invoiceNo&&
+  (p.id===undefined||String(o.id)===String(p.id))});
+ need(found.length===1,'INVALID_ORDER','Hóa đơn không tồn tại hoặc không duy nhất');return found[0];
+}
+function editAudit(s){
+ var a=JSON.parse(s.values.satori_order_edit_audit_v1||'[]');
+ need(Array.isArray(a)&&a.length<50000,'INVALID_STATE','Nhật ký sửa hóa đơn không hợp lệ');return a;
+}
+function unusedEditRequest(s,all,requestId){
+ var trash=JSON.parse(s.values.satori_trash_bin_v15||'[]');
+ need(Array.isArray(trash),'INVALID_STATE','Thùng rác không hợp lệ');
+ function used(o){return o&&(Object.keys(o).some(function(k){return /^api.*RequestId$/.test(k)&&o[k]===requestId})||
+  Array.isArray(o.paymentAudit)&&o.paymentAudit.some(function(a){return a.requestId===requestId}));}
+ need(!all.some(used)&&!trash.some(function(t){return t&&(t.apiDeleteRequestId===requestId||used(t.order))}),
+  'REUSED_REQUEST_ID','Mã yêu cầu đã dùng cho thao tác khác');
+}
+// New explicit pricing contract; legacy Android drafts retain their old normalizer.
+// Round the extended price once. For inclusive prices, VAT is the difference,
+// never a second tax added to the customer's entered gross price.
+function normalizeEditPrices(draft){
+ need(['inclusive','exclusive'].includes(draft.priceMode),'INVALID_ORDER','priceMode không hợp lệ');
+ var mode=draft.vatMode||'invoice';
+ need(['invoice','per_line'].includes(mode),'INVALID_ORDER','vatMode không hợp lệ');
+ var header=invoiceVatRate(draft.vatRate),net=0,tax=0,gross=0;
+ var items=draft.items.map(function(i){
+  need(i&&typeof i==='object'&&String(i.product||'').trim().length>=2,'INVALID_ITEM','Thiếu tên sản phẩm');
+  need(Number.isSafeInteger(i.qty)&&i.qty>0&&i.qty<=100000,'INVALID_ITEM','Sai số lượng');
+  var input=money(i.unitPrice),list=i.listPrice==null?input:money(i.listPrice);
+  var discount=i.discountPercent==null?0:invoiceVatRate(i.discountPercent);
+  need(Number.isSafeInteger(Math.round(input*100))&&Math.abs(input*100-Math.round(input*100))<1e-6,
+   'INVALID_AMOUNT','Đơn giá nhập tối đa hai số thập phân');
+  var rate=header;
+  if(mode==='per_line')rate=i.vatExempt===true?0:i.vatRate==null?header:invoiceVatRate(i.vatRate);
+  else need(i.vatRate==null&&i.vatExempt!==true,'INVALID_TAX_RATE','VAT dòng cần chọn vatMode per_line');
+  // Products are already discounted unless discountPercent is explicitly supplied.
+  var amount=Math.round(i.qty*input*(10000-discount)/10000);
+  need(Number.isSafeInteger(amount)&&amount<=1e11,'INVALID_AMOUNT','Thành tiền quá lớn');
+  var subtotal=draft.priceMode==='inclusive'?Math.round(amount*10000/(10000+rate)):amount;
+  var lineVat=draft.priceMode==='inclusive'?amount-subtotal:Math.round(amount*rate/10000);
+  var netUnit=draft.priceMode==='inclusive'?input*(10000-discount)/(10000+rate):input*(10000-discount)/10000;
+  // listPrice is always the existing pre-VAT catalogue/accounting basis.
+  var netList=i.listPrice==null?netUnit:list;
+  need(netList>=netUnit,'INVALID_ITEM','Giá niêm yết thấp hơn giá bán');
+  if(i.vatAmount!=null)need(money(i.vatAmount)===lineVat,'LINE_VAT_MISMATCH','VAT dòng không khớp');
+  var line={id:Utilities.getUuid(),code:String(i.code||'').slice(0,50),product:String(i.product).slice(0,200),
+   unit:String(i.unit||'Thùng').slice(0,30),qty:i.qty,unitPrice:netUnit,listPrice:netList,
+   discountAmount:netList-netUnit,subtotal:subtotal,priceMode:draft.priceMode,
+   inputUnitPrice:input,inputListPrice:list,discountPercent:discount/100};
+  if(mode==='per_line'){line.vatRate=rate/100;line.vatExempt=i.vatExempt===true;line.vatAmount=lineVat;}
+  net+=subtotal;tax+=lineVat;gross+=subtotal+lineVat;return line;
+ });
+ // Invoice mode taxes the extended aggregate once (legacy per-line rounding is opt-in).
+ if(mode==='invoice'){
+  if(draft.priceMode==='inclusive'){net=Math.round(gross*10000/(10000+header));tax=gross-net;}
+  else tax=Math.round(net*header/10000);
+  // Allocate the invoice rounding residual to the final line for consistent PDFs.
+  items[items.length-1].subtotal+=net-items.reduce(function(n,i){return n+i.subtotal},0);
+ }
+ // Existing web, Android and profit readers extend qty*unitPrice. Reconcile that
+ // extension to the rounded snapshot, retaining the entered price separately.
+ items.forEach(function(i,index){i.unitPrice=i.subtotal/i.qty;
+  if(draft.items[index].listPrice==null)i.listPrice=i.unitPrice;
+  i.discountAmount=i.listPrice-i.unitPrice;});
+ if(draft.vatAmount!=null)need(money(draft.vatAmount)===tax,'VAT_MISMATCH','VAT tổng không khớp');
+ return {items:items,vatAmount:tax,vatMode:mode,goodsTotal:net};
+}
+function updateUnpaidOrder(s,all,p,actor){
  need(p&&p.confirmed===true,'CONFIRMATION_REQUIRED','Anh cần xác nhận nội dung hóa đơn sửa');
+ if(actor&&actor.indexOf('hmac:')===0){
+  need(p.order&&p.order.priceMode!==undefined,'INVALID_ORDER','MCP cần priceMode rõ ràng');
+  need(typeof p.reason==='string'&&p.reason.trim().length>=3&&p.reason.length<=300,
+   'REASON_REQUIRED','Cần lý do sửa hóa đơn');
+ }
  var requestId=String(p.requestId||'');
  need(/^[a-zA-Z0-9_-]{8,100}$/.test(requestId),'INVALID_REQUEST','Thiếu requestId sửa đơn');
  need(Number.isSafeInteger(p.invoiceNo)&&p.invoiceNo>0&&p.id!==undefined,
@@ -711,6 +789,8 @@ function updateUnpaidOrder(s,all,p){
    prior.requestHash===hash&&norm(prior.expectedName)===norm(p.expectedName)&&
    Number(prior.expectedTotal)===p.expectedTotal,
    'REUSED_REQUEST_ID','Mã thao tác đã dùng cho nội dung khác');
+  if(actor&&actor.indexOf('hmac:')===0)need(prior.reason===p.reason,
+   'REUSED_REQUEST_ID','Lý do sửa khác yêu cầu đã ghi');
   var replay=all.filter(function(o){
    return String(o.id)===String(p.id)&&Number(o.invoiceNo)===p.invoiceNo&&
     o.apiUpdateRequestId===requestId;
@@ -720,6 +800,7 @@ function updateUnpaidOrder(s,all,p){
   return {modified:false,result:{duplicate:true,updated:true,order:visible(replay[0])}};
  }
  version(s,p);
+ unusedEditRequest(s,all,requestId);
  var found=all.filter(function(o){return String(o.id)===String(p.id)&&
   Number(o.invoiceNo)===p.invoiceNo});
  need(found.length===1,'INVALID_ORDER','Không xác định duy nhất hóa đơn cần sửa');
@@ -728,7 +809,7 @@ function updateUnpaidOrder(s,all,p){
   'PAIRED_ORDER_LOCKED','Không sửa riêng hóa đơn liên kết CTV');
  need(!original.isTest&&!original.testOrder&&
   !['Không Tính','Đã hủy','Đã thanh toán','Đã TT Satori'].includes(String(original.status||''))&&
-  !original.customerPaidAt&&!original.satoriPaidAt,
+  !original.customerPaidAt&&!original.satoriPaidAt&&original.customerPaid!==true&&original.satoriPaid!==true,
   'PAID_ORDER_PROTECTED','Chỉ sửa hóa đơn chưa thanh toán, chưa đối soát');
  need(norm(original.name)===norm(p.expectedName)&&Number(original.total)===p.expectedTotal,
   'ORDER_CHANGED','Tên khách hoặc tổng tiền gốc đã khác; hãy tải lại');
@@ -745,20 +826,21 @@ function updateUnpaidOrder(s,all,p){
  need(name.length>=2&&name.length<=150&&phone.length<=60&&
   location.length>=5&&location.length<=500&&note.length<=1000,
   'INVALID_ORDER','Thông tin khách, địa chỉ hoặc ghi chú không hợp lệ');
- var normalizedItems=normalizeInvoiceItems(draft.items,draft.vatAmount,draft.vatRate,true),items=normalizedItems.items;
+ var normalizedItems=draft.priceMode!==undefined?normalizeEditPrices(draft):
+  normalizeInvoiceItems(draft.items,draft.vatAmount,draft.vatRate,true),items=normalizedItems.items;
  need(original.vatMode!=='per_line'||normalizedItems.vatMode==='per_line',
   'PER_LINE_VAT_REQUIRED','Ứng dụng phải giữ VAT từng dòng khi sửa hóa đơn này');
  var shipping=money(draft.shippingAmount==null?0:draft.shippingAmount),
   vat=normalizedItems.vatAmount,
-  goods=Math.round(items.reduce(function(n,i){return n+i.qty*i.unitPrice},0));
+  goods=normalizedItems.goodsTotal===undefined?Math.round(items.reduce(function(n,i){return n+i.qty*i.unitPrice},0)):normalizedItems.goodsTotal;
  var total=Math.round(goods+shipping+vat);
  need(total<=1e11,'INVALID_AMOUNT','Tổng tiền hóa đơn quá lớn');
- need(draft.total!==undefined&&money(draft.total)===total,
+ need((draft.total===undefined&&draft.priceMode!==undefined)||money(draft.total)===total,
   'TOTAL_MISMATCH','Tổng tiền hóa đơn không khớp');
  // A missing/blank delivery date in older APKs must not erase a stored date.
  var deliveryDate=String(draft.deliveryDate||'').trim()||
   String(original.deliveryDate||'').trim();
- need(!deliveryDate||/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate),
+ need(!deliveryDate||(/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)&&new Date(deliveryDate).toISOString().slice(0,10)===deliveryDate),
   'INVALID_ORDER','Ngày giao không hợp lệ');
  var now=new Date().toISOString();
  var revised=Object.assign({},original,{
@@ -770,13 +852,46 @@ function updateUnpaidOrder(s,all,p){
   total:total,deliveryDate:deliveryDate||null,deliveryNote:note,
   apiUpdateRequestId:requestId,updatedAt:now
  });
+ if(draft.priceMode!==undefined)revised.priceMode=draft.priceMode;
  all[all.indexOf(original)]=revised;
  audit.push({requestId:requestId,id:original.id,invoiceNo:original.invoiceNo,
   expectedName:original.name,expectedTotal:original.total,requestHash:hash,
   beforeTotal:original.total,afterTotal:total,
-  timestamp:now,actor:'verified_owner_android',revision:s.revision+1});
+  timestamp:now,actor:actor||'verified_owner_android',revision:s.revision+1,
+  reason:String(p.reason||'Owner invoice edit').slice(0,1000),before:original,after:revised});
  return {modified:true,extras:{satori_order_edit_audit_v1:JSON.stringify(audit)},
   result:{updated:true,duplicate:false,order:visible(revised)}};
+}
+
+function undoOrderUpdate(s,all,p,actor){
+ need(p.confirmed===true,'CONFIRMATION_REQUIRED','Cần xác nhận hoàn tác');
+ need(/^[A-Za-z0-9_-]{8,100}$/.test(p.requestId||'')&&p.requestId!==p.undoRequestId,
+  'INVALID_REQUEST','Cần requestId mới cho hoàn tác');
+ var audit=editAudit(s),original=exactEditOrder(all,p);
+ var previous=audit.find(function(a){return a.requestId===p.requestId});
+ if(previous){
+  need(previous.undoOf===p.undoRequestId&&String(previous.id)===String(p.id)&&previous.invoiceNo===p.invoiceNo&&
+   previous.expectedName===p.expectedName&&previous.expectedTotal===p.expectedTotal&&previous.reason===p.reason,
+   'REUSED_REQUEST_ID','Mã hoàn tác đã dùng với nội dung khác');
+  need(original.apiUpdateRequestId===p.requestId,'REQUEST_SUPERSEDED','Có thay đổi mới hơn');
+  return {modified:false,result:{updated:true,duplicate:true,order:visible(original)}};
+ }
+ version(s,p);
+ unusedEditRequest(s,all,p.requestId);
+ need(p.id!==undefined&&norm(original.name)===norm(p.expectedName)&&original.total===p.expectedTotal,
+  'ORDER_CHANGED','Bill đích đã thay đổi');
+ var target=audit.find(function(a){return a.requestId===p.undoRequestId&&String(a.id)===String(p.id)&&a.invoiceNo===p.invoiceNo});
+ need(target&&target.before&&target.after,'UNDO_UNAVAILABLE','Thiếu snapshot để hoàn tác');
+ need(JSON.stringify(original)===JSON.stringify(target.after),'REQUEST_SUPERSEDED','Bill đã thay đổi sau lần sửa này');
+ need(!paid(original)&&!original.satoriPaidAt,'PAID_ORDER_PROTECTED','Bill đã thanh toán không được hoàn tác');
+ need(String(p.reason||'').trim().length>=3,'CONFIRMATION_REQUIRED','Cần lý do hoàn tác');
+ var restored=Object.assign({},target.before,{updatedAt:new Date().toISOString(),apiUpdateRequestId:p.requestId});
+ // Full preimage is safe only after exact comparison with the saved postimage.
+ all[all.indexOf(original)]=restored;
+ audit.push({requestId:p.requestId,id:original.id,invoiceNo:original.invoiceNo,undoOf:p.undoRequestId,
+  expectedName:p.expectedName,expectedTotal:p.expectedTotal,reason:p.reason,actor:actor,
+  timestamp:restored.updatedAt,revision:s.revision+1,before:original,after:restored});
+ return {modified:true,extras:{satori_order_edit_audit_v1:JSON.stringify(audit)},result:{updated:true,duplicate:false,order:visible(restored)}};
 }
 
 function markPaid(s,all,p){
@@ -1192,6 +1307,21 @@ function linkList(s,p){
   items:data.slice(offset,offset+limit)};
 }
 function read(s,action,p){
+ if(action==='orders.capabilities')return {revision:s.revision,ordersUpdate:true,revisionCAS:true,
+  idempotentUpdate:true,preWriteBackup:true,editAuditSnapshots:true};
+ if(action==='orders.get')return {revision:s.revision,order:exactEditOrder(rows(s),p)};
+ if(action==='orders.auditHistory'){
+  var target=exactEditOrder(rows(s),p);
+  return {revision:s.revision,id:target.id,invoiceNo:target.invoiceNo,entries:editAudit(s).filter(function(a){
+   return String(a.id)===String(target.id)&&Number(a.invoiceNo)===Number(target.invoiceNo);
+  })};
+ }
+ if(action==='orders.previewUpdate'){
+  var copy=JSON.parse(JSON.stringify(s)),list=rows(copy),result=updateUnpaidOrder(copy,list,
+   Object.assign({},p,{confirmed:true}),'preview');
+  var preview=exactEditOrder(list,p);
+  return {revision:s.revision,preview:true,order:preview,pdfStatus:'pending_after_commit',duplicate:!!result.result.duplicate};
+ }
  var all=rows(s);
  if(action==='links.list')return linkList(s,p);
  if(action==='collaborators.pair.list'){
@@ -1253,7 +1383,7 @@ function read(s,action,p){
  }
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
-function write(s,action,p){
+function write(s,action,p,actor){
  var all=rows(s),result=action==='links.register'?linkRegister(s,p):
   action==='links.update'?linkUpdate(s,p):
   action==='links.secret.set'?linkSecretSet(s,p):
@@ -1262,7 +1392,8 @@ function write(s,action,p){
   action==='orders.create.pair'?createPair(s,all,p):
   action==='pricing.approve'?approveAIPricing(s,all,p):
   (action==='orders.create'||action==='orders.create.ai')?create(s,all,p,action==='orders.create.ai'):
-  action==='orders.update'?updateUnpaidOrder(s,all,p):
+  action==='orders.update'?updateUnpaidOrder(s,all,p,actor):
+  action==='orders.undoUpdate'?undoOrderUpdate(s,all,p,actor):
   action==='orders.delete'?removeOrder(s,all,p):action==='orders.restore'?recoverOrder(s,all,p):
   action==='payments.markCustomerPaid'?markPaid(s,all,p):
   changePaymentFlag(s,all,p,action);
@@ -1294,7 +1425,8 @@ function handle(e){
    var s=state(),isWrite=identity.action==='links.register'||identity.action==='links.update'||identity.action==='links.secret.set'||identity.action==='collaborators.mark'||identity.action==='orders.create.pair'||identity.action==='collaborators.pair.configure'||identity.action==='orders.create'||identity.action==='orders.create.ai'||identity.action==='pricing.approve'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid'||
    identity.action==='payments.markCustomerUnpaid'||identity.action==='payments.markSatoriPaid'||
    identity.action==='payments.markSatoriUnpaid';
-   var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
+   isWrite=isWrite||identity.action==='orders.update'||identity.action==='orders.undoUpdate';
+   var result=isWrite?write(s,identity.action,identity.payload,identity.actor):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
   }finally{lock.releaseLock()}
