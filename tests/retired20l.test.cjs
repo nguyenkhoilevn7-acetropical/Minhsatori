@@ -22,6 +22,26 @@ test('sync blocks new 20L sales including flat legacy invoices', () => {
     assert.throws(()=>c.satoriGuardRetired20L_({satori_orders_v15:JSON.stringify([row])},{satori_orders_v15:'[]'}),/PRODUCT_DISCONTINUED/);
   }
 });
+test('restoring a backup filters retired stock without changing historical invoices or prices', () => {
+  const map = new Map(), noop = () => {};
+  const c = {console, localStorage:{setItem:(k,v)=>map.set(k,v)}, document:{getElementById:()=>null},
+    STORAGE_KEY:'satori_orders_v15', CATALOGUE_STORAGE_KEY:'satori_catalogue_v15',
+    calculateTotals:noop, updateCounters:noop, populateCustomerDatalist:noop,
+    populateExcelCustomerFilter:noop, renderTable:noop, renderArchiveInvoices:noop,
+    renderCatalogueTable:noop, renderAIMemoryTable:noop, updateTrashBadge:noop, showModal:noop};
+  vm.createContext(c);
+  vm.runInContext(html.slice(html.indexOf('function isDiscontinued20L('),html.indexOf('// Load or initialize Catalogue'))+
+    'let orders=[], catalogue=[], CATALOGUE_MAP={}, nextInvoiceNumber=1;\n'+
+    html.slice(html.indexOf('function refreshCatalogueMap('),html.indexOf('        refreshCatalogueMap();'))+
+    html.slice(html.indexOf('function executeRestoreData('),html.indexOf('        function backupAllOrdersToGoogleSheets(')),c);
+  const rows=[{id:1,invoiceNo:1,items:[{code:'TP-00005',product:'Satori 20L',qty:2}],total:80000}];
+  c.executeRestoreData({orders:rows,catalogue:[{code:'TP-00005',name:'Satori 20L'},
+    {code:'TP-00033',name:'19L có vòi',unitPrice:12345},{code:'TP-00096',name:'19L không vòi',unitPrice:23456}]});
+  assert.deepEqual(JSON.parse(map.get('satori_orders_v15')),rows);
+  assert.deepEqual(JSON.parse(map.get('satori_catalogue_v15')).map(p=>[p.code,p.unitPrice]),
+    [['TP-00033',12345],['TP-00096',23456]]);
+  assert.equal(vm.runInContext('CATALOGUE_MAP["TP-00005"]',c),undefined);
+});
 test('old invoice payment changes and unchanged trash restoration remain allowed', () => {
   const c=guard(), row={id:1,invoiceNo:1,items:[{code:'TP-00005',qty:2}]};
   const old=JSON.stringify([row]);
