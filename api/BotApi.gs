@@ -1138,6 +1138,14 @@ function handle(e){
 // This entry is called ONLY after AndroidOwnerMobileApi verifies the
 // owner Google OAuth access token, allowed signing client and request shape.
 // Reuse the SAME revision lock, prewrite backup and soft-delete/restore checks.
+function guardRetiredOrderEdit_(s,action,p){
+ if(action!=='orders.update'||!p||!p.order||!Array.isArray(p.order.items))return;
+ var original=rows(s).filter(function(o){return String(o.id)===String(p.id)&&Number(o.invoiceNo)===Number(p.invoiceNo)});
+ if(original.length!==1)return;
+ var quantity=function(items){return items.filter(discontinued20L_).reduce(function(sum,i){return sum+Number(i.qty||0)},0)};
+ var old=original[0],oldItems=Array.isArray(old.items)&&old.items.length?old.items:[old];
+ need(quantity(p.order.items)<=quantity(oldItems),'PRODUCT_DISCONTINUED','Không thể thêm hoặc tăng số lượng bình 20L đã ngừng bán');
+}
 function ownerMobileWrite(action,p,nonce){
  need(['orders.delete','orders.restore','payments.markCustomerPaid',
   'payments.markCustomerUnpaid','payments.markSatoriPaid',
@@ -1149,7 +1157,8 @@ function ownerMobileWrite(action,p,nonce){
  try{
    var cache=CacheService.getScriptCache(),key='satoriandroid:'+nonce;
    need(!cache.get(key),'REPLAYED','Mobile request already used');
-   var s=state(),result=write(s,action,p);
+   var s=state();guardRetiredOrderEdit_(s,action,p);
+   var result=write(s,action,p);
    cache.put(key,'1',600);
    return {revision:result.revision,data:result.data,
      backupCreated:!!result.backupCreated};
