@@ -29,7 +29,7 @@ function discontinued20L_(item){
  if(!item||typeof item!=='object')return false;
  if(String(item.code||'').trim()==='TP-00005')return true;
  var label=norm([item.name,item.product,item.spec].filter(Boolean).join(' '));
- return /(?:^|[^0-9])20\s*(?:l|lit|litre|liter)\b/.test(label);
+ return /(?:^|[^0-9])20[\s-]*(?:l|lit|litre|liter)\b/.test(label);
 }
 function money(v){var n=Number(v);need(Number.isFinite(n)&&n>=0&&n<=1e11,'INVALID_AMOUNT','Số tiền không hợp lệ');return n;}
 function signed(secret,data){return Utilities.computeHmacSha256Signature(data,secret,Utilities.Charset.UTF_8).map(function(b){return ('0'+(b&255).toString(16)).slice(-2)}).join('');}
