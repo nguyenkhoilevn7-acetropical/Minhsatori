@@ -21,6 +21,28 @@ function call(action,payload={},override={}){
  Object.assign(body,override);return JSON.parse(context.doPost({postData:{contents:JSON.stringify(body)}}).text);
 }
 assert.equal(call('system.status').data.orders,0);
+// Retiring a SKU must hide it from current price lists without rewriting ledger.
+data.values.satori_catalogue_v15=JSON.stringify([
+ {code:'TP-00001',name:'Nước tinh khiết Satori 350ml',unit:'Thùng',listPrice:88000,unitPrice:66000},
+ {code:'TP-00005',name:'Nước tinh khiết Satori bình 20L, có tay cầm, không vòi',unit:'Bình',listPrice:49142,unitPrice:36857},
+ {code:'TP-00033',name:'Nước tinh khiết Satori bình 19L có vòi',unit:'Bình',listPrice:49142,unitPrice:36857},
+ {code:'TP-00096',name:'Nước tinh khiết Satori bình 19L không vòi',unit:'Bình',listPrice:49142,unitPrice:36857}
+]);
+const activeCatalogue=context.read(data,'catalogue.list',{});
+assert.equal(activeCatalogue.total,3);
+assert.equal(activeCatalogue.products.some(x=>x.code==='TP-00005'),false);
+assert.equal(activeCatalogue.products.filter(x=>x.name.includes('19L')).length,2);
+assert.equal(context.discontinued20L_({name:'Nước Satori 20 lít'}),true);
+assert.equal(context.discontinued20L_({name:'Nước Satori 19L'}),false);
+const blockedSale=call('orders.create',{expectedRevision:1,requestId:'retired-20l-001',
+ confirmedNewCustomer:true,order:{name:'Khách kiểm thử',phone:'0901000000',
+ location:'Địa chỉ thử nghiệm',items:[{code:'TP-00005',product:'Nước tinh khiết Satori bình 20L',
+ qty:1,unit:'Bình',unitPrice:36857,listPrice:49142}],total:36857}});
+assert.equal(blockedSale.error.code,'PRODUCT_DISCONTINUED');
+assert.equal(backs,0,'rejected 20L order must not create a Drive backup');
+assert.equal(writes,0,'rejected 20L order must not mutate the ledger');
+assert.equal(data.revision,1);
+
 const input={expectedRevision:1,requestId:'create-00001',confirmedNewCustomer:true,order:{name:'Test Customer',location:'123 Đường thử nghiệm',phone:'0901234567',items:[{product:'Satori 500 ml',qty:2,unitPrice:10000}],total:20000}};
 assert.equal(call('orders.create',input).data.order.invoiceNo,1);
 assert.equal(backs,1);assert.equal(data.revision,2);
