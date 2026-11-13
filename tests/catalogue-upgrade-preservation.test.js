@@ -8,7 +8,7 @@ assert.ok(start>0,'website should declare official default catalogue');
 const first=html.indexOf('[',start),last=html.indexOf('];',first);
 assert.ok(first>start&&last>first,'safe static JSON catalogue must exist');
 const defaults=JSON.parse(html.slice(first,last+1));
-assert.equal(defaults.length,20);
+assert.equal(defaults.length,19);
 const beginning=html.indexOf('const APP_VERSION = ',last);
 const ending=html.indexOf('// Helper dictionary by product code',beginning);
 assert.ok(beginning>last&&ending>beginning,'locate exact catalogue migration and initialization');
@@ -38,7 +38,7 @@ assert.equal(test.removed.includes('satori_catalogue_v15'),false,'never remove l
 assert.equal(test.map.has('satori_catalogue_v14'),false,'old v14 may be removed');
 assert.ok(test.map.get('satori_app_version'),'UI version updated');
 const initial=boot([]);
-assert.equal(initial.catalogue.length,20,'first run still receives official defaults');
+assert.equal(initial.catalogue.length,19,'first run still receives official defaults');
 assert.ok(initial.map.has('satori_catalogue_v15'),'first run persists initial default');
 const unchanged=boot([
  ['satori_app_version',test.map.get('satori_app_version')],
@@ -46,3 +46,4 @@ const unchanged=boot([
 ]);
 assert.equal(unchanged.catalogue[0].listPrice,777777,'second run does not reset owner price');
 console.log('PASS website version-upgrade catalogue preservation (no network or Drive writes)');
+require('./retired20l.test.cjs');

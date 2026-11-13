@@ -18,7 +18,8 @@ test('payment & invoice writes remain V18.3-identical; approved net-margin rende
  for(const [name,fingerprint] of Object.entries({
   // Approved business rule: display after-CTV profit, without mutating customer bills.
   renderTable:'43d29ba6',
-  handleSaveAndGenerate:'c34b724e',
+  // Approved retirement guard blocks new 20L sales before existing save logic.
+  handleSaveAndGenerate:'b1130f38',
   // Approved preview rule: show net margin after registered CTV commission.
   calculateTotals:'b5859de0',
   syncLiveFromGoogleDrive:'4e21c7aa',

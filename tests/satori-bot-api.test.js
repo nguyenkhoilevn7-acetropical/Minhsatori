@@ -3,7 +3,7 @@ const vm=require('node:vm'),assert=require('node:assert/strict'),fs=require('nod
 const source=fs.readFileSync(path.join(__dirname,'../api/BotApi.gs'),'utf8'),secret='LOCAL_UNIT_TEST_SECRET_012345678901234567890';
 assert.equal(fs.readFileSync(path.join(__dirname,'../api/AccountingCore.gs'),'utf8').trimEnd(),fs.readFileSync(path.join(__dirname,'../accounting-core.js'),'utf8').trimEnd(),'API and website must use identical accounting rules');
 let data={revision:1,updatedAt:'2026-10-18T00:00:00Z',values:{satori_orders_v15:'[]',satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}},backs=0,writes=0,sequence=0;
-const cache=new Map(),props={STATE_FILE_ID:'test-file',SATORI_BOT_CLIENTS_JSON:JSON.stringify({'bot-01':{secret,enabled:true,scopes:['orders:read','orders:write','orders:delete','customers:read','debt:read','payments:write']}})};
+const cache=new Map(),props={STATE_FILE_ID:'test-file',SATORI_BOT_CLIENTS_JSON:JSON.stringify({'bot-01':{secret,enabled:true,scopes:['catalogue:read','orders:read','orders:write','orders:delete','customers:read','debt:read','payments:write']}})};
 const context={
  Date,JSON,Number,String,Object,Array,Math,Error,RegExp,
  readState_:()=>JSON.parse(JSON.stringify(data)),
@@ -21,6 +21,31 @@ function call(action,payload={},override={}){
  Object.assign(body,override);return JSON.parse(context.doPost({postData:{contents:JSON.stringify(body)}}).text);
 }
 assert.equal(call('system.status').data.orders,0);
+// Retiring a SKU must hide it from current price lists without rewriting ledger.
+data.values.satori_catalogue_v15=JSON.stringify([
+ {code:'TP-00001',name:'Nước tinh khiết Satori 350ml',unit:'Thùng',listPrice:88000,unitPrice:66000},
+ {code:'TP-00005',name:'Nước tinh khiết Satori bình 20L, có tay cầm, không vòi',unit:'Bình',listPrice:49142,unitPrice:36857},
+ {code:'TP-00033',name:'Nước tinh khiết Satori bình 19L có vòi',unit:'Bình',listPrice:49142,unitPrice:36857},
+ {code:'TP-00096',name:'Nước tinh khiết Satori bình 19L không vòi',unit:'Bình',listPrice:49142,unitPrice:36857}
+]);
+const activeCatalogue=call('catalogue.list').data;
+assert.equal(activeCatalogue.total,3);
+assert.equal(activeCatalogue.products.some(x=>x.code==='TP-00005'),false);
+assert.equal(activeCatalogue.products.filter(x=>x.name.includes('19L')).length,2);
+const blockedSale=call('orders.create',{expectedRevision:1,requestId:'retired-20l-001',
+ confirmedNewCustomer:true,order:{name:'Khách kiểm thử',phone:'0901000000',
+ location:'Địa chỉ thử nghiệm',items:[{code:'TP-00005',product:'Nước tinh khiết Satori bình 20L',
+ qty:1,unit:'Bình',unitPrice:36857,listPrice:49142}],total:36857}});
+assert.equal(blockedSale.error.code,'PRODUCT_DISCONTINUED');
+const hyphenatedSale=call('orders.create',{expectedRevision:1,requestId:'retired-20l-hyphen',
+ confirmedNewCustomer:true,order:{name:'Khách kiểm thử',phone:'0901000000',
+ location:'Địa chỉ thử nghiệm',items:[{product:'Nước tinh khiết Satori bình 20-lít',
+ qty:1,unit:'Bình',unitPrice:36857,listPrice:49142}],total:36857}});
+assert.equal(hyphenatedSale.error?.code,'PRODUCT_DISCONTINUED');
+assert.equal(backs,0,'rejected 20L order must not create a Drive backup');
+assert.equal(writes,0,'rejected 20L order must not mutate the ledger');
+assert.equal(data.revision,1);
+
 const input={expectedRevision:1,requestId:'create-00001',confirmedNewCustomer:true,order:{name:'Test Customer',location:'123 Đường thử nghiệm',phone:'0901234567',items:[{product:'Satori 500 ml',qty:2,unitPrice:10000}],total:20000}};
 assert.equal(call('orders.create',input).data.order.invoiceNo,1);
 assert.equal(backs,1);assert.equal(data.revision,2);

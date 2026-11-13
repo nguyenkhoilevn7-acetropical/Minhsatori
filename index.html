@@ -2262,8 +2262,8 @@ document.documentElement.classList.add('satori-light-review');
                     </button>
                     <button onclick="filterCatalogue('SATORI')" id="filter-cat-SATORI" class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-left transition hover:bg-slate-850">
                         <p class="text-[11px] text-cyan-400 font-semibold">Thương Hiệu SATORI</p>
-                        <p class="text-xl font-bold text-white mt-1">11 Sản Phẩm</p>
-                        <span class="text-[10px] text-slate-400">350ml, 500ml, 1.5L, 5L, 19L, 20L</span>
+                        <p class="text-xl font-bold text-white mt-1">10 Sản Phẩm</p>
+                        <span class="text-[10px] text-slate-400">350ml, 500ml, 1.5L, 5L, 19L</span>
                     </button>
                     <button onclick="filterCatalogue('HIKARI')" id="filter-cat-HIKARI" class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-left transition hover:bg-slate-850">
                         <p class="text-[11px] text-emerald-400 font-semibold">Thương Hiệu HIKARI</p>
@@ -2394,28 +2394,7 @@ document.documentElement.classList.add('satori-light-review');
             </td>
         </tr>
     
-        <tr class="hover:bg-slate-900/60 transition">
-            <td class="p-3 text-center text-slate-400 font-mono">5</td>
-            <td class="p-3 text-center"><span class="bg-blue-900/50 text-blue-300 border border-blue-700/60 px-2 py-0.5 rounded-full text-[10px] font-bold">SATORI</span></td>
-            <td class="p-3 font-mono text-cyan-400 font-bold">TP-00005</td>
-            <td class="p-3 font-medium text-white">Nước tinh khiết Satori bình 20L, có tay cầm, không vòi</td>
-            <td class="p-3 text-slate-400">01 bình</td>
-            <td class="p-3 text-center text-slate-300 font-semibold">Bình</td>
-            <td class="p-3 text-right">
-                <input type="number" value="49142" min="0" onchange="editCatalogueItemPrice('TP-00005', this.value)" class="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-right text-xs text-cyan-300 font-mono font-bold focus:outline-none focus:border-blue-500">
-            </td>
-            <td class="p-3 text-center">
-                <input type="number" value="25.0" step="0.1" min="0" max="100" onchange="editCatalogueItemDisc('TP-00005', this.value)" class="w-16 bg-slate-900 border border-amber-500/50 rounded-lg px-2 py-1 text-center text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400">
-            </td>
-            <td class="p-3 text-right font-mono font-bold text-emerald-400">
-                36.857 đ
-            </td>
-            <td class="p-3 text-center">
-                <button onclick="orderThisCatalogueProduct('TP-00005')" class="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg transition shadow flex items-center gap-1 mx-auto" title="Tạo đơn ngay với sản phẩm này">
-                    <i class="fa-solid fa-plus"></i> Lên Đơn
-                </button>
-            </td>
-        </tr>
+        
     
         <tr class="hover:bg-slate-900/60 transition">
             <td class="p-3 text-center text-slate-400 font-mono">6</td>
@@ -3084,7 +3063,7 @@ document.documentElement.classList.add('satori-light-review');
                         <span class="bg-indigo-950 text-indigo-300 text-[10px] px-2 py-0.5 rounded-full border border-indigo-500/30 font-semibold">Khuyên dùng</span>
                     </div>
                     <p class="text-[11px] text-slate-300 leading-relaxed">
-                        Tải về một file <code>.json</code> chứa toàn bộ <b>hóa đơn, bảng giá 20 sản phẩm, trí nhớ AI khách hàng, lịch sử xóa và cài đặt</b>. Bạn có thể lưu vào máy tính, USB hoặc gửi qua Zalo/Drive để cất giữ an toàn.
+                        Tải về một file <code>.json</code> chứa toàn bộ <b>hóa đơn, bảng giá 19 sản phẩm, trí nhớ AI khách hàng, lịch sử xóa và cài đặt</b>. Bạn có thể lưu vào máy tính, USB hoặc gửi qua Zalo/Drive để cất giữ an toàn.
                     </p>
                     <button type="button" onclick="downloadFullSystemBackup()" class="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-95 cursor-pointer">
                         <i class="fa-solid fa-file-arrow-down text-sm"></i>
@@ -3414,8 +3393,8 @@ document.documentElement.classList.add('satori-light-review');
     <!-- ========================================================================= -->
         <script src="accounting-core.js?v=186"></script>
 <script>
-// 1. OFFICIAL CATALOGUE OF 20 PRODUCTS (FROM IMAGE 2438.JPG)
-        const DEFAULT_CATALOGUE = [{"tt": 1, "brand": "SATORI", "code": "TP-00001", "name": "Nước tinh khiết Satori 350ml", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 88000, "discountPercent": 25.0, "unitPrice": 66000, "keywords": ["350ml", "350", "satori 350"]}, {"tt": 2, "brand": "SATORI", "code": "TP-00003", "name": "Nước tinh khiết Satori 500ml", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 98000, "discountPercent": 25.0, "unitPrice": 73500, "keywords": ["satori 500ml", "satori 500", "500ml", "500"]}, {"tt": 3, "brand": "SATORI", "code": "TP-00004", "name": "Nước tinh khiết Satori 1500ml", "spec": "12 chai/thùng", "unit": "Thùng", "listPrice": 98000, "discountPercent": 25.0, "unitPrice": 73500, "keywords": ["1500ml", "1.5l", "1,5l", "satori 1.5", "satori 1500"]}, {"tt": 4, "brand": "SATORI", "code": "TP-00051", "name": "Nước tinh khiết Satori Premium 450ml", "spec": "20 chai/thùng", "unit": "Thùng", "listPrice": 137963, "discountPercent": 25.0, "unitPrice": 103472, "keywords": ["premium", "450ml", "satori 450", "satori premium", "400ml"]}, {"tt": 5, "brand": "SATORI", "code": "TP-00005", "name": "Nước tinh khiết Satori bình 20L, có tay cầm, không vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 49142, "discountPercent": 25.0, "unitPrice": 36857, "keywords": ["20l", "bình 20l", "tay cầm", "satori 20l", "không vòi 20l"]}, {"tt": 6, "brand": "SATORI", "code": "TP-00033", "name": "Nước tinh khiết Satori bình 19L có vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 49142, "discountPercent": 25.0, "unitPrice": 36857, "keywords": ["19l có vòi", "19l vòi", "bình 19l có vòi", "satori có vòi", "bình satori có vòi", "satori 19l có vòi"]}, {"tt": 7, "brand": "SATORI", "code": "TP-00096", "name": "Nước tinh khiết Satori bình 19L không vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 49142, "discountPercent": 25.0, "unitPrice": 36857, "keywords": ["19l không vòi", "19l up", "bình úp", "satori úp", "satori không vòi", "bình satori không vòi", "bình 19l không vòi", "bình satori", "19l"]}, {"tt": 8, "brand": "SATORI", "code": "TP-00135", "name": "Nước tinh khiết Satori 5L không vòi", "spec": "04 bình/thùng", "unit": "Thùng", "listPrice": 102500, "discountPercent": 25.0, "unitPrice": 76875, "keywords": ["thùng 5l không vòi", "5l không vòi", "thùng 5l", "satori 5l không vòi", "satori 5l"]}, {"tt": 9, "brand": "SATORI", "code": "TP-00136", "name": "Nước tinh khiết Satori 5L có vòi", "spec": "04 bình/thùng", "unit": "Thùng", "listPrice": 110000, "discountPercent": 25.0, "unitPrice": 82500, "keywords": ["thùng 5l có vòi", "5l có vòi", "satori 5l có vòi"]}, {"tt": 10, "brand": "SATORI", "code": "TP-00143", "name": "Nước tinh khiết Satori 5L không vòi, bình", "spec": "01 bình", "unit": "Bình", "listPrice": 25625, "discountPercent": 25.0, "unitPrice": 19219, "keywords": ["bình 5l không vòi", "bình lẻ 5l không vòi", "bình 5l lẻ", "1 bình 5l không vòi"]}, {"tt": 11, "brand": "SATORI", "code": "TP-00142", "name": "Nước tinh khiết Satori 5L có vòi, bình", "spec": "01 bình", "unit": "Bình", "listPrice": 27500, "discountPercent": 25.0, "unitPrice": 20625, "keywords": ["bình 5l có vòi", "bình lẻ 5l có vòi", "1 bình 5l có vòi"]}, {"tt": 12, "brand": "HIKARI", "code": "TP-00081", "name": "Nước đóng chai Hikari 500ml", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 83000, "discountPercent": 25.0, "unitPrice": 62250, "keywords": ["hikari 500ml", "hikari 500", "chai hikari 500", "nước hikari 500"]}, {"tt": 13, "brand": "HIKARI", "code": "TP-00130", "name": "Nước tinh khiết Hikari bình 19L có vòi", "spec": "01 bình", "unit": "Bình", "listPrice": 38889, "discountPercent": 25.0, "unitPrice": 29167, "keywords": ["hikari 19l", "bình hikari 19l", "hikari bình", "hikari có vòi", "bình hikari"]}, {"tt": 14, "brand": "HIKARI", "code": "TP-00137", "name": "Nước đóng chai Hikari 250ml, thùng", "spec": "24 chai/thùng", "unit": "Thùng", "listPrice": 62500, "discountPercent": 25.0, "unitPrice": 46875, "keywords": ["hikari 250ml thùng", "thùng hikari 250ml", "thùng hikari 250", "hikari 250ml", "hikari 250"]}, {"tt": 15, "brand": "HIKARI", "code": "TP-00140", "name": "Nước đóng chai Hikari 250ml (24 chai/lốc)", "spec": "24 chai/lốc", "unit": "Lốc", "listPrice": 62500, "discountPercent": 25.0, "unitPrice": 46875, "keywords": ["hikari 250ml 24 chai/lốc", "lốc 24 chai hikari", "hikari 250 lốc 24", "lốc 24 chai"]}, {"tt": 16, "brand": "HIKARI", "code": "TP-00139", "name": "Nước đóng chai Hikari 250ml (12 chai/lốc)", "spec": "12 chai/lốc", "unit": "Lốc", "listPrice": 31250, "discountPercent": 25.0, "unitPrice": 23438, "keywords": ["hikari 250ml 12 chai/lốc", "lốc 12 chai hikari", "hikari 250 lốc 12", "lốc 12 chai", "hikari 12 chai"]}, {"tt": 17, "brand": "HIKARI", "code": "TP-00138", "name": "Nước đóng chai Hikari 250ml (6 chai/lốc)", "spec": "6 chai/lốc", "unit": "Lốc", "listPrice": 15625, "discountPercent": 25.0, "unitPrice": 11719, "keywords": ["hikari 250ml 6 chai/lốc", "lốc 6 chai hikari", "hikari 250 lốc 6", "lốc 6 chai", "hikari 6 chai"]}, {"tt": 18, "brand": "JUICE", "code": "TP-00055", "name": "Nước ép me Satori Juice 24 lon/thùng", "spec": "24 lon/thùng", "unit": "Thùng", "listPrice": 333333, "discountPercent": 25.0, "unitPrice": 250000, "keywords": ["ép me", "me satori", "satori juice me", "nước me", "me lon", "thùng me", "lon me", "me"]}, {"tt": 19, "brand": "JUICE", "code": "TP-00056", "name": "Nước ép mãng cầu Satori Juice 24 lon/thùng", "spec": "24 lon/thùng", "unit": "Thùng", "listPrice": 333333, "discountPercent": 25.0, "unitPrice": 250000, "keywords": ["ép mãng cầu", "mãng cầu", "mãn cầu", "satori juice mãng cầu", "thùng mãng cầu", "thùng mãn cầu", "mang cau"]}, {"tt": 20, "brand": "JUICE", "code": "TP-00058", "name": "Nước ép ổi hồng Satori Juice 24 lon/thùng", "spec": "24 lon/thùng", "unit": "Thùng", "listPrice": 333333, "discountPercent": 25.0, "unitPrice": 250000, "keywords": ["ép ổi", "ổi hồng", "satori juice ổi hồng", "thùng ổi", "thùng ổi hồng", "oi hong", "ổi", "oi"]}];
+// 1. ACTIVE CATALOGUE: 19 PRODUCTS; DISCONTINUED 20L EXCLUDED
+        const DEFAULT_CATALOGUE = [{"tt":1,"brand":"SATORI","code":"TP-00001","name":"Nước tinh khiết Satori 350ml","spec":"24 chai/thùng","unit":"Thùng","listPrice":88000,"discountPercent":25,"unitPrice":66000,"keywords":["350ml","350","satori 350"]},{"tt":2,"brand":"SATORI","code":"TP-00003","name":"Nước tinh khiết Satori 500ml","spec":"24 chai/thùng","unit":"Thùng","listPrice":98000,"discountPercent":25,"unitPrice":73500,"keywords":["satori 500ml","satori 500","500ml","500"]},{"tt":3,"brand":"SATORI","code":"TP-00004","name":"Nước tinh khiết Satori 1500ml","spec":"12 chai/thùng","unit":"Thùng","listPrice":98000,"discountPercent":25,"unitPrice":73500,"keywords":["1500ml","1.5l","1,5l","satori 1.5","satori 1500"]},{"tt":4,"brand":"SATORI","code":"TP-00051","name":"Nước tinh khiết Satori Premium 450ml","spec":"20 chai/thùng","unit":"Thùng","listPrice":137963,"discountPercent":25,"unitPrice":103472,"keywords":["premium","450ml","satori 450","satori premium","400ml"]},{"tt":6,"brand":"SATORI","code":"TP-00033","name":"Nước tinh khiết Satori bình 19L có vòi","spec":"01 bình","unit":"Bình","listPrice":49142,"discountPercent":25,"unitPrice":36857,"keywords":["19l có vòi","19l vòi","bình 19l có vòi","satori có vòi","bình satori có vòi","satori 19l có vòi"]},{"tt":7,"brand":"SATORI","code":"TP-00096","name":"Nước tinh khiết Satori bình 19L không vòi","spec":"01 bình","unit":"Bình","listPrice":49142,"discountPercent":25,"unitPrice":36857,"keywords":["19l không vòi","19l up","bình úp","satori úp","satori không vòi","bình satori không vòi","bình 19l không vòi","bình satori","19l"]},{"tt":8,"brand":"SATORI","code":"TP-00135","name":"Nước tinh khiết Satori 5L không vòi","spec":"04 bình/thùng","unit":"Thùng","listPrice":102500,"discountPercent":25,"unitPrice":76875,"keywords":["thùng 5l không vòi","5l không vòi","thùng 5l","satori 5l không vòi","satori 5l"]},{"tt":9,"brand":"SATORI","code":"TP-00136","name":"Nước tinh khiết Satori 5L có vòi","spec":"04 bình/thùng","unit":"Thùng","listPrice":110000,"discountPercent":25,"unitPrice":82500,"keywords":["thùng 5l có vòi","5l có vòi","satori 5l có vòi"]},{"tt":10,"brand":"SATORI","code":"TP-00143","name":"Nước tinh khiết Satori 5L không vòi, bình","spec":"01 bình","unit":"Bình","listPrice":25625,"discountPercent":25,"unitPrice":19219,"keywords":["bình 5l không vòi","bình lẻ 5l không vòi","bình 5l lẻ","1 bình 5l không vòi"]},{"tt":11,"brand":"SATORI","code":"TP-00142","name":"Nước tinh khiết Satori 5L có vòi, bình","spec":"01 bình","unit":"Bình","listPrice":27500,"discountPercent":25,"unitPrice":20625,"keywords":["bình 5l có vòi","bình lẻ 5l có vòi","1 bình 5l có vòi"]},{"tt":12,"brand":"HIKARI","code":"TP-00081","name":"Nước đóng chai Hikari 500ml","spec":"24 chai/thùng","unit":"Thùng","listPrice":83000,"discountPercent":25,"unitPrice":62250,"keywords":["hikari 500ml","hikari 500","chai hikari 500","nước hikari 500"]},{"tt":13,"brand":"HIKARI","code":"TP-00130","name":"Nước tinh khiết Hikari bình 19L có vòi","spec":"01 bình","unit":"Bình","listPrice":38889,"discountPercent":25,"unitPrice":29167,"keywords":["hikari 19l","bình hikari 19l","hikari bình","hikari có vòi","bình hikari"]},{"tt":14,"brand":"HIKARI","code":"TP-00137","name":"Nước đóng chai Hikari 250ml, thùng","spec":"24 chai/thùng","unit":"Thùng","listPrice":62500,"discountPercent":25,"unitPrice":46875,"keywords":["hikari 250ml thùng","thùng hikari 250ml","thùng hikari 250","hikari 250ml","hikari 250"]},{"tt":15,"brand":"HIKARI","code":"TP-00140","name":"Nước đóng chai Hikari 250ml (24 chai/lốc)","spec":"24 chai/lốc","unit":"Lốc","listPrice":62500,"discountPercent":25,"unitPrice":46875,"keywords":["hikari 250ml 24 chai/lốc","lốc 24 chai hikari","hikari 250 lốc 24","lốc 24 chai"]},{"tt":16,"brand":"HIKARI","code":"TP-00139","name":"Nước đóng chai Hikari 250ml (12 chai/lốc)","spec":"12 chai/lốc","unit":"Lốc","listPrice":31250,"discountPercent":25,"unitPrice":23438,"keywords":["hikari 250ml 12 chai/lốc","lốc 12 chai hikari","hikari 250 lốc 12","lốc 12 chai","hikari 12 chai"]},{"tt":17,"brand":"HIKARI","code":"TP-00138","name":"Nước đóng chai Hikari 250ml (6 chai/lốc)","spec":"6 chai/lốc","unit":"Lốc","listPrice":15625,"discountPercent":25,"unitPrice":11719,"keywords":["hikari 250ml 6 chai/lốc","lốc 6 chai hikari","hikari 250 lốc 6","lốc 6 chai","hikari 6 chai"]},{"tt":18,"brand":"JUICE","code":"TP-00055","name":"Nước ép me Satori Juice 24 lon/thùng","spec":"24 lon/thùng","unit":"Thùng","listPrice":333333,"discountPercent":25,"unitPrice":250000,"keywords":["ép me","me satori","satori juice me","nước me","me lon","thùng me","lon me","me"]},{"tt":19,"brand":"JUICE","code":"TP-00056","name":"Nước ép mãng cầu Satori Juice 24 lon/thùng","spec":"24 lon/thùng","unit":"Thùng","listPrice":333333,"discountPercent":25,"unitPrice":250000,"keywords":["ép mãng cầu","mãng cầu","mãn cầu","satori juice mãng cầu","thùng mãng cầu","thùng mãn cầu","mang cau"]},{"tt":20,"brand":"JUICE","code":"TP-00058","name":"Nước ép ổi hồng Satori Juice 24 lon/thùng","spec":"24 lon/thùng","unit":"Thùng","listPrice":333333,"discountPercent":25,"unitPrice":250000,"keywords":["ép ổi","ổi hồng","satori juice ổi hồng","thùng ổi","thùng ổi hồng","oi hong","ổi","oi"]}];
 
         // Storage Key for Catalogue, Orders & Settings
         const APP_VERSION = 'v6.0_stable_pro';
@@ -3434,9 +3413,19 @@ document.documentElement.classList.add('satori-light-review');
             localStorage.setItem('satori_app_version', APP_VERSION);
         }
 
+        function isDiscontinued20L(item) {
+            if (!item || typeof item !== 'object') return false;
+            if (String(item.code || '').trim() === 'TP-00005') return true;
+            const text = [item.product, item.name, item.spec].filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            return /(?:^|[^0-9])20[\s-]*(?:l|lit|litre|liter)\b/.test(text);
+        }
+        function retired20LQuantity(items) {
+            return items.filter(isDiscontinued20L).reduce((sum, item) => sum + Number(item.qty || 0), 0);
+        }
+
         // Load or initialize Catalogue
         let catalogue = JSON.parse(localStorage.getItem(CATALOGUE_STORAGE_KEY));
-        if (!catalogue || catalogue.length !== 20) {
+        if (!Array.isArray(catalogue) || !catalogue.length) {
             catalogue = JSON.parse(JSON.stringify(DEFAULT_CATALOGUE));
             localStorage.setItem(CATALOGUE_STORAGE_KEY, JSON.stringify(catalogue));
         }
@@ -3444,6 +3433,11 @@ document.documentElement.classList.add('satori-light-review');
         // Helper dictionary by product code
         let CATALOGUE_MAP = {};
         function refreshCatalogueMap() {
+            const active = catalogue.filter(p => !isDiscontinued20L(p));
+            if (active.length !== catalogue.length) {
+                catalogue = active;
+                localStorage.setItem(CATALOGUE_STORAGE_KEY, JSON.stringify(catalogue));
+            }
             CATALOGUE_MAP = {};
             catalogue.forEach(p => {
                 CATALOGUE_MAP[p.code] = p;
@@ -3936,6 +3930,7 @@ document.documentElement.classList.add('satori-light-review');
         }
         function aiCatalogueProduct(text, unitHint = '', customer = null, allowMemory = true) {
             const raw = String(text || '');
+            if (isDiscontinued20L({product: raw})) return null;
             let n = ' ' + aiNormalize(raw).replace(/(satori|hikari)(\d)/g,'$1 $2').replace(/\b(350|500|550|1500|450|400|250)\s*m(?:l|1|i)?\b/g,'$1ml') + ' ';
             const historical=new Map();
             for(const o of orders)for(const it of o.items?.length?o.items:[o]){
@@ -4682,6 +4677,12 @@ document.documentElement.classList.add('satori-light-review');
             if(window.__SATORI_DRIVE_APP__ && !window.__SATORI_DRIVE_READY__){
                 showModal('Google Drive chưa sẵn sàng',
                     'Chưa thể lưu hóa đơn an toàn. Hãy kiểm tra thanh đồng bộ Drive bên dưới, tải bản dữ liệu chưa đồng bộ nếu có, rồi thử kết nối lại.', 'info');
+                return;
+            }
+            const original = currentEditingOrderId ? orders.find(o => o.id === currentEditingOrderId) : null;
+            const previousItems = original ? (original.items?.length ? original.items : [original]) : [];
+            if (retired20LQuantity(currentItems) > retired20LQuantity(previousItems)) {
+                showModal('Sản phẩm đã ngừng bán', 'Bình Satori 20L không còn nhận đơn mới. Vui lòng bỏ dòng 20L trước khi lưu.', 'info');
                 return;
             }
             if (!currentItems.length || currentItems.some(it => !Number.isFinite(Number(it.qty)) || Number(it.qty) <= 0 || !Number.isFinite(Number(it.unitPrice)) || Number(it.unitPrice) < 0)) {
@@ -7557,6 +7558,7 @@ document.documentElement.classList.add('satori-light-review');
         }
 
         function renderCatalogueTable() {
+            refreshCatalogueMap();
             const tbody = document.getElementById('catalogueTableBody');
             if (!tbody) return;
             const search = (document.getElementById('catalogueSearch')?.value || '').toLowerCase();
@@ -7633,7 +7635,7 @@ document.documentElement.classList.add('satori-light-review');
         }
 
         function resetCatalogueToDefault() {
-            if (confirm("Khôi phục bảng giá 20 sản phẩm về mặc định của nhà máy Minh Satori?")) {
+            if (confirm("Khôi phục bảng giá 19 sản phẩm về mặc định của nhà máy Minh Satori?")) {
                 catalogue = JSON.parse(JSON.stringify(DEFAULT_CATALOGUE));
                 localStorage.setItem(CATALOGUE_STORAGE_KEY, JSON.stringify(catalogue));
                 refreshCatalogueMap();
@@ -8216,8 +8218,9 @@ document.documentElement.classList.add('satori-light-review');
                 }
 
                 if (Array.isArray(data.catalogue) && data.catalogue.length > 0) {
-                    catalogue = data.catalogue;
+                    catalogue = data.catalogue.filter(p => !isDiscontinued20L(p));
                     localStorage.setItem(CATALOGUE_STORAGE_KEY, JSON.stringify(catalogue));
+                    refreshCatalogueMap();
                 }
 
                 if (Array.isArray(data.aiMemory)) {
@@ -8705,6 +8708,7 @@ document.documentElement.classList.add('satori-light-review');
         function saveParsedPdfDirectlyToSystem() {
             if (!currentParsedPdfData) return;
             const data = currentParsedPdfData;
+            if (data.items.some(isDiscontinued20L)) { showModal('Sản phẩm đã ngừng bán', 'Bình Satori 20L không còn nhận đơn mới.', 'info'); return; }
             if(!data.items.length || data.warnings?.length) {showModal('Cần kiểm tra dữ liệu PDF', 'Hãy dùng nút Điền vào đơn để kiểm tra và sửa thông tin trước khi lưu.', 'info');return;}
 
             const invNum = nextInvoiceNumber;
@@ -9848,12 +9852,3 @@ document.addEventListener('keydown',event=>{
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
