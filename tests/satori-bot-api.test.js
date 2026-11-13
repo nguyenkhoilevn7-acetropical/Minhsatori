@@ -3,7 +3,7 @@ const vm=require('node:vm'),assert=require('node:assert/strict'),fs=require('nod
 const source=fs.readFileSync(path.join(__dirname,'../api/BotApi.gs'),'utf8'),secret='LOCAL_UNIT_TEST_SECRET_012345678901234567890';
 assert.equal(fs.readFileSync(path.join(__dirname,'../api/AccountingCore.gs'),'utf8').trimEnd(),fs.readFileSync(path.join(__dirname,'../accounting-core.js'),'utf8').trimEnd(),'API and website must use identical accounting rules');
 let data={revision:1,updatedAt:'2026-10-18T00:00:00Z',values:{satori_orders_v15:'[]',satori_trash_bin_v15:'[]',satori_deleted_invoice_nos:'[]'}},backs=0,writes=0,sequence=0;
-const cache=new Map(),props={STATE_FILE_ID:'test-file',SATORI_BOT_CLIENTS_JSON:JSON.stringify({'bot-01':{secret,enabled:true,scopes:['orders:read','orders:write','orders:delete','customers:read','debt:read','payments:write']}})};
+const cache=new Map(),props={STATE_FILE_ID:'test-file',SATORI_BOT_CLIENTS_JSON:JSON.stringify({'bot-01':{secret,enabled:true,scopes:['catalogue:read','orders:read','orders:write','orders:delete','customers:read','debt:read','payments:write']}})};
 const context={
  Date,JSON,Number,String,Object,Array,Math,Error,RegExp,
  readState_:()=>JSON.parse(JSON.stringify(data)),
@@ -28,12 +28,10 @@ data.values.satori_catalogue_v15=JSON.stringify([
  {code:'TP-00033',name:'Nước tinh khiết Satori bình 19L có vòi',unit:'Bình',listPrice:49142,unitPrice:36857},
  {code:'TP-00096',name:'Nước tinh khiết Satori bình 19L không vòi',unit:'Bình',listPrice:49142,unitPrice:36857}
 ]);
-const activeCatalogue=context.read(data,'catalogue.list',{});
+const activeCatalogue=call('catalogue.list').data;
 assert.equal(activeCatalogue.total,3);
 assert.equal(activeCatalogue.products.some(x=>x.code==='TP-00005'),false);
 assert.equal(activeCatalogue.products.filter(x=>x.name.includes('19L')).length,2);
-assert.equal(context.discontinued20L_({name:'Nước Satori 20 lít'}),true);
-assert.equal(context.discontinued20L_({name:'Nước Satori 19L'}),false);
 const blockedSale=call('orders.create',{expectedRevision:1,requestId:'retired-20l-001',
  confirmedNewCustomer:true,order:{name:'Khách kiểm thử',phone:'0901000000',
  location:'Địa chỉ thử nghiệm',items:[{code:'TP-00005',product:'Nước tinh khiết Satori bình 20L',
