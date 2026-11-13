@@ -11,7 +11,7 @@ function satoriGuardRetired20L_(values, previous) {
   var identity = function(o) { return String(o.__syncId || o.id) + '|' + String(o.invoiceNo); };
   var oldById = {};
   oldOrders.forEach(function(o) { oldById[identity(o)] = o; });
-  var quantity = function(o) { return (o.items || []).filter(satoriIsRetired20L_).reduce(function(sum, i) { return sum + Number(i.qty || 0); }, 0); };
+  var quantity = function(o) { return (o.items && o.items.length ? o.items : [o]).filter(satoriIsRetired20L_).reduce(function(sum, i) { return sum + Number(i.qty || 0); }, 0); };
   orders.forEach(function(o) {
     var old = oldById[identity(o)];
     if (quantity(o) > (old ? quantity(old) : 0)) throw Error('PRODUCT_DISCONTINUED: Sản phẩm bình 20L đã ngừng bán');
