@@ -46,6 +46,9 @@ STOP_WORDS = {'nhé', 'nha', 'xuất', 'cho', 'gọi', 'gặp', 'alo', 'sdt', 's
 def parse_zalo_message(text: str) -> Dict[str, Any]:
     raw = text.strip()
     t_lower = raw.lower()
+    # Never reinterpret discontinued 20L as 19L or silently default to 350ml.
+    if re.search(r'(?<!\d)20[\s-]*(?:l|lit|lít)\b', t_lower):
+        raise ValueError("Sản phẩm bình 20L đã ngừng bán; không thể tạo đơn.")
     
     # 1. Nhận diện tên khách hàng
     matched_customer = ""
@@ -106,7 +109,7 @@ def parse_zalo_message(text: str) -> Dict[str, Any]:
         list_price = 88000
         discount = 24300
         unit_price = 63700
-    elif any(k in t_lower for k in ["19l", "20l", "bình lớn"]):
+    elif any(k in t_lower for k in ["19l", "bình lớn"]):
         product = "Bình Satori 19L"
         list_price = 65000
         discount = 10000
