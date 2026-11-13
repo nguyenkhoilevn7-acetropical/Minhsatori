@@ -67,3 +67,8 @@ test('edit and undo requestIds cannot reuse creation or payment requestIds of an
  const undo={...input(),expectedRevision:201,expectedTotal:1480000,requestId:'synthetic-undo-0001',undoRequestId:'synthetic-edit-0001'};delete undo.order;
  assert.equal(u.call('orders.undoUpdate',undo).error.code,'REUSED_REQUEST_ID');assert.deepEqual(u.counts(),[1,1,201]);
 });
+test('omitted optional shipping and delivery note preserve the saved invoice fields',()=>{
+ const h=harness(),rows=h.rows();rows[0].shippingAmount=5000;rows[0].deliveryNote='Synthetic morning delivery';rows[0].total=113000;h.seed(rows);
+ const p=input({expectedTotal:113000});delete p.order.shippingAmount;
+ const r=h.call('orders.previewUpdate',p);assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.data.order.total,1485000);assert.equal(r.data.order.shippingAmount,5000);assert.equal(r.data.order.deliveryNote,rows[0].deliveryNote);
+});

@@ -822,7 +822,8 @@ function updateUnpaidOrder(s,all,p,actor){
     (t.order.apiRequestId===requestId||t.order.apiUpdateRequestId===requestId))}),
   'REUSED_REQUEST_ID','Mã yêu cầu đã dùng cho thao tác khác');
  var name=String(draft.name||'').trim(),phone=String(draft.phone||'').trim(),
-  location=String(draft.location||'').trim(),note=String(draft.deliveryNote||'').trim();
+  location=String(draft.location||'').trim(),note=String(draft.deliveryNote===undefined&&draft.priceMode!==undefined?
+   original.deliveryNote||'':draft.deliveryNote||'').trim();
  need(name.length>=2&&name.length<=150&&phone.length<=60&&
   location.length>=5&&location.length<=500&&note.length<=1000,
   'INVALID_ORDER','Thông tin khách, địa chỉ hoặc ghi chú không hợp lệ');
@@ -830,7 +831,7 @@ function updateUnpaidOrder(s,all,p,actor){
   normalizeInvoiceItems(draft.items,draft.vatAmount,draft.vatRate,true),items=normalizedItems.items;
  need(original.vatMode!=='per_line'||normalizedItems.vatMode==='per_line',
   'PER_LINE_VAT_REQUIRED','Ứng dụng phải giữ VAT từng dòng khi sửa hóa đơn này');
- var shipping=money(draft.shippingAmount==null?0:draft.shippingAmount),
+ var shipping=money(draft.shippingAmount==null?(draft.priceMode!==undefined?original.shippingAmount||0:0):draft.shippingAmount),
   vat=normalizedItems.vatAmount,
   goods=normalizedItems.goodsTotal===undefined?Math.round(items.reduce(function(n,i){return n+i.qty*i.unitPrice},0)):normalizedItems.goodsTotal;
  var total=Math.round(goods+shipping+vat);
