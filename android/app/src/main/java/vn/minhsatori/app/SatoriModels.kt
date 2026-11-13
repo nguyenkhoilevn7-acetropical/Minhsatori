@@ -203,7 +203,7 @@ object SatoriData {
     private fun discontinued20L(item: JSONObject, name: String): Boolean {
         if (string(item, "code") == "TP-00005") return true
         val description = normalized(name + " " + string(item, "spec"))
-        return Regex("""(?:^|[^0-9])20\s*(?:l|lit|litre|liter)\b""")
+        return Regex("""(?:^|[^0-9])20[\s-]*(?:l|lit|litre|liter)\b""")
             .containsMatchIn(description)
     }
 
