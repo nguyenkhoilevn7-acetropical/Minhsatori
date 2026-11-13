@@ -356,20 +356,25 @@ export async function scanInvoices(pool,sourceReader,now=new Date(),
  return {seen:found.size,inserted,backlog:next==null?0:until-next+1,unresolved,reads,budgetExhausted};
 }
 
+// A subscribed owner phone keeps receiving pushes after the 7-day web session
+// that registered it expires: the app cannot re-register while that session is
+// expired, so filtering on expires_at silently stopped every push. Revocation is
+// unchanged: logout/account revocation DELETE the session row, which cascades to
+// the device (FK ON DELETE CASCADE); the bell toggle revokes; FCM token errors
+// disable; a removed/suspended or non-owner account never receives.
 const ownerDeviceFilter=
  'JOIN satori_v2_accounts a ON a.id=d.account_id '+
- 'JOIN satori_v2_sessions s ON s.token_hash=d.session_hash AND s.expires_at>now() '+
  "WHERE d.enabled=true AND a.google_sub=$1 AND a.access_status NOT IN ('REMOVED','SUSPENDED') ";
 
 export async function queueDeliveries(pool,ownerSub){
  if(!ownerSub)return 0;
- // A newly enrolled phone never receives historical events; stale events
- // (offline > 24h) are not delivered late.
+ // A newly enrolled phone never receives historical events. A "new order" alert
+ // older than 2h is noise (the in-app badge still lists it), so it is not sent late.
  const r=await pool.query('INSERT INTO satori_v2_owner_push_deliveries(event_id,device_id) '+
   'SELECT e.id,d.device_id FROM satori_v2_owner_push_events e '+
   'CROSS JOIN satori_v2_owner_push_devices d '+ownerDeviceFilter+
   'AND e.eligible=true AND e.created_at>=d.registered_at '+
-  "AND e.created_at>now()-interval '24 hours' ON CONFLICT DO NOTHING",[ownerSub]);
+  "AND e.created_at>now()-interval '2 hours' ON CONFLICT DO NOTHING",[ownerSub]);
  return r.rowCount;
 }
 

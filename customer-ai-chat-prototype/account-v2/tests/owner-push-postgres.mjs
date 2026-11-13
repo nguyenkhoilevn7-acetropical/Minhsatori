@@ -195,6 +195,19 @@ try{
  assert.equal(delivered.filter(x=>x.data.invoiceNo==='7010').length,1,'healthy device still gets it');
  pass('Expired/unregistered FCM token is disabled with a safe audit code');
 
+ // --- Regression 2026-11-13: owner web session expired (7 days) ---------
+ // The phone could not re-register while its session was expired, and the relay
+ // filtered on session expiry, so every push silently stopped.
+ await pool.query("UPDATE satori_v2_sessions SET expires_at=now()-interval '1 minute' WHERE token_hash=$1",
+  [hash(ownerSession.token)]);
+ ledger.push({id:'L-10B',invoiceNo:7031,status:'Chưa thanh toán'});
+ await tick();
+ assert.equal(delivered.filter(x=>x.data.invoiceNo==='7031'&&x.token===token).length,1,
+  'expired web session must not stop the subscribed phone');
+ await pool.query("UPDATE satori_v2_sessions SET expires_at=now()+interval '1 hour' WHERE token_hash=$1",
+  [hash(ownerSession.token)]);
+ pass('Expired 7-day owner web session does not stop pushes to the subscribed phone');
+
  // --- TEST 08: Owner logout revokes the device --------------------------
  assert.equal((await api('/api/v2/logout',{},ownerSession.headers)).status,200);
  assert.equal((await one('SELECT count(*)::int n FROM satori_v2_owner_push_devices WHERE device_id=$1',[deviceId])).n,0);
