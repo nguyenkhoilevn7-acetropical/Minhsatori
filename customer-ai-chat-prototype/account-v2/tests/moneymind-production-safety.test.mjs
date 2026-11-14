@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const files=[
- ['account-v2/app.html','cc98f9d9','mm-bottom-nav'],
+ ['account-v2/app.html','260888c6','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const withoutUi25d=html=>html
@@ -50,6 +50,7 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // existing bottom navigation cart, only after confirmed server-side cart save.
  // Includes reduced-motion handling; no pricing, Gemini or checkout changes.
  // Nov 12 reviewed one PDF filename display-only change. The original invoice, delivery, pricing and checkout handlers remain unchanged.
+ // Nov 14 reviewed: the PDF filename helper falls back instead of throwing, so a missing date/recipient never blocks viewing a verified PDF. Only verifiedInvoicePdfFilename changed.
  // Nov 2 reviewed a second motion-only Gemini Send confirmation entrypoint; applies
  // strictly after authenticated positive cart deltas. No API, quote or order changes.
  const v2=fs.readFileSync(path.join(root,'account-v2/app.html'),'utf8');
