@@ -718,6 +718,8 @@ function normalizeEditPrices(draft){
  var mode=draft.vatMode||'invoice';
  need(['invoice','per_line'].includes(mode),'INVALID_ORDER','vatMode không hợp lệ');
  var header=invoiceVatRate(draft.vatRate),net=0,tax=0,gross=0;
+ need(mode==='per_line'||header===0||header===800,'INVALID_TAX_RATE',
+  'VAT tổng hóa đơn hỗ trợ 0% hoặc 8%; thuế suất khác cần chọn VAT từng dòng');
  var items=draft.items.map(function(i){
   need(i&&typeof i==='object'&&String(i.product||'').trim().length>=2,'INVALID_ITEM','Thiếu tên sản phẩm');
   need(Number.isSafeInteger(i.qty)&&i.qty>0&&i.qty<=100000,'INVALID_ITEM','Sai số lượng');
@@ -813,6 +815,11 @@ function updateUnpaidOrder(s,all,p,actor){
   'PAID_ORDER_PROTECTED','Chỉ sửa hóa đơn chưa thanh toán, chưa đối soát');
  need(norm(original.name)===norm(p.expectedName)&&Number(original.total)===p.expectedTotal,
   'ORDER_CHANGED','Tên khách hoặc tổng tiền gốc đã khác; hãy tải lại');
+ // Older Android builds read unitPrice as an integer and discard fractional
+ // precision. Never accept their lossy payload for a fractionally priced edit.
+ need(draft.priceMode!==undefined||!Array.isArray(original.items)||
+  !original.items.some(function(i){return !Number.isInteger(Number(i.unitPrice))}),
+  'PRICE_MODE_REQUIRED','Hóa đơn có đơn giá lẻ; sửa qua kết nối hỗ trợ giá chính xác hoặc cập nhật ứng dụng');
  var trash=JSON.parse(s.values.satori_trash_bin_v15||'[]');
  need(Array.isArray(trash),'INVALID_STATE','Thùng rác không hợp lệ');
  need(!all.some(function(o){return o.apiRequestId===requestId||

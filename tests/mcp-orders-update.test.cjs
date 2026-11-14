@@ -18,7 +18,8 @@ function harness(){
  DriveApp:{getFileById:()=>({makeCopy:()=>{backups++;return {getId:()=> 'backup-fixture',getBlob:()=>({getDataAsString:()=>badBackup?'{}':JSON.stringify(state)})}},setContent:s=>{writes++;state=JSON.parse(s)}})}};
  vm.createContext(ctx);vm.runInContext(fs.readFileSync(process.env.SATORI_TEST_BOT_SOURCE||__dirname+'/../api/BotApi.gs','utf8'),ctx);
  function call(action,payload={}){const r={keyId:'fixture',timestamp:Date.now(),nonce:'synthetic_nonce_'+String(++seq).padStart(20,'0'),action,payload};r.signature=crypto.createHmac('sha256',secret).update([r.keyId,r.timestamp,r.nonce,action,JSON.stringify(payload)].join('\n')).digest('hex');return JSON.parse(ctx.doPost({postData:{contents:JSON.stringify(r)}}).text);}
- return {call,rows:()=>JSON.parse(state.values.satori_orders_v15),counts:()=>[writes,backups,state.revision],state:()=>structuredClone(state),role:v=>role=v,scopes:v=>scopes=v,badBackup:()=>badBackup=true,seed:rows=>{state.values.satori_orders_v15=JSON.stringify(rows)}};
+ function mobile(action,payload){try{return {ok:true,...ctx.SatoriBotApi.ownerMobileWrite(action,payload,'synthetic_mobile_nonce_'+String(++seq).padStart(20,'0'))}}catch(e){return {ok:false,error:{code:e.code}}}}
+ return {call,mobile,rows:()=>JSON.parse(state.values.satori_orders_v15),counts:()=>[writes,backups,state.revision],state:()=>structuredClone(state),role:v=>role=v,scopes:v=>scopes=v,badBackup:()=>badBackup=true,seed:rows=>{state.values.satori_orders_v15=JSON.stringify(rows)}};
 }
 function input(extra={}){return {id:901,invoiceNo:9001,expectedRevision:200,expectedName:'Synthetic Customer',expectedTotal:108000,requestId:'synthetic-edit-0001',confirmed:true,reason:'Owner requested synthetic correction',order:{name:'Synthetic Customer',phone:'0900000000',location:'123 Test Street',items:[{code:'TEST-01',product:'Synthetic Water',qty:20,unitPrice:74000,listPrice:98000}],priceMode:'inclusive',vatRate:8,shippingAmount:0},...extra};}
 test('ported live HMAC edit cannot add or increase retired 20L quantities', {skip:!process.env.SATORI_TEST_BOT_SOURCE},()=>{
@@ -61,9 +62,9 @@ test('conflicts, wrong identity, paid invoices and backup corruption fail before
  const b=harness();b.badBackup();assert.equal(b.call('orders.update',input()).error.code,'BACKUP_FAILED');assert.equal(b.counts()[0],0);
 });
 test('exclusive and mixed line VAT compute once; 0% and invalid amounts/rates',()=>{
- const p=input();for(const rate of [0,8,5.5]){const h=harness();const r=h.call('orders.previewUpdate',{...p,order:{...p.order,priceMode:'exclusive',vatRate:rate,items:[{product:'Fake Water',qty:3,unitPrice:10001}]}});assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.data.order.total,30003+Math.round(30003*rate/100));}
+ const p=input();for(const rate of [0,8]){const h=harness();const r=h.call('orders.previewUpdate',{...p,order:{...p.order,priceMode:'exclusive',vatRate:rate,items:[{product:'Fake Water',qty:3,unitPrice:10001}]}});assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.data.order.total,30003+Math.round(30003*rate/100));}
  const h=harness();const r=h.call('orders.previewUpdate',{...p,order:{...p.order,vatMode:'per_line',items:[{product:'Fake Water',qty:20,unitPrice:74000,vatRate:8},{product:'Deposit',qty:1,unitPrice:5000,vatExempt:true}]}});assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.data.order.total,1485000);assert.equal(r.data.order.vatAmount,109630);assert.equal(r.data.order.items[1].vatRate,0);
- for(const order of [{...p.order,vatRate:101},{...p.order,total:1},{...p.order,vatMode:'invoice',items:[{product:'Fake Water',qty:1,unitPrice:100,vatRate:5}]}])assert.equal(h.call('orders.previewUpdate',{...p,order}).ok,false);
+ for(const order of [{...p.order,vatRate:5.5},{...p.order,vatRate:101},{...p.order,total:1},{...p.order,vatMode:'invoice',items:[{product:'Fake Water',qty:1,unitPrice:100,vatRate:5}]}])assert.equal(h.call('orders.previewUpdate',{...p,order}).ok,false);
 });
 test('guarded undo restores only the target with a new revision, history and idempotent retry',()=>{
  const h=harness(),before=h.rows();assert.equal(h.call('orders.update',input()).ok,true);
@@ -82,4 +83,13 @@ test('omitted optional shipping and delivery note preserve the saved invoice fie
  const h=harness(),rows=h.rows();rows[0].shippingAmount=5000;rows[0].deliveryNote='Synthetic morning delivery';rows[0].total=113000;h.seed(rows);
  const p=input({expectedTotal:113000});delete p.order.shippingAmount;
  const r=h.call('orders.previewUpdate',p);assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.data.order.total,1485000);assert.equal(r.data.order.shippingAmount,5000);assert.equal(r.data.order.deliveryNote,rows[0].deliveryNote);
+});
+test('legacy integer-only mobile payload cannot overwrite fractional MCP prices',()=>{
+ const h=harness(),p=input();assert.equal(h.call('orders.update',p).ok,true);
+ const saved=h.rows()[0],before=h.state();
+ const legacy={...p,expectedRevision:201,expectedTotal:1480000,requestId:'legacy-lossy-0001',order:{...p.order,total:1480000,vatAmount:109630,items:saved.items.map(i=>({...i,unitPrice:Math.trunc(i.unitPrice)}))}};
+ delete legacy.order.priceMode;
+ assert.equal(h.mobile('orders.update',legacy).error.code,'PRICE_MODE_REQUIRED');
+ assert.deepEqual(h.state(),before);assert.deepEqual(h.counts(),[1,1,201]);
+ assert.equal(h.call('orders.update',p).data.duplicate,true,'original retry still succeeds');
 });
