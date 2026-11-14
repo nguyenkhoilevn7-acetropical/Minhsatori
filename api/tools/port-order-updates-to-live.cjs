@@ -42,6 +42,10 @@ function port(live,next,base){
  };
  let write=take(live,l.functions,'write');
  write=once(write,/function write\(s,action,p\)/,'function write(s,action,p,actor)');
+ // The mobile entry point already enforces the live retirement policy. Apply
+ // the same policy to the new HMAC entry point before any order mutation.
+ write=once(write,/function write\(s,action,p,actor\)\{/,
+  "function write(s,action,p,actor){\n if(action==='orders.update'&&typeof guardRetiredOrderEdit_==='function')guardRetiredOrderEdit_(s,action,p);");
  write=once(write,/action==='orders.update'\?updateUnpaidOrder\(s,all,p\):/,"action==='orders.update'?updateUnpaidOrder(s,all,p,actor):\n action==='orders.undoUpdate'?undoOrderUpdate(s,all,p,actor):");replace('write',write);
  let handle=take(live,l.functions,'handle');
  handle=once(handle,/var result=isWrite\?write\(s,identity.action,identity.payload\)/,"isWrite=isWrite||identity.action==='orders.update'||identity.action==='orders.undoUpdate';\n var result=isWrite?write(s,identity.action,identity.payload,identity.actor)");replace('handle',handle);

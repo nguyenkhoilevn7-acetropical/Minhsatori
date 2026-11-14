@@ -21,6 +21,17 @@ function harness(){
  return {call,rows:()=>JSON.parse(state.values.satori_orders_v15),counts:()=>[writes,backups,state.revision],state:()=>structuredClone(state),role:v=>role=v,scopes:v=>scopes=v,badBackup:()=>badBackup=true,seed:rows=>{state.values.satori_orders_v15=JSON.stringify(rows)}};
 }
 function input(extra={}){return {id:901,invoiceNo:9001,expectedRevision:200,expectedName:'Synthetic Customer',expectedTotal:108000,requestId:'synthetic-edit-0001',confirmed:true,reason:'Owner requested synthetic correction',order:{name:'Synthetic Customer',phone:'0900000000',location:'123 Test Street',items:[{code:'TEST-01',product:'Synthetic Water',qty:20,unitPrice:74000,listPrice:98000}],priceMode:'inclusive',vatRate:8,shippingAmount:0},...extra};}
+test('ported live HMAC edit cannot add or increase retired 20L quantities', {skip:!process.env.SATORI_TEST_BOT_SOURCE},()=>{
+ for(const product of ['Satori 20L','Satori 20-lít']){
+  const h=harness(),p=input();p.order.items=[{product,qty:1,unitPrice:74000}];
+  const result=h.call('orders.update',p);
+  assert.equal(result.error?.code,'PRODUCT_DISCONTINUED',JSON.stringify(result));
+  assert.deepEqual(h.counts(),[0,0,200]);
+ }
+ const h=harness(),rows=h.rows();rows[0].items=[{product:'Satori 20L',qty:1,unitPrice:100000}];h.seed(rows);
+ const p=input();p.order.items=[{product:'Satori 20L',qty:2,unitPrice:100000}];
+ assert.equal(h.call('orders.update',p).error?.code,'PRODUCT_DISCONTINUED');assert.deepEqual(h.counts(),[0,0,200]);
+});
 test('exact get and preview return canonical identity and correct inclusive VAT without a write',()=>{
  const h=harness();assert.equal(h.call('orders.get',{invoiceNo:9001}).data.order.id,901);
  const other=JSON.stringify(h.rows()[1]);const r=h.call('orders.previewUpdate',input());assert.equal(r.ok,true,JSON.stringify(r));

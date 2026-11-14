@@ -6,6 +6,7 @@ test('ports exact edit routes while preserving live-only read actions and owner 
  const live=base.replace("var SCOPES={","var SCOPES={'pdf.get':'pdf:read',").replace('function read(s,action,p){',"function read(s,action,p){if(action==='pdf.get')return {livePdf:true};");
  const result=port(live,next,base);assert.ok(result.includes("'pdf.get':'pdf:read'"));assert.ok(result.includes("if(action==='pdf.get')return {livePdf:true};"));
  assert.ok(result.includes('function normalizeEditPrices('));assert.ok(result.includes("'orders.update':'orders:update'"));
+ assert.ok(result.includes("if(action==='orders.update'&&typeof guardRetiredOrderEdit_==='function')guardRetiredOrderEdit_(s,action,p);"),'HMAC edits use the existing live retirement policy');
  const getOwner=s=>s.slice(s.indexOf('function ownerMobileWrite('),s.indexOf('return {handle:handle'));
  assert.equal(getOwner(result),getOwner(live),'existing owner OAuth bridge byte-identical');
 });
