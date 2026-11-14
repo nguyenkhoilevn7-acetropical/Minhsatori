@@ -9,6 +9,9 @@ const config={'SATORI_ANDROID_OWNER_EMAIL':owner,
 const ledger={revision:133,updatedAt:'2026-10-23T22:40:00+07:00',
  values:{satori_orders_v15:JSON.stringify([{id:11,invoiceNo:8001,name:'FAKE A'}]),
  satori_catalogue_v15:'[]',satori_ai_customer_memory:'[]',
+ satori_collaborators_v1:JSON.stringify([{
+  id:'fake-ctv-1',name:'CTV FIXTURE',phone:'0988888888',
+  discountPercent:35,active:true}]),
  satori_trash_bin_v15:JSON.stringify([{deletedAt:Date.now()-300000,
   expiresAt:Date.now()+30*86400000,apiDeleteRequestId:'fakedelete-id-8001',
   order:{id:12,invoiceNo:8000,name:'FAKE DELETED',total:0}}])}};
@@ -44,8 +47,12 @@ function request(action,payload={},token='FAKE_TEST_OWNER_TOKEN_EXPLICIT'){
      payload,accessToken:token,nonce:'requestnonce_123456789012345'})},
    parameter:{route:'android'}}).body);
 }
+let originReads=0;
+ctx.SatoriV2OrderOrigins={read:state=>{assert.equal(state,ledger);originReads++;return [{ledgerInvoiceId:'11',invoiceNo:'8001',accountId:'fake-account',accountName:'Fake CTV',accountRole:'collaborator'}]}};
 let snap=request('mobile.snapshot');assert.equal(snap.ok,true);
 assert.equal(snap.data.revision,133);
+assert.equal(JSON.parse(snap.data.values.satori_v2_order_origins_v1)[0].accountId,'fake-account');
+assert.equal(originReads,1);
 assert.equal(snap.data.actorId,'12345678901234567890');
 assert.ok(snap.data.allowedActions.includes('orders.restore'));
 assert.ok(snap.data.allowedActions.includes('orders.delete'));
@@ -65,6 +72,12 @@ assert.equal(noBridgePayment.error.code,'API_NOT_READY');
 assert.equal(mobileWrites.length,0,'Unready owner API must never perform a write');
 ctx.SatoriBotApi=savedBridge;
 assert.equal(snap.data.values.satori_orders_v15,ledger.values.satori_orders_v15);
+assert.equal(snap.data.values.satori_collaborators_v1,
+ ledger.values.satori_collaborators_v1,'CTV registry must accompany owner invoice snapshot');
+assert.deepEqual(JSON.parse(snap.data.values.satori_collaborators_v1).map(x=>x.discountPercent),[35]);
+assert.equal(noBridge.data.values.satori_collaborators_v1,ledger.values.satori_collaborators_v1,
+ 'read-only CTV registry must not require payment write bridge');
+
 assert.ok(!('satori_trash_bin_v15' in snap.data.values),'trash not exposed with general snapshot');
 assert.ok(!JSON.stringify(snap).includes('FAKE_TEST_OWNER_TOKEN_EXPLICIT'),'token not echoed');
 let rev=request('mobile.revision');assert.equal(rev.ok,true);
@@ -135,4 +148,4 @@ assert.equal(request('orders.rename',ownerEdit).error.code,'INVALID_ACTION',
  'other nonallowlisted owner actions remain denied');
 assert.equal(mobileWrites.length,8);
 assert.equal(request('orders.delete',payload,'short').error.code,'AUTH_FAILED');
-console.log('PASS fake Owner Mobile API: OAuth, canonical ledger, owner create/update, four payments, delete/restore, forbidden actions');
+console.log('PASS fake Owner Mobile API: owner CTV registry included, OAuth, canonical ledger, owner create/update, four payments, delete/restore, forbidden actions');

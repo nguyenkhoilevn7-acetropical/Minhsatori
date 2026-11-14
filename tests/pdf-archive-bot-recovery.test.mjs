@@ -59,5 +59,11 @@ const all=[
   assert.deepEqual(q.map(x=>x.invoiceNo),[5933]);
 }
 assert.ok(index.includes('if(total>0)bank.push({qr:invoiceVietQrPayload(o)'), 'positive amount must render VietQR only');
+{
+  const run=boot([{id:'old-web-invoice',invoiceNo:9001,name:'Synthetic Edited Invoice',apiUpdateRequestId:'synthetic-edit-0001'}]);
+  await [...run.timers.values()].at(-1)();
+  const q=JSON.parse(run.map.get('satori_pdf_archive_pending_v1'));
+  assert.deepEqual(q.map(x=>x.invoiceNo),[9001],'MCP edits of website-created invoices must regenerate the current PDF');
+}
 assert.ok(index.includes('if(payment.total<=0) return '), 'zero amount must avoid payment requests');
 console.log('PASS PDF archive: Bot API recovery, version dedupe and 0đ invoice PDF without payment QR');

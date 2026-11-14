@@ -2,6 +2,7 @@ package vn.minhsatori.app
 
 import android.app.Activity
 import android.app.Notification
+import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.Manifest
@@ -57,7 +58,7 @@ import com.google.android.gms.common.api.Scope
  * is configured and tested against a sandbox. No raw token or invoice stored.
  */
 class NativeMainActivity : AppCompatActivity() {
-    private val teal = Color.rgb(0, 156, 153)
+    private val teal get() = SatoriUiTheme.accent(this)
     private val dark = Color.rgb(16, 43, 56)
     private val muted = Color.rgb(102, 121, 130)
     private val pale = Color.rgb(241, 244, 245)
@@ -66,20 +67,28 @@ class NativeMainActivity : AppCompatActivity() {
     private var dashboardMode = false
     private val ink = Color.rgb(16, 43, 56)
     private val softInk = Color.rgb(102, 121, 130)
-    private val cyan = Color.rgb(0, 156, 153)
+    private val cyan get() = SatoriUiTheme.accent(this)
     private val night = Color.rgb(241, 244, 245)
     private val surface = Color.rgb(255, 255, 255)
-    private val indigo = Color.rgb(226, 246, 243)
     private var activeTab = 0
     private var activeInvoiceDialog: AlertDialog? = null
     private var showAdvancedOverview = false
     private var accessToken: String? = null
     private var snapshot: SatoriSnapshot? = null
+    // Owner-only, in-memory read bridge. Never persist tokens or CTV policies.
+    private var ctvBridgeRevision: Long? = null
+    private var ctvBridgeToken: String? = null
+    private var ctvBridgeSnapshot: SatoriSnapshot? = null
     private var statusMessage = "Chưa liên kết dữ liệu Google Drive. Bấm KẾT NỐI DỮ LIỆU để bắt đầu."
     private var searchText = ""
+    private var selectedInvoiceStatusIndex = 0
     // UI-only filters: no ledger mutation and no new data permissions.
     private var debtProfitPeriod = AccountingProMargin45Period.all()
     private var debtProfitChoice = 0
+    private var homeProfitPeriod = AccountingProMargin45Period.all()
+    private var homeProfitChoice = 0
+    // Export data is captured at tap time; never persist customer records locally.
+    private var pendingExcelExport: Pair<SatoriSnapshot, List<SatoriInvoice>>? = null
     private var isLoading = false
     private var fileUri: Uri? = null
     private var dataSource = ""
@@ -109,9 +118,40 @@ class NativeMainActivity : AppCompatActivity() {
     private var authorizationPending = false
     private var authorizationDeclined = false
     private var foreground = false
+    // Verified V2 checkout origins (owner V2 session). Labels only; never changes bills.
+    private var v2Origins: List<SatoriOrderOrigin> = emptyList()
+    private var v2OriginsFetchedAtMs = 0L
+    @Volatile private var v2OriginsInFlight = false
     private var lastOAuthRecoveryAt = 0L
     private val oauthRetryBackoffMs = 300_000L
     private val newOrderChannelId = "minh_satori_live_orders"
+    private val newOrderNotificationId = 52001
+    private val newInvoiceTapAction = "vn.minhsatori.app.OPEN_NEW_INVOICE"
+    private val newInvoiceTapExtra = "invoice_no"
+    private var pendingNotificationInvoiceNo: Long? = null
+
+    /** Notification opens may carry an invoice number but never private ledger content. */
+    private fun queueInvoiceFromNotification(source: Intent?) {
+        if (source?.action != newInvoiceTapAction) return
+        val no = source.getLongExtra(newInvoiceTapExtra, -1L)
+        if (no > 0L) {
+            pendingNotificationInvoiceNo = no
+            activeTab = 1
+        }
+    }
+
+    /** A cold start defers navigation until the canonical invoice snapshot is loaded. */
+    private fun openPendingNotificationInvoiceIfReady() {
+        val no = pendingNotificationInvoiceNo ?: return
+        if (activeInvoiceDialog?.isShowing == true) return
+        val invoice = snapshot?.invoices?.firstOrNull { it.number.toLongOrNull() == no }
+            ?: return
+        pendingNotificationInvoiceNo = null
+        previousScrollView?.post {
+            if (!isFinishing && !isDestroyed && activeTab == 1 &&
+                activeInvoiceDialog?.isShowing != true) openInvoice(invoice)
+        }
+    }
     // Persist only invoice sequence IDs, never customer information or order contents.
     private var invoiceBadgeState = InvoiceBadgeState()
     private var invoiceBadgeLoaded = false
@@ -143,8 +183,13 @@ class NativeMainActivity : AppCompatActivity() {
     /** Reading one invoice clears only its own unread marker, not other new orders. */
     private fun acknowledgeInvoiceBadge(number: Long) {
         val current = currentInvoiceBadge()
-        if (number in current.unread)
-            saveInvoiceBadge(InvoiceBadgePolicy.acknowledgeOne(current, number))
+        if (number in current.unread) {
+            val next = InvoiceBadgePolicy.acknowledgeOne(current, number)
+            saveInvoiceBadge(next)
+            if (next.count == 0)
+                (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
+                    .cancel(newOrderNotificationId)
+        }
     }
 
     private fun badgePill(count: Int): TextView = TextView(this).apply {
@@ -272,9 +317,20 @@ class NativeMainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= 26)
             notifications.createNotificationChannel(NotificationChannel(newOrderChannelId,
                 "Đơn hàng thật Minh Satori", NotificationManager.IMPORTANCE_HIGH))
-        val invoice = latest.invoices.firstOrNull { row ->
-            row.number.toLongOrNull()?.let { it in update.fresh } == true
+        val newestNo = update.fresh.maxOrNull() ?: return
+        // One OS notification per invoice: if FCM already alerted for every
+        // fresh invoice, re-sync must not alert again (and vice versa).
+        val notYetAlerted = update.fresh.filter { SatoriPush.markNotified(this, it) }
+        if (notYetAlerted.isEmpty()) return
+        val invoice = latest.invoices.firstOrNull {
+            it.number.toLongOrNull() == newestNo
         } ?: return
+        val destination = Intent(this, NativeMainActivity::class.java)
+            .setAction(newInvoiceTapAction)
+            .putExtra(newInvoiceTapExtra, newestNo)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val openInvoiceIntent = PendingIntent.getActivity(this, newOrderNotificationId,
+            destination, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         @Suppress("DEPRECATION")
         val notification = if (Build.VERSION.SDK_INT >= 26)
             Notification.Builder(this, newOrderChannelId)
@@ -283,8 +339,17 @@ class NativeMainActivity : AppCompatActivity() {
             .setContentTitle("Minh Satori • " + update.state.count + " hóa đơn chưa xem")
             .setContentText("Mới nhất #" + invoice.number + " • " +
                 SatoriData.money(invoice.total))
+            .setContentIntent(openInvoiceIntent)
             .setAutoCancel(true)
-        notifications.notify(52001, notification.build())
+            // Amounts are hidden on the lock screen; only a generic line shows.
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion((if (Build.VERSION.SDK_INT >= 26)
+                Notification.Builder(this, newOrderChannelId)
+                else @Suppress("DEPRECATION") Notification.Builder(this))
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("Minh Satori")
+                .setContentText("Có đơn hàng mới · mở khóa để xem").build())
+        notifications.notify(newOrderNotificationId, notification.build())
     }
 
     private fun hasServerAction(action: String): Boolean =
@@ -319,6 +384,33 @@ class NativeMainActivity : AppCompatActivity() {
 
     // Open a supplier XLSX/CSV statement strictly for local, read-only analysis.
     // Never upload statement bytes, persist a copy or mutate a Drive invoice.
+    private val saveExcelPicker = registerForActivityResult(
+        ActivityResultContracts.CreateDocument(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    ) { uri ->
+        val pending = pendingExcelExport
+        pendingExcelExport = null
+        if (uri != null && pending != null) {
+            Thread {
+                try {
+                    val stream = contentResolver.openOutputStream(uri, "w")
+                        ?: throw java.io.IOException("Không tạo được file Excel.")
+                    stream.use { OwnerExcelExport.write(pending.first, pending.second, it) }
+                    runOnUiThread {
+                        Toast.makeText(this, "Đã lưu Excel 4 sheet • " +
+                            pending.second.size + " hóa đơn", Toast.LENGTH_LONG).show()
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        AlertDialog.Builder(this).setTitle("Không xuất được Excel")
+                            .setMessage(e.message ?: "Không ghi được file.")
+                            .setPositiveButton("Đóng", null).show()
+                    }
+                }
+            }.start()
+        }
+    }
+
     private val supplierStatementPicker = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -389,6 +481,8 @@ class NativeMainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        v2Origins = runCatching { V2OrderOriginsClient.cached(this) }.getOrDefault(emptyList())
+        queueInvoiceFromNotification(intent)
         pendingStore = PendingWriteStore(this)
         runCatching { pendingStore.load() }.fold(
             onSuccess = { pendingWrite = it },
@@ -427,9 +521,21 @@ class NativeMainActivity : AppCompatActivity() {
         syncPreferredSource()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action != newInvoiceTapAction) return
+        queueInvoiceFromNotification(intent)
+        if (pendingNotificationInvoiceNo != null) {
+            activeInvoiceDialog?.dismiss()
+            render()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         foreground = true
+        SatoriPush.registerOwnerDevice(this)
         syncHandler.removeCallbacks(syncTick)
         syncHandler.postDelayed(syncTick, syncIntervalMs)
         v2AlertHandler.removeCallbacks(v2AlertTick)
@@ -452,6 +558,71 @@ class NativeMainActivity : AppCompatActivity() {
             }
             else if (AutoSyncPolicy.due(lastSyncAttemptElapsedMs,
                     SystemClock.elapsedRealtime(), fallbackReadMs)) syncPreferredSource()
+        }
+    }
+
+    /**
+     * Owner-facing push diagnostics. Shows safe states only: never the full FCM
+     * token, cookies or secrets. "Gửi thử" asks the server for a synthetic push
+     * (no invoice) to prove server -> Firebase -> this phone end to end.
+     */
+    private fun showPushDiagnostics() {
+        fun format(lines: List<Pair<String, String>>) =
+            lines.joinToString("\n") { "• " + it.first + ": " + it.second }
+        val local = format(SatoriPush.localDiagnostics(this))
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Chẩn đoán thông báo đẩy")
+            .setMessage(local + "\n\nĐang kiểm tra máy chủ…")
+            .setPositiveButton("Gửi thử", null)
+            .setNeutralButton("Đăng ký lại", null)
+            .setNegativeButton("Đóng", null)
+            .show()
+        val message = dialog.findViewById<TextView>(android.R.id.message)
+        message?.setTextIsSelectable(true)
+        fun refresh(note: String? = null) {
+            val cookie = V2RegistrationAlerts.cookie()
+            val localNow = format(SatoriPush.localDiagnostics(this))
+            Thread {
+                val server = format(SatoriPush.fetchServerStatus(applicationContext, cookie))
+                runOnUiThread {
+                    if (dialog.isShowing) dialog.setMessage(localNow + "\n\nMÁY CHỦ\n" + server +
+                        (if (note != null) "\n\n" + note else ""))
+                }
+            }.start()
+        }
+        refresh()
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+            SatoriPush.registerOwnerDevice(this, force = true) { code ->
+                runOnUiThread { refresh("Kết quả đăng ký: " + code) }
+            }
+        }
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+            val cookie = V2RegistrationAlerts.cookie()
+            Thread {
+                val code = SatoriPush.requestServerTest(applicationContext, cookie)
+                runOnUiThread {
+                    refresh(if (code == "FCM_ACCEPTED")
+                        "Firebase đã nhận tin thử. Thông báo sẽ hiện trên máy trong giây lát."
+                        else "Gửi thử thất bại: " + code)
+                }
+            }.start()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 5201) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                SatoriPush.registerOwnerDevice(this)
+            } else {
+                getPreferences(MODE_PRIVATE).edit()
+                    .putBoolean("satori_live_notifications", false).apply()
+                Toast.makeText(this, "Quyền thông báo bị từ chối. Chưa bật báo đơn.",
+                    Toast.LENGTH_LONG).show()
+            }
+            render()
         }
     }
 
@@ -493,6 +664,8 @@ class NativeMainActivity : AppCompatActivity() {
             statusMessage = "Đang chuyển sang Google Drive live; file thủ công không tự cập nhật."
         }
         lastSyncAttemptElapsedMs = 0L
+        // Manual refresh also retries the approved CTV read when GAS is outdated.
+        ctvBridgeRevision = null
         if (accessToken == null) connectGoogle() else syncPreferredSource()
     }
 
@@ -515,6 +688,8 @@ class NativeMainActivity : AppCompatActivity() {
         // OAuth tokens/snapshots stay in memory; only the encrypted pending write survives.
         accessToken = null
         snapshot = null
+        ctvBridgeToken = null
+        ctvBridgeSnapshot = null
         super.onDestroy()
     }
 
@@ -584,11 +759,35 @@ class NativeMainActivity : AppCompatActivity() {
         return view
     }
 
-    private fun panelBackground(color: Int = surface, radius: Int = 16): GradientDrawable =
+    /**
+     * Compact numerical values to the actual available card width.
+     *
+     * A TextView with setSingleLine(true) becomes horizontally scrollable on
+     * Android, so the platform auto-size engine measures an effectively
+     * infinite width and may clip the trailing digits of VND totals.
+     * maxLines=1 WITHOUT horizontal scrolling lets auto-size choose a font
+     * that fits the measured card (including compact Samsung/Fold layouts).
+     */
+    private fun fitCardNumber(view: TextView, maxSp: Int = 21, minSp: Int = 9) {
+        require(minSp in 1..maxSp)
+        view.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        view.maxLines = 1
+        view.setHorizontallyScrolling(false)
+        view.ellipsize = null
+        view.setAutoSizeTextTypeUniformWithConfiguration(
+            minSp, maxSp, 1, android.util.TypedValue.COMPLEX_UNIT_SP
+        )
+    }
+
+    // V2: shared 2.5D surface strokes; preserve account-selected theme colors.
+    private fun panelBackground(color: Int = surface, radius: Int = 20): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), Color.rgb(225, 233, 233))
+            setStroke(dp(1), Color.rgb(216, 234, 229))
         }
 
     private fun button(parent: LinearLayout, text: String, main: Boolean = false,
@@ -598,12 +797,12 @@ class NativeMainActivity : AppCompatActivity() {
             textSize = 12f
             isAllCaps = false
             letterSpacing = 0f
-            minHeight = dp(40)
-            minimumHeight = dp(40)
+            minHeight = dp(44)
+            minimumHeight = dp(44)
             setPadding(dp(9), 0, dp(9), 0)
             stateListAnimator = null
             setTypeface(typeface, Typeface.BOLD)
-            val accent = if (main) white else if (danger) Color.rgb(207, 46, 46) else cyan
+            val accent = if (main) SatoriUiTheme.onAccent(this@NativeMainActivity) else if (danger) Color.rgb(207, 46, 46) else cyan
             setTextColor(accent)
             if (iconRes != 0) {
                 val symbol = androidx.core.content.ContextCompat.getDrawable(
@@ -615,16 +814,16 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
             }
             background = if (main) {
-                GradientDrawable().apply {
-                    // MoneyMind flat design: solid teal, no gradients.
-                    setColor(Color.rgb(0, 156, 153))
-                    cornerRadius = dp(14).toFloat()
+                GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(SatoriUiTheme.deep(this@NativeMainActivity), teal)).apply {
+                    cornerRadius = dp(16).toFloat()
                 }
             } else panelBackground(if (danger) Color.rgb(255, 243, 243)
-                else Color.rgb(233, 248, 245), 14)
+                else SatoriUiTheme.soft(this@NativeMainActivity), 14)
             setOnClickListener { click() }
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(3).toFloat() else 0f
         }
-        parent.addView(b, LinearLayout.LayoutParams(-1, dp(41)).apply {
+        parent.addView(b, LinearLayout.LayoutParams(-1, dp(44)).apply {
             topMargin = dp(6)
         })
     }
@@ -633,16 +832,18 @@ class NativeMainActivity : AppCompatActivity() {
                         click: (() -> Unit)? = null) {
         val frame = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(15), dp(13), dp(15), dp(13))
             background = panelBackground()
+            clipToOutline = true
             if (click != null) {
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { click() }
             }
         }
-        label(frame, title, 13.5f, true, white)
+        label(frame, title, 13.5f, true, ink)
         label(frame, detail, 11.5f, false, softInk, 4)
+        frame.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         parent.addView(frame, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(6)
         })
@@ -652,15 +853,17 @@ class NativeMainActivity : AppCompatActivity() {
                            accent: Int = cyan) {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(13), dp(14), dp(12), dp(14))
+            setPadding(dp(16), dp(15), dp(15), dp(15))
             background = panelBackground(when (accent) {
                 Color.rgb(16, 122, 78), Color.rgb(17, 133, 91) -> Color.rgb(227, 247, 238)
                 gold -> Color.rgb(255, 246, 223)
-                else -> Color.rgb(226, 247, 244)
+                else -> SatoriUiTheme.soft(this@NativeMainActivity)
             })
+            clipToOutline = true
         }
         label(box, title, 11.5f, false, muted)
-        label(box, value, 18f, true, accent, 7)
+        fitCardNumber(label(box, value, 18f, true, accent, 7), maxSp = 18)
+        box.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         parent.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
@@ -731,6 +934,54 @@ class NativeMainActivity : AppCompatActivity() {
         return if (widthDp >= 600) dp(minOf(680, widthDp - 32)) else -1
     }
 
+
+    /** Native 2.5D order-mode cards share the original verified editor / Gemini routes. */
+    private fun renderUi25dOrderChoices(parent: LinearLayout, enabled: Boolean) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(12), 0, 0)
+        }
+        fun option(title: String, note: String, icon: Int, tint: Int, action: () -> Unit): LinearLayout {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(13), dp(15), dp(13), dp(15))
+                background = panelBackground(Color.WHITE, 21)
+                elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
+                isClickable = true
+                isFocusable = true
+                contentDescription = title + ". " + note
+                setOnClickListener { action() }
+            }
+            val image = ImageView(this).apply {
+                setImageResource(icon)
+                setColorFilter(tint)
+                background = panelBackground(SatoriUiTheme.soft(this@NativeMainActivity), 12)
+                setPadding(dp(9), dp(9), dp(9), dp(9))
+                contentDescription = null
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            card.addView(image, LinearLayout.LayoutParams(dp(43), dp(43)))
+            label(card, title, 14f, true, ink, 12)
+            label(card, note, 11f, false, softInk, 6)
+            return card
+        }
+        val editor = option("Lên đơn thủ công",
+            if (enabled) "Chọn khách, điểm giao và sản phẩm"
+            else "Cần xác minh quyền ghi", R.drawable.ic_satori_invoice, teal) {
+            if (enabled) launchEditor()
+            else if (apiEndpoint == null) configureMobileApi()
+            else connectGoogle()
+        }
+        val gemini = option("Mở Gemini quản trị",
+            "Lên đơn bằng hội thoại", R.drawable.ic_satori_plus, Color.rgb(117, 83, 201)) {
+            startActivity(Intent(this@NativeMainActivity, AiCustomerPortalActivity::class.java)
+                .putExtra("mode", "admin"))
+        }
+        row.addView(editor, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
+        row.addView(gemini, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
+        parent.addView(row, LinearLayout.LayoutParams(-1, -2))
+    }
+
     private fun renderMoneyMindOfflineState(parent: LinearLayout, tab: Int) {
         when (tab) {
             1 -> {
@@ -745,7 +996,30 @@ class NativeMainActivity : AppCompatActivity() {
                 parent.addView(search, LinearLayout.LayoutParams(-1, dp(46)).apply {
                     topMargin = dp(12)
                 })
-                label(parent, "Lịch sử hóa đơn", 15f, true, ink, 17)
+                val summaryRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, dp(11), 0, 0)
+                }
+                val left = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(12), dp(15), dp(12), dp(15))
+                    background = panelBackground(Color.WHITE, 21)
+                    elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
+                }
+                label(left, "TỔNG TIỀN BÁN", 11f, true, softInk)
+                label(left, "—", 22f, true, teal, 8)
+                val right = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(12), dp(15), dp(12), dp(15))
+                    background = panelBackground(Color.WHITE, 21)
+                    elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
+                }
+                label(right, "TỔNG HÓA ĐƠN", 11f, true, softInk)
+                label(right, "—", 22f, true, cyan, 8)
+                summaryRow.addView(left, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
+                summaryRow.addView(right, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
+                parent.addView(summaryRow)
+                label(parent, "Lịch sử hóa đơn", 16f, true, ink, 17)
                 section(parent, "Chưa thể xem hóa đơn",
                     "Đăng nhập và đồng bộ để xem danh sách, tìm kiếm, chỉnh sửa hoặc đối soát.")
             }
@@ -758,7 +1032,7 @@ class NativeMainActivity : AppCompatActivity() {
                 val metric = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(dp(15), dp(15), dp(15), dp(15))
-                    background = panelBackground(Color.rgb(227, 247, 243), 18)
+                    background = panelBackground(SatoriUiTheme.soft(this@NativeMainActivity), 18)
                 }
                 label(metric, "Tổng công nợ cần thu", 12f, false, softInk)
                 label(metric, "—", 25f, true, ink, 7)
@@ -772,21 +1046,8 @@ class NativeMainActivity : AppCompatActivity() {
                     "Công nợ tính theo hóa đơn thật sau khi đồng bộ. Trạng thái khách trả và thanh toán Satori độc lập.")
             }
             4 -> {
-                val card = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(dp(16), dp(14), dp(16), dp(13))
-                    background = panelBackground(Color.WHITE, 17)
-                }
-                label(card, "Lên hóa đơn Minh Satori", 17f, true, ink)
-                label(card, "Sẵn sàng kết nối tài khoản để chọn khách hàng, điểm giao, sản phẩm và duyệt hóa đơn.", 12f, false, softInk, 8)
-                button(card, "Mở Gemini quản trị", false,
-                    R.drawable.ic_satori_plus) {
-                    startActivity(Intent(this, AiCustomerPortalActivity::class.java)
-                        .putExtra("mode", "admin"))
-                }
-                parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
-                    topMargin = dp(12)
-                })
+                label(parent, "Chọn cách tạo đơn", 17f, true, ink, 17)
+                renderUi25dOrderChoices(parent, false)
                 section(parent, "Chưa được cấp quyền tạo đơn",
                     "Chỉ tạo hóa đơn thật sau khi Mobile API xác minh quyền Admin và anh xác nhận.")
             }
@@ -880,6 +1141,337 @@ class NativeMainActivity : AppCompatActivity() {
         activeInvoiceDialog?.takeIf { it.isShowing }?.let(::resizeInvoiceDialog)
     }
 
+
+    /**
+     * UI25D v0.4.47: the approved dashboard composition, not just tinting old cards.
+     * All financial figures come from a verified SatoriSnapshot; no demo values.
+     * Cards share the original tab handlers and the original owner auth policy.
+     */
+    private fun renderUi25dHome(parent: LinearLayout, data: SatoriSnapshot?) {
+        val darkTeal = SatoriUiTheme.deep(this)
+        val tealAccent = SatoriUiTheme.accent(this)
+        val pale = SatoriUiTheme.soft(this)
+        val raised = SatoriUiTheme.raised(this)
+        val hero = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(19), dp(20), dp(19), dp(20))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(darkTeal, tealAccent, SatoriUiTheme.lighter(this@NativeMainActivity))).apply {
+                cornerRadius = dp(25).toFloat()
+            }
+            elevation = if (raised) dp(8).toFloat() else 0f
+        }
+        label(hero, "BẢNG ĐIỀU KHIỂN MINH SATORI", 10f, true,
+            SatoriUiTheme.onAccent(this)).apply {
+            letterSpacing = .11f
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
+        }
+        label(hero, "Chào quản trị viên 👋", 23f, true,
+            SatoriUiTheme.onAccent(this), 9).apply {
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
+        }
+        label(hero, "Quản lý doanh thu, hóa đơn và khách hàng trong một giao diện gọn gàng.",
+            12f, false, SatoriUiTheme.onAccent(this), 8).apply {
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
+        }
+        val report = TextView(this).apply {
+            text = "Xem báo cáo   ›"
+            textSize = 12f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
+            setPadding(dp(15), dp(11), dp(15), dp(11))
+            background = GradientDrawable().apply {
+                setColor(Color.argb(42, 255, 255, 255))
+                setStroke(dp(1), Color.argb(125, 255, 255, 255))
+                cornerRadius = dp(13).toFloat()
+            }
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Mở bảng hóa đơn"
+            setOnClickListener { activeTab = 1; render() }
+        }
+        hero.addView(report, LinearLayout.LayoutParams(-2, -2).apply {
+            topMargin = dp(16)
+        })
+        parent.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(18), 0, dp(10))
+        }
+        label(heading, "Tổng quan kinh doanh", 18f, true, ink)
+        val more = TextView(this).apply {
+            text = "Xem hóa đơn  ›"
+            textSize = 11f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(tealAccent)
+            gravity = Gravity.END
+            setPadding(dp(6), dp(7), dp(2), dp(7))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { activeTab = 1; render() }
+        }
+        heading.addView(more, LinearLayout.LayoutParams(0, -2, 1f))
+        parent.addView(heading)
+
+        fun kpi(title: String, value: String, note: String, tint: Int,
+                iconRes: Int, openTab: Int): LinearLayout {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(15), dp(14), dp(12), dp(14))
+                background = GradientDrawable().apply {
+                    setColor(Color.WHITE)
+                    cornerRadius = dp(21).toFloat()
+                    setStroke(dp(1), Color.rgb(216, 234, 229))
+                }
+                elevation = if (raised) dp(6).toFloat() else 0f
+                minimumHeight = dp(150)
+                isClickable = true
+                isFocusable = true
+                contentDescription = title + ": " + value + ". " + note
+                setOnClickListener { activeTab = openTab; render() }
+            }
+            val smallIcon = ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(tint)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+                background = GradientDrawable().apply {
+                    setColor(Color.rgb(
+                        (Color.red(tint) + 255 * 3) / 4,
+                        (Color.green(tint) + 255 * 3) / 4,
+                        (Color.blue(tint) + 255 * 3) / 4
+                    ))
+                    cornerRadius = dp(11).toFloat()
+                }
+                contentDescription = title
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            card.addView(smallIcon, LinearLayout.LayoutParams(dp(36), dp(36)))
+            label(card, title, 11f, false, softInk, 10)
+            val number = label(card, value, 19f, true,
+                if (title == "Công nợ phải thu" || title == "Tổng tiền bán")
+                    invoiceMoneyRed else tint, 6)
+            fitCardNumber(number, maxSp = 19)
+            label(card, note, 10f, false, softInk, 6)
+            return card
+        }
+        val sales = data?.invoices?.filterNot { it.isExcluded }?.sumOf { it.total }
+        val salesCount = data?.invoices?.count { !it.isExcluded }
+        val first = kpi("Tổng tiền bán",
+            if (sales == null) "—" else SatoriData.money(sales),
+            if (salesCount == null) "Chưa đồng bộ" else "$salesCount hóa đơn hợp lệ",
+            tealAccent, R.drawable.ic_satori_invoice, 1)
+        val second = kpi("Công nợ phải thu",
+            if (data == null) "—" else SatoriData.money(data.outstandingAmount),
+            if (data == null) "Chưa đồng bộ" else "${data.outstandingCount} hóa đơn chưa thu",
+            Color.rgb(209, 77, 91), R.drawable.ic_satori_debt, 3)
+        val grid = LinearLayout(this).apply {
+            orientation = if (resources.configuration.screenWidthDp >= 350)
+                LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        }
+        if (grid.orientation == LinearLayout.HORIZONTAL) {
+            grid.addView(first, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
+            grid.addView(second, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
+        } else {
+            grid.addView(first, LinearLayout.LayoutParams(-1, -2))
+            grid.addView(second, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+        }
+        parent.addView(grid, LinearLayout.LayoutParams(-1, -2))
+        // Profit uses the SAME read-only verified 45%/CTV formula as the debt
+        // tab. Filtering never multiplies total sales by 45% or writes any data.
+        val profitRows = data?.let(CtvProfitSourcePolicy::profitRows)
+        val profitSummary = profitRows?.let {
+            AccountingProMargin45.summarize(it, homeProfitPeriod)
+        }
+        val verifiedRegistry = data?.collaboratorRegistryLoaded == true &&
+            data.collaborators.isNotEmpty()
+        val noEligibleInvoice = profitSummary?.totalInvoiceCount == 0 &&
+            profitSummary.excludedInvalidDates == 0 &&
+            (homeProfitChoice != 0 || data?.invoices?.none { !it.isExcluded } == true)
+        // Sum only verified rows; old invoices without financial evidence
+        // are omitted, never fabricated as zero-margin invoices.
+        val confirmedProfit = when {
+            data == null -> null
+            noEligibleInvoice -> SatoriData.money(0L)
+            profitSummary != null && profitSummary.computedInvoiceCount > 0 ->
+                profitSummary.estimatedMarginKnownVnd?.let(SatoriData::money)
+            else -> null
+        }
+        val profitNote = when {
+            data == null -> "Chưa kết nối sổ hóa đơn"
+            noEligibleInvoice -> "Không có hóa đơn hợp lệ trong kỳ"
+            profitSummary == null -> "Chưa có dữ liệu lợi nhuận"
+            profitSummary.computedInvoiceCount > 0 ->
+                "Đã tính " + profitSummary.computedInvoiceCount + "/" +
+                    profitSummary.totalInvoiceCount + " bill · bỏ qua bill thiếu dữ liệu"
+            !verifiedRegistry -> "Thiếu hồ sơ CTV từ nguồn đồng bộ"
+            profitSummary.excludedInvalidDates > 0 ->
+                "Có " + profitSummary.excludedInvalidDates + " bill thiếu ngày hợp lệ"
+            else -> "Chưa có bill đủ điều kiện tính"
+        }
+        val profit = kpi("Lợi nhuận", confirmedProfit ?: "Chưa có số liệu",
+            profitNote, Color.rgb(120, 87, 199), R.drawable.ic_satori_profit, 0)
+        // Show line-by-line source reasons instead of silently hiding amounts.
+        profit.setOnClickListener {
+            if (data == null) showConnectionSettings() else showMarginPeriod(data)
+        }
+        // On Fold the third card aligns with the two-column dashboard.
+        val width = if (resources.configuration.screenWidthDp >= 350)
+            (resources.displayMetrics.widthPixels / 2 - dp(23)) else -1
+        parent.addView(profit, LinearLayout.LayoutParams(width, -2).apply {
+            topMargin = dp(11)
+        })
+        label(parent, "Lọc lợi nhuận theo thời gian", 13f, true, ink, 14)
+        val periodFilter = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(5))
+        }
+        listOf("Tất cả", "Ngày", "Tháng", "Năm").forEachIndexed { index, title ->
+            val active = index == homeProfitChoice
+            val chip = TextView(this).apply {
+                text = title
+                gravity = Gravity.CENTER
+                textSize = 11.5f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(if (active) Color.WHITE else tealAccent)
+                background = panelBackground(
+                    if (active) tealAccent else Color.WHITE, 12)
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Lọc lợi nhuận: $title"
+                setOnClickListener { selectHomeProfitPeriod(index, data) }
+            }
+            periodFilter.addView(chip, LinearLayout.LayoutParams(0, dp(39), 1f).apply {
+                if (index > 0) marginStart = dp(5)
+            })
+        }
+        parent.addView(periodFilter, LinearLayout.LayoutParams(-1, -2))
+        label(parent, homeProfitPeriod.title + " · " +
+            (profitSummary?.computedInvoiceCount ?: 0) + "/" +
+            (profitSummary?.totalInvoiceCount ?: 0) + " bill đã tính được",
+            11f, false, softInk, 3)
+        if (data != null && !verifiedRegistry && !noEligibleInvoice) {
+            val sourceWarning = TextView(this).apply {
+                text = "⚠ Thiếu hồ sơ CTV. Chạm để chọn nguồn Google Drive chỉ đọc."
+                textSize = 11f
+                setTextColor(Color.rgb(154, 83, 24))
+                setPadding(dp(9), dp(10), dp(9), dp(10))
+                background = panelBackground(Color.rgb(255, 247, 230), 11)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { showConnectionSettings() }
+            }
+            parent.addView(sourceWarning, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(7)
+            })
+        }
+        label(parent, "Truy cập nhanh", 16f, true, ink, 19)
+        renderMoneyMindShortcuts(parent)
+    }
+
+    /** Date filter for the Home profit card; never edits an invoice or payment. */
+    private fun selectHomeProfitPeriod(mode: Int, data: SatoriSnapshot?) {
+        val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+        if (mode == 0) {
+            homeProfitChoice = 0
+            homeProfitPeriod = AccountingProMargin45Period.all()
+            render()
+            return
+        }
+        if (mode == 1 || mode == 2) {
+            val initial = homeProfitPeriod.from ?: today
+            val dialog = android.app.DatePickerDialog(this,
+                { _, year, monthZeroBased, dayOfMonth ->
+                    val day = java.time.LocalDate.of(year, monthZeroBased + 1, dayOfMonth)
+                    homeProfitChoice = mode
+                    homeProfitPeriod = if (mode == 1)
+                        AccountingProMargin45Period.day(day)
+                    else AccountingProMargin45Period.month(year, monthZeroBased + 1)
+                    render()
+                }, initial.year, initial.monthValue - 1, initial.dayOfMonth)
+            dialog.setTitle(if (mode == 1) "Chọn ngày xem lợi nhuận" else
+                "Chọn một ngày trong tháng cần xem")
+            dialog.show()
+            return
+        }
+        if (mode == 3) {
+            val years = (data?.invoices.orEmpty()
+                .filter { it.hasValidDate }
+                .mapNotNull { it.sortDate.substring(0, 4).toIntOrNull() } +
+                today.year).distinct().sortedDescending()
+            AlertDialog.Builder(this)
+                .setTitle("Chọn năm xem lợi nhuận")
+                .setItems(years.map { "Năm $it" }.toTypedArray()) { _, idx ->
+                    homeProfitChoice = 3
+                    homeProfitPeriod = AccountingProMargin45Period.year(years[idx])
+                    render()
+                }
+                .setNegativeButton("Đóng", null).show()
+        }
+    }
+
+    private fun renderUi25dSectionIntro(parent: LinearLayout, name: String) {
+        val description = when (name) {
+            "Hóa đơn" -> "Lịch sử và chi tiết hóa đơn"
+            "Khách hàng" -> "Hồ sơ và địa điểm giao hàng"
+            "Công nợ" -> "Theo dõi khoản phải thu"
+            "Lên đơn" -> "Tạo đơn trên tài khoản được cấp quyền"
+            else -> "Thông tin cá nhân và quản trị"
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(17), dp(17), dp(17), dp(17))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(SatoriUiTheme.deep(this@NativeMainActivity),
+                    SatoriUiTheme.accent(this@NativeMainActivity))).apply {
+                cornerRadius = dp(21).toFloat()
+            }
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity))
+                dp(6).toFloat() else 0f
+        }
+        label(top, "MINH SATORI • QUẢN TRỊ", 9f, true,
+            SatoriUiTheme.onAccent(this)).apply {
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
+            letterSpacing = .1f
+        }
+        label(top, name, 22f, true, SatoriUiTheme.onAccent(this), 6).apply {
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
+        }
+        label(top, description, 12f, false, SatoriUiTheme.onAccent(this), 6).apply {
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
+        }
+        parent.addView(top, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+    }
+
+    /** Pull verified V2 ordering accounts at most once a minute, off the UI thread. */
+    private fun refreshV2Origins() {
+        val now = SystemClock.elapsedRealtime()
+        if (v2OriginsInFlight || (v2OriginsFetchedAtMs != 0L && now - v2OriginsFetchedAtMs < 60_000)) return
+        val cookie = V2RegistrationAlerts.cookie()
+        if (!cookie.contains("satori_v2_session=")) return
+        v2OriginsInFlight = true
+        v2OriginsFetchedAtMs = now
+        try {
+            v2AlertExecutor.execute {
+                try {
+                    val result = V2OrderOriginsClient.fetch(cookie)
+                    if (result != null) {
+                        V2OrderOriginsClient.store(applicationContext, result.first)
+                        runOnUiThread {
+                            val changed = result.second != v2Origins
+                            v2Origins = result.second
+                            if (changed && !isFinishing && !isDestroyed) render()
+                        }
+                    }
+                } catch (_: Exception) {
+                } finally { v2OriginsInFlight = false }
+            }
+        } catch (_: Exception) { v2OriginsInFlight = false }
+    }
+
     private fun render() {
         dashboardMode = true
         // New orders should not jump the owner to the top of a long invoice
@@ -918,11 +1510,17 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(7), dp(8), dp(7), dp(8))
-            background = panelBackground(if (activeTab == 0) teal else Color.WHITE, 18)
+            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(SatoriUiTheme.deep(this@NativeMainActivity), teal,
+                    SatoriUiTheme.lighter(this@NativeMainActivity))).apply {
+                cornerRadius = dp(22).toFloat()
+            }
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity))
+                dp(5).toFloat() else 0f
         }
         val menuButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_menu)
-            setColorFilter(if (activeTab == 0) white else ink)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(10), dp(11), dp(10), dp(11))
@@ -944,17 +1542,17 @@ class NativeMainActivity : AppCompatActivity() {
             setPadding(dp(7), 0, 0, 0)
         }
         label(brandText, "MINH SATORI", 15f, true, ink).apply {
-            if (activeTab == 0) setTextColor(Color.WHITE)
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
         }
         label(brandText, if (activeTab == 0) "Xin chào, Quản trị viên 👋"
             else "HÓA ĐƠN  •  SỔ KẾ TOÁN", 10f,
             false, Color.rgb(79, 102, 132), 4).apply {
-            if (activeTab == 0) setTextColor(Color.rgb(224, 252, 246))
+            setTextColor(SatoriUiTheme.onAccent(this@NativeMainActivity))
         }
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
         val refreshButton = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_refresh)
-            setColorFilter(if (activeTab == 0) white else cyan)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(8), dp(12), dp(8), dp(12))
@@ -967,7 +1565,7 @@ class NativeMainActivity : AppCompatActivity() {
                 "satori_live_notifications", false)
             setImageResource(if (enabled) R.drawable.ic_satori_bell
                 else R.drawable.ic_satori_bell_off)
-            setColorFilter(if (activeTab == 0) white else if (enabled) cyan else softInk)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(7), dp(11), dp(7), dp(11))
@@ -984,9 +1582,14 @@ class NativeMainActivity : AppCompatActivity() {
                         PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5201)
                 }
-                Toast.makeText(this@NativeMainActivity, if (next)
-                    "Đã bật thông báo đơn thật khi dữ liệu đồng bộ được." else
-                    "Đã tắt thông báo đơn mới.", Toast.LENGTH_SHORT).show()
+                if (next) SatoriPush.registerOwnerDevice(this@NativeMainActivity, force = true)
+                else SatoriPush.revokeOwnerDevice(this@NativeMainActivity)
+                Toast.makeText(this@NativeMainActivity,
+                    if (!next) "Đã tắt thông báo đơn mới."
+                    else if (SatoriPush.configured())
+                        "Đã bật thông báo. Khi đăng nhập Owner V2, thiết bị đăng ký nhận push."
+                    else "Đã bật thông báo khi đồng bộ. Push tức thời chưa có cấu hình FCM.",
+                    Toast.LENGTH_LONG).show()
                 render()
             }
         }
@@ -1013,7 +1616,7 @@ class NativeMainActivity : AppCompatActivity() {
         brand.addView(bellContainer,LinearLayout.LayoutParams(dp(38),dp(46)))
         val options = android.widget.ImageButton(this).apply {
             setImageResource(R.drawable.ic_satori_settings)
-            setColorFilter(if (activeTab == 0) white else ink)
+            setColorFilter(SatoriUiTheme.onAccent(this@NativeMainActivity))
             background = panelBackground(Color.TRANSPARENT, 12)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(10), dp(11), dp(10), dp(11))
@@ -1027,9 +1630,6 @@ class NativeMainActivity : AppCompatActivity() {
         shell.addView(brand, 0, LinearLayout.LayoutParams(-1, -2))
 
         val pages = listOf("Tổng quan", "Hóa đơn", "Khách hàng", "Công nợ", "Lên đơn", "Cá nhân")
-        if (activeTab != 0) {
-            label(content, pages[activeTab], 21f, true, ink, 11)
-        }
 
         val data = snapshot
         val connected = data != null
@@ -1066,81 +1666,13 @@ class NativeMainActivity : AppCompatActivity() {
         if (connected && lastReadAt.isNotBlank())
             label(info, "Cập nhật " + lastReadAt, 10f, false, softInk, 3)
 
-        // Match MoneyMind's compact teal dashboard + inset white metric card.
-        // Values are sourced ONLY from the verified Satori snapshot.
-        if (activeTab == 0) {
-            val hero = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(12), dp(10), dp(12), dp(12))
-                background = panelBackground(teal, 19)
-            }
-            label(hero, "Tổng quan Minh Satori", 12f, true, white).apply {
-                setTextColor(Color.WHITE)
-            }
-            val moneyCard = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(13), dp(12), dp(13), dp(11))
-                background = panelBackground(Color.WHITE, 14)
-                isClickable = true
-                isFocusable = true
-                contentDescription = "Mở công nợ cần thu"
-                setOnClickListener { activeTab = 3; render() }
-            }
-            label(moneyCard, "Tổng công nợ cần thu", 11f, false, muted)
-            label(moneyCard, if (data == null) "—"
-                else SatoriData.money(data.outstandingAmount), 23f, true,
-                invoiceMoneyRed, 4)
-            label(moneyCard, if (data == null) "Chưa đồng bộ dữ liệu"
-                else data.outstandingCount.toString() + " hóa đơn chưa thu · Xem chi tiết ›",
-                11f, false, Color.rgb(16, 132, 100), 4)
-            // Official sales: include customer-facing sales only; no test,
-            // cancelled, "Không Tính" or internal CTV reference invoices.
-            val salesAmount = data?.invoices?.filterNot { it.isExcluded }
-                ?.sumOf { it.total }
-            val salesCount = data?.invoices?.count { !it.isExcluded }
-            val salesCard = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(13), dp(12), dp(13), dp(11))
-                background = panelBackground(Color.WHITE, 14)
-                isClickable = true
-                isFocusable = true
-                contentDescription = "Mở tổng tiền bán và danh sách hóa đơn"
-                setOnClickListener { activeTab = 1; render() }
-            }
-            label(salesCard, "Tổng tiền bán", 11f, false, muted)
-            label(salesCard, if (salesAmount == null) "—"
-                else SatoriData.money(salesAmount), 23f, true,
-                invoiceMoneyRed, 4)
-            label(salesCard, if (salesCount == null) "Chưa đồng bộ dữ liệu"
-                else "$salesCount hóa đơn bán · Xem chi tiết ›",
-                11f, false, Color.rgb(16, 132, 100), 4)
-
-            val summaryCards = LinearLayout(this).apply {
-                orientation = if (resources.configuration.screenWidthDp >= 460)
-                    LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-            }
-            if (summaryCards.orientation == LinearLayout.HORIZONTAL) {
-                summaryCards.addView(salesCard,
-                    LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
-                summaryCards.addView(moneyCard,
-                    LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) })
-            } else {
-                summaryCards.addView(salesCard, LinearLayout.LayoutParams(-1, -2))
-                summaryCards.addView(moneyCard, LinearLayout.LayoutParams(-1, -2).apply {
-                    topMargin = dp(8)
-                })
-            }
-            hero.addView(summaryCards, LinearLayout.LayoutParams(-1, -2).apply {
-                topMargin = dp(9)
-            })
-            content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
-                topMargin = dp(8)
-            })
-            renderMoneyMindShortcuts(content)
-        }
+        // Status now leads the page, matching the approved preview.
         content.addView(info, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(if (activeTab == 0) 6 else 10)
+            topMargin = dp(9)
         })
+        if (activeTab == 0) renderUi25dHome(content, data)
+        else renderUi25dSectionIntro(content, pages[activeTab])
+
         if (isLoading) {
             label(content, "Đang đồng bộ dữ liệu…", 12f, true, cyan, 12)
         }
@@ -1150,14 +1682,7 @@ class NativeMainActivity : AppCompatActivity() {
         } else if (data == null) {
             // No fabricated numbers: reference layout with real API-only values.
             if (activeTab == 0) {
-                val metrics = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    setPadding(0, dp(10), 0, 0)
-                }
-                metricTile(metrics, "HÓA ĐƠN", "—")
-                metricTile(metrics, "CẦN THU", "—", Color.rgb(181, 95, 6))
-                content.addView(metrics)
-                label(content, "Hóa đơn gần đây", 15f, true, ink, 15)
+                label(content, "Hóa đơn gần đây", 16f, true, ink, 19)
                 section(content, "Chưa đồng bộ hóa đơn",
                     "Kết nối tài khoản để xem dữ liệu thực tế.")
             }
@@ -1177,16 +1702,7 @@ class NativeMainActivity : AppCompatActivity() {
                 if (accessToken == null) connectGoogle() else refreshFromDrive()
             }
         } else {
-            if (activeTab == 0) {
-                val stats = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    setPadding(0, dp(10), 0, 0)
-                }
-                metricTile(stats, "HÓA ĐƠN", data.invoices.size.toString())
-                metricTile(stats, "CẦN THU", data.outstandingCount.toString(),
-                    Color.rgb(181, 95, 6))
-                content.addView(stats)
-            }
+
             if (activeTab == 4 && canWrite) {
                 button(content, "+ TẠO ĐƠN HÀNG", true) { launchEditor() }
             }
@@ -1241,8 +1757,8 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(4), dp(6), dp(4), dp(6))
-            background = panelBackground(Color.WHITE, 0)
-            elevation = dp(5).toFloat()
+            background = panelBackground(Color.WHITE, 18)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(7).toFloat() else 0f
         }
         val bottomDestinations = listOf(
             Triple(0, "Trang chủ", R.drawable.ic_satori_dashboard),
@@ -1423,7 +1939,7 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(12), 0)
                 background = background(if (activeTab == index)
-                    Color.rgb(232, 242, 255) else white, 14)
+                    SatoriUiTheme.soft(this@NativeMainActivity) else white, 14)
                 contentDescription = "Mở mục " + item.second + if (item.second == "Quản trị hệ thống") " · Quản trị bên trong ứng dụng Minh Satori" else ""
                 isClickable = true
                 isFocusable = true
@@ -1458,6 +1974,23 @@ class NativeMainActivity : AppCompatActivity() {
         drawer.addView(syncMenu, LinearLayout.LayoutParams(-1, dp(56)).apply {
             topMargin = dp(14)
         })
+        val appearanceMenu = TextView(this).apply {
+            text = "🎨  Giao diện · Màu sắc / 2.5D"
+            textSize = 15f
+            setTextColor(cyan)
+            setPadding(dp(14), dp(14), dp(12), dp(14))
+            background = panelBackground(SatoriUiTheme.soft(this@NativeMainActivity), 14)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(3).toFloat() else 0f
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Tùy chỉnh màu và độ nổi giao diện"
+            setOnClickListener {
+                dismissDrawer { SatoriUiTheme.picker(this@NativeMainActivity) { render() } }
+            }
+        }
+        drawer.addView(appearanceMenu, LinearLayout.LayoutParams(-1, dp(52)).apply {
+            topMargin = dp(8)
+        })
         menuButton.setOnClickListener { showDrawer() }
         closeButton.setOnClickListener { dismissDrawer() }
         scrim.setOnClickListener { dismissDrawer() }
@@ -1474,6 +2007,7 @@ class NativeMainActivity : AppCompatActivity() {
                 .setInterpolator(DecelerateInterpolator()).start()
         }
         dashboardMode = false
+        openPendingNotificationInvoiceIfReady()
     }
 
 
@@ -1516,6 +2050,7 @@ class NativeMainActivity : AppCompatActivity() {
         tile.addView(pictogram, LinearLayout.LayoutParams(dp(31), dp(31)))
         label(tile, title, 12f, true, ink, 5)
         label(tile, subtitle, 10f, false, softInk, 3)
+        tile.elevation = if (SatoriUiTheme.raised(this)) dp(4).toFloat() else 0f
         row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
             marginEnd = dp(5)
         })
@@ -1530,11 +2065,32 @@ class NativeMainActivity : AppCompatActivity() {
      * authorization. V2 CRM/discount writes are deliberately locked until
      * Google OAuth V2 validates the owner's immutable Google subject.
      */
+    private fun requestOwnerExcel(data: SatoriSnapshot, invoices: List<SatoriInvoice>) {
+        if (invoices.isEmpty()) {
+            Toast.makeText(this, "Bộ lọc không có hóa đơn.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (pendingExcelExport != null) {
+            Toast.makeText(this, "Đang chọn vị trí lưu Excel.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        pendingExcelExport = data to invoices.toList()
+        try {
+            saveExcelPicker.launch("MinhSatori_KeToan_" + java.time.LocalDate.now() +
+                "_rev" + data.revision + ".xlsx")
+        } catch (e: Exception) {
+            pendingExcelExport = null
+            Toast.makeText(this, "Không mở được nơi lưu Excel: " + e.message,
+                Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun renderV2OwnerBackend(parent: LinearLayout, current: SatoriSnapshot?) {
         val title = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(15), dp(14), dp(15))
-            background = panelBackground(Color.WHITE, 17)
+            background = panelBackground(Color.WHITE, 21)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
         }
         label(title, "CÁ NHÂN & QUẢN TRỊ", 19f, true, ink)
         label(title, "Tài khoản quản trị Minh Satori • các tác vụ được phân quyền",
@@ -1546,7 +2102,8 @@ class NativeMainActivity : AppCompatActivity() {
         val modules = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(11), dp(8), dp(11), dp(8))
-            background = panelBackground(Color.WHITE, 17)
+            background = panelBackground(Color.WHITE, 21)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
         }
         // MoneyMind personal/settings hierarchy: small colored icon, label and
         // chevron. Routes still target their original native Owner pages.
@@ -1644,9 +2201,18 @@ class NativeMainActivity : AppCompatActivity() {
             })
             settings.addView(row)
         }
+        settingRow("Xuất Excel · Hóa đơn / Công nợ / Lợi nhuận",
+            R.drawable.ic_satori_excel, Color.rgb(17, 133, 91)) {
+            if (current == null)
+                Toast.makeText(this, "Cần đồng bộ hóa đơn trước khi xuất.",
+                    Toast.LENGTH_LONG).show()
+            else requestOwnerExcel(current, current.invoices)
+        }
         settingRow("Cài đặt kết nối", R.drawable.ic_satori_settings, cyan) {
             showConnectionSettings()
         }
+        settingRow("Chẩn đoán thông báo đẩy (Push)", R.drawable.ic_satori_bell,
+            Color.rgb(214, 96, 40)) { showPushDiagnostics() }
         settingRow("Đồng bộ dữ liệu", R.drawable.ic_satori_refresh,
             Color.rgb(22, 126, 184)) { refreshNow() }
         settingRow("Trợ lý Gemini", R.drawable.ic_satori_plus,
@@ -1687,11 +2253,12 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderOverview(parent: LinearLayout, data: SatoriSnapshot) {
-        val marginRows = AccountingProMargin45.calculate(data.invoices)
+        val marginRows = CtvProfitSourcePolicy.profitRows(data)
         val marginAll = AccountingProMargin45.summarize(
             marginRows, AccountingProMargin45Period.all())
         section(parent,
-            "TỔNG LÃI GỘP ƯỚC TÍNH · NHẬP CHIẾT KHẤU 45%: " +
+            (if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) "TỔNG LỢI NHUẬN SAU CTV & VAT CHỦ CHỊU (ƯỚC TÍNH): "
+                else "TỔNG LỢI NHUẬN · THIẾU HỒ SƠ CTV: ") +
                 (marginAll.estimatedMarginKnownVnd?.let(SatoriData::money)
                     ?: "Chưa đủ dữ liệu"),
             "Tính được " + marginAll.computedInvoiceCount + "/" +
@@ -2125,6 +2692,7 @@ class NativeMainActivity : AppCompatActivity() {
         var fromIso = ""
         var toIso = ""
         lateinit var refresh: () -> Unit
+        var currentFiltered: List<SatoriInvoice> = emptyList()
         fun dateButton(): TextView = TextView(this).apply {
             setTextColor(ink)
             textSize = 12f
@@ -2228,6 +2796,7 @@ class NativeMainActivity : AppCompatActivity() {
                 )
             ).filter { customerChoice == "Tất cả khách" ||
                 it.customer.equals(customerChoice, ignoreCase = true) }
+            currentFiltered = filtered
             val t = SatoriLedger.totals(filtered)
             totalsView.removeAllViews()
             rows.removeAllViews()
@@ -2271,6 +2840,12 @@ class NativeMainActivity : AppCompatActivity() {
                     before: Int, count: Int) { refresh() }
                 override fun afterTextChanged(s: Editable?) {}
             })
+        }
+        button(content, "XUẤT EXCEL ĐƠN ĐANG LỌC (.XLSX)",
+            iconRes = R.drawable.ic_satori_excel) {
+            if (fromIso.isNotBlank() && toIso.isNotBlank() && fromIso > toIso)
+                Toast.makeText(this, "Khoảng ngày không hợp lệ.", Toast.LENGTH_LONG).show()
+            else requestOwnerExcel(data, currentFiltered)
         }
         button(content, "↻ XÓA TẤT CẢ BỘ LỌC") {
             fromIso = ""
@@ -2336,7 +2911,8 @@ class NativeMainActivity : AppCompatActivity() {
      * Does not change payment, edit, delete, or invoice write handlers.
      */
     private fun showProfitInsideInvoiceCard(parent: LinearLayout,
-                                            row: AccountingProMargin45Row?) {
+                                            row: AccountingProMargin45Row?,
+                                            hasCtvRegistry: Boolean) {
         val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
         val header = card.getChildAt(0) as? LinearLayout ?: return
         val amount = header.getChildAt(header.childCount - 1) as? TextView ?: return
@@ -2348,8 +2924,10 @@ class NativeMainActivity : AppCompatActivity() {
         amount.gravity = Gravity.END
         right.addView(amount, LinearLayout.LayoutParams(-2, -2))
         val value = row?.estimatedOwnerMarginVnd?.let(SatoriData::money)
+        val labelName = "Lợi nhuận"
         val badge = TextView(this).apply {
-            text = "Lợi nhuận  " + (value ?: "Chưa rõ")
+            text = labelName + "  " +
+                (if (hasCtvRegistry) (value ?: "Chưa rõ") else "Chờ dữ liệu CTV")
             textSize = 11f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(invoiceMoneyRed)
@@ -2360,7 +2938,9 @@ class NativeMainActivity : AppCompatActivity() {
             setAutoSizeTextTypeUniformWithConfiguration(9, 11, 1,
                 android.util.TypedValue.COMPLEX_UNIT_SP)
             background = panelBackground(Color.rgb(255, 243, 241), 9)
-            contentDescription = "Lợi nhuận: " + (value ?: "Chưa đủ dữ liệu")
+            contentDescription = labelName + ": " +
+                (if (hasCtvRegistry) (value ?: "Chưa đủ dữ liệu")
+                    else "Mobile API chưa trả hồ sơ CTV. Đồng bộ Google Drive hoặc cập nhật Mobile API.")
         }
         right.addView(badge, LinearLayout.LayoutParams(-2, -2).apply {
             topMargin = dp(6)
@@ -2428,6 +3008,25 @@ class NativeMainActivity : AppCompatActivity() {
         launchEditor(editing = latest)
     }
 
+    /**
+     * Attach a read-only ordering-account label to the existing native card.
+     * Keep invoiceQuickCard() itself byte-identical to protected financial UI
+     * tests; this does not touch payment actions or the PDF.
+     */
+    private fun showOrderingAccountOnCard(parent: LinearLayout,
+                                          invoice: SatoriInvoice,
+                                          data: SatoriSnapshot) {
+        val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
+        val source = InvoiceOrderAccountSource.resolve(invoice, data, v2Origins)
+        val actions = card.getChildAt(card.childCount - 1) ?: return
+        card.removeView(actions)
+        val detail = label(card, source.card, 11.5f, true,
+            if (source.verifiedLogin) Color.rgb(0, 132, 122) else softInk, 8)
+        detail.maxLines = 3
+        detail.contentDescription = source.card
+        card.addView(actions)
+    }
+
     private fun invoiceQuickCard(parent: LinearLayout, invoice: SatoriInvoice,
                                  fromDebt: Boolean = false) {
         val card = LinearLayout(this).apply {
@@ -2480,6 +3079,8 @@ class NativeMainActivity : AppCompatActivity() {
         label(statusLine, invoice.displayDate + "   •   ", 11f, false, softInk)
         label(statusLine, invoice.status, 11f, true, statusColor)
         card.addView(statusLine)
+        if (invoice.creationTimeLabel.isNotBlank()) label(card,
+            "Tạo lúc: " + invoice.creationTimeLabel, 11f, false, softInk, 4)
         if (invoice.isNonCounted) {
             label(card, "Không tính doanh thu / công nợ • Giá gốc: " +
                 SatoriData.money(invoice.total), 11f, false, softInk, 5)
@@ -2558,6 +3159,12 @@ class NativeMainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun styleUi25dInvoiceCard(parent: LinearLayout) {
+        val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
+        card.background = panelBackground(Color.WHITE, 21)
+        card.elevation = if (SatoriUiTheme.raised(this)) dp(5).toFloat() else 0f
+    }
+
     private fun renderInvoices(parent: LinearLayout, data: SatoriSnapshot) {
         if (currentInvoiceBadge().count > 0) {
             val pending = currentInvoiceBadge().count
@@ -2612,13 +3219,33 @@ class NativeMainActivity : AppCompatActivity() {
         val salesSummary = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(11), dp(14), dp(11))
-            background = panelBackground(Color.rgb(245, 251, 250), 14)
+            background = panelBackground(Color.WHITE, 21)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
         }
-        label(salesSummary, "TỔNG TIỀN BÁN · HÓA ĐƠN HỢP LỆ", 11f, true, softInk)
-        label(salesSummary, SatoriData.money(salesTotal),
+        label(salesSummary, "TỔNG TIỀN BÁN", 11f, true, softInk)
+        val salesAmount = label(salesSummary, SatoriData.money(salesTotal),
             21f, true, invoiceMoneyRed, 5)
-        parent.addView(salesSummary, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(7)
+        fitCardNumber(salesAmount)
+        val countSummary = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(11), dp(14), dp(11))
+            background = panelBackground(Color.WHITE, 21)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(5).toFloat() else 0f
+        }
+        label(countSummary, "TỔNG HÓA ĐƠN", 11f, true, softInk)
+        val invoiceCount = label(countSummary,
+            data.invoices.count { !it.isExcluded }.toString(), 21f, true, cyan, 5)
+        fitCardNumber(invoiceCount)
+        val salesRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        // Fix the two statistic cards to the same height regardless of amount wrapping.
+        salesRow.addView(salesSummary, LinearLayout.LayoutParams(0, dp(110), 1f).apply {
+            marginEnd = dp(5)
+        })
+        salesRow.addView(countSummary, LinearLayout.LayoutParams(0, dp(110), 1f).apply {
+            marginStart = dp(5)
+        })
+        parent.addView(salesRow, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(10)
         })
         val input = EditText(this).apply {
             hint = "Tìm mã hóa đơn, khách, SĐT..."
@@ -2635,42 +3262,78 @@ class NativeMainActivity : AppCompatActivity() {
         })
         val statuses = listOf("Tất cả", "Chưa thanh toán", "Đã thanh toán",
             "Đã TT Satori", "Không Tính", "Đã hủy")
-        val filter = darkSpinner(statuses)
-        parent.addView(filter, LinearLayout.LayoutParams(-1, dp(42)).apply {
-            topMargin = dp(5)
-        })
+        // Direct chip selection: a hidden Spinner can lose click callbacks on
+        // some Android/Fold layouts. Keep the selection in native screen state.
+        var refreshList: () -> Unit = {}
+        val chipScroll = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            setPadding(0, dp(4), 0, dp(4))
+        }
+        val chipRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val chips = mutableListOf<TextView>()
+        statuses.forEachIndexed { index, title ->
+            val chip = TextView(this).apply {
+                text = title
+                gravity = Gravity.CENTER
+                textSize = 11f
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding(dp(13), dp(11), dp(13), dp(11))
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Lọc " + title
+                setOnClickListener {
+                    selectedInvoiceStatusIndex = index
+                    refreshList()
+                }
+            }
+            chips.add(chip)
+            chipRow.addView(chip, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
+        }
+        chipScroll.addView(chipRow)
+        parent.addView(chipScroll, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         parent.addView(list)
         val marginByInvoice =
             java.util.IdentityHashMap<SatoriInvoice, AccountingProMargin45Row>().apply {
-                AccountingProMargin45.calculate(data.invoices).forEach {
+                CtvProfitSourcePolicy.profitRows(data).forEach {
                     put(it.invoice, it)
                 }
             }
+        if (!(data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) {
+            label(parent, "⚠ Chưa có hồ sơ CTV từ " + dataSource +
+                ". Lợi nhuận chưa được tính; kết nối Drive chỉ đọc hoặc cập nhật Mobile API.",
+                11.5f, true, invoiceMoneyRed, 7)
+        }
         fun updateList() {
             list.removeAllViews()
-            val status = statuses[filter.selectedItemPosition.coerceIn(0, statuses.lastIndex)]
-            val matching = data.invoices.filter {
-                SatoriData.search(it, searchText) &&
-                    (status == "Tất cả" || it.status.equals(status, ignoreCase = true))
+            val selected = selectedInvoiceStatusIndex.coerceIn(0, statuses.lastIndex)
+            val status = statuses[selected]
+            chips.forEachIndexed { i, chip ->
+                chip.setTextColor(if (i == selected) SatoriUiTheme.onAccent(this@NativeMainActivity) else softInk)
+                chip.background = panelBackground(if (i == selected) cyan else Color.WHITE, 13)
+                chip.elevation = if (i == selected && SatoriUiTheme.raised(this@NativeMainActivity))
+                    dp(2).toFloat() else 0f
             }
+            val matching = InvoiceScreenFilter.apply(
+                data.invoices, selected, searchText)
+
             label(list, "Tìm thấy " + matching.size + " hóa đơn" +
                 (if (status != "Tất cả") " • " + status else ""),
                 11.5f, true, cyan, 7)
             matching.take(120).forEach { inv ->
                 invoiceQuickCard(list, inv)
+                styleUi25dInvoiceCard(list)
+                showOrderingAccountOnCard(list, inv, data)
                 if (!inv.isExcluded)
-                    showProfitInsideInvoiceCard(list, marginByInvoice[inv])
+                    showProfitInsideInvoiceCard(list, marginByInvoice[inv],
+                        (data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
             }
             // Filter/search callbacks build cards *after* render(); normalize
             // prices here as well so old green inline TextViews cannot reappear.
             highlightMoneyInView(list)
         }
-        filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
-                view: View?, position: Int, id: Long) { updateList() }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) { updateList() }
-        }
+        refreshList = { updateList() }
         input.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -2749,6 +3412,8 @@ class NativeMainActivity : AppCompatActivity() {
         })
         card.addView(headline)
         label(card, invoice.displayDate, 11.5f, false, softInk, 5)
+        if (invoice.creationTimeLabel.isNotBlank()) label(card,
+            "Tạo lúc: " + invoice.creationTimeLabel, 11f, false, softInk, 4)
         if (invoice.isNonCounted) {
             label(card, "KHÔNG TÍNH • GIÁ TRỊ 0 đ", 12f, true,
                 Color.rgb(105, 74, 164), 7)
@@ -2814,7 +3479,8 @@ class NativeMainActivity : AppCompatActivity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(13), dp(13), dp(12))
-            background = panelBackground(surface, 16)
+            background = panelBackground(surface, 20)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(4).toFloat() else 0f
             isClickable = true
             isFocusable = true
             contentDescription = "Xem khách " + customer.customer + ", " + count + " hóa đơn"
@@ -2962,14 +3628,16 @@ class NativeMainActivity : AppCompatActivity() {
      * lines; excluded / unsafe invoices are never silently assigned zero profit.
      */
     private fun showMarginPeriod(data: SatoriSnapshot) {
-        val marginRows=AccountingProMargin45.calculate(data.invoices)
+        val marginRows=CtvProfitSourcePolicy.profitRows(data)
         val panel=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
             setPadding(dp(14),dp(12),dp(14),dp(16))
         }
-        label(panel,"LÃI GỘP ƯỚC TÍNH · CHIẾT KHẤU NHẬP 45%",
+        label(panel,if((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
+                "LỢI NHUẬN SAU CTV & VAT CHỦ CHỊU (ƯỚC TÍNH)"
+            else "THIẾU HỒ SƠ CTV · CHƯA TÍNH LỢI NHUẬN",
             15f,true,ink)
-        label(panel,"Chỉ xem · Theo ngày lập hóa đơn · Chưa trừ chi phí vận hành",
+        label(panel,"Chỉ xem · Trừ VAT 8% chủ chịu nếu bill không thu VAT/ship · Chưa trừ vận hành",
             11f,false,softInk,6)
         val choices=listOf("Tất cả","Theo ngày","Theo tháng","Theo năm",
             "Khoảng tùy chỉnh")
@@ -2987,8 +3655,9 @@ class NativeMainActivity : AppCompatActivity() {
         val listScroll=ScrollView(this).apply { addView(results) }
         panel.addView(listScroll, LinearLayout.LayoutParams(-1,
             (resources.displayMetrics.heightPixels * 43 / 100).coerceAtLeast(dp(170))))
-        val today=java.time.LocalDate.now()
-        val todayIso=today.toString()
+        val today=java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
+        val homeDate=homeProfitPeriod.from ?: today
+        val todayIso=homeDate.toString()
 
         fun value(key:String)=inputs[key]?.text?.toString()?.trim().orEmpty()
         fun redraw() {
@@ -3010,16 +3679,24 @@ class NativeMainActivity : AppCompatActivity() {
                 return
             }
             val summary=AccountingProMargin45.summarize(marginRows,range)
-            section(results,"TỔNG LÃI GỘP ƯỚC TÍNH: " +
-                (summary.estimatedMarginKnownVnd?.let(SatoriData::money)
-                    ?: "Chưa đủ dữ liệu"),
-                range.title + " · Tính được " + summary.computedInvoiceCount +
+            val totalDisplay = when {
+                summary.computedInvoiceCount > 0 ->
+                    summary.estimatedMarginKnownVnd?.let(SatoriData::money)
+                        ?: "Chưa có số liệu"
+                summary.totalInvoiceCount == 0 &&
+                    summary.excludedInvalidDates == 0 -> SatoriData.money(0L)
+                else -> "Chưa có số liệu"
+            }
+            section(results,"TỔNG LỢI NHUẬN ƯỚC TÍNH: " + totalDisplay,
+                range.title + " · Đã tính " + summary.computedInvoiceCount +
                     "/" + summary.totalInvoiceCount + " bill." +
                     (if (summary.missingInvoiceCount>0)
-                        " Thiếu " + summary.missingInvoiceCount + " bill chưa xác minh." else "") +
-                    " Không phải lợi nhuận ròng.")
-            val filtered=marginRows.filter { range.includes(it.invoice) }
-            label(results,"HÓA ĐƠN TRONG KỲ (" + filtered.size + ")",
+                        " Bỏ qua " + summary.missingInvoiceCount + " bill thiếu dữ liệu." else "") +
+                    " Chỉ cộng bill đủ điều kiện; đây là lợi nhuận ước tính, chưa trừ chi phí vận hành.")
+            val filtered=marginRows.filter {
+                range.includes(it.invoice) && it.estimatedOwnerMarginVnd != null
+            }
+            label(results,"BILL ĐÃ TÍNH TRONG KỲ (" + filtered.size + ")",
                 12f,true,cyan,12)
             filtered.take(90).forEach { row ->
                 section(results,"#" + row.invoice.number + " · " + row.invoice.customer,
@@ -3031,14 +3708,17 @@ class NativeMainActivity : AppCompatActivity() {
                     "\nHoa hồng CTV: " +
                     (row.estimatedCtvCommissionVnd?.let(SatoriData::money)
                         ?: "Chưa xác minh") +
-                    "\nLãi gộp ước tính: " +
+                    "\nVAT 8% chủ chịu: " +
+                    (row.estimatedOwnerBorneVatVnd?.let(SatoriData::money)
+                        ?: "Chưa xác minh") +
+                    "\nLợi nhuận sau CTV và VAT chủ chịu: " +
                     (row.estimatedOwnerMarginVnd?.let(SatoriData::money)
                         ?: "Chưa đủ dữ liệu") +
                     (row.reason?.let { "\nCần rà soát: " + it } ?: ""))
             }
             if(summary.excludedInvalidDates>0)
-                label(results,"Có " + summary.excludedInvalidDates +
-                    " hóa đơn ngày sai, không đưa vào bất kỳ báo cáo thời gian nào.",
+                label(results,"Bỏ qua " + summary.excludedInvalidDates +
+                    " hóa đơn ngày không hợp lệ; chưa tính vào tổng lợi nhuận.",
                     11f,false,Color.rgb(175,94,0),10)
             if(filtered.size>90)
                 label(results,"Đang giới hạn 90 bill, chọn kỳ ngắn hơn để xem tiếp.",
@@ -3074,8 +3754,8 @@ class NativeMainActivity : AppCompatActivity() {
             when(periodChoice.selectedItemPosition.coerceIn(0,choices.lastIndex)) {
                 1 -> addField("day","Ngày (YYYY-MM-DD)",todayIso)
                 2 -> addField("month","Tháng (YYYY-MM)",
-                    java.time.YearMonth.from(today).toString())
-                3 -> addField("year","Năm (YYYY)",today.year.toString())
+                    java.time.YearMonth.from(homeDate).toString())
+                3 -> addField("year","Năm (YYYY)",homeDate.year.toString())
                 4 -> {
                     addField("from","Từ ngày (YYYY-MM-DD)",
                         today.withDayOfMonth(1).toString())
@@ -3090,6 +3770,7 @@ class NativeMainActivity : AppCompatActivity() {
                     v:View?,pos:Int,id:Long) { updateFields() }
                 override fun onNothingSelected(p:android.widget.AdapterView<*>?) {}
             }
+        periodChoice.setSelection(homeProfitChoice.coerceIn(0, 3))
         updateFields()
         val scroll=ScrollView(this).apply { addView(panel) }
         AlertDialog.Builder(this)
@@ -3205,7 +3886,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderDebt(parent: LinearLayout, data: SatoriSnapshot) {
-        val margins = AccountingProMargin45.calculate(data.invoices)
+        val margins = CtvProfitSourcePolicy.profitRows(data)
         val report = AccountingProDebtProfitPolicy.report(
             data.invoices, margins, debtProfitPeriod)
         val marginByInvoice =
@@ -3224,7 +3905,9 @@ class NativeMainActivity : AppCompatActivity() {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(11), dp(13), dp(11), dp(13))
-                background = panelBackground(bg, 15)
+                background = panelBackground(Color.WHITE, 21)
+                elevation = if (SatoriUiTheme.raised(this@NativeMainActivity))
+                    dp(5).toFloat() else 0f
             }
             label(card, title, 11.5f, true, Color.rgb(20, 103, 104))
             label(card, amount, 17.5f, true, invoiceMoneyRed, 7).apply {
@@ -3240,19 +3923,23 @@ class NativeMainActivity : AppCompatActivity() {
         totalCard("Tổng công nợ cần thu",
             report.outstandingVnd?.let(SatoriData::money) ?: "Chưa xác minh",
             report.outstandingInvoices.size.toString() + " hóa đơn chưa thanh toán",
-            Color.rgb(227, 247, 243), 7)
+            SatoriUiTheme.soft(this@NativeMainActivity), 7)
         val known = report.margin.computedInvoiceCount
         val eligible = report.margin.totalInvoiceCount
         val unknown = report.margin.missingInvoiceCount
-        totalCard("Tổng lợi nhuận",
+        totalCard(if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty())) "Lợi nhuận sau CTV & VAT"
+            else "Lợi nhuận · thiếu hồ sơ CTV",
             report.margin.estimatedMarginKnownVnd?.let(SatoriData::money)
                 ?: "Chưa đủ dữ liệu",
             "Ước tính · " + known + "/" + eligible + " hóa đơn" +
                 (if (unknown > 0) " · $unknown chưa rõ" else ""),
             Color.rgb(244, 250, 247))
         parent.addView(totals)
-        label(parent, "Lợi nhuận là lãi gộp ước tính theo chiết khấu nhập 45%, " +
-            "chưa trừ phí giao và vận hành.", 10.5f, false, softInk, 6)
+        label(parent, (if ((data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
+            "Lợi nhuận trừ hoa hồng CTV và VAT 8% chủ chịu khi không thu VAT/ship; "
+            else "⚠ Mobile API chưa gửi hồ sơ CTV. Không hiển thị lãi gộp thành lợi nhuận; ") +
+            "ước tính theo giá nhập chiết khấu 45%, chưa trừ các chi phí vận hành khác.",
+            10.5f, false, softInk, 6)
         if (debtProfitChoice != 0 && report.invalidDateDebtCount > 0)
             label(parent, report.invalidDateDebtCount.toString() +
                 " hóa đơn công nợ có ngày không hợp lệ nên không thuộc bộ lọc thời gian.",
@@ -3261,7 +3948,10 @@ class NativeMainActivity : AppCompatActivity() {
         label(parent, "Công nợ theo khách hàng", 15f, true, ink, 14)
         report.outstandingInvoices.forEach { invoice ->
             invoiceQuickCard(parent, invoice, fromDebt = true)
-            showProfitInsideInvoiceCard(parent, marginByInvoice[invoice])
+            styleUi25dInvoiceCard(parent)
+            showOrderingAccountOnCard(parent, invoice, data)
+            showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],
+                (data.collaboratorRegistryLoaded && data.collaborators.isNotEmpty()))
         }
         if (report.outstandingInvoices.isEmpty())
             section(parent, "Không có hóa đơn cần thu trong kỳ",
@@ -3271,7 +3961,8 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun renderNewOrderInfo(parent: LinearLayout) {
-        label(parent, "LÊN ĐƠN TRỰC TIẾP", 18f, true, teal, 14)
+        label(parent, "Chọn cách tạo đơn", 17f, true, ink, 15)
+        renderUi25dOrderChoices(parent, canWrite)
         if (canWrite) {
             section(parent, "Đã sẵn sàng lên đơn",
                 "Tạo hóa đơn nhiều mặt hàng, chọn đúng điểm giao, nhập số tiền và ghi chú.")
@@ -3440,10 +4131,61 @@ class NativeMainActivity : AppCompatActivity() {
 
     /** The detail dialog follows the active cover/inner-screen window size. */
     private fun resizeInvoiceDialog(dialog: AlertDialog) {
-        val viewportWidth = resources.configuration.screenWidthDp
-        val safeWidth = (viewportWidth - 24).coerceAtLeast(240).coerceAtMost(540)
-        val usableHeight = (resources.displayMetrics.heightPixels * 0.90f).toInt()
-        dialog.window?.setLayout(dp(safeWidth), usableHeight)
+        // Keep the full detail page fullscreen across Fold open/close.
+        dialog.window?.setLayout(
+            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+            android.view.WindowManager.LayoutParams.MATCH_PARENT)
+        val decor = dialog.window?.decorView ?: return
+        val summary = decor.findViewWithTag<LinearLayout>("satori_invoice_summary_row")
+        val expanded = resources.configuration.screenWidthDp >= 600
+        if (summary != null && summary.childCount == 3) {
+            val info = summary.getChildAt(0)
+            val separator = summary.getChildAt(1)
+            val total = summary.getChildAt(2)
+            summary.orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            summary.gravity = Gravity.CENTER_VERTICAL
+            info.layoutParams = if (expanded) LinearLayout.LayoutParams(0, -2, 1.6f)
+                else LinearLayout.LayoutParams(-1, -2)
+            separator.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(dp(1), dp(80)).apply { marginStart = dp(14) }
+                else LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(14) }
+            total.layoutParams = if (expanded) LinearLayout.LayoutParams(0, -2, 1f)
+                else LinearLayout.LayoutParams(-1, -2)
+            total.setPadding(if (expanded) dp(18) else 0,
+                if (expanded) 0 else dp(16), 0, 0)
+        }
+        val actionCard = decor.findViewWithTag<LinearLayout>("satori_invoice_action_card")
+        if (actionCard != null && actionCard.childCount == 2) {
+            val toolbar = actionCard.getChildAt(0)
+            val share = actionCard.getChildAt(1)
+            actionCard.orientation = if (expanded) LinearLayout.HORIZONTAL
+                else LinearLayout.VERTICAL
+            toolbar.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(0, -2, 1f)
+                else LinearLayout.LayoutParams(-1, -2)
+            share.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(dp(220), -2).apply { marginStart = dp(16) }
+                else LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }
+            val title = (toolbar as? LinearLayout)?.getChildAt(0)
+            title?.visibility = if (!expanded &&
+                resources.configuration.screenWidthDp < 370) View.GONE else View.VISIBLE
+        }
+        val grid = decor.findViewWithTag<LinearLayout>("satori_invoice_detail_grid")
+            ?: return
+        grid.orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        if (grid.childCount == 2) {
+            val customer = grid.getChildAt(0)
+            val products = grid.getChildAt(1)
+            customer.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(0, -2, 1f)
+                else LinearLayout.LayoutParams(-1, -2)
+            products.layoutParams = if (expanded)
+                LinearLayout.LayoutParams(0, -2, 1f)
+                else LinearLayout.LayoutParams(-1, -2)
+            customer.setPadding(0, 0, if (expanded) dp(10) else 0, 0)
+            products.setPadding(if (expanded) dp(10) else 0, 0, 0, 0)
+            grid.requestLayout()
+        }
     }
 
     /** Two independent payment flags; tapping a row must still confirm via Mobile API. */
@@ -3503,25 +4245,143 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun openInvoice(invoice: SatoriInvoice) {
-        val wrapper = ScrollView(this).apply { setBackgroundColor(night) }
+        val orderOrigin = InvoiceOrderAccountSource.resolve(invoice, snapshot, v2Origins)
+        // One shared fullscreen detail page for Home, Invoices, Debt, Customers
+        // and notification entrypoints. It is not a narrow Android alert popup.
+        var invoiceDialog: AlertDialog? = null
+        val expanded = resources.configuration.screenWidthDp >= 600
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(night)
+            fitsSystemWindows = true
+        }
+        val stickyHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(if (expanded) 28 else 17), dp(12),
+                dp(if (expanded) 28 else 17), dp(12))
+            setBackgroundColor(Color.WHITE)
+            elevation = dp(3).toFloat()
+        }
+        val pageHeading = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        label(pageHeading, "Chi tiết hóa đơn #" + invoice.number, 20f, true, ink)
+        label(pageHeading, invoice.customer + "  •  " + invoice.displayDate,
+            11.5f, false, softInk, 4)
+        stickyHeader.addView(pageHeading, LinearLayout.LayoutParams(0, -2, 1f))
+        val closePage = ImageView(this).apply {
+            setImageResource(R.drawable.ic_satori_close)
+            setColorFilter(Color.rgb(207, 46, 46))
+            setPadding(dp(11), dp(11), dp(11), dp(11))
+            background = panelBackground(Color.rgb(255, 239, 240), 14)
+            contentDescription = "Đóng chi tiết hóa đơn"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { invoiceDialog?.dismiss() }
+        }
+        stickyHeader.addView(closePage, LinearLayout.LayoutParams(dp(46), dp(46)).apply {
+            marginStart = dp(14)
+        })
+        page.addView(stickyHeader, LinearLayout.LayoutParams(-1, -2))
+        val wrapper = ScrollView(this).apply {
+            setBackgroundColor(night)
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isFillViewport = false
+        }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(17), dp(16), dp(17), dp(18))
+            setPadding(dp(if (expanded) 28 else 16), dp(14),
+                dp(if (expanded) 28 else 16), dp(28))
             setBackgroundColor(night)
         }
-        wrapper.addView(content)
-        val heading = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(13), dp(14), dp(13))
-            background = panelBackground(Color.rgb(248, 249, 252))
+        wrapper.addView(content, FrameLayout.LayoutParams(-1, -2))
+        page.addView(wrapper, LinearLayout.LayoutParams(-1, 0, 1f))
+        // Design preview: one restrained mint summary card, total prominent in red.
+        val brandGreen = Color.rgb(0, 132, 122)
+        val brandPale = Color.rgb(230, 247, 242)
+        val amountRed = Color.rgb(207, 37, 45)
+        val statusRed = Color.rgb(191, 40, 49)
+        val summaryRow = LinearLayout(this).apply {
+            orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            tag = "satori_invoice_summary_row"
+            setPadding(dp(18), dp(16), dp(18), dp(17))
+            background = panelBackground(Color.WHITE, 22)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(4).toFloat() else 0f
         }
-        label(heading, "HÓA ĐƠN #" + invoice.number, 21f, true, white)
-        label(heading, invoice.displayDate + "  •  " + invoice.status, 12f, true,
-            if (invoice.isCancelled) Color.rgb(190, 40, 48) else cyan, 7)
-        label(heading, SatoriData.money(invoice.displayPayable), 20f, true,
-            if (invoice.isNonCounted) Color.rgb(105, 74, 164)
-            else Color.rgb(17, 133, 91), 8)
-        content.addView(heading)
+        val summaryInfo = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val summaryTitleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val receipt = ImageView(this).apply {
+            setImageResource(R.drawable.ic_satori_invoice)
+            setColorFilter(brandGreen)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = background(brandPale, 12)
+            contentDescription = "Hóa đơn"
+        }
+        summaryTitleRow.addView(receipt, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
+            marginEnd = dp(12)
+        })
+        label(summaryTitleRow, "Tóm tắt hóa đơn", 17f, true, ink)
+        summaryInfo.addView(summaryTitleRow)
+        val stateRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(9), 0, 0)
+        }
+        label(stateRow, invoice.displayDate, 12f, true, brandGreen)
+        val isAlertStatus = !invoice.customerHasPaid || invoice.isCancelled || invoice.isNonCounted
+        val statusText = TextView(this).apply {
+            text = invoice.status
+            textSize = 11f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(if (isAlertStatus) statusRed else Color.rgb(18, 125, 82))
+            setPadding(dp(9), dp(5), dp(9), dp(5))
+            background = background(
+                if (isAlertStatus) Color.rgb(255, 236, 236) else brandPale, 12)
+            maxLines = 2
+        }
+        stateRow.addView(statusText, LinearLayout.LayoutParams(-2, -2).apply {
+            marginStart = dp(12)
+        })
+        summaryInfo.addView(stateRow)
+        if (invoice.creationTimeLabel.isNotBlank()) {
+            label(summaryInfo, "Khách đặt lúc: " + invoice.creationTimeLabel,
+                11.5f, false, softInk, 9)
+        } else {
+            label(summaryInfo, "Chưa có giờ đặt hàng trong dữ liệu nguồn",
+                11f, false, softInk, 9)
+        }
+        label(summaryInfo, orderOrigin.card, 12f, true,
+            if (orderOrigin.verifiedLogin) brandGreen else softInk, 8)
+        val summaryDivider = View(this).apply {
+            setBackgroundColor(Color.rgb(218, 230, 232))
+        }
+        val totalArea = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(if (expanded) dp(18) else 0, if (expanded) 0 else dp(16), 0, 0)
+        }
+        label(totalArea, if (invoice.isNonCounted) "Giá trị tính" else "Tổng thanh toán",
+            12f, false, softInk)
+        label(totalArea, SatoriData.money(invoice.displayPayable), 27f, true,
+            if (invoice.isNonCounted) Color.rgb(105, 74, 164) else amountRed, 5)
+        if (expanded) {
+            summaryRow.addView(summaryInfo, LinearLayout.LayoutParams(0, -2, 1.6f))
+            summaryRow.addView(summaryDivider, LinearLayout.LayoutParams(dp(1), dp(80)).apply {
+                marginStart = dp(14)
+            })
+            summaryRow.addView(totalArea, LinearLayout.LayoutParams(0, -2, 1f))
+        } else {
+            summaryRow.addView(summaryInfo, LinearLayout.LayoutParams(-1, -2))
+            summaryRow.addView(summaryDivider, LinearLayout.LayoutParams(-1, dp(1)).apply {
+                topMargin = dp(14)
+            })
+            summaryRow.addView(totalArea, LinearLayout.LayoutParams(-1, -2))
+        }
+        content.addView(summaryRow)
         if (invoice.isTest) label(content,
             "DỮ LIỆU TEST • KHÔNG TÍNH DOANH THU/CÔNG NỢ",
             12f, true, Color.rgb(181, 95, 6), 9)
@@ -3535,78 +4395,233 @@ class NativeMainActivity : AppCompatActivity() {
                 12f, false, softInk, 6)
         }
 
-        label(content, "THÔNG TIN KHÁCH HÀNG", 12f, true, cyan, 15)
-        val customerHeading = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(11), dp(12), dp(11))
-            background = panelBackground(surface, 12)
+        // On Fold: use the full inner screen with two balanced columns;
+        // on phones: stack the same sections vertically.
+        val detailGrid = LinearLayout(this).apply {
+            orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = Gravity.TOP
+            tag = "satori_invoice_detail_grid"
         }
-        val customerIcon = ImageView(this).apply {
-            setImageResource(R.drawable.ic_satori_users)
-            setColorFilter(cyan)
-            contentDescription = "Khách hàng"
+        val customerBlock = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, if (expanded) dp(10) else 0, 0)
         }
-        customerHeading.addView(customerIcon,
-            LinearLayout.LayoutParams(dp(26), dp(26)).apply { marginEnd = dp(11) })
-        val headingName = label(customerHeading, invoice.customer, 16f, true, ink)
-        headingName.maxLines = 3
-        content.addView(customerHeading, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(8)
-        })
-        customerInfoRow(content, R.drawable.ic_satori_phone,
-            "SỐ ĐIỆN THOẠI", invoice.phone.ifBlank { "Chưa có số điện thoại" },
-            Color.rgb(16, 122, 78), Color.rgb(234, 249, 241))
-        customerInfoRow(content, R.drawable.ic_satori_map_pin,
-            "ĐỊA CHỈ GIAO HÀNG", invoice.address.ifBlank { "Chưa có địa chỉ" },
-            Color.rgb(17, 103, 177), Color.rgb(236, 245, 255))
-        if (invoice.duplicateFrom.isNotBlank()) label(content,
-            "Bản giá sao từ #" + invoice.duplicateFrom +
-                " — kiểm tra trạng thái trước khi tính doanh thu.",
-            12f, true, Color.rgb(181, 95, 6), 8)
-
-        label(content, "SẢN PHẨM (" + invoice.lines.size + " dòng)",
-            13f, true, cyan, 16)
-        invoice.lines.forEach { line ->
-            val product = LinearLayout(this).apply {
+        val productBlock = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(if (expanded) dp(10) else 0, 0, 0, 0)
+        }
+        if (expanded) {
+            detailGrid.addView(customerBlock, LinearLayout.LayoutParams(0, -2, 1f))
+            detailGrid.addView(productBlock, LinearLayout.LayoutParams(0, -2, 1f))
+        } else {
+            detailGrid.addView(customerBlock, LinearLayout.LayoutParams(-1, -2))
+            detailGrid.addView(productBlock, LinearLayout.LayoutParams(-1, -2))
+        }
+        content.addView(detailGrid, LinearLayout.LayoutParams(-1, -2))
+        // Shared section components: outer white cards, consistent icon sizes
+        // and a single typography scale for phone and unfolded Fold.
+        fun invoiceSection(parent: LinearLayout, title: String, iconRes: Int): LinearLayout {
+            val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(12), dp(10), dp(12), dp(10))
-                background = panelBackground()
+                setPadding(dp(14), dp(14), dp(14), dp(16))
+                background = panelBackground(Color.WHITE, 20)
+                elevation = if (SatoriUiTheme.raised(this@NativeMainActivity))
+                    dp(3).toFloat() else 0f
             }
-            label(product, line.description, 13.5f, true, white)
-            label(product, "x" + line.quantity + " " + line.unit + "  ×  " +
-                SatoriData.money(line.unitPrice), 12f, false, softInk, 5)
-            label(product, "THÀNH TIỀN: " + SatoriData.money(line.amount),
-                13f, true, cyan, 5)
-            content.addView(product, LinearLayout.LayoutParams(-1, -2).apply {
+            val header = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val icon = ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(brandGreen)
+                contentDescription = title
+            }
+            header.addView(icon, LinearLayout.LayoutParams(dp(24), dp(24)).apply {
+                marginEnd = dp(10)
+            })
+            label(header, title, 16f, true, ink)
+            card.addView(header)
+            val body = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            card.addView(body, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(10)
+            })
+            parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(14)
+            })
+            return body
+        }
+
+        fun invoiceContact(parent: LinearLayout, iconRes: Int, caption: String,
+                           value: String, tint: Int, fill: Int) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(10), dp(9), dp(10), dp(9))
+                background = panelBackground(Color.WHITE, 12)
+            }
+            val icon = ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(tint)
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+                background = background(fill, 11)
+                contentDescription = caption
+            }
+            row.addView(icon, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
+                marginEnd = dp(12)
+            })
+            val lines = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            if (caption.isNotBlank()) label(lines, caption, 11.5f, false, softInk)
+            val valueLabel = label(lines, value, 14f, true, ink,
+                if (caption.isBlank()) 0 else 3)
+            valueLabel.maxLines = 5
+            row.addView(lines, LinearLayout.LayoutParams(0, -2, 1f))
+            parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(8)
+            })
+        }
+
+        fun invoicePriceRow(parent: LinearLayout, title: String, amount: Long) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(2), dp(6), dp(2), dp(6))
+            }
+            val name = label(row, title, 12f, false, softInk)
+            name.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            label(row, SatoriData.money(amount), 13f, true, amountRed)
+            parent.addView(row)
+        }
+
+        // Ordering account (server-verified V2 checkout) is kept apart from the
+        // delivery recipient: the person receiving goods may not be the buyer.
+        val orderingCard = invoiceSection(customerBlock,
+            "Tài khoản đặt hàng", R.drawable.ic_satori_users)
+        if (orderOrigin.verifiedLogin) {
+            invoiceContact(orderingCard, R.drawable.ic_satori_users, "Tài khoản",
+                orderOrigin.accountName, brandGreen, brandPale)
+            invoiceContact(orderingCard, R.drawable.ic_satori_users, "Vai trò",
+                orderOrigin.roleDetail, brandGreen, brandPale)
+        } else {
+            // Not a verified V2 account: show the ledger creation channel
+            // (ChatGPT / AI via Bot API / manual) or "Chưa xác định".
+            label(orderingCard, orderOrigin.card, 12f, true, softInk, 4)
+        }
+
+        val customerCard = invoiceSection(customerBlock,
+            "Người nhận hàng", R.drawable.ic_satori_users)
+        invoiceContact(customerCard, R.drawable.ic_satori_users, "Người nhận",
+            invoice.customer, brandGreen, brandPale)
+        invoiceContact(customerCard, R.drawable.ic_satori_phone, "Số điện thoại",
+            invoice.phone.ifBlank { "Chưa có số điện thoại" },
+            Color.rgb(20, 135, 94), Color.rgb(234, 249, 241))
+        invoiceContact(customerCard, R.drawable.ic_satori_map_pin, "Địa chỉ giao hàng",
+            invoice.address.ifBlank { "Chưa có địa chỉ" },
+            Color.rgb(21, 109, 180), Color.rgb(235, 246, 255))
+        if (invoice.duplicateFrom.isNotBlank()) {
+            label(customerCard, "Bản giá sao từ #" + invoice.duplicateFrom +
+                " — cần kiểm tra trước khi tính doanh thu.",
+                11f, true, gold, 9)
+        }
+
+        val productCard = invoiceSection(productBlock,
+            "Sản phẩm (" + invoice.lines.size + " dòng)", R.drawable.ic_satori_invoice)
+        invoice.lines.forEach { line ->
+            val productRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(11), dp(11), dp(10), dp(11))
+                background = panelBackground(Color.WHITE, 12)
+            }
+            val productKind = InvoiceProductPresentation.icon(line.description, line.code)
+            val iconRes = when (productKind) {
+                InvoiceProductPresentation.Icon.WATER -> R.drawable.ic_product_water
+                InvoiceProductPresentation.Icon.GUAVA -> R.drawable.ic_product_guava
+                InvoiceProductPresentation.Icon.SOURSOP -> R.drawable.ic_product_soursop
+                InvoiceProductPresentation.Icon.FRUIT -> R.drawable.ic_product_fruit
+                InvoiceProductPresentation.Icon.DRINK -> R.drawable.ic_product_drink
+                InvoiceProductPresentation.Icon.PACKAGE -> R.drawable.ic_product_package
+            }
+            val productIcon = ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(Color.rgb(25, 109, 180))
+                background = background(Color.rgb(235, 246, 255), 12)
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+                contentDescription = "Biểu tượng " + line.description
+            }
+            productRow.addView(productIcon,
+                LinearLayout.LayoutParams(dp(43), dp(43)).apply { marginEnd = dp(11) })
+            val textGroup = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            label(textGroup, line.description, 13.5f, true, ink)
+            label(textGroup, "x" + line.quantity + " " + line.unit + " × " +
+                SatoriData.money(line.unitPrice), 11.5f, false, softInk, 5)
+            val lineDiscount = InvoiceProductPresentation.discountPercent(line)
+            if (lineDiscount != null && invoice.lines.size > 1) {
+                label(textGroup, "Discount " +
+                    InvoiceProductPresentation.formatPercent(lineDiscount),
+                    11f, true, brandGreen, 5)
+            }
+            productRow.addView(textGroup, LinearLayout.LayoutParams(0, -2, 1f))
+            productCard.addView(productRow, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dp(7)
             })
         }
-        label(content, "Phí giao: " + SatoriData.money(invoice.shipping),
-            12f, false, softInk, 13)
-        label(content, "Thuế VAT: " + SatoriData.money(invoice.vat),
-            12f, false, softInk, 5)
-        label(content, (if (invoice.isNonCounted) "GIÁ TRỊ TÍNH: "
-            else "TỔNG THANH TOÁN: ") + SatoriData.money(invoice.displayPayable),
-            18f, true, if (invoice.isNonCounted) Color.rgb(105, 74, 164)
-            else Color.rgb(17, 133, 91), 11)
+        productCard.addView(View(this).apply {
+            setBackgroundColor(Color.rgb(230, 236, 239))
+        }, LinearLayout.LayoutParams(-1, dp(1)).apply {
+            topMargin = dp(13)
+            bottomMargin = dp(5)
+        })
+        // This is the stored discounted line total, not the list-price total:
+        // never subtract invoice discounts a second time.
+        val storedLineSubtotal = invoice.lines.sumOf { it.amount }
+        invoicePriceRow(productCard, "Thành tiền", storedLineSubtotal)
+        val discountLine = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(2), dp(6), dp(2), dp(6))
+        }
+        val discountTitle = label(discountLine, "Discount %", 12f, false, softInk)
+        discountTitle.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        label(discountLine,
+            InvoiceProductPresentation.invoiceDiscountLabel(invoice.lines),
+            12f, true, brandGreen)
+        productCard.addView(discountLine)
+        invoicePriceRow(productCard, "Phí giao", invoice.shipping)
+        invoicePriceRow(productCard, "Thuế VAT", invoice.vat)
+        val productTotal = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(13), dp(12), dp(13))
+            background = background(brandPale, 12)
+        }
+        val totalCaption = label(productTotal,
+            if (invoice.isNonCounted) "Giá trị tính" else "Tổng thanh toán",
+            14f, true, brandGreen)
+        totalCaption.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        label(productTotal, SatoriData.money(invoice.displayPayable), 19f, true,
+            if (invoice.isNonCounted) Color.rgb(105, 74, 164) else amountRed)
+        productCard.addView(productTotal, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(7)
+        })
         if (invoice.isNonCounted) {
-            label(content, "KHÔNG TÍNH • Không phải khoản phải thu", 12f, true,
-                Color.rgb(105, 74, 164), 6)
-            label(content, "Tổng tiền gốc lưu để đối chiếu: " +
+            label(productCard, "KHÔNG TÍNH • Không phải khoản phải thu", 12f, true,
+                Color.rgb(105, 74, 164), 8)
+            label(productCard, "Tổng tiền gốc để đối chiếu: " +
                 SatoriData.money(invoice.total) +
-                ". PDF lưu giữ giá gốc; không sử dụng để yêu cầu thanh toán.",
+                ". PDF giữ giá gốc, không sử dụng để yêu cầu thanh toán.",
                 11f, false, softInk, 5)
         }
         if (invoice.deliveryNote.isNotBlank()) {
-            label(content, "GHI CHÚ / YÊU CẦU GIAO HÀNG", 13f, true, cyan, 13)
-            label(content, invoice.deliveryNote, 13f, false, white, 5)
+            label(productCard, "Ghi chú giao hàng", 12f, true, brandGreen, 12)
+            label(productCard, invoice.deliveryNote, 12f, false, ink, 5)
         }
-        // View the authoritative A4 PDF; sharing remains an explicit action.
-        button(content, "XEM PDF", true, R.drawable.ic_satori_eye) {
+        // PDF is the original invoice PDF, not a new visual mockup.
+        button(productCard, "Xem PDF", true, R.drawable.ic_satori_eye) {
             NativeInvoicePdf.preview(this, invoice)
         }
-        var invoiceDialog: AlertDialog? = null
         val validInvoiceNumber = invoice.number.toIntOrNull()?.takeIf { it > 0 }
         val canEditPayment = validInvoiceNumber != null && invoice.canChangePayment
 
@@ -3625,37 +4640,39 @@ class NativeMainActivity : AppCompatActivity() {
             }
         }
 
-        // The two flags must never be merged: customer receipt != Satori settlement.
+        // The two payment states remain independent and retain their Owner API
+        // confirmation, audit reason, permission checks and revision guards.
+        val paymentCard = invoiceSection(customerBlock,
+            "Thanh toán", R.drawable.ic_satori_debt)
         if (invoice.isNonCounted) {
-            label(content, "KHÔNG TÍNH • GIÁ TRỊ 0 đ • KHÓA THANH TOÁN",
-                12f, true, Color.rgb(105, 74, 164), 14)
+            label(paymentCard, "KHÔNG TÍNH • GIÁ TRỊ 0 đ • KHÓA THANH TOÁN",
+                12f, true, Color.rgb(105, 74, 164))
         } else if (invoice.isCancelled) {
-            label(content, "ĐÃ HỦY • KHÔNG TÍNH DOANH THU / CÔNG NỢ", 12f, true,
-                Color.rgb(190, 40, 48), 14)
+            label(paymentCard, "ĐÃ HỦY • KHÔNG TÍNH DOANH THU / CÔNG NỢ",
+                12f, true, statusRed)
             if (invoice.customerPaidAt.isNotBlank() || invoice.satoriPaidAt.isNotBlank())
-                label(content, "Có dấu thời gian thanh toán trước khi hủy. " +
-                    "Kiểm tra chứng từ đối soát / hoàn tiền; không tự ghi nhận đã thanh toán.",
+                label(paymentCard, "Có dấu thời gian thanh toán trước khi hủy. " +
+                    "Cần đối soát / hoàn tiền; không tự ghi nhận đã thanh toán.",
                     11f, false, softInk, 6)
         } else {
-        label(content, "THANH TOÁN", 12f, true, cyan, 14)
-        val customerAction = if (invoice.customerHasPaid) "payments.markCustomerUnpaid"
-                             else "payments.markCustomerPaid"
-        val satoriAction = if (invoice.satoriHasPaid) "payments.markSatoriUnpaid"
-                           else "payments.markSatoriPaid"
-        val customerClick: (() -> Unit)? = if (canEditPayment) {
-            { requestPayment(customerAction) }
-        } else null
-        val satoriClick: (() -> Unit)? = if (canEditPayment) {
-            { requestPayment(satoriAction) }
-        } else null
-        invoicePaymentRow(content, "Khách hàng", invoice.customerHasPaid,
-            "Đã thanh toán", "Chưa thanh toán", customerClick)
-        invoicePaymentRow(content, "Satori", invoice.satoriHasPaid,
-            "Đã thanh toán", "Chưa thanh toán", satoriClick)
-        if (validInvoiceNumber == null) {
-            label(content, "Số hóa đơn không hợp lệ • đã khóa thao tác ghi.",
-                11f, true, gold, 6)
-        }
+            val customerAction = if (invoice.customerHasPaid) "payments.markCustomerUnpaid"
+                                 else "payments.markCustomerPaid"
+            val satoriAction = if (invoice.satoriHasPaid) "payments.markSatoriUnpaid"
+                               else "payments.markSatoriPaid"
+            val customerClick: (() -> Unit)? = if (canEditPayment) {
+                { requestPayment(customerAction) }
+            } else null
+            val satoriClick: (() -> Unit)? = if (canEditPayment) {
+                { requestPayment(satoriAction) }
+            } else null
+            invoicePaymentRow(paymentCard, "Khách hàng", invoice.customerHasPaid,
+                "Đã thanh toán", "Chưa thanh toán", customerClick)
+            invoicePaymentRow(paymentCard, "Satori", invoice.satoriHasPaid,
+                "Đã thanh toán", "Chưa thanh toán", satoriClick)
+            if (validInvoiceNumber == null) {
+                label(paymentCard, "Số hóa đơn không hợp lệ • đã khóa thao tác ghi.",
+                    11f, true, gold, 6)
+            }
         }
 
         fun confirmInternalShare(action: () -> Unit) {
@@ -3669,15 +4686,15 @@ class NativeMainActivity : AppCompatActivity() {
                 .show()
         }
 
-        // All 4 actions are identical 48dp squares. Fold: label and toolbar
-        // share a row; cover screens keep a separate label to avoid clipping.
+        // Compact one-line tools on Fold; separate label and a single
+        // full-width share button on narrow cover screens.
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL or Gravity.END
         }
         if (invoice.canEditOrDelete && validInvoiceNumber != null) {
             invoiceMiniAction(actions, R.drawable.ic_satori_edit, "Sửa hóa đơn",
-                Color.rgb(233, 248, 245), cyan) {
+                Color.rgb(233, 248, 245), brandGreen) {
                 if (!canAction("orders.update")) {
                     AlertDialog.Builder(this)
                         .setTitle("Chưa được cấp quyền sửa hóa đơn")
@@ -3718,45 +4735,55 @@ class NativeMainActivity : AppCompatActivity() {
                 }
             }
         }
-        // Right-align actions on both the Fold's cover and inner displays.
-        // Keep the title on the left where the actual dialog width permits.
-        val dialogWidthDp = (resources.configuration.screenWidthDp - 24)
-            .coerceAtLeast(240).coerceAtMost(540)
-        val usableContentDp = dialogWidthDp - 34 // invoice content horizontal padding
-        val actionsWidthDp = actions.childCount * 48 +
-            (actions.childCount - 1).coerceAtLeast(0) * 6
-        val inlineActions = usableContentDp >= actionsWidthDp + 90 &&
-            resources.configuration.fontScale <= 1.2f
-        actions.gravity = Gravity.END or Gravity.CENTER_VERTICAL
-        if (inlineActions) {
-            val toolbar = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(13), 0, 0)
-            }
-            val caption = label(toolbar, "THAO TÁC", 11.5f, true, cyan)
-            caption.maxLines = 1
-            caption.ellipsize = android.text.TextUtils.TruncateAt.END
-            caption.setPadding(0, 0, dp(8), 0)
-            caption.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))
-            content.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
-        } else {
-            label(content, "THAO TÁC", 11.5f, true, cyan, 13)
-            val actionRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.END or Gravity.CENTER_VERTICAL
-            }
-            actionRow.addView(actions, LinearLayout.LayoutParams(-2, -2))
-            content.addView(actionRow, LinearLayout.LayoutParams(-1, -2).apply {
-                topMargin = dp(7)
-            })
+
+        val actionCard = LinearLayout(this).apply {
+            tag = "satori_invoice_action_card"
+            orientation = if (expanded) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(15), dp(12), dp(15), dp(14))
+            background = panelBackground(Color.WHITE, 20)
+            elevation = if (SatoriUiTheme.raised(this@NativeMainActivity))
+                dp(3).toFloat() else 0f
         }
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val toolTitle = label(toolbar, "Thao tác", 15f, true, ink)
+        toolTitle.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        if (!expanded && resources.configuration.screenWidthDp < 370)
+            toolTitle.visibility = View.GONE
+        toolbar.addView(actions, LinearLayout.LayoutParams(-2, -2))
+        if (expanded) {
+            actionCard.addView(toolbar, LinearLayout.LayoutParams(0, -2, 1f))
+        } else {
+            actionCard.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
+        }
+        val shareHolder = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        button(shareHolder, "Chia sẻ PDF", false, R.drawable.ic_satori_share) {
+            confirmInternalShare {
+                try { NativeInvoicePdf.share(this, invoice) }
+                catch (_: Exception) {
+                    Toast.makeText(this, "Không xuất được PDF, hãy thử lại.",
+                        Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        actionCard.addView(shareHolder,
+            if (expanded) LinearLayout.LayoutParams(dp(220), -2).apply {
+                marginStart = dp(16)
+            } else LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(8)
+            })
+        content.addView(actionCard, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(14)
+        })
         val dialog = AlertDialog.Builder(this)
-            .setView(wrapper)
-            .setNegativeButton("Đóng", null)
-            .setPositiveButton("Chia sẻ", null)
+            .setView(page)
             .create()
+        dialog.setCanceledOnTouchOutside(false)
         invoiceDialog = dialog
         activeInvoiceDialog = dialog
         dialog.setOnDismissListener {
@@ -3772,22 +4799,9 @@ class NativeMainActivity : AppCompatActivity() {
             }
         }
         dialog.setOnShowListener {
-            dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(night))
+            dialog.window?.setBackgroundDrawable(
+                android.graphics.drawable.ColorDrawable(night))
             resizeInvoiceDialog(dialog)
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(cyan)
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(cyan)
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).textSize = 12f
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).textSize = 12f
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                confirmInternalShare {
-                    try {
-                        NativeInvoicePdf.share(this, invoice)
-                    } catch (_: Exception) {
-                        Toast.makeText(this, "Không xuất được PDF, hãy thử lại.",
-                            Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
         }
         dialog.show()
     }
@@ -3872,6 +4886,31 @@ class NativeMainActivity : AppCompatActivity() {
         }.start()
     }
 
+    /**
+     * A still-deployed old Mobile API can provide real invoices but OMIT the
+     * registered CTV key. Do not show gross profit in that case.
+     * Recover from the verified canonical Drive file only when the OAuth token
+     * has read permission and both snapshots are the SAME revision and orders.
+     * The API remains authoritative for write permissions, never Drive.
+     */
+    private fun reconcileMobileCtvRegistry(remote: MobileSnapshot,
+                                           token: String): MobileSnapshot {
+        val api = remote.snapshot
+        if (api.collaboratorRegistryLoaded && api.collaborators.isNotEmpty()) return remote
+        val cached = if (ctvBridgeToken == token)
+            ctvBridgeSnapshot?.let { CtvProfitSourcePolicy.recover(api, it) }
+            else null
+        if (cached != null) return remote.copy(snapshot = cached)
+        if (ctvBridgeRevision == api.revision && ctvBridgeToken == token) return remote
+        ctvBridgeToken = token
+        ctvBridgeRevision = api.revision
+        val direct = runCatching { DriveReadClient.loadWithToken(token) }.getOrNull()
+            ?: return remote
+        val recovered = CtvProfitSourcePolicy.recover(api, direct) ?: return remote
+        ctvBridgeSnapshot = direct
+        return remote.copy(snapshot = recovered)
+    }
+
     private fun refreshFromMobileApi() {
         lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
         val endpoint = apiEndpoint ?: run {
@@ -3885,7 +4924,9 @@ class NativeMainActivity : AppCompatActivity() {
         statusMessage = "Đang xác thực chủ sở hữu và đồng bộ hóa đơn…"
         render()
         Thread {
-            val outcome = runCatching { MobileApiClient.snapshot(endpoint, token) }
+            val outcome = runCatching {
+                reconcileMobileCtvRegistry(MobileApiClient.snapshot(endpoint, token), token)
+            }
             val pending = pendingWrite
             val trash = if (outcome.isSuccess && pending != null &&
                 pending.belongsTo(endpoint, outcome.getOrThrow().actorId) &&
@@ -3906,6 +4947,7 @@ class NativeMainActivity : AppCompatActivity() {
                             return@runOnUiThread
                         }
                         snapshot = it.snapshot
+                        refreshV2Origins()
                         lastMobileRevisionProbeElapsedMs = SystemClock.elapsedRealtime()
                         allowedActions =
                             if (getPreferences(MODE_PRIVATE).getBoolean(
@@ -3916,7 +4958,11 @@ class NativeMainActivity : AppCompatActivity() {
                         dataSource = "Minh Satori API"
                         lastReadAt = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
                         lastOnlineReadElapsedMs = SystemClock.elapsedRealtime()
-                        statusMessage = "Đã kết nối quyền lên đơn."
+                        statusMessage = if (it.snapshot.collaboratorRegistryLoaded && it.snapshot.collaborators.isNotEmpty())
+                            "Đã đồng bộ hóa đơn và hồ sơ CTV (" +
+                                it.snapshot.collaborators.size + " hồ sơ)."
+                        else "⚠ Mobile API chưa gửi hồ sơ CTV và Drive chưa cấp quyền đọc. " +
+                            "Lợi nhuận đang khóa; cần kết nối Drive hoặc cập nhật Apps Script."
                         notifyVerifiedNewInvoices(prior, it.snapshot)
                         if (pending != null && pending.belongsTo(endpoint, it.actorId)) {
                             if (pending.confirmedIn(it.snapshot, trash)) finishPendingWrite(pending)
@@ -4179,12 +5225,13 @@ class NativeMainActivity : AppCompatActivity() {
         if (!automatic) authorizationDeclined = false
         authorizationPending = true
         lastSyncAttemptElapsedMs = SystemClock.elapsedRealtime()
-        // The secured Mobile API only needs verified email identity.
-        // Avoid requesting restricted Drive access when the server reads Drive.
-        // Direct Drive reads always require drive.readonly, even when a
-        // sandbox API endpoint is still stored. API-only mode needs email only.
+        // Ask owner for read-only Drive in API mode as well. Older deployed
+        // Mobile API versions may omit the CTV registry, so only the owner
+        // canonical Drive source can safely reconcile the profit calculation.
+        // If Drive consent is restricted, retain existing email-only API login
+        // but fail closed on profit rather than showing a gross-margin number.
         val scopes = mutableListOf(Scope("https://www.googleapis.com/auth/userinfo.email"))
-        if (!emailOnlyFallback && (apiEndpoint == null || preferGoogleDrive())) {
+        if (!emailOnlyFallback) {
             scopes.add(Scope("https://www.googleapis.com/auth/drive.readonly"))
         }
         val builder = AuthorizationRequest.builder().setRequestedScopes(scopes)

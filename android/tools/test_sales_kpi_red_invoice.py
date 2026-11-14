@@ -12,21 +12,21 @@ GRADLE = (ROOT/"app/build.gradle.kts").read_text(encoding="utf-8")
 
 class SalesKpiAndRedAmounts(unittest.TestCase):
     def test_home_has_total_sales_before_debt_with_true_ledger_totals(self):
-        home = SRC.split('if (activeTab == 0) {\n            val hero',1)[1].split('content.addView(hero',1)[0]
-        self.assertIn('label(salesCard, "Tổng tiền bán"',home)
+        home = SRC.split('private fun renderUi25dHome(',1)[1].split('private fun renderUi25dSectionIntro(',1)[0]
+        self.assertIn('kpi("Tổng tiền bán"',home)
         self.assertIn('data?.invoices?.filterNot { it.isExcluded }',home)
         self.assertIn('?.sumOf { it.total }',home)
         self.assertIn('data?.invoices?.count { !it.isExcluded }',home)
-        self.assertIn('label(moneyCard, "Tổng công nợ cần thu"',home)
-        self.assertLess(home.index('summaryCards.addView(salesCard'),home.index('summaryCards.addView(moneyCard'))
-        self.assertIn('resources.configuration.screenWidthDp >= 460',home)
+        self.assertIn('kpi("Công nợ phải thu"',home)
+        self.assertLess(home.index('val first = kpi('),home.index('val second = kpi('))
+        self.assertIn('resources.configuration.screenWidthDp >= 350',home)
         self.assertIn('setOnClickListener { activeTab = 1; render() }',home)
 
     def test_total_sales_are_not_counted_twice_and_offline_is_honest(self):
         self.assertIn('isTest || isInternalCollaboratorBill',MODEL)
         self.assertIn('status.equals("Không Tính", ignoreCase = true)',MODEL)
         self.assertIn('status.equals("Đã hủy", ignoreCase = true)',MODEL)
-        self.assertIn('if (salesAmount == null) "—"',SRC)
+        self.assertIn('if (sales == null) "—"',SRC)
         self.assertIn('val salesTotal = data.invoices.filterNot { it.isExcluded }.sumOf { it.total }',SRC)
         self.assertIn('label(salesSummary, SatoriData.money(salesTotal)',SRC)
 

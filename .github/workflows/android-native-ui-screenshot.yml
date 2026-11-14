@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/android-native-ui-screenshot.yml'
       - 'android/app/src/main/java/vn/minhsatori/app/NativeMainActivity.kt'
+      - 'android/app/src/androidTest/java/vn/minhsatori/app/FullscreenInvoiceVisualTest.kt'
+      - 'android/app/src/main/res/drawable/ic_satori_profit.xml'
       - 'android/app/src/main/res/values/styles.xml'
   workflow_dispatch:
 
@@ -47,8 +49,14 @@ jobs:
           emulator-boot-timeout: 300
           script: |
             set -eu
-            gradle -p android :app:assembleDebug --no-daemon
+            gradle -p android :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            mkdir -p android/ui-evidence
+            # Screenshot the real fullscreen invoice detail using ONLY synthetic
+            # instrumentation fixture, never real invoice data.
+            adb shell am instrument -w -e class vn.minhsatori.app.FullscreenInvoiceVisualTest vn.minhsatori.app.test/androidx.test.runner.AndroidJUnitRunner
+            adb exec-out run-as vn.minhsatori.app cat files/ui25d-invoice-fullscreen.png > android/ui-evidence/invoice-fullscreen-phone.png
             adb shell am start -n vn.minhsatori.app/.NativeMainActivity
             sleep 5
             mkdir -p android/ui-evidence
@@ -72,6 +80,7 @@ jobs:
             sleep 1
             adb shell screencap -p /sdcard/minhsatori-native-profile.png
             adb pull /sdcard/minhsatori-native-profile.png android/ui-evidence/minhsatori-native-profile.png
+            test -s android/ui-evidence/invoice-fullscreen-phone.png
             test -s android/ui-evidence/minhsatori-native-home.png
             test -s android/ui-evidence/minhsatori-native-invoices.png
             test -s android/ui-evidence/minhsatori-native-create.png
@@ -84,6 +93,9 @@ jobs:
             adb shell wm size 1812x2176
             adb shell wm density 420
             sleep 3
+            adb shell am instrument -w -e class vn.minhsatori.app.FullscreenInvoiceVisualTest vn.minhsatori.app.test/androidx.test.runner.AndroidJUnitRunner
+            adb exec-out run-as vn.minhsatori.app cat files/ui25d-invoice-fullscreen.png > android/ui-evidence/invoice-fullscreen-fold.png
+            test -s android/ui-evidence/invoice-fullscreen-fold.png
             adb shell screencap -p /sdcard/minhsatori-fold-open.png
             adb pull /sdcard/minhsatori-fold-open.png android/ui-evidence/minhsatori-fold-open.png
             adb shell wm size 904x2316
@@ -101,6 +113,7 @@ jobs:
         with:
           name: MinhSatori-Android-v0.3.2-Visual-Sandbox-Evidence
           path: |
+            android/ui-evidence/invoice-fullscreen-*.png
             android/ui-evidence/minhsatori-native-*.png
             android/ui-evidence/minhsatori-fold-*.png
           if-no-files-found: warn

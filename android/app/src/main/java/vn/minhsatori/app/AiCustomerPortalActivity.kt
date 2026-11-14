@@ -590,6 +590,14 @@ class V2OwnerCrmActivity : AppCompatActivity() {
      * No financial DOM, forms, event listeners or HTTP request logic is changed.
      */
     private fun applyNativeOwnerTheme() {
+        // UI25D is a native presentation preference, never a source of customer data.
+        val uiAccent = String.format("#%06X", SatoriUiTheme.accent(this) and 0xFFFFFF)
+        val uiSoft = String.format("#%06X", SatoriUiTheme.soft(this) and 0xFFFFFF)
+        val uiDeep = String.format("#%06X", SatoriUiTheme.deep(this) and 0xFFFFFF)
+        val uiOnAccent = String.format("#%06X", SatoriUiTheme.onAccent(this) and 0xFFFFFF)
+        val uiCardShadow = if (SatoriUiTheme.raised(this))
+            "0 7px 0 rgba(10,68,80,.035),0 15px 27px rgba(10,68,80,.11)"
+            else "0 2px 7px rgba(10,68,80,.06)"
         val css = """
             :root {
                 color-scheme:light;
@@ -757,6 +765,24 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                 main {padding-left:22px!important;padding-right:22px!important;}
                 .card {padding:20px!important;}
             }
+            /* UI25D applied LAST; auth scopes and all CRM input handlers remain unchanged. */
+            :root { --blue:${uiAccent}; --pale:${uiSoft}; --s25-a:${uiAccent};
+                --s25-soft:${uiSoft}; --s25-deep:${uiDeep}; }
+            .card,.metric,.crm-entry:not(.crm-customer-card),.crm-customer-card {
+                border-radius:20px!important;
+                box-shadow:${uiCardShadow}!important;
+            }
+            .metric { background:${uiSoft}!important; }
+            button:not(.secondary):not(.danger),.crm-btn-primary {
+                background:${uiAccent}!important;color:${uiOnAccent}!important;
+                box-shadow:${uiCardShadow}!important;
+            }
+            button.secondary,.crm-tag,.badge {
+                background:${uiSoft}!important;color:${uiDeep}!important;
+            }
+            input:focus,select:focus,textarea:focus {border-color:${uiAccent}!important;}
+            input[type="checkbox"] {accent-color:${uiAccent}!important;}
+            @media(prefers-reduced-motion:reduce) {button,.card {transition:none!important;}}
         """.trimIndent()
         // JSON quote escapes CSS as a string literal, never executes remote data.
         val script = "(function(){if(location.origin!==" +

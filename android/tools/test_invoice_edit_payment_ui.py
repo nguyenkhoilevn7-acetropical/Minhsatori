@@ -50,11 +50,14 @@ class OwnerInvoiceEditPaymentContract(unittest.TestCase):
             "private fun requestInvoiceEdit(", 1)[0]
         self.assertIn("header.removeView(amount)", badge)
         self.assertIn("header.addView(right", badge)
-        self.assertIn('text = "Lợi nhuận  " +', badge)
-        self.assertIn('contentDescription = "Lợi nhuận: "', badge)
+        self.assertIn('text = labelName + "  " +', badge)
+        self.assertIn('contentDescription = labelName + ": "', badge)
+        self.assertIn('val labelName = "Lợi nhuận"', badge)
+        self.assertIn('"Chờ dữ liệu CTV"', badge)
+        self.assertNotIn('else "Lãi gộp"', badge)
         self.assertIn('Color.rgb(255, 243, 241)', badge)
-        self.assertIn("showProfitInsideInvoiceCard(list, marginByInvoice[inv])", UI)
-        self.assertIn("showProfitInsideInvoiceCard(parent, marginByInvoice[invoice])", UI)
+        self.assertIn("showProfitInsideInvoiceCard(list, marginByInvoice[inv],", UI)
+        self.assertIn("showProfitInsideInvoiceCard(parent, marginByInvoice[invoice],", UI)
 
     def test_edit_confirmation_preserves_original_invoice_and_checks_catalogue(self):
         self.assertIn("Tổng bill trước sửa:", EDITOR)
@@ -74,9 +77,9 @@ class OwnerInvoiceEditPaymentContract(unittest.TestCase):
         self.assertIn('val customerAction = if (invoice.customerHasPaid)', detail)
         self.assertIn('val satoriAction = if (invoice.satoriHasPaid)', detail)
         self.assertIn("confirmInvoicePayment(invoice, action)", detail)
-        self.assertIn('label(content, "THANH TOÁN"', detail)
-        self.assertIn('invoicePaymentRow(content, "Khách hàng"', detail)
-        self.assertIn('invoicePaymentRow(content, "Satori"', detail)
+        self.assertIn('"Thanh toán", R.drawable.ic_satori_debt', detail)
+        self.assertIn('invoicePaymentRow(paymentCard, "Khách hàng"', detail)
+        self.assertIn('invoicePaymentRow(paymentCard, "Satori"', detail)
         self.assertIn('invoice.customerHasPaid', detail)
         self.assertIn('invoice.satoriHasPaid', detail)
 

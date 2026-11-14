@@ -6,8 +6,13 @@
         <item name="colorAccent">@color/satori_teal</item>
         <item name="android:statusBarColor">@color/satori_header</item>
         <item name="android:navigationBarColor">@color/satori_background</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="alertDialogTheme">@style/SatoriUi25dDialogTheme</item>
+    </style>
+    <style name="SatoriUi25dDialogTheme" parent="ThemeOverlay.AppCompat.Dialog.Alert">
+        <item name="colorAccent">@color/satori_teal</item>
+        <item name="android:windowBackground">@drawable/satori_ui25d_dialog_bg</item>
     </style>
 </resources>
