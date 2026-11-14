@@ -31,3 +31,18 @@ test('V2 customer Web and protected API use same fields',()=>{
  assert.equal(fn({receipt:{invoiceNo:5988},delivery:{recipientName:order.recipientName},invoiceDate:order.date}),expected);
  assert.match(html,/const name=verifiedInvoicePdfFilename\(order\)/);
 });
+test('customer history: a missing name part never blocks viewing the verified PDF (regression 2026-11-14)',()=>{
+ const html=readFileSync(new URL('../app.html',import.meta.url),'utf8');
+ const start=html.indexOf('function verifiedInvoicePdfFilename(order) {');
+ const end=html.indexOf('function attachVerifiedPdfUi(order){',start);
+ const fn=vm.runInNewContext(html.slice(start,end)+';verifiedInvoicePdfFilename',{}, {timeout:1000});
+ const base={receipt:{invoiceNo:5988},delivery:{recipientName:'Traky Sài Gòn'}};
+ // History rows without the ledger date (rollback-compatible history mode).
+ assert.equal(fn({...base,orderedAt:'2026-11-12T16:30:00.000Z'}),'5988 - Traky Sài Gòn - 2026-11-12.pdf');
+ assert.equal(fn({...base,orderedAt:'2026-11-12T17:30:00.000Z'}),'5988 - Traky Sài Gòn - 2026-11-13.pdf','Vietnam day');
+ for(const order of [{...base},{...base,invoiceDate:'31/02/2026'},{...base,delivery:{recipientName:''},invoiceDate:'12/11/2026'},
+  {receipt:{invoiceNo:5988}},{}])
+  assert.doesNotThrow(()=>fn(order));
+ assert.equal(fn({...base}),'Hóa đơn 5988.pdf');
+ assert.equal(fn({}),'Hóa đơn Minh Satori.pdf');
+});

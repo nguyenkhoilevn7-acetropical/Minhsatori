@@ -2908,20 +2908,32 @@ $('quickAgentProfile').onchange=async()=>{
 // Display a committed V2 receipt in a dedicated invoice screen, NEVER in chat.
 // Render current verified invoice items, not a stale quote after owner edits.
 function verifiedInvoicePdfFilename(order) {
- const n=Number(order?.receipt?.invoiceNo);
- if(!Number.isSafeInteger(n)||n<1)throw Error('PDF_FILENAME_NUMBER_REQUIRED');
+ // The file name must NEVER block viewing the PDF: the server already verified
+ // and rendered it. Prefer <number> - <recipient> - <order date>; fall back to
+ // the V2 order time (Vietnam date) and finally to a plain "Hóa đơn <number>".
+ const n=Number(order?.receipt?.invoiceNo??order?.invoiceNo);
+ const fallback='Hóa đơn '+(Number.isSafeInteger(n)&&n>0?n:'Minh Satori')+'.pdf';
+ if(!Number.isSafeInteger(n)||n<1)return fallback;
  const recipient=String(order?.delivery?.recipientName??'').normalize('NFC')
   .replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim().slice(0,80);
- if(!recipient||recipient==='.'||recipient==='..')throw Error('PDF_FILENAME_RECIPIENT_REQUIRED');
- const raw=String(order?.invoiceDate??'').trim();
- const vi=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
- const iso=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
- if(!vi&&!iso)throw Error('PDF_FILENAME_ORDER_DATE_REQUIRED');
- const y=Number(vi?vi[3]:iso[1]),m=Number(vi?vi[2]:iso[2]),d=Number(vi?vi[1]:iso[3]);
- const dt=new Date(Date.UTC(y,m-1,d));
- if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)
-  throw Error('PDF_FILENAME_ORDER_DATE_REQUIRED');
- return n+' - '+recipient+' - '+String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')+'.pdf';
+ const ymd=raw=>{
+  const v=String(raw??'').trim();
+  const vi=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v),iso=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if(!vi&&!iso)return null;
+  const y=Number(vi?vi[3]:iso[1]),m=Number(vi?vi[2]:iso[2]),d=Number(vi?vi[1]:iso[3]);
+  const dt=new Date(Date.UTC(y,m-1,d));
+  if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)return null;
+  return String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+ };
+ const vnDay=ts=>{
+  const t=Date.parse(String(ts??''));
+  if(!Number.isFinite(t))return null;
+  const local=new Date(t+7*3600000);
+  return local.toISOString().slice(0,10);
+ };
+ const date=ymd(order?.invoiceDate)||vnDay(order?.orderedAt);
+ if(!recipient||recipient==='.'||recipient==='..'||!date)return fallback;
+ return n+' - '+recipient+' - '+date+'.pdf';
 }
 function attachVerifiedPdfUi(order){
  const box=document.getElementById('invoiceDetailBody');
