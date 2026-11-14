@@ -4,12 +4,15 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs"
+    "check": "node --check server.mjs",
+    "test:account-v2": "node --test account-v2/tests/*.test.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "pdfmake": "0.2.10"
+    "pdfmake": "0.2.10",
+    "pg": "^8.13.1",
+    "google-auth-library": "^9.15.1"
   }
 }
