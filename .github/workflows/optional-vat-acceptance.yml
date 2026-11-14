@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-save --package-lock=false pdfmake@0.2.10 playwright@1.56.1
+      - run: npm install --no-save --package-lock=false pdfmake@0.2.10 playwright@1.56.1 acorn@8.15.0
       - run: npx playwright install --with-deps chromium
       - name: Node regression suite (synthetic ledgers)
         run: node --test tests/*.cjs tests/*.test.js tests/*.test.mjs connector/tests/*.test.mjs

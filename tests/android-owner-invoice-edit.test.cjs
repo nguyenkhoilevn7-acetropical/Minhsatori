@@ -140,8 +140,8 @@ const audit=JSON.parse(data.values.satori_order_edit_audit_v1);
 assert.equal(audit.length,1);
 assert.equal(audit[0].beforeTotal,20000);assert.equal(audit[0].afterTotal,30000);
 assert.equal(audit[0].actor,'verified_owner_android');
-assert.ok(!JSON.stringify(audit).includes('0901 234 567'),
- 'minimal audit excludes phone');
+assert.equal(audit[0].before.phone,start[0].phone,'private audit retains preimage for guarded undo');
+assert.equal(audit[0].after.phone,rows[0].phone,'private audit retains exact postimage');
 const again=req('orders.update',good);
 assert.equal(again.ok,true);assert.equal(again.data.duplicate,true);
 assert.deepEqual(count(),[1,1,201],'exact replay creates no second backup/write');

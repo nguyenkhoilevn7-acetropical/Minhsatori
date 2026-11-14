@@ -98,7 +98,8 @@ for (const header of replaced) {
 
 // New helpers go right after money(): copy them verbatim from the repo.
 {
-  const helpers = ['function invoiceVatRate(', 'function normalizeInvoiceItems('];
+  const helpers = ['function invoiceVatRate(', 'function normalizeInvoiceItems(',
+    'function unusedEditRequest(', 'function normalizeEditPrices('];
   const missing = helpers.filter(h => !out.includes(h));
   if (missing.length === 0) report.push('helpers already present');
   else {
@@ -113,7 +114,7 @@ for (const header of replaced) {
     }).join('\n');
     const money = take(out, 'function money(', 'live');
     out = out.slice(0, money.span[1]) + '\n' + block + out.slice(money.span[1]);
-    report.push('inserted: invoiceVatRate, normalizeInvoiceItems');
+    report.push('inserted: VAT normalizers and current editor dependencies');
   }
 }
 
