@@ -9,6 +9,8 @@ on:
       - 'customer-ai-chat-prototype/invoice-line-vat.mjs'
       - 'customer-ai-chat-prototype/server.mjs'
       - 'customer-ai-chat-prototype/package.json'
+      - 'customer-ai-chat-prototype/satori-readonly.mjs'
+      - 'api/BotApiOrderCancel.gs'
       - '.github/workflows/account-v2-offline.yml'
   pull_request:
     paths:
@@ -17,6 +19,8 @@ on:
       - 'customer-ai-chat-prototype/invoice-line-vat.mjs'
       - 'customer-ai-chat-prototype/server.mjs'
       - 'customer-ai-chat-prototype/package.json'
+      - 'customer-ai-chat-prototype/satori-readonly.mjs'
+      - 'api/BotApiOrderCancel.gs'
       - '.github/workflows/account-v2-offline.yml'
 permissions:
   contents: read
@@ -127,3 +131,5 @@ jobs:
         run: node account-v2/tests/owner-push-volume-postgres.mjs
       - name: Grok PDF delivery MCP (capability URL, one delivery per new invoice, fake ledger)
         run: node account-v2/tests/grok-mcp-postgres.mjs
+      - name: Grok soft cancel (30-min request, parallel confirms, one ledger cancel, fake ledger)
+        run: node account-v2/tests/grok-cancel-postgres.mjs

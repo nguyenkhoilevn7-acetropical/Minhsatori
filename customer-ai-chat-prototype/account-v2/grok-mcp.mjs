@@ -17,6 +17,8 @@ import crypto from 'node:crypto';
 import {invoicePdfFilename} from './pdf-filename.mjs';
 import {ownerPdfDownloadPath} from './owner-pdf-delivery.mjs';
 import {GROK_ORDER_TOOLS,GROK_ORDER_TOOL_NAMES,GrokOrderError,callGrokOrderTool,grokOrdersEnabled} from './grok-orders.mjs';
+import {GROK_READ_TOOLS,GROK_READ_TOOL_NAMES,callGrokReadTool} from './grok-ledger-read.mjs';
+import {GROK_CANCEL_TOOLS,GROK_CANCEL_TOOL_NAMES,callGrokCancelTool} from './grok-order-cancel.mjs';
 
 export const GROK_MCP_PREFIX='/mcp/grok/';
 const PROTOCOL_VERSIONS=['2025-06-18','2025-03-26','2024-11-05'];
@@ -73,6 +75,13 @@ export const GROK_TOOLS=[
 
 const toolError=text=>({content:[{type:'text',text}],isError:true});
 const toolOk=data=>({content:[{type:'text',text:JSON.stringify(data)}],structuredContent:data});
+/** PDF tools return _attachments (embedded application/pdf resources) beside the JSON. */
+const toolResult=data=>{
+ const {_attachments,...rest}=data||{};
+ const r=toolOk(rest);
+ if(Array.isArray(_attachments)&&_attachments.length)r.content.push(..._attachments);
+ return r;
+};
 
 export async function callGrokTool(pool,name,args={}){
  if(name==='satori_pending_pdf_deliveries'){
@@ -126,8 +135,20 @@ export async function callGrokTool(pool,name,args={}){
 }
 
 const rpcError=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,message}});
-/** Phase A tools always; Phase B order tools only when GROK_OWNER_WRITES_ENABLED=1. */
-export const grokToolList=(env=process.env)=>grokOrdersEnabled(env)?[...GROK_TOOLS,...GROK_ORDER_TOOLS]:GROK_TOOLS;
+/** Read-only ledger tools: on with writes, or alone with GROK_OWNER_READS_ENABLED=1. */
+export const grokReadsEnabled=(env=process.env)=>grokOrdersEnabled(env)||env.GROK_OWNER_READS_ENABLED==='1';
+/**
+ * Phase A tools always. Phase B order tools + soft cancel only when
+ * GROK_OWNER_WRITES_ENABLED=1. Read-only ledger tools when reads are enabled.
+ */
+export const grokToolList=(env=process.env)=>{
+ const writes=grokOrdersEnabled(env),reads=grokReadsEnabled(env);
+ return [...GROK_TOOLS,
+  ...(writes?GROK_ORDER_TOOLS:reads?GROK_ORDER_TOOLS.filter(t=>t.name==='satori_find_customer'):[]),
+  ...(reads?GROK_READ_TOOLS:[]),
+  ...(writes?GROK_CANCEL_TOOLS:[])];
+};
+const businessError=e=>e instanceof GrokOrderError||e?.grok===true;
 
 /** Handles one JSON-RPC message; returns a response object or null for notifications. */
 export async function handleGrokRpc(pool,msg,deps={}){
@@ -150,18 +171,26 @@ export async function handleGrokRpc(pool,msg,deps={}){
      'chỉ sau khi gửi Zalo và kiểm tra tên file thực tế mới ghi satori_mark_pdf_delivered '+
      '(sent và actualFileName bằng đúng fileName).'+
      (grokOrdersEnabled(env)?' Tạo đơn: satori_find_customer -> satori_order_draft -> gửi nguyên summary cho chủ cửa hàng -> '+
-      'chỉ khi chủ cửa hàng trả lời "ok" trong tin nhắn mới mới gọi satori_order_confirm.':'')}};
+      'chỉ khi chủ cửa hàng trả lời "ok" trong tin nhắn mới mới gọi satori_order_confirm.'+
+      ' Hủy đơn (hủy mềm, không xóa): satori_order_cancel_request -> gửi nguyên summary -> chỉ khi chủ cửa hàng trả lời "ok" '+
+      'trong tin nhắn mới mới gọi satori_order_cancel_confirm.':'')+
+     (grokReadsEnabled(env)?' Tra cứu chỉ đọc: công nợ (satori_debt_summary, satori_customer_debt, satori_debt_statement_pdf), '+
+      'hóa đơn (satori_orders_list, satori_order_get, satori_invoice_pdf), sản phẩm (satori_products_search). '+
+      'Không tự tính lại tiền: dùng đúng số máy chủ trả về. Nếu NEEDS_SELECTION, hỏi chủ cửa hàng chọn khách, không tự gộp tên.':'')}};
   }
   if(msg.method==='ping')return {jsonrpc:'2.0',id,result:{}};
   if(msg.method==='tools/list')return {jsonrpc:'2.0',id,result:{tools:grokToolList(env)}};
   if(msg.method==='tools/call'){
    const name=msg.params?.name,args=msg.params?.arguments||{};
    if(!grokToolList(env).some(t=>t.name===name))return rpcError(id,-32602,'Unknown tool');
-   if(GROK_ORDER_TOOL_NAMES.includes(name)){
-    try{return {jsonrpc:'2.0',id,result:toolOk(await callGrokOrderTool(pool,deps,name,args))}}
+   const run=GROK_ORDER_TOOL_NAMES.includes(name)?()=>callGrokOrderTool(pool,deps,name,args):
+    GROK_READ_TOOL_NAMES.includes(name)?()=>callGrokReadTool({...deps,pool,env},name,args):
+    GROK_CANCEL_TOOL_NAMES.includes(name)?()=>callGrokCancelTool(pool,{...deps,env},name,args):null;
+   if(run){
+    try{return {jsonrpc:'2.0',id,result:toolResult(await run())}}
     catch(e){
      // Business errors carry a safe Vietnamese message; anything else stays generic.
-     if(e instanceof GrokOrderError)return {jsonrpc:'2.0',id,result:toolError(e.code+': '+e.message)};
+     if(businessError(e))return {jsonrpc:'2.0',id,result:toolError(e.code+': '+e.message)};
      throw e;
     }
    }
@@ -186,8 +215,16 @@ function sendJson(res,status,body){
 }
 
 /** HTTP entry. Returns true when the request was for this endpoint. */
+/** Public origin for signed PDF links (Render terminates TLS; Host is the service domain). */
+export function publicBaseUrl(req,env=process.env){
+ const fixed=String(env.SATORI_PUBLIC_BASE_URL||'').replace(/\/+$/,'');
+ if(/^https:\/\/[A-Za-z0-9.-]+(:\d{1,5})?$/.test(fixed))return fixed;
+ const host=String(req?.headers?.host||'');
+ return /^[A-Za-z0-9.-]+(:\d{1,5})?$/.test(host)?'https://'+host:'';
+}
+
 export async function handleGrokMcpHttp(req,res,pathname,getPool,env=process.env,deps={}){
- deps={env,...deps};
+ deps={env,baseUrl:publicBaseUrl(req,env),...deps};
  if(!String(pathname).startsWith(GROK_MCP_PREFIX))return false;
  // Same 404 for disabled, wrong token and malformed path: no probing signal.
  if(!grokPathAuthorized(pathname,env)){sendJson(res,404,{ok:false,error:'NOT_FOUND'});return true}

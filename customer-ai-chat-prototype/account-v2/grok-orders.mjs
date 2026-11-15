@@ -18,6 +18,7 @@
  * No payment, delete, edit or VAT-policy write is possible here.
  */
 import crypto from 'node:crypto';
+import {norm,collectOrders,rowScore} from './grok-search.mjs';
 
 export const GROK_ORDER_TOOL_NAMES=['satori_find_customer','satori_order_draft','satori_order_confirm','satori_order_status'];
 export const grokOrdersEnabled=(env=process.env)=>env.GROK_OWNER_WRITES_ENABLED==='1';
@@ -33,9 +34,8 @@ export class GrokOrderError extends Error{constructor(code,message){super(messag
 const bad=(code,message)=>{throw new GrokOrderError(code,message)};
 const need=(ok,code,message)=>{if(!ok)bad(code,message)};
 
-/** Same normalisation as BotApi norm(): accent/case-insensitive identity. */
-export const norm=v=>String(v==null?'':v).normalize('NFD').replace(/[̀-ͯ]/g,'')
- .replace(/đ/g,'d').replace(/Đ/g,'d').toLowerCase().replace(/\btreky\b/g,'traky').trim();
+/** Same normalisation as BotApi norm(): accent/case-insensitive identity (shared with grok-search). */
+export {norm};
 const digits=v=>String(v||'').replace(/\D/g,'');
 const intMoney=(v,label)=>{
  need(Number.isSafeInteger(v)&&v>=0&&v<=1e11,'INVALID_AMOUNT',label+' phải là số đồng nguyên, không âm.');
@@ -150,22 +150,31 @@ function signedOrders(result){
  return result.data.orders;
 }
 
-/** Past delivery destinations matching a name or phone (newest first, deduplicated). */
+/**
+ * Past delivery destinations matching a name, phone or invoice number,
+ * accent/case-insensitive with partial words ("minh hoa" -> "Minh Thị Hoa").
+ * Ranked by match quality, then newest invoice. Every distinct
+ * name|address|phone stays a separate result: nothing is merged or renamed.
+ */
 export async function findCustomers(reader,query){
  const q=String(query||'').trim();
  need(q.length>=2&&q.length<=80,'INVALID_QUERY','Nhập tên hoặc số điện thoại (2-80 ký tự).');
- const rows=signedOrders(await reader('orders.list',{query:q,limit:100}));
+ const {rows,truncated}=await collectOrders(reader,q);
  const seen=new Map();
  for(const r of rows){
-  const no=Number(r?.invoiceNo);
-  if(!Number.isSafeInteger(no)||no<=0||r?.id==null)continue;
+  const score=rowScore(r,q);
+  if(score<50)continue;
+  const no=Number(r.invoiceNo);
   const key=norm(r.name)+'|'+norm(r.location)+'|'+digits(r.phone);
   const prev=seen.get(key);
   if(!prev||no>prev.customerRef.invoiceNo)seen.set(key,{customerRef:{id:r.id,invoiceNo:no},
-   name:String(r.name||''),phone:String(r.phone||''),location:String(r.location||''),lastOrderDate:String(r.date||'')});
+   name:String(r.name||''),phone:String(r.phone||''),location:String(r.location||''),lastOrderDate:String(r.date||''),
+   matchScore:Math.max(score,prev?.matchScore||0)});
+  else prev.matchScore=Math.max(prev.matchScore,score);
  }
- const customers=[...seen.values()].sort((a,b)=>b.customerRef.invoiceNo-a.customerRef.invoiceNo).slice(0,10);
- return {count:customers.length,truncated:rows.length>=100,customers};
+ const customers=[...seen.values()].sort((a,b)=>b.matchScore-a.matchScore||b.customerRef.invoiceNo-a.customerRef.invoiceNo).slice(0,10);
+ return {count:customers.length,truncated,customers,
+  ...(customers.length>1?{hint:'Có nhiều điểm giao gần giống: hỏi chủ cửa hàng chọn đúng, không tự gộp hay đổi tên.'}:{})};
 }
 
 /** Mirrors BotApi checkProfile(): the referenced invoice must carry EXACTLY this destination. */

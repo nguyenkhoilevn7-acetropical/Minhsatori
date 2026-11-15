@@ -51,7 +51,7 @@ test('summary states every amount the owner approves, and no approval code',()=>
 test('order tools are listed only when GROK_OWNER_WRITES_ENABLED=1',()=>{
  assert.deepEqual(grokToolList({}),GROK_TOOLS);assert.deepEqual(grokToolList({GROK_OWNER_WRITES_ENABLED:'true'}),GROK_TOOLS);
  const listed=grokToolList({GROK_OWNER_WRITES_ENABLED:'1'});
- assert.deepEqual(listed.map(t=>t.name).slice(2),
+ assert.deepEqual(listed.map(t=>t.name).slice(2,6),
   ['satori_find_customer','satori_order_draft','satori_order_confirm','satori_order_status']);
  assert.ok(!JSON.stringify(listed).match(/payment|delete|markPaid/i));
  const draft=listed.find(t=>t.name==='satori_order_draft');
