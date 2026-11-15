@@ -54,6 +54,7 @@ derived from `SATORI_GROK_MCP_TOKEN`, carries only kind + invoice number/ledger 
   this; the owner can still decide in the app. CTV-pair invoices are refused too (same as orders.delete).
 
 ## Owner steps before it works in production (NOT done by this PR)
+**Superseded by the safer add-on route** (step-by-step: `docs/APPS_SCRIPT_DEPLOY_GROK_LEDGER.md`). Production BotApi (see `apps-script/production-snapshot-20261115/`) ALREADY has `orders.auditHistory` (scope `orders:read` + role owner/admin, edit log) and `orders.previewUpdate` (`orders:update`). `SatoriBotApi` is NOT edited: `api/BotApiGrokLedger.gs` adds only `orders.cancel` (switch `SATORI_GROK_LEDGER_ENABLED=1`) and can append cancel rows to the production audit answer (switch `SATORI_GROK_AUDIT_CANCEL_MERGE=1`), via one line at the top of `doPost(e)`. The 3 in-BotApi edits listed in step 1 below are no longer needed.
 1. Apps Script (cancel only; delete/restore already exist): add `api/BotApiOrderCancel.gs` to the BotApi project, then in `BotApi.gs`:
    - `SCOPES`: `'orders.cancel':'orders:cancel'`
    - `write()`: `action==='orders.cancel'?SatoriOrderCancel.cancel(s,all,p,actor):` before the payment fallbacks
