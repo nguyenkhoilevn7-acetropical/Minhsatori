@@ -290,11 +290,6 @@ function handle(e){
 }
 return {handle:handle};
 })();
-function doPost(e){
- // Grok ledger add-on (BotApiGrokLedger.gs): answers ONLY orders.cancel / orders.auditHistory
- // and only when Script Property SATORI_GROK_LEDGER_ENABLED=1. Everything else falls through unchanged.
- if(typeof SatoriGrokLedgerApi!=='undefined'){var grokLedger=SatoriGrokLedgerApi.tryHandle(e);if(grokLedger)return grokLedger;}
- return SatoriBotApi.handle(e);
-}
+function doPost(e){return SatoriBotApi.handle(e)}
 
 
