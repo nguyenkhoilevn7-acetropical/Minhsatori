@@ -54,6 +54,8 @@ derived from `SATORI_GROK_MCP_TOKEN`, carries only kind + invoice number/ledger 
   this; the owner can still decide in the app. CTV-pair invoices are refused too (same as orders.delete).
 
 ## Owner steps before it works in production (NOT done by this PR)
+Step-by-step for the Apps Script Editor (files, scopes, role, deploy, rollback): `docs/APPS_SCRIPT_DEPLOY_GROK_LEDGER.md`.
+`orders.auditHistory` is implemented in `api/BotApiOrderAuditHistory.gs` and requires `orders:read` **and** `"role":"owner"` on the key (admin is not accepted).
 1. Apps Script (cancel only; delete/restore already exist): add `api/BotApiOrderCancel.gs` to the BotApi project, then in `BotApi.gs`:
    - `SCOPES`: `'orders.cancel':'orders:cancel'`
    - `write()`: `action==='orders.cancel'?SatoriOrderCancel.cancel(s,all,p,actor):` before the payment fallbacks

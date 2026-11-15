@@ -7,6 +7,7 @@ on:
     paths:
       - "api/**"
       - "tests/satori-bot-api.test.js"
+      - "tests/bot-api-cancel-audit.cjs"
 permissions:
   contents: read
 jobs:
@@ -20,3 +21,5 @@ jobs:
           node-version: "22"
       - name: Offline HMAC, money, invoice, backup and delete tests
         run: node tests/satori-bot-api.test.js
+      - name: Offline orders.cancel + orders.auditHistory (owner role) through signed BotApi.gs
+        run: node tests/bot-api-cancel-audit.cjs
