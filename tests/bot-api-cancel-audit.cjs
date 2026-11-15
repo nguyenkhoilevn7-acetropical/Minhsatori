@@ -4,13 +4,14 @@
 const fs=require('node:fs'),vm=require('node:vm'),crypto=require('node:crypto'),assert=require('node:assert/strict');
 const dir=__dirname+'/../api/';
 const SOURCES={botApi:fs.readFileSync(dir+'BotApi.gs','utf8'),cancel:fs.readFileSync(dir+'BotApiOrderCancel.gs','utf8'),
- audit:fs.readFileSync(dir+'BotApiOrderAuditHistory.gs','utf8')};
+ audit:fs.readFileSync(dir+'BotApiOrderAuditHistory.gs','utf8'),ext:fs.readFileSync(dir+'BotApiGrokLedger.gs','utf8')};
 const SECRET={writer:'fake-writer-secret-0123456789abcdefghij',reader:'fake-reader-secret-0123456789abcdefghij',
  legacy:'fake-legacy-secret-0123456789abcdefghij'};
 const DEFAULT_CLIENTS={
  writer:{secret:SECRET.writer,scopes:['orders:read','orders:write','orders:cancel','orders:delete']},
  reader:{secret:SECRET.reader,scopes:['orders:read','debt:read'],role:'owner'},
  legacy:{secret:SECRET.legacy,scopes:['orders:read','orders:write','orders:delete']}};
+const FIXTURE_NOW=Date.now();
 function orders(){return [
  {id:2001,invoiceNo:501,name:'Khách Thử Hủy',phone:'0900000001',location:'Địa chỉ thử 1',total:150000,status:'Chưa thanh toán',
   date:'14/11/2026',timestamp:Date.parse('2026-11-14T02:00:00Z'),source:'bot_api',apiRequestId:'create-req-501',items:[{product:'Nước thử',qty:1}],
@@ -21,14 +22,15 @@ function orders(){return [
  {id:2002,invoiceNo:502,name:'Khách Đã Trả',total:90000,status:'Đã thanh toán',customerPaidAt:'2026-11-13T00:00:00Z',date:'13/11/2026'},
  {id:2003,invoiceNo:503,name:'Khách Không Lịch Sử',total:10000,status:'Chưa thanh toán'}
 ];}
-function harness({clients=DEFAULT_CLIENTS,withCancel=true,withAudit=true,extraValues={}}={}){
+function harness({clients=DEFAULT_CLIENTS,withCancel=true,withAudit=true,withExt=true,flag='1',extraValues={}}={}){
  let raw=JSON.stringify({revision:7,updatedAt:'2026-11-15T00:00:00Z',values:Object.assign({
   satori_orders_v15:JSON.stringify(orders()),
   satori_trash_bin_v15:JSON.stringify([{order:{id:3001,invoiceNo:601,name:'Khách Trong Thùng Rác',total:5000,status:'Chưa thanh toán'},
-   deletedAt:Date.now()-86400000,expiresAt:Date.now()+29*86400000,apiDeleteRequestId:'delete-req-601'}]),
+   deletedAt:FIXTURE_NOW-86400000,expiresAt:FIXTURE_NOW+29*86400000,apiDeleteRequestId:'delete-req-601'}]),
   satori_deleted_invoice_nos:'[601]'},extraValues)});
  const backups=[],cache=new Map();let writes=0;
  const props={STATE_FILE_ID:'fake-state-file',SATORI_BOT_CLIENTS_JSON:JSON.stringify(clients)};
+ if(flag!=null)props.SATORI_GROK_LEDGER_ENABLED=flag;
  const file={getBlob:()=>({getDataAsString:()=>raw}),
   makeCopy:()=>{const copy=raw;backups.push(copy);return {getId:()=>'backup-'+backups.length,getBlob:()=>({getDataAsString:()=>copy})}},
   setContent:v=>{raw=v;writes++}};
@@ -44,12 +46,14 @@ function harness({clients=DEFAULT_CLIENTS,withCancel=true,withAudit=true,extraVa
  // Apps Script loads every .gs file into one global scope.
  if(withCancel)vm.runInContext(SOURCES.cancel,context);
  if(withAudit)vm.runInContext(SOURCES.audit,context);
+ if(withExt)vm.runInContext(SOURCES.ext,context);
  vm.runInContext(SOURCES.botApi,context);
- function send(keyId,action,payload={}){
+ function send(keyId,action,payload={},mutate){
   const body={keyId,timestamp:Date.now(),nonce:crypto.randomUUID(),action,payload};
   body.signature=crypto.createHmac('sha256',clients[keyId]?.secret||'x'.repeat(40))
    .update([body.keyId,body.timestamp,body.nonce,body.action,JSON.stringify(payload)].join('\n')).digest('hex');
-  return JSON.parse(context.doPost({postData:{contents:JSON.stringify(body)}}));
+  const e={postData:{contents:JSON.stringify(body)}};if(mutate)mutate(body,e);e.postData.contents=JSON.stringify(body);
+  return JSON.parse(context.doPost(e));
  }
  return {send,get raw(){return raw},get state(){return JSON.parse(raw)},get backups(){return backups},get writes(){return writes},
   rows(){return JSON.parse(JSON.parse(raw).values.satori_orders_v15)}};
@@ -177,6 +181,45 @@ test('debt:read on the read key still serves debt.summary path (scope gate only;
  const h=harness();
  assert.equal(h.send('reader','debt.summary',{}).error.code,'CONFIG_MISSING');
  assert.equal(h.send('legacy','debt.summary',{}).error.code,'FORBIDDEN');
+});
+
+/* ---------- add-on safety: existing system unaffected ---------- */
+for(const [name,opts] of [['kill switch SATORI_GROK_LEDGER_ENABLED absent',{flag:null}],['kill switch = 0',{flag:'0'}],['add-on file not installed',{withExt:false}]])
+ test('add-on OFF ('+name+'): behaves exactly like today (INVALID_ACTION), nothing written',()=>{
+  const h=harness(opts),before=h.raw;
+  assert.equal(h.send('writer','orders.cancel',cancelPayload).error.code,'INVALID_ACTION');
+  assert.equal(h.send('reader','orders.auditHistory',{invoiceNo:501,id:'2001'}).error.code,'INVALID_ACTION');
+  unchanged(h,before);
+ });
+test('existing actions give identical responses and identical ledger with or without the add-on',()=>{
+ const run=opts=>{const h=harness(opts),out=[];
+  out.push(h.send('writer','system.status'));
+  out.push(h.send('reader','orders.list',{query:'Khách',limit:10}));
+  out.push(h.send('writer','trash.list',{query:'601'}));
+  out.push(h.send('legacy','orders.delete',{expectedRevision:7,requestId:'legacy-delete-503',invoiceNo:503,id:2003,
+   expectedName:'Khách Không Lịch Sử',expectedTotal:10000,confirmed:true}));
+  out.push(h.send('reader','orders.delete',{}));
+  out.push(h.send('writer','nope.action',{}));
+  return {out:JSON.stringify(out),rows:h.rows(),trash:JSON.parse(h.state.values.satori_trash_bin_v15).map(t=>t.order),writes:h.writes};};
+ const on=run({}),off=run({withExt:false});
+ assert.equal(on.out,off.out);assert.deepEqual(on.rows,off.rows);assert.deepEqual(on.trash,off.trash);assert.equal(on.writes,off.writes);
+ assert.equal(on.writes,1);
+});
+test('Android ?route= requests are never touched by the add-on',()=>{
+ const h=harness(),before=h.raw;
+ const r=h.send('writer','orders.cancel',cancelPayload,(b,e)=>{e.parameter={route:'android'}});
+ assert.equal(r.error.code,'INVALID_ACTION');unchanged(h,before);
+});
+test('replay protection is shared with BotApi (same nonce cannot be used twice)',()=>{
+ const h=harness();let saved;
+ assert.equal(h.send('writer','orders.cancel',cancelPayload,b=>{saved={...b}}).ok,true);
+ const r=h.send('writer','orders.cancel',cancelPayload,b=>{Object.assign(b,saved)});
+ assert.equal(r.error.code,'REPLAYED');assert.equal(h.writes,1);
+});
+test('bad signature on an add-on action is refused, nothing written',()=>{
+ const h=harness(),before=h.raw;
+ assert.equal(h.send('writer','orders.cancel',cancelPayload,b=>{b.signature='0'.repeat(64)}).error.code,'AUTH_FAILED');
+ unchanged(h,before);
 });
 
 /* ---------- GrokLedgerScopesSetup.gs (one-time scope grant helper) ---------- */

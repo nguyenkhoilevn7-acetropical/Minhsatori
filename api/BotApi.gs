@@ -11,10 +11,7 @@ var SCOPES={'system.status':'orders:read','orders.list':'orders:read',
  'customers.list':'customers:read','customers.upsert':'customers:write',
  'debt.summary':'debt:read','customers.search':'customers:read','orders.create':'orders:write','orders.delete':'orders:delete',
  'trash.list':'orders:read','orders.restore':'orders:write',
- 'payments.markCustomerPaid':'payments:write',
- 'orders.cancel':'orders:cancel','orders.auditHistory':'orders:read'};
-// Actions that ALSO require client.role==='owner' in SATORI_BOT_CLIENTS_JSON (scope alone is not enough).
-var OWNER_ROLE_ACTIONS={'orders.auditHistory':true};
+ 'payments.markCustomerPaid':'payments:write'};
 function fail(code,message){var e=new Error(message);e.code=code;throw e;}
 function need(x,code,message){if(!x)fail(code,message);}
 function json(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
@@ -31,12 +28,11 @@ function auth(o){
  var client=Object.prototype.hasOwnProperty.call(all,o.keyId)?all[o.keyId]:null;
  need(client&&client.enabled!==false&&typeof client.secret==='string'&&client.secret.length>=32,'AUTH_FAILED','Không thể xác thực');
  need(Array.isArray(client.scopes)&&client.scopes.includes(SCOPES[o.action]),'FORBIDDEN','Bot không có quyền');
- need(!OWNER_ROLE_ACTIONS[o.action]||client.role==='owner','FORBIDDEN','Bot không có quyền');
  var p=o.payload==null?{}:o.payload;
  need(p&&typeof p==='object'&&!Array.isArray(p),'INVALID_REQUEST','Payload không hợp lệ');
  var msg=[o.keyId,o.timestamp,o.nonce,o.action,JSON.stringify(p)].join('\n');
  need(equalSig(signed(client.secret,msg),o.signature),'AUTH_FAILED','Không thể xác thực');
- return {action:o.action,payload:p,nonce:o.keyId+':'+o.nonce,keyId:o.keyId};
+ return {action:o.action,payload:p,nonce:o.keyId+':'+o.nonce};
 }
 function state(){
  var x=readState_();need(Number.isInteger(x.revision)&&x.values&&typeof x.values[ORDER_KEY]==='string','INVALID_STATE','Dữ liệu Drive không hợp lệ');return x;
@@ -230,10 +226,6 @@ function saveCustomer(s,p){
 }
 function read(s,action,p){
  var all=rows(s);
- if(action==='orders.auditHistory'){
-  need(typeof SatoriOrderAuditHistory!=='undefined','CONFIG_MISSING','Thiếu BotApiOrderAuditHistory.gs');
-  return SatoriOrderAuditHistory.read(s,all,p);
- }
  if(action==='trash.list'){
   var now=Date.now(),bin=JSON.parse(s.values.satori_trash_bin_v15||'[]');
   need(Array.isArray(bin),'INVALID_STATE','Dữ liệu thùng rác hỏng');
@@ -260,11 +252,9 @@ function read(s,action,p){
  }
  fail('INVALID_ACTION','Lệnh không hỗ trợ');
 }
-function write(s,action,p,actor){
- if(action==='orders.cancel')need(typeof SatoriOrderCancel!=='undefined','CONFIG_MISSING','Thiếu BotApiOrderCancel.gs');
+function write(s,action,p){
  var all=rows(s),result=action==='customers.upsert'?saveCustomer(s,p):
   action==='orders.create'?create(s,all,p):action==='orders.delete'?removeOrder(s,all,p):
-  action==='orders.cancel'?SatoriOrderCancel.cancel(s,all,p,actor):
   action==='orders.restore'?recoverOrder(s,all,p):markPaid(s,all,p);
  if(!result.modified)return {revision:s.revision,data:result.result};
  var props=PropertiesService.getScriptProperties(),fileId=props.getProperty('STATE_FILE_ID');
@@ -291,8 +281,8 @@ function handle(e){
   try{
    var cache=CacheService.getScriptCache(),key='satoriapi:'+identity.nonce;
    need(!cache.get(key),'REPLAYED','Lệnh đã sử dụng');
-   var s=state(),isWrite=identity.action==='customers.upsert'||identity.action==='orders.create'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='orders.cancel'||identity.action==='payments.markCustomerPaid';
-   var result=isWrite?write(s,identity.action,identity.payload,'botapi:'+identity.keyId):{revision:s.revision,data:read(s,identity.action,identity.payload)};
+   var s=state(),isWrite=identity.action==='customers.upsert'||identity.action==='orders.create'||identity.action==='orders.delete'||identity.action==='orders.restore'||identity.action==='payments.markCustomerPaid';
+   var result=isWrite?write(s,identity.action,identity.payload):{revision:s.revision,data:read(s,identity.action,identity.payload)};
    cache.put(key,'1',600);
    return json({ok:true,action:identity.action,revision:result.revision,data:result.data,backupCreated:!!result.backupCreated});
   }finally{lock.releaseLock()}
@@ -300,6 +290,11 @@ function handle(e){
 }
 return {handle:handle};
 })();
-function doPost(e){return SatoriBotApi.handle(e)}
+function doPost(e){
+ // Grok ledger add-on (BotApiGrokLedger.gs): answers ONLY orders.cancel / orders.auditHistory
+ // and only when Script Property SATORI_GROK_LEDGER_ENABLED=1. Everything else falls through unchanged.
+ if(typeof SatoriGrokLedgerApi!=='undefined'){var grokLedger=SatoriGrokLedgerApi.tryHandle(e);if(grokLedger)return grokLedger;}
+ return SatoriBotApi.handle(e);
+}
 
 
