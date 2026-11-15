@@ -37,7 +37,7 @@ import {ledgerRelayConfig,createV2CanonicalRelay} from './canonical-ledger-relay
 import {GROK_MCP_PREFIX,handleGrokMcpHttp} from './grok-mcp.mjs';
 import {GROK_FILE_PREFIX} from './grok-files.mjs';
 import {handleGrokFileHttp} from './grok-ledger-read.mjs';
-import {createCancelRelay} from './grok-order-cancel.mjs';
+import {createOwnerWriteRelay} from './grok-owner-writes.mjs';
 import {ownerPushConfig,registerOwnerDevice,revokeOwnerDevice,ownerPushStatus,sendTestPush,
  createFcmSender,startOwnerPushRelay,kickOwnerPushRelay,verifyWakeRequest} from './owner-push.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
@@ -518,7 +518,7 @@ export async function handleAccountV2(req,res,pathname){
   try{return await handleGrokMcpHttp(req,res,pathname,db,process.env,{reader:readMinhSatori,
    // Same isolated, signed V2 writer as customer checkout (separate key from reads).
    relayFactory:()=>{ledgerRelayConfig(process.env);return createV2CanonicalRelay({env:process.env,fetcher:fetch})},
-   cancelRelayFactory:()=>createCancelRelay({env:process.env,fetcher:fetch}),kick:kickOwnerPushRelay})}
+   ownerWriteRelayFactory:()=>createOwnerWriteRelay({env:process.env,fetcher:fetch}),kick:kickOwnerPushRelay})}
   catch{
    if(!res.headersSent){res.writeHead(503,{'content-type':'application/json','cache-control':'no-store'});
     res.end('{"ok":false,"error":"GROK_MCP_UNAVAILABLE"}')}

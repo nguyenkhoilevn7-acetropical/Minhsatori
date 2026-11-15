@@ -131,5 +131,5 @@ jobs:
         run: node account-v2/tests/owner-push-volume-postgres.mjs
       - name: Grok PDF delivery MCP (capability URL, one delivery per new invoice, fake ledger)
         run: node account-v2/tests/grok-mcp-postgres.mjs
-      - name: Grok soft cancel (30-min request, parallel confirms, one ledger cancel, fake ledger)
-        run: node account-v2/tests/grok-cancel-postgres.mjs
+      - name: Grok cancel / trash / restore (30-min requests, parallel confirms, one ledger write each, fake ledger)
+        run: node account-v2/tests/grok-owner-writes-postgres.mjs

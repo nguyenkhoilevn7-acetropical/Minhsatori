@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 const permitted=new Set(['system.status','catalogue.list','orders.list','customers.search','orders.findByRequestId','orders.getExactBatch']);
 // Grok owner connector parity with ChatGPT. Read-only (previewUpdate runs on a
 // deep copy in BotApi and never commits); each needs its scope on the V2 read key.
-const ownerReads=new Set(['debt.summary','orders.auditHistory','orders.previewUpdate']);
+const ownerReads=new Set(['debt.summary','orders.auditHistory','orders.previewUpdate','trash.list']);
 export function readOnlyReady(){
  return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(String(process.env.SATORI_READ_ENDPOINT||'').trim()) &&
  /^[A-Za-z0-9_-]{3,64}$/.test(String(process.env.SATORI_READ_KEY_ID||'')) &&
@@ -71,7 +71,12 @@ export async function readMinhSatori(action,payload={}){
  const safePayload={...payload};
  if(action!=='system.status'&&action!=='catalogue.list'&&action!=='orders.findByRequestId'&&action!=='orders.getExactBatch')
   safePayload.limit=Math.min(action==='orders.list'?100:20,Math.max(1,Number(payload.limit)||10));
- if(ownerReads.has(action))delete safePayload.limit;
+ if(action==='trash.list'){
+  // One explicit query (invoice number, name or phone), never a bulk trash export.
+  if(!String(payload.query||'').trim()||Object.keys(payload).some(k=>!['query','limit'].includes(k)))
+   throw Error('TRASH_QUERY_REQUIRED');
+  safePayload.limit=Math.min(30,Math.max(1,Number(payload.limit)||10));
+ }else if(ownerReads.has(action))delete safePayload.limit;
  const keyId=String(process.env.SATORI_READ_KEY_ID),secret=String(process.env.SATORI_READ_HMAC_SECRET);
  const timestamp=Date.now(),nonce=crypto.randomBytes(18).toString('hex');
  const msg=[keyId,timestamp,nonce,action,JSON.stringify(safePayload)].join('\n');

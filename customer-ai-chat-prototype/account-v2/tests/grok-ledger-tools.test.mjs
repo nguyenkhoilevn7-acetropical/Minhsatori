@@ -11,9 +11,11 @@ import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {matchScore,norm} from '../grok-search.mjs';
 import {findCustomers,GrokOrderError} from '../grok-orders.mjs';
-import {debtSummary,customerDebt,debtStatementPdf,invoicePdf,ordersList,orderGet,productsSearch,
+import {debtSummary,customerDebt,debtStatementPdf,invoicePdf,ordersList,orderGet,productsSearch,trashList,
  toCents,fromCents,resolveRange,handleGrokFileHttp,addDays,vnToday} from '../grok-ledger-read.mjs';
-import {requestCancel,confirmCancel,createCancelRelay} from '../grok-order-cancel.mjs';
+import {requestWrite,confirmWrite,createOwnerWriteRelay} from '../grok-owner-writes.mjs';
+const requestCancel=(pool,reader,args,env)=>requestWrite('cancel',pool,reader,args,env);
+const confirmCancel=(pool,reader,rf,args,env)=>confirmWrite('cancel',pool,reader,rf,args,env);
 import {signFileLink,verifyFileToken} from '../grok-files.mjs';
 import {grokToolList,handleGrokRpc} from '../grok-mcp.mjs';
 import {renderDebtStatementPdf,debtStatementDefinition} from '../grok-debt-pdf.mjs';
@@ -37,7 +39,7 @@ const active=o=>!['Đã hủy','Không Tính'].includes(o.status);
 const paid=o=>active(o)&&(o.status==='Đã thanh toán'||!!o.customerPaidAt);
 const visible=o=>({...o,customerPaid:paid(o),satoriPaid:active(o)&&(o.status==='Đã TT Satori'||!!o.satoriPaidAt)});
 function makeLedger(rows){
- const s={revision:7,values:{}};
+ const s={revision:7,values:{}};const trash=[];
  const calls=[];
  const select=p=>rows.filter(o=>{
   const q=norm(p.query||''),dg=String(p.query||'').replace(/\D/g,'');
@@ -55,21 +57,52 @@ function makeLedger(rows){
     total:f.reduce((n,o)=>n+Number(o.total),0),due:owed.reduce((n,o)=>n+Number(o.total),0),
     unpaidInvoices:owed.slice(0,100).map(visible),truncated:owed.length>100}};
   }
+  if(action==='trash.list'){
+   const q=norm(p.query||'');
+   const hits=trash.filter(t=>[t.order.invoiceNo,t.order.name,t.order.phone].some(v=>norm(v).includes(q)));
+   return {revision:s.revision,data:{totalMatches:hits.length,invoices:hits.map(t=>({order:visible(t.order),deletedAt:t.deletedAt,expiresAt:t.expiresAt}))}};
+  }
   if(action==='catalogue.list')return {revision:s.revision,data:{products:[
    {code:'TP-00001',name:'Nước khoáng Lavie 500ml',brand:'Lavie',spec:'thùng 24 chai',unit:'Thùng',listPrice:110000,standardUnitPrice:95000,standardDiscountPercent:13.6},
    {code:'TP-00002',name:'Trà Ô Long Giả',brand:'Giả',spec:'',unit:'Thùng',listPrice:200000,standardUnitPrice:200000}]}};
   throw Error('READ_ONLY_ACTION_DENIED');
  };
  let relayCalls=0;
- const relay={cancel:async p=>{
+ // Faithful fakes of BotApi removeOrder/recoverOrder (same guards, same trash bin shape).
+ const removeOrder=p=>{
+  const prev=trash.find(t=>t.apiDeleteRequestId===p.requestId);
+  if(prev)return {modified:false,result:{duplicate:true,deleted:true,invoiceNo:prev.order.invoiceNo}};
+  if(s.revision!==p.expectedRevision)throw Object.assign(Error(),{code:'REVISION_CONFLICT'});
+  const f=rows.filter(o=>o.invoiceNo===p.invoiceNo&&String(o.id)===String(p.id));
+  if(f.length!==1)throw Object.assign(Error(),{code:'INVALID_ORDER'});
+  const o=f[0];
+  if(o.pairGroupId)throw Object.assign(Error(),{code:'PAIRED_ORDER_LOCKED'});
+  if(norm(o.name)!==norm(p.expectedName)||Number(o.total)!==p.expectedTotal)throw Object.assign(Error(),{code:'ORDER_CHANGED'});
+  if(['Đã thanh toán','Đã TT Satori'].includes(o.status)||o.customerPaidAt)throw Object.assign(Error(),{code:'PAID_ORDER_PROTECTED'});
+  trash.unshift({order:o,deletedAt:NOW,expiresAt:NOW+30*86400000,apiDeleteRequestId:p.requestId});
+  rows.splice(rows.indexOf(o),1);
+  return {modified:true,result:{deleted:true,id:o.id,invoiceNo:o.invoiceNo,restorable:true}};
+ };
+ const recoverOrder=p=>{
+  const prev=rows.find(o=>o.apiRestoreRequestId===p.requestId);
+  if(prev)return {modified:false,result:{restored:true,duplicate:true}};
+  if(s.revision!==p.expectedRevision)throw Object.assign(Error(),{code:'REVISION_CONFLICT'});
+  const f=trash.filter(t=>String(t.order.id)===String(p.id)&&t.order.invoiceNo===p.invoiceNo);
+  if(f.length!==1)throw Object.assign(Error(),{code:'TRASH_NOT_FOUND'});
+  if(rows.some(v=>String(v.id)===String(p.id)||v.invoiceNo===p.invoiceNo))throw Object.assign(Error(),{code:'RESTORE_CONFLICT'});
+  const item=f[0];rows.unshift({...item.order,apiRestoreRequestId:p.requestId});trash.splice(trash.indexOf(item),1);
+  return {modified:true,result:{restored:true,duplicate:false}};
+ };
+ const relay={send:async(action,p)=>{
   relayCalls++;
   try{
-   const out=SatoriOrderCancel.cancel(s,rows,p,'hmac:v2-writer',NOW);
+   const out=action==='orders.cancel'?SatoriOrderCancel.cancel(s,rows,p,'hmac:v2-writer',NOW):
+    action==='orders.delete'?removeOrder(p):action==='orders.restore'?recoverOrder(p):null;
    if(out.modified){s.revision++;Object.assign(s.values,out.extras||{})}
-   return {ok:true,action:'orders.cancel',revision:s.revision,data:out.result};
-  }catch(e){const x=Error(e.code);x.code={REVISION_CONFLICT:'LEDGER_REVISION_CONFLICT'}[e.code]||e.code;throw x}
+   return {ok:true,action,revision:s.revision,data:out.result};
+  }catch(e){const x=Error(e.code);x.code={REVISION_CONFLICT:'LEDGER_REVISION_CONFLICT',INVALID_ORDER:'TARGET_GONE',TRASH_NOT_FOUND:'TARGET_GONE'}[e.code]||e.code;throw x}
  }};
- return {s,rows,reader,calls,relay,relayCalls:()=>relayCalls};
+ return {s,rows,trash,reader,calls,relay,relayCalls:()=>relayCalls};
 }
 const R=(no,name,date,total,extra={})=>({id:'L'+no,invoiceNo:no,date,name,phone:'0900000'+String(100+name.length),
  location:'01 Đường Giả',items:[{product:'Nước Giả',qty:1,unitPrice:total}],total,status:'Chưa thanh toán',...extra});
@@ -88,13 +121,14 @@ const fixture=()=>[
 /* ---------- in-memory stand-in for satori_v2_grok_cancel_requests ---------- */
 function makePool(){
  const rows=new Map();const pool={now:NOW,rows};
+ const T='satori_v2_grok_write_requests';
  const run=async(sql,p=[])=>{
   const t=sql.replace(/\s+/g,' ').trim();
   if(/^(BEGIN|COMMIT|ROLLBACK)$/.test(t))return {rows:[]};
-  if(t.startsWith('INSERT INTO satori_v2_grok_cancel_requests')){
-   const exp=new Date(pool.now+p[9]*60000);
-   rows.set(p[0],{id:p[0],request_id:p[1],invoice_no:String(p[2]),ledger_id:p[3],expected_name:p[4],expected_total:Number(p[5]).toFixed(2),
-    reason:p[6],summary:p[7],requested_by:p[8],status:'pending',expires_at:exp,updated_at:new Date(pool.now),confirmed_at:null,confirmed_by:null,last_note:null,cancelled_at:null,ledger_revision:null});
+  if(t.startsWith('INSERT INTO '+T)){
+   const exp=new Date(pool.now+p[10]*60000);
+   rows.set(p[0],{id:p[0],kind:p[1],request_id:p[2],invoice_no:String(p[3]),ledger_id:p[4],expected_name:p[5],expected_total:Number(p[6]).toFixed(2),
+    reason:p[7],summary:p[8],requested_by:p[9],status:'pending',expires_at:exp,updated_at:new Date(pool.now),confirmed_at:null,confirmed_by:null,last_note:null,done_at:null,ledger_revision:null});
    return {rows:[{expires_at:exp}]};
   }
   if(t.startsWith('SELECT *,expires_at<now() AS expired')){
@@ -102,13 +136,13 @@ function makePool(){
    return {rows:r?[{...r,expired:r.expires_at.getTime()<pool.now,stale:r.updated_at.getTime()<pool.now-120000}]:[]};
   }
   const r=rows.get(p[0]);
-  if(t.startsWith("UPDATE satori_v2_grok_cancel_requests SET status='expired'")){r.status='expired';r.updated_at=new Date(pool.now);return {rows:[]}}
-  if(t.startsWith("UPDATE satori_v2_grok_cancel_requests SET status='submitting'")){
+  if(t.startsWith('UPDATE '+T+" SET status='expired'")){r.status='expired';r.updated_at=new Date(pool.now);return {rows:[]}}
+  if(t.startsWith('UPDATE '+T+" SET status='submitting'")){
    r.status='submitting';r.confirmed_at??=new Date(pool.now);r.confirmed_by=p[1];r.updated_at=new Date(pool.now);return {rows:[]};
   }
-  if(t.startsWith('UPDATE satori_v2_grok_cancel_requests SET status=$2')){
+  if(t.startsWith('UPDATE '+T+' SET status=$2')){
    r.status=p[1];r.last_note=p[2];r.updated_at=new Date(pool.now);
-   if(t.includes('cancelled_at=coalesce'))r.cancelled_at??=new Date(pool.now);
+   if(t.includes('done_at=coalesce'))r.done_at??=new Date(pool.now);
    const m=t.match(/ledger_revision=(\d+)/);if(m)r.ledger_revision=Number(m[1]);
    return {rows:[]};
   }
@@ -249,42 +283,42 @@ test('cancel_request writes nothing to the ledger; confirm once cancels softly w
  const L=makeLedger(fixture()),pool=makePool();
  const before=JSON.stringify(L.rows),rev=L.s.revision;
  const req=await requestCancel(pool,L.reader,{invoiceNo:103,reason:'Khách đổi ý, giả lập'},ENV);
- assert.equal(req.written,false);assert.match(req.summary,/YÊU CẦU HỦY HÓA ĐƠN \(chưa hủy\)/);assert.match(req.summary,/#103/);
+ assert.equal(req.written,false);assert.match(req.summary,/YÊU CẦU HỦY HÓA ĐƠN \(chưa thực hiện\)/);assert.match(req.summary,/#103/);
  assert.equal(JSON.stringify(L.rows),before);assert.equal(L.s.revision,rev);assert.equal(L.relayCalls(),0);
- const ok=await confirmCancel(pool,L.reader,()=>L.relay,{cancelRequestId:req.cancelRequestId},ENV);
- assert.equal(ok.state,'CANCELLED');assert.equal(ok.duplicate,false);assert.equal(L.relayCalls(),1);
+ const ok=await confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV);
+ assert.equal(ok.state,'DONE');assert.equal(ok.duplicate,false);assert.equal(L.relayCalls(),1);
  const row=L.rows.find(o=>o.invoiceNo===103);
  assert.equal(row.status,'Đã hủy');assert.equal(row.statusBeforeCancel,'Chưa thanh toán');
  assert.equal(row.cancelReason,'Khách đổi ý, giả lập');assert.equal(row.cancelledBy,'hmac:v2-writer');
  assert.equal(L.rows.length,10,'never deleted');
  const audit=JSON.parse(L.s.values.satori_order_cancel_audit_v1);
  assert.equal(audit.length,1);assert.equal(audit[0].invoiceNo,103);assert.equal(audit[0].source,'grok-owner-connector');
- const stored=pool.rows.get(req.cancelRequestId);
- assert.equal(stored.status,'cancelled');assert.ok(stored.confirmed_at&&stored.cancelled_at);assert.equal(stored.ledger_revision,8);
+ const stored=pool.rows.get(req.requestId);
+ assert.equal(stored.status,'done');assert.ok(stored.confirmed_at&&stored.done_at);assert.equal(stored.ledger_revision,8);
 });
 test('confirm twice never cancels twice; a lost reply is retried by the same requestId',needsGas,async()=>{
  const L=makeLedger(fixture()),pool=makePool();
  const req=await requestCancel(pool,L.reader,{invoiceNo:105,reason:'Trùng đơn giả'},ENV);
- await confirmCancel(pool,L.reader,()=>L.relay,{cancelRequestId:req.cancelRequestId},ENV);
- const again=await confirmCancel(pool,L.reader,()=>L.relay,{cancelRequestId:req.cancelRequestId},ENV);
- assert.equal(again.state,'CANCELLED');assert.equal(again.duplicate,true);assert.equal(L.relayCalls(),1);
+ await confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV);
+ const again=await confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV);
+ assert.equal(again.state,'DONE');assert.equal(again.duplicate,true);assert.equal(L.relayCalls(),1);
  assert.equal(JSON.parse(L.s.values.satori_order_cancel_audit_v1).length,1);
  // Lost reply: ledger wrote, V2 marked uncertain -> retry hits the Apps Script replay path.
  const L2=makeLedger(fixture()),pool2=makePool();
  const r2=await requestCancel(pool2,L2.reader,{invoiceNo:103,reason:'Mất phản hồi giả'},ENV);
  let first=true;
- const flaky={cancel:async p=>{const out=await L2.relay.cancel(p);if(first){first=false;const e=Error('x');e.code='LEDGER_NETWORK_OR_TIMEOUT';throw e}return out}};
- assert.equal((await confirmCancel(pool2,L2.reader,()=>flaky,{cancelRequestId:r2.cancelRequestId},ENV)).state,'UNCERTAIN');
- const retry=await confirmCancel(pool2,L2.reader,()=>flaky,{cancelRequestId:r2.cancelRequestId},ENV);
- assert.equal(retry.state,'CANCELLED');assert.equal(retry.duplicate,true);
+ const flaky={send:async(a,p)=>{const out=await L2.relay.send(a,p);if(first){first=false;const e=Error('x');e.code='LEDGER_NETWORK_OR_TIMEOUT';throw e}return out}};
+ assert.equal((await confirmCancel(pool2,L2.reader,()=>flaky,{requestId:r2.requestId},ENV)).state,'UNCERTAIN');
+ const retry=await confirmCancel(pool2,L2.reader,()=>flaky,{requestId:r2.requestId},ENV);
+ assert.equal(retry.state,'DONE');assert.equal(retry.duplicate,true);
  assert.equal(JSON.parse(L2.s.values.satori_order_cancel_audit_v1).length,1,'one cancellation only');
 });
 test('cancel request expires after 30 minutes; nothing is written',needsGas,async()=>{
  const L=makeLedger(fixture()),pool=makePool();
  const req=await requestCancel(pool,L.reader,{invoiceNo:103,reason:'Hết hạn giả'},ENV);
  pool.now+=31*60000;
- assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{cancelRequestId:req.cancelRequestId},ENV)),'CANCEL_REQUEST_EXPIRED');
- assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{cancelRequestId:req.cancelRequestId},ENV)),'CANCEL_REQUEST_EXPIRED');
+ assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV)),'REQUEST_EXPIRED');
+ assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV)),'REQUEST_EXPIRED');
  assert.equal(L.relayCalls(),0);assert.equal(L.rows.find(o=>o.invoiceNo===103).status,'Chưa thanh toán');
 });
 test('writes disabled blocks request and confirm (and tools are not listed)',needsGas,async()=>{
@@ -292,11 +326,11 @@ test('writes disabled blocks request and confirm (and tools are not listed)',nee
  const req=await requestCancel(pool,L.reader,{invoiceNo:103,reason:'Thử chặn giả'},ENV);
  for(const env of [{},{GROK_OWNER_WRITES_ENABLED:'0'},{GROK_OWNER_WRITES_ENABLED:'true'}]){
   assert.equal(await code(()=>requestCancel(pool,L.reader,{invoiceNo:103,reason:'Thử chặn giả'},env)),'WRITES_DISABLED');
-  assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{cancelRequestId:req.cancelRequestId},env)),'WRITES_DISABLED');
+  assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},env)),'WRITES_DISABLED');
   assert.ok(!grokToolList(env).some(t=>/cancel/.test(t.name)));
  }
  assert.equal(L.relayCalls(),0);
- const rpc=await handleGrokRpc(pool,{jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'satori_order_cancel_confirm',arguments:{cancelRequestId:req.cancelRequestId}}},{env:{},reader:L.reader});
+ const rpc=await handleGrokRpc(pool,{jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'satori_order_cancel_confirm',arguments:{requestId:req.requestId}}},{env:{},reader:L.reader});
  assert.equal(rpc.error.code,-32602);
 });
 test('paid invoices are refused with a clear reason (at request and if paid before confirm)',needsGas,async()=>{
@@ -307,16 +341,16 @@ test('paid invoices are refused with a clear reason (at request and if paid befo
  assert.equal(await code(()=>requestCancel(pool,L.reader,{invoiceNo:106,reason:'Cặp CTV giả'},ENV)),'PAIRED_ORDER_LOCKED');
  const req=await requestCancel(pool,L.reader,{invoiceNo:103,reason:'Trả sau khi yêu cầu'},ENV);
  Object.assign(L.rows.find(o=>o.invoiceNo===103),{status:'Đã thanh toán',customerPaidAt:'x'});
- assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{cancelRequestId:req.cancelRequestId},ENV)),'PAID_ORDER_PROTECTED');
- assert.equal(pool.rows.get(req.cancelRequestId).status,'rejected');assert.equal(L.relayCalls(),0);
- assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{cancelRequestId:req.cancelRequestId},ENV)),'CANCEL_REQUEST_CLOSED');
+ assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV)),'PAID_ORDER_PROTECTED');
+ assert.equal(pool.rows.get(req.requestId).status,'rejected');assert.equal(L.relayCalls(),0);
+ assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV)),'REQUEST_CLOSED');
 });
 test('a cancelled invoice leaves debt (summary, per-customer and statement)',needsGas,async()=>{
  const L=makeLedger(fixture()),pool=makePool();
  const before=await customerDebt(L.reader,{customer:'Nguyễn Thị Hoa',days:30},null,NOW);
  const sumBefore=(await debtSummary(L.reader,{},NOW)).totalDue;
  const req=await requestCancel(pool,L.reader,{invoiceNo:103,reason:'Hủy để thử công nợ'},ENV);
- await confirmCancel(pool,L.reader,()=>L.relay,{cancelRequestId:req.cancelRequestId},ENV);
+ await confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV);
  const after=await customerDebt(L.reader,{customer:'Nguyễn Thị Hoa',days:30},null,NOW);
  assert.equal(before.totals.owed-after.totals.owed,250000);
  assert.ok(after.excluded.some(x=>x.invoiceNo===103));assert.ok(!after.invoices.some(x=>x.invoiceNo===103));
@@ -338,14 +372,83 @@ test('Apps Script orders.cancel: revision, identity and replay guards',needsGas,
  assert.equal(err(()=>SatoriOrderCancel.cancel(s,rows,{...p,invoiceNo:105,id:'L105',expectedTotal:80000,expectedRevision:4},'a')),'REUSED_REQUEST_ID');
  assert.equal(err(()=>SatoriOrderCancel.cancel(s,rows,{...p,requestId:'grokcancel-other999',expectedRevision:4},'a')),'ALREADY_CANCELLED');
 });
-test('cancel relay signs orders.cancel with the WRITER key only and maps upstream refusals',async()=>{
+test('owner write relay signs orders.cancel with the WRITER key only and maps upstream refusals',async()=>{
  const env={SATORI_V2_CANONICAL_WRITES_ENABLED:'1',SATORI_V2_CANONICAL_WRITE_ENDPOINT:'https://script.google.com/macros/s/'+'A'.repeat(30)+'/exec',
   SATORI_V2_CANONICAL_WRITE_KEY_ID:'v2-writer-test',SATORI_V2_CANONICAL_WRITE_SECRET:'w'.repeat(40),SATORI_READ_KEY_ID:'v2-reader-test'};
  let sent;
- const relay=createCancelRelay({env,fetcher:async(u,o)=>{sent=JSON.parse(o.body);return {ok:true,text:async()=>JSON.stringify({ok:false,error:{code:'PAID_ORDER_PROTECTED'}})}}});
- await assert.rejects(()=>relay.cancel({requestId:'grokcancel-x1234567'}),e=>e.code==='PAID_ORDER_PROTECTED');
+ const relay=createOwnerWriteRelay({env,fetcher:async(u,o)=>{sent=JSON.parse(o.body);return {ok:true,text:async()=>JSON.stringify({ok:false,error:{code:'PAID_ORDER_PROTECTED'}})}}});
+ await assert.rejects(()=>relay.send('orders.cancel',{requestId:'grokcancel-x1234567'}),e=>e.code==='PAID_ORDER_PROTECTED');
+ await assert.rejects(()=>relay.send('orders.update',{}),e=>e.code==='LEDGER_ACTION_DENIED','only cancel/delete/restore');
  assert.equal(sent.action,'orders.cancel');assert.equal(sent.keyId,'v2-writer-test');assert.ok(!JSON.stringify(sent).includes('w'.repeat(40)));
- assert.throws(()=>createCancelRelay({env:{...env,SATORI_READ_KEY_ID:'v2-writer-test'},fetcher:fetch}),/LEDGER_WRITER_MUST_BE_SEPARATE/);
+ assert.throws(()=>createOwnerWriteRelay({env:{...env,SATORI_READ_KEY_ID:'v2-writer-test'},fetcher:fetch}),/LEDGER_WRITER_MUST_BE_SEPARATE/);
+});
+
+/* ================= cancel = 0 đ, still listed ================= */
+test('cancel: invoice stays listed with effective 0 đ; debt and bill total drop by its amount',needsGas,async()=>{
+ const L=makeLedger(fixture()),pool=makePool();
+ const billBefore=(await debtSummary(L.reader,{},NOW)).totalBilled;
+ const req=await requestCancel(pool,L.reader,{invoiceNo:101,reason:'Khách hủy giả'},ENV);
+ assert.match(req.summary,/số tiền hiệu lực về 0 đ/);assert.match(req.summary,/500\.000 đ/);
+ await confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV);
+ assert.equal((await debtSummary(L.reader,{},NOW)).totalBilled,billBefore-500000,'bill total drops');
+ const listed=await ordersList(L.reader,{customer:'Nguyễn Thị Hoa',status:'cancelled'},NOW);
+ const row=listed.orders.find(o=>o.invoiceNo===101);
+ assert.ok(row,'still in the system');assert.deepEqual([row.status,row.total,row.effectiveTotal],['Đã hủy',500000,0]);
+ const g=await orderGet(L.reader,{invoiceNo:101});
+ assert.equal(g.order.items.length,1,'lines kept');assert.match(g.order.note,/0 đ/);
+ assert.equal(JSON.parse(L.s.values.satori_order_cancel_audit_v1)[0].originalTotal,500000);
+ assert.equal(L.trash.length,0,'cancel never touches the trash bin');
+});
+
+/* ================= delete = trash bin, restorable ================= */
+const requestTrash=(pool,reader,args,env)=>requestWrite('trash',pool,reader,args,env);
+const confirmTrash=(pool,reader,rf,args,env)=>confirmWrite('trash',pool,reader,rf,args,env);
+const requestRestore=(pool,reader,args,env)=>requestWrite('restore',pool,reader,args,env);
+const confirmRestore=(pool,reader,rf,args,env)=>confirmWrite('restore',pool,reader,rf,args,env);
+test('delete: request writes nothing; confirm moves to trash (gone from list + debt); restore brings it back',async()=>{
+ const L=makeLedger(fixture()),pool=makePool();
+ const due0=(await debtSummary(L.reader,{},NOW)).totalDue;
+ const req=await requestTrash(pool,L.reader,{invoiceNo:103,reason:'Nhập nhầm giả'},ENV);
+ assert.match(req.summary,/Thùng Rác 30 ngày/);assert.equal(req.written,false);
+ assert.equal(L.relayCalls(),0);assert.ok(L.rows.some(o=>o.invoiceNo===103));
+ const ok=await confirmTrash(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV);
+ assert.deepEqual([ok.state,ok.kind,ok.duplicate],['DONE','trash',false]);
+ assert.ok(!L.rows.some(o=>o.invoiceNo===103));assert.equal(L.trash.length,1);
+ assert.equal(await code(()=>orderGet(L.reader,{invoiceNo:103})),'ORDER_NOT_FOUND');
+ assert.equal((await debtSummary(L.reader,{},NOW)).totalDue,due0-250000);
+ const tl=await trashList(L.reader,{query:'103'});
+ assert.equal(tl.invoices[0].invoiceNo,103);assert.ok(tl.invoices[0].restorableUntil);
+ const again=await confirmTrash(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV);
+ assert.equal(again.duplicate,true);assert.equal(L.trash.length,1);assert.equal(L.relayCalls(),1);
+ assert.equal(await code(()=>confirmCancel(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV)),'WRONG_CONFIRM_TOOL');
+ const rr=await requestRestore(pool,L.reader,{invoiceNo:103,reason:'Xóa nhầm giả'},ENV);
+ assert.match(rr.summary,/KHÔI PHỤC/);assert.equal(L.trash.length,1,'restore request writes nothing');
+ const back=await confirmRestore(pool,L.reader,()=>L.relay,{requestId:rr.requestId},ENV);
+ assert.equal(back.state,'DONE');assert.equal(L.trash.length,0);
+ assert.equal((await orderGet(L.reader,{invoiceNo:103})).order.status,'Chưa thanh toán');
+ assert.equal((await debtSummary(L.reader,{},NOW)).totalDue,due0);
+ assert.equal((await confirmRestore(pool,L.reader,()=>L.relay,{requestId:rr.requestId},ENV)).duplicate,true);
+ assert.equal(L.relayCalls(),2);
+});
+test('delete/restore: expiry, writes disabled, paid refused, lost reply retried once',async()=>{
+ const L=makeLedger(fixture()),pool=makePool();
+ const req=await requestTrash(pool,L.reader,{invoiceNo:105,reason:'Hết hạn giả'},ENV);
+ pool.now+=31*60000;
+ assert.equal(await code(()=>confirmTrash(pool,L.reader,()=>L.relay,{requestId:req.requestId},ENV)),'REQUEST_EXPIRED');
+ assert.equal(L.relayCalls(),0);pool.now=NOW;
+ for(const env of [{},{GROK_OWNER_WRITES_ENABLED:'0'}]){
+  assert.equal(await code(()=>requestTrash(pool,L.reader,{invoiceNo:105,reason:'Tắt ghi giả'},env)),'WRITES_DISABLED');
+  assert.equal(await code(()=>requestRestore(pool,L.reader,{invoiceNo:105,reason:'Tắt ghi giả'},env)),'WRITES_DISABLED');
+  assert.ok(!grokToolList(env).some(t=>/trash_request|restore/.test(t.name)));
+ }
+ assert.equal(await code(()=>requestTrash(pool,L.reader,{invoiceNo:102,reason:'Đã trả giả'},ENV)),'PAID_ORDER_PROTECTED');
+ assert.equal(await code(()=>requestRestore(pool,L.reader,{invoiceNo:105,reason:'Không có trong thùng'},ENV)),'TRASH_NOT_FOUND');
+ const r2=await requestTrash(pool,L.reader,{invoiceNo:105,reason:'Mất phản hồi giả'},ENV);
+ let first=true;
+ const flaky={send:async(a,p)=>{const out=await L.relay.send(a,p);if(first){first=false;const e=Error('x');e.code='LEDGER_NETWORK_OR_TIMEOUT';throw e}return out}};
+ assert.equal((await confirmTrash(pool,L.reader,()=>flaky,{requestId:r2.requestId},ENV)).state,'UNCERTAIN');
+ const retry=await confirmTrash(pool,L.reader,()=>flaky,{requestId:r2.requestId},ENV);
+ assert.deepEqual([retry.state,retry.duplicate],['DONE',true]);assert.equal(L.trash.length,1,'moved once');
 });
 
 /* ================= MCP surface ================= */
@@ -353,16 +456,18 @@ test('tool list: reads with writes or GROK_OWNER_READS_ENABLED; cancel only with
  const names=env=>grokToolList(env).map(t=>t.name);
  assert.deepEqual(names({}),['satori_pending_pdf_deliveries','satori_mark_pdf_delivered']);
  const ro=names({GROK_OWNER_READS_ENABLED:'1'});
- assert.ok(ro.includes('satori_customer_debt')&&ro.includes('satori_find_customer')&&!ro.includes('satori_order_draft')&&!ro.some(n=>/cancel/.test(n)));
+ assert.ok(ro.includes('satori_customer_debt')&&ro.includes('satori_trash_list')&&ro.includes('satori_find_customer')&&!ro.includes('satori_order_draft')&&!ro.some(n=>/cancel|_request|_confirm/.test(n)));
  const all=names(ENV);
  for(const n of ['satori_order_cancel_request','satori_order_cancel_confirm','satori_debt_summary','satori_customer_debt',
   'satori_debt_statement_pdf','satori_orders_list','satori_order_get','satori_invoice_pdf','satori_products_search',
-  'satori_order_audit_history','satori_order_preview_update','satori_system_status','satori_order_draft','satori_order_confirm'])
+  'satori_order_audit_history','satori_order_preview_update','satori_system_status','satori_order_draft','satori_order_confirm',
+  'satori_order_trash_request','satori_order_trash_confirm','satori_order_restore_request','satori_order_restore_confirm','satori_trash_list'])
   assert.ok(all.includes(n),n);
  assert.equal(new Set(all).size,all.length,'no duplicate tool names');
  const writers=grokToolList(ENV).filter(t=>t.annotations.readOnlyHint===false).map(t=>t.name).sort();
- assert.deepEqual(writers,['satori_mark_pdf_delivered','satori_order_cancel_confirm','satori_order_confirm','satori_order_draft']);
- assert.ok(!JSON.stringify(grokToolList(ENV)).match(/delete|markPaid|hard/i));
+ assert.deepEqual(writers,['satori_mark_pdf_delivered','satori_order_cancel_confirm','satori_order_confirm','satori_order_draft',
+  'satori_order_restore_confirm','satori_order_trash_confirm']);
+ assert.ok(!JSON.stringify(grokToolList(ENV)).match(/markPaid|markCustomerPaid|hard delete/i));
  const L=makeLedger(fixture());
  const rpc=await handleGrokRpc(makePool(),{jsonrpc:'2.0',id:9,method:'tools/call',params:{name:'satori_invoice_pdf',arguments:{invoiceNo:103}}},
   {env:ENV,reader:L.reader,invoicePdf:async()=>({bytes:Buffer.from('%PDF-1.4'.padEnd(300,' ')),sha256:'b'.repeat(64),filename:'103.pdf'})});

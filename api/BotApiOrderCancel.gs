@@ -6,7 +6,9 @@
  *   SatoriOrderCancel.cancel(s, all, p, actor) -> {modified, extras?, result}
  *
  *  - Never deletes: the invoice row stays in satori_orders_v15 with
- *    status "Đã hủy" (already excluded from debt/profit by active()).
+ *    status "Đã hủy": the app and active() count it as 0 đ in debt, bill
+ *    totals, revenue and profit. Lines and the original total are kept.
+ *  - Different from "Xóa" (orders.delete -> 30-day trash bin).
  *    Previous status, who, when and why are stored on the row and appended to
  *    satori_order_cancel_audit_v1 (append-only).
  *  - Idempotent by requestId: a repeated request returns duplicate:true and
@@ -68,7 +70,7 @@ function cancel(s,all,p,actor,nowMs){
  o.cancelledAt=at;o.cancelledBy=by;o.cancelReason=reason;
  o.apiCancelRequestId=requestId;o.updatedAt=at;
  log.push({requestId:requestId,id:o.id,invoiceNo:o.invoiceNo,at:at,actor:by,reason:reason,
-  previousStatus:previousStatus,total:o.total,source:String(p.actor||'').slice(0,80)});
+  previousStatus:previousStatus,originalTotal:o.total,effectiveTotal:0,source:String(p.actor||'').slice(0,80)});
  return {modified:true,extras:(function(){var x={};x[AUDIT_KEY]=JSON.stringify(log);return x})(),
   result:{cancelled:true,duplicate:false,id:o.id,invoiceNo:o.invoiceNo,status:o.status,cancelledAt:at}};
 }

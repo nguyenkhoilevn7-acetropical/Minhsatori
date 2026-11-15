@@ -18,7 +18,7 @@ import {invoicePdfFilename} from './pdf-filename.mjs';
 import {ownerPdfDownloadPath} from './owner-pdf-delivery.mjs';
 import {GROK_ORDER_TOOLS,GROK_ORDER_TOOL_NAMES,GrokOrderError,callGrokOrderTool,grokOrdersEnabled} from './grok-orders.mjs';
 import {GROK_READ_TOOLS,GROK_READ_TOOL_NAMES,callGrokReadTool} from './grok-ledger-read.mjs';
-import {GROK_CANCEL_TOOLS,GROK_CANCEL_TOOL_NAMES,callGrokCancelTool} from './grok-order-cancel.mjs';
+import {GROK_WRITE_TOOLS,GROK_WRITE_TOOL_NAMES,callGrokWriteTool} from './grok-owner-writes.mjs';
 
 export const GROK_MCP_PREFIX='/mcp/grok/';
 const PROTOCOL_VERSIONS=['2025-06-18','2025-03-26','2024-11-05'];
@@ -138,7 +138,7 @@ const rpcError=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,messag
 /** Read-only ledger tools: on with writes, or alone with GROK_OWNER_READS_ENABLED=1. */
 export const grokReadsEnabled=(env=process.env)=>grokOrdersEnabled(env)||env.GROK_OWNER_READS_ENABLED==='1';
 /**
- * Phase A tools always. Phase B order tools + soft cancel only when
+ * Phase A tools always. Phase B order tools + cancel/trash/restore only when
  * GROK_OWNER_WRITES_ENABLED=1. Read-only ledger tools when reads are enabled.
  */
 export const grokToolList=(env=process.env)=>{
@@ -146,7 +146,7 @@ export const grokToolList=(env=process.env)=>{
  return [...GROK_TOOLS,
   ...(writes?GROK_ORDER_TOOLS:reads?GROK_ORDER_TOOLS.filter(t=>t.name==='satori_find_customer'):[]),
   ...(reads?GROK_READ_TOOLS:[]),
-  ...(writes?GROK_CANCEL_TOOLS:[])];
+  ...(writes?GROK_WRITE_TOOLS:[])];
 };
 const businessError=e=>e instanceof GrokOrderError||e?.grok===true;
 
@@ -172,8 +172,10 @@ export async function handleGrokRpc(pool,msg,deps={}){
      '(sent và actualFileName bằng đúng fileName).'+
      (grokOrdersEnabled(env)?' Tạo đơn: satori_find_customer -> satori_order_draft -> gửi nguyên summary cho chủ cửa hàng -> '+
       'chỉ khi chủ cửa hàng trả lời "ok" trong tin nhắn mới mới gọi satori_order_confirm.'+
-      ' Hủy đơn (hủy mềm, không xóa): satori_order_cancel_request -> gửi nguyên summary -> chỉ khi chủ cửa hàng trả lời "ok" '+
-      'trong tin nhắn mới mới gọi satori_order_cancel_confirm.':'')+
+      ' HỦY và XÓA là hai việc khác nhau: HỦY = hóa đơn ở lại hệ thống, trạng thái "Đã hủy", tính 0 đ '+
+      '(satori_order_cancel_request/confirm); XÓA = đưa vào Thùng Rác 30 ngày, khôi phục được '+
+      '(satori_order_trash_request/confirm, khôi phục bằng satori_order_restore_request/confirm). '+
+      'Mọi yêu cầu: gửi nguyên summary, chỉ khi chủ cửa hàng trả lời "ok" trong tin nhắn mới mới gọi bước confirm với requestId.':'')+
      (grokReadsEnabled(env)?' Tra cứu chỉ đọc: công nợ (satori_debt_summary, satori_customer_debt, satori_debt_statement_pdf), '+
       'hóa đơn (satori_orders_list, satori_order_get, satori_invoice_pdf), sản phẩm (satori_products_search). '+
       'Không tự tính lại tiền: dùng đúng số máy chủ trả về. Nếu NEEDS_SELECTION, hỏi chủ cửa hàng chọn khách, không tự gộp tên.':'')}};
@@ -185,7 +187,7 @@ export async function handleGrokRpc(pool,msg,deps={}){
    if(!grokToolList(env).some(t=>t.name===name))return rpcError(id,-32602,'Unknown tool');
    const run=GROK_ORDER_TOOL_NAMES.includes(name)?()=>callGrokOrderTool(pool,deps,name,args):
     GROK_READ_TOOL_NAMES.includes(name)?()=>callGrokReadTool({...deps,pool,env},name,args):
-    GROK_CANCEL_TOOL_NAMES.includes(name)?()=>callGrokCancelTool(pool,{...deps,env},name,args):null;
+    GROK_WRITE_TOOL_NAMES.includes(name)?()=>callGrokWriteTool(pool,{...deps,env},name,args):null;
    if(run){
     try{return {jsonrpc:'2.0',id,result:toolResult(await run())}}
     catch(e){

@@ -71,7 +71,7 @@ export const fromCents=c=>c%100n===0n?Number(c/100n):Number(c)/100;
 const sumCents=list=>list.reduce((n,x)=>n+x,0n);
 
 /* ---------- signed reads ---------- */
-const OWNER_SCOPED=new Set(['debt.summary','orders.auditHistory','orders.previewUpdate','orders.get']);
+const OWNER_SCOPED=new Set(['debt.summary','orders.auditHistory','orders.previewUpdate','orders.get','trash.list']);
 async function read(reader,action,payload){
  let r;
  try{r=await reader(action,payload)}
@@ -90,7 +90,9 @@ const isPaid=o=>isActive(o)&&o?.customerPaid===true;
 export function brief(o){
  return {invoiceNo:Number(o.invoiceNo),ledgerId:String(o.id),date:ledgerIso(o.date)||String(o.date||''),
   name:String(o.name||''),phone:String(o.phone||''),location:String(o.location||''),
-  total:fromCents(toCents(o.total)),status:String(o.status||''),
+  total:fromCents(toCents(o.total)),
+  // App rule: "Đã hủy"/"Không Tính" count as 0 đ in debt, bill totals and revenue; total stays the original.
+  effectiveTotal:isActive(o)?fromCents(toCents(o.total)):0,status:String(o.status||''),
   customerPaid:isPaid(o),satoriPaid:isActive(o)&&o?.satoriPaid===true,cancelled:!isActive(o),
   itemCount:Array.isArray(o.items)?o.items.length:0};
 }
@@ -119,6 +121,38 @@ export async function exactOrder(reader,{invoiceNo,orderId}={},pool=null){
  need(exact.length>=1,'ORDER_NOT_FOUND','Không tìm thấy hóa đơn #'+n+' trong sổ (có thể đã xóa vào thùng rác).');
  need(exact.length===1,'ORDER_AMBIGUOUS','Số hóa đơn #'+n+' không duy nhất; cần thêm orderId (ledgerId).');
  return {revision:r.revision,order:exact[0]};
+}
+
+/**
+ * Exactly one trash-bin entry (the app's 30-day Thùng Rác, BotApi trash.list).
+ * Returns {revision, order, deletedAt, expiresAt}.
+ */
+export async function trashEntry(reader,{invoiceNo,orderId}={}){
+ let n=invoiceNo;
+ const idText=orderId==null?'':String(orderId).trim();
+ if(n==null&&/^\d{1,12}$/.test(idText))n=Number(idText);
+ const ledgerId=/^\d{1,12}$/.test(idText)&&Number(idText)===n?'':idText;
+ need(Number.isSafeInteger(n)&&n>0,'INVALID_ORDER','Cần số hóa đơn (ví dụ 6123).');
+ const r=await read(reader,'trash.list',{query:String(n),limit:30});
+ const list=Array.isArray(r.data.invoices)?r.data.invoices:[];
+ const hits=list.filter(t=>Number(t?.order?.invoiceNo)===n&&(!ledgerId||String(t.order.id)===ledgerId));
+ need(hits.length>=1,'TRASH_NOT_FOUND','Không thấy hóa đơn #'+n+' trong Thùng Rác (chỉ giữ 30 ngày).');
+ need(hits.length===1,'TRASH_AMBIGUOUS','Thùng Rác có nhiều hóa đơn #'+n+'; cần orderId (ledgerId).');
+ const t=hits[0];
+ need(!Number.isFinite(t.expiresAt)||t.expiresAt>Date.now(),'TRASH_EXPIRED','Hóa đơn #'+n+' đã quá hạn khôi phục 30 ngày.');
+ return {revision:r.revision,order:t.order,deletedAt:t.deletedAt??null,expiresAt:t.expiresAt??null};
+}
+
+export async function trashList(reader,args={}){
+ const q=String(args.query||'').trim();
+ need(q.length>=1&&q.length<=80,'INVALID_QUERY','Nhập số hóa đơn, tên hoặc số điện thoại (1-80 ký tự).');
+ const r=await read(reader,'trash.list',{query:q,limit:30});
+ const list=Array.isArray(r.data.invoices)?r.data.invoices:[];
+ return {count:list.length,totalMatches:r.data.totalMatches??list.length,source:'trash.list (Thùng Rác 30 ngày)',
+  invoices:list.map(t=>({...brief(t.order),effectiveTotal:0,inTrash:true,
+   deletedAt:Number.isFinite(t.deletedAt)?new Date(t.deletedAt).toISOString():null,
+   restorableUntil:Number.isFinite(t.expiresAt)?new Date(t.expiresAt).toISOString():null})),
+  note:'Hóa đơn trong Thùng Rác không nằm trong danh sách và công nợ (giống app). Khôi phục: satori_order_restore_request.'};
 }
 
 /* ---------- customers ---------- */
@@ -203,7 +237,8 @@ export async function customerDebtRows(reader,customer,range){
  const rows=[],excluded=[];let cum=0n;const t={total:0n,paid:0n,owed:0n};
  for(const o of mine){
   const base={invoiceNo:Number(o.invoiceNo),ledgerId:String(o.id),date:ledgerIso(o.date)||String(o.date||''),status:String(o.status||'')};
-  if(!isActive(o)){excluded.push({...base,reason:'Đã hủy / Không tính: không thuộc công nợ'});continue}
+  if(!isActive(o)){excluded.push({...base,originalTotal:fromCents(toCents(o.total)),effectiveTotal:0,
+   reason:'Đã hủy / Không tính: tính 0 đ, không thuộc công nợ'});continue}
   const paid=isPaid(o),counted=paid||unpaidSet.has(String(o.id)+'|'+Number(o.invoiceNo))||debt.truncated;
   if(!counted){excluded.push({...base,reason:'Hóa đơn tham chiếu (cặp CTV): sổ không tính vào công nợ'});continue}
   const total=toCents(o.total),paidC=paid?total:0n,owed=total-paidC;
@@ -350,6 +385,7 @@ export async function orderGet(reader,args={},pool=null){
   ...(o.vatMode?{vatMode:o.vatMode}:{}),...(o.vatRate!=null?{vatRate:o.vatRate}:{}),
   deliveryDate:o.deliveryDate||null,deliveryNote:String(o.deliveryNote||''),
   customerPaidAt:o.customerPaidAt||null,satoriPaidAt:o.satoriPaidAt||null,updatedAt:o.updatedAt||null,
+  ...(isActive(o)?{}:{note:'Hóa đơn "'+o.status+'": tính 0 đ trong công nợ/tổng bill; tổng gốc giữ để truy vết.'}),
   pair:o.pairGroupId?{role:o.pairRole||null,pairInvoiceNo:o.pairInvoiceNo||null}:null}};
 }
 
@@ -463,6 +499,9 @@ export const GROK_READ_TOOLS=[
  {name:'satori_products_search',title:'Minh Satori: tìm sản phẩm + giá',
   description:'Tìm sản phẩm theo tên/mã (không dấu, gần đúng) trong bảng giá trên sổ: giá chuẩn, giá niêm yết, đơn vị. Chỉ đọc.',
   inputSchema:{type:'object',required:['q'],additionalProperties:false,properties:{q:{type:'string',minLength:1,maxLength:80}}},annotations:RO},
+ {name:'satori_trash_list',title:'Minh Satori: Thùng Rác (hóa đơn đã xóa)',
+  description:'Tìm hóa đơn đã XÓA còn trong Thùng Rác 30 ngày theo số Hƒ, tên hoặc SĐT. Chỉ đọc; dùng trước satori_order_restore_request.',
+  inputSchema:{type:'object',required:['query'],additionalProperties:false,properties:{query:{type:'string',minLength:1,maxLength:80}}},annotations:RO},
  {name:'satori_order_audit_history',title:'Minh Satori: lịch sử sửa hóa đơn',
   description:'Lịch sử trước/sau của đúng một hóa đơn (dữ liệu riêng tư, chỉ chủ cửa hàng). Chỉ đọc.',
   inputSchema:{type:'object',additionalProperties:false,properties:orderRef},annotations:RO},
@@ -487,6 +526,7 @@ export async function callGrokReadTool(deps,name,args={}){
   case 'satori_customer_debt':return customerDebt(reader,args,pool,now);
   case 'satori_debt_statement_pdf':return debtStatementPdf(reader,args,deps);
   case 'satori_products_search':return productsSearch(reader,args);
+  case 'satori_trash_list':return trashList(reader,args);
   case 'satori_order_audit_history':return auditHistory(reader,args,pool);
   case 'satori_order_preview_update':return previewUpdate(reader,args,pool);
   case 'satori_find_customer':return findCustomers(reader,args.query);
