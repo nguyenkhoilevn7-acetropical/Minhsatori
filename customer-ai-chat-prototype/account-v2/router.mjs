@@ -35,6 +35,9 @@ import {readInvoiceFeePolicy,readEffectiveInvoiceFeePolicy,saveInvoiceFeePolicy,
 import {invoiceOrderFilters} from './invoice-order-filters.mjs';
 import {ledgerRelayConfig,createV2CanonicalRelay} from './canonical-ledger-relay.mjs';
 import {GROK_MCP_PREFIX,handleGrokMcpHttp} from './grok-mcp.mjs';
+import {GROK_FILE_PREFIX} from './grok-files.mjs';
+import {handleGrokFileHttp} from './grok-ledger-read.mjs';
+import {createOwnerWriteRelay} from './grok-owner-writes.mjs';
 import {ownerPushConfig,registerOwnerDevice,revokeOwnerDevice,ownerPushStatus,sendTestPush,
  createFcmSender,startOwnerPushRelay,kickOwnerPushRelay,verifyWakeRequest} from './owner-push.mjs';
 import {reserveCanonicalCheckout,dispatchCanonicalCheckout,
@@ -502,10 +505,20 @@ export async function startOwnerPushBackground(){
 }
 
 export async function handleAccountV2(req,res,pathname){
+ if(pathname.startsWith(GROK_FILE_PREFIX)){
+  // Signed, 15-minute, read-only PDF link minted by a Grok tool call. No customer data in the URL.
+  try{return await handleGrokFileHttp(req,res,pathname,{env:process.env,reader:readMinhSatori,pool:null})}
+  catch{
+   if(!res.headersSent){res.writeHead(404,{'content-type':'application/json','cache-control':'no-store'});
+    res.end('{"ok":false,"error":"NOT_FOUND"}')}
+   return true;
+  }
+ }
  if(pathname.startsWith(GROK_MCP_PREFIX)){
   try{return await handleGrokMcpHttp(req,res,pathname,db,process.env,{reader:readMinhSatori,
    // Same isolated, signed V2 writer as customer checkout (separate key from reads).
-   relayFactory:()=>{ledgerRelayConfig(process.env);return createV2CanonicalRelay({env:process.env,fetcher:fetch})},kick:kickOwnerPushRelay})}
+   relayFactory:()=>{ledgerRelayConfig(process.env);return createV2CanonicalRelay({env:process.env,fetcher:fetch})},
+   ownerWriteRelayFactory:()=>createOwnerWriteRelay({env:process.env,fetcher:fetch}),kick:kickOwnerPushRelay})}
   catch{
    if(!res.headersSent){res.writeHead(503,{'content-type':'application/json','cache-control':'no-store'});
     res.end('{"ok":false,"error":"GROK_MCP_UNAVAILABLE"}')}
