@@ -149,8 +149,8 @@ export async function handleGrokRpc(pool,msg,deps={}){
      'không gắn ID tạm/UUID. Nếu thiếu fileName phải xác minh ngày từ PDF gốc, tuyệt đối không dùng ngày tải; '+
      'chỉ sau khi gửi Zalo và kiểm tra tên file thực tế mới ghi satori_mark_pdf_delivered '+
      '(sent và actualFileName bằng đúng fileName).'+
-     (grokOrdersEnabled(env)?' Tạo đơn: satori_find_customer -> satori_order_draft -> gửi summary cho chủ cửa hàng -> '+
-      'chỉ khi chủ cửa hàng gõ lại mã duyệt mới gọi satori_order_confirm.':'')}};
+     (grokOrdersEnabled(env)?' Tạo đơn: satori_find_customer -> satori_order_draft -> gửi nguyên summary cho chủ cửa hàng -> '+
+      'chỉ khi chủ cửa hàng trả lời "ok" trong tin nhắn mới mới gọi satori_order_confirm.':'')}};
   }
   if(msg.method==='ping')return {jsonrpc:'2.0',id,result:{}};
   if(msg.method==='tools/list')return {jsonrpc:'2.0',id,result:{tools:grokToolList(env)}};

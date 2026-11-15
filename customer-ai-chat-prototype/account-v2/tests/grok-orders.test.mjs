@@ -1,8 +1,8 @@
 // Offline unit tests for Grok Phase B pricing and gating. Synthetic data only.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {priceOwnerOrder,draftSummary,vatBasisPoints,norm,GrokOrderError} from '../grok-orders.mjs';
-import {grokToolList,GROK_TOOLS} from '../grok-mcp.mjs';
+import {priceOwnerOrder,draftSummary,vatBasisPoints,norm,GrokOrderError,createDraft,confirmDraft} from '../grok-orders.mjs';
+import {grokToolList,GROK_TOOLS,handleGrokRpc} from '../grok-mcp.mjs';
 
 const base=(x={})=>({customer:{name:'Khách Giả',location:'01 Đường Giả'},items:[{product:'Nước Giả',qty:3,unitPrice:95000}],...x});
 const code=(f)=>{try{f();return 'NO_ERROR'}catch(e){assert.ok(e instanceof GrokOrderError,String(e));return e.code}};
@@ -41,15 +41,128 @@ test('money and identity inputs fail closed',()=>{
   assert.equal(code(()=>priceOwnerOrder(base(x))),c,JSON.stringify(x));
  assert.equal(vatBasisPoints(8.25),825);assert.equal(norm(' Khách ĐẶNG Treky '),'khach dang traky');
 });
-test('summary states every amount the owner approves, and the code',()=>{
+test('summary states every amount the owner approves, and no approval code',()=>{
  const p=priceOwnerOrder(base({vatRate:8,shippingAmount:30000,deliveryDate:'2026-11-13'}));
- const s=draftSummary(p,'0420','KHÁCH MỚI');
+ const s=draftSummary(p,'KHÁCH MỚI');
  for(const re of [/ĐƠN NHÁP \(chưa ghi sổ\)/,/Nước Giả — 3 Thùng × 95\.000 đ = 285\.000 đ/,/VAT 8% trên tiền hàng: 22\.800 đ/,
-  /Phí giao: 30\.000 đ/,/TỔNG: 337\.800 đ/,/Mã duyệt: 0420/,/Ngày giao: 2026-11-13/])assert.match(s,re);
+  /Phí giao: 30\.000 đ/,/TỔNG: 337\.800 đ/,/Ngày giao: 2026-11-13/])assert.match(s,re);
+ assert.doesNotMatch(s,/Mã duyệt/);
 });
 test('order tools are listed only when GROK_OWNER_WRITES_ENABLED=1',()=>{
  assert.deepEqual(grokToolList({}),GROK_TOOLS);assert.deepEqual(grokToolList({GROK_OWNER_WRITES_ENABLED:'true'}),GROK_TOOLS);
- assert.deepEqual(grokToolList({GROK_OWNER_WRITES_ENABLED:'1'}).map(t=>t.name).slice(2),
+ const listed=grokToolList({GROK_OWNER_WRITES_ENABLED:'1'});
+ assert.deepEqual(listed.map(t=>t.name).slice(2),
   ['satori_find_customer','satori_order_draft','satori_order_confirm','satori_order_status']);
- assert.ok(!JSON.stringify(grokToolList({GROK_OWNER_WRITES_ENABLED:'1'})).match(/payment|delete|markPaid/i));
+ assert.ok(!JSON.stringify(listed).match(/payment|delete|markPaid|approvalCode/i));
+ const draft=listed.find(t=>t.name==='satori_order_draft');
+ const confirm=listed.find(t=>t.name==='satori_order_confirm');
+ assert.match(draft.description,/ok/);
+ assert.match(confirm.description,/ok/);
+ assert.deepEqual(confirm.inputSchema.required,['draftId']);
+ assert.equal(confirm.inputSchema.properties.approvalCode,undefined);
+});
+
+/** In-memory stand-in for the draft table. No network and no PostgreSQL. */
+function memoryDrafts(){
+ const rows=new Map();
+ const run=async(sql,params=[])=>{
+  const q=sql.replace(/\s+/g,' ').trim();
+  if(q==='BEGIN'||q==='COMMIT'||q==='ROLLBACK')return {rows:[],rowCount:0};
+  if(q.startsWith('INSERT INTO satori_v2_grok_order_drafts')){
+   const [id,requestId,codeHash,customerRef,orderPayload,summary,mins]=params;
+   rows.set(id,{id,request_id:requestId,code_hash:codeHash,
+    customer_ref:customerRef==null?null:JSON.parse(customerRef),order_payload:JSON.parse(orderPayload),
+    summary,status:'draft',invoice_no:null,ledger_id:null,last_note:null,code_attempts:0,
+    expires_at:new Date(Date.now()+Number(mins)*60000),approved_at:null,updated_at:new Date()});
+   return {rows:[],rowCount:1};
+  }
+  if(q.startsWith('SELECT *,expires_at<now() AS expired FROM satori_v2_grok_order_drafts WHERE id=$1')){
+   const row=rows.get(params[0]);
+   if(!row)return {rows:[],rowCount:0};
+   return {rows:[{...row,order_payload:{...row.order_payload},expired:row.expires_at.getTime()<Date.now()}],rowCount:1};
+  }
+  if(q.startsWith("UPDATE satori_v2_grok_order_drafts SET status='submitting'")){
+   const row=rows.get(params[0]);
+   row.status='submitting';row.approved_at=row.approved_at||new Date();row.updated_at=new Date();
+   return {rows:[],rowCount:1};
+  }
+  if(q.startsWith('UPDATE satori_v2_grok_order_drafts SET status=$2')){
+   const row=rows.get(params[0]);
+   row.status=params[1];row.invoice_no=params[2];row.ledger_id=params[3];row.last_note=params[4];row.updated_at=new Date();
+   return {rows:[],rowCount:1};
+  }
+  throw new Error('unexpected SQL: '+q);
+ };
+ return {rows,query:run,connect:async()=>({query:run,release(){}})};
+}
+const reader=async action=>{assert.equal(action,'system.status');return {revision:3}};
+const newOrder=()=>base({newCustomer:true});
+
+test('draft returns summary and draftId with no approval code',async()=>{
+ const pool=memoryDrafts();
+ const d=await createDraft(pool,()=>{throw new Error('draft must not read the ledger')},newOrder());
+ assert.equal(Object.hasOwn(d,'approvalCode'),false);
+ assert.match(d.draftId,/^[0-9a-f-]{36}$/);
+ assert.match(d.summary,/TỔNG: 285\.000 đ/);
+ assert.doesNotMatch(d.summary,/Mã duyệt/);
+ assert.match(d.instruction,/ok/);
+ assert.equal(pool.rows.size,1);
+ const row=[...pool.rows.values()][0];
+ assert.equal(row.code_hash,'0'.repeat(64));
+ assert.equal(row.status,'draft');
+ assert.equal(row.invoice_no,null);
+ const again=await createDraft(pool,()=>{throw new Error('draft must not read the ledger')},newOrder());
+ assert.equal(pool.rows.get(again.draftId).code_hash,row.code_hash);
+ assert.equal(JSON.stringify(d).includes(row.code_hash),false);
+});
+
+test('confirm with draftId only writes one invoice; unknown and expired write nothing',async()=>{
+ const pool=memoryDrafts();
+ const invoices=[];
+ let submits=0;
+ const relayFactory=()=>({async submit(intent){
+  submits++;
+  assert.match(intent.requestId,/^grok-[0-9a-f]{32}$/);
+  const invoice={invoiceNo:1,id:'ledger-1',total:intent.order.total};
+  invoices.push(invoice);
+  return {state:'COMMITTED',invoice,duplicate:false};
+ }});
+ const d=await createDraft(pool,()=>{throw new Error('draft must not read the ledger')},newOrder());
+ let kicks=0;
+ const first=await confirmDraft(pool,reader,relayFactory,{draftId:d.draftId},()=>{kicks++});
+ assert.equal(first.state,'COMMITTED');assert.equal(first.invoiceNo,1);assert.equal(first.duplicate,false);assert.equal(kicks,1);
+ const second=await confirmDraft(pool,reader,relayFactory,{draftId:d.draftId},()=>{kicks++});
+ assert.equal(second.state,'COMMITTED');assert.equal(second.invoiceNo,1);assert.equal(second.duplicate,true);
+ assert.equal(submits,1);assert.equal(invoices.length,1);assert.equal(kicks,1);
+ assert.equal(pool.rows.get(d.draftId).status,'committed');
+
+ submits=0;
+ await assert.rejects(()=>confirmDraft(pool,reader,relayFactory,{draftId:'00000000-0000-4000-8000-000000000000'}),
+  e=>e instanceof GrokOrderError&&e.code==='DRAFT_NOT_FOUND');
+ assert.equal(submits,0);assert.equal(invoices.length,1);assert.equal(pool.rows.size,1);
+
+ const expired=await createDraft(pool,()=>{throw new Error('draft must not read the ledger')},newOrder());
+ pool.rows.get(expired.draftId).expires_at=new Date(Date.now()-60_000);
+ await assert.rejects(()=>confirmDraft(pool,reader,relayFactory,{draftId:expired.draftId}),
+  e=>e instanceof GrokOrderError&&e.code==='DRAFT_EXPIRED');
+ assert.equal(submits,0);assert.equal(invoices.length,1);
+ assert.equal(pool.rows.get(expired.draftId).status,'draft');
+ assert.equal(pool.rows.get(expired.draftId).invoice_no,null);
+});
+
+test('owner-writes flag off rejects order tools before any write',async()=>{
+ const pool=memoryDrafts();
+ const env={GROK_OWNER_WRITES_ENABLED:'0'};
+ const deps={env,reader(){throw new Error('reader')},relayFactory(){throw new Error('writer')}};
+ for(const name of ['satori_order_draft','satori_order_confirm']){
+  const res=await handleGrokRpc(pool,{jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:newOrder()}},deps);
+  assert.equal(res.error.code,-32602);
+ }
+ assert.equal(pool.rows.size,0);
+ const off=await handleGrokRpc(pool,{jsonrpc:'2.0',id:2,method:'initialize',params:{}},deps);
+ assert.doesNotMatch(off.result.instructions,/mã duyệt|approvalCode/);
+ const on=await handleGrokRpc(pool,{jsonrpc:'2.0',id:3,method:'initialize',params:{}},{env:{GROK_OWNER_WRITES_ENABLED:'1'}});
+ assert.match(on.result.instructions,/ok/);
+ assert.doesNotMatch(on.result.instructions,/mã duyệt|approvalCode/);
+ assert.equal(pool.rows.size,0);
 });

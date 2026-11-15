@@ -96,7 +96,6 @@ const tool=async(name,args)=>{const r=await rpc('tools/call',{name,arguments:arg
 const ok=r=>{assert.ok(!r.isError,JSON.stringify(r.content));return r.structuredContent};
 const err=r=>{assert.equal(r.isError,true,JSON.stringify(r));return r.content[0].text};
 const results=[];const pass=n=>{results.push(n);console.log('PASS',n)};
-const wrongCode=c=>String((Number(c)+1)%10000).padStart(4,'0');
 
 try{
  await ensureOwnerPushSchema(pool);
@@ -119,20 +118,19 @@ try{
   shippingAmount:30000,vatRate:8}));
  assert.equal(d1.breakdown.goods,410000);assert.equal(d1.breakdown.vat,32800);assert.equal(d1.total,472800);
  assert.equal(d1.breakdown.vatMode,'invoice');assert.match(d1.summary,/TỔNG: 472\.800 đ/);assert.match(d1.summary,/KHÁCH MỚI/);
+ assert.equal(d1.approvalCode,undefined);assert.doesNotMatch(d1.summary,/Mã duyệt/);
  assert.equal(ledger().length,0,'draft writes nothing');
  pass('Draft prices server-side (invoice VAT 8% on goods only), writes nothing to the ledger');
 
- assert.match(err(await tool('satori_order_confirm',{draftId:d1.draftId,approvalCode:wrongCode(d1.approvalCode)})),/WRONG_CODE/);
- assert.equal(ledger().length,0);
- const c1=ok(await tool('satori_order_confirm',{draftId:d1.draftId,approvalCode:d1.approvalCode}));
+ const c1=ok(await tool('satori_order_confirm',{draftId:d1.draftId}));
  assert.equal(c1.state,'COMMITTED');assert.equal(c1.invoiceNo,1);assert.equal(c1.total,472800);assert.equal(kicks,1);
  const inv1=ledger()[0];
  assert.equal(inv1.total,472800);assert.equal(inv1.vatAmount,32800);assert.equal(inv1.shippingAmount,30000);
  assert.equal(inv1.items[1].unit,'Lốc');assert.equal(inv1.items[0].listPrice,120000);assert.ok(!inv1.vatMode||inv1.vatMode==='invoice');
  assert.equal(inv1.source,'bot_api');assert.equal(inv1.status,'Chưa thanh toán');
- pass('Wrong code writes nothing; right code -> exactly one signed orders.create, exact readback, push kicked');
+ pass('Confirm with draftId only -> exactly one signed orders.create, exact readback, push kicked');
 
- const again=ok(await tool('satori_order_confirm',{draftId:d1.draftId,approvalCode:d1.approvalCode}));
+ const again=ok(await tool('satori_order_confirm',{draftId:d1.draftId}));
  assert.equal(again.invoiceNo,1);assert.equal(again.duplicate,true);assert.equal(ledger().length,1);assert.equal(creates,1);
  pass('Re-confirming a committed draft returns the same invoice, no second create');
 
@@ -146,11 +144,11 @@ try{
   customer:{name:'khach gia grok',phone:'0900-000-001',location:'01 Đường Giả, Quận Thử'},items:[{product:'Nước Giả 500ml',qty:1,unitPrice:95000}],deliveryDate:'2026-11-13'}));
  // Lost HTTP reply after the ledger wrote: UNCERTAIN, then status reconciles to the same invoice.
  dropNextCreateReply=true;
- const lost=ok(await tool('satori_order_confirm',{draftId:d2.draftId,approvalCode:d2.approvalCode}));
+ const lost=ok(await tool('satori_order_confirm',{draftId:d2.draftId}));
  assert.ok(['COMMITTED','UNCERTAIN'].includes(lost.state));
  const st=ok(await tool('satori_order_status',{draftId:d2.draftId}));
  assert.equal(st.state,'COMMITTED');assert.equal(st.invoiceNo,2);assert.equal(ledger().length,2);assert.equal(creates,2);
- const retry=ok(await tool('satori_order_confirm',{draftId:d2.draftId,approvalCode:d2.approvalCode}));
+ const retry=ok(await tool('satori_order_confirm',{draftId:d2.draftId}));
  assert.equal(retry.invoiceNo,2);assert.equal(ledger().length,2);assert.equal(creates,2);
  assert.equal(ledger()[0].deliveryDate,'2026-11-13');
  pass('Existing customer via customerRef (accent/format-insensitive); lost reply reconciles to ONE invoice');
@@ -158,27 +156,24 @@ try{
  // 3. Concurrency: 10 parallel confirms of one draft -> one invoice.
  const d3=ok(await tool('satori_order_draft',{newCustomer:true,customer:{name:'Khách Song Song',location:'02 Đường Giả'},
   items:[{product:'Nước Giả 500ml',qty:5,unitPrice:90000}]}));
- const many=await Promise.all(Array.from({length:10},()=>tool('satori_order_confirm',{draftId:d3.draftId,approvalCode:d3.approvalCode})));
+ const many=await Promise.all(Array.from({length:10},()=>tool('satori_order_confirm',{draftId:d3.draftId})));
  assert.equal(ledger().filter(o=>o.name==='Khách Song Song').length,1);
  assert.ok(many.some(r=>!r.isError&&r.structuredContent.state==='COMMITTED'));
  assert.ok(many.every(r=>!r.isError?r.structuredContent.invoiceNo===3:/DRAFT_CLOSED/.test(r.content[0].text)));
  pass('10 simultaneous confirms of one draft -> exactly one invoice');
 
- // 4. Brute force: 5 wrong codes cancel the draft.
- const d4=ok(await tool('satori_order_draft',{newCustomer:true,customer:{name:'Khách Dò Mã',location:'03 Đường Giả'},items:[{product:'Nước Giả',qty:1,unitPrice:1000}]}));
- for(let i=0;i<5;i++)err(await tool('satori_order_confirm',{draftId:d4.draftId,approvalCode:wrongCode(d4.approvalCode)}));
- assert.match(err(await tool('satori_order_confirm',{draftId:d4.draftId,approvalCode:d4.approvalCode})),/DRAFT_CLOSED/);
+ // 4. Expired drafts cannot be confirmed and write nothing.
  await pool.query("UPDATE satori_v2_grok_order_drafts SET expires_at=now()-interval '1 minute' WHERE id=$1",[d3.draftId]);
  const d5=ok(await tool('satori_order_draft',{newCustomer:true,customer:{name:'Khách Hết Hạn',location:'04 Đường Giả'},items:[{product:'Nước Giả',qty:1,unitPrice:1000}]}));
  await pool.query("UPDATE satori_v2_grok_order_drafts SET expires_at=now()-interval '1 minute' WHERE id=$1",[d5.draftId]);
- assert.match(err(await tool('satori_order_confirm',{draftId:d5.draftId,approvalCode:d5.approvalCode})),/DRAFT_EXPIRED/);
- assert.equal(ledger().filter(o=>/Dò Mã|Hết Hạn/.test(o.name)).length,0);
- pass('5 wrong codes cancel the draft; expired drafts cannot be confirmed; nothing written');
+ assert.match(err(await tool('satori_order_confirm',{draftId:d5.draftId})),/DRAFT_EXPIRED/);
+ assert.equal(ledger().filter(o=>/Hết Hạn/.test(o.name)).length,0);
+ pass('Expired drafts cannot be confirmed; nothing written');
 
  // 5. Revision moved between draft and confirm (another device wrote): still exactly one invoice.
  const d6=ok(await tool('satori_order_draft',{newCustomer:true,customer:{name:'Khách Revision',location:'05 Đường Giả'},items:[{product:'Nước Giả',qty:2,unitPrice:5000}]}));
  data.revision+=7;
- const c6=ok(await tool('satori_order_confirm',{draftId:d6.draftId,approvalCode:d6.approvalCode}));
+ const c6=ok(await tool('satori_order_confirm',{draftId:d6.draftId}));
  assert.equal(c6.state,'COMMITTED');assert.equal(ledger().filter(o=>o.name==='Khách Revision').length,1);
  pass('Confirm reads the CURRENT ledger revision, so other writes in between do not block or duplicate');
 
@@ -188,7 +183,7 @@ try{
    items:[{product:'Nước Giả 500ml',qty:1,unitPrice:100000},{product:'Tiền Cọc Vỏ',qty:1,unitPrice:10,vatExempt:true},
     {product:'Hàng Lẻ 10%',qty:1,unitPrice:5,vatRate:10}],shippingAmount:2000}));
   assert.deepEqual([d7.breakdown.vat,d7.total,d7.breakdown.vatMode],[8001,110016,'per_line']);
-  const c7=ok(await tool('satori_order_confirm',{draftId:d7.draftId,approvalCode:d7.approvalCode}));
+  const c7=ok(await tool('satori_order_confirm',{draftId:d7.draftId}));
   const inv7=ledger().find(o=>o.invoiceNo===c7.invoiceNo);
   assert.equal(inv7.vatMode,'per_line');assert.equal(inv7.vatAmount,8001);assert.equal(inv7.total,110016);
   assert.deepEqual(inv7.items.map(i=>[i.vatExempt,i.vatRate,i.vatAmount]),[[false,8,8000],[true,0,0],[false,10,1]]);
@@ -201,19 +196,19 @@ try{
  const d9=ok(await tool('satori_order_draft',{newCustomer:true,customer:{name:'Khách Restart',location:'09 Đường Giả'},items:[{product:'Nước Giả',qty:1,unitPrice:7000}]}));
  await pool.query("UPDATE satori_v2_grok_order_drafts SET status='submitting' WHERE id=$1",[d9.draftId]);
  assert.equal(ok(await tool('satori_order_status',{draftId:d9.draftId})).state,'SUBMITTING');
- assert.match(err(await tool('satori_order_confirm',{draftId:d9.draftId,approvalCode:d9.approvalCode})),/DRAFT_CLOSED/);
+ assert.match(err(await tool('satori_order_confirm',{draftId:d9.draftId})),/DRAFT_CLOSED/);
  await pool.query("UPDATE satori_v2_grok_order_drafts SET updated_at=now()-interval '3 minutes' WHERE id=$1",[d9.draftId]);
  assert.equal(ok(await tool('satori_order_status',{draftId:d9.draftId})).state,'NOT_WRITTEN');
- assert.equal(ok(await tool('satori_order_confirm',{draftId:d9.draftId,approvalCode:d9.approvalCode})).state,'COMMITTED');
+ assert.equal(ok(await tool('satori_order_confirm',{draftId:d9.draftId})).state,'COMMITTED');
  assert.equal(ledger().filter(o=>o.name==='Khách Restart').length,1);
  pass('A draft stuck in submitting (restart) is reconciled by requestId, then written exactly once');
 
  // 7. Writer not configured: fails before claiming, draft stays usable.
  const d8=ok(await tool('satori_order_draft',{newCustomer:true,customer:{name:'Khách Chưa Bật',location:'08 Đường Giả'},items:[{product:'Nước Giả',qty:1,unitPrice:1000}]}));
  process.env.SATORI_V2_CANONICAL_WRITES_ENABLED='0';
- assert.match(err(await tool('satori_order_confirm',{draftId:d8.draftId,approvalCode:d8.approvalCode})),/WRITER_NOT_READY/);
+ assert.match(err(await tool('satori_order_confirm',{draftId:d8.draftId})),/WRITER_NOT_READY/);
  process.env.SATORI_V2_CANONICAL_WRITES_ENABLED='1';
- assert.equal(ok(await tool('satori_order_confirm',{draftId:d8.draftId,approvalCode:d8.approvalCode})).state,'COMMITTED');
+ assert.equal(ok(await tool('satori_order_confirm',{draftId:d8.draftId})).state,'COMMITTED');
  pass('Missing writer config fails closed before the draft is claimed; later confirm still works once');
 
  const nos=ledger().map(o=>o.invoiceNo);

@@ -5,12 +5,13 @@
  *  1. satori_find_customer  - read-only lookup of past delivery destinations.
  *  2. satori_order_draft    - server prices the owner's order with the SAME rules
  *     as live BotApi orders.create (goods, invoice VAT or optional per-line VAT,
- *     shipping, total) and stores an immutable draft + a 4-digit approval code.
- *     Nothing is written to the ledger.
- *  3. satori_order_confirm  - only with the code the owner typed back in Grok:
- *     ONE signed orders.create through the existing V2 writer relay
- *     (findByRequestId first, revision check, exact readback). Retries reuse
- *     the same requestId, so a lost reply can never create a second invoice.
+ *     shipping, total) and stores an immutable draft. Nothing is written to
+ *     the ledger. There is no approval code.
+ *  3. satori_order_confirm  - only after the owner replies "ok" in a new Grok
+ *     message, with {draftId}: ONE signed orders.create through the existing
+ *     V2 writer relay (findByRequestId first, revision check, exact readback).
+ *     Retries reuse the same requestId, so a lost reply can never create a
+ *     second invoice.
  *  4. satori_order_status   - read-only reconciliation by the same requestId.
  *
  * Disabled unless GROK_OWNER_WRITES_ENABLED=1 (tools are not even listed).
@@ -22,8 +23,10 @@ export const GROK_ORDER_TOOL_NAMES=['satori_find_customer','satori_order_draft',
 export const grokOrdersEnabled=(env=process.env)=>env.GROK_OWNER_WRITES_ENABLED==='1';
 
 const DRAFT_TTL_MINUTES=30;
-const MAX_CODE_ATTEMPTS=5;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/** code_hash is NOT NULL CHECK (length = 64). Approval codes are gone; this
+ *  public placeholder keeps the column without a migration. Confirm never reads it. */
+const UNUSED_CODE_HASH='0'.repeat(64);
 const vnd=n=>Number(n).toLocaleString('vi-VN')+' đ';
 
 export class GrokOrderError extends Error{constructor(code,message){super(message);this.code=code}}
@@ -122,8 +125,8 @@ export function priceOwnerOrder(input){
    subtotal:l.qty*l.unitPrice,...(perLine?{vatRate:l._rate,vatExempt:l._exempt,vatAmount:l._vat}:{})}))}};
 }
 
-/** Plain-text summary Grok shows to the owner before approval. */
-export function draftSummary({order,breakdown},code,customerLabel){
+/** Plain-text summary Grok shows to the owner. No approval code. */
+export function draftSummary({order,breakdown},customerLabel){
  const rows=breakdown.lines.map((l,i)=>(i+1)+'. '+l.product+' — '+l.qty+' '+l.unit+' × '+vnd(l.unitPrice)+
   ' = '+vnd(l.subtotal)+(breakdown.vatMode==='per_line'?(l.vatExempt?' (không VAT)':' (VAT '+l.vatRate+'%: '+vnd(l.vatAmount)+')'):''));
  const vatLine=breakdown.vatMode==='none'?'VAT: không':
@@ -138,8 +141,7 @@ export function draftSummary({order,breakdown},code,customerLabel){
   'Tiền hàng: '+vnd(breakdown.goods),
   vatLine,
   'Phí giao: '+vnd(breakdown.shipping),
-  'TỔNG: '+vnd(breakdown.total),
-  'Mã duyệt: '+code+' (hiệu lực '+DRAFT_TTL_MINUTES+' phút)'].join('\n');
+  'TỔNG: '+vnd(breakdown.total)].join('\n');
 }
 
 function signedOrders(result){
@@ -180,9 +182,6 @@ export async function verifyCustomerRef(reader,ref,customer){
  return {id:ref.id,invoiceNo:ref.invoiceNo};
 }
 
-const codeHash=(id,code)=>crypto.createHash('sha256').update(id+':'+code).digest('hex');
-const sameHash=(a,b)=>a.length===b.length&&crypto.timingSafeEqual(Buffer.from(a),Buffer.from(b));
-
 export async function createDraft(pool,reader,args){
  const priced=priceOwnerOrder(args);
  let customerRef=null,customerLabel;
@@ -197,15 +196,14 @@ export async function createDraft(pool,reader,args){
   customerLabel='KHÁCH MỚI';
  }
  const id=crypto.randomUUID();
- const code=String(crypto.randomInt(0,10000)).padStart(4,'0');
  const requestId='grok-'+id.replace(/-/g,'');
- const summary=draftSummary(priced,code,customerLabel);
+ const summary=draftSummary(priced,customerLabel);
  await pool.query('INSERT INTO satori_v2_grok_order_drafts(id,request_id,code_hash,customer_ref,order_payload,summary,expires_at) '+
   "VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6,now()+make_interval(mins=>$7))",
-  [id,requestId,codeHash(id,code),customerRef?JSON.stringify(customerRef):null,JSON.stringify(priced.order),summary,DRAFT_TTL_MINUTES]);
- return {draftId:id,approvalCode:code,total:priced.breakdown.total,breakdown:priced.breakdown,summary,
-  instruction:'Gửi nguyên văn summary cho chủ cửa hàng. CHỈ gọi satori_order_confirm khi chủ cửa hàng tự gõ lại đúng mã duyệt '+
-   'trong tin nhắn mới. Nếu chủ cửa hàng sửa bất kỳ điều gì, tạo nháp mới.'};
+  [id,requestId,UNUSED_CODE_HASH,customerRef?JSON.stringify(customerRef):null,JSON.stringify(priced.order),summary,DRAFT_TTL_MINUTES]);
+ return {draftId:id,total:priced.breakdown.total,breakdown:priced.breakdown,summary,
+  instruction:'Gửi nguyên văn summary cho chủ cửa hàng và chờ họ trả lời "ok" trong một tin nhắn mới. '+
+   'CHỈ khi đó mới gọi satori_order_confirm với draftId này. Nếu chủ cửa hàng sửa bất kỳ điều gì, tạo nháp mới.'};
 }
 
 function intentOf(row,expectedRevision){
@@ -231,9 +229,8 @@ const committedReply=(row,inv,duplicate)=>({ok:true,state:'COMMITTED',invoiceNo:
  * relayFactory(): returns {submit(intent), findIntent(intent)} (createV2CanonicalRelay).
  * kick(): optional fast path for the owner push relay after a committed write.
  */
-export async function confirmDraft(pool,reader,relayFactory,{draftId,approvalCode},kick=()=>{}){
+export async function confirmDraft(pool,reader,relayFactory,{draftId},kick=()=>{}){
  need(UUID.test(String(draftId||'')),'INVALID_DRAFT','draftId không hợp lệ.');
- need(/^[0-9]{4}$/.test(String(approvalCode||'')),'INVALID_CODE','Mã duyệt gồm 4 chữ số.');
  const id=String(draftId).toLowerCase();
  // Fail BEFORE claiming the draft when the isolated V2 writer is not configured.
  let relay;
@@ -250,13 +247,6 @@ export async function confirmDraft(pool,reader,relayFactory,{draftId,approvalCod
   need(['draft','uncertain'].includes(row.status),'DRAFT_CLOSED','Đơn nháp đã '+
    ({cancelled:'bị hủy',submitting:'đang được gửi',rejected:'bị từ chối'}[row.status]||row.status)+'.');
   need(row.status==='uncertain'||!row.expired,'DRAFT_EXPIRED','Đơn nháp đã hết hạn; tạo nháp mới.');
-  if(!sameHash(codeHash(id,String(approvalCode)),row.code_hash)){
-   const attempts=row.code_attempts+1;
-   await client.query("UPDATE satori_v2_grok_order_drafts SET code_attempts=$2::int,status=CASE WHEN $2::int>=$3::int AND status='draft' THEN 'cancelled' ELSE status END,updated_at=now() WHERE id=$1",
-    [id,attempts,MAX_CODE_ATTEMPTS]);
-   await client.query('COMMIT');
-   bad('WRONG_CODE',attempts>=MAX_CODE_ATTEMPTS&&row.status==='draft'?'Sai mã quá '+MAX_CODE_ATTEMPTS+' lần, đơn nháp đã hủy.':'Mã duyệt không đúng.');
-  }
   // One dispatcher only: a parallel confirm sees 'submitting' and stops.
   await client.query("UPDATE satori_v2_grok_order_drafts SET status='submitting',approved_at=coalesce(approved_at,now()),updated_at=now() WHERE id=$1",[id]);
   await client.query('COMMIT');
@@ -276,9 +266,9 @@ export async function confirmDraft(pool,reader,relayFactory,{draftId,approvalCod
   return committedReply(row,result.invoice,result.duplicate);
  }
  if(result.state==='REJECTED'&&result.reason==='LEDGER_REVISION_CONFLICT'){
-  // Nothing was written (checked before orders.create). Same code may be retried.
+  // Nothing was written (checked before orders.create). Same draftId may be retried.
   await finish(pool,id,row.status==='uncertain'?'uncertain':'draft',null,'REVISION_CONFLICT');
-  return {ok:false,state:'RETRY',message:'Sổ vừa thay đổi trong lúc gửi; chưa ghi gì. Gọi lại satori_order_confirm với cùng mã.'};
+  return {ok:false,state:'RETRY',message:'Sổ vừa thay đổi trong lúc gửi; chưa ghi gì. Gọi lại satori_order_confirm với cùng draftId.'};
  }
  await finish(pool,id,'uncertain',null,String(result.reason||'UNCERTAIN').slice(0,60));
  return {ok:false,state:'UNCERTAIN',message:'Chưa xác minh được hóa đơn. KHÔNG tạo đơn mới; gọi satori_order_status với cùng draftId.'};
@@ -299,9 +289,10 @@ export async function draftStatus(pool,relayFactory,{draftId},kick=()=>{}){
   try{
    const inv=await relayFactory().findIntent(intentOf(row,1));
    if(inv){await finish(pool,id,'committed',{invoice:inv},null);kick();return committedReply(row,inv,true)}
-   return {ok:true,state:'NOT_WRITTEN',message:'Sổ chưa có hóa đơn cho nháp này. Có thể gọi satori_order_confirm lại với cùng mã (an toàn, không tạo trùng).'};
+   return {ok:true,state:'NOT_WRITTEN',message:'Sổ chưa có hóa đơn cho nháp này. Có thể gọi satori_order_confirm lại với cùng draftId (an toàn, không tạo trùng).'};
   }catch{return {ok:false,state:'UNCERTAIN',message:'Chưa đọc được sổ; thử lại sau. Không tạo đơn mới.'}}
  }
+ // Drafts saved before the approval code was removed may still end with "Mã duyệt:".
  return {ok:true,state:row.status==='draft'&&row.expired?'EXPIRED':row.status.toUpperCase(),summary:row.summary.replace(/\nMã duyệt: .*$/,'')};
 }
 
@@ -324,7 +315,8 @@ export const GROK_ORDER_TOOLS=[
  {name:'satori_order_draft',title:'Minh Satori: lập đơn nháp (chưa ghi sổ)',
   description:'Lập đơn NHÁP từ yêu cầu của chủ cửa hàng. Máy chủ tự tính tiền hàng, VAT, phí giao và tổng; không tự tính hay đoán giá. '+
    'VAT: không nói thì không có VAT; vatRate cấp đơn = VAT trên tiền hàng; vatRate/vatExempt ở dòng = VAT theo từng dòng. '+
-   'Trả về summary và mã duyệt 4 số: gửi nguyên summary cho chủ cửa hàng, chờ họ gõ lại mã.',
+   'Trả về summary và draftId, không có mã duyệt. Gửi nguyên văn summary cho chủ cửa hàng, '+
+   'rồi chờ họ trả lời "ok" trong một tin nhắn mới trước khi gọi satori_order_confirm.',
   inputSchema:{type:'object',required:['customer','items'],additionalProperties:false,properties:{
    customer:customerSchema,
    customerRef:{type:'object',required:['id','invoiceNo'],additionalProperties:false,
@@ -335,10 +327,10 @@ export const GROK_ORDER_TOOLS=[
    deliveryDate:{type:'string',description:'YYYY-MM-DD'},deliveryNote:{type:'string',maxLength:300}}},
   annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:false,openWorldHint:false}},
  {name:'satori_order_confirm',title:'Minh Satori: ghi đơn đã duyệt vào sổ',
-  description:'Ghi đơn nháp vào sổ Minh Satori. CHỈ gọi sau khi chủ cửa hàng tự gõ đúng mã duyệt trong tin nhắn mới; '+
-   'không bao giờ tự điền mã. Gọi lại với cùng draftId không tạo hóa đơn trùng.',
-  inputSchema:{type:'object',required:['draftId','approvalCode'],additionalProperties:false,properties:{
-   draftId:{type:'string'},approvalCode:{type:'string',pattern:'^[0-9]{4}$'}}},
+  description:'Ghi đơn nháp vào sổ Minh Satori. CHỈ gọi sau khi chủ cửa hàng đã trả lời "ok" trong một tin nhắn mới '+
+   'sau khi xem summary. Nhận đúng {draftId}. Gọi lại với cùng draftId không tạo hóa đơn trùng.',
+  inputSchema:{type:'object',required:['draftId'],additionalProperties:false,properties:{
+   draftId:{type:'string'}}},
   annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}},
  {name:'satori_order_status',title:'Minh Satori: trạng thái đơn nháp',
   description:'Xem/đối soát trạng thái một đơn nháp (đã ghi sổ chưa, số hóa đơn). Dùng khi confirm trả UNCERTAIN.',
