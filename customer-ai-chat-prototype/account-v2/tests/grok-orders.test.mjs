@@ -53,13 +53,27 @@ test('order tools are listed only when GROK_OWNER_WRITES_ENABLED=1',()=>{
  const listed=grokToolList({GROK_OWNER_WRITES_ENABLED:'1'});
  assert.deepEqual(listed.map(t=>t.name).slice(2),
   ['satori_find_customer','satori_order_draft','satori_order_confirm','satori_order_status']);
- assert.ok(!JSON.stringify(listed).match(/payment|delete|markPaid|approvalCode/i));
+ assert.ok(!JSON.stringify(listed).match(/payment|delete|markPaid/i));
  const draft=listed.find(t=>t.name==='satori_order_draft');
  const confirm=listed.find(t=>t.name==='satori_order_confirm');
  assert.match(draft.description,/ok/);
  assert.match(confirm.description,/ok/);
- assert.deepEqual(confirm.inputSchema.required,['draftId']);
- assert.equal(confirm.inputSchema.properties.approvalCode,undefined);
+ // approvalCode appears ONLY as the optional legacy property of satori_order_confirm.
+ assert.ok(!JSON.stringify(listed.filter(t=>t.name!=='satori_order_confirm')).match(/approvalCode/i));
+ assert.doesNotMatch(confirm.description,/approvalCode|mã duyệt/i);
+});
+test('confirm schema accepts legacy approvalCode as optional, unconstrained string',()=>{
+ const confirm=grokToolList({GROK_OWNER_WRITES_ENABLED:'1'}).find(t=>t.name==='satori_order_confirm');
+ const s=confirm.inputSchema;
+ assert.equal(s.type,'object');
+ assert.equal(s.additionalProperties,false);
+ assert.deepEqual(s.required,['draftId']);
+ assert.deepEqual(Object.keys(s.properties).sort(),['approvalCode','draftId']);
+ assert.equal(s.properties.approvalCode.type,'string');
+ assert.equal(s.properties.approvalCode.pattern,undefined);
+ assert.equal(s.properties.approvalCode.minLength,undefined);
+ assert.equal(s.properties.approvalCode.maxLength,undefined);
+ assert.match(s.properties.approvalCode.description,/Trường cũ, bị bỏ qua/);
 });
 
 /** In-memory stand-in for the draft table. No network and no PostgreSQL. */
@@ -165,4 +179,88 @@ test('owner-writes flag off rejects order tools before any write',async()=>{
  assert.match(on.result.instructions,/ok/);
  assert.doesNotMatch(on.result.instructions,/mã duyệt|approvalCode/);
  assert.equal(pool.rows.size,0);
+});
+
+/** Calls satori_order_confirm through the real MCP dispatcher (owner writes ON). */
+const rpcConfirm=(pool,deps,args)=>handleGrokRpc(pool,{jsonrpc:'2.0',id:9,method:'tools/call',
+ params:{name:'satori_order_confirm',arguments:args}},{env:{GROK_OWNER_WRITES_ENABLED:'1'},...deps});
+function countingRelay(){
+ const state={submits:0,invoices:[]};
+ state.relayFactory=()=>({async submit(intent){
+  state.submits++;
+  assert.equal(Object.hasOwn(intent,'approvalCode'),false,'approvalCode must never reach the ledger');
+  const invoice={invoiceNo:state.invoices.length+1,id:'ledger-'+(state.invoices.length+1),total:intent.order.total};
+  state.invoices.push(invoice);
+  return {state:'COMMITTED',invoice,duplicate:false};
+ }});
+ return state;
+}
+
+test('confirm with legacy approvalCode (any value) gives exactly the same result as draftId only',async()=>{
+ const outcomes=[];
+ for(const extra of [{},{approvalCode:'1234'},{approvalCode:'0000'},{approvalCode:'sai-ma'},{approvalCode:''}]){
+  const pool=memoryDrafts();
+  const relay=countingRelay();
+  let kicks=0;
+  const d=await createDraft(pool,()=>{throw new Error('draft must not read the ledger')},newOrder());
+  const res=await rpcConfirm(pool,{reader,relayFactory:relay.relayFactory,kick:()=>{kicks++}},{draftId:d.draftId,...extra});
+  assert.equal(res.result.isError,undefined,JSON.stringify(res));
+  assert.equal(res.result.structuredContent.state,'COMMITTED');
+  assert.equal(relay.submits,1);assert.equal(kicks,1);
+  const row=pool.rows.get(d.draftId);
+  assert.equal(row.status,'committed');
+  // Not stored anywhere on the draft row.
+  assert.equal(JSON.stringify(row).includes('approvalCode'),false);
+  outcomes.push({result:res.result,row:{status:row.status,invoice_no:row.invoice_no,ledger_id:row.ledger_id,
+   last_note:row.last_note,code_hash:row.code_hash,order_payload:row.order_payload}});
+ }
+ for(const o of outcomes.slice(1))assert.deepEqual(o,outcomes[0]);
+});
+
+test('confirming twice with approvalCode still writes exactly one invoice',async()=>{
+ const pool=memoryDrafts();
+ const relay=countingRelay();
+ const d=await createDraft(pool,()=>{throw new Error('draft must not read the ledger')},newOrder());
+ const deps={reader,relayFactory:relay.relayFactory};
+ const first=await rpcConfirm(pool,deps,{draftId:d.draftId,approvalCode:'1234'});
+ const second=await rpcConfirm(pool,deps,{draftId:d.draftId,approvalCode:'9999'});
+ assert.equal(first.result.structuredContent.state,'COMMITTED');
+ assert.equal(first.result.structuredContent.duplicate,false);
+ assert.equal(second.result.structuredContent.state,'COMMITTED');
+ assert.equal(second.result.structuredContent.duplicate,true);
+ assert.equal(second.result.structuredContent.invoiceNo,first.result.structuredContent.invoiceNo);
+ assert.equal(relay.submits,1);assert.equal(relay.invoices.length,1);
+});
+
+test('unknown or expired draft with approvalCode fails and writes nothing',async()=>{
+ const pool=memoryDrafts();
+ const relay=countingRelay();
+ const deps={reader,relayFactory:relay.relayFactory};
+ const missing=await rpcConfirm(pool,deps,{draftId:'00000000-0000-4000-8000-000000000000',approvalCode:'1234'});
+ assert.equal(missing.result.isError,true);
+ assert.match(missing.result.content[0].text,/^DRAFT_NOT_FOUND:/);
+ const expired=await createDraft(pool,()=>{throw new Error('draft must not read the ledger')},newOrder());
+ pool.rows.get(expired.draftId).expires_at=new Date(Date.now()-60_000);
+ const res=await rpcConfirm(pool,deps,{draftId:expired.draftId,approvalCode:'1234'});
+ assert.equal(res.result.isError,true);
+ assert.match(res.result.content[0].text,/^DRAFT_EXPIRED:/);
+ assert.equal(relay.submits,0);assert.equal(relay.invoices.length,0);
+ const row=pool.rows.get(expired.draftId);
+ assert.equal(row.status,'draft');assert.equal(row.invoice_no,null);assert.equal(row.ledger_id,null);
+ assert.equal(pool.rows.size,1);
+});
+
+test('owner-writes flag off still blocks confirm sent with approvalCode',async()=>{
+ const pool=memoryDrafts();
+ const d=await createDraft(pool,()=>{throw new Error('draft must not read the ledger')},newOrder());
+ let touched=0;
+ for(const env of [{},{GROK_OWNER_WRITES_ENABLED:'0'},{GROK_OWNER_WRITES_ENABLED:'true'}]){
+  const deps={env,reader(){touched++;throw new Error('reader')},relayFactory(){touched++;throw new Error('writer')}};
+  const res=await handleGrokRpc(pool,{jsonrpc:'2.0',id:1,method:'tools/call',
+   params:{name:'satori_order_confirm',arguments:{draftId:d.draftId,approvalCode:'1234'}}},deps);
+  assert.equal(res.error.code,-32602);
+ }
+ assert.equal(touched,0);
+ assert.equal(pool.rows.get(d.draftId).status,'draft');
+ assert.equal(pool.rows.get(d.draftId).invoice_no,null);
 });

@@ -228,6 +228,8 @@ const committedReply=(row,inv,duplicate)=>({ok:true,state:'COMMITTED',invoiceNo:
 /**
  * relayFactory(): returns {submit(intent), findIntent(intent)} (createV2CanonicalRelay).
  * kick(): optional fast path for the owner push relay after a committed write.
+ * Only draftId is read. A legacy approvalCode argument (old cached Grok schema)
+ * is deliberately ignored: never validated, stored or logged.
  */
 export async function confirmDraft(pool,reader,relayFactory,{draftId},kick=()=>{}){
  need(UUID.test(String(draftId||'')),'INVALID_DRAFT','draftId không hợp lệ.');
@@ -329,8 +331,12 @@ export const GROK_ORDER_TOOLS=[
  {name:'satori_order_confirm',title:'Minh Satori: ghi đơn đã duyệt vào sổ',
   description:'Ghi đơn nháp vào sổ Minh Satori. CHỈ gọi sau khi chủ cửa hàng đã trả lời "ok" trong một tin nhắn mới '+
    'sau khi xem summary. Nhận đúng {draftId}. Gọi lại với cùng draftId không tạo hóa đơn trùng.',
+  // approvalCode is accepted ONLY so Grok clients that cached the old schema
+  // (which required it) are not rejected by additionalProperties:false.
+  // confirmDraft never reads, checks, stores or logs it.
   inputSchema:{type:'object',required:['draftId'],additionalProperties:false,properties:{
-   draftId:{type:'string'}}},
+   draftId:{type:'string'},
+   approvalCode:{type:'string',description:'Trường cũ, bị bỏ qua. Không cần gửi; máy chủ không kiểm tra hay lưu giá trị này.'}}},
   annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}},
  {name:'satori_order_status',title:'Minh Satori: trạng thái đơn nháp',
   description:'Xem/đối soát trạng thái một đơn nháp (đã ghi sổ chưa, số hóa đơn). Dùng khi confirm trả UNCERTAIN.',
