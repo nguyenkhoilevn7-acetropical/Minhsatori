@@ -104,6 +104,7 @@ function makePool(){
   if(t.startsWith('SELECT *,expires_at<now() AS expired')){const r=rows.get(p[0]);
    return {rows:r?[{...r,expired:r.expires_at.getTime()<pool.now,stale:r.updated_at.getTime()<pool.now-120000}]:[]}}
   const r=rows.get(p[0]);
+  if(t.startsWith('UPDATE '+T+' SET payload=$2::jsonb')){r.payload=JSON.parse(p[1]);return {rows:[]}}
   if(t.startsWith('UPDATE '+T+" SET status='expired'")){r.status='expired';return {rows:[]}}
   if(t.startsWith('UPDATE '+T+" SET status='submitting'")){r.status='submitting';r.confirmed_by=p[1];r.updated_at=new Date(pool.now);return {rows:[]}}
   if(t.startsWith('UPDATE '+T+' SET status=$2')){r.status=p[1];r.last_note=p[2];r.updated_at=new Date(pool.now);
@@ -275,4 +276,66 @@ test('buildDraft keeps customer fields, replaces only what the owner changed, re
  const d=buildDraft(raw,{priceMode:'inclusive',items:[{product:'X Giả',qty:1,unitPrice:1000}],location:'02 Đường Mới'});
  assert.deepEqual([d.name,d.location,d.deliveryNote,d.shippingAmount,d.vatRate],['A Giả','02 Đường Mới','cổng sau',20000,0]);
  assert.throws(()=>buildDraft(raw,{priceMode:'inclusive',items:[{product:'X',qty:1,unitPrice:1}],status:'Đã hủy'}),e=>e.code==='INVALID_ORDER');
+});
+
+const markArgs={invoiceNo:503,id:'L503',expectedName:'Khách Thanh Toán Giả',expectedTotal:120000,customerPaid:true,satoriPaid:true,proofNote:'FAKE-BANK-001'};
+test('mark paid: exact guards, two flags, audit and duplicate confirmation',opt,async()=>{
+ const P=production(),pool=makePool();
+ const r=await call(P,pool,'satori_order_mark_paid_request',markArgs);
+ assert.equal(P.writes,0);assert.match(r.summary,/FAKE-BANK-001/);
+ const a=await call(P,pool,'satori_order_mark_paid_confirm',{requestId:r.requestId});
+ assert.equal(a.state,'DONE');assert.equal(P.writes,2);
+ assert.equal((await call(P,pool,'satori_order_mark_paid_confirm',{requestId:r.requestId})).duplicate,true);
+ assert.equal(P.writes,2);
+ const audit=pool.rows.get(r.requestId);
+ assert.equal(audit.reason,'FAKE-BANK-001');assert.equal(audit.payload.before.customerPaid,false);
+ assert.equal(audit.payload.after.customerPaid,true);assert.equal(audit.payload.after.satoriPaid,true);
+ assert.equal(audit.confirmed_by,'grok-owner-connector');
+});
+test('mark paid: wrong total/name/id, cancelled, internal CTV and missing proof fail closed',opt,async()=>{
+ for(const [patch,want] of [[{expectedTotal:1},'ORDER_CHANGED'],[{expectedName:'Wrong fake name'},'ORDER_CHANGED'],
+  [{id:'WRONG'},'ORDER_NOT_FOUND'],[{invoiceNo:507,id:'L507',expectedName:'Khách Đã Hủy Giả',expectedTotal:70000},'NOT_COUNTED'],
+  [{invoiceNo:504,id:'L504',expectedName:'CTV Nội Bộ Giả',expectedTotal:50000},'CTV_INTERNAL_NOT_RECEIVABLE'],
+  [{proofNote:''},'PROOF_REQUIRED']]){
+  const P=production(),pool=makePool();
+  assert.equal(await code(()=>call(P,pool,'satori_order_mark_paid_request',{...markArgs,...patch})),want);
+  assert.equal(P.writes,0);assert.equal(pool.rows.size,0);
+ }
+});
+test('mark paid: expiration, wrong confirmation kind, writes disabled; unpaid allowed',opt,async()=>{
+ const P=production(),pool=makePool();const r=await call(P,pool,'satori_order_mark_paid_request',markArgs);
+ assert.equal(await code(()=>call(P,pool,'satori_payment_confirm',{requestId:r.requestId})),'WRONG_CONFIRM_TOOL');
+ assert.equal(await code(()=>callGrokWriteTool(pool,{reader:P.reader,ownerWriteRelayFactory:P.rf,env:{}},
+ 'satori_order_mark_paid_confirm',{requestId:r.requestId})),'WRITES_DISABLED');
+ pool.now+=31*60000;
+ assert.equal(await code(()=>call(P,pool,'satori_order_mark_paid_confirm',{requestId:r.requestId})),'REQUEST_EXPIRED');
+ const p=makePool();const u=await call(P,p,'satori_order_mark_paid_request',{invoiceNo:502,expectedName:'Khách Đã Trả Giả',expectedTotal:90000,customerPaid:false,proofNote:'Sửa nhầm giả'});
+ assert.equal((await call(P,p,'satori_order_mark_paid_confirm',{requestId:u.requestId})).state,'DONE');
+ assert.equal(P.row(502).customerPaidAt,null);
+});
+test('mark paid: second action fails explicitly, retry does not repeat the first write',opt,async()=>{
+ const P=production(),pool=makePool();let fail=true;const actions=[];
+ const deps={reader:P.reader,env:ENV,ownerWriteRelayFactory:()=>({send:async(a,p)=>{
+  actions.push(a);if(fail&&a==='payments.markSatoriPaid'){const e=Error('scope');e.code='LEDGER_SCOPE_MISSING';throw e}
+  return P.relay.send(a,p);
+ }})};
+ const r=await callGrokWriteTool(pool,deps,'satori_order_mark_paid_request',markArgs);
+ const partial=await callGrokWriteTool(pool,deps,'satori_order_mark_paid_confirm',{requestId:r.requestId});
+ assert.equal(partial.state,'PARTIAL');assert.deepEqual(partial.completed,['customerPaid']);
+ assert.equal(P.writes,1);assert.equal(pool.rows.get(r.requestId).payload.after.customerPaid,true);
+ fail=false;
+ assert.equal((await callGrokWriteTool(pool,deps,'satori_order_mark_paid_confirm',{requestId:r.requestId})).state,'DONE');
+ assert.equal(actions.filter(a=>a==='payments.markCustomerPaid').length,1);assert.equal(P.writes,2);
+});
+test('mark paid: unchanged, omitted flag, paidAt audit, and changed invoice at confirmation',opt,async()=>{
+ const P=production(),pool=makePool();
+ assert.equal(await code(()=>call(P,pool,'satori_order_mark_paid_request',{...markArgs,customerPaid:false,satoriPaid:false})),'ALREADY_SET');
+ const r=await call(P,pool,'satori_order_mark_paid_request',{...markArgs,customerPaid:undefined,paidAt:'2026-11-14T01:00:00Z'});
+ assert.equal((await call(P,pool,'satori_order_mark_paid_confirm',{requestId:r.requestId})).state,'DONE');
+ assert.equal(pool.rows.get(r.requestId).payload.after.customerPaid,false);
+ assert.equal(pool.rows.get(r.requestId).payload.paidAt,'2026-11-14T01:00:00Z');
+ const Q=production(),p=makePool();const req=await call(Q,p,'satori_order_mark_paid_request',markArgs);
+ const changed=async(a,v)=>{const b=await Q.reader(a,v);if(a==='orders.list')b.data.orders=b.data.orders.map(o=>({...o,total:1}));return b};
+ const result=await callGrokWriteTool(p,{reader:changed,env:ENV,ownerWriteRelayFactory:Q.rf},'satori_order_mark_paid_confirm',{requestId:req.requestId});
+ assert.equal(result.code,'ORDER_CHANGED');assert.equal(Q.writes,0);
 });

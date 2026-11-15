@@ -38,6 +38,7 @@ const PAY_CHANGES={
  satori_unpaid:{kind:'pay_satori_unpaid',action:'payments.markSatoriUnpaid',flag:'satori',to:false,label:'BỎ GHI NHẬN ĐÃ THANH TOÁN SATORI'}};
 const PAY_BY_KIND=Object.fromEntries(Object.entries(PAY_CHANGES).map(([change,v])=>[v.kind,{...v,change}]));
 const TOOL={
+ mark_paid:{request:'satori_order_mark_paid_request',confirm:'satori_order_mark_paid_confirm'},
  trash:{request:'satori_order_trash_request',confirm:'satori_order_trash_confirm'},
  restore:{request:'satori_order_restore_request',confirm:'satori_order_restore_confirm'},
  update:{request:'satori_order_update_request',confirm:'satori_order_update_confirm'},
@@ -45,6 +46,7 @@ const TOOL={
  pay:{request:'satori_payment_request',confirm:'satori_payment_confirm'}};
 const toolOf=kind=>TOOL[PAY_BY_KIND[kind]?'pay':kind];
 const KINDS={
+ mark_paid:{prefix:'grokflags-',label:'CẬP NHẬT THANH TOÁN'},
  trash:{prefix:'groktrash-',action:'orders.delete',label:'XÓA (đưa vào thùng rác)'},
  restore:{prefix:'grokrestore-',action:'orders.restore',label:'KHÔI PHỤC từ thùng rác'},
  update:{prefix:'grokupdate-',action:'orders.update',label:'SỬA'},
@@ -73,9 +75,10 @@ export function refusalFor(kind,o){
   return null;
  }
  const pay=PAY_BY_KIND[kind];
- if(pay){
+ if(pay||kind==='mark_paid'){
   if(!isActive(o))return ['NOT_COUNTED','Hóa đơn '+no+' đang "'+o.status+'"; không ghi nhận thanh toán.'];
   if(o.pairRole==='collaborator')return ['CTV_INTERNAL_NOT_RECEIVABLE','Hóa đơn '+no+' là bill CTV nội bộ, chỉ để đối soát; không ghi nhận thanh toán khách.'];
+  if(!pay)return null;
   const now=pay.flag==='customer'?customerPaid(o):satoriPaid(o);
   if(now===pay.to)return ['ALREADY_SET','Hóa đơn '+no+' đã ở đúng trạng thái này rồi; không cần làm gì.'];
  }
@@ -114,6 +117,8 @@ export function writeSummary(kind,o,reason,extra={}){
   pay.change==='customer_unpaid'?'hóa đơn quay lại "khách chưa trả"; dữ liệu thanh toán cũ được giữ trong lịch sử thanh toán.':
   pay.change==='satori_paid'?'ghi nhận đã thanh toán cho Satori (không chuyển tiền thật).':
   'bỏ ghi nhận đã thanh toán Satori; dữ liệu cũ được giữ trong lịch sử thanh toán.'));
+ if(kind==='mark_paid')lines.push('Trước: '+JSON.stringify(extra.payment.before),'Sau: '+JSON.stringify({...extra.payment.before,...extra.payment.desired}),
+  'Chứng từ: '+reason,'paidAt (chỉ lưu audit V2, sổ dùng thời gian máy chủ): '+(extra.payment.paidAt||'hiện tại'));
  lines.push('Yêu cầu hết hạn sau '+WRITE_TTL_MINUTES+' phút.');
  return lines.join('\n');
 }
@@ -204,13 +209,33 @@ async function lastEdit(reader,ref,pool){
 export async function requestWrite(kind,pool,reader,args={},env=process.env,relayFactory=null){
  writesOn(env);
  need(Object.prototype.hasOwnProperty.call(KINDS,kind),'UNKNOWN_TOOL','Thao tác không tồn tại.');
- const reason=text(args.reason,300);
+ const reason=kind==='mark_paid'?text(args.proofNote,300)||'Chủ duyệt bỏ ghi nhận thanh toán':text(args.reason,300);
  need(reason.length>=3,'REASON_REQUIRED','Cần lý do (3-300 ký tự).');
- const ref={invoiceNo:args.invoiceNo,orderId:args.orderId};
+ const ref={invoiceNo:args.invoiceNo,orderId:kind==='mark_paid'?args.id:args.orderId};
  const found=await locate(kind,reader,ref,pool);
  const o=found.order;
  if(kind!=='restore'){const r=refusalFor(kind,o);if(r)bad(...r)}
  const extra={...found};let payload=null;
+ if(kind==='mark_paid'){
+  need(Number.isSafeInteger(args.invoiceNo)&&Number.isFinite(args.expectedTotal)&&typeof args.expectedName==='string'&&
+   args.expectedName.trim().length>=2&&args.expectedName.length<=150,'INVALID_REQUEST','Cần số bill, tên và tổng chính xác.');
+  need(args.id===undefined||String(o.id)===String(args.id),'ORDER_NOT_FOUND','ID không khớp số bill.');
+  need(norm(o.name)===norm(args.expectedName)&&Number(o.total)===args.expectedTotal,'ORDER_CHANGED','Tên hoặc tổng bill không khớp.');
+  const desired={};
+  for(const flag of ['customerPaid','satoriPaid'])if(args[flag]!==undefined){
+   need(typeof args[flag]==='boolean','INVALID_REQUEST',flag+' phải là true/false.');desired[flag]=args[flag];
+  }
+  need(Object.keys(desired).length,'INVALID_REQUEST','Cần ít nhất một cờ thanh toán.');
+  need(!Object.values(desired).includes(true)||(typeof args.proofNote==='string'&&args.proofNote.trim().length>=3&&args.proofNote.length<=300),
+   'PROOF_REQUIRED','Đánh dấu đã trả cần proofNote (3-300 ký tự).');
+  if(args.proofNote!==undefined)need(typeof args.proofNote==='string'&&args.proofNote.trim().length>=3&&args.proofNote.length<=300,'PROOF_REQUIRED','proofNote cần 3-300 ký tự.');
+  need(args.paidAt===undefined||(typeof args.paidAt==='string'&&Number.isFinite(Date.parse(args.paidAt))),'INVALID_REQUEST','paidAt không hợp lệ.');
+  const before=paymentSnapshot(o);
+  need(Object.entries(desired).some(([k,v])=>before[k]!==v),'ALREADY_SET','Bill đã đúng trạng thái, không cần đổi.');
+  payload={desired,before,proofNote:reason,paidAt:args.paidAt??null};
+  extra.payment=payload;
+ }
+
  if(kind==='update'){
   const relay=relayOf(relayFactory);
   let raw;
@@ -260,6 +285,7 @@ const FINAL=new Set(['PAID_ORDER_PROTECTED','ORDER_CHANGED','PAIRED_ORDER_LOCKED
  'PRICE_MODE_REQUIRED','PER_LINE_VAT_REQUIRED','INVALID_ITEM','INVALID_TAX_RATE','LINE_VAT_MISMATCH','VAT_MISMATCH',
  'INVALID_AMOUNT','REASON_REQUIRED','CONFIRMATION_REQUIRED','LEDGER_UPSTREAM_REJECTED','ALREADY_SET']);
 const doneMessage={
+ mark_paid:no=>'Đã cập nhật cờ thanh toán hóa đơn #'+no+'.',
  trash:no=>'Đã chuyển hóa đơn #'+no+' vào Thùng Rác (khôi phục được trong 30 ngày). Không còn trong danh sách và công nợ.',
  restore:no=>'Đã khôi phục hóa đơn #'+no+' từ Thùng Rác về danh sách, giữ nguyên trạng thái thanh toán cũ.',
  update:no=>'Đã sửa hóa đơn #'+no+' (nhật ký sửa lưu trước/sau; hoàn tác được bằng satori_order_undo_update_request).',
@@ -325,7 +351,7 @@ export async function confirmWrite(kind,pool,reader,relayFactory,{requestId}={},
    (KINDS[row.kind]?toolOf(row.kind).confirm:'app')+'.');
   if(row.status==='done'){await client.query('COMMIT');return doneReply(row,true)}
   need(row.status!=='rejected','REQUEST_CLOSED','Yêu cầu đã bị từ chối ('+(row.last_note||'')+'). Tạo yêu cầu mới nếu cần.');
-  if(row.status==='pending'&&row.expired){
+  if((row.status==='pending'||row.kind==='mark_paid')&&row.expired){
    await client.query("UPDATE "+TABLE+" SET status='expired',updated_at=now() WHERE id=$1",[id]);
    await client.query('COMMIT');
    bad('REQUEST_EXPIRED','Yêu cầu đã quá '+WRITE_TTL_MINUTES+' phút. Chưa làm gì; tạo yêu cầu mới.');
@@ -340,6 +366,7 @@ export async function confirmWrite(kind,pool,reader,relayFactory,{requestId}={},
  finally{client.release()}
 
  kind=row.kind;
+ if(kind==='mark_paid')return confirmPaymentFlags(pool,reader,relay,row);
  const confirmTool=toolOf(kind).confirm;
  const back=previous==='uncertain'?'uncertain':'pending';
  const no=Number(row.invoice_no);
@@ -412,6 +439,46 @@ export async function confirmWrite(kind,pool,reader,relayFactory,{requestId}={},
  return {ok:false,state:'RETRY',kind,message:'Sổ vừa thay đổi; chưa làm gì. Gọi lại với cùng requestId.'};
 }
 
+const paymentSnapshot=o=>({customerPaid:customerPaid(o),satoriPaid:satoriPaid(o)});
+async function confirmPaymentFlags(pool,reader,relay,row){
+ const p=rowPayload(row),completed=[];
+ const save=()=>pool.query('UPDATE '+TABLE+' SET payload=$2::jsonb,updated_at=now() WHERE id=$1',[row.id,JSON.stringify(p)]);
+ try{
+  for(const flag of ['customerPaid','satoriPaid']){
+   if(p.desired[flag]===undefined)continue;
+   // Fresh revision for EVERY flag; never reuse the first write's revision.
+   const {revision,order:o}=await exactOrder(reader,{invoiceNo:Number(row.invoice_no),orderId:String(row.ledger_id)});
+   need(String(o.id)===String(row.ledger_id)&&norm(o.name)===norm(row.expected_name)&&Number(o.total)===Number(row.expected_total),
+    'ORDER_CHANGED','Bill đã đổi tên/tổng; dừng thanh toán.');
+   const refusal=refusalFor('mark_paid',o);if(refusal)bad(...refusal);
+   if(p.applied?.[flag])need(paymentSnapshot(o)[flag]===p.desired[flag],'ORDER_CHANGED','Cờ đã ghi trước đó bị thay đổi; tạo yêu cầu mới.');
+   if(paymentSnapshot(o)[flag]===p.desired[flag])continue;
+   const key=(flag==='customerPaid'?'customer':'satori')+(p.desired[flag]?'_paid':'_unpaid');
+   const action=PAY_CHANGES[key].action;
+   const base={expectedRevision:revision,invoiceNo:Number(row.invoice_no),id:String(row.ledger_id),
+    expectedName:row.expected_name,expectedTotal:Number(row.expected_total),confirmed:true};
+   const payload=key==='customer_paid'?{...base,amount:Number(row.expected_total)}:
+    {...base,reason:row.reason,requestId:row.request_id+'_'+(flag==='customerPaid'?'c':'s')};
+   await relay.send(action,payload);
+   const after=await exactOrder(reader,{invoiceNo:Number(row.invoice_no),orderId:String(row.ledger_id)});
+   need(paymentSnapshot(after.order)[flag]===p.desired[flag],'NO_READBACK','Chưa xác minh được cờ vừa đổi.');
+   completed.push(flag);
+   p.applied={...p.applied,[flag]:true};
+   p.after=paymentSnapshot(after.order);p.lastVerifiedAt=new Date().toISOString();await save();
+  }
+  const {order:o}=await exactOrder(reader,{invoiceNo:Number(row.invoice_no),orderId:String(row.ledger_id)});
+  p.after=paymentSnapshot(o);
+  need(Object.entries(p.desired).every(([k,v])=>p.after[k]===v),'NO_READBACK','Cờ thanh toán vừa thay đổi, cần kiểm tra lại.');
+  await save();await setState(pool,row.id,'done',null,true);
+  return doneReply(row,false);
+ }catch(e){
+  await setState(pool,row.id,'uncertain',e.code||'ERROR');
+  return {ok:false,state:completed.length?'PARTIAL':'UNCERTAIN',completed,code:e.code||'ERROR',
+   message:'Đã xác minh đổi: '+(completed.join(', ')||'chưa có cờ nào')+'. Phần còn lại lỗi ('+(e.code||'ERROR')+
+    '). Không hoàn tác phần đã ghi. Kiểm tra rồi gọi lại satori_order_mark_paid_confirm với cùng requestId.'};
+ }
+}
+
 /** Dry-run of an edit through production orders.previewUpdate on the WRITER key. Never writes. */
 export async function previewUpdateWithWriter(reader,relayFactory,args={},pool=null){
  const reason=text(args.reason,300);
@@ -457,6 +524,13 @@ const confTool=(name,title,description)=>({name,title,description:'CHỈ gọi s
  annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}});
 
 export const GROK_WRITE_TOOLS=[
+ reqTool(TOOL.mark_paid.request,'Minh Satori: yêu cầu đổi cờ thanh toán',
+  'Đối chiếu chính xác bill, tên và tổng. Cờ bỏ trống giữ nguyên; proofNote bắt buộc khi đánh dấu đã trả.',
+  {invoiceNo:refProps.invoiceNo,id:{type:['string','integer']},expectedName:{type:'string',minLength:2,maxLength:150},
+   expectedTotal:{type:'number'},customerPaid:{type:'boolean'},satoriPaid:{type:'boolean'},
+   proofNote:{type:'string',minLength:3,maxLength:300},paidAt:{type:'string',format:'date-time'}},['invoiceNo','expectedName','expectedTotal']),
+ confTool(TOOL.mark_paid.confirm,'Minh Satori: xác nhận đổi cờ thanh toán','Đổi lần lượt hai cờ đã duyệt; báo riêng nếu chỉ thực hiện được một phần.'),
+
  {name:'satori_order_preview_update',title:'Minh Satori: xem trước sửa hóa đơn (không ghi)',
   description:'Sổ tính thử nội dung sửa của hóa đơn chưa thanh toán (giống ChatGPT) và trả trước/sau; tuyệt đối không ghi sổ. Cần lý do.',
   inputSchema:{type:'object',required:['reason','order'],additionalProperties:false,properties:{...refProps,order:ORDER_CHANGE_SCHEMA}},
@@ -487,6 +561,8 @@ export const GROK_WRITE_TOOL_NAMES=GROK_WRITE_TOOLS.map(t=>t.name);
 export async function callGrokWriteTool(pool,deps,name,args={}){
  const env=deps.env||process.env,rf=deps.ownerWriteRelayFactory;
  if(name==='satori_order_preview_update')return previewUpdateWithWriter(deps.reader,rf,args,pool);
+ if(name===TOOL.mark_paid.request)return requestWrite('mark_paid',pool,deps.reader,args,env,rf);
+ if(name===TOOL.mark_paid.confirm)return confirmWrite('mark_paid',pool,deps.reader,rf,args,env);
  if(name===TOOL.pay.request){
   const change=PAY_CHANGES[String(args.change||'')];
   need(change,'INVALID_REQUEST','change phải là một trong: '+Object.keys(PAY_CHANGES).join(', ')+'.');

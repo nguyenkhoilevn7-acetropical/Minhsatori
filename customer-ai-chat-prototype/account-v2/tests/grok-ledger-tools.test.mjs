@@ -341,7 +341,7 @@ test('tool list: reads with writes or GROK_OWNER_READS_ENABLED; writes only with
  assert.ok(ro.includes('satori_customer_debt')&&ro.includes('satori_trash_list')&&ro.includes('satori_find_customer')&&!ro.includes('satori_order_draft')&&!ro.some(n=>/cancel|_request|_confirm|preview/.test(n)));
  const all=names(ENV);
  for(const n of ['satori_order_update_request','satori_order_update_confirm','satori_order_undo_update_request','satori_order_undo_update_confirm',
-  'satori_payment_request','satori_payment_confirm','satori_debt_summary','satori_customer_debt',
+  'satori_payment_request','satori_payment_confirm','satori_order_mark_paid_confirm','satori_debt_summary','satori_customer_debt',
   'satori_debt_statement_pdf','satori_orders_list','satori_order_get','satori_invoice_pdf','satori_products_search',
   'satori_order_audit_history','satori_order_preview_update','satori_system_status','satori_order_draft','satori_order_confirm',
   'satori_order_trash_request','satori_order_trash_confirm','satori_order_restore_request','satori_order_restore_confirm','satori_trash_list'])
@@ -349,7 +349,7 @@ test('tool list: reads with writes or GROK_OWNER_READS_ENABLED; writes only with
  assert.equal(new Set(all).size,all.length,'no duplicate tool names');
  const writers=grokToolList(ENV).filter(t=>t.annotations.readOnlyHint===false).map(t=>t.name).sort();
  assert.deepEqual(writers,['satori_mark_pdf_delivered','satori_order_confirm','satori_order_draft','satori_order_restore_confirm',
-  'satori_order_trash_confirm','satori_order_undo_update_confirm','satori_order_update_confirm','satori_payment_confirm']);
+  'satori_order_trash_confirm','satori_order_undo_update_confirm','satori_order_update_confirm','satori_payment_confirm','satori_order_mark_paid_confirm'].sort());
  assert.ok(!all.some(n=>/cancel/.test(n)),'no cancel tool: production has no orders.cancel');
  assert.ok(!JSON.stringify(grokToolList(ENV)).match(/hard delete|orders\.cancel/i));
  const L=makeLedger(fixture());

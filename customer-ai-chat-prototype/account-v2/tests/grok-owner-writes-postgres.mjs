@@ -115,4 +115,18 @@ try{
 
  await assert.rejects(()=>confirmWrite('pay',pool,reader,()=>relay,{requestId:req.requestId},{}),e=>e.code==='WRITES_DISABLED');
  pass('GROK_OWNER_WRITES_ENABLED off blocks confirm');
+
+ const mark=await requestWrite('mark_paid',pool,reader,{invoiceNo:9303,id:'C3',expectedName:'Khách Hết Hạn Giả',
+  expectedTotal:10000,customerPaid:true,proofNote:'FAKE-CI-BANK'},env,()=>relay);
+ const prevCalls=calls;
+ const race=await Promise.allSettled(Array.from({length:5},()=>confirmWrite('mark_paid',pool,reader,()=>relay,{requestId:mark.requestId},env)));
+ assert.ok(race.some(r=>r.status==='fulfilled'&&r.value.state==='DONE'));
+ assert.ok(race.every(r=>r.status==='fulfilled'||r.reason.code==='IN_PROGRESS'));
+ assert.equal(calls,prevCalls+1);
+ const audit=(await pool.query('SELECT payload,reason,confirmed_at,done_at FROM '+T+' WHERE id=$1',[mark.requestId])).rows[0];
+ assert.equal(audit.reason,'FAKE-CI-BANK');assert.equal(audit.payload.before.customerPaid,false);
+ assert.equal(audit.payload.after.customerPaid,true);assert.ok(audit.confirmed_at);assert.ok(audit.done_at);
+ assert.equal((await confirmWrite('mark_paid',pool,reader,()=>relay,{requestId:mark.requestId},env)).duplicate,true);
+ assert.equal(calls,prevCalls+1);
+ pass('mark-paid jsonb audit + five concurrent confirmations + retry: one ledger call');
 }finally{await pool.end()}
