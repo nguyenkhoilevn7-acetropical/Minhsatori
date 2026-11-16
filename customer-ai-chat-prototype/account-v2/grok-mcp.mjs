@@ -19,6 +19,7 @@ import {ownerPdfDownloadPath} from './owner-pdf-delivery.mjs';
 import {GROK_ORDER_TOOLS,GROK_ORDER_TOOL_NAMES,GrokOrderError,callGrokOrderTool,grokOrdersEnabled} from './grok-orders.mjs';
 import {GROK_READ_TOOLS,GROK_READ_TOOL_NAMES,callGrokReadTool} from './grok-ledger-read.mjs';
 import {GROK_WRITE_TOOLS,GROK_WRITE_TOOL_NAMES,callGrokWriteTool} from './grok-owner-writes.mjs';
+import {grokDeliveryEnabled} from './grok-delivery-config.mjs';
 
 export const GROK_MCP_PREFIX='/mcp/grok/';
 const PROTOCOL_VERSIONS=['2025-06-18','2025-03-26','2024-11-05'];
@@ -144,7 +145,7 @@ export const grokReadsEnabled=(env=process.env)=>grokOrdersEnabled(env)||env.GRO
  */
 export const grokToolList=(env=process.env)=>{
  const writes=grokOrdersEnabled(env),reads=grokReadsEnabled(env);
- return [...GROK_TOOLS,
+ return [...(grokDeliveryEnabled(env)?GROK_TOOLS:[]),
   ...(writes?GROK_ORDER_TOOLS:reads?GROK_ORDER_TOOLS.filter(t=>t.name==='satori_find_customer'):[]),
   ...(reads?GROK_READ_TOOLS:[]),
   ...(writes?GROK_WRITE_TOOLS:[])];
@@ -165,12 +166,12 @@ export async function handleGrokRpc(pool,msg,deps={}){
     protocolVersion:PROTOCOL_VERSIONS.includes(asked)?asked:PROTOCOL_VERSIONS[0],
     capabilities:{tools:{listChanged:false}},
     serverInfo:{name:'minh-satori-grok-delivery',version:'1.0.0'},
-    instructions:'Hàng đợi gửi PDF hóa đơn mới của Minh Satori. Chỉ gửi đúng nội dung zaloText kèm PDF '+
+    instructions:(grokDeliveryEnabled(env)?'Hàng đợi gửi PDF hóa đơn mới của Minh Satori. Chỉ gửi đúng nội dung zaloText kèm PDF '+
      'chính thức từ ownerDownloadPath hoặc trang /owner-v2 trên Chrome đã đăng nhập Owner; không gửi tệp tạm của AI. '+
      'Nếu không thể tải tệp có fileName chuẩn, không gửi Zalo và không đánh dấu sent; '+
      'không gắn ID tạm/UUID. Nếu thiếu fileName phải xác minh ngày từ PDF gốc, tuyệt đối không dùng ngày tải; '+
      'chỉ sau khi gửi Zalo và kiểm tra tên file thực tế mới ghi satori_mark_pdf_delivered '+
-     '(sent và actualFileName bằng đúng fileName).'+
+     '(sent và actualFileName bằng đúng fileName).':'Trợ lý quản lý Minh Satori. Chức năng chuyển giao PDF tự động đã tắt. Chỉ tải PDF cho chủ cửa hàng khi được yêu cầu.')+
      (grokOrdersEnabled(env)?' Tạo đơn: satori_find_customer -> satori_order_draft -> gửi nguyên summary cho chủ cửa hàng -> '+
       'chỉ khi chủ cửa hàng trả lời "ok" trong tin nhắn mới mới gọi satori_order_confirm.'+
       ' Ghi sổ giống ChatGPT, chỉ bằng lệnh sổ có sẵn: XÓA = Thùng Rác 30 ngày (satori_order_trash_request/confirm, '+
