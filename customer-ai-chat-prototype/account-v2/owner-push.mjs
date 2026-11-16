@@ -20,6 +20,7 @@
  *    or sent in the push (only the numeric invoice number and event id).
  */
 import crypto from 'node:crypto';
+import {grokDeliveryEnabled} from './grok-delivery-config.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -271,7 +272,8 @@ export async function probeInvoiceNumber(reader,no,{days=[],statuses=[]}={}){
  * persisted cursor, so invoice #101, #150, #250 of a day are never skipped.
  */
 export async function scanInvoices(pool,sourceReader,now=new Date(),
- {probeLimit=PROBE_PER_TICK,readBudget=READ_BUDGET_PER_PASS,probePauseMs=PROBE_PAUSE_MS}={}){
+ {probeLimit=PROBE_PER_TICK,readBudget=READ_BUDGET_PER_PASS,probePauseMs=PROBE_PAUSE_MS,
+  pdfDeliveriesEnabled=grokDeliveryEnabled()}={}){
  const nowMs=now.getTime();
  let reads=0;
  // Hard cap: no code path (including the FIRST adversarial readback)
@@ -346,7 +348,7 @@ export async function scanInvoices(pool,sourceReader,now=new Date(),
    inserted+=r.rowCount;
    // Same decision as the push: only a NEW, eligible invoice (never the quiet
    // baseline, a re-scan, an edit or a payment change) gets one PDF delivery.
-   if(r.rowCount===1&&initialized&&x.eligible)
+   if(pdfDeliveriesEnabled&&r.rowCount===1&&initialized&&x.eligible)
     await client.query('INSERT INTO satori_v2_owner_pdf_deliveries(source_key,invoice_no,ledger_id,recipient_name,order_date) '+
       'VALUES($1,$2,$3,$4,$5) ON CONFLICT(source_key) DO NOTHING',
       [key,x.invoiceNo,x.ledgerId,x.recipientName,x.orderDate]);

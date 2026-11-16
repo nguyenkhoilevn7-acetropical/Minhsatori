@@ -50,6 +50,12 @@ try{
  assert.equal(q[0].order_date,today,'must be order date from signed ledger');
  pass('One delivery per NEW eligible invoice: no baseline, cancelled, TEST, re-scan or payment-change duplicates');
 
+ ledger.unshift(row(9104));
+ await scanInvoices(pool,reader,new Date(),{probePauseMs:0,pdfDeliveriesEnabled:false});
+ assert.equal((await pool.query('SELECT count(*)::int n FROM satori_v2_owner_pdf_deliveries')).rows[0].n,1);
+ assert.equal((await pool.query('SELECT count(*)::int n FROM satori_v2_owner_push_events WHERE invoice_no=9104')).rows[0].n,1);
+ pass('Disabled PDF delivery creates no new queue item; ordinary owner push still tracks invoice');
+
  child=spawn(process.execPath,['account-v2/standalone.mjs'],{env:{...process.env,PORT:'18773',
   SATORI_ACCOUNT_V2_DATABASE_URL:url,...env},stdio:['ignore','pipe','pipe']});
  const base='http://127.0.0.1:18773';

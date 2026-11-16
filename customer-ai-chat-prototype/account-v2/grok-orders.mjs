@@ -18,6 +18,7 @@
  * No payment, delete, edit or VAT-policy write is possible here.
  */
 import crypto from 'node:crypto';
+import {grokDeliveryEnabled} from './grok-delivery-config.mjs';
 import {norm,collectOrders,rowScore} from './grok-search.mjs';
 
 export const GROK_ORDER_TOOL_NAMES=['satori_find_customer','satori_order_draft','satori_order_confirm','satori_order_status'];
@@ -232,7 +233,7 @@ async function finish(pool,id,state,result,note){
 }
 const committedReply=(row,inv,duplicate)=>({ok:true,state:'COMMITTED',invoiceNo:inv.invoiceNo,ledgerId:String(inv.id),
  total:inv.total,duplicate:!!duplicate,message:'Đã ghi hóa đơn #'+inv.invoiceNo+' vào sổ Minh Satori (đã đối soát). '+
-  'Push cho chủ cửa hàng và PDF Zalo sẽ vào hàng đợi như mọi đơn mới.'});
+  (grokDeliveryEnabled()?'Push cho chủ cửa hàng và PDF Zalo sẽ vào hàng đợi như mọi đơn mới.':'Hóa đơn sẵn sàng tra cứu và tải PDF.')});
 
 /**
  * relayFactory(): returns {submit(intent), findIntent(intent)} (createV2CanonicalRelay).
