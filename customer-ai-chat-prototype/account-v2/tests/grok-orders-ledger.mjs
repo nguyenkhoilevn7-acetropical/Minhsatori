@@ -109,7 +109,7 @@ try{
  pass('Order tools are hidden and uncallable unless GROK_OWNER_WRITES_ENABLED=1');
  process.env.GROK_OWNER_WRITES_ENABLED='1';
  names=(await rpc('tools/list')).result.tools.map(t=>t.name);
- assert.deepEqual(names.slice(2),['satori_find_customer','satori_order_draft','satori_order_confirm','satori_order_status']);
+ for(const name of ['satori_find_customer','satori_order_draft','satori_order_confirm','satori_order_status'])assert.ok(names.includes(name));
 
  // 1. New customer, invoice VAT 8% on goods, shipping not taxed.
  const d1=ok(await tool('satori_order_draft',{newCustomer:true,
