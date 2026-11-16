@@ -83,4 +83,3 @@ export function production({writerScopes=WRITER_SCOPES,writerRole='owner'}={}){
   row:no=>JSON.parse(state().values.satori_orders_v15).find(o=>o.invoiceNo===no),
   editLog:()=>JSON.parse(state().values.satori_order_edit_audit_v1||'[]')};
 }
-
