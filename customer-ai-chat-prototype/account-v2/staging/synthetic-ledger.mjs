@@ -64,13 +64,19 @@ export function production({writerScopes=WRITER_SCOPES,writerRole='owner'}={}){
   return {ok:true,text:async()=>String(ctx.doPost({postData:{contents:opts.body}}))};
  };
  const relay=createOwnerWriteRelay({env:WRITER_ENV,fetcher});
- const reader=async(action,payload)=>{
+ let reading=Promise.resolve();
+ const readOne=async(action,payload)=>{
   const saved={...process.env},savedFetch=globalThis.fetch;
   Object.assign(process.env,{SATORI_READ_ENDPOINT:ENDPOINT,SATORI_READ_KEY_ID:'v2reader',SATORI_READ_HMAC_SECRET:SECRET.reader});
   globalThis.fetch=fetcher;
   try{return await readMinhSatori(action,payload)}
   finally{globalThis.fetch=savedFetch;for(const k of ['SATORI_READ_ENDPOINT','SATORI_READ_KEY_ID','SATORI_READ_HMAC_SECRET'])
    if(saved[k]===undefined)delete process.env[k];else process.env[k]=saved[k];}
+ };
+ const reader=(action,payload)=>{
+  const reply=reading.then(()=>readOne(action,payload));
+  reading=reply.catch(()=>{});
+  return reply;
  };
  const state=()=>JSON.parse(raw);
  return {reader,relay,fetcher,writerEnv:WRITER_ENV,rf:()=>relay,sent,get writes(){return writes},state,

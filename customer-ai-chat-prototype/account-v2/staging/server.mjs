@@ -6,17 +6,20 @@ import {production} from './synthetic-ledger.mjs';
 import {handleGrokMcpHttp} from '../grok-mcp.mjs';
 import {handleGrokFileHttp} from '../grok-ledger-read.mjs';
 import {createV2CanonicalRelay} from '../canonical-ledger-relay.mjs';
-import {ensureOwnerPushSchema} from '../owner-push.mjs';
+import {ensureOwnerPushSchema,scanInvoices} from '../owner-push.mjs';
 
 assertSyntheticEnvironment(process.env);
 const pool=new pg.Pool({connectionString:process.env.SATORI_V2_CI_DATABASE_URL,max:5});
 await ensureOwnerPushSchema(pool);
 const ledger=production();
+await scanInvoices(pool,ledger.reader,new Date(),{probePauseMs:0});
+let scans=Promise.resolve();
 // This known constant grants access ONLY to fake data. It is not a live credential.
 const token='synthetic-only-public-fixtures-never-real-invoices-20261116';
 const env={GROK_OWNER_WRITES_ENABLED:'1',GROK_OWNER_READS_ENABLED:'1',SATORI_GROK_MCP_ENABLED:'1',SATORI_GROK_MCP_TOKEN:token};
 const deps={reader:ledger.reader,ownerWriteRelayFactory:ledger.rf,
- relayFactory:()=>createV2CanonicalRelay({env:ledger.writerEnv,fetcher:ledger.fetcher}),kick:()=>{}};
+ relayFactory:()=>createV2CanonicalRelay({env:ledger.writerEnv,fetcher:ledger.fetcher}),
+ kick:()=>{scans=scans.then(()=>scanInvoices(pool,ledger.reader,new Date(),{probePauseMs:0})).catch(()=>{});}};
 const banner='MINH SATORI — STAGING · HÓA ĐƠN GIẢ';
 const html=`<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${banner}</title>
 <style>body{font:16px system-ui;max-width:960px;margin:40px auto;padding:20px;background:#f4f7fa;color:#142533}section{background:white;padding:24px;border-radius:16px;margin:16px 0}textarea{width:100%;min-height:240px;box-sizing:border-box;font:14px monospace}button,select{padding:12px;margin:8px 8px 8px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}strong{color:#a24400}</style>
@@ -26,7 +29,7 @@ const html=`<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="vie
 <script>
 const examples={
  'Danh sách tool':{method:'tools/list'},
- 'Đọc bill giả 501':{method:'tools/call',params:{name:'satori_order_get',arguments:{invoiceNo:501,id:'L501'}}},
+ 'Đọc bill giả 501':{method:'tools/call',params:{name:'satori_order_get',arguments:{invoiceNo:501,orderId:'L501'}}},
  'Đánh dấu thanh toán — chỉ request':{method:'tools/call',params:{name:'satori_order_mark_paid_request',arguments:{invoiceNo:503,id:'L503',expectedName:'Khách Thanh Toán Giả',expectedTotal:120000,customerPaid:true,satoriPaid:true,proofNote:'Giao dịch giả STAGING-20261116'}}},
  'Confirm thanh toán — nhập requestId':{method:'tools/call',params:{name:'satori_order_mark_paid_confirm',arguments:{requestId:'NHAP_REQUEST_ID'}}},
  'Tạo đơn — chỉ draft':{method:'tools/call',params:{name:'satori_order_draft',arguments:{newCustomer:true,customer:{name:'Khách Staging Giả',phone:'0900000999',location:'01 Đường Giả'},items:[{product:'Nước Giả',qty:2,unitPrice:100000}],vatRate:8}}},
@@ -38,9 +41,10 @@ document.querySelector('#load').onclick=()=>input.value=JSON.stringify({jsonrpc:
 document.querySelector('#load').click();
 document.querySelector('#send').onclick=async()=>{try{const body=JSON.parse(input.value);output.textContent='Đang chạy…';const r=await fetch('/mcp/grok/${token}',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});output.textContent=JSON.stringify(await r.json(),null,2)}catch{output.textContent='Yêu cầu không hợp lệ hoặc máy chủ tạm lỗi'}};
 </script></html>`;
-let chain=Promise.resolve(); // GAS fixture reader temporarily sets fetch; serialize fixture access.
-const server=http.createServer((req,res)=>{
- chain=chain.then(async()=>{
+let active=0;
+const server=http.createServer(async(req,res)=>{
+ let counted=false;
+ try{
   const pathname=new URL(req.url,'http://localhost').pathname;
   if(req.method==='GET'&&pathname==='/'){
    res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'});res.end(html);return;
@@ -49,10 +53,13 @@ const server=http.createServer((req,res)=>{
    await pool.query('SELECT 1');res.writeHead(200,{'content-type':'application/json'});
    res.end(JSON.stringify({ok:true,syntheticOnly:true,officialLedgerConnected:false,zaloSender:false}));return;
   }
+  if(active>=20){res.writeHead(429);res.end('SYNTHETIC_BUSY');return}
+  active++;counted=true;
   if(await handleGrokFileHttp(req,res,pathname,{...deps,env,pool}))return;
   if(await handleGrokMcpHttp(req,res,pathname,async()=>pool,env,deps))return;
   res.writeHead(404);res.end();
- }).catch(()=>{if(!res.headersSent)res.writeHead(503);res.end('SYNTHETIC_STAGING_ERROR')});
+ }catch{if(!res.headersSent)res.writeHead(503);res.end('SYNTHETIC_STAGING_ERROR')}
+ finally{if(counted)active--}
 });
 server.requestTimeout=15000;server.headersTimeout=10000;
 server.listen(Number(process.env.PORT||10000),'0.0.0.0');
