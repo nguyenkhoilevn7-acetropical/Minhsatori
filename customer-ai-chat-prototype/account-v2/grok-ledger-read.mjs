@@ -1,15 +1,15 @@
 /**
  * Grok owner connector: READ-ONLY ledger tools, parity with the ChatGPT
  * connector (system_status, orders_list, orders_get, orders_audit_history,
- * orders_preview_update, debt_summary, products_search, invoice_pdf) plus
- * per-customer debt and a debt statement PDF.
+ * debt_summary, products_search, invoice_pdf) plus
+ * per-customer debt and a debt statement PDF. The edit preview needs orders:update,
+ * so it lives in grok-owner-writes.mjs on the V2 writer key, never the read key.
  *
  * Every call goes through the signed read transport (satori-readonly.mjs) to
  * the SAME Apps Script actions the ChatGPT connector uses, so numbers match by
  * construction (debt totals come from debt.summary itself). Nothing here
  * writes the ledger or PostgreSQL. No customer data or secrets are logged.
  */
-import crypto from 'node:crypto';
 import {GrokOrderError,findCustomers} from './grok-orders.mjs';
 import {norm,collectOrders,rowScore,matchScore} from './grok-search.mjs';
 import {signFileLink,verifyFileToken,absoluteUrl,GROK_FILE_PREFIX} from './grok-files.mjs';
@@ -71,7 +71,7 @@ export const fromCents=c=>c%100n===0n?Number(c/100n):Number(c)/100;
 const sumCents=list=>list.reduce((n,x)=>n+x,0n);
 
 /* ---------- signed reads ---------- */
-const OWNER_SCOPED=new Set(['debt.summary','orders.auditHistory','orders.previewUpdate','orders.get','trash.list']);
+const OWNER_SCOPED=new Set(['debt.summary','orders.auditHistory','trash.list']);
 async function read(reader,action,payload){
  let r;
  try{r=await reader(action,payload)}
@@ -420,20 +420,6 @@ export async function auditHistory(reader,args={},pool=null){
   status:String(order.status||'')};
 }
 
-export async function previewUpdate(reader,args={},pool=null){
- const reason=String(args.reason||'').trim();
- need(reason.length>=3&&reason.length<=300,'REASON_REQUIRED','Cần lý do sửa (3-300 ký tự).');
- const o=args.order;
- need(o&&typeof o==='object'&&!Array.isArray(o)&&Array.isArray(o.items)&&o.items.length>=1&&o.items.length<=50&&
-  JSON.stringify(o).length<=20000,'INVALID_ORDER','order cần items (1-50 dòng).');
- const {revision,order:cur}=await exactOrder(reader,args,pool);
- need(isActive(cur)&&!isPaid(cur),'ORDER_LOCKED','Chỉ xem trước sửa cho hóa đơn chưa thanh toán và chưa hủy.');
- const r=await read(reader,'orders.previewUpdate',{expectedRevision:revision,
-  requestId:'grokpreview-'+crypto.randomBytes(12).toString('hex'),invoiceNo:Number(cur.invoiceNo),id:String(cur.id),
-  expectedName:String(cur.name||''),expectedTotal:Number(cur.total),confirmed:true,reason,order:o});
- return {preview:true,written:false,ledgerRevision:r.revision,before:brief(cur),after:r.data.order?brief(r.data.order):null,
-  afterDetail:r.data.order||null,note:'Chỉ xem trước, KHÔNG ghi sổ. Grok không có lệnh sửa hóa đơn; muốn sửa thật dùng ChatGPT hoặc /owner-v2.'};
-}
 
 /* ---------- file download (signed short-lived link) ---------- */
 export async function produceFile(payload,deps){
@@ -505,12 +491,6 @@ export const GROK_READ_TOOLS=[
  {name:'satori_order_audit_history',title:'Minh Satori: lịch sử sửa hóa đơn',
   description:'Lịch sử trước/sau của đúng một hóa đơn (dữ liệu riêng tư, chỉ chủ cửa hàng). Chỉ đọc.',
   inputSchema:{type:'object',additionalProperties:false,properties:orderRef},annotations:RO},
- {name:'satori_order_preview_update',title:'Minh Satori: xem trước sửa hóa đơn (không ghi)',
-  description:'Tính lại hóa đơn chưa thanh toán theo nội dung sửa để XEM TRƯỚC; tuyệt đối không ghi sổ. Cần lý do.',
-  inputSchema:{type:'object',required:['reason','order'],additionalProperties:false,properties:{...orderRef,
-   reason:{type:'string',minLength:3,maxLength:300},
-   order:{type:'object',required:['items'],description:'Nội dung hóa đơn mới (giống orders_preview_update của ChatGPT, kèm priceMode)',
-    properties:{items:{type:'array',minItems:1,maxItems:50,items:{type:'object'}}}}}},annotations:RO}
 ];
 export const GROK_READ_TOOL_NAMES=GROK_READ_TOOLS.map(t=>t.name);
 
@@ -528,7 +508,6 @@ export async function callGrokReadTool(deps,name,args={}){
   case 'satori_products_search':return productsSearch(reader,args);
   case 'satori_trash_list':return trashList(reader,args);
   case 'satori_order_audit_history':return auditHistory(reader,args,pool);
-  case 'satori_order_preview_update':return previewUpdate(reader,args,pool);
   case 'satori_find_customer':return findCustomers(reader,args.query);
  }
  bad('UNKNOWN_TOOL','Công cụ không tồn tại.');

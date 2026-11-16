@@ -10,7 +10,7 @@ on:
       - 'customer-ai-chat-prototype/server.mjs'
       - 'customer-ai-chat-prototype/package.json'
       - 'customer-ai-chat-prototype/satori-readonly.mjs'
-      - 'api/BotApiOrderCancel.gs'
+      - 'apps-script/production-snapshot-20261115/**'
       - '.github/workflows/account-v2-offline.yml'
   pull_request:
     paths:
@@ -20,7 +20,7 @@ on:
       - 'customer-ai-chat-prototype/server.mjs'
       - 'customer-ai-chat-prototype/package.json'
       - 'customer-ai-chat-prototype/satori-readonly.mjs'
-      - 'api/BotApiOrderCancel.gs'
+      - 'apps-script/production-snapshot-20261115/**'
       - '.github/workflows/account-v2-offline.yml'
 permissions:
   contents: read

@@ -138,8 +138,9 @@ const rpcError=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,messag
 /** Read-only ledger tools: on with writes, or alone with GROK_OWNER_READS_ENABLED=1. */
 export const grokReadsEnabled=(env=process.env)=>grokOrdersEnabled(env)||env.GROK_OWNER_READS_ENABLED==='1';
 /**
- * Phase A tools always. Phase B order tools + cancel/trash/restore only when
- * GROK_OWNER_WRITES_ENABLED=1. Read-only ledger tools when reads are enabled.
+ * Phase A tools always. Phase B order tools + trash/restore/update/undo/payment
+ * (+ edit preview on the writer key) only when GROK_OWNER_WRITES_ENABLED=1.
+ * Read-only ledger tools when reads are enabled.
  */
 export const grokToolList=(env=process.env)=>{
  const writes=grokOrdersEnabled(env),reads=grokReadsEnabled(env);
@@ -172,9 +173,11 @@ export async function handleGrokRpc(pool,msg,deps={}){
      '(sent và actualFileName bằng đúng fileName).'+
      (grokOrdersEnabled(env)?' Tạo đơn: satori_find_customer -> satori_order_draft -> gửi nguyên summary cho chủ cửa hàng -> '+
       'chỉ khi chủ cửa hàng trả lời "ok" trong tin nhắn mới mới gọi satori_order_confirm.'+
-      ' HỦY và XÓA là hai việc khác nhau: HỦY = hóa đơn ở lại hệ thống, trạng thái "Đã hủy", tính 0 đ '+
-      '(satori_order_cancel_request/confirm); XÓA = đưa vào Thùng Rác 30 ngày, khôi phục được '+
-      '(satori_order_trash_request/confirm, khôi phục bằng satori_order_restore_request/confirm). '+
+      ' Ghi sổ giống ChatGPT, chỉ bằng lệnh sổ có sẵn: XÓA = Thùng Rác 30 ngày (satori_order_trash_request/confirm, '+
+      'khôi phục bằng satori_order_restore_request/confirm); SỬA hóa đơn chưa thanh toán (satori_order_preview_update để xem thử, '+
+      'satori_order_update_request/confirm; hoàn tác lần sửa gần nhất bằng satori_order_undo_update_request/confirm); '+
+      'THANH TOÁN (satori_payment_request/confirm với change customer_paid/customer_unpaid/satori_paid/satori_unpaid). '+
+      'Không có lệnh HỦY (trạng thái "Đã hủy" chỉ đổi trong app). '+
       'Mọi yêu cầu: gửi nguyên summary, chỉ khi chủ cửa hàng trả lời "ok" trong tin nhắn mới mới gọi bước confirm với requestId.':'')+
      (grokReadsEnabled(env)?' Tra cứu chỉ đọc: công nợ (satori_debt_summary, satori_customer_debt, satori_debt_statement_pdf), '+
       'hóa đơn (satori_orders_list, satori_order_get, satori_invoice_pdf), sản phẩm (satori_products_search). '+

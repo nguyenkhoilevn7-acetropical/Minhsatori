@@ -6,9 +6,10 @@
  */
 import crypto from 'node:crypto';
 const permitted=new Set(['system.status','catalogue.list','orders.list','customers.search','orders.findByRequestId','orders.getExactBatch']);
-// Grok owner connector parity with ChatGPT. Read-only (previewUpdate runs on a
-// deep copy in BotApi and never commits); each needs its scope on the V2 read key.
-const ownerReads=new Set(['debt.summary','orders.auditHistory','orders.previewUpdate','trash.list']);
+// Grok owner connector parity with ChatGPT, strictly read-only on the V2 read key.
+// orders.previewUpdate needs orders:update, so it is NEVER sent with the read key
+// (Grok previews through the isolated V2 writer key instead).
+const ownerReads=new Set(['debt.summary','orders.auditHistory','trash.list']);
 export function readOnlyReady(){
  return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(String(process.env.SATORI_READ_ENDPOINT||'').trim()) &&
  /^[A-Za-z0-9_-]{3,64}$/.test(String(process.env.SATORI_READ_KEY_ID||'')) &&
@@ -64,11 +65,7 @@ export async function readMinhSatori(action,payload={}){
  if(action==='orders.auditHistory'&&(!Number.isSafeInteger(payload.invoiceNo)||payload.invoiceNo<1||
   !/^[A-Za-z0-9_-]{1,80}$/.test(String(payload.id||''))||Object.keys(payload).length!==2))
   throw Error('EXACT_ORDER_REQUIRED');
- // Preview only: BotApi runs it on a deep copy of state and never commits.
- if(action==='orders.previewUpdate'&&(!Number.isSafeInteger(payload.invoiceNo)||payload.invoiceNo<1||
-  payload.confirmed!==true||JSON.stringify(payload).length>30000))
-  throw Error('PREVIEW_PAYLOAD_INVALID');
- const safePayload={...payload};
+  const safePayload={...payload};
  if(action!=='system.status'&&action!=='catalogue.list'&&action!=='orders.findByRequestId'&&action!=='orders.getExactBatch')
   safePayload.limit=Math.min(action==='orders.list'?100:20,Math.max(1,Number(payload.limit)||10));
  if(action==='trash.list'){

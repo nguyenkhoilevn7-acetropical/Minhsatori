@@ -7,6 +7,8 @@ on:
     paths:
       - "api/**"
       - "tests/satori-bot-api.test.js"
+      - "tests/grok-scopes-setup.cjs"
+      - "apps-script/production-snapshot-20261115/**"
 permissions:
   contents: read
 jobs:
@@ -20,3 +22,5 @@ jobs:
           node-version: "22"
       - name: Offline HMAC, money, invoice, backup and delete tests
         run: node tests/satori-bot-api.test.js
+      - name: Grok scope helper + production BotApi permission check
+        run: node tests/grok-scopes-setup.cjs

@@ -53,7 +53,10 @@ test('order tools are listed only when GROK_OWNER_WRITES_ENABLED=1',()=>{
  const listed=grokToolList({GROK_OWNER_WRITES_ENABLED:'1'});
  assert.deepEqual(listed.map(t=>t.name).slice(2,6),
   ['satori_find_customer','satori_order_draft','satori_order_confirm','satori_order_status']);
- assert.ok(!JSON.stringify(listed).match(/payment|delete|markPaid/i));
+ // Owner decision 2026-11-16: payments like ChatGPT, but ONLY as request -> owner "ok" -> confirm.
+ const pay=listed.filter(t=>/payment/i.test(t.name)).map(t=>t.name).sort();
+ assert.deepEqual(pay,['satori_payment_confirm','satori_payment_request']);
+ assert.ok(!JSON.stringify(listed).match(/markPaid|markCustomerPaid|hard delete|orders\.cancel/i));
  const draft=listed.find(t=>t.name==='satori_order_draft');
  const confirm=listed.find(t=>t.name==='satori_order_confirm');
  assert.match(draft.description,/ok/);
