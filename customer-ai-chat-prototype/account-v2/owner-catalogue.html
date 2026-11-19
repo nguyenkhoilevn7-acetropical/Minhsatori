@@ -870,6 +870,160 @@ body{font-size:14px;line-height:1.42}
 #ownerPdfForm button{min-height:46px}
 #ownerPdfState{font-size:13px;line-height:1.6;overflow-wrap:anywhere}
 #ownerPdfState[data-kind="error"]{color:#ba1c1c}
+</style><style id="satori-pearl-glass-style">
+/* PEARL GLASS 2026 — opt-in visual layer only. Do not alter ledger/PDF print rules. */
+@media screen {
+html[data-satori-layout="pearl"]{
+ --pearl-ink:#20283e;--pearl-muted:#5e6880;--pearl-stroke:rgba(255,255,255,.86);
+ --pearl-line:#dce3f1;--pearl-lilac:#6874c8;--pearl-peach:#f4ab83;
+ --pearl-surface:rgba(255,255,255,.83);--pearl-strong:rgba(255,255,255,.96);
+ --pearl-depth:0 18px 45px rgba(57,71,111,.10),0 3px 11px rgba(51,63,101,.06);
+ --pearl-highlight:inset 0 2px 1px rgba(255,255,255,.95),inset 0 -1px 1px rgba(141,154,197,.14);
+ --bg:#edf1fb;--card:rgba(255,255,255,.88);--ink:#20283e;--sub:#526078;
+ --edge:#dae2f0;--line:#dae2f0;--blue:#5268ae;--blueSoft:#e5eafa;
+ color-scheme:light;
+}
+html[data-satori-layout="pearl"] body{
+ background:
+ radial-gradient(ellipse 45% 38% at 13% 8%,rgba(177,191,246,.75),transparent 100%),
+ radial-gradient(ellipse 38% 35% at 90% 90%,rgba(255,189,156,.68),transparent 100%),
+ radial-gradient(ellipse 45% 42% at 87% 8%,rgba(206,220,255,.64),transparent 100%),
+ linear-gradient(147deg,#e7edfb 3%,#f3f0f5 54%,#f8eae8 100%) fixed!important;
+ color:var(--pearl-ink)!important;
+}
+html[data-satori-layout="pearl"] :is(.panel,.card,.metric,.stat,.crm-panel,.crm-card,.customer-card,.product-card,
+ .cart-panel,.delivery-panel,.chat-canonical-receipt,.chat-order-receipt,.invoice-filters,
+ .crm-customer-card,.crm-alerts,.crm-inspector,.crm-card-details,.crm-card-expanded,
+ .crm-role-editor,.crm-ctv-clients,.crm-ledger-card,.crm-ledger-discovery,.crm-charge-policy){
+ border:1px solid var(--pearl-stroke)!important;
+ border-radius:23px!important;
+ background:linear-gradient(138deg,rgba(255,255,255,.95),rgba(255,255,255,.70))!important;
+ box-shadow:var(--pearl-highlight),var(--pearl-depth)!important;
+ color:var(--pearl-ink)!important;
+}
+html[data-satori-layout="pearl"] :is(.muted,.delivery-secondary,.crm-customer-contact,.crm-card-address){
+ color:var(--pearl-muted)!important;
+}
+html[data-satori-layout="pearl"] :is(input:not([type="checkbox"]):not([type="radio"]),textarea,select){
+ background:rgba(255,255,255,.94)!important;color:#1c2942!important;
+ border:1px solid #cbd6e7!important;border-radius:15px!important;
+ box-shadow:inset 0 1px 3px rgba(24,41,76,.04)!important;
+}
+html[data-satori-layout="pearl"] :is(input,button,select,textarea):focus-visible{
+ outline:3px solid #6278cb!important;outline-offset:3px!important;
+}
+html[data-satori-layout="pearl"] :is(button,.btn,.nav){-webkit-tap-highlight-color:transparent}
+html[data-satori-layout="pearl"] :is(.btn.primary,.checkout-submit,.primary,
+ #ctvChargeSave,#ctvSheetSave,#crmPolicySubmit,#saveNewAddress,.actions button:not(.secondary)){
+ background:linear-gradient(130deg,#5164bb,#7463c9)!important;
+ border:1px solid rgba(255,255,255,.55)!important;color:#fff!important;
+ border-radius:15px!important;
+ box-shadow:inset 0 1px rgba(255,255,255,.4),0 8px 18px rgba(82,94,163,.2)!important;
+}
+html[data-satori-layout="pearl"] :is(.secondary,.icon-button,.btn:not(.primary)){
+ border:1px solid #d4ddef!important;border-radius:14px!important;
+ background:linear-gradient(140deg,#fff,#eef2fd)!important;
+ color:#394c7d!important;
+}
+html[data-satori-layout="pearl"] :is(.s25-panel,.delivery-dialog,.ctv-customer-dialog){
+ background:linear-gradient(160deg,#fdfdff,#f2f2fb)!important;
+ color:var(--pearl-ink)!important;
+ border:1px solid rgba(255,255,255,.86)!important;border-radius:25px!important;
+ box-shadow:0 28px 75px rgba(42,54,90,.22),inset 0 2px rgba(255,255,255,.95)!important;
+}
+html[data-satori-layout="pearl"] .s25-picker-button{
+ border:1px solid rgba(255,255,255,.72)!important;border-radius:14px!important;
+ background:rgba(255,255,255,.75)!important;color:#2e395f!important;
+ box-shadow:var(--pearl-highlight),0 4px 12px rgba(37,50,88,.06)!important;
+}
+.pearl-layout-options{margin-top:16px;padding-top:14px;border-top:1px solid #e0e5f0}
+.pearl-layout-label{display:block;font-size:12px;font-weight:800;color:#495577;margin-bottom:9px}
+.pearl-layout-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pearl-layout-buttons button{min-height:46px;border:1px solid #d3daee;border-radius:14px;padding:9px 8px;
+ background:linear-gradient(148deg,#fff,#edf1fa);color:#394462;font-weight:800;font-size:12px;cursor:pointer}
+.pearl-layout-buttons button[aria-pressed="true"]{background:linear-gradient(135deg,#5266b4,#7668c9);color:#fff;
+ border-color:#5663b8;box-shadow:0 7px 16px rgba(75,81,153,.18)}
+.pearl-layout-note{font-size:11px;line-height:1.5;color:#66718b;margin-top:8px}
+html[data-satori-layout="pearl"] :is(.chat-order-receipt,.chat-canonical-receipt,.invoice-document){
+ font-variant-numeric:tabular-nums;
+}
+@media (prefers-reduced-transparency:reduce){
+ html[data-satori-layout="pearl"] :is(.panel,.card,.metric,.s25-panel,.drawer,.intro){background:#fdfdff!important;backdrop-filter:none!important}
+}
+@media (prefers-reduced-motion:reduce){
+ html[data-satori-layout="pearl"] :is(button,.nav,.btn,.mm-bottom-tab){animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+@media (max-width:390px){.pearl-layout-buttons button{font-size:11px}}
+}
+
+@media screen {
+html[data-satori-layout="pearl"] main{width:min(1200px,100%)!important}
+html[data-satori-layout="pearl"] header.owner-header{
+ background:linear-gradient(110deg,rgba(255,255,255,.97),rgba(239,241,252,.85) 63%,rgba(255,227,215,.74))!important;
+ border:1px solid rgba(255,255,255,.97)!important;
+ border-radius:24px!important;box-shadow:var(--pearl-highlight),var(--pearl-depth)!important;
+ padding:15px 17px!important;
+}
+html[data-satori-layout="pearl"] .owner-header .owner-brand :is(h1,small){color:#253654!important}
+html[data-satori-layout="pearl"] .owner-header .owner-brand h1{letter-spacing:.13em!important}
+html[data-satori-layout="pearl"] .owner-header :is(.owner-back,.owner-mark,#refresh){
+ background:rgba(255,255,255,.88)!important;color:#5064a5!important;
+ border:1px solid rgba(255,255,255,.99)!important;border-radius:15px!important;
+ box-shadow:var(--pearl-highlight),0 4px 12px rgba(73,88,141,.09)!important;
+}
+html[data-satori-layout="pearl"] #ownerTabs{
+ background:rgba(255,255,255,.57)!important;border-radius:19px!important;
+ padding:7px!important;box-shadow:0 5px 16px rgba(49,60,105,.055)
+}
+html[data-satori-layout="pearl"] #ownerTabs button{
+ background:rgba(255,255,255,.78)!important;color:#55627f!important;
+ border:1px solid #fff!important;border-radius:15px!important;
+ box-shadow:inset 0 1px #fff,0 4px 12px #475c9010!important;
+}
+html[data-satori-layout="pearl"] #ownerTabs button[aria-selected="true"]{
+ background:linear-gradient(135deg,#5a6abb,#8475d2)!important;color:#fff!important;
+ box-shadow:0 7px 19px rgba(86,99,181,.2)!important
+}
+html[data-satori-layout="pearl"] :is(#crmConsole,#legacyConsole,#console){
+ border:1px solid #fff!important;
+ border-radius:25px!important;
+ background:linear-gradient(145deg,rgba(255,255,255,.91),rgba(250,250,255,.78))!important;
+ box-shadow:var(--pearl-highlight),var(--pearl-depth)!important;
+}
+html[data-satori-layout="pearl"] #crmStageFilters .crm-filter-button{
+ background:linear-gradient(140deg,#fff,#f3f5fc)!important;color:#405276!important;
+ border:1px solid #fff!important;border-radius:17px!important;
+ box-shadow:var(--pearl-highlight),0 7px 19px rgba(78,91,134,.06)!important;
+}
+html[data-satori-layout="pearl"] #crmStageFilters .crm-filter-button[aria-pressed="true"]{
+ background:linear-gradient(145deg,#ebedfb,#fff)!important;
+ border-color:#a8b4e0!important;
+}
+html[data-satori-layout="pearl"] #crmStageFilters .crm-filter-button .crm-counter{
+ background:#e4e8fb!important;color:#485aaa!important
+}
+html[data-satori-layout="pearl"] :is(#crmConsole,#legacyConsole,#console)
+ :is(.crm-controls input,.crm-controls select,.crm-panel-search input,
+ .crm-product-price-grid input,.crm-product-price-grid select,.field-grid input,.field-grid select,.field-grid textarea){
+ background:#fff!important;border:1px solid #ced8eb!important
+}
+html[data-satori-layout="pearl"] #console .metric strong{color:#344a9d!important}
+html[data-satori-layout="pearl"] .crm-profit{color:#155b50!important;background:#e8f6ee!important}
+html[data-satori-layout="pearl"] .crm-alerts{background:#edf6f5!important;color:#2f5860!important}
+html[data-satori-layout="pearl"] .owner-header #s25-trigger{
+ background:#fff!important;color:#43517a!important;
+}
+@media(max-width:490px){
+ html[data-satori-layout="pearl"] main{padding:11px!important}
+ html[data-satori-layout="pearl"] header.owner-header{padding:9px!important;gap:6px!important}
+ html[data-satori-layout="pearl"] header.owner-header #s25-trigger{
+   font-size:0!important;padding:9px!important
+ }
+ html[data-satori-layout="pearl"] header.owner-header #s25-trigger span{font-size:17px!important}
+ html[data-satori-layout="pearl"] #ownerTabs{overflow-x:auto!important}
+ html[data-satori-layout="pearl"] :is(#crmConsole,#legacyConsole,#console){padding:12px!important}
+}
+}
 </style></head>
 <body>
 <main>
@@ -3008,7 +3162,7 @@ for(const [id,iconName] of [
 }
 
 </script>
-<template id="s25-ui-template"><h3>Giao diện Minh Satori</h3><p>Màu sắc và độ nổi áp dụng cho tất cả màn hình V2.</p><div class="s25-swatches"><button type="button" class="s25-swatch" data-s25-swatch="teal" aria-label="Màu Teal" style="background:#008e8c"></button><button type="button" class="s25-swatch" data-s25-swatch="indigo" aria-label="Màu Indigo" style="background:#5266c8"></button><button type="button" class="s25-swatch" data-s25-swatch="coral" aria-label="Màu Coral" style="background:#c96370"></button><label style="display:flex;align-items:center;gap:4px;font-size:11px" for="s25-custom">Tự chọn <input class="s25-color-input" id="s25-custom" type="color" aria-label="Màu tùy chỉnh"></label></div><div class="s25-depth"><button type="button" data-s25-depth="flat">2D</button><button type="button" data-s25-depth="raised">2.5D</button></div></template><script id="s25-ui-script">
+<template id="s25-ui-template"><h3>Giao diện Minh Satori</h3><p>Màu sắc và độ nổi áp dụng cho tất cả màn hình V2.</p><div class="s25-swatches"><button type="button" class="s25-swatch" data-s25-swatch="teal" aria-label="Màu Teal" style="background:#008e8c"></button><button type="button" class="s25-swatch" data-s25-swatch="indigo" aria-label="Màu Indigo" style="background:#5266c8"></button><button type="button" class="s25-swatch" data-s25-swatch="coral" aria-label="Màu Coral" style="background:#c96370"></button><label style="display:flex;align-items:center;gap:4px;font-size:11px" for="s25-custom">Tự chọn <input class="s25-color-input" id="s25-custom" type="color" aria-label="Màu tùy chỉnh"></label></div><div class="s25-depth"><button type="button" data-s25-depth="flat">2D</button><button type="button" data-s25-depth="raised">2.5D</button></div><div class="pearl-layout-options"><span class="pearl-layout-label">CHẾ ĐỘ GIAO DIỆN</span><div class="pearl-layout-buttons" role="group" aria-label="Chọn bố cục Minh Satori"><button type="button" data-satori-layout-choice="classic" aria-pressed="false">◻ Giao diện hiện tại</button><button type="button" data-satori-layout-choice="pearl" aria-pressed="false">✦ Pearl Glass</button></div><p class="pearl-layout-note">Chỉ thay đổi cách hiển thị; hóa đơn, giá, dữ liệu và đơn hàng giữ nguyên.</p></div></template><script id="s25-ui-script">
 // UI25D local theme preferences. Never reads or modifies invoices, auth, cart, chat, or API.
 (() => {
  const KEY='satori.ui.v25d',ROOT=document.documentElement;
@@ -3050,5 +3204,46 @@ for(const [id,iconName] of [
  }
  apply();
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
+</script><script id="satori-pearl-boot">(()=>{try{const s=localStorage.getItem('satori.ui.layout.v1');document.documentElement.dataset.satoriLayout=s==='pearl'||s==='classic'?s:'pearl'}catch(_){document.documentElement.dataset.satoriLayout='pearl'}})();</script><script id="satori-pearl-controls">
+/* Pearl Glass controls remain view-only. Route through existing V2 event handlers. */
+(() => {
+ const KEY='satori.ui.layout.v1';
+ const root=document.documentElement;
+ const sync=()=>{
+   const mode=root.dataset.satoriLayout||'classic';
+   document.querySelectorAll('[data-satori-layout-choice]').forEach(b=>{
+     b.setAttribute('aria-pressed',String(b.dataset.satoriLayoutChoice===mode));
+   });
+ };
+ const choose=mode=>{
+   if(!['classic','pearl'].includes(mode))return;
+   root.dataset.satoriLayout=mode;
+   try{localStorage.setItem(KEY,mode)}catch(_){}
+   if(mode==='pearl'&&document.getElementById('chatHelp'))document.getElementById('chatHelp').open=false;
+   sync();
+ };
+ document.addEventListener('click',event=>{
+   const button=event.target.closest('button');
+   if(!button)return;
+   if(button.dataset.satoriLayoutChoice){choose(button.dataset.satoriLayoutChoice);return;}
+   if(button.dataset.pearlRoute){
+     const route=button.dataset.pearlRoute;
+     const nav=document.querySelector('#drawer .nav[data-view="'+route+'"]');
+     if(nav){nav.click();return;}
+   }
+   if(button.id==='s25-trigger')sync();
+ });
+ window.addEventListener('storage',event=>{
+   if(event.key===KEY && ['classic','pearl'].includes(event.newValue)){root.dataset.satoriLayout=event.newValue;sync();}
+ });
+ function init(){
+   sync();
+   if(root.dataset.satoriLayout==='pearl'){
+     const help=document.getElementById('chatHelp');if(help)help.open=false;
+   }
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});
+ else init();
 })();
 </script></body></html>

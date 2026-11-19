@@ -13,7 +13,12 @@ const withoutUi25d=html=>html
  .replace(/<style id="ms-v2-refresh-20261105">[\s\S]*?<\/style>/,'')
  .replace(/<style id="s25-ui-style">[\s\S]*?<\/style>/,'')
  .replace(/<template id="s25-ui-template">[\s\S]*?<\/template>/,'')
- .replace(/<script id="s25-ui-script">[\s\S]*?<\/script>/,'');
+ .replace(/<script id="s25-ui-script">[\s\S]*?<\/script>/,'')
+ // Pearl is a separate screen-only UI layer; remove only its exact tagged assets.
+ .replace(/<style id="satori-pearl-glass-style">[\s\S]*?<\/style>/,'')
+ .replace(/<script id="satori-pearl-boot">[\s\S]*?<\/script>/,'')
+ .replace(/<script id="satori-pearl-controls">[\s\S]*?<\/script>/,'')
+ .replace(/<nav class="pearl-shortcuts"[\s\S]*?<\/nav>/,'');
 const fnv32=s=>{let h=0x811c9dc5;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),0x01000193);return (h>>>0).toString(16).padStart(8,'0')};
 function businessOnly(html){
  return html.replace(/<style>[\s\S]*?<\/style>/,'<style/>')
