@@ -1694,6 +1694,67 @@ html[data-satori-layout="pearl"] :is(#deliveryPrompt,.delivery-change,.agent-add
 }
 }
 
+
+/* Accent parity: interaction chrome follows the user's Pearl color choice. */
+@media screen{
+html[data-satori-layout="pearl"] #messages .bubble.me{
+ background:linear-gradient(135deg,var(--pearl-dark),var(--pearl-primary))!important;
+ color:#fff!important;
+}
+html[data-satori-layout="pearl"] #chatView .intro .ai-avatar{
+ background:linear-gradient(125deg,var(--pearl-dark),var(--pearl-primary),#e6a8a2)!important;
+}
+html[data-satori-layout="pearl"] #drawer .nav.active{
+ background:var(--pearl-soft)!important;color:var(--pearl-dark)!important;
+ border:1px solid var(--pearl-line)!important;
+ box-shadow:inset 0 1px white,0 5px 12px var(--pearl-glow)!important;
+}
+html[data-satori-layout="pearl"] #drawer .nav:not(.active){
+ color:#52617f!important;
+}
+html[data-satori-layout="pearl"] #chatView .chat-help>summary::after{
+ color:var(--pearl-dark)!important;
+}
+html[data-satori-layout="pearl"] :is(.catalogue-product-actions>.product-add,
+ .catalogue-qty button,.cart-line .btn.primary,#products .btn.primary,
+ #cartView .checkout-submit,.delivery-inline-actions .primary){
+ background:linear-gradient(130deg,var(--pearl-dark),var(--pearl-primary))!important;
+ color:#fff!important;
+ border-color:var(--pearl-primary)!important;
+ box-shadow:0 4px 11px var(--pearl-glow)!important;
+}
+html[data-satori-layout="pearl"] #products :is(.product,.catalogue-product) :is(h3,strong),
+html[data-satori-layout="pearl"] #cartLines .cart-line :is(h3,strong){
+ color:#283857!important;
+}
+html[data-satori-layout="pearl"] #cartPriceSummary{
+ background:var(--pearl-soft)!important;border-color:var(--pearl-line)!important;
+}
+html[data-satori-layout="pearl"] #cartPriceSummary .cart-price-row.discount strong{
+ color:var(--pearl-dark)!important;
+}
+html[data-satori-layout="pearl"] :is(#catalogueSearch,#invoiceCustomerSearch){
+ caret-color:var(--pearl-primary)!important;
+}
+html[data-satori-layout="pearl"] #agentAddressMenu>summary svg{
+ stroke:var(--pearl-primary)!important;
+}
+html[data-satori-layout="pearl"] .delivery-dialog #agentAddressChoices
+ :is(.agent-address-choice[aria-pressed="true"] .address-contact-icon,
+ .address-edit,.address-action,button[aria-label*="Sửa"]){
+ color:var(--pearl-dark)!important;
+}
+html[data-satori-layout="pearl"] .delivery-dialog #agentAddressChoices button:not(.agent-address-choice){
+ border-color:var(--pearl-line)!important;
+}
+html[data-satori-layout="pearl"] :is(.invoice-order-open,#invoiceApplyFilter){
+ background:linear-gradient(130deg,var(--pearl-dark),var(--pearl-primary))!important;
+ color:white!important;
+}
+html[data-satori-layout="pearl"] #invoiceClearFilter{
+ background:var(--pearl-soft)!important;color:var(--pearl-dark)!important;
+}
+}
 </style></head><body>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
