@@ -1376,21 +1376,38 @@ class NativeMainActivity : AppCompatActivity() {
                 val discount = memory.discountPercent?.let {
                     " · CK " + String.format(java.util.Locale("vi", "VN"), "%.1f%%", it)
                 }.orEmpty()
+                // Authoritative invoice history always comes from the same fresh
+                // revision-verified orders snapshot, NEVER from AI training counts.
+                val current = SatoriCustomerHistory.forMemory(memory, data.invoices)
                 section(results, memory.name + discount,
-                    "Điện thoại: " + memory.defaultPhone +
-                        "\nĐịa chỉ thường dùng: " + memory.defaultLocation +
-                        "\nSố điểm giao: " + memory.receivers.size +
-                        " · Đơn đã học: " + memory.orderCount +
+                    "Điện thoại AI đã lưu: " + memory.defaultPhone +
+                        "\nĐịa chỉ AI đã lưu: " + memory.defaultLocation +
+                        "\nĐiểm giao đã lưu: " + memory.receivers.size +
+                        "\nHóa đơn sổ gốc khớp đúng điểm giao: " + current.verifiedDelivery.size +
+                        "\nCùng tên, khác điểm giao (chưa xác minh): " + current.sameNameUnverified.size +
+                        "\nSổ gốc Revision " + data.revision +
+                        " · Số đơn AI từng học: " + memory.orderCount + " (tham khảo)" +
                         (if (memory.preferredProduct.isBlank()) "" else
-                            "\nSản phẩm thường mua: " + memory.preferredProduct)) {
+                            "\nSản phẩm AI ghi nhớ (tham khảo): " + memory.preferredProduct)) {
                     val points = if (memory.receivers.isEmpty())
                         "Chưa lưu điểm giao riêng." else memory.receivers.joinToString("\n\n") {
                             (if (it.name.isBlank()) "Người nhận" else it.name) +
                                 " · " + it.phone + "\n" + it.location
                         }
                     AlertDialog.Builder(this)
-                        .setTitle(memory.name + " · Các điểm giao")
-                        .setMessage(points)
+                        .setTitle(memory.name + " · Lịch sử hóa đơn hiện hành")
+                        .setMessage(buildString {
+                            append("SỔ GỐC · REVISION ").append(data.revision)
+                            append("\nChỉ các hóa đơn khớp cả tên, số điện thoại VÀ địa chỉ mới")
+                            append(" được liên kết xác minh với trí nhớ này.")
+                            append("\n\nĐIỂM GIAO TRONG TRÍ NHỚ AI:\n").append(points)
+                            append("\n\nHÓA ĐƠN KHỚP ĐIỂM GIAO:\n")
+                                .append(SatoriCustomerHistory.detail(current.verifiedDelivery, 60))
+                            if (current.sameNameUnverified.isNotEmpty()) {
+                                append("\n\nHÓA ĐƠN CÙNG TÊN, KHÁC ĐIỂM GIAO (CHƯA XÁC MINH):\n")
+                                append(SatoriCustomerHistory.detail(current.sameNameUnverified, 40))
+                            }
+                        })
                         .setPositiveButton("Đóng", null)
                         .show()
                 }
@@ -1991,11 +2008,22 @@ class NativeMainActivity : AppCompatActivity() {
             customerQuickCard(parent, representative, group.size) {
                 AlertDialog.Builder(this)
                     .setTitle(representative.customer)
-                    .setMessage(representative.phone + "\n" + representative.address +
-                        "\n\n" + group.joinToString("\n") {
-                            "#" + it.number + " · " + SatoriData.money(it.total) +
-                                " · " + it.status
-                        })
+                    .setMessage(buildString {
+                        append("SỔ HÓA ĐƠN HIỆN HÀNH · REVISION ")
+                            .append(data.revision)
+                        append("\nĐIỂM GIAO ĐANG XEM: ").append(representative.address)
+                        append("\n\n").append(SatoriCustomerHistory.detail(
+                            SatoriCustomerHistory.exactPoint(representative, data.invoices), 60
+                        ))
+                        val other = SatoriCustomerHistory.sameNameOtherPoints(
+                            representative, data.invoices)
+                        if (other.isNotEmpty()) {
+                            append("\n\n").append(other.size)
+                                .append(" HÓA ĐƠN CÙNG TÊN Ở ĐIỂM GIAO KHÁC")
+                            append("\nChỉ để tra cứu; CHƯA xác minh cùng khách/CTV, không gộp công nợ.")
+                            append("\n\n").append(SatoriCustomerHistory.detail(other, 40))
+                        }
+                    })
                     .setPositiveButton("Đóng", null)
                     .apply {
                         if (canWrite) setNeutralButton("LÊN ĐƠN CHO KHÁCH", null)
