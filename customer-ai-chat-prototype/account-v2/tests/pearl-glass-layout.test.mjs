@@ -78,7 +78,7 @@ test('Pearl compact design keeps the Classic layout untouched and uses one adjus
   const control=script(html,'satori-pearl-controls');
   assert.match(control,/satori\.ui\.pearl\.accent\.v1/);
   assert.match(control,/setPearlAccent/);
-  assert.match(control,/data\.s25Swatch/);
+  assert.match(control,/dataset\.s25Swatch/);
   assert.match(control,/data\.satoriLayoutChoice/);
   assert.doesNotThrow(()=>new vm.Script(control));
   assert.doesNotMatch(control,/fetch\s*\(|\/api\/|orders\.create|orders\.update/i);
