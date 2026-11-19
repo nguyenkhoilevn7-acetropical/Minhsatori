@@ -3874,17 +3874,21 @@ function activeInvoiceFilters(){
 }
 function invoiceCard(order,{historical=false}={}){
  const verified=!historical&&order.verified===true;
+ const syncPending=!historical&&order.state==='COMMITTED'&&order.syncStatus==='UNAVAILABLE';
  const card=node('article',undefined,'invoice-order-card');
  const heading=node('div',undefined,'invoice-order-head');
  const idBox=node('div');
  idBox.append(node('span',historical?'HÓA ĐƠN ĐÃ LIÊN KẾT':'MÃ ĐƠN HÀNG V2','invoice-order-number-label'));
  const number=historical?'#'+order.invoiceNo:
-  verified?'#'+order.invoiceNo:'Yêu cầu '+String(order.requestId||'').slice(0,8);
+  verified?'#'+order.invoiceNo:
+  syncPending?'#'+String(order.invoiceNo||'—')+' · chờ đồng bộ':
+  'Yêu cầu '+String(order.requestId||'').slice(0,8);
  idBox.append(node('h3',number,'invoice-order-number'));
  heading.append(idBox);
  const status=historical?(order.status||'Hóa đơn lịch sử'):
   order.testOnly?'Đơn thử':
   verified?String(order.invoiceStatus||'Đã đối soát sổ thật'):
+  syncPending?'Chưa xác minh dữ liệu mới nhất':
   order.state==='REJECTED'?'Bị từ chối':
   ['UNCERTAIN','RELAY_PENDING'].includes(order.state)?'Đang đối soát':
   'Chưa phát hành hóa đơn';
@@ -3909,6 +3913,11 @@ function invoiceCard(order,{historical=false}={}){
   location.append(node('strong','Giao đến: '),document.createTextNode(String(address)));
   profile.append(location);
  }
+ if(historical&&order.phone){
+  const phone=node('div',undefined,'invoice-order-meta');
+  phone.append(node('strong','Điện thoại: '),document.createTextNode(String(order.phone)));
+  profile.append(phone);
+ }
  if(!historical&&order.delivery?.recipientPhone){
   const phone=node('div',undefined,'invoice-order-meta');
   phone.append(node('strong','Điện thoại: '),document.createTextNode(String(order.delivery.recipientPhone)));
@@ -3920,19 +3929,24 @@ function invoiceCard(order,{historical=false}={}){
  for(const line of Array.isArray(order.items)?order.items:[]){
   const itemName=historical?String(line.product||line.name||line.code||'Sản phẩm'):
    String(line.name||line.code||'Sản phẩm');
-  const itemTotal=historical?null:Number(line.lineTotal);
+  const itemTotal=Number(line.lineTotal);
   const text=itemName+' × '+String(line.qty||0)+
    (Number.isSafeInteger(itemTotal)&&itemTotal>=0?' · '+money(itemTotal):'');
   details.append(node('div',text));
  }
  if(Array.isArray(order.items)&&order.items.length)card.append(details);
+ if(historical&&order.deliveryNote){
+  card.append(node('div','Ghi chú: '+String(order.deliveryNote),'invoice-order-meta'));
+ }
  if(!historical&&order.deliveryRequest?.deliveryNote){
   card.append(node('div','Ghi chú: '+String(order.deliveryRequest.deliveryNote),'invoice-order-meta'));
  }
  const footer=node('div',undefined,'invoice-order-footer');
  const total=node('div');
  total.append(node('div',historical||verified?'TỔNG THANH TOÁN':'TỔNG BÁO GIÁ V2','invoice-order-total-label'),
-  node('div',money(Number(historical?order.totalVnd:verified?order.receipt?.totalVnd:order.totalVnd)||0),'invoice-order-total'));
+  node('div',syncPending?'Chưa xác minh':
+   money(Number(historical?order.totalVnd:verified?order.receipt?.totalVnd:order.totalVnd)||0),
+   'invoice-order-total'));
  footer.append(total);
  if(!historical&&['UNCERTAIN','RELAY_PENDING'].includes(order.state)&&realCheckoutEnabled){
   const reconcile=node('button','Đối soát','invoice-order-open');
@@ -3969,6 +3983,9 @@ async function loadOrders(){
  const rows=$('orderRows');rows.replaceChildren();
  const v2=data.orders||[];
  for(const order of v2)rows.append(invoiceCard(order));
+ if(Number(data.unavailableCount)>0)rows.append(node('p',
+  data.unavailableCount+' hóa đơn chưa đọc được phiên bản mới nhất từ sổ gốc. '+
+  'Hệ thống không thay bằng báo giá cũ. Bấm ↻ để thử lại.','invoice-empty'));
  if(openPdfInvoiceAfterSubmit!==null){
   const justConfirmed=v2.find(x=>x.verified===true&&x.state==='COMMITTED'&&
    Number(x.invoiceNo)===openPdfInvoiceAfterSubmit);
