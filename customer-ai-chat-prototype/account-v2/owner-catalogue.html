@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi"><head><script id="satori-pearl-boot">(()=>{try{const s=localStorage.getItem('satori.ui.layout.v1');document.documentElement.dataset.satoriLayout=s==='pearl'||s==='classic'?s:'classic'}catch(_){document.documentElement.dataset.satoriLayout='classic'}})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#f6f8fc"><title>Quản trị Minh Satori V2</title>
 <style>
 :root{color-scheme:light;--bg:#f6f8fc;--ink:#162b45;--sub:#526782;--line:#dce5ee;--blue:#0879ed;--pale:#e7f2ff}
@@ -3205,7 +3205,7 @@ for(const [id,iconName] of [
  apply();
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
-</script><script id="satori-pearl-controls">
+</script><script id="satori-pearl-boot">(()=>{try{const s=localStorage.getItem('satori.ui.layout.v1');document.documentElement.dataset.satoriLayout=s==='pearl'||s==='classic'?s:'classic'}catch(_){document.documentElement.dataset.satoriLayout='classic'}})();</script><script id="satori-pearl-controls">
 /* Pearl Glass controls remain view-only. Route through existing V2 event handlers. */
 (() => {
  const KEY='satori.ui.layout.v1';
