@@ -1024,6 +1024,107 @@ html[data-satori-layout="pearl"] .owner-header #s25-trigger{
  html[data-satori-layout="pearl"] :is(#crmConsole,#legacyConsole,#console){padding:12px!important}
 }
 }
+</style><style id="satori-pearl-compact-20261119">
+/* PEARL COMPACT V2.1 — optical hierarchy, coherent accent, screen only.
+   All selectors are opt-in. Classic / printing / ledger remain unchanged. */
+@media screen {
+html[data-satori-layout="pearl"]{
+ --pearl-primary:#5d6cbd;
+ --pearl-dark:color-mix(in srgb,var(--pearl-primary) 78%,#28335e);
+ --pearl-soft:color-mix(in srgb,var(--pearl-primary) 12%,white);
+ --pearl-line:color-mix(in srgb,var(--pearl-primary) 17%,#e9edf6);
+ --pearl-glow:color-mix(in srgb,var(--pearl-primary) 22%,transparent);
+ --blue:var(--pearl-primary)!important;
+ --blueSoft:var(--pearl-soft)!important;
+ --s25-a:var(--pearl-primary)!important;
+ --s25-dark:var(--pearl-dark)!important;
+ --s25-bright:color-mix(in srgb,var(--pearl-primary) 75%,white)!important;
+ --s25-soft:var(--pearl-soft)!important;
+ --s25-glow:var(--pearl-glow)!important;
+ --ms-v2-teal:var(--pearl-primary)!important;
+}
+html[data-satori-layout="pearl"] :is(button,input,textarea,select):focus-visible{
+ outline:3px solid var(--pearl-primary)!important;outline-offset:2px!important;
+}
+html[data-satori-layout="pearl"] :is(.btn.primary,.primary,.checkout-submit,.invoice-filter-apply,
+ .invoice-order-open,.invoice-detail-open,.invoice-back-primary,#saveUserAddress,
+ #saveNewAddress,#ctvChargeSave,#ctvSheetSave,#crmPolicySubmit,#crmAutoLinkPending){
+ background:linear-gradient(125deg,var(--pearl-dark),var(--pearl-primary))!important;
+ color:#fff!important;border:1px solid rgba(255,255,255,.33)!important;
+ border-radius:13px!important;box-shadow:0 5px 14px var(--pearl-glow)!important;
+}
+html[data-satori-layout="pearl"] :is(.btn.secondary,.secondary,.invoice-filter-clear,
+ .agent-address-manage,.delivery-inline-edit-trigger,.delivery-dialog button:not(.delivery-dialog-close)){
+ color:var(--pearl-dark)!important;
+}
+html[data-satori-layout="pearl"] :is(.invoice-filter-clear,.secondary,.btn:not(.primary)){
+ background:linear-gradient(125deg,#fff,var(--pearl-soft))!important;
+ border:1px solid var(--pearl-line)!important;
+ color:var(--pearl-dark)!important;
+}
+html[data-satori-layout="pearl"] :is(.chat-help>summary,
+ .invoice-order-products>summary,.invoice-list-help>summary,
+ .delivery-dialog .agent-address-menu>summary,.cart-heading .cart-heading-actions,
+ .delivery-inline-edit-trigger,.original-invoice-link,.screen-close){
+ color:var(--pearl-dark)!important;
+}
+html[data-satori-layout="pearl"] :is(.s25-panel .s25-depth button[aria-pressed="true"],
+ .s25-panel .s25-swatch[aria-pressed="true"]){
+ outline-color:var(--pearl-primary)!important;border-color:var(--pearl-primary)!important;
+}
+html[data-satori-layout="pearl"] .s25-panel{border-color:var(--pearl-line)!important}
+html[data-satori-layout="pearl"] :is(.chat-order-head,.receipt-qty,.cart-total-label){
+ color:var(--pearl-dark)!important;
+}
+html[data-satori-layout="pearl"] :is(.invoice-order-total,.invoice-detail-total){
+ color:#314168!important;
+}
+}
+
+
+@media screen {
+html[data-satori-layout="pearl"] .owner-header{padding:10px 14px!important;gap:10px!important}
+html[data-satori-layout="pearl"] .owner-header .owner-brand h1{font-size:17px!important}
+html[data-satori-layout="pearl"] .owner-header .owner-brand small{font-size:11px!important}
+html[data-satori-layout="pearl"] #ownerTabs{gap:5px!important;padding:5px!important}
+html[data-satori-layout="pearl"] #ownerTabs button{min-height:42px!important;font-size:13px!important}
+html[data-satori-layout="pearl"] #ownerTabs button[aria-selected="true"]{
+ background:linear-gradient(125deg,var(--pearl-dark),var(--pearl-primary))!important;
+ border-color:var(--pearl-line)!important;
+ box-shadow:0 6px 15px var(--pearl-glow)!important;
+}
+html[data-satori-layout="pearl"] #crmStageFilters .crm-filter-button[aria-pressed="true"]{
+ border-color:var(--pearl-primary)!important;
+ background:var(--pearl-soft)!important;
+ box-shadow:0 0 0 1px var(--pearl-glow)!important;
+}
+html[data-satori-layout="pearl"] #crmStageFilters .crm-filter-button .crm-counter{
+ background:var(--pearl-soft)!important;color:var(--pearl-dark)!important;
+}
+html[data-satori-layout="pearl"] :is(#crmConsole,#legacyConsole,#console) :is(.crm-action-panel button,.crm-card-actions button,
+ .crm-product-price-save,.crm-import-panel button,.actions button:not(.secondary)){
+ border-radius:12px!important;
+}
+html[data-satori-layout="pearl"] :is(#crmConsole,#legacyConsole,#console) :is(.crm-action-panel button.primary,.crm-product-price-save,.actions button:not(.secondary)){
+ background:linear-gradient(135deg,var(--pearl-dark),var(--pearl-primary))!important;
+ color:#fff!important;
+}
+html[data-satori-layout="pearl"] :is(#crmConsole,#legacyConsole,#console) :is(.crm-tag,.crm-filter-button .ico){
+ color:var(--pearl-dark)!important;
+}
+html[data-satori-layout="pearl"] .crm-alerts{background:#eef6f4!important}
+html[data-satori-layout="pearl"] .owner-header #s25-trigger{
+ min-height:39px!important;padding:7px 10px!important;font-size:12px!important;
+}
+@media(max-width:800px){
+ html[data-satori-layout="pearl"] .owner-header #s25-trigger{
+  width:40px!important;min-width:40px!important;font-size:0!important;
+  padding:7px!important;display:grid!important;place-items:center!important;
+ }
+ html[data-satori-layout="pearl"] .owner-header #s25-trigger span{font-size:18px!important}
+}
+}
+
 </style></head>
 <body>
 <main>
@@ -3210,6 +3311,19 @@ for(const [id,iconName] of [
 (() => {
  const KEY='satori.ui.layout.v1';
  const root=document.documentElement;
+
+ const COLOR_KEY='satori.ui.pearl.accent.v1';
+ const PEARL_PRESETS={teal:'#008e8c',indigo:'#5266c8',coral:'#c96370'};
+ const safePearlColor=x=>/^#[0-9a-fA-F]{6}$/.test(x||'');
+ const setPearlAccent=(color,save=false)=>{
+  if(!safePearlColor(color))return;
+  root.style.setProperty('--pearl-primary',color);
+  if(save){try{localStorage.setItem(COLOR_KEY,color)}catch(_){}}
+ };
+ try{const color=localStorage.getItem(COLOR_KEY);if(safePearlColor(color))setPearlAccent(color)}catch(_){}
+ document.addEventListener('input',event=>{
+  if(event.target?.id==='s25-custom')setPearlAccent(event.target.value,true);
+ });
  const sync=()=>{
    const mode=root.dataset.satoriLayout||'classic';
    document.querySelectorAll('[data-satori-layout-choice]').forEach(b=>{
@@ -3227,6 +3341,7 @@ for(const [id,iconName] of [
    const button=event.target.closest('button');
    if(!button)return;
    if(button.dataset.satoriLayoutChoice){choose(button.dataset.satoriLayoutChoice);return;}
+   if(button.dataset.s25Swatch && PEARL_PRESETS[button.dataset.s25Swatch])setPearlAccent(PEARL_PRESETS[button.dataset.s25Swatch],true);
    if(button.dataset.pearlRoute){
      const route=button.dataset.pearlRoute;
      const nav=document.querySelector('#drawer .nav[data-view="'+route+'"]');
@@ -3236,6 +3351,7 @@ for(const [id,iconName] of [
  });
  window.addEventListener('storage',event=>{
    if(event.key===KEY && ['classic','pearl'].includes(event.newValue)){root.dataset.satoriLayout=event.newValue;sync();}
+   if(event.key===COLOR_KEY && safePearlColor(event.newValue))setPearlAccent(event.newValue);
  });
  function init(){
    sync();
