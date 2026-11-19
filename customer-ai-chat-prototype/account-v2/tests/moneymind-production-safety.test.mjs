@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const files=[
- ['account-v2/app.html','260888c6','mm-bottom-nav'],
+ ['account-v2/app.html','75230ca4','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const withoutUi25d=html=>html
@@ -39,6 +39,8 @@ test('MoneyMind visual shell keeps the reviewed V2 unified-cart and delivery-not
  // Updated reviewed hashes cover new CTV-only UI, while all original navigation,
  // cart, checkout, Gemini delivery-note and invoice assertions remain intact.
  // Nov 1 reviewed PDF+canonical invoice read-only customer screen on top of current 8% CTV VAT/shipping UI.\n // Preserve full-page hashes after this scoped UX/API review.
+ // Nov 19 reviewed: customer invoice UI explicitly blocks stale quote totals and exposes signed live fields.
+ // No checkout, VAT calculation, authentication or order mutation logic was changed.
  // Nov 2 checkout Location bottom navigation and direct inline customer delivery editor;
  // verified no change to submitted invoices, signed checkout or admin menu.
  // Nov 2 customer delivery self-service: per-address edit card, next-order-only notice,
