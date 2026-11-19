@@ -8,6 +8,7 @@ const withoutUi25d=html=>html
  .replace(/<script id="s25-ui-script">[\s\S]*?<\/script>/,'')
  // Pearl is a separate screen-only UI layer; remove only its exact tagged assets.
  .replace(/<style id="satori-pearl-glass-style">[\s\S]*?<\/style>/,'')
+ .replace(/<style id="satori-pearl-compact-20261119">[\s\S]*?<\/style>/,'')
  .replace(/<script id="satori-pearl-boot">[\s\S]*?<\/script>/,'')
  .replace(/<script id="satori-pearl-controls">[\s\S]*?<\/script>/,'')
  .replace(/<nav class="pearl-shortcuts"[\s\S]*?<\/nav>/,'');

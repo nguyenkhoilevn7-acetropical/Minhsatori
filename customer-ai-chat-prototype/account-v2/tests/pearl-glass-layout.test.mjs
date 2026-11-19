@@ -61,3 +61,42 @@ test('Pearl styling is screen-only and invoice printing stays untouched',()=>{
  assert.match(owner,/id="console"/);
  assert.match(owner,/id="ownerTabs"/);
 });
+
+
+test('Pearl compact design keeps the Classic layout untouched and uses one adjustable accent',()=>{
+ for(const html of [app,owner]){
+  assert.equal((html.match(/id="satori-pearl-compact-20261119"/g)||[]).length,1);
+  const css=html.match(/<style id="satori-pearl-compact-20261119">([\s\S]*?)<\/style>/)?.[1]||'';
+  assert.match(css,/html\[data-satori-layout="pearl"\]/);
+  assert.match(css,/@media screen/);
+  assert.doesNotMatch(css,/@media print|@page|\.pdf-filename/);
+  assert.match(css,/--s25-a:var\(--pearl-primary\)!important/);
+  assert.match(css,/--s25-dark:var\(--pearl-dark\)!important/);
+  assert.match(css,/--pearl-soft:color-mix/);
+  assert.match(css,/focus-visible/);
+  assert.match(css,/prefers-reduced-motion:reduce|focus-visible/);
+  const control=script(html,'satori-pearl-controls');
+  assert.match(control,/satori\.ui\.pearl\.accent\.v1/);
+  assert.match(control,/setPearlAccent/);
+  assert.match(control,/dataset\.s25Swatch/);
+  assert.match(control,/dataset\.satoriLayoutChoice/);
+  assert.doesNotThrow(()=>new vm.Script(control));
+  assert.doesNotMatch(control,/fetch\s*\(|\/api\/|orders\.create|orders\.update/i);
+ }
+});
+test('Gemini compact UI targets exact existing chat, invoices and address selectors',()=>{
+ const css=app.match(/<style id="satori-pearl-compact-20261119">([\s\S]*?)<\/style>/)?.[1]||'';
+ for(const token of ['#chatView .intro','#chatView>.pearl-shortcuts',
+ '#messages .chat-help-content','#invoiceFilters','#orderRows .invoice-order-card',
+ '.delivery-dialog #agentAddressChoices','.mm-bottom-center .mm-bottom-icon',
+ '.invoice-order-total','.bubble.me']){
+  assert.ok(css.includes(token), 'missing Pearl target '+token);
+ }
+ assert.match(css,/max-height:165px/);
+ assert.match(css,/grid-template-columns:minmax\(0,1fr\) minmax\(0,1\.6fr\)/);
+ assert.match(css,/color:#166c54/); // successful ledger reconciliation stays green
+ assert.match(css,/color:#334168/); // financial total is legible, not misleadingly red
+ assert.match(app,/id="deliveryDialog"/);
+ assert.match(app,/id="invoiceApplyFilter"/);
+ assert.match(app,/id="orderRows"/);
+});
