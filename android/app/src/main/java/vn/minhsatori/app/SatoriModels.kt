@@ -76,7 +76,9 @@ data class SatoriInvoice(
     val satoriPaidAt: String = "",
     // Only audit identifiers, never payment proofs/secrets, are retained in memory.
     val paymentAuditKeys: Set<String> = emptySet(),
-    val creationTimestampMillis: Long? = null
+    val creationTimestampMillis: Long? = null,
+    // Edit recency is for history ordering only; never substitute it for the original invoice date.
+    val updatedTimestampMillis: Long? = null
 ) {
     val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
     val isCustomerPairBill: Boolean get() = pairRole == "customer"
@@ -286,7 +288,17 @@ object SatoriData {
                     x.optDouble("pairDiscountPercent").takeIf { it.isFinite() } else null,
                 // Source ledger timestamp is set at invoice creation. Do NOT use updatedAt or now.
                 creationTimestampMillis = x.optLong("timestamp", 0L)
-                    .takeIf { it in 946684800000L..4102444799999L }
+                    .takeIf { it in 946684800000L..4102444799999L },
+                updatedTimestampMillis = run {
+                    val raw = x.opt("updatedAt")
+                    val parsed = when (raw) {
+                        is Number -> raw.toLong()
+                        is String -> raw.toLongOrNull()
+                            ?: runCatching { java.time.Instant.parse(raw).toEpochMilli() }.getOrNull()
+                        else -> null
+                    }
+                    parsed?.takeIf { it in 946684800000L..4102444799999L }
+                }
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
