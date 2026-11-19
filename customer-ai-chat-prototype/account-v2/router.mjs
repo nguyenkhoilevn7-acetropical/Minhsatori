@@ -23,6 +23,7 @@ import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
 import {readExactCurrentInvoices,currentCustomerOrder,currentLinkedHistory} from './canonical-history-read.mjs';
+import {currentAccountInvoiceHistory} from './current-account-invoice-history.mjs';
 import {selectLatestReorderSuggestion} from './reorder-suggestion.mjs';
 import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {renderCurrentV2Pdf} from './local-invoice-pdf.mjs';
@@ -1065,18 +1066,11 @@ export async function handleAccountV2(req,res,pathname){
    // Once the signed Drive archive bridge is deployed, this can be replaced
    // only by exact ledger-id/invoice-version/file-SHA readback.
    if(process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED!=='1'){
-    // Safe rollback-compatible behavior while the signed GAS API is not yet
-    // live; never break customer invoice history on a speculative deploy.
-    send(res,200,{ok:true,orders:data.rows.map(x=>{
-     const receipt=canonicalReceiptForAccountOrder(x);
-     const items=Array.isArray(x.items)?x.items.map(line=>{
-      if(!line||typeof line!=='object'||Array.isArray(line))return {};
-      const {internalUnitPrice,internalReference,collaboratorMarginVnd,...publicLine}=line;
-      return publicLine;
-     }):[];
-     return {...x,items,verified:receipt!==null,receipt,
-      pdf:canonicalInvoiceDocumentStatus(x)};
-    })});return true;
+    // The old rollback branch used the saved quote as if it were a current
+    // invoice. That makes Android edits invisible. Exact signed readback is
+    // now required; failed reads return UNAVAILABLE without a false amount.
+    const fresh=await currentAccountInvoiceHistory(data.rows);
+    send(res,200,{ok:true,...fresh});return true;
    }
    // Current canonical ledger takes precedence over stale saved V2 quotes.
    const confirmed=data.rows.filter(x=>x.state==='COMMITTED');
