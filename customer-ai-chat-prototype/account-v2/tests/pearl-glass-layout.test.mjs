@@ -29,7 +29,9 @@ test('Pearl Glass adds a reversible layout to Gemini V2 and Owner without replac
   assert.doesNotThrow(()=>new vm.Script(script(html,'satori-pearl-controls')));
  }
  assert.match(script(app,'satori-pearl-boot'),/s==='pearl'\|\|s==='classic'\?s:'pearl'/);
- assert.match(script(owner,'satori-pearl-boot'),/s==='pearl'\|\|s==='classic'\?s:'classic'/);
+ assert.match(script(app,'satori-pearl-controls'),/localStorage\.setItem\(KEY,mode\)/);
+ assert.match(script(owner,'satori-pearl-controls'),/localStorage\.setItem\(KEY,mode\)/);
+ assert.match(script(owner,'satori-pearl-boot'),/s==='pearl'\|\|s==='classic'\?s:'pearl'/);
 });
 
 test('Gemini V2 shortcut cards reuse existing navigation handlers and do not issue orders',()=>{
