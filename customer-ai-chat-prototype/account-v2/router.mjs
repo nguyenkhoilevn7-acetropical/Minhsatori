@@ -904,10 +904,9 @@ export async function handleAccountV2(req,res,pathname){
    send(res,200,{ok:true,configured:true,...safeLegacyInvoiceIndex(result)});return true;
   }
   if(pathname==='/api/v2/legacy/history'&&req.method==='GET'){
-   if(process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED!=='1'){
-    send(res,200,await linkedLegacyInvoiceHistory(pool,actor));return true;
-   }
-   // Only owner-verified, immutable source invoice bindings authorize history.
+   const canonicalRequired=process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED==='1';
+   // Owner-verified immutable invoice bindings, never a shared customer name,
+   // are the ONLY authorisation for displaying historical invoices.
    const audit=await pool.query('SELECT details FROM satori_v2_audit '+
     "WHERE account_id=$1 AND event_type='LEGACY_INVOICE_ACCOUNT_BOUND' "+
     'ORDER BY id DESC LIMIT 300',[actor.id]);
@@ -922,13 +921,25 @@ export async function handleAccountV2(req,res,pathname){
    }
    if(!refs.size){
     send(res,200,{ok:true,orders:[],linkedCount:0,unavailableCount:0,
-     syncStatus:'CURRENT'});return true;
+     syncStatus:'NO_BOUND_INVOICES'});return true;
    }
    const all=[...refs.values()];
-   const fresh=await readExactCurrentInvoices(all.map(x=>({
-    invoiceNo:x.invoiceNo,id:x.sourceId
-   })));
-   send(res,200,{ok:true,...currentLinkedHistory(all,fresh)});return true;
+   try{
+    // Always attempt one revision-consistent read of the CURRENT invoice,
+    // including when older environments have not enabled the feature flag.
+    const fresh=await readExactCurrentInvoices(all.map(x=>({
+     invoiceNo:x.invoiceNo,id:x.sourceId
+    })));
+    send(res,200,{ok:true,...currentLinkedHistory(all,fresh)});return true;
+   }catch(e){
+    if(canonicalRequired)throw e;
+    // An older GAS deployment may lack exact batch. The legacy reader still
+    // checks the immutable account-owned invoice number AND source ID against
+    // the signed ledger. Label this as non-atomic; never pretend it is CURRENT.
+    const fallback=await linkedLegacyInvoiceHistory(pool,actor);
+    send(res,200,{...fallback,syncStatus:'SIGNED_ID_FALLBACK',
+     ledgerRevision:null});return true;
+   }
   }
   // Authenticated binary read of the ORIGINAL PDF. The logged-in account
   // must own both the canonical request and its originating quote.
