@@ -23,6 +23,7 @@ import {inspectV2Storage,createCachedStorageProbe} from './db-readiness.mjs';
 import {assertCurrentQuote} from './quote-freshness.mjs';
 import {canonicalInvoiceDocumentStatus,canonicalReceiptForAccountOrder} from './canonical-invoice-sync.mjs';
 import {readExactCurrentInvoices,currentCustomerOrder,currentLinkedHistory} from './canonical-history-read.mjs';
+import {currentAccountInvoiceHistory} from './current-account-invoice-history.mjs';
 import {selectLatestReorderSuggestion} from './reorder-suggestion.mjs';
 import {readArchivedInvoicePdf} from './pdf-authenticated-read.mjs';
 import {renderCurrentV2Pdf} from './local-invoice-pdf.mjs';
@@ -903,10 +904,9 @@ export async function handleAccountV2(req,res,pathname){
    send(res,200,{ok:true,configured:true,...safeLegacyInvoiceIndex(result)});return true;
   }
   if(pathname==='/api/v2/legacy/history'&&req.method==='GET'){
-   if(process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED!=='1'){
-    send(res,200,await linkedLegacyInvoiceHistory(pool,actor));return true;
-   }
-   // Only owner-verified, immutable source invoice bindings authorize history.
+   const canonicalRequired=process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED==='1';
+   // Owner-verified immutable invoice bindings, never a shared customer name,
+   // are the ONLY authorisation for displaying historical invoices.
    const audit=await pool.query('SELECT details FROM satori_v2_audit '+
     "WHERE account_id=$1 AND event_type='LEGACY_INVOICE_ACCOUNT_BOUND' "+
     'ORDER BY id DESC LIMIT 300',[actor.id]);
@@ -921,13 +921,25 @@ export async function handleAccountV2(req,res,pathname){
    }
    if(!refs.size){
     send(res,200,{ok:true,orders:[],linkedCount:0,unavailableCount:0,
-     syncStatus:'CURRENT'});return true;
+     syncStatus:'NO_BOUND_INVOICES'});return true;
    }
    const all=[...refs.values()];
-   const fresh=await readExactCurrentInvoices(all.map(x=>({
-    invoiceNo:x.invoiceNo,id:x.sourceId
-   })));
-   send(res,200,{ok:true,...currentLinkedHistory(all,fresh)});return true;
+   try{
+    // Always attempt one revision-consistent read of the CURRENT invoice,
+    // including when older environments have not enabled the feature flag.
+    const fresh=await readExactCurrentInvoices(all.map(x=>({
+     invoiceNo:x.invoiceNo,id:x.sourceId
+    })));
+    send(res,200,{ok:true,...currentLinkedHistory(all,fresh)});return true;
+   }catch(e){
+    if(canonicalRequired)throw e;
+    // An older GAS deployment may lack exact batch. The legacy reader still
+    // checks the immutable account-owned invoice number AND source ID against
+    // the signed ledger. Label this as non-atomic; never pretend it is CURRENT.
+    const fallback=await linkedLegacyInvoiceHistory(pool,actor);
+    send(res,200,{...fallback,syncStatus:'SIGNED_ID_FALLBACK',
+     ledgerRevision:null});return true;
+   }
   }
   // Authenticated binary read of the ORIGINAL PDF. The logged-in account
   // must own both the canonical request and its originating quote.
@@ -1065,18 +1077,11 @@ export async function handleAccountV2(req,res,pathname){
    // Once the signed Drive archive bridge is deployed, this can be replaced
    // only by exact ledger-id/invoice-version/file-SHA readback.
    if(process.env.SATORI_CANONICAL_CUSTOMER_SYNC_ENABLED!=='1'){
-    // Safe rollback-compatible behavior while the signed GAS API is not yet
-    // live; never break customer invoice history on a speculative deploy.
-    send(res,200,{ok:true,orders:data.rows.map(x=>{
-     const receipt=canonicalReceiptForAccountOrder(x);
-     const items=Array.isArray(x.items)?x.items.map(line=>{
-      if(!line||typeof line!=='object'||Array.isArray(line))return {};
-      const {internalUnitPrice,internalReference,collaboratorMarginVnd,...publicLine}=line;
-      return publicLine;
-     }):[];
-     return {...x,items,verified:receipt!==null,receipt,
-      pdf:canonicalInvoiceDocumentStatus(x)};
-    })});return true;
+    // The old rollback branch used the saved quote as if it were a current
+    // invoice. That makes Android edits invisible. Exact signed readback is
+    // now required; failed reads return UNAVAILABLE without a false amount.
+    const fresh=await currentAccountInvoiceHistory(data.rows);
+    send(res,200,{ok:true,...fresh});return true;
    }
    // Current canonical ledger takes precedence over stale saved V2 quotes.
    const confirmed=data.rows.filter(x=>x.state==='COMMITTED');

@@ -85,10 +85,14 @@ export function currentLinkedHistory(refs,readback){
   const excluded=x.excluded===true;
   orders.push({source:'legacy',invoiceNo:x.invoiceNo,sourceId:String(x.id),
    date:x.date,createdAt:null,updatedAt:x.updatedAt||null,
-   name:x.delivery.recipientName,address:x.delivery.address,
+   name:x.delivery.recipientName,phone:x.delivery.recipientPhone||'',
+   address:x.delivery.address,deliveryNote:x.deliveryNote||'',
    status:x.status,totalVnd:excluded?0:x.totalVnd,
-   items:x.items.map(it=>({product:it.name,name:it.name,qty:it.qty,
-    unit:it.unit,unitPrice:it.unitPrice,lineTotal:it.lineTotal})),
+   goodsVnd:excluded?0:x.goodsVnd,shippingVnd:excluded?0:x.shippingVnd,
+   vatVnd:excluded?0:x.vatVnd,excluded,
+   items:x.items.map(it=>({product:it.name,name:it.name,code:it.code,qty:it.qty,
+    unit:it.unit,unitPrice:it.unitPrice,listPrice:it.listPrice,
+    discountPercent:it.discountPercent,lineTotal:it.lineTotal})),
    customerPaid:x.customerPaid===true,readOnly:true,ledgerRevision:readback.revision});
  }
  return {orders:orders.sort((a,b)=>b.invoiceNo-a.invoiceNo),
