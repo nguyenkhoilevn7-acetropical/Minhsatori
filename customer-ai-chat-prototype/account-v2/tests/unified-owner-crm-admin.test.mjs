@@ -5,7 +5,12 @@ import vm from 'node:vm';
 const withoutUi25d=html=>html
  .replace(/<style id="s25-ui-style">[\s\S]*?<\/style>/,'')
  .replace(/<template id="s25-ui-template">[\s\S]*?<\/template>/,'')
- .replace(/<script id="s25-ui-script">[\s\S]*?<\/script>/,'');
+ .replace(/<script id="s25-ui-script">[\s\S]*?<\/script>/,'')
+ // Pearl is a separate screen-only UI layer; remove only its exact tagged assets.
+ .replace(/<style id="satori-pearl-glass-style">[\s\S]*?<\/style>/,'')
+ .replace(/<script id="satori-pearl-boot">[\s\S]*?<\/script>/,'')
+ .replace(/<script id="satori-pearl-controls">[\s\S]*?<\/script>/,'')
+ .replace(/<nav class="pearl-shortcuts"[\s\S]*?<\/nav>/,'');
 const html=fs.readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
 const router=fs.readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
 const backend=fs.readFileSync(new URL('../customer-backend.mjs',import.meta.url),'utf8');
