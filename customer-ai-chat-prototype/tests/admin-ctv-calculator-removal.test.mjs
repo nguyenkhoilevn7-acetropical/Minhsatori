@@ -31,15 +31,23 @@ test('every admin inline script still parses',()=>{
   new vm.Script(s[1],{filename:'admin-inline-'+i+'.js'});
 });
 
-test('real Google Drive orders alert panel is absent from every admin tab',()=>{
- for(const id of ['productionOrderAlerts','productionFeedBadge','productionFeedRefresh',
-  'productionRecentOrders','productionBell','productionOrderStatus'])
+test('real-invoice notifications use only the authenticated read-only Bot API',()=>{
+ assert.match(admin,/id="productionFeedRefresh"/);
+ assert.match(admin,/id="productionFeedState"/);
+ assert.match(admin,/data-tab-panel="live" hidden id="productionFeedCard"/);
+ assert.match(admin,/async function pollRealOrderFeed\(force=false\)/);
+ assert.match(admin,/const additions=liveOrderBaseline===null\?\[\]:/,
+  'first authenticated read establishes a silent baseline');
+ assert.match(admin,/api\/admin\/live-search\?kind=invoices&month=/);
+ const feed=admin.slice(admin.indexOf('async function pollRealOrderFeed'),
+  admin.indexOf("$('productionFeedRefresh').onclick"));
+ assert.doesNotMatch(feed,/api\/admin\/new-orders|\/api\/admin\/owner-live\/confirm/,
+  'real invoice alerts must never read test orders or write invoices');
+ // No duplicate legacy alert panels from removed implementations.
+ for(const id of ['productionOrderAlerts','productionFeedBadge','productionRecentOrders',
+  'productionBell','productionOrderStatus'])
   assert.doesNotMatch(admin,new RegExp('id="'+id+'"'));
- assert.doesNotMatch(admin,/Đơn hàng thật từ Google Drive/);
- assert.doesNotMatch(admin,/pollRealOrderFeed|showLiveOrderRows|soundNewRealOrder/);
- // The authoritative invoice view and Drive-backed issued-link registry remain.
  for(const id of ['ownerRealInvoiceCard','liveFindInvoices','issuedLinksPanel',
   'independentCtvLedger','customerManagement'])
   assert.match(admin,new RegExp('id="'+id+'"'));
- assert.match(admin,/api\/admin\/live-search/);
 });

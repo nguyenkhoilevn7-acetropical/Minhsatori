@@ -5,14 +5,18 @@
  * No writes, no bulk customer export and never to the browser/Gemini.
  */
 import crypto from 'node:crypto';
-const permitted=new Set(['system.status','catalogue.list','orders.list','customers.search']);
+const permitted=new Set(['system.status','catalogue.list','orders.list','customers.search','orders.findByRequestId','orders.getExactBatch']);
+// Grok owner connector parity with ChatGPT, strictly read-only on the V2 read key.
+// orders.previewUpdate needs orders:update, so it is NEVER sent with the read key
+// (Grok previews through the isolated V2 writer key instead).
+const ownerReads=new Set(['debt.summary','orders.auditHistory','trash.list']);
 export function readOnlyReady(){
  return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(String(process.env.SATORI_READ_ENDPOINT||'').trim()) &&
  /^[A-Za-z0-9_-]{3,64}$/.test(String(process.env.SATORI_READ_KEY_ID||'')) &&
  String(process.env.SATORI_READ_HMAC_SECRET||'').length>=32;
 }
 export async function readMinhSatori(action,payload={}){
- if(!permitted.has(action))throw Error('READ_ONLY_ACTION_DENIED');
+ if(!permitted.has(action)&&!ownerReads.has(action))throw Error('READ_ONLY_ACTION_DENIED');
  if(!readOnlyReady())throw Error('READ_ONLY_NOT_CONFIGURED');
  if(typeof payload!=='object'||!payload||Array.isArray(payload))throw Error('BAD_PAYLOAD');
  // No broad customer discovery: only search one explicit phone or a specific name,
@@ -21,6 +25,13 @@ export async function readMinhSatori(action,payload={}){
   const phone=String(payload.phone||'').replace(/\D/g,'');
   const query=String(payload.query||'').trim();
   if(phone.length<7 && query.length<2)throw Error('CUSTOMER_QUERY_REQUIRED');
+ }
+ // Exactly one opaque idempotency key. No personal-data search or wildcard.
+ if(action==='orders.findByRequestId'){
+  const keys=Object.keys(payload);
+  if(keys.length!==1||keys[0]!=='requestId'||
+   typeof payload.requestId!=='string'||!/^[A-Za-z0-9_-]{8,100}$/.test(payload.requestId))
+   throw Error('EXACT_REQUEST_ID_REQUIRED');
  }
  if(action==='orders.list'&&!String(payload.query||'').trim()){
   // A signed owner request may browse a single calendar month only, not
@@ -31,9 +42,38 @@ export async function readMinhSatori(action,payload={}){
   if(!validDate(from)||!validDate(to)||from>to||from.slice(0,7)!==to.slice(0,7))
    throw Error('BULK_ORDER_EXPORT_DENIED');
  }
- const safePayload={...payload};
- if(action!=='system.status'&&action!=='catalogue.list')
+ if(action==='orders.getExactBatch'){
+  if(!Array.isArray(payload.refs)||payload.refs.length<1||payload.refs.length>20)
+   throw Error('EXACT_BATCH_INVALID');
+  const seen=new Set();
+  for(const ref of payload.refs){
+   if(!ref||!Number.isSafeInteger(ref.invoiceNo)||ref.invoiceNo<=0||
+     !/^[A-Za-z0-9_-]{1,80}$/.test(String(ref.id||'')))
+    throw Error('EXACT_BATCH_INVALID');
+   const key=ref.invoiceNo+'|'+String(ref.id);
+   if(seen.has(key))throw Error('EXACT_BATCH_DUPLICATE');
+   seen.add(key);
+  }
+  if(Object.keys(payload).length!==1)throw Error('EXACT_BATCH_INVALID');
+ }
+ if(action==='debt.summary'){
+  const validDate=x=>/^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(x);
+  for(const k of Object.keys(payload))if(!['query','from','to'].includes(k))throw Error('DEBT_PAYLOAD_INVALID');
+  if((payload.from!==undefined&&!validDate(String(payload.from)))||(payload.to!==undefined&&!validDate(String(payload.to))))
+   throw Error('DEBT_PAYLOAD_INVALID');
+ }
+ if(action==='orders.auditHistory'&&(!Number.isSafeInteger(payload.invoiceNo)||payload.invoiceNo<1||
+  !/^[A-Za-z0-9_-]{1,80}$/.test(String(payload.id||''))||Object.keys(payload).length!==2))
+  throw Error('EXACT_ORDER_REQUIRED');
+  const safePayload={...payload};
+ if(action!=='system.status'&&action!=='catalogue.list'&&action!=='orders.findByRequestId'&&action!=='orders.getExactBatch')
   safePayload.limit=Math.min(action==='orders.list'?100:20,Math.max(1,Number(payload.limit)||10));
+ if(action==='trash.list'){
+  // One explicit query (invoice number, name or phone), never a bulk trash export.
+  if(!String(payload.query||'').trim()||Object.keys(payload).some(k=>!['query','limit'].includes(k)))
+   throw Error('TRASH_QUERY_REQUIRED');
+  safePayload.limit=Math.min(30,Math.max(1,Number(payload.limit)||10));
+ }else if(ownerReads.has(action))delete safePayload.limit;
  const keyId=String(process.env.SATORI_READ_KEY_ID),secret=String(process.env.SATORI_READ_HMAC_SECRET);
  const timestamp=Date.now(),nonce=crypto.randomBytes(18).toString('hex');
  const msg=[keyId,timestamp,nonce,action,JSON.stringify(safePayload)].join('\n');
@@ -46,8 +86,19 @@ export async function readMinhSatori(action,payload={}){
   });
   if(!result.ok)throw Error('READ_ONLY_UPSTREAM_HTTP_'+result.status);
   const text=await result.text();if(text.length>200_000)throw Error('READ_ONLY_RESPONSE_TOO_LARGE');
-  const parsed=JSON.parse(text);
-  if(!parsed.ok||parsed.action!==action)throw Error('READ_ONLY_UPSTREAM_ERROR');
+  let parsed;
+  try{parsed=JSON.parse(text)}
+  catch{throw Error('READ_ONLY_NON_JSON_RESPONSE')}
+  if(!parsed?.ok||parsed.action!==action){
+   // Only this diagnosis may expose a fixed, low-cardinality code.
+   // Never report upstream text, request ID, signatures or customer data.
+   const allowed=new Set(['INVALID_ACTION','FORBIDDEN','AUTH_FAILED',
+    'INVALID_REQUEST','INVALID_STATE','EXPIRED','REPLAYED','ERROR']);
+   const code=parsed?.error?.code;
+   if(action==='orders.findByRequestId'&&allowed.has(code))
+    throw Error('READ_ONLY_SIGNED_'+code);
+   throw Error('READ_ONLY_UPSTREAM_ERROR');
+  }
   return {revision:parsed.revision,data:parsed.data};
  }finally{clearTimeout(timer)}
 }
