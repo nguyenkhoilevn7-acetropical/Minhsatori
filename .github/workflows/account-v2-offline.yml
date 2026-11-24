@@ -55,6 +55,16 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Browser CRM source selection regression (synthetic APIs only)
         run: node account-v2/tests/crm-source-selection-browser.mjs
+      - name: Liquid Glass responsive owner UI (synthetic browser only)
+        run: node account-v2/tests/owner-liquid-glass-browser.mjs
+      - name: Upload Liquid Glass browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Owner-Liquid-Glass-V8-Browser-Evidence
+          path: customer-ai-chat-prototype/liquid-ui-evidence/*.png
+          if-no-files-found: warn
+          retention-days: 7
       - name: Existing Gemini parser regression tests
         run: |
           node tests/production-launch-guard.test.mjs
