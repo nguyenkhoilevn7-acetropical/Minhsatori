@@ -784,7 +784,8 @@ class NativeMainActivity : AppCompatActivity() {
 
     // V2: shared 2.5D surface strokes; preserve account-selected theme colors.
     private fun panelBackground(color: Int = surface, radius: Int = 20): GradientDrawable =
-        GradientDrawable().apply {
+        if (SatoriUiTheme.liquid(this) && color == surface) SatoriLiquidGlass.paper(this, radius)
+        else GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
             setStroke(dp(1), Color.rgb(216, 234, 229))
@@ -1480,10 +1481,14 @@ class NativeMainActivity : AppCompatActivity() {
         val oldScrollY = if (previousRenderedTab == activeTab)
             previousScrollView?.scrollY ?: 0 else 0
         previousRenderedTab = activeTab
-        val root = FrameLayout(this).apply { setBackgroundColor(night) }
+        val liquidGlass = SatoriUiTheme.liquid(this)
+        val root = FrameLayout(this).apply {
+            if (liquidGlass) background = SatoriLiquidGlass.backdrop(this@NativeMainActivity)
+            else setBackgroundColor(night)
+        }
         val shell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(night)
+            if (!liquidGlass) setBackgroundColor(night)
         }
         val shellWidth = adaptiveShellWidth()
         val shellInset = if (shellWidth > 0)
@@ -1757,7 +1762,8 @@ class NativeMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(4), dp(6), dp(4), dp(6))
-            background = panelBackground(Color.WHITE, 18)
+            background = if (liquidGlass) SatoriLiquidGlass.glass(this@NativeMainActivity, 27)
+                else panelBackground(Color.WHITE, 18)
             elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(7).toFloat() else 0f
         }
         val bottomDestinations = listOf(
@@ -1774,6 +1780,8 @@ class NativeMainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
                 setPadding(dp(2), dp(4), dp(2), dp(3))
                 minimumHeight = dp(53)
+                if (liquidGlass && selected) background = SatoriLiquidGlass.glass(this@NativeMainActivity, 19, true)
+                isSelected = selected
                 isClickable = true
                 isFocusable = true
                 contentDescription = if (index == 1 && currentInvoiceBadge().count > 0)
@@ -1788,10 +1796,11 @@ class NativeMainActivity : AppCompatActivity() {
             }
             val glyph = ImageView(this).apply {
                 setImageResource(drawable)
-                setColorFilter(if (index == 4) Color.WHITE
+                setColorFilter(if (liquidGlass || index == 4) Color.WHITE
                     else if (selected) teal else softInk)
                 setPadding(dp(6), dp(6), dp(6), dp(6))
-                background = if (index == 4) panelBackground(teal, 28)
+                background = if (liquidGlass) SatoriLiquidGlass.icon(this@NativeMainActivity, index)
+                    else if (index == 4) panelBackground(teal, 28)
                     else panelBackground(Color.TRANSPARENT, 12)
                 contentDescription = null
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -1816,7 +1825,9 @@ class NativeMainActivity : AppCompatActivity() {
                 this.text = title
                 textSize = 9f
                 gravity = Gravity.CENTER
-                setTextColor(if (selected) teal else softInk)
+                setTextColor(if (liquidGlass) {
+                    if (selected) SatoriLiquidGlass.lightText else SatoriLiquidGlass.mutedText
+                } else if (selected) teal else softInk)
                 setTypeface(typeface, if (selected) Typeface.BOLD else Typeface.NORMAL)
                 includeFontPadding = false
             }
@@ -1825,7 +1836,9 @@ class NativeMainActivity : AppCompatActivity() {
             })
             bottomNav.addView(item, LinearLayout.LayoutParams(0, -2, 1f))
         }
-        shell.addView(bottomNav, LinearLayout.LayoutParams(-1, -2))
+        shell.addView(bottomNav, LinearLayout.LayoutParams(-1, -2).apply {
+            if (liquidGlass) setMargins(dp(10), dp(4), dp(10), dp(9))
+        })
 
         // Preserve the drawer as the full advanced navigation inventory.
         // Pure native Android animation: no webview, no new dependencies.
@@ -1842,13 +1855,15 @@ class NativeMainActivity : AppCompatActivity() {
         val drawer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(24), dp(18), dp(20))
-            setBackgroundColor(white)
+            if (liquidGlass) background = SatoriLiquidGlass.glass(this@NativeMainActivity, 30)
+            else setBackgroundColor(white)
             elevation = dp(14).toFloat()
             visibility = View.GONE
             translationX = drawerWidth.toFloat()
         }
         root.addView(drawer, FrameLayout.LayoutParams(drawerWidth, -1, Gravity.END).apply {
-            rightMargin = shellInset
+            rightMargin = shellInset + if (liquidGlass) dp(9) else 0
+            if (liquidGlass) { topMargin = dp(10); bottomMargin = dp(10) }
         })
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1858,7 +1873,7 @@ class NativeMainActivity : AppCompatActivity() {
             text = "Minh Satori"
             textSize = 21f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(ink)
+            setTextColor(if (liquidGlass) SatoriLiquidGlass.lightText else ink)
         }
         titleRow.addView(drawerHeading, LinearLayout.LayoutParams(0, -2, 1f))
         val closeButton = android.widget.ImageButton(this).apply {
@@ -1871,7 +1886,7 @@ class NativeMainActivity : AppCompatActivity() {
         }
         titleRow.addView(closeButton, LinearLayout.LayoutParams(dp(48), dp(48)))
         drawer.addView(titleRow)
-        label(drawer, "TÁC VỤ", 11f, true, softInk, 22)
+        label(drawer, "TÁC VỤ", 11f, true, if (liquidGlass) SatoriLiquidGlass.mutedText else softInk, 22)
         val destinations = listOf(
             R.drawable.ic_satori_dashboard to "Tổng quan",
             R.drawable.ic_satori_invoice to "Hóa đơn",
@@ -1929,16 +1944,19 @@ class NativeMainActivity : AppCompatActivity() {
                 text = item.second
                 val glyph = androidx.core.content.ContextCompat.getDrawable(
                     this@NativeMainActivity, item.first)?.mutate()
-                glyph?.setTint(if (activeTab == index) cyan else ink)
+                glyph?.setTint(if (liquidGlass) SatoriLiquidGlass.lightText else if (activeTab == index) cyan else ink)
                 glyph?.setBounds(0, 0, dp(21), dp(21))
                 setCompoundDrawablesRelative(glyph, null, null, null)
                 compoundDrawablePadding = dp(13)
                 textSize = 16f
                 setTypeface(typeface, if (activeTab == index) Typeface.BOLD else Typeface.NORMAL)
-                setTextColor(if (activeTab == index) cyan else ink)
+                setTextColor(if (liquidGlass) SatoriLiquidGlass.lightText else if (activeTab == index) cyan else ink)
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(14), 0, dp(12), 0)
-                background = background(if (activeTab == index)
+                background = if (liquidGlass) {
+                    if (activeTab == index) SatoriLiquidGlass.glass(this@NativeMainActivity, 17, true)
+                    else background(Color.TRANSPARENT, 14)
+                } else background(if (activeTab == index)
                     SatoriUiTheme.soft(this@NativeMainActivity) else white, 14)
                 contentDescription = "Mở mục " + item.second + if (item.second == "Quản trị hệ thống") " · Quản trị bên trong ứng dụng Minh Satori" else ""
                 isClickable = true
@@ -1958,12 +1976,12 @@ class NativeMainActivity : AppCompatActivity() {
             text = "Đồng bộ dữ liệu"
             val glyph = androidx.core.content.ContextCompat.getDrawable(
                 this@NativeMainActivity, R.drawable.ic_satori_refresh)?.mutate()
-            glyph?.setTint(cyan)
+            glyph?.setTint(if (liquidGlass) SatoriLiquidGlass.lightText else cyan)
             glyph?.setBounds(0, 0, dp(21), dp(21))
             setCompoundDrawablesRelative(glyph, null, null, null)
             compoundDrawablePadding = dp(13)
             textSize = 15f
-            setTextColor(cyan)
+            setTextColor(if (liquidGlass) SatoriLiquidGlass.lightText else cyan)
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(14), dp(12), dp(10), dp(12))
             isClickable = true
@@ -1975,15 +1993,16 @@ class NativeMainActivity : AppCompatActivity() {
             topMargin = dp(14)
         })
         val appearanceMenu = TextView(this).apply {
-            text = "🎨  Giao diện · Màu sắc / 2.5D"
+            text = if (liquidGlass) "◈  Giao diện · Liquid Glass V8" else "🎨  Giao diện · Màu sắc / 2.5D"
             textSize = 15f
-            setTextColor(cyan)
+            setTextColor(if (liquidGlass) SatoriLiquidGlass.lightText else cyan)
             setPadding(dp(14), dp(14), dp(12), dp(14))
-            background = panelBackground(SatoriUiTheme.soft(this@NativeMainActivity), 14)
+            background = if (liquidGlass) SatoriLiquidGlass.glass(this@NativeMainActivity, 16, true)
+                else panelBackground(SatoriUiTheme.soft(this@NativeMainActivity), 14)
             elevation = if (SatoriUiTheme.raised(this@NativeMainActivity)) dp(3).toFloat() else 0f
             isClickable = true
             isFocusable = true
-            contentDescription = "Tùy chỉnh màu và độ nổi giao diện"
+            contentDescription = "Tùy chỉnh giao diện, màu và độ nổi"
             setOnClickListener {
                 dismissDrawer { SatoriUiTheme.picker(this@NativeMainActivity) { render() } }
             }
