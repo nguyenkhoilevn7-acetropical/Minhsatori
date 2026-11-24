@@ -6,6 +6,9 @@ on:
   pull_request:
     paths:
       - "customer-ai-chat-prototype/original-*.mjs"
+      - "customer-ai-chat-prototype/invoice-line-vat.mjs"
+      - "customer-ai-chat-prototype/tests/original-pdf-parity.cjs"
+      - ".github/workflows/pdf-headless-render.yml"
       - "customer-ai-chat-prototype/tests/original-website-pdf.test.mjs"
       - "customer-ai-chat-prototype/package.json"
       - "customer-ai-chat-prototype/Dockerfile"
