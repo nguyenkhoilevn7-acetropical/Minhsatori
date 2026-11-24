@@ -11,6 +11,8 @@ const withoutUi25d=html=>html
  .replace(/<style id="satori-pearl-compact-20261119">[\s\S]*?<\/style>/,'')
  .replace(/<script id="satori-pearl-boot">[\s\S]*?<\/script>/,'')
  .replace(/<script id="satori-pearl-controls">[\s\S]*?<\/script>/,'')
+ .replace(/<style id="satori-owner-liquid-v8-style">[\s\S]*?<\/style>/,'')
+ .replace(/<script id="satori-owner-liquid-v8-script">[\s\S]*?<\/script>/,'')
  .replace(/<nav class="pearl-shortcuts"[\s\S]*?<\/nav>/,'');
 const html=fs.readFileSync(new URL('../owner-catalogue.html',import.meta.url),'utf8');
 const router=fs.readFileSync(new URL('../router.mjs',import.meta.url),'utf8');
