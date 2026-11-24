@@ -1160,6 +1160,7 @@ html[data-owner-liquid="on"] .lg-aux{display:grid;gap:7px;padding:7px 4px;border
 html[data-owner-liquid="on"] .lg-aux button,html[data-owner-liquid="on"] #lg-collapse{display:flex;align-items:center;gap:10px;min-height:44px;padding:9px 10px;border:1px solid #e7ffff35;background:linear-gradient(150deg,#eaffff24,#d0f0ff0a)!important;color:#f4fcff!important;border-radius:14px;font-size:13px;box-shadow:inset 0 1px 1px #fff3;white-space:nowrap;overflow:hidden;}
 html[data-owner-liquid="on"] .lg-aux button .lg-icon,html[data-owner-liquid="on"] #lg-collapse .lg-icon{width:24px;flex:0 0 24px;text-align:center;font-size:18px;}
 html[data-owner-liquid="on"] #lg-collapse{margin-top:auto;justify-content:flex-start;}
+html[data-owner-liquid="on"] #owner-liquid-shell .lg-aux button[disabled]{opacity:.38;cursor:not-allowed;}
 html[data-owner-liquid="on"] #owner-liquid-shell :is(button,a):focus-visible{outline:2px solid #d1f96c!important;outline-offset:3px!important;}
 html[data-owner-liquid="on"] #owner-liquid-shell .lg-label{overflow:hidden;}
 html[data-owner-liquid="on"][data-owner-liquid-compact="true"]{--lg-width:88px;}
@@ -3452,9 +3453,9 @@ for(const [id,iconName] of [
  const shell=document.createElement('aside');shell.id='owner-liquid-shell';shell.hidden=true;shell.setAttribute('aria-label','Menu quản trị Liquid Glass');
  const brand=document.createElement('div');brand.className='lg-brand';const mark=document.createElement('span');mark.className='lg-brand-mark';mark.textContent='◈';mark.setAttribute('aria-hidden','true');
  const brandText=document.createElement('span');brandText.className='lg-label';brandText.textContent='MINH SATORI';brand.append(mark,brandText);
- const aux=document.createElement('div');aux.className='lg-aux';
+ const aux=document.createElement('div');aux.className='lg-aux';const mirrors=[];
  for(const [label,icon,id] of [['Xuất PDF','▤','ownerPdfToggle'],['Làm mới','↻','refresh'],['Giao diện','◐','s25-trigger']]){
-  const b=button(label,icon);b.addEventListener('click',()=>{const target=document.getElementById(id);if(target&&!target.hidden&&!target.disabled)target.click()});aux.append(b);
+  const b=button(label,icon);b.addEventListener('click',()=>{const target=document.getElementById(id);if(target&&!target.hidden&&!target.disabled)target.click()});aux.append(b);mirrors.push([b,id]);
  }
  const collapse=button('Thu gọn menu','‹','lg-collapse');collapse.setAttribute('aria-expanded','true');
  const place=document.createComment('owner liquid navigation anchor');nav.before(place);
@@ -3462,7 +3463,7 @@ for(const [id,iconName] of [
  function pill(){frame=0;if(!attached||nav.hidden)return;const active=nav.querySelector('[aria-selected="true"]');if(!active)return;const r=nav.getBoundingClientRect(),a=active.getBoundingClientRect();nav.style.setProperty('--lg-pill-y',(a.top-r.top)+'px');nav.style.setProperty('--lg-pill-h',a.height+'px');nav.style.setProperty('--lg-pill-opacity','1');}
  function schedule(){if(!frame)frame=requestAnimationFrame(pill)}
  function compact(v){root.dataset.ownerLiquidCompact=String(v);collapse.setAttribute('aria-expanded',String(!v));const label=v?'Mở rộng menu':'Thu gọn menu';collapse.title=label;collapse.setAttribute('aria-label',label);collapse.querySelector('.lg-label').textContent=label;collapse.querySelector('.lg-icon').textContent=v?'›':'‹';save(COMPACT,String(v));schedule();}
- function sync(){const on=root.dataset.ownerLiquid==='on';document.querySelectorAll('[data-owner-liquid-choice]').forEach(b=>b.setAttribute('aria-pressed',String(on)));if(on)document.querySelectorAll('[data-satori-layout-choice]').forEach(b=>b.setAttribute('aria-pressed','false'));}
+ function sync(){for(const [b,id] of mirrors){const t=document.getElementById(id);b.disabled=!t||t.hidden||t.disabled;}const on=root.dataset.ownerLiquid==='on';document.querySelectorAll('[data-owner-liquid-choice]').forEach(b=>b.setAttribute('aria-pressed',String(on)));if(on)document.querySelectorAll('[data-satori-layout-choice]').forEach(b=>b.setAttribute('aria-pressed','false'));}
  function apply(on,persist=true){
   root.dataset.ownerLiquid=on?'on':'off';
   if(persist)save(KEY,on?'on':'off');
@@ -3475,6 +3476,7 @@ for(const [id,iconName] of [
  shell.addEventListener('pointermove',e=>{const r=shell.getBoundingClientRect();shell.style.setProperty('--lg-x',(e.clientX-r.left)+'px');shell.style.setProperty('--lg-y',(e.clientY-r.top)+'px')});
  shell.addEventListener('pointerleave',()=>{shell.style.removeProperty('--lg-x');shell.style.removeProperty('--lg-y')});
  new MutationObserver(()=>{shell.hidden=!attached||nav.hidden;schedule()}).observe(nav,{attributes:true,attributeFilter:['hidden','aria-selected'],subtree:true});
+ for(const id of ['ownerPdfToggle','refresh']){const t=document.getElementById(id);if(t)new MutationObserver(sync).observe(t,{attributes:true,attributeFilter:['hidden','disabled']});}
  window.addEventListener('resize',schedule,{passive:true});
  document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
