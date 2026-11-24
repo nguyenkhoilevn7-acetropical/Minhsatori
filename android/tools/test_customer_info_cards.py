@@ -32,7 +32,7 @@ class CustomerCardContract(unittest.TestCase):
         self.assertIn("customerInfoRow(detail, R.drawable.ic_satori_map_pin", block)
         self.assertIn('"LỊCH SỬ HÓA ĐƠN"', block)
         self.assertIn("invoice.customerHasPaid", block)
-        self.assertIn("group.forEach", block)
+        # A revision-verified canonical projection replaces the previous raw-group display.\n        self.assertIn("SatoriCustomerHistory.exactPoint(representative, data.invoices)", block)\n        self.assertIn("current.forEach { invoice ->", block)\n        self.assertIn("SatoriCustomerHistory.sameNameOtherPoints(", block)
 
     def test_invoice_uses_same_labeled_customer_details(self):
         block = SRC.split("private fun openInvoice(", 1)[1]

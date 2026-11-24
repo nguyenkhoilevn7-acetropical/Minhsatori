@@ -16,6 +16,7 @@ internal object SatoriUiTheme {
     private const val STORE = "minh_satori_ui25d"
     private const val COLOR = "accent"
     private const val DEPTH = "raised"
+    private const val LIQUID = "liquid_glass_v8"
     private const val DEFAULT = "#008E8C"
     private fun prefs(context: Context) = context.getSharedPreferences(STORE, Context.MODE_PRIVATE)
 
@@ -25,6 +26,8 @@ internal object SatoriUiTheme {
     }
 
     fun raised(context: Context): Boolean = prefs(context).getBoolean(DEPTH, true)
+
+    fun liquid(context: Context): Boolean = prefs(context).getBoolean(LIQUID, false)
 
     private fun blend(left: Int, right: Int, weight: Float): Int =
         Color.rgb(
@@ -47,10 +50,11 @@ internal object SatoriUiTheme {
         val current = prefs(activity)
         val options = arrayOf(
             "● Ngọc lam (Teal)", "● Xanh tím (Indigo)", "● San hô (Coral)",
-            "🎨 Tự chọn mã màu", if (raised(activity)) "Đổi sang 2D" else "Đổi sang 2.5D"
+            "🎨 Tự chọn mã màu", if (raised(activity)) "Đổi sang 2D" else "Đổi sang 2.5D",
+            if (liquid(activity)) "◈ Trở về giao diện hiện tại" else "◈ Liquid Glass V8"
         )
         AlertDialog.Builder(activity)
-            .setTitle("Giao diện Minh Satori · 2.5D")
+            .setTitle("Giao diện Minh Satori")
             .setItems(options) { _, which ->
                 when (which) {
                     0, 1, 2 -> {
@@ -84,6 +88,10 @@ internal object SatoriUiTheme {
                     }
                     4 -> {
                         current.edit().putBoolean(DEPTH, !raised(activity)).apply()
+                        refresh()
+                    }
+                    5 -> {
+                        current.edit().putBoolean(LIQUID, !liquid(activity)).apply()
                         refresh()
                     }
                 }

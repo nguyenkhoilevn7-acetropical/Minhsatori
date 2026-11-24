@@ -109,7 +109,9 @@ data class SatoriInvoice(
     /** Ledger creation channel, e.g. "bot_api". Only used for the creator label. */
     val source: String = "",
     val vatMode: String = "invoice",
-    val vatRate: Double? = null
+    val vatRate: Double? = null,
+    // For read-only history sort. The original order date remains immutable.
+    val updatedTimestampMillis: Long? = null
 ) {
     val isInternalCollaboratorBill: Boolean get() = pairRole == "collaborator"
     val isCustomerPairBill: Boolean get() = pairRole == "customer"
@@ -340,7 +342,17 @@ object SatoriData {
                 source = string(x, "source").takeIf { it.length <= 40 }.orEmpty(),
                 vatMode = string(x, "vatMode").ifBlank { "invoice" },
                 vatRate = if (x.has("vatRate") && !x.isNull("vatRate"))
-                    x.optDouble("vatRate").takeIf { it.isFinite() && it in 0.0..100.0 } else null
+                    x.optDouble("vatRate").takeIf { it.isFinite() && it in 0.0..100.0 } else null,
+                updatedTimestampMillis = run {
+                    val raw = x.opt("updatedAt")
+                    val parsed = when (raw) {
+                        is Number -> raw.toLong()
+                        is String -> raw.toLongOrNull()
+                            ?: runCatching { java.time.Instant.parse(raw).toEpochMilli() }.getOrNull()
+                        else -> null
+                    }
+                    parsed?.takeIf { it in 946684800000L..4102444799999L }
+                }
             )
         }.sortedWith(compareByDescending<SatoriInvoice> { it.sortDate }
             .thenByDescending { it.number.toLongOrNull() ?: 0L })
