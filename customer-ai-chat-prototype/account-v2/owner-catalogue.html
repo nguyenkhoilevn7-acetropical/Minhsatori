@@ -1170,6 +1170,15 @@ html[data-owner-liquid="on"] .owner-header{border-radius:24px!important;}
 html[data-owner-liquid="on"] :is(#crmConsole,#legacyConsole,#console,#ownerPdfExport){border-radius:25px!important;box-shadow:0 16px 42px #06171e40!important;}
 html[data-owner-liquid="on"] .pearl-layout-buttons{grid-template-columns:repeat(2,minmax(0,1fr));}
 html[data-owner-liquid="on"] [data-owner-liquid-choice]{background:linear-gradient(135deg,#243e49,#507481)!important;color:white!important;}
+
+/* Coordinated content surfaces: finance fields remain readable. */
+html[data-owner-liquid="on"] .owner-header{background:linear-gradient(135deg,#f5fdfd,#dcecef)!important;border:1px solid #f5ffff!important;box-shadow:inset 0 2px 2px #fff,0 10px 30px #061e2b40!important;}
+html[data-owner-liquid="on"] :is(#crmConsole,#legacyConsole,#console,#ownerPdfExport,#ownerAuth,#denied){background:linear-gradient(155deg,#fbfefe,#eef6f7 65%,#e5eff2)!important;border:1px solid #f8ffff!important;color:#1a3743!important;}
+html[data-owner-liquid="on"] :is(.crm-entry,.crm-inspector,.metric,.crm-action-panel,.crm-customer-card,.crm-filter-button,.crm-legacy-signed){background:linear-gradient(145deg,#fff,#eff7f8)!important;border-color:#d1e3e7!important;box-shadow:inset 0 1px 1px #fff,0 5px 15px #234a6010!important;}
+html[data-owner-liquid="on"] :is(.crm-panel-title h2,#console h2,.metric strong){color:#1e4552!important;}
+html[data-owner-liquid="on"] :is(.crm-panel-search input,.crm-controls input,.crm-controls select,.field-grid input,.field-grid select){background:#ffffffed!important;border-color:#bfdae0!important;color:#173644!important;}
+html[data-owner-liquid="on"] :is(#crmStageFilters,#crmOldFilters) button[aria-pressed="true"]{background:linear-gradient(135deg,#dbeef1,#c6e0e4)!important;border-color:#729fac!important;color:#174756!important;}
+html[data-owner-liquid="on"] :is(#crmConsole,#legacyConsole,#console,#ownerPdfExport) :is(button,input,select,textarea):focus-visible{outline:3px solid #3f8497!important;outline-offset:2px!important;}
 @media(min-width:900px){html[data-owner-liquid="on"] main:has(#owner-liquid-shell:not([hidden])){padding-left:calc(var(--lg-width) + 42px)!important;padding-right:24px!important;transition:padding .32s cubic-bezier(.2,.8,.2,1);}}
 @media(max-width:899px){
  html[data-owner-liquid="on"] main:has(#owner-liquid-shell:not([hidden])){padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))!important;}
