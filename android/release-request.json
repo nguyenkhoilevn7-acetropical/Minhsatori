@@ -58,7 +58,7 @@
     438,
     440
   ],
-  "scope": "Signed owner-only Android APK v0.4.63 build80 over v0.4.62 build79. Invoice #6016 (V2 checkout, Bot API + UUID request id) showed 'Chưa xác định tài khoản đặt hàng' because the only live attribution path is the owner's 7-day V2 web session; an expired session returned 401 and was swallowed silently. Android now records the V2 origins feed state and explains unverified V2 orders (session expired / server not responding / no committed checkout), offers 'Đăng nhập lại V2' and re-checks on resume. No account is ever inferred; invoices, payments, PDF, ledger and backend unchanged.",
+  "scope": "Signed owner-only Android APK v0.4.63 build80 over v0.4.62 build79. Invoice #6016 (V2 checkout, Bot API + UUID request id) showed 'Chưa xác định tài khoản đặt hàng' because the only live attribution path is the owner's 7-day V2 web session; an expired session returned 401 and was swallowed silently. Android now records the V2 origins feed state and explains unverified V2 orders (session expired / server not responding / no committed checkout), silently renews the expired owner V2 session (Credential Manager auto-select of an already-authorized Gmail, server isAdmin check before storing cookies), re-reads ordering accounts, and offers 'Gia hạn phiên V2' as a manual fallback. No account is ever inferred; invoices, payments, PDF, ledger and backend unchanged.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -134,7 +134,8 @@
     "2026-11-19: PR #438 ports a read-only customer-history correction to the current signed Android v0.4.61 release source, not stale Android main. Android UI displays source revision and edited bills; AI learned orderCount is informational only. Unverified same-name deliveries never merge debt or pricing.",
     "2026-11-19: Release 0.4.62 code79 only after GitHub Kotlin/unit, isolated emulator and screenshot checks PASS, and signed workflow verifies the original pinned certificate SHA-256. Test on owner's Samsung without uninstalling. No production invoice writes during testing.",
     "2026-11-24: Owner explicitly requested production rollout. PR #440 passed Android native build/unit, optional VAT and Liquid Glass visual instrumentation on phone and both simulated Fold viewports. Merge tree was byte-identical to tested head. Release v0.4.62 build79 over v0.4.61 build78, original pinned signer, requires FCM. Physical Samsung acceptance remains separate; never distribute debug or unverified APK.",
-    "2026-11-25: Owner approved two-layer fix for #6016. Android layer only in this release; server-to-server Apps Script origins fallback (api/V2OrderOrigins.gs) still requires owner deployment (Render SATORI_V2_ORIGINS_SECRET + Apps Script properties/trigger). Same package, original pinned signer, never distribute debug APK."
+    "2026-11-25: Owner approved two-layer fix for #6016. Android layer only in this release; server-to-server Apps Script origins fallback (api/V2OrderOrigins.gs) still requires owner deployment (Render SATORI_V2_ORIGINS_SECRET + Apps Script properties/trigger). Same package, original pinned signer, never distribute debug APK.",
+    "2026-11-25 21:20: Owner screenshots show #6013-#6016 all 'Chưa xác định' (all V2 UUID checkouts). Owner said 'Fix ngay': ship v0.4.63 build80 with silent V2 session renewal."
   ],
   "requiresFcm": true
 }

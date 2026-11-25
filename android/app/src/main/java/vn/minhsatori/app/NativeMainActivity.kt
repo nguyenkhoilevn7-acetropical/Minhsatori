@@ -1457,11 +1457,12 @@ class NativeMainActivity : AppCompatActivity() {
         if (v2OriginsInFlight || (v2OriginsFetchedAtMs != 0L && now - v2OriginsFetchedAtMs < 60_000)) return
         val cookie = V2RegistrationAlerts.cookie()
         if (!cookie.contains("satori_v2_session=")) {
-            // No V2 session on this phone: tell the owner why V2 orders are unverified.
+            // No V2 session on this phone: tell the owner why, and try to renew it.
             if (v2OriginsFeed != V2OrderOriginsClient.FeedState.NO_SESSION) {
                 v2OriginsFeed = V2OrderOriginsClient.FeedState.NO_SESSION
                 if (!isFinishing && !isDestroyed) render()
             }
+            renewV2SessionThenRefresh(force = false)
             return
         }
         v2OriginsInFlight = true
@@ -1481,11 +1482,29 @@ class NativeMainActivity : AppCompatActivity() {
                             v2Origins = fresh
                         }
                         if (changed && !isFinishing && !isDestroyed) render()
+                        // 7-day V2 session expired: renew it silently, then read again.
+                        if (result.state == V2OrderOriginsClient.FeedState.SESSION_EXPIRED)
+                            renewV2SessionThenRefresh(force = false)
                     }
                 } catch (_: Exception) {
                 } finally { v2OriginsInFlight = false }
             }
         } catch (_: Exception) { v2OriginsInFlight = false }
+    }
+
+    /**
+     * Renews the owner V2 session with an already-authorized Google account (no picker
+     * when only one), verifies isAdmin on the server, then re-reads ordering accounts.
+     * Throttled inside V2SessionRenewal; failure leaves the explanation + button visible.
+     */
+    private fun renewV2SessionThenRefresh(force: Boolean, onFailure: (() -> Unit)? = null) {
+        if (isFinishing || isDestroyed || !foreground) return
+        V2SessionRenewal.renew(this, force) { ok ->
+            if (ok) {
+                v2OriginsFetchedAtMs = 0L
+                refreshV2Origins()
+            } else onFailure?.invoke()
+        }
     }
 
     private fun render() {
@@ -4603,18 +4622,23 @@ class NativeMainActivity : AppCompatActivity() {
             if (v2Unverified && (v2OriginsFeed == V2OrderOriginsClient.FeedState.SESSION_EXPIRED ||
                     v2OriginsFeed == V2OrderOriginsClient.FeedState.NO_SESSION)) {
                 val relogin = TextView(this).apply {
-                    text = "Đăng nhập lại V2"
+                    text = "Gia hạn phiên V2"
                     textSize = 14f; gravity = Gravity.CENTER
                     setTypeface(typeface, Typeface.BOLD)
                     setTextColor(Color.WHITE)
                     background = panelBackground(brandGreen, 12)
                     setPadding(dp(14), dp(10), dp(14), dp(10))
                     isClickable = true; isFocusable = true
-                    contentDescription = "Đăng nhập lại V2 để xác minh tài khoản đặt hàng"
+                    contentDescription = "Gia hạn phiên V2 để xác minh tài khoản đặt hàng"
                     setOnClickListener {
                         v2OriginsFetchedAtMs = 0L // re-check as soon as the owner comes back
-                        startActivity(Intent(this@NativeMainActivity,
-                            AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
+                        Toast.makeText(this@NativeMainActivity,
+                            "Đang gia hạn phiên V2 bằng Gmail chủ shop…", Toast.LENGTH_SHORT).show()
+                        renewV2SessionThenRefresh(force = true) {
+                            // Silent renewal impossible (no authorized account): full login screen.
+                            startActivity(Intent(this@NativeMainActivity,
+                                AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
+                        }
                     }
                 }
                 orderingCard.addView(relogin, LinearLayout.LayoutParams(-1, -2).apply {

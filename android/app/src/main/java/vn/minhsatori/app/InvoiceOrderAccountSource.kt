@@ -23,9 +23,9 @@ internal object InvoiceOrderAccountSource {
     const val MANUAL = "Chủ shop tạo thủ công (web-app/App)"
     const val V2_SESSION_EXPIRED_CARD = "Đơn V2 · chưa xác minh tài khoản (phiên V2 trên máy đã hết hạn)"
     const val V2_SESSION_EXPIRED_DETAIL =
-        "Đơn đặt qua V2. Chưa xác minh được tài khoản vì phiên đăng nhập V2 trên máy đã hết hạn " +
-        "(phiên V2 chỉ có hạn 7 ngày). Bấm \"Đăng nhập lại V2\" bên dưới và đăng nhập Google chủ shop; " +
-        "tài khoản đặt hàng sẽ tự hiện khi quay lại app."
+        "Đơn đặt qua V2. Phiên đăng nhập V2 trên máy đã hết hạn (chỉ có hạn 7 ngày) nên chưa đọc được " +
+        "tài khoản đặt hàng. App đang tự gia hạn bằng Gmail chủ shop; nếu vẫn hiện dòng này, bấm " +
+        "\"Gia hạn phiên V2\" bên dưới."
     const val V2_UNAVAILABLE_CARD = "Đơn V2 · chưa xác minh tài khoản (máy chủ V2 chưa phản hồi)"
     const val V2_UNAVAILABLE_DETAIL =
         "Đơn đặt qua V2. Máy chủ V2 chưa phản hồi (có thể đang khởi động). Tài khoản đặt hàng sẽ tự hiện khi kết nối lại."
