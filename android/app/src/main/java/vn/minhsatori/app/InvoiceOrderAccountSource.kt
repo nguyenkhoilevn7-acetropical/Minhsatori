@@ -21,6 +21,18 @@ internal object InvoiceOrderAccountSource {
     const val CHATGPT = "ChatGPT"
     const val AI_BOT_API = "Trợ lý AI qua Bot API"
     const val MANUAL = "Chủ shop tạo thủ công (web-app/App)"
+    const val V2_SESSION_EXPIRED_CARD = "Đơn V2 · chưa xác minh tài khoản (phiên V2 trên máy đã hết hạn)"
+    const val V2_SESSION_EXPIRED_DETAIL =
+        "Đơn đặt qua V2. Phiên đăng nhập V2 trên máy đã hết hạn (chỉ có hạn 7 ngày) nên chưa đọc được " +
+        "tài khoản đặt hàng. App đang tự gia hạn bằng Gmail chủ shop; nếu vẫn hiện dòng này, bấm " +
+        "\"Gia hạn phiên V2\" bên dưới."
+    const val V2_UNAVAILABLE_CARD = "Đơn V2 · chưa xác minh tài khoản (máy chủ V2 chưa phản hồi)"
+    const val V2_UNAVAILABLE_DETAIL =
+        "Đơn đặt qua V2. Máy chủ V2 chưa phản hồi (có thể đang khởi động). Tài khoản đặt hàng sẽ tự hiện khi kết nối lại."
+    const val V2_NO_EVIDENCE_CARD = "Đơn V2 · chưa có bằng chứng tài khoản đặt hàng"
+    const val V2_NO_EVIDENCE_DETAIL =
+        "Đơn đặt qua V2, nhưng máy chủ V2 không có checkout đã chốt khớp đúng mã hóa đơn và mã yêu cầu. " +
+        "Không đoán tài khoản theo tên, số điện thoại hay địa chỉ người nhận."
 
     enum class Creator { V2_ACCOUNT, CHATGPT, AI_BOT_API, V2_UNVERIFIED, MANUAL, UNKNOWN }
 
@@ -70,10 +82,35 @@ internal object InvoiceOrderAccountSource {
         }
     }
 
+    /**
+     * A V2 checkout (Bot API + UUID request id) with no verified origin: say WHY instead of a
+     * silent "Chưa xác định". [feed] is the state of the live V2 feed on this phone; null keeps
+     * the old wording (no reason known). Never names an account without server evidence.
+     */
+    fun explainUnverifiedV2(display: Display, feed: V2OrderOriginsClient.FeedState?): Display {
+        if (display.creator != Creator.V2_UNVERIFIED || feed == null) return display
+        return when (feed) {
+            V2OrderOriginsClient.FeedState.NO_SESSION,
+            V2OrderOriginsClient.FeedState.SESSION_EXPIRED ->
+                display.copy(card = V2_SESSION_EXPIRED_CARD, detail = V2_SESSION_EXPIRED_DETAIL)
+            V2OrderOriginsClient.FeedState.UNAVAILABLE ->
+                display.copy(card = V2_UNAVAILABLE_CARD, detail = V2_UNAVAILABLE_DETAIL)
+            V2OrderOriginsClient.FeedState.OK ->
+                display.copy(card = V2_NO_EVIDENCE_CARD, detail = V2_NO_EVIDENCE_DETAIL)
+        }
+    }
+
     fun resolve(
         invoice: SatoriInvoice,
         snapshot: SatoriSnapshot?,
-        v2Origins: List<SatoriOrderOrigin> = emptyList()
+        v2Origins: List<SatoriOrderOrigin> = emptyList(),
+        v2Feed: V2OrderOriginsClient.FeedState? = null
+    ): Display = explainUnverifiedV2(resolveVerified(invoice, snapshot, v2Origins), v2Feed)
+
+    private fun resolveVerified(
+        invoice: SatoriInvoice,
+        snapshot: SatoriSnapshot?,
+        v2Origins: List<SatoriOrderOrigin>
     ): Display {
         if (invoice.id.isBlank() || invoice.number.isBlank()) return unknown
         fun matching(feed: List<SatoriOrderOrigin>) = feed.filter {

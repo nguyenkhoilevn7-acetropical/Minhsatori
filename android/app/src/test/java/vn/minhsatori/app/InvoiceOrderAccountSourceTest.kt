@@ -232,6 +232,35 @@ class InvoiceOrderAccountSourceTest {
         assertEquals(InvoiceOrderAccountSource.UNKNOWN, display.card)
     }
 
+    @Test fun uuidV2BillExplainsExpiredSessionInsteadOfSilentUnknown() {
+        val invoice = bill()
+        for (feed in listOf(V2OrderOriginsClient.FeedState.SESSION_EXPIRED,
+                            V2OrderOriginsClient.FeedState.NO_SESSION)) {
+            val display = InvoiceOrderAccountSource.resolve(invoice, ledger(invoice), emptyList(), feed)
+            assertFalse(display.verifiedLogin)
+            assertEquals(InvoiceOrderAccountSource.Creator.V2_UNVERIFIED, display.creator)
+            assertEquals(InvoiceOrderAccountSource.V2_SESSION_EXPIRED_CARD, display.card)
+            assertEquals(InvoiceOrderAccountSource.V2_SESSION_EXPIRED_DETAIL, display.detail)
+        }
+        assertEquals(InvoiceOrderAccountSource.V2_UNAVAILABLE_CARD, InvoiceOrderAccountSource.resolve(
+            invoice, ledger(invoice), emptyList(), V2OrderOriginsClient.FeedState.UNAVAILABLE).card)
+        assertEquals(InvoiceOrderAccountSource.V2_NO_EVIDENCE_CARD, InvoiceOrderAccountSource.resolve(
+            invoice, ledger(invoice), emptyList(), V2OrderOriginsClient.FeedState.OK).card)
+    }
+
+    @Test fun feedStateNeverRelabelsVerifiedOrOtherChannels() {
+        val invoice = bill()
+        val verified = InvoiceOrderAccountSource.resolve(invoice, ledger(invoice), listOf(v2(invoice)),
+            V2OrderOriginsClient.FeedState.SESSION_EXPIRED)
+        assertTrue(verified.verifiedLogin)
+        val chatgpt = bill(requestId = "chatgpt-20261125-a")
+        assertEquals("Tạo bởi: ChatGPT", InvoiceOrderAccountSource.resolve(chatgpt, ledger(chatgpt),
+            emptyList(), V2OrderOriginsClient.FeedState.SESSION_EXPIRED).card)
+        val manual = bill(source = "", requestId = "")
+        assertEquals(InvoiceOrderAccountSource.Creator.MANUAL, InvoiceOrderAccountSource.resolve(
+            manual, ledger(manual), emptyList(), V2OrderOriginsClient.FeedState.SESSION_EXPIRED).creator)
+    }
+
     @Test fun billsWithoutBotApiAreManual() {
         val invoice = bill(source = "", requestId = "")
         val display = InvoiceOrderAccountSource.resolve(invoice, ledger(invoice))

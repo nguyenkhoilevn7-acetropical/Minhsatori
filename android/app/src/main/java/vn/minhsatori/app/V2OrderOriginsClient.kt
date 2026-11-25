@@ -52,23 +52,39 @@ object V2OrderOriginsClient {
         )
     }
 
-    /** Network call; run off the UI thread. Null = unavailable (keep last good copy). */
-    fun fetch(cookie: String): Pair<String, List<SatoriOrderOrigin>>? {
-        if (!cookie.contains("satori_v2_session=")) return null
-        val c = (URL(V2RegistrationAlerts.ORIGIN + PATH).openConnection() as HttpsURLConnection).apply {
-            connectTimeout = 15000; readTimeout = 45000 // free Render plan may cold-start
-            instanceFollowRedirects = false; requestMethod = "GET"
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("Cache-Control", "no-store")
-            setRequestProperty("Cookie", cookie)
-        }
-        return try {
-            if (c.responseCode != 200) null
-            else {
-                val body = c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                parse(body)?.let { body to it }
+    /** Why the live V2 feed did or did not answer; shown to the owner, never secret. */
+    enum class FeedState { OK, NO_SESSION, SESSION_EXPIRED, UNAVAILABLE }
+
+    data class FetchResult(
+        val state: FeedState,
+        val body: String? = null,
+        val origins: List<SatoriOrderOrigin>? = null
+    )
+
+    /** Network call; run off the UI thread. Only OK carries a document (keep last good copy otherwise). */
+    fun fetch(cookie: String): FetchResult {
+        if (!cookie.contains("satori_v2_session=")) return FetchResult(FeedState.NO_SESSION)
+        val c = try {
+            (URL(V2RegistrationAlerts.ORIGIN + PATH).openConnection() as HttpsURLConnection).apply {
+                connectTimeout = 15000; readTimeout = 45000 // free Render plan may cold-start
+                instanceFollowRedirects = false; requestMethod = "GET"
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Cache-Control", "no-store")
+                setRequestProperty("Cookie", cookie)
             }
-        } catch (_: Exception) { null } finally { c.disconnect() }
+        } catch (_: Exception) { return FetchResult(FeedState.UNAVAILABLE) }
+        return try {
+            when (c.responseCode) {
+                200 -> {
+                    val body = c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    parse(body)?.let { FetchResult(FeedState.OK, body, it) }
+                        ?: FetchResult(FeedState.UNAVAILABLE)
+                }
+                // The 7-day V2 web session expired or was revoked: the server answers 401/403.
+                401, 403 -> FetchResult(FeedState.SESSION_EXPIRED)
+                else -> FetchResult(FeedState.UNAVAILABLE)
+            }
+        } catch (_: Exception) { FetchResult(FeedState.UNAVAILABLE) } finally { c.disconnect() }
     }
 
     /** Last good server document, kept in app-private storage for offline display. */
