@@ -122,6 +122,8 @@ class NativeMainActivity : AppCompatActivity() {
     private var v2Origins: List<SatoriOrderOrigin> = emptyList()
     private var v2OriginsFetchedAtMs = 0L
     @Volatile private var v2OriginsInFlight = false
+    /** Last answer of the live V2 origins feed; null = not asked yet on this launch. */
+    private var v2OriginsFeed: V2OrderOriginsClient.FeedState? = null
     private var lastOAuthRecoveryAt = 0L
     private val oauthRetryBackoffMs = 300_000L
     private val newOrderChannelId = "minh_satori_live_orders"
@@ -540,6 +542,8 @@ class NativeMainActivity : AppCompatActivity() {
         syncHandler.postDelayed(syncTick, syncIntervalMs)
         v2AlertHandler.removeCallbacks(v2AlertTick)
         v2AlertHandler.post(v2AlertTick)
+        // Coming back from the V2 login screen must re-check ordering accounts at once.
+        if (snapshot != null) refreshV2Origins()
         // Resume promptly checks orders written while another app was open.
         if (!isLoading && !authorizationPending && !authorizationDeclined) {
             if (preferredSource() == AutoSyncPolicy.DRIVE && snapshot != null &&
@@ -1452,20 +1456,31 @@ class NativeMainActivity : AppCompatActivity() {
         val now = SystemClock.elapsedRealtime()
         if (v2OriginsInFlight || (v2OriginsFetchedAtMs != 0L && now - v2OriginsFetchedAtMs < 60_000)) return
         val cookie = V2RegistrationAlerts.cookie()
-        if (!cookie.contains("satori_v2_session=")) return
+        if (!cookie.contains("satori_v2_session=")) {
+            // No V2 session on this phone: tell the owner why V2 orders are unverified.
+            if (v2OriginsFeed != V2OrderOriginsClient.FeedState.NO_SESSION) {
+                v2OriginsFeed = V2OrderOriginsClient.FeedState.NO_SESSION
+                if (!isFinishing && !isDestroyed) render()
+            }
+            return
+        }
         v2OriginsInFlight = true
         v2OriginsFetchedAtMs = now
         try {
             v2AlertExecutor.execute {
                 try {
                     val result = V2OrderOriginsClient.fetch(cookie)
-                    if (result != null) {
-                        V2OrderOriginsClient.store(applicationContext, result.first)
-                        runOnUiThread {
-                            val changed = result.second != v2Origins
-                            v2Origins = result.second
-                            if (changed && !isFinishing && !isDestroyed) render()
+                    if (result.state == V2OrderOriginsClient.FeedState.OK && result.body != null)
+                        V2OrderOriginsClient.store(applicationContext, result.body)
+                    runOnUiThread {
+                        var changed = result.state != v2OriginsFeed
+                        v2OriginsFeed = result.state
+                        val fresh = result.origins
+                        if (fresh != null) {
+                            changed = changed || fresh != v2Origins
+                            v2Origins = fresh
                         }
+                        if (changed && !isFinishing && !isDestroyed) render()
                     }
                 } catch (_: Exception) {
                 } finally { v2OriginsInFlight = false }
@@ -3053,7 +3068,7 @@ class NativeMainActivity : AppCompatActivity() {
                                           invoice: SatoriInvoice,
                                           data: SatoriSnapshot) {
         val card = parent.getChildAt(parent.childCount - 1) as? LinearLayout ?: return
-        val source = InvoiceOrderAccountSource.resolve(invoice, data, v2Origins)
+        val source = InvoiceOrderAccountSource.resolve(invoice, data, v2Origins, v2OriginsFeed)
         val actions = card.getChildAt(card.childCount - 1) ?: return
         card.removeView(actions)
         val detail = label(card, source.card, 11.5f, true,
@@ -4320,7 +4335,7 @@ class NativeMainActivity : AppCompatActivity() {
     }
 
     private fun openInvoice(invoice: SatoriInvoice) {
-        val orderOrigin = InvoiceOrderAccountSource.resolve(invoice, snapshot, v2Origins)
+        val orderOrigin = InvoiceOrderAccountSource.resolve(invoice, snapshot, v2Origins, v2OriginsFeed)
         // One shared fullscreen detail page for Home, Invoices, Debt, Customers
         // and notification entrypoints. It is not a narrow Android alert popup.
         var invoiceDialog: AlertDialog? = null
@@ -4581,8 +4596,31 @@ class NativeMainActivity : AppCompatActivity() {
                 orderOrigin.roleDetail, brandGreen, brandPale)
         } else {
             // Not a verified V2 account: show the ledger creation channel
-            // (ChatGPT / AI via Bot API / manual) or "Chưa xác định".
-            label(orderingCard, orderOrigin.card, 12f, true, softInk, 4)
+            // (ChatGPT / AI via Bot API / manual) or, for a V2 checkout, WHY it is unverified.
+            val v2Unverified = orderOrigin.creator == InvoiceOrderAccountSource.Creator.V2_UNVERIFIED
+            label(orderingCard, if (v2Unverified) orderOrigin.detail else orderOrigin.card,
+                12f, true, softInk, 4)
+            if (v2Unverified && (v2OriginsFeed == V2OrderOriginsClient.FeedState.SESSION_EXPIRED ||
+                    v2OriginsFeed == V2OrderOriginsClient.FeedState.NO_SESSION)) {
+                val relogin = TextView(this).apply {
+                    text = "Đăng nhập lại V2"
+                    textSize = 14f; gravity = Gravity.CENTER
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(Color.WHITE)
+                    background = panelBackground(brandGreen, 12)
+                    setPadding(dp(14), dp(10), dp(14), dp(10))
+                    isClickable = true; isFocusable = true
+                    contentDescription = "Đăng nhập lại V2 để xác minh tài khoản đặt hàng"
+                    setOnClickListener {
+                        v2OriginsFetchedAtMs = 0L // re-check as soon as the owner comes back
+                        startActivity(Intent(this@NativeMainActivity,
+                            AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
+                    }
+                }
+                orderingCard.addView(relogin, LinearLayout.LayoutParams(-1, -2).apply {
+                    topMargin = dp(8)
+                })
+            }
         }
 
         val customerCard = invoiceSection(customerBlock,
