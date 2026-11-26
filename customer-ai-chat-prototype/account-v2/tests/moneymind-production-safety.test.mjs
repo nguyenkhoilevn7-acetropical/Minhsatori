@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
+// Nov 26: scoped GIS recovery in login boot only; original non-script and checkout assertions remain.
 const files=[
- ['account-v2/app.html','75230ca4','mm-bottom-nav'],
+ ['account-v2/app.html','5ae499b9','mm-bottom-nav'],
  ['admin.html','f050de35','mm-admin-bottom']
 ];
 const withoutUi25d=html=>html
