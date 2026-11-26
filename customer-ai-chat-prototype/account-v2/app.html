@@ -5120,8 +5120,51 @@ async function boot(){
     status.customerRolloutEnabled?
     'Đăng nhập bằng tài khoản Google đã được duyệt để đặt hàng.':
     'Pilot chỉ dành cho Admin đã xác minh bằng Google.';
+  // Google GIS recovery: embedded browsers can display a blank OAuth popup.
+  // Never bypass Google's identity verification or the existing approval gate.
+  const embedded=/Zalo|FBAN|FBAV|Instagram|Line\//i.test(navigator.userAgent||'') ||
+    /;\s*wv\)/i.test(navigator.userAgent||'');
+  const signIn=$('signIn');
+  const help=document.createElement('details');
+  help.id='googleLoginRecovery';
+  help.open=embedded;
+  help.style.cssText='font-size:13px;text-align:left;margin:12px 0;line-height:1.5';
+  const summary=document.createElement('summary');
+  summary.textContent='Không đăng nhập được hoặc màn hình trắng?';
+  const instructions=document.createElement('p');
+  instructions.textContent='Sao chép link bên dưới, thoát Zalo rồi mở trực tiếp ứng dụng Safari hoặc Chrome. Dán link vào thanh địa chỉ và đăng nhập đúng Gmail đã đăng ký.';
+  const address=document.createElement('input');
+  address.type='text';address.readOnly=true;address.value=location.origin+'/app-v2';
+  address.setAttribute('aria-label','Đường dẫn đặt hàng');
+  address.style.cssText='width:100%;box-sizing:border-box;padding:8px;margin:4px 0;font-size:13px';
+  const copy=document.createElement('button');
+  copy.type='button';copy.textContent='Sao chép link đặt hàng';
+  copy.style.cssText='width:100%;padding:9px;border:1px solid #94a3b8;border-radius:8px;background:white;color:#142637';
+  const feedback=document.createElement('p');
+  feedback.setAttribute('role','status');
+  copy.onclick=async()=>{
+   try{
+    await navigator.clipboard.writeText(address.value);
+    feedback.textContent='Đã sao chép. Hãy mở Safari hoặc Chrome để dán link.';
+   }catch{
+    address.focus();address.select();address.setSelectionRange(0,address.value.length);
+    feedback.textContent='Nhấn giữ đường dẫn và chọn Sao chép.';
+   }
+  };
+  help.append(summary,instructions,address,copy,feedback);
+  signIn.insertAdjacentElement('afterend',help);
+  let attempts=0;
   const init=()=>{
-   if(!window.google?.accounts?.id){setTimeout(init,200);return}
+   if(embedded){
+    $('loginStatus').textContent='Vui lòng mở link bằng Safari hoặc Chrome bên ngoài ứng dụng để đăng nhập Google.';
+    return;
+   }
+   if(!window.google?.accounts?.id){
+    if(++attempts<40){setTimeout(init,200);return}
+    help.open=true;
+    $('loginStatus').textContent='Google chưa tải được. Hãy thử mở lại trang bằng Safari hoặc Chrome.';
+    return;
+   }
    google.accounts.id.initialize({client_id:status.googleClientId,callback:async result=>{
     try{
      await call('/api/v2/auth/google',{credential:result.credential});
