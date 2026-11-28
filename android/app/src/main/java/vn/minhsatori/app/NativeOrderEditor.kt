@@ -81,8 +81,9 @@ object NativeOrderEditor {
     private fun amount(s:String)=SatoriOrderValidation.amount(s)
     private data class Row(
         val view:LinearLayout,val name:EditText,val qty:EditText,val unit:EditText,
-        val price:EditText,val listPrice:EditText,val vatRate:EditText,
-        val vatExempt:CheckBox,val taxControls:LinearLayout,var code:String
+        val price:EditText,val listPrice:EditText,val discount:EditText,val vatRate:EditText,
+        val vatExempt:CheckBox,val taxControls:LinearLayout,var code:String,
+        var discountDriven:Boolean=false
     )
     fun show(
         a:AppCompatActivity,
@@ -169,9 +170,19 @@ object NativeOrderEditor {
                 }
             }.getOrNull()
         }
+        fun validatedPrice(row:Row):Long {
+            val price=amount(row.price.text.toString())
+            if(row.discountDriven) {
+                require(price==SatoriLineDiscount.unitPrice(
+                    amount(row.listPrice.text.toString()),row.discount.text.toString())) {
+                    "Đơn giá và chiết khấu không khớp. Kiểm tra lại."
+                }
+            }
+            return price
+        }
         fun totalGoods():Long=rows.fold(0L){acc,row->
             SatoriOrderValidation.sum(acc,SatoriOrderValidation.lineAmount(
-                amount(row.qty.text.toString()),amount(row.price.text.toString())))
+                amount(row.qty.text.toString()),validatedPrice(row)))
         }
         fun totalVat():Long=rows.fold(0L){acc,row->
             val subtotal=SatoriOrderValidation.lineAmount(
@@ -239,6 +250,9 @@ object NativeOrderEditor {
             val unit=input(a,card,"Đơn vị",old?.unit?:"Thùng")
             val price=input(a,card,"Đơn giá (đ)",old?.unitPrice?.toString().orEmpty(),numeric=true)
             val list=input(a,card,"Giá niêm yết (đ)",old?.listPrice?.toString().orEmpty(),numeric=true)
+            val discount=input(a,card,"Chiết khấu (%)",
+                old?.let { SatoriLineDiscount.fromPrices(it.listPrice,it.unitPrice) }.orEmpty(),
+                percentage=true)
             val taxControls=LinearLayout(a).apply {
                 orientation=LinearLayout.VERTICAL
                 visibility=if(perLine.isChecked) android.view.View.VISIBLE else android.view.View.GONE
@@ -256,8 +270,37 @@ object NativeOrderEditor {
                 vatRate.isEnabled=!exempt
                 recalc()
             }
-            val entry=Row(card,product,qty,unit,price,list,vatRate,vatExempt,taxControls,old?.code.orEmpty())
+            val entry=Row(card,product,qty,unit,price,list,discount,vatRate,vatExempt,taxControls,old?.code.orEmpty())
             rows.add(entry)
+            // Last edited price/discount controls this row. Never rewrite a historical
+            // price using the rounded display percent until the owner edits that percent.
+            var syncing=false
+            fun syncDiscount() {
+                if(syncing) return
+                syncing=true
+                try {
+                    if(entry.discountDriven) {
+                        val result=runCatching {
+                            SatoriLineDiscount.unitPrice(amount(list.text.toString()),
+                                discount.text.toString())
+                        }
+                        result.onSuccess {
+                            discount.error=null
+                            if(price.text.toString()!=it.toString()) price.setText(it.toString())
+                        }.onFailure { discount.error=it.message }
+                    } else {
+                        discount.error=null
+                        val inferred=runCatching {
+                            if(price.text.isBlank()) "" else SatoriLineDiscount.fromPrices(
+                                amount(list.text.toString()),amount(price.text.toString()))
+                        }.getOrDefault("")
+                        if(discount.text.toString()!=inferred) discount.setText(inferred)
+                    }
+                } finally { syncing=false }
+            }
+            watcher(price) { if(!syncing) { entry.discountDriven=false;syncDiscount() } }
+            watcher(list) { if(!syncing) syncDiscount() }
+            watcher(discount) { if(!syncing) { entry.discountDriven=true;syncDiscount() } }
             action(a,card,"CHỌN HÀNG TỪ DANH MỤC"){
                 if(state.products.isEmpty()) Toast.makeText(a,"Danh mục chưa đồng bộ.",Toast.LENGTH_SHORT).show()
                 else AlertDialog.Builder(a).setTitle("Chọn hàng Satori")
@@ -265,9 +308,14 @@ object NativeOrderEditor {
                         val x=state.products[i]
                         product.setText(x.name)
                         unit.setText(x.unit)
-                        price.setText(x.unitPrice.toString())
-                        list.setText(x.listPrice.toString())
-                        entry.code=x.code
+                        syncing=true
+                        try {
+                            entry.discountDriven=false
+                            price.setText(x.unitPrice.toString())
+                            list.setText(x.listPrice.toString())
+                            entry.code=x.code
+                        } finally { syncing=false }
+                        syncDiscount()
                         recalc()
                     }.setNegativeButton("Đóng",null).show()
             }
@@ -275,7 +323,7 @@ object NativeOrderEditor {
                 if(rows.size==1)Toast.makeText(a,"Đơn cần ít nhất 1 sản phẩm.",Toast.LENGTH_SHORT).show()
                 else{rows.remove(entry);items.removeView(card);recalc()}
             }
-            watcher(qty);watcher(price);watcher(vatRate);recalc()
+            watcher(qty);watcher(vatRate);recalc()
         }
         if(editing==null||editing.lines.isEmpty())addRow() else editing.lines.forEach{addRow(it)}
         action(a,page,"+ THÊM SẢN PHẨM"){addRow()}
@@ -322,7 +370,7 @@ object NativeOrderEditor {
                     rows.forEach{
                         val product=it.name.text.toString().trim()
                         val qty=amount(it.qty.text.toString())
-                        val price=amount(it.price.text.toString())
+                        val price=validatedPrice(it)
                         require(product.length>=2&&qty in 1L..100000L&&price<=10000000000L){
                             "Thiếu sản phẩm, sai số lượng hoặc đơn giá."
                         }
@@ -408,6 +456,8 @@ object NativeOrderEditor {
                         preview.append("\n").append(line.getString("product")).append(" × ")
                             .append(line.getInt("qty")).append(" = ")
                             .append(SatoriData.money(SatoriOrderValidation.lineAmount(line.getLong("qty"),line.getLong("unitPrice"))))
+                        val ck=SatoriLineDiscount.fromPrices(line.getLong("listPrice"),line.getLong("unitPrice"))
+                        if(ck.isNotBlank()) preview.append(" · CK ").append(ck).append("%")
                         if(perLine.isChecked) preview.append(" · VAT ")
                             .append(line.getDouble("vatRate")).append("%: ")
                             .append(SatoriData.money(line.getLong("vatAmount")))
