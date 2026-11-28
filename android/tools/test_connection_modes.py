@@ -18,7 +18,9 @@ class ConnectionModeTests(unittest.TestCase):
 
     def test_drive_oauth_not_lost_with_saved_sandbox_api(self):
         block = SOURCE.split("private fun connectGoogle(automatic: Boolean = false", 1)[1].split("private fun applyAuthorization", 1)[0]
-        self.assertIn("apiEndpoint == null || preferGoogleDrive()", block)
+        self.assertIn("if (!emailOnlyFallback)", block)
+        self.assertIn("connectGoogle(automatic = true, emailOnlyFallback = true)", block)
+        self.assertIn("Mobile API versions may omit the CTV registry", block)
         self.assertIn("https://www.googleapis.com/auth/drive.readonly", block)
         auth = SOURCE.split("private fun applyAuthorization", 1)[1].split("private fun refreshFromDrive", 1)[0]
         self.assertIn("if (preferGoogleDrive() || apiEndpoint == null) refreshFromDrive()", auth)
@@ -57,8 +59,20 @@ class ConnectionModeTests(unittest.TestCase):
         self.assertNotIn('XEM TRẢI NGHIỆM ĐẶT HÀNG', section)
         portal = (Path(__file__).resolve().parent.parent /
             'app/src/main/java/vn/minhsatori/app/AiCustomerPortalActivity.kt').read_text(encoding='utf-8')
-        self.assertIn('val initialUrl = if (ownerMode) AiSandboxContract.BASE_URL + "/admin"', portal)
-        self.assertIn('Gemini • Quản trị chủ tài khoản', portal)
+        # Legacy native buttons now hand off BEFORE constructing the old WebView.
+        redirect = portal.split('if (ownerMode) {', 1)[1].split('val suppliedCustomerUrl', 1)[0]
+        self.assertIn('V2OwnerCrmActivity::class.java', redirect)
+        self.assertIn('.putExtra("portal", "gemini")', redirect)
+        self.assertIn('finish()', redirect)
+        self.assertIn('return', redirect)
+        owner = portal.split('class V2OwnerCrmActivity', 1)[1]
+        self.assertIn('optBoolean("isAdmin") == true', owner)
+        self.assertIn('if (geminiMode) "/app-v2" else "/owner-v2"', owner)
+        self.assertIn('u.path == portalPath || u.path == portalPath + "/"', owner)
+        self.assertNotIn('AiSandboxContract.BASE_URL', owner)
+        recovery = SOURCE.split('// Silent renewal impossible', 1)[1].split('orderingCard.addView', 1)[0]
+        self.assertIn('V2OwnerCrmActivity::class.java', recovery)
+        self.assertNotIn('AiCustomerPortalActivity::class.java', recovery)
 
     def test_writes_remain_server_scoped(self):
         self.assertIn('dataSource == "Minh Satori API" && allowedActions.contains(action)', SOURCE)

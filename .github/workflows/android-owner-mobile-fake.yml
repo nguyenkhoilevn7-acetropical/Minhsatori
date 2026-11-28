@@ -2,6 +2,8 @@ name: Minh Satori Owner Android Mobile API (FAKE only)
 on:
   pull_request:
     paths:
+      - 'api/V2OrderOrigins.gs'
+      - 'tests/v2-order-origins.test.cjs'
       - 'api/AndroidOwnerMobileApi.gs'
       - 'api/BotApi.gs'
       - 'tests/android-owner-mobile-production.test.cjs'
@@ -14,6 +16,8 @@ on:
     branches:
       - 'fix/android-live-foreground-sync-trash-20261023'
     paths:
+      - 'api/V2OrderOrigins.gs'
+      - 'tests/v2-order-origins.test.cjs'
       - 'api/AndroidOwnerMobileApi.gs'
       - 'api/BotApi.gs'
       - 'tests/android-owner-mobile-production.test.cjs'
@@ -30,3 +34,6 @@ jobs:
           node-version: '22'
       - name: Test private OAuth owner mobile API with fake only
         run: node tests/android-owner-mobile-production.test.cjs && node tests/android-owner-invoice-edit.test.cjs && node tests/owner-payment-connector-parity.test.cjs && node tests/android-payment-completion.test.cjs
+
+      - name: Verified V2 origins (synthetic only)
+        run: node --test tests/v2-order-origins.test.cjs

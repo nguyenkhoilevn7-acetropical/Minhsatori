@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="satori_teal">#007AFF</color>
-    <color name="satori_ink">#1C1C1E</color>
-    <color name="satori_background">#F2F2F7</color>
-    <color name="satori_primary">#007AFF</color>
-    <color name="satori_header">#FFFFFF</color>
+    <!-- Base color only: user-selected UI25D theme lives in SatoriUiTheme preferences. -->
+    <color name="satori_teal">#008E8C</color>
+    <color name="satori_ink">#102B38</color>
+    <color name="satori_background">#F1F4F5</color>
+    <color name="satori_primary">#008E8C</color>
+    <color name="satori_header">#006D70</color>
 </resources>

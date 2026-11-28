@@ -38,19 +38,17 @@ object NativeInvoicePdf {
             val result = runCatching {
                 val folder = File(context.cacheDir, "shared_invoices")
                 require(folder.isDirectory || folder.mkdirs()) { "Không tạo được thư mục PDF." }
-                val safeNumber = invoice.number
-                    .replace(Regex("[^a-zA-Z0-9_-]"), "").take(24)
-                val output = File(folder, "MinhSatori_HD_" +
-                    safeNumber.ifBlank { "invoice" } + ".pdf")
+                val output = File(folder, InvoicePdfFilename.forInvoice(invoice))
                 WebsiteInvoicePdf.render(context, invoice, output)
                 require(output.length() > 100) { "File PDF không hợp lệ." }
-                output
+                // Off the UI thread: copy into Download/Minh Satori (null = fallback).
+                output to SharedInvoiceDownload.publish(context, output)
             }
             Handler(Looper.getMainLooper()).post {
                 if (context is Activity && context.isFinishing) return@post
                 result.fold(
-                    onSuccess = { file ->
-                        runCatching { openShare(context, invoice, file, target) }
+                    onSuccess = { (file, publicUri) ->
+                        runCatching { openShare(context, invoice, file, publicUri, target) }
                             .onFailure { err ->
                                 Toast.makeText(context,
                                     "Không chia sẻ được PDF: " + (err.message ?: "Lỗi"),
@@ -68,8 +66,10 @@ object NativeInvoicePdf {
     }
 
     private fun openShare(context: Context, invoice: SatoriInvoice, file: File,
-                          target: String?) {
-        val uri = FileProvider.getUriForFile(
+                          publicUri: android.net.Uri?, target: String?) {
+        // Public Downloads copy first (keeps the exact name in Zalo); private
+        // FileProvider only when that is unavailable.
+        val uri = publicUri ?: FileProvider.getUriForFile(
             context, context.packageName + ".fileprovider", file)
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "application/pdf"
@@ -77,7 +77,8 @@ object NativeInvoicePdf {
             putExtra(Intent.EXTRA_SUBJECT, "Hóa đơn Minh Satori #" + invoice.number)
             putExtra(Intent.EXTRA_TEXT, WebsiteInvoicePdf.shareMessage(invoice))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            clipData = ClipData.newUri(context.contentResolver, "Hóa đơn Minh Satori", uri)
+            putExtra(Intent.EXTRA_TITLE, file.name)
+            clipData = ClipData.newUri(context.contentResolver, file.name, uri)
         }
         if (target != null) {
             try {
@@ -100,8 +101,7 @@ object NativeInvoicePdf {
             val result = runCatching {
                 val directory = File(activity.cacheDir, "shared_invoices")
                 require(directory.isDirectory || directory.mkdirs())
-                val name = invoice.number.replace(Regex("[^a-zA-Z0-9_-]"), "").take(24)
-                val file = File(directory, "Preview_" + name.ifBlank { "invoice" } + ".pdf")
+                val file = File(directory, InvoicePdfFilename.forInvoice(invoice))
                 WebsiteInvoicePdf.render(activity, invoice, file)
                 require(file.length() > 100L) { "Không tạo được PDF." }
                 val images = ArrayList<Bitmap>()

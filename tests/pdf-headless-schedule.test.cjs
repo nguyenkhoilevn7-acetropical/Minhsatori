@@ -94,5 +94,9 @@ for(const job of first.jobs){
 }
 const repeated=fakeCtx.SatoriInvoicePdfArchive.pending(originalState,{limit:4});
 assert.equal(repeated.jobs.length,0,'already archived versions are skipped');
+const editedOld={...old,updatedAt:new Date().toISOString(),apiUpdateRequestId:'synthetic-old-edit-001'};
+const editJobs=fakeCtx.SatoriInvoicePdfArchive.pending({revision:6,values:{satori_orders_v15:JSON.stringify([editedOld,old])}},{limit:4});
+assert.equal(editJobs.jobs.length,1,'explicit recent MCP edit of an old invoice needs a new PDF');
+assert.equal(editJobs.jobs[0].order.invoiceNo,25);
 console.log('PASS current-order eligibility, private metadata redaction and Drive-version dedup');
 

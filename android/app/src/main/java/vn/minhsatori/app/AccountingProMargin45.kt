@@ -1,14 +1,18 @@
 package vn.minhsatori.app
 
+import java.math.BigDecimal
 import java.math.BigInteger
+import java.math.RoundingMode
 import java.time.LocalDate
 
 /**
  * Owner-only estimate from historically stored invoice item list prices.
  * Supplier agreement: 45% off listed price, so the purchase BASIS is 55%.
  *
- * Estimate is NOT net profit: excludes shipping expenses, overhead, taxes,
- * rebates/returns and any unbooked CTV liability. Never sends financial writes.
+ * Estimate deducts recorded CTV commission and owner-borne 8% VAT when
+ * neither VAT nor shipping is charged to the customer, on LISTED prices.
+ * Other unrecorded operating expenses/charges are still excluded.
+ * Read-only accounting: never changes the invoice or sends financial writes.
  */
 data class AccountingProMargin45Row(
     val invoice: SatoriInvoice,
@@ -16,7 +20,8 @@ data class AccountingProMargin45Row(
     val estimatedPurchaseVnd: Long?,
     val estimatedCtvCommissionVnd: Long?,
     val estimatedOwnerMarginVnd: Long?,
-    val reason: String? = null
+    val reason: String? = null,
+    val estimatedOwnerBorneVatVnd: Long? = null
 )
 data class AccountingProMargin45Period(
     val title: String,
@@ -97,6 +102,26 @@ object AccountingProMargin45 {
         listed.multiply(BigInteger.valueOf((100-percent).toLong()))
             .add(BigInteger.valueOf(50L)).divide(HUNDRED)
 
+    // Mirrors accounting-core.js ownerBorneCharge for the same immutable invoice.
+    // Overrides take precedence even when VAT/shipping were charged or exempted.
+    // Compute in arbitrary precision to avoid accidental overflow or truncation.
+    private fun ownerBorneCharge(invoice: SatoriInvoice, listed: BigInteger): BigInteger? {
+        invoice.ownerBorneVatAmount?.let {
+            return BigInteger.valueOf(it.coerceAtLeast(0L))
+        }
+        invoice.ownerBorneVatPercent?.let { percent ->
+            if (!percent.isFinite()) return null
+            return BigDecimal(listed)
+                .multiply(BigDecimal.valueOf(percent.coerceAtLeast(0.0)))
+                .divide(BigDecimal.valueOf(100L), 0, RoundingMode.HALF_UP)
+                .toBigIntegerExact()
+        }
+        if (invoice.ownerBorneVat == false || invoice.vatExempt ||
+            invoice.vat > 0L || invoice.shipping > 0L) return BigInteger.ZERO
+        return listed.multiply(BigInteger.valueOf(8L))
+            .add(BigInteger.valueOf(50L)).divide(HUNDRED)
+    }
+
     private fun sameBasket(a: SatoriInvoice,b: SatoriInvoice):Boolean {
         fun basket(invoice:SatoriInvoice) = invoice.lines
             .groupBy { Pair(SatoriData.normalized(it.code.ifBlank { it.description }),
@@ -105,7 +130,22 @@ object AccountingProMargin45 {
         return a.lines.isNotEmpty() && b.lines.isNotEmpty() && basket(a)==basket(b)
     }
 
-    fun calculate(invoices: List<SatoriInvoice>): List<AccountingProMargin45Row> {
+    fun calculate(invoices: List<SatoriInvoice>,
+                  collaborators: List<SatoriCollaborator> = emptyList()): List<AccountingProMargin45Row> {
+        // The invoice phone belongs to the DELIVERY RECIPIENT and can differ from
+        // the registered CTV account phone. For historical single bills, allow
+        // ONLY a unique, exact name in the owner-controlled CTV registry.
+        // Third-party recipient names still need an explicit collaboratorId;
+        // never guess CTV ownership from product, address or discount alone.
+        fun candidates(inv: SatoriInvoice): List<SatoriCollaborator> {
+            if (inv.isLinkedPairBill || inv.collaboratorId.isNotBlank()) return emptyList()
+            val name = SatoriData.normalized(inv.customer)
+            if (name.isBlank()) return emptyList()
+            return collaborators.filter { partner ->
+                SatoriData.normalized(partner.name) == name
+            }
+        }
+        val partnersById = collaborators.filter { it.id.isNotBlank() }.groupBy { it.id }
         val references=invoices.filter { it.isInternalCollaboratorBill }
         val checkedIdentity=AccountingProReadOnly.invoiceRows(invoices)
             .associate { it.invoice.id to it.identityReliable }
@@ -118,10 +158,18 @@ object AccountingProMargin45 {
             val cost=if(pair!=null) discounted(pair.second,SUPPLIER_DISCOUNT_PERCENT)
                 else null
             val sale=pair?.first
+            val ownerVat=pair?.let { ownerBorneCharge(invoice, it.second) }
             var commission=BigInteger.ZERO
+            val matched = candidates(invoice)
+            val ambiguous = !invoice.isLinkedPairBill && invoice.collaboratorId.isBlank() &&
+                matched.size > 1
+            val partner = if (invoice.collaboratorId.isNotBlank())
+                partnersById[invoice.collaboratorId]?.singleOrNull()
+                else matched.singleOrNull()
+            if (warning == null && ambiguous) warning = "Trùng hồ sơ CTV, chưa xác minh hoa hồng."
             if(warning==null && (invoice.isLinkedPairBill ||
                     invoice.collaboratorId.isNotBlank() ||
-                    invoice.pairDiscountPercent != null)) {
+                    invoice.pairDiscountPercent != null || partner != null)) {
                 if(invoice.isCustomerPairBill) {
                     val partner=references.filter { other ->
                         !other.isTest &&
@@ -148,9 +196,8 @@ object AccountingProMargin45 {
                 } else if(invoice.pairRole.isBlank() &&
                     invoice.pairGroupId.isBlank() &&
                     invoice.pairInvoiceNo.isBlank() &&
-                    invoice.collaboratorId.isNotBlank() &&
-                    invoice.pairDiscountPercent != null) {
-                    val percent=invoice.pairDiscountPercent
+                    (invoice.collaboratorId.isNotBlank() || partner != null)) {
+                    val percent=invoice.pairDiscountPercent ?: partner?.discountPercent
                     if(percent==null || !percent.isFinite() || percent<0.0 ||
                         percent>100.0 || sale==null || pair==null)
                         warning="Chiết khấu CTV không hợp lệ."
@@ -159,18 +206,42 @@ object AccountingProMargin45 {
                         val ctvBase=pair.second.multiply(BigInteger.valueOf(10000-cents))
                             .add(BigInteger.valueOf(5000L))
                             .divide(BigInteger.valueOf(10000L))
-                        if(ctvBase>sale) warning="Giá CTV cao hơn giá khách, cần rà soát."
-                        else commission=sale.subtract(ctvBase)
+                        if(ctvBase>sale) {
+                            // Historical CTV invoices sometimes store a rounded
+                            // price PER UNIT (e.g. 333333 x 65% -> 216666).
+                            // Applying 35% to the aggregated list price adds
+                            // a few phantom đồng and makes commission negative.
+                            // Only accept ZERO commission if every line proves
+                            // it was already sold at the registered CTV rate.
+                            val alreadyAtCtvPrice = invoice.lines.all { item ->
+                                val discountBps=item.discountPercent
+                                    ?.takeIf { it.isFinite() }
+                                    ?.let { Math.round(it*100) }
+                                val perUnit=BigInteger.valueOf(item.listPrice)
+                                    .multiply(BigInteger.valueOf(10000-cents))
+                                    .add(BigInteger.valueOf(5000))
+                                    .divide(BigInteger.valueOf(10000))
+                                discountBps==cents && BigInteger.valueOf(item.unitPrice)==perUnit
+                            }
+                            if (!alreadyAtCtvPrice)
+                                warning="Giá CTV cao hơn giá khách, cần rà soát."
+                            else commission=BigInteger.ZERO
+                        } else commission=sale.subtract(ctvBase)
                     }
                 } else warning="Thiếu chính sách hoa hồng CTV đã xác minh."
             }
-            val finalMargin=if(warning==null && sale!=null && cost!=null)
-                checked(sale.subtract(cost).subtract(commission)) else null
+            if(warning==null && (ownerVat==null || checked(ownerVat)==null))
+                warning="Chi phí VAT chủ chịu không hợp lệ hoặc vượt giới hạn an toàn."
+            val finalMargin=if(warning==null && sale!=null && cost!=null &&
+                ownerVat!=null)
+                checked(sale.subtract(cost).subtract(commission).subtract(ownerVat))
+                else null
             if(warning==null && finalMargin==null)warning="Số tiền vượt giới hạn an toàn."
             AccountingProMargin45Row(invoice,
                 sale?.let(::checked),cost?.let(::checked),
                 if(warning==null) checked(commission) else null,
-                finalMargin,warning)
+                finalMargin,warning,
+                if(warning==null) ownerVat?.let(::checked) else null)
         }
     }
 

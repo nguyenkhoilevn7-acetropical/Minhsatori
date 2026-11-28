@@ -29,7 +29,7 @@ class AccountingProDebtProfitPolicyTest {
         assertEquals(1, result.outstandingInvoices.size)
         assertEquals(800_000L, result.outstandingVnd)
         assertEquals(2, result.margin.computedInvoiceCount)
-        assertEquals(500_000L, result.margin.estimatedMarginKnownVnd)
+        assertEquals(340_000L, result.margin.estimatedMarginKnownVnd)
     }
 
     @Test fun dayFilterAppliesToDebtAndProfitAtTheSameTime() {
@@ -39,7 +39,7 @@ class AccountingProDebtProfitPolicyTest {
             AccountingProMargin45Period.day(LocalDate.of(2026, 10, 30)))
         assertEquals(listOf("5901"), result.outstandingInvoices.map { it.number })
         assertEquals(800_000L, result.outstandingVnd)
-        assertEquals(250_000L, result.margin.estimatedMarginKnownVnd)
+        assertEquals(170_000L, result.margin.estimatedMarginKnownVnd)
     }
 
     @Test fun fullPeriodPreservesUndatedDebtButDateFilterNeverGuessesDate() {
@@ -54,7 +54,7 @@ class AccountingProDebtProfitPolicyTest {
             AccountingProMargin45Period.month(2026, 10))
         assertEquals(1, dated.outstandingInvoices.size)
         assertEquals(800_000L, dated.outstandingVnd)
-        assertEquals(250_000L, dated.margin.estimatedMarginKnownVnd)
+        assertEquals(170_000L, dated.margin.estimatedMarginKnownVnd)
     }
 
     @Test fun excludedTestInvoicesDoNotEnterEitherTotal() {

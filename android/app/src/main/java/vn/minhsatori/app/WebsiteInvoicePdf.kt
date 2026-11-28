@@ -46,6 +46,36 @@ internal object WebsiteInvoicePdf {
         "- Nội dung CK: " + memo(invoice) + "\n" +
         "Mã QR quét trả tiền:\n" + qrUrl(invoice)
 
+    // PdfDocument embeds every bitmap at its full pixel size. The 1536 px logo in
+    // res/drawable (mdpi) was decoded density-scaled to ~5000+ px on Samsung, which
+    // made each shared invoice ~4.7 MB. Images are now embedded at 3x their printed
+    // size (~216 dpi): sharp on screen and on paper, and the PDF stays small.
+    private const val IMAGE_SCALE = 3f
+    private const val LOGO_POINTS = 52f
+    private const val QR_POINTS = 90f
+    internal fun targetPx(points: Float): Int = kotlin.math.ceil(points * IMAGE_SCALE).toInt()
+
+    /** Shrinks [src] to fit [px] (never enlarges); recycles the original when replaced. */
+    internal fun fitTo(src: Bitmap, px: Int, filter: Boolean): Bitmap {
+        val longest = maxOf(src.width, src.height)
+        if (longest <= px) return src
+        val w = maxOf(1, Math.round(src.width.toFloat() * px / longest))
+        val h = maxOf(1, Math.round(src.height.toFloat() * px / longest))
+        // QR modules stay crisp without filtering; the logo is smoothed.
+        return Bitmap.createScaledBitmap(src, w, h, filter).also { if (it !== src) src.recycle() }
+    }
+
+    private fun decodeLogo(context: Context): Bitmap? {
+        val px = targetPx(LOGO_POINTS)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true; inScaled = false }
+        BitmapFactory.decodeResource(context.resources, R.drawable.satori_invoice_logo, bounds)
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= px && bounds.outHeight / (sample * 2) >= px) sample *= 2
+        val options = BitmapFactory.Options().apply { inScaled = false; inSampleSize = sample }
+        return BitmapFactory.decodeResource(context.resources, R.drawable.satori_invoice_logo, options)
+            ?.let { fitTo(it, px, filter = true) }
+    }
+
     private fun fetchQr(invoice: SatoriInvoice): Bitmap? {
         // Internet can be unavailable; never let QR retrieval prevent a readable invoice.
         return try {
@@ -55,6 +85,7 @@ internal object WebsiteInvoicePdf {
                 conn.readTimeout = 5000
                 if (conn.responseCode != 200) null
                 else conn.inputStream.use { BitmapFactory.decodeStream(it) }
+                    ?.let { fitTo(it, targetPx(QR_POINTS), filter = false) }
             } finally { conn.disconnect() }
         } catch (_: Exception) { null }
     }
@@ -281,8 +312,8 @@ internal object WebsiteInvoicePdf {
 
     private fun draw(context: Context, invoice: SatoriInvoice, qr: Bitmap?, w: W) {
         w.newPage()
-        val logo = BitmapFactory.decodeResource(context.resources, R.drawable.satori_invoice_logo)
-        w.image(logo, 30f, 30f, 52f, 52f)
+        val logo = decodeLogo(context)
+        w.image(logo, 30f, 30f, LOGO_POINTS, LOGO_POINTS)
         w.boxText("HỘ KINH DOANH MINH SATORI", 92f, 30f, 290f,
             14f, true, blue)
         w.boxText("Mã số thuế: 075087004222", 92f, 51f, 290f)
@@ -295,7 +326,11 @@ internal object WebsiteInvoicePdf {
             true, amber, Paint.Align.RIGHT)
         val dateHeight = w.boxText(invoice.displayDate, 410f, 68f, 155f, 8f,
             false, black, Paint.Align.RIGHT)
-        val statusTop = 70f + dateHeight
+        val createdTop = 70f + dateHeight
+        val createdHeight = if (invoice.creationTimeLabel.isNotBlank())
+            w.boxText("Khách đặt lúc: " + invoice.creationTimeLabel,
+                410f, createdTop, 155f, 8f, false, black, Paint.Align.RIGHT) else 0f
+        val statusTop = createdTop + createdHeight
         val statusHeight = w.boxText(invoice.status, 410f, statusTop, 155f, 8f,
             false, black, Paint.Align.RIGHT)
         logo?.recycle()
@@ -311,7 +346,12 @@ internal object WebsiteInvoicePdf {
 
         w.tableHead()
         invoice.lines.forEachIndexed { index, line ->
-            w.tableItem(listOf((index + 1).toString(), line.description, line.unit,
+            val productWithTax = if (invoice.vatMode == "per_line") {
+                val rate = if (line.vatExempt) 0.0 else line.vatRate ?: invoice.vatRate
+                line.description + "\nVAT " + (rate?.toString()?.plus("%") ?: "—") +
+                    (line.vatAmount?.let { " · " + SatoriData.money(it) } ?: "")
+            } else line.description
+            w.tableItem(listOf((index + 1).toString(), productWithTax, line.unit,
                 line.quantity.toString(), SatoriData.money(line.listPrice),
                 percent(line), SatoriData.money(line.unitPrice),
                 SatoriData.money(line.amount)), index % 2 == 1)
@@ -326,7 +366,7 @@ internal object WebsiteInvoicePdf {
         w.boxText("Số tài khoản: " + account, 30f, top + 34f, 270f)
         w.boxText("Chủ tài khoản: HKD MINH SATORI", 30f, top + 48f, 270f)
         w.boxText("Nội dung: " + memo(invoice), 30f, top + 62f, 270f)
-        if (qr != null) w.image(qr, 30f, top + 78f, 90f, 90f)
+        if (qr != null) w.image(qr, 30f, top + 78f, QR_POINTS, QR_POINTS)
         else w.boxText("Không tải được mã QR; kiểm tra số tài khoản trước khi thanh toán.",
             30f, top + 80f, 225f, 8f, false, amber)
         val totals = listOf(

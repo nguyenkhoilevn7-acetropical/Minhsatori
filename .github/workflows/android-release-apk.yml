@@ -37,6 +37,7 @@ on:
       - 'feature/android-noncounted-invoice-zero-display-v0438-20261030'
       - 'feature/remove-accounting-pro-android-20261031'
       - 'fix/android-unread-invoice-card-ack-20261101'
+      - 'fix/android-invoice-notification-open-20261101'
       - 'release/android-v0.4.20-native-v2-crm-20261029'
       - 'release/android-v0.4.13-customer-info-20261027'
       - 'release/android-v0.4.14-owner-edit-payment-20261027'
@@ -92,11 +93,42 @@ jobs:
           printf '%s' "$SATORI_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/satori-release.jks"
           chmod 600 "$RUNNER_TEMP/satori-release.jks"
           echo "SATORI_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/satori-release.jks" >> "$GITHUB_ENV"
+      - name: Refuse a push-required release without public Firebase config
+        env:
+          SATORI_FCM_APP_ID: ${{ vars.SATORI_FCM_APP_ID }}
+          SATORI_FCM_API_KEY: ${{ vars.SATORI_FCM_API_KEY }}
+          SATORI_FCM_PROJECT_ID: ${{ vars.SATORI_FCM_PROJECT_ID }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          req = json.load(open("android/release-request.json"))
+          names = ["SATORI_FCM_APP_ID", "SATORI_FCM_API_KEY", "SATORI_FCM_PROJECT_ID"]
+          # Same precedence as Gradle: repository variable, else the committed
+          # PUBLIC android/firebase-public.properties (never a server key).
+          committed = {}
+          if os.path.isfile("android/firebase-public.properties"):
+              for line in open("android/firebase-public.properties", encoding="utf-8"):
+                  line = line.strip()
+                  if line and not line.startswith("#") and "=" in line:
+                      k, v = line.split("=", 1)
+                      committed[k.strip()] = v.strip()
+          value = lambda n: os.environ.get(n, "").strip() or committed.get(n, "")
+          present = {n: bool(re.fullmatch(r"[A-Za-z0-9_:.-]{6,220}", value(n))) for n in names}
+          assert not any(k in committed for k in ("SATORI_FCM_SERVICE_ACCOUNT_JSON", "private_key")), "server credential must never be committed"
+          print("FCM public config present:", present)
+          if req.get("requiresFcm") is True and not all(present.values()):
+              missing = [n for n, ok in present.items() if not ok]
+              raise SystemExit("Release requires owner push but GitHub repository variables are missing: " + ", ".join(missing))
+          PY
       - name: Test and build signed RELEASE APK
         env:
           SATORI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.SATORI_ANDROID_KEYSTORE_PASSWORD }}
           SATORI_ANDROID_KEY_ALIAS: ${{ secrets.SATORI_ANDROID_KEY_ALIAS }}
           SATORI_ANDROID_KEY_PASSWORD: ${{ secrets.SATORI_ANDROID_KEY_PASSWORD }}
+          # Public Firebase Android identifiers, NOT service-account secrets.
+          SATORI_FCM_APP_ID: ${{ vars.SATORI_FCM_APP_ID }}
+          SATORI_FCM_API_KEY: ${{ vars.SATORI_FCM_API_KEY }}
+          SATORI_FCM_PROJECT_ID: ${{ vars.SATORI_FCM_PROJECT_ID }}
         run: gradle -p android :app:testDebugUnitTest :app:testReleaseUnitTest :app:assembleRelease --no-daemon
       - name: Validate release package, version and signing certificate
         shell: bash
@@ -124,3 +156,65 @@ jobs:
         if: always()
         shell: bash
         run: rm -f "$RUNNER_TEMP/satori-release.jks"
+
+  # Owner delivery: the repository is public, so the signed APK is never published
+  # in clear. It is encrypted (AES-256 key wrapped with RSA-OAEP-SHA256) for the
+  # public key in android/release-delivery-public.pem and attached to a temporary
+  # prerelease; only the holder of the private key can decrypt it, verify the
+  # apkSha256 from release-verification.json and hand the APK to the owner.
+  # Runs in its own job so the signing job keeps read-only repository access.
+  deliver-encrypted-apk:
+    needs: signed-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: android/release-delivery-public.pem
+          sparse-checkout-cone-mode: false
+      - name: Skip when no delivery key is configured
+        id: key
+        run: |
+          if [ -s android/release-delivery-public.pem ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/download-artifact@v4
+        if: steps.key.outputs.ok == 'true'
+        with:
+          name: MinhSatori-Samsung-Native-iOS-Light-SIGNED-RELEASE
+          path: signed
+      - name: Encrypt signed APK for the delivery key
+        if: steps.key.outputs.ok == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p out
+          openssl rand -out key.bin 32
+          openssl rand -hex 16 > iv.hex
+          openssl enc -aes-256-cbc -K "$(od -An -tx1 -v key.bin | tr -d ' \n')" -iv "$(cat iv.hex)" \
+            -in signed/app-release.apk -out out/app-release.apk.enc
+          openssl pkeyutl -encrypt -pubin -inkey android/release-delivery-public.pem \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
+            -in key.bin -out out/key.bin.enc
+          cp iv.hex out/iv.hex
+          cp signed/release-verification.json out/release-verification.json
+          rm -f key.bin
+      - name: Attach encrypted APK to a temporary prerelease
+        if: steps.key.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python3 -c "import json;r=json.load(open('out/release-verification.json'));print(f\"{r['versionName']}-build{r['versionCode']}\")")
+          tag="apk-delivery-${version}-run${{ github.run_id }}"
+          # Keep only the newest encrypted delivery: remove earlier temporary ones.
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName --jq '.[].tagName' \
+            | grep '^apk-delivery-' | while read -r old; do
+              gh release delete "$old" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+            done
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Encrypted owner APK delivery $version (temporary)" \
+            --notes "Encrypted for the owner delivery key; not installable without decryption. Deleted after delivery." \
+            out/app-release.apk.enc out/key.bin.enc out/iv.hex out/release-verification.json

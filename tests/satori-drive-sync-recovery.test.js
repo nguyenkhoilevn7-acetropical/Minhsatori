@@ -94,6 +94,7 @@ test('Drive read times out to nonblocking error and preserves existing local rec
  assert.equal(x.posted.length,1,'No repeated request in stalled state');
 });
 test('Save and delete require confirmed cloud state within authenticated webapp',()=>{
- assert.match(html,/function handleSaveAndGenerate\(\) \{\s*if\(window\.__SATORI_DRIVE_APP__ && !window\.__SATORI_DRIVE_READY__\)/);
+  assert.match(html,/function handleSaveAndGenerate\(\) \{[\s\S]{0,700}?if\(window\.__SATORI_DRIVE_APP__ && !window\.__SATORI_DRIVE_READY__\)/);
+  assert.match(html,/function handleSaveAndGenerate\(\) \{\s*if\(hasInvalidLineVat\(\)\)/);
  assert.match(html,/function deleteOrder\(id\) \{\s*if\(window\.__SATORI_DRIVE_APP__ && !window\.__SATORI_DRIVE_READY__\)/);
 });

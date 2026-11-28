@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application
+        android:name=".SatoriApplication"
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:label="@string/app_name"
@@ -17,9 +18,18 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout" />
+        <service android:name=".SatoriFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <service android:name=".V2RegistrationAlertJob"
             android:permission="android.permission.BIND_JOB_SERVICE"
             android:exported="true" />
+        <service android:name=".SatoriPushRegistrationJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
         <activity android:name=".V2OwnerCrmActivity" android:exported="false" android:windowSoftInputMode="adjustResize" android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout" />
         <activity
             android:name=".NativeMainActivity"

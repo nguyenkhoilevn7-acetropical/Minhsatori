@@ -42,11 +42,11 @@
   function enqueueBotCreatedOrders(){
     if(typeof orders==='undefined'||!Array.isArray(orders)||typeof invoicePdfKey!=='function')return;
     var q=readQueue(),completed=readCompleted(),changed=false;
-    // Only bot-created invoices need recovery: website-created ones are queued by save().
+    // MCP edits also invalidate website-created invoice PDFs; recover their new version.
     // Queue at most four at a time to avoid flooding Drive on a new phone.
     if(q.length>=4)return;
     var recent=orders.filter(function(o){
-      return o && (o.apiRequestId || o.botRequestId) &&
+      return o && (o.apiRequestId || o.botRequestId || o.apiUpdateRequestId) &&
         Number.isSafeInteger(Number(o.invoiceNo)) && Number(o.invoiceNo)>0 && o.id!=null;
     }).sort(function(a,b){return Number(b.invoiceNo)-Number(a.invoiceNo);});
     for(var i=0;i<recent.length && q.length<4;i++){

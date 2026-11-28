@@ -40,7 +40,11 @@
     const messageSection=document.getElementById('messageSection'),messageField=document.getElementById('invoiceMessage'),copyMessage=document.getElementById('copyMessage'),pdfOnly=document.getElementById('sharePdfOnly');
     let shareMessage='',lastApp='Zalo';
     let file=null,url=null,receiving=false,sharing=false,received=false,readyTimer=null;
-    const safeName=value=>(String(value||'Hoa_don.pdf').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').replace(/[^a-zA-Z0-9_.-]/g,'_').slice(0,140).replace(/\.pdf$/i,'')||'Hoa_don')+'.pdf';
+    const safeName=value=>{
+        const raw=String(value||'').normalize('NFC').replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim();
+        if(!/^\d+ - .+ - \d{4}-\d{2}-\d{2}\.pdf$/u.test(raw)||raw.length>180)throw Error('Tên PDF không đúng mẫu số hóa đơn - người nhận - ngày đặt.');
+        return raw;
+    };
     function ready(){if(!received)window.opener?.postMessage({channel,type:'ready',token},origin);}
     function receiveError(message){status.textContent=message;name.textContent='Chưa nhận được PDF.';}
     async function receive(event){

@@ -14,8 +14,8 @@ BASELINE={
  'executeWrite':'a513026e',
  'launchEditor':'a449a547',
  'recoverDriveAccessUsingOwnerApi':'4c0215f3',
- 'openInvoice':'336d9258',
- 'invoiceQuickCard':'88bb9544',
+ # Invoice is now a fullscreen UI; payment/share/edit subflows are individually hash-locked.
+ 'invoiceQuickCard':'ee818810',
 }
 def method(name):
  token='    private fun '+name+'('
@@ -33,6 +33,34 @@ class ProductionLayoutContract(unittest.TestCase):
   for name,expected in BASELINE.items():
    with self.subTest(name=name):
     self.assertEqual(checksum(method(name)),expected,'No financial method changes in layout release')
+ def test_fullscreen_invoice_preserves_critical_actions_byte_exact(self):
+  source=method('openInvoice')
+  def between(start,end):
+   return source.split(start,1)[1].split(end,1)[0]
+  # Only security-critical request/confirmation and restricted CTV share are
+  # checksum-locked. Rearranging visual status rows must not fail integrity.
+  self.assertEqual(checksum('        fun requestPayment(action: String) {'+
+    between('        fun requestPayment(action: String) {',
+            '        // The two payment states remain independent')),
+    '51fe6782')
+  self.assertEqual(checksum('        fun confirmInternalShare(action: () -> Unit) {'+
+    between('        fun confirmInternalShare(action: () -> Unit) {',
+            '        // Compact one-line tools on Fold;')),
+    'd7b6964b')
+  for marker in ('payments.markCustomerPaid','payments.markCustomerUnpaid',
+                 'payments.markSatoriPaid','payments.markSatoriUnpaid',
+                 'confirmInvoicePayment(invoice, action)', 'confirmSoftDelete(invoice)',
+                 'requestInvoiceEdit(invoice)', 'NativeInvoicePdf.shareZalo',
+                 'NativeInvoicePdf.shareMessenger', 'NativeInvoicePdf.preview'):
+   self.assertIn(marker, source)
+  self.assertIn('setView(page)',source)
+  self.assertIn('resizeInvoiceDialog(dialog)',source)
+  self.assertIn('android.view.WindowManager.LayoutParams.MATCH_PARENT',
+                method('resizeInvoiceDialog'))
+  self.assertIn('setOnClickListener { invoiceDialog?.dismiss() }',source)
+  self.assertNotIn('.setPositiveButton("Chia sẻ", null)',source)
+  self.assertNotIn('.setView(wrapper)',source)
+
  def test_owner_card_edit_button_is_direct_and_still_server_guarded(self):
   method_text=method('invoiceQuickCard')
   self.assertIn('requestInvoiceEdit(invoice)',method_text)
@@ -48,7 +76,7 @@ class ProductionLayoutContract(unittest.TestCase):
   self.assertNotIn('MobileApiClient.request(',edit)
 
  def test_money_mind_native_routes_do_not_fake_invoices(self):
-  for term in ('val bottomDestinations = listOf(', 'renderMoneyMindShortcuts(content)',
+  for term in ('val bottomDestinations = listOf(', 'renderMoneyMindShortcuts(parent)',
                'renderMoneyMindRecent(content, data)', 'renderMoneyMindOfflineState(content, activeTab)',
                'showAdvancedOverview','if (tabChanged && motionEnabled())'):
    self.assertIn(term,SOURCE)

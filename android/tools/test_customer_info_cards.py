@@ -32,14 +32,27 @@ class CustomerCardContract(unittest.TestCase):
         self.assertIn("customerInfoRow(detail, R.drawable.ic_satori_map_pin", block)
         self.assertIn('"LỊCH SỬ HÓA ĐƠN"', block)
         self.assertIn("invoice.customerHasPaid", block)
-        self.assertIn("group.forEach", block)
+        # A revision-verified canonical projection replaces the previous raw-group display.\n        self.assertIn("SatoriCustomerHistory.exactPoint(representative, data.invoices)", block)\n        self.assertIn("current.forEach { invoice ->", block)\n        self.assertIn("SatoriCustomerHistory.sameNameOtherPoints(", block)
 
     def test_invoice_uses_same_labeled_customer_details(self):
         block = SRC.split("private fun openInvoice(", 1)[1]
-        self.assertIn("customerInfoRow(content, R.drawable.ic_satori_phone", block)
-        self.assertIn("customerInfoRow(content, R.drawable.ic_satori_map_pin", block)
-        self.assertIn('"THÔNG TIN KHÁCH HÀNG"', block)
+        self.assertIn("invoiceContact(customerCard, R.drawable.ic_satori_phone", block)
+        self.assertIn("invoiceContact(customerCard, R.drawable.ic_satori_map_pin", block)
+        self.assertIn('"Người nhận hàng"', block)
         self.assertIn("R.drawable.ic_satori_users", block)
+
+    def test_invoice_detail_separates_ordering_account_from_recipient(self):
+        block = SRC.split("private fun openInvoice(", 1)[1].split('val productCard = invoiceSection(', 1)[0]
+        ordering = block.split('"Tài khoản đặt hàng"', 1)[1].split('"Người nhận hàng"', 1)[0]
+        # Only verified registry data, never recipient fields, fills the ordering block.
+        self.assertIn("orderOrigin.accountName", ordering)
+        self.assertIn("orderOrigin.roleDetail", ordering)
+        self.assertIn("orderOrigin.card", ordering)
+        for recipient_field in ("invoice.customer", "invoice.phone", "invoice.address"):
+            self.assertNotIn(recipient_field, ordering)
+        recipient = block.split('"Người nhận hàng"', 1)[1]
+        for recipient_field in ("invoice.customer", "invoice.phone", "invoice.address"):
+            self.assertIn(recipient_field, recipient)
 
     def test_accounting_ledger_filter_has_distinct_customer_details(self):
         body = SRC.split("private fun showLedger(", 1)[1].split("private fun infoStrip(", 1)[0]

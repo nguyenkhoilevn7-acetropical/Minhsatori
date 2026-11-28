@@ -5,6 +5,11 @@ on:
     paths:
       - '.github/workflows/android-native-ui-screenshot.yml'
       - 'android/app/src/main/java/vn/minhsatori/app/NativeMainActivity.kt'
+      - 'android/app/src/androidTest/java/vn/minhsatori/app/FullscreenInvoiceVisualTest.kt'
+      - 'android/app/src/androidTest/java/vn/minhsatori/app/LiquidGlassVisualTest.kt'
+      - 'android/app/src/main/java/vn/minhsatori/app/SatoriLiquidGlass.kt'
+      - 'android/app/src/main/java/vn/minhsatori/app/SatoriUiTheme.kt'
+      - 'android/app/src/main/res/drawable/ic_satori_profit.xml'
       - 'android/app/src/main/res/values/styles.xml'
   workflow_dispatch:
 
@@ -47,8 +52,14 @@ jobs:
           emulator-boot-timeout: 300
           script: |
             set -eu
-            gradle -p android :app:assembleDebug --no-daemon
+            gradle -p android :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            mkdir -p android/ui-evidence
+            # Screenshot the real fullscreen invoice detail using ONLY synthetic
+            # instrumentation fixture, never real invoice data.
+            adb shell am instrument -w -e class vn.minhsatori.app.FullscreenInvoiceVisualTest vn.minhsatori.app.test/androidx.test.runner.AndroidJUnitRunner
+            adb exec-out run-as vn.minhsatori.app cat files/ui25d-invoice-fullscreen.png > android/ui-evidence/invoice-fullscreen-phone.png
             adb shell am start -n vn.minhsatori.app/.NativeMainActivity
             sleep 5
             mkdir -p android/ui-evidence
@@ -72,6 +83,7 @@ jobs:
             sleep 1
             adb shell screencap -p /sdcard/minhsatori-native-profile.png
             adb pull /sdcard/minhsatori-native-profile.png android/ui-evidence/minhsatori-native-profile.png
+            test -s android/ui-evidence/invoice-fullscreen-phone.png
             test -s android/ui-evidence/minhsatori-native-home.png
             test -s android/ui-evidence/minhsatori-native-invoices.png
             test -s android/ui-evidence/minhsatori-native-create.png
@@ -80,17 +92,38 @@ jobs:
             # Live resize in the SAME running Activity. Android simulates
             # unfolded inner and folded outer screen viewport sizes.
             # Approximate screen classes only; not Samsung device certification.
+            adb shell am instrument -w -e class vn.minhsatori.app.LiquidGlassVisualTest -e liquidViewport phone vn.minhsatori.app.test/androidx.test.runner.AndroidJUnitRunner | tee android/ui-evidence/liquid-phone.log
+            grep -q 'OK (1 test)' android/ui-evidence/liquid-phone.log
+            adb exec-out run-as vn.minhsatori.app cat files/liquid-phone-dock.png > android/ui-evidence/liquid-phone-dock.png
+            adb exec-out run-as vn.minhsatori.app cat files/liquid-phone-drawer.png > android/ui-evidence/liquid-phone-drawer.png
+            test -s android/ui-evidence/liquid-phone-dock.png
+            test -s android/ui-evidence/liquid-phone-drawer.png
             adb shell input tap 120 1700
             adb shell wm size 1812x2176
             adb shell wm density 420
             sleep 3
+            adb shell am instrument -w -e class vn.minhsatori.app.FullscreenInvoiceVisualTest vn.minhsatori.app.test/androidx.test.runner.AndroidJUnitRunner
+            adb exec-out run-as vn.minhsatori.app cat files/ui25d-invoice-fullscreen.png > android/ui-evidence/invoice-fullscreen-fold.png
+            test -s android/ui-evidence/invoice-fullscreen-fold.png
             adb shell screencap -p /sdcard/minhsatori-fold-open.png
             adb pull /sdcard/minhsatori-fold-open.png android/ui-evidence/minhsatori-fold-open.png
+            adb shell am instrument -w -e class vn.minhsatori.app.LiquidGlassVisualTest -e liquidViewport fold-open vn.minhsatori.app.test/androidx.test.runner.AndroidJUnitRunner | tee android/ui-evidence/liquid-fold-open.log
+            grep -q 'OK (1 test)' android/ui-evidence/liquid-fold-open.log
+            adb exec-out run-as vn.minhsatori.app cat files/liquid-fold-open-dock.png > android/ui-evidence/liquid-fold-open-dock.png
+            adb exec-out run-as vn.minhsatori.app cat files/liquid-fold-open-drawer.png > android/ui-evidence/liquid-fold-open-drawer.png
+            test -s android/ui-evidence/liquid-fold-open-dock.png
+            test -s android/ui-evidence/liquid-fold-open-drawer.png
             adb shell wm size 904x2316
             adb shell wm density 420
             sleep 3
             adb shell screencap -p /sdcard/minhsatori-fold-closed.png
             adb pull /sdcard/minhsatori-fold-closed.png android/ui-evidence/minhsatori-fold-closed.png
+            adb shell am instrument -w -e class vn.minhsatori.app.LiquidGlassVisualTest -e liquidViewport fold-closed vn.minhsatori.app.test/androidx.test.runner.AndroidJUnitRunner | tee android/ui-evidence/liquid-fold-closed.log
+            grep -q 'OK (1 test)' android/ui-evidence/liquid-fold-closed.log
+            adb exec-out run-as vn.minhsatori.app cat files/liquid-fold-closed-dock.png > android/ui-evidence/liquid-fold-closed-dock.png
+            adb exec-out run-as vn.minhsatori.app cat files/liquid-fold-closed-drawer.png > android/ui-evidence/liquid-fold-closed-drawer.png
+            test -s android/ui-evidence/liquid-fold-closed-dock.png
+            test -s android/ui-evidence/liquid-fold-closed-drawer.png
             adb shell wm size reset
             adb shell wm density reset
             test -s android/ui-evidence/minhsatori-fold-open.png
@@ -101,7 +134,10 @@ jobs:
         with:
           name: MinhSatori-Android-v0.3.2-Visual-Sandbox-Evidence
           path: |
+            android/ui-evidence/invoice-fullscreen-*.png
             android/ui-evidence/minhsatori-native-*.png
             android/ui-evidence/minhsatori-fold-*.png
+            android/ui-evidence/liquid-*.png
+            android/ui-evidence/liquid-*.log
           if-no-files-found: warn
           retention-days: 7

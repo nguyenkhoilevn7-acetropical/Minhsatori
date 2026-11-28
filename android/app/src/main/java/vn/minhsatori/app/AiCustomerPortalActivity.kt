@@ -59,6 +59,14 @@ class AiCustomerPortalActivity : AppCompatActivity() {
         // controls stay visible while editing quantity on Samsung phones.
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         val ownerMode = intent.getStringExtra("mode") == "admin"
+        // Old native Gemini buttons must no longer open the suspended V1 host.
+        // Reuse native Google authentication and the verified owner session on V2.
+        if (ownerMode) {
+            startActivity(Intent(this, V2OwnerCrmActivity::class.java)
+                .putExtra("portal", "gemini"))
+            finish()
+            return
+        }
         val suppliedCustomerUrl = intent.getStringExtra("customer_url")
         val customerUrl = if (ownerMode || suppliedCustomerUrl == null) null
             else AiSandboxContract.customerPortalUrl(suppliedCustomerUrl)
@@ -228,6 +236,8 @@ class V2OwnerCrmActivity : AppCompatActivity() {
     private var webClientId: String? = null
     private var ready = false
     private var requestedOwnerTab = "new"
+    private val geminiMode get() = intent.getStringExtra("portal") == "gemini"
+    private val portalPath get() = if (geminiMode) "/app-v2" else "/owner-v2"
 
     private fun dp(n: Int) = (resources.displayMetrics.density * n + .5f).toInt()
     private fun pill(color: Int, radius: Int = 13): android.graphics.drawable.GradientDrawable =
@@ -316,7 +326,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
             setTextColor(Color.rgb(16, 43, 56))
         })
         headline.addView(TextView(this).apply {
-            text = "QUẢN TRỊ  •  KHÁCH HÀNG V2"
+            text = if (geminiMode) "TRỢ LÝ GEMINI V2" else "QUẢN TRỊ  •  KHÁCH HÀNG V2"
             textSize = 12f
             setTextColor(Color.rgb(102, 121, 130))
         })
@@ -366,6 +376,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         bar.addView(bellFrame,LinearLayout.LayoutParams(dp(48),dp(43)).apply{
             marginEnd=dp(8)
         })
+        if (geminiMode) bellFrame.visibility = View.GONE
         bar.addView(refreshButton)
         root.addView(bar, LinearLayout.LayoutParams(-1, -2).apply {
             bottomMargin = dp(8)
@@ -440,6 +451,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         quickLink("Danh mục", R.drawable.ic_satori_invoice, "catalogue", 2)
         selectNativeTab(0)
         navigation.addView(quickLinks)
+        if (geminiMode) navigation.visibility = View.GONE
         root.addView(navigation, LinearLayout.LayoutParams(-1, -2))
 
         authPanel = LinearLayout(this).apply {
@@ -495,6 +507,9 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         web.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                if (geminiMode && (url == ORIGIN + portalPath || url == ORIGIN + portalPath + "/")) {
+                    web.alpha = 1f
+                }
                 if (url == ORIGIN + "/owner-v2" || url == ORIGIN + "/owner-v2/") applyNativeOwnerTheme()
             }
             override fun shouldOverrideUrlLoading(
@@ -504,7 +519,7 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                 // Never allow a customer-link redirect or external site to inherit
                 // a privileged session inside the owner-only screen.
                 return !(u.scheme == "https" && u.host == HOST && u.port == -1 &&
-                    (u.path == "/owner-v2" || u.path == "/owner-v2/"))
+                    (u.path == portalPath || u.path == portalPath + "/"))
             }
 
             override fun onReceivedSslError(
@@ -590,6 +605,14 @@ class V2OwnerCrmActivity : AppCompatActivity() {
      * No financial DOM, forms, event listeners or HTTP request logic is changed.
      */
     private fun applyNativeOwnerTheme() {
+        // UI25D is a native presentation preference, never a source of customer data.
+        val uiAccent = String.format("#%06X", SatoriUiTheme.accent(this) and 0xFFFFFF)
+        val uiSoft = String.format("#%06X", SatoriUiTheme.soft(this) and 0xFFFFFF)
+        val uiDeep = String.format("#%06X", SatoriUiTheme.deep(this) and 0xFFFFFF)
+        val uiOnAccent = String.format("#%06X", SatoriUiTheme.onAccent(this) and 0xFFFFFF)
+        val uiCardShadow = if (SatoriUiTheme.raised(this))
+            "0 7px 0 rgba(10,68,80,.035),0 15px 27px rgba(10,68,80,.11)"
+            else "0 2px 7px rgba(10,68,80,.06)"
         val css = """
             :root {
                 color-scheme:light;
@@ -757,6 +780,24 @@ class V2OwnerCrmActivity : AppCompatActivity() {
                 main {padding-left:22px!important;padding-right:22px!important;}
                 .card {padding:20px!important;}
             }
+            /* UI25D applied LAST; auth scopes and all CRM input handlers remain unchanged. */
+            :root { --blue:${uiAccent}; --pale:${uiSoft}; --s25-a:${uiAccent};
+                --s25-soft:${uiSoft}; --s25-deep:${uiDeep}; }
+            .card,.metric,.crm-entry:not(.crm-customer-card),.crm-customer-card {
+                border-radius:20px!important;
+                box-shadow:${uiCardShadow}!important;
+            }
+            .metric { background:${uiSoft}!important; }
+            button:not(.secondary):not(.danger),.crm-btn-primary {
+                background:${uiAccent}!important;color:${uiOnAccent}!important;
+                box-shadow:${uiCardShadow}!important;
+            }
+            button.secondary,.crm-tag,.badge {
+                background:${uiSoft}!important;color:${uiDeep}!important;
+            }
+            input:focus,select:focus,textarea:focus {border-color:${uiAccent}!important;}
+            input[type="checkbox"] {accent-color:${uiAccent}!important;}
+            @media(prefers-reduced-motion:reduce) {button,.card {transition:none!important;}}
         """.trimIndent()
         // JSON quote escapes CSS as a string literal, never executes remote data.
         val script = "(function(){if(location.origin!==" +
@@ -962,7 +1003,8 @@ class V2OwnerCrmActivity : AppCompatActivity() {
         web.visibility = View.VISIBLE
         refreshButton.visibility = View.VISIBLE
         web.alpha = 0f
-        web.loadUrl(ORIGIN + "/owner-v2")
+        if (geminiMode) web.loadUrl(ORIGIN + "/app-v2")
+        else web.loadUrl(ORIGIN + "/owner-v2")
     }
 
 

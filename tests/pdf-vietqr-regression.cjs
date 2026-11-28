@@ -9,10 +9,16 @@ function fn(name,next){
  assert(stop>start,'Unable to isolate '+name);
  return html.slice(start,stop);
 }
-const source=fn('invoicePaymentDetails','invoiceVietQrPayload')+
+const vatStart=html.indexOf('function currentDefaultVatRate()');
+const vatEnd=html.indexOf('function hasInvalidLineVat()',vatStart);
+assert(vatStart>=0&&vatEnd>vatStart,'per-line VAT helpers missing');
+const vatSource=html.slice(vatStart,vatEnd);
+const source=vatSource+
+ fn('invoicePaymentDetails','invoiceVietQrPayload')+
  fn('invoiceVietQrPayload','invoicePdfShareMessage')+
  fn('invoicePdfDefinition','invoiceQrImage');
-const ctx={getOrderGoodsTotal:o=>o.items.reduce((n,i)=>n+i.qty*i.unitPrice,0),
+const ctx={document:{getElementById:()=>({value:'yes'})},
+ getOrderGoodsTotal:o=>o.items.reduce((n,i)=>n+i.qty*i.unitPrice,0),
  aiDisplayPercent:n=>Number(n).toFixed(2).replace(/0+$/,'').replace(/\.$/,''),
  moneyToVietnameseWords:n=>String(n)};
 vm.createContext(ctx);vm.runInContext(source,ctx);

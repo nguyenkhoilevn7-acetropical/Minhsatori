@@ -1,0 +1,242 @@
+diff --git a/customer-ai-chat-prototype/account-v2/local-invoice-pdf.mjs b/customer-ai-chat-prototype/account-v2/local-invoice-pdf.mjs
+index c256a10a..be20a3b9 100644
+--- a/customer-ai-chat-prototype/account-v2/local-invoice-pdf.mjs
++++ b/customer-ai-chat-prototype/account-v2/local-invoice-pdf.mjs
+@@ -6,6 +6,7 @@
+  * customer-price estimation, external renderer, trigger or public file URL.
+  */
+ import crypto from 'node:crypto';
++import {invoiceLineVatSnapshot} from '../invoice-line-vat.mjs';
+ import {renderOriginalWebsitePdf,canonicalPdfVersion,PDF_TEMPLATE_VERSION} from '../original-website-pdf.mjs';
+ 
+ function fail(code){const e=new Error(code);e.code=code;throw e}
+@@ -32,8 +33,9 @@ export function currentInvoiceForWebsitePdf(current,{invoiceNo,ledgerId},{allowA
+   fail('V2_PDF_CURRENT_INVOICE_REQUIRED');
+  if(!current.delivery||!Array.isArray(current.items)||
+     current.items.length<1||current.items.length>40)fail('V2_PDF_LINES_INVALID');
++ const tax=invoiceLineVatSnapshot({...current,vatAmount:current.vatVnd});
+  let goods=0;
+- const items=current.items.map(line=>{
++ const items=current.items.map((line,index)=>{
+   if(!line||typeof line!=='object'||!Number.isSafeInteger(line.qty)||
+      line.qty<1||line.qty>100_000)fail('V2_PDF_LINES_INVALID');
+   const unitPrice=money(line.unitPrice);
+@@ -48,7 +50,8 @@ export function currentInvoiceForWebsitePdf(current,{invoiceNo,ledgerId},{allowA
+    product:boundText(line.name,200),
+    code:boundText(line.code,40),
+    unit:boundText(line.unit||'Thùng',30),
+-   qty:line.qty,listPrice,unitPrice,discountPercent:computedDiscount
++   qty:line.qty,listPrice,unitPrice,discountPercent:computedDiscount,
++   ...(tax?tax.lines[index]:{})
+   };
+  });
+  const canonicalGoods=money(current.goodsVnd);
+@@ -57,6 +60,7 @@ export function currentInvoiceForWebsitePdf(current,{invoiceNo,ledgerId},{allowA
+  if(goods!==canonicalGoods||goods+vat+shipping!==total)
+   fail('V2_PDF_TOTAL_CONFLICT');
+  const o={
++  ...(tax?{vatMode:'per_line',...(tax.header===null?{}:{vatRate:tax.header})}:{}),
+   id:String(current.id),invoiceNo,date:boundText(current.date,30),
+   timestamp:Number.isSafeInteger(current.timestamp)&&
+    current.timestamp>=946684800000&&current.timestamp<4102444800000?
+diff --git a/customer-ai-chat-prototype/account-v2/local-invoice-read.mjs b/customer-ai-chat-prototype/account-v2/local-invoice-read.mjs
+index 8d1da92a..5cf990f2 100644
+--- a/customer-ai-chat-prototype/account-v2/local-invoice-read.mjs
++++ b/customer-ai-chat-prototype/account-v2/local-invoice-read.mjs
+@@ -5,6 +5,7 @@
+  * ledger ID and reject ambiguity. No new Apps Script action or deployment needed.
+  */
+ import {readMinhSatori} from '../satori-readonly.mjs';
++import {invoiceLineVatSnapshot} from '../invoice-line-vat.mjs';
+ const refuse=(code)=>{const e=new Error(code);e.code=code;throw e};
+ const amount=(v)=>Number.isSafeInteger(Number(v))&&Number(v)>=0&&Number(v)<=100_000_000_000;
+ export async function exactCurrentInvoiceFromOrdersList({invoiceNo,ledgerId},{reader=readMinhSatori}={}){
+@@ -24,14 +25,16 @@ export async function exactCurrentInvoiceFromOrdersList({invoiceNo,ledgerId},{re
+  if(!Array.isArray(x.items)||x.items.length<1||x.items.length>40||
+     !amount(x.total)||!amount(x.shippingAmount??0)||!amount(x.vatAmount??0))
+   refuse('V2_PDF_LEDGER_INVALID');
+- const items=x.items.map(line=>{
++ const tax=invoiceLineVatSnapshot(x);
++ const items=x.items.map((line,index)=>{
+   if(!line||!Number.isSafeInteger(Number(line.qty))||Number(line.qty)<1||
+      !amount(line.unitPrice)||!amount(line.listPrice))
+    refuse('V2_PDF_LEDGER_INVALID');
+   const qty=Number(line.qty),unitPrice=Number(line.unitPrice);
+   return {name:String(line.product||line.name||'').slice(0,200),
+    code:String(line.code||'').slice(0,40),unit:String(line.unit||'Thùng').slice(0,30),
+-   qty,unitPrice,listPrice:Number(line.listPrice),lineTotal:qty*unitPrice};
++   qty,unitPrice,listPrice:Number(line.listPrice),lineTotal:qty*unitPrice,
++   ...(tax?tax.lines[index]:{})};
+  });
+  const goods=items.reduce((n,l)=>n+l.lineTotal,0);
+  const shipping=Number(x.shippingAmount??0),vat=Number(x.vatAmount??0);
+@@ -40,7 +43,8 @@ export async function exactCurrentInvoiceFromOrdersList({invoiceNo,ledgerId},{re
+   refuse('V2_PDF_LEDGER_TOTAL_CONFLICT');
+  return Object.freeze({
+   revision:r.revision,
+-  current:{id:String(x.id),invoiceNo,status:String(x.status||'Chưa thanh toán'),
++  current:{...(tax?{vatMode:'per_line',...(tax.header===null?{}:{vatRate:tax.header})}:{}),
++   id:String(x.id),invoiceNo,status:String(x.status||'Chưa thanh toán'),
+    excluded:['Đã hủy','Không Tính'].includes(x.status),
+    totalVnd:total,goodsVnd:goods,shippingVnd:shipping,vatVnd:vat,
+    date:String(x.date||''),
+diff --git a/customer-ai-chat-prototype/account-v2/tests/optional-vat-pdf.test.mjs b/customer-ai-chat-prototype/account-v2/tests/optional-vat-pdf.test.mjs
+new file mode 100644
+index 00000000..5479f43c
+--- /dev/null
++++ b/customer-ai-chat-prototype/account-v2/tests/optional-vat-pdf.test.mjs
+@@ -0,0 +1,76 @@
++// Fully synthetic, offline ledger reader and real pdfmake bytes.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
++import {tmpdir} from 'node:os';
++import path from 'node:path';
++import {execFileSync} from 'node:child_process';
++import {invoiceLineVatSnapshot} from '../../invoice-line-vat.mjs';
++import {renderOriginalWebsitePdf,canonicalPdfVersion} from '../../original-website-pdf.mjs';
++import {exactCurrentInvoiceFromOrdersList} from '../local-invoice-read.mjs';
++import {currentInvoiceForWebsitePdf,renderCurrentV2Pdf} from '../local-invoice-pdf.mjs';
++const legacy=()=>({id:'fake-vat-legacy',invoiceNo:90001,date:'11/11/2026',name:'FAKE Customer',phone:'000',location:'FAKE Address',status:'Chưa thanh toán',vat:'yes',vatAmount:8000,shippingAmount:2000,total:110000,timestamp:1794355200000,items:[{product:'FAKE Water',unit:'Thùng',qty:1,listPrice:140000,unitPrice:100000}]});
++const perLine=()=>({...legacy(),vatMode:'per_line',vatRate:8,vatAmount:8001,total:110016,
++ items:[{product:'FAKE Water',unit:'Thùng',qty:1,listPrice:140000,unitPrice:100000,vatRate:8,vatExempt:false,vatAmount:8000},
++ {product:'FAKE Deposit',unit:'Cái',qty:1,listPrice:10,unitPrice:10,vatExempt:true,vatRate:0,vatAmount:0},
++ {product:'FAKE Half Dong',unit:'Cái',qty:1,listPrice:5,unitPrice:5,vatRate:10,vatExempt:false,vatAmount:1}]});
++const ref={invoiceNo:90001,ledgerId:'fake-vat-legacy'};
++const reader=order=>async()=>({revision:900,data:{totalMatches:1,orders:[order]}});
++test('legacy REAL PDF bytes match golden extracted from c08c38a2 with fixed creation date',async()=>{
++ const NativeDate=Date;
++ globalThis.Date=class extends NativeDate {
++  constructor(...args){super(...(args.length?args:['2026-11-11T00:00:00.000Z']))}
++  static now(){return NativeDate.parse('2026-11-11T00:00:00.000Z')}
++ };
++ try{
++  const pdf=await renderOriginalWebsitePdf(legacy());
++  assert.equal(pdf.bytes.length,137125);
++  assert.equal(pdf.sha256,'1b807fc0d20da90d0c009a257721ab29edc0895b87f0b3ed5a0508aa53f34a65');
++  assert.equal(canonicalPdfVersion({...legacy(),vatMode:'invoice',vatRate:8}),pdf.versionKey);
++ }finally{globalThis.Date=NativeDate}
++});
++test('signed canonical read -> V2 mapping preserves exempt/custom/half-up VAT without changing totals',async()=>{
++ const raw=perLine(),unchanged=JSON.stringify(raw);
++ const {current}=await exactCurrentInvoiceFromOrdersList(ref,{reader:reader(raw)});
++ const doc=currentInvoiceForWebsitePdf(current,ref);
++ assert.equal(current.vatMode,'per_line');assert.equal(current.vatRate,8);
++ assert.deepEqual(doc.items.map(i=>[i.vatExempt,i.vatRate,i.vatAmount]),[[false,8,8000],[true,0,0],[false,10,1]]);
++ assert.equal(doc.total,110016);assert.equal(doc.vatAmount,8001);
++ assert.equal(doc.items.reduce((n,i)=>n+i.qty*i.unitPrice,0)+doc.shippingAmount+doc.vatAmount,doc.total);
++ assert.equal(JSON.stringify(raw),unchanged);
++ const pdf=await renderCurrentV2Pdf(current,ref);
++ assert.equal(pdf.versionKey,canonicalPdfVersion(doc));assert.ok(pdf.bytes.length>4000);
++ const dir=mkdtempSync(path.join(tmpdir(),'satori-fake-vat-pdf-'));
++ try{
++  const file=path.join(dir,'fake.pdf');writeFileSync(file,pdf.bytes);
++  const text=execFileSync('pdftotext',['-layout',file,'-'],{encoding:'utf8'});
++  assert.match(text,/VAT 8% · 8\.000 đ/);assert.match(text,/VAT 0% · 0 đ/);
++  assert.match(text,/VAT 10% · 1 đ/);assert.match(text,/Thuế VAT \(theo từng dòng\):\s+8\.001 đ/);
++  assert.match(text,/TỔNG THANH TOÁN\s+110\.016 đ/);
++ }finally{rmSync(dir,{recursive:true,force:true})}
++});
++test('per-line header and tax snapshots affect version while legacy definition remains unannotated',async()=>{
++ const o=perLine(),key=canonicalPdfVersion(o);
++ assert.notEqual(canonicalPdfVersion({...o,vatRate:10}),key);
++ assert.notEqual(canonicalPdfVersion({...o,vatMode:'invoice'}),key);
++ assert.notEqual(canonicalPdfVersion({...o,items:o.items.map((i,n)=>n?i:{...i,vatExempt:true})}),key);
++ assert.equal(invoiceLineVatSnapshot({...legacy(),vatRate:10}),null);
++ const read=await exactCurrentInvoiceFromOrdersList(ref,{reader:reader(legacy())});
++ assert.ok(!('vatMode' in read.current));assert.ok(!('vatRate' in read.current.items[0]));
++});
++test('bad line/aggregate VAT fails before PDF export and does not mutate ledger',async()=>{
++ for(const change of [
++  o=>o.items[0].vatAmount=1,o=>o.vatAmount=8000,o=>o.items[2].vatRate=10.001,
++  o=>o.items[0].vatExempt='true',o=>{delete o.vatRate;delete o.items[0].vatRate}
++ ]){
++  const o=perLine();change(o);const original=JSON.stringify(o);
++  await assert.rejects(exactCurrentInvoiceFromOrdersList(ref,{reader:reader(o)}),/PDF_(LINE_VAT|VAT)_/);
++  assert.equal(JSON.stringify(o),original);
++ }
++});
++test('header fallback is explicit and exemption overrides a stored rate',()=>{
++ const o=perLine();delete o.items[0].vatRate;o.items[1].vatRate=10;
++ const tax=invoiceLineVatSnapshot(o);
++ assert.deepEqual(tax.lines.map(i=>i.vatAmount),[8000,0,1]);
++ assert.equal(tax.lines[0].vatRate,8);assert.equal(tax.lines[1].vatRate,0);
++});
+diff --git a/customer-ai-chat-prototype/invoice-line-vat.mjs b/customer-ai-chat-prototype/invoice-line-vat.mjs
+new file mode 100644
+index 00000000..9ec0a956
+--- /dev/null
++++ b/customer-ai-chat-prototype/invoice-line-vat.mjs
+@@ -0,0 +1,28 @@
++/** Optional canonical VAT snapshot; legacy PDFs never infer item tax rates. */
++const fail=code=>{throw Error(code)};
++function rate(value){
++ const n=Number(value);
++ if(value===null||value===undefined||value===''||!Number.isFinite(n)||
++    n<0||n>100||Number(n.toFixed(2))!==n)fail('PDF_LINE_VAT_RATE_INVALID');
++ return n;
++}
++export function invoiceLineVatSnapshot(order){
++ if(order.vatMode!=='per_line')return null;
++ const header=order.vatRate==null?null:rate(order.vatRate);
++ const lines=order.items.map(item=>{
++  if(item.vatExempt!==undefined&&typeof item.vatExempt!=='boolean')
++   fail('PDF_LINE_VAT_EXEMPT_INVALID');
++  const exempt=item.vatExempt===true;
++  const percent=exempt?0:item.vatRate==null?header:rate(item.vatRate);
++  if(percent===null)fail('PDF_LINE_VAT_RATE_REQUIRED');
++  const subtotal=Number(item.qty)*Number(item.unitPrice);
++  if(!Number.isSafeInteger(subtotal)||subtotal<0)fail('PDF_LINE_VAT_AMOUNT_INVALID');
++  const amount=Number((BigInt(subtotal)*BigInt(Math.round(percent*100))+5000n)/10000n);
++  if(!Number.isSafeInteger(amount)||
++     (item.vatAmount!=null&&Number(item.vatAmount)!==amount))fail('PDF_LINE_VAT_MISMATCH');
++  return {vatExempt:exempt,vatRate:percent,vatAmount:amount};
++ });
++ const total=lines.reduce((n,item)=>n+item.vatAmount,0);
++ if(!Number.isSafeInteger(total)||total!==Number(order.vatAmount))fail('PDF_VAT_MISMATCH');
++ return {header,lines,total};
++}
+diff --git a/customer-ai-chat-prototype/original-website-pdf.mjs b/customer-ai-chat-prototype/original-website-pdf.mjs
+index cf494efd..736e1724 100644
+--- a/customer-ai-chat-prototype/original-website-pdf.mjs
++++ b/customer-ai-chat-prototype/original-website-pdf.mjs
+@@ -5,6 +5,7 @@
+  * Re-extract from main and rerun parity tests whenever index.html invoice PDF code changes.
+  */
+ import fs from 'node:fs/promises';
++import {invoiceLineVatSnapshot} from './invoice-line-vat.mjs';
+ import path from 'node:path';
+ import {fileURLToPath} from 'node:url';
+ import crypto from 'node:crypto';
+@@ -122,9 +123,11 @@ function invoicePdfDefinition(o, qrImage=null, logoImage=null) {
+             const {goods,vat,ship,total,memo}=invoicePaymentDetails(o);
+             const createdAtText=invoiceCreatedAtLabel(o);
+             const head=['STT','Tên sản phẩm','ĐVT','SL','Giá niêm yết','CK (%)','Đơn giá','Thành tiền'].map(text=>({text,bold:true,color:'#ffffff',fillColor:'#0369a1',alignment:'center',fontSize:8}));
++            const tax=invoiceLineVatSnapshot(o);
+             const rows=items.map((it,i)=>{
+                 const lp=Number(it.listPrice || 0),up=Number(it.unitPrice || 0),pct=it.discountPercent ?? (lp?(lp-up)/lp*100:0);
+-                return [String(i+1),String(it.product || ''),String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
++                const label=String(it.product || '')+(tax?'\nVAT '+tax.lines[i].vatRate+'% · '+money(tax.lines[i].vatAmount):'');
++                return [String(i+1),label,String(it.unit || 'Thùng'),String(it.qty),money(lp),aiDisplayPercent(pct),money(up),money(Number(it.qty)*up)].map((text,j)=>({text,alignment:j===1?'left':j>=4?'right':'center',fontSize:8}));
+             });
+             const bank=total>0?
+                 [{text:'THÔNG TIN THANH TOÁN',bold:true,color:'#0369a1',margin:[0,8,0,6]},'Ngân hàng: VPBank','Số tài khoản: 658489418','Chủ tài khoản: HKD MINH SATORI',{text:'Nội dung: '+memo,margin:[0,4,0,0]}]:
+@@ -143,14 +146,16 @@ function invoicePdfDefinition(o, qrImage=null, logoImage=null) {
+                     {text:'Mã số thuế: '+(o.taxCode || 'Không có'),margin:[0,0,0,12]},
+                     ...(o.deliveryNote?.trim() ? [{table:{widths:['*'],body:[[{stack:[{text:'GHI CHÚ / YÊU CẦU GIAO HÀNG',bold:true,color:'#92400e',margin:[0,0,0,4]},{text:o.deliveryNote,style:'deliveryNote'}],fillColor:'#fffbeb'}]]},layout:{hLineColor:()=> '#f59e0b',vLineColor:()=> '#f59e0b'},margin:[0,0,0,12]}] : []),
+                     {table:{headerRows:1,widths:[18,'*',30,24,57,38,57,64],body:[head,...rows]},layout:{hLineColor:()=> '#cbd5e1',vLineColor:()=> '#cbd5e1',paddingTop:()=>7,paddingBottom:()=>7}},
+-                    {columns:[{width:'*',stack:bank},{width:240,margin:[0,12,0,0],table:{widths:['*',100],body:[['Tổng tiền hàng:',{text:money(goods),alignment:'right'}],['Phí vận chuyển:',{text:money(ship),alignment:'right'}],['Thuế VAT ('+(o.vat==='yes'?'8':'0')+'%):',{text:money(vat),alignment:'right'}],[{text:'TỔNG THANH TOÁN',bold:true},{text:money(total),bold:true,alignment:'right',color:'#0369a1',fontSize:12}]]},layout:'noBorders'}]},
++                    {columns:[{width:'*',stack:bank},{width:240,margin:[0,12,0,0],table:{widths:['*',100],body:[['Tổng tiền hàng:',{text:money(goods),alignment:'right'}],['Phí vận chuyển:',{text:money(ship),alignment:'right'}],[tax?'Thuế VAT (theo từng dòng):':'Thuế VAT ('+(o.vat==='yes'?'8':'0')+'%):',{text:money(vat),alignment:'right'}],[{text:'TỔNG THANH TOÁN',bold:true},{text:money(total),bold:true,alignment:'right',color:'#0369a1',fontSize:12}]]},layout:'noBorders'}]},
+                     {text:'Số tiền bằng chữ: '+moneyToVietnameseWords(total),italics:true,margin:[0,12,0,16]},
+                     {columns:[{stack:[{text:'ĐẠI DIỆN BÊN BÁN',bold:true},'(Ký, ghi rõ họ tên)',{text:'HKD MINH SATORI',margin:[0,45,0,0],bold:true,color:'#0369a1'}],alignment:'center'},{stack:[{text:'ĐẠI DIỆN BÊN MUA / NGƯỜI NHẬN',bold:true},'(Ký, ghi rõ họ tên)',{text:o.name || '',margin:[0,45,0,0],bold:true}],alignment:'center'}]}
+                 ]};
+         }
+ 
+ function invoicePdfKey(o) {
+-            return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount,o.timestamp]);
++            const fields=[o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,o.vat,o.vatAmount,o.shippingAmount,o.timestamp];
++            if(o.vatMode==='per_line')fields.push(o.vatMode,o.vatRate);
++            return JSON.stringify(fields);
+         }
+ 
+ 

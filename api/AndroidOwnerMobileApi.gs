@@ -138,10 +138,16 @@ function handle(e){
     data:trash(s),revision:s.revision});
   // No privileged owner secrets, state-file IDs, payment keys, PDF bytes or
   // entire Script Properties may be returned to the Android device.
+  // The owner Drive ledger contains the authoritative registered CTV
+  // discount policy. It is required for Android to compute net profit.
+  // Invoices without this key must NOT be presented as zero-commission.
   var keys=['satori_orders_v15','satori_catalogue_v15',
-    'satori_ai_customer_memory'];
+    'satori_ai_customer_memory','satori_collaborators_v1'];
   var values={};keys.forEach(function(k){if(typeof s.values[k]==='string')
     values[k]=s.values[k]});
+  // Resolve only after owner OAuth and production-ledger checks.
+  if(typeof SatoriV2OrderOrigins!=='undefined')
+    values.satori_v2_order_origins_v1=JSON.stringify(SatoriV2OrderOrigins.read(s));
   return json({ok:true,action:action,revision:s.revision,
     data:{revision:s.revision,updatedAt:s.updatedAt,values:values,
       ledgerFileId:proof.ledgerFileId,ledgerKind:proof.ledgerKind,

@@ -9,9 +9,13 @@ var SatoriInvoicePdfArchive=(function(){
   var suffix='SATORI_PDF_VIETQR_20261021';
   function fail(message){throw Error(message);}
   function canonical(o){
-    return JSON.stringify([o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,
+    var fields=[o.invoiceNo,o.date,o.name,o.phone,o.location,o.deliveryNote,
       o.taxCode,o.status,o.items,o.product,o.qty,o.listPrice,o.unitPrice,
-      o.vat,o.vatAmount,o.shippingAmount])+'\n'+suffix;
+      o.vat,o.vatAmount,o.shippingAmount];
+    // Keep historical version keys byte-for-byte. Explicit per-line snapshots
+    // also bind the mode and header fallback used by the PDF renderer.
+    if(o.vatMode==='per_line')fields.push(o.vatMode,o.vatRate);
+    return JSON.stringify(fields)+'\n'+suffix;
   }
   function digest(bytes){
     return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
@@ -82,11 +86,17 @@ function pending(s,p){
     // from either website or Bot API, without any browser session. Never send
     // unrelated historical orders or deleted invoices to Render.
     var eligible=list.filter(function(o){
-      return o&&Number.isSafeInteger(Number(o.id))&&Number(o.id)>=cutoff&&
+      var edited=o&&o.apiUpdateRequestId&&Number.isFinite(Date.parse(o.updatedAt))&&
+        Date.parse(o.updatedAt)>=cutoff&&Date.parse(o.updatedAt)<=Date.now();
+      return o&&Number.isSafeInteger(Number(o.id))&&(Number(o.id)>=cutoff||edited)&&
         Number.isSafeInteger(Number(o.invoiceNo))&&Number(o.invoiceNo)>0&&
         Number.isSafeInteger(Number(o.total))&&Number(o.total)>=0&&
         Array.isArray(o.items)&&o.items.length>0;
-    }).sort(function(a,b){return Number(b.invoiceNo)-Number(a.invoiceNo);}).slice(0,40);
+    }).sort(function(a,b){
+      var ta=a.apiUpdateRequestId?Date.parse(a.updatedAt)||Number(a.id):Number(a.id);
+      var tb=b.apiUpdateRequestId?Date.parse(b.updatedAt)||Number(b.id):Number(b.id);
+      return tb-ta||Number(b.invoiceNo)-Number(a.invoiceNo);
+    }).slice(0,40);
     for(var i=0;i<eligible.length&&found.length<limit;i++){
       var o=eligible[i],key=canonical(o);
       var hash=digest(Utilities.newBlob(key).getBytes()).slice(0,16);
@@ -98,6 +108,10 @@ function pending(s,p){
         'taxCode','status','items','product','qty','listPrice','unitPrice',
         'vat','vatAmount','shippingAmount','total'];
       var order={};fields.forEach(function(k){if(o[k]!==undefined)order[k]=o[k]});
+      if(o.vatMode==='per_line'){
+        order.vatMode=o.vatMode;
+        if(o.vatRate!==undefined)order.vatRate=o.vatRate;
+      }
       found.push({order:order,versionKey:key});
     }
     return {revision:s.revision,jobs:found,limit:limit};
