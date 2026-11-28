@@ -1,10 +1,10 @@
 {
-  "purpose": "android-v2-ordering-account-session-expired-20261125",
+  "purpose": "android-v2-consolidation-and-line-discount-20261128",
   "package": "vn.minhsatori.app",
-  "version": "0.4.63",
-  "versionCode": 80,
+  "version": "0.4.64",
+  "versionCode": 81,
   "branch": "fix/android-invoice-notification-open-20261101",
-  "requestedOn": "2026-11-25",
+  "requestedOn": "2026-11-28",
   "sourcePRs": [
     240,
     241,
@@ -57,9 +57,11 @@
     418,
     438,
     440,
-    441
+    441,
+    443,
+    445
   ],
-  "scope": "Signed owner-only Android APK v0.4.63 build80 over v0.4.62 build79. Invoice #6016 (V2 checkout, Bot API + UUID request id) showed 'Chưa xác định tài khoản đặt hàng' because the only live attribution path is the owner's 7-day V2 web session; an expired session returned 401 and was swallowed silently. Android now records the V2 origins feed state and explains unverified V2 orders (session expired / server not responding / no committed checkout), silently renews the expired owner V2 session (Credential Manager auto-select of an already-authorized Gmail, server isAdmin check before storing cookies), re-reads ordering accounts, and offers 'Gia hạn phiên V2' as a manual fallback. No account is ever inferred; invoices, payments, PDF, ledger and backend unchanged.",
+  "scope": "Signed owner acceptance APK v0.4.64 build81 over v0.4.63 build80. Includes the previously requested per-line discount editor from PR #443 and the V2-only Gemini / expired-session routes from PR #445. Native Google owner verification, HTTPS origin/path restrictions, canonical unitPrice/listPrice payload, revision checks, VAT, shipping, invoice/payment/PDF APIs and ledger remain unchanged. No production invoice or payment is written during release acceptance.",
   "notes": [
     "Owner explicitly requested Android in-app CRM (not another standalone admin website); existing backend /owner-v2 is reused.",
     "Use native Google Play Services ID-token sign-in for configured WEB OAuth audience; server determines immutable Google owner subject. Registered Android package/signing SHA-1 may need to be configured before physical-device acceptance.",
@@ -137,7 +139,8 @@
     "2026-11-24: Owner explicitly requested production rollout. PR #440 passed Android native build/unit, optional VAT and Liquid Glass visual instrumentation on phone and both simulated Fold viewports. Merge tree was byte-identical to tested head. Release v0.4.62 build79 over v0.4.61 build78, original pinned signer, requires FCM. Physical Samsung acceptance remains separate; never distribute debug or unverified APK.",
     "2026-11-25: Owner approved two-layer fix for #6016. Android layer only in this release; server-to-server Apps Script origins fallback (api/V2OrderOrigins.gs) still requires owner deployment (Render SATORI_V2_ORIGINS_SECRET + Apps Script properties/trigger). Same package, original pinned signer, never distribute debug APK.",
     "2026-11-25 21:20: Owner screenshots show #6013-#6016 all 'Chưa xác định' (all V2 UUID checkouts). Owner said 'Fix ngay': ship v0.4.63 build80 with silent V2 session renewal.",
-    "2026-11-25: Trigger protected signed owner Android v0.4.63 build80 after PR #441 merge commit 9422c510 and green PR CI (Android Kotlin/unit, isolated emulator, screenshot). Require exact pinned release signer, package vn.minhsatori.app, version 0.4.63 code80, FCM public config and verified release report. No Apps Script deploy or live invoice writes; Samsung installation acceptance remains separate."
+    "2026-11-25: Trigger protected signed owner Android v0.4.63 build80 after PR #441 merge commit 9422c510 and green PR CI (Android Kotlin/unit, isolated emulator, screenshot). Require exact pinned release signer, package vn.minhsatori.app, version 0.4.63 code80, FCM public config and verified release report. No Apps Script deploy or live invoice writes; Samsung installation acceptance remains separate.",
+    "2026-11-28: Release identity synchronized to Gradle v0.4.64 build81; source includes merged V2 consolidation PR #445. CI must pass on this exact combined source before merge/signing. Preserve original pinned release certificate and package. Physical owner sign-in, Gemini and background push receipt still require Samsung acceptance; do not claim that an emulator proves live device acceptance."
   ],
   "requiresFcm": true
 }
