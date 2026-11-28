@@ -4637,7 +4637,7 @@ class NativeMainActivity : AppCompatActivity() {
                         renewV2SessionThenRefresh(force = true) {
                             // Silent renewal impossible (no authorized account): full login screen.
                             startActivity(Intent(this@NativeMainActivity,
-                                AiCustomerPortalActivity::class.java).putExtra("mode", "admin"))
+                                V2OwnerCrmActivity::class.java))
                         }
                     }
                 }
